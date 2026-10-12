@@ -424,11 +424,13 @@ fn a_bundled_extension_runs_identically_to_its_entry_under_nvs_run() {
     );
 }
 
-/// The program [`a_bundle_calls_both_built_in_components`] bundles: one call into each built-in
-/// component, a PNG of 3 by 2 pixels written as hex and a sort by locale.
+/// The program [`a_bundle_calls_all_three_built_in_components`] bundles: one call into each
+/// built-in component, a PNG of 3 by 2 pixels written as hex, a sort by locale and a one-page
+/// render.
 const BUILTIN_APP: &str = "<?nvs
 use Novis\\Image\\Codec;
 use Novis\\Intl\\Collator;
+use Novis\\Pdf\\Document;
 
 bytes $png = Core\\Encoding::fromHex(
     \"89504e470d0a1a0a0000000d49484452000000030000000208060000009d74661a\"
@@ -437,13 +439,15 @@ bytes $png = Core\\Encoding::fromHex(
 var $info = Codec::info($png);
 echo $info->width, \"x\", $info->height, \"\\n\";
 echo Core\\Str::join(Collator::sort([\"pear\", \"apple\", \"fig\"], \"en\"), \" \"), \"\\n\";
+echo Document::fromHtml(\"<p>Shop</p>\")->render()->pageCount, \" page\\n\";
 ";
 
 /// The built-in components travel inside the host binary the bundle copies, so a bundle built from
-/// a folder with no `nvs.toml` calls both, run from a folder with nothing beside it
-/// (`rule:packaging/the-first-party-components-are-built-in`).
+/// a folder with no `nvs.toml` calls all three, run from a folder with nothing beside it
+/// (`rule:packaging/the-first-party-components-are-built-in`,
+/// `rule:packaging/a-nvsx-dependency-embeds-in-the-same-payload`).
 #[test]
-fn a_bundle_calls_both_built_in_components() {
+fn a_bundle_calls_all_three_built_in_components() {
     let dir = nvs_repo::scratch("bundle-builtin");
     let project = Project {
         src: dir.join("src"),
@@ -466,7 +470,7 @@ fn a_bundle_calls_both_built_in_components() {
     let stdout = String::from_utf8_lossy(&out.stdout);
     let stderr = String::from_utf8_lossy(&out.stderr);
     assert_eq!(out.status.code(), Some(0), "{stdout}{stderr}");
-    assert_eq!(stdout, "3x2\napple fig pear\n", "{stderr}");
+    assert_eq!(stdout, "3x2\napple fig pear\n1 page\n", "{stderr}");
 }
 
 /// A configuration whose pin does not match the `.nvsx` refuses the build, and no executable is
