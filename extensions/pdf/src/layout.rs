@@ -66,7 +66,8 @@
 //! is laid out as an absolute one is, and its containing block is the page's content box whatever
 //! is around it: a copy of it is drawn on every page, which is how a watermark is written. Inside
 //! an inline-block, a float or a flex item it is placed once, against that item's box. Positioned
-//! boxes are drawn over the others by `z-index` (`block`'s module doc).
+//! boxes are drawn over the others by `z-index` (`block`'s module doc). An element under
+//! `position: running()` is drawn only in a margin box (`margin`'s module doc).
 //!
 //! **Transforms.** A block box under `transform` is laid out in its place and drawn with its
 //! content in one group under the transform's matrix (`transform`'s module doc), so it takes the
@@ -335,6 +336,12 @@ enum Block {
         insets: block::Insets,
         z: Option<i64>,
         fixed: bool,
+    },
+    /// A running element: its index in the list of [`Atom`]s, laid out as an `inline-block`
+    /// box is, and the name its `position: running()` gives. It takes no room in the flow.
+    Running {
+        atom: usize,
+        name: String,
     },
     Text {
         text: String,

@@ -177,3 +177,44 @@ fn margin_boxes_print_page_x_of_y() {
         assert!(side.is_some_and(|y| y > 120.0 && y < 180.0), "{side:?}");
     }
 }
+
+#[test]
+fn a_running_element_repeats_on_every_page() {
+    let laid = lay("<style>
+        @page {
+            size: 400pt 300pt;
+            margin: 50pt;
+            @top-center { content: element(head) }
+            @bottom-left { content: element(foot, last) }
+        }
+        body, p, div { margin: 0 }
+        .head { position: running(head); font-size: 10pt }
+        .foot { position: running(foot) }
+        p { break-after: page }
+        </style>
+        <div class=head>Shop</div><p>One</p><p>Two</p>
+        <div class=head>News</div><div class=foot>Blog</div><div class=foot>Team</div>
+        <p>Three</p>");
+    assert_eq!(laid.pages.len(), 3);
+    // A running element takes no room, so the body starts at the top of the content box.
+    let (body, ..) = band(&laid, 0, 50.0, 250.0);
+    assert_eq!(body, "One");
+    let one = texts(&laid, 0)
+        .into_iter()
+        .find(|(t, ..)| t == "One")
+        .unwrap();
+    assert!(one.2 > 50.0 && one.2 < 50.0 + 20.0, "{one:?}");
+    for (page, want) in [(0, "Shop"), (1, "Shop"), (2, "News")] {
+        // The page's first running element, or the last of an earlier page, is the header,
+        // centred on the page because its box is alone on the top side.
+        let (header, left, right) = band(&laid, page, 0.0, 50.0);
+        assert_eq!(header, want, "page {page}");
+        assert!(((left + right) / 2.0 - 200.0).abs() < 0.5, "{left} {right}");
+    }
+    // `last` takes the last element on its page, and no page before the first has the box.
+    assert_eq!(band(&laid, 0, 250.0, 300.0).0, "");
+    assert_eq!(band(&laid, 1, 250.0, 300.0).0, "");
+    let (footer, left, _) = band(&laid, 2, 250.0, 300.0);
+    assert_eq!(footer, "Team");
+    assert!(close(left, 50.0), "{left}");
+}

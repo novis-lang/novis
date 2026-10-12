@@ -15,6 +15,11 @@
 //! page's width for `margin-left` and `margin-right` and against its height for the other two, and
 //! `auto` is 0.
 //!
+//! A margin box whose `content` is `element(name)` draws the running element of that name
+//! (`position: running(name)`) that is first on the page, or `element(name, last)` the last one.
+//! A page with none draws the last one of an earlier page, and the box is not made before the
+//! first. Any other second argument reads as `first`.
+//!
 //! The content is laid out at the first page's content width. Every page then has its own content
 //! height, and its content is moved to its own content box's top-left corner, so a page whose
 //! content box is wider or narrower than the first page's keeps the first page's line widths.
@@ -268,6 +273,24 @@ pub fn content(
         }
     }
     Some(out)
+}
+
+/// The running element a margin box's `content` places when it is `element(name)` alone: the
+/// name, and whether it is the last element of that name on the page (`element(name, last)`)
+/// or else the first.
+pub fn element(value: Option<&Value>) -> Option<(String, bool)> {
+    let Some(Value::Text(text)) = value else {
+        return None;
+    };
+    let [Comp::Function(function, args)] = &components(text)?[..] else {
+        return None;
+    };
+    if function != "element" {
+        return None;
+    }
+    let mut args = args.split(',').map(str::trim);
+    let name = args.next().filter(|name| !name.is_empty())?;
+    Some((name.to_owned(), args.next() == Some("last")))
 }
 
 /// A named page size's width and height in millimetres, portrait.

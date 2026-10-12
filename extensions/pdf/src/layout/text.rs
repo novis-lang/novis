@@ -44,6 +44,7 @@ pub fn layout(
         missing: Vec::new(),
         placed: Vec::with_capacity(atoms.len()),
         waiting: Vec::with_capacity(atoms.len()),
+        running: Vec::new(),
     };
     // An inner inline-block comes before the one around it, so each one's inner boxes are
     // placed before it is laid out. A flex item waits for its container, which sizes it.
@@ -91,10 +92,11 @@ pub fn layout(
         lcx,
         fonts,
         missing,
+        running,
         ..
     } = cx;
     let mut spans = spans;
-    let boxes = margin::collect(&flow.pages, &sheet, &root, &fonts, &mut spans);
+    let boxes = margin::collect(&flow.pages, &sheet, &root, &fonts, &running, &mut spans);
     let mut cx = Cx {
         lcx,
         fonts,
@@ -102,6 +104,7 @@ pub fn layout(
         missing,
         placed: Vec::new(),
         waiting: Vec::new(),
+        running: Vec::new(),
     };
     margin::draw(&mut cx, boxes, &mut flow.pages);
     Ok(Laid {
@@ -114,7 +117,8 @@ pub fn layout(
 
 /// What laying out every block shares: the shaping context, the fonts, the text styles, the
 /// text no font has, each `inline-block` box laid out so far, and the blocks of each flex item
-/// whose container is not laid out yet, both by their index in the list of atoms.
+/// whose container is not laid out yet, both by their index in the list of atoms, and the
+/// running elements met so far in document order.
 pub(super) struct Cx<'s> {
     lcx: LayoutContext<usize>,
     fonts: Fonts,
@@ -122,6 +126,7 @@ pub(super) struct Cx<'s> {
     pub(super) missing: Vec<Missing>,
     placed: Vec<Placed>,
     pub(super) waiting: Vec<Option<Vec<Block>>>,
+    running: Vec<margin::Running>,
 }
 
 /// An `inline-block` box laid out: its items with its margin box's top-left corner at 0, 0, the
@@ -360,6 +365,16 @@ impl Cx<'_> {
                     let lost = std::mem::take(&mut placed.missing);
                     flow.absolute(items, size, x, insets, z, fixed);
                     carry(&mut self.missing, lost, flow.pages.len() as u64);
+                }
+                Block::Running { atom, name } => {
+                    let placed = &mut self.placed[atom];
+                    self.running.push(margin::Running {
+                        name,
+                        page: flow.landing(),
+                        items: std::mem::take(&mut placed.items),
+                        size: [placed.width, placed.height],
+                        missing: std::mem::take(&mut placed.missing),
+                    });
                 }
                 Block::Image {
                     image,

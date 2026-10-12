@@ -9,26 +9,71 @@
 //! `vertical-align`: in the middle unless it is at an end of the left or right side. Text taller
 //! than its area is drawn past it.
 //!
-//! Cost: one layout of a short paragraph for each margin box on each page. Memory: its items on
-//! its page, and one text style for each.
+//! **Running elements.** An element under `position: running(name)` is laid out as an
+//! inline-block is, at the width of the first page's content box, and takes no room in the flow.
+//! It is on the page the next box placed after it starts on. A box whose `content` is
+//! `element(name)` draws a copy of it, aligned in the box's area as the box's text would be; the
+//! box's own margins, borders, padding and background are not drawn. A running element inside an
+//! inline-block, a float or a flex item counts as on the first page.
+//!
+//! Cost: one layout of a short paragraph for each margin box with text on each page, and a copy
+//! of a running element's items for each page that draws it. Memory: its items on its page, one
+//! text style for each, and each running element's items until the render ends.
 
 use parley::VerticalAlign;
 
 use super::block::geometry;
 use super::inline::{counter_text, para_of, span_of};
 use super::text::{Cx, carry, shift};
-use super::{Block, Page, Span, keyword};
+use super::{Block, Item, Missing, Page, Span, keyword};
 use crate::css::{MARGIN_BOXES, Style, Value};
 use crate::fonts::Fonts;
 use crate::paginate::{self, Sheet};
 
+/// A running element laid out: its name, the index of the page it is on, its items with its
+/// margin box's top-left corner at 0, 0, the margin box's width and height, and the text no font
+/// has.
+pub(super) struct Running {
+    pub(super) name: String,
+    pub(super) page: usize,
+    pub(super) items: Vec<Item>,
+    pub(super) size: [f32; 2],
+    pub(super) missing: Vec<Missing>,
+}
+
+/// What a margin box draws: its blocks, or a copy of a running element's items with their
+/// size and the `text-align` that places them in the area's width.
+enum Content {
+    Blocks(Vec<Block>),
+    Element {
+        items: Vec<Item>,
+        size: [f32; 2],
+        align: &'static str,
+        missing: Vec<Missing>,
+    },
+}
+
 /// A margin box ready to lay out: its page, its area's left edge, top, width and height, where it
-/// sits in the area's height, and its blocks.
+/// sits in the area's height, and what it draws.
 pub(super) struct MarginBox {
     page: usize,
     rect: [f32; 4],
     vertical: &'static str,
-    blocks: Vec<Block>,
+    content: Content,
+}
+
+/// What fills a margin box before it is placed: its text, or the running element it draws.
+enum Fill<'r> {
+    Text(String),
+    Element(&'r Running),
+}
+
+/// The running element named `name` that the page at `page` draws: the first or `last` one on
+/// it, or else the last one on an earlier page.
+fn pick<'r>(running: &'r [Running], name: &str, page: usize, last: bool) -> Option<&'r Running> {
+    let mut on = running.iter().filter(|r| r.name == name && r.page == page);
+    let here = if last { on.next_back() } else { on.next() };
+    here.or_else(|| running.iter().rfind(|r| r.name == name && r.page < page))
 }
 
 /// Every margin box of `pages`, with the text style of each pushed onto `spans`.
@@ -37,23 +82,28 @@ pub(super) fn collect(
     sheet: &Sheet,
     root: &Style,
     fonts: &Fonts,
+    running: &[Running],
     spans: &mut Vec<Span>,
 ) -> Vec<MarginBox> {
     let count = pages.len() as i64;
     let mut out = Vec::new();
     for (index, page) in pages.iter().enumerate() {
         let matched = sheet.matched(index, page.blank);
-        let texts: Vec<(&str, String)> = MARGIN_BOXES
+        let fills: Vec<(&str, Fill)> = MARGIN_BOXES
             .iter()
             .filter_map(|name| {
                 let values = matched.boxes.get(*name)?;
                 let content = values.get("content").copied();
+                if let Some((element, last)) = paginate::element(content) {
+                    let one = pick(running, &element, index, last)?;
+                    return Some((*name, Fill::Element(one)));
+                }
                 let text = paginate::content(content, index as i64 + 1, count, &counter_text)?;
-                Some((*name, text))
+                Some((*name, Fill::Text(text)))
             })
             .collect();
-        let present = |name: &str| texts.iter().any(|(n, _)| *n == name);
-        for (name, text) in &texts {
+        let present = |name: &str| fills.iter().any(|(n, _)| *n == name);
+        for (name, fill) in &fills {
             let Some(rect) = paginate::rect(name, &page.geometry, &present) else {
                 continue;
             };
@@ -67,6 +117,29 @@ pub(super) fn collect(
                 Some("bottom") => "bottom",
                 Some("middle") => "middle",
                 _ => vertical,
+            };
+            let text = match fill {
+                Fill::Text(text) => text,
+                Fill::Element(one) => {
+                    let align = match keyword(&own, "text-align") {
+                        Some("left" | "start") => "left",
+                        Some("right" | "end") => "right",
+                        Some("center") => "center",
+                        _ => horizontal,
+                    };
+                    out.push(MarginBox {
+                        page: index,
+                        rect,
+                        vertical,
+                        content: Content::Element {
+                            items: one.items.clone(),
+                            size: one.size,
+                            align,
+                            missing: one.missing.clone(),
+                        },
+                    });
+                    continue;
+                }
             };
             let mut style = root.clone();
             style
@@ -82,7 +155,7 @@ pub(super) fn collect(
                 page: index,
                 rect,
                 vertical,
-                blocks: vec![
+                content: Content::Blocks(vec![
                     Block::Open(g),
                     Block::Text {
                         text: text.clone(),
@@ -95,7 +168,7 @@ pub(super) fn collect(
                         atoms: Vec::new(),
                     },
                     Block::Close,
-                ],
+                ]),
             });
         }
     }
@@ -103,20 +176,39 @@ pub(super) fn collect(
 }
 
 /// Lays each of `boxes` out and draws it on its page, at its area's left edge and at the top,
-/// middle or bottom of the area's height.
+/// middle or bottom of the area's height. A running element is placed in the area's width by
+/// its box's `text-align`.
 pub(super) fn draw(cx: &mut Cx<'_>, boxes: Vec<MarginBox>, pages: &mut [Page]) {
     for one in boxes {
-        let [x, y, _, height] = one.rect;
-        let mut placed = cx.lay(one.blocks, VerticalAlign::BASELINE);
+        let [x, y, width, height] = one.rect;
+        let (items, size, dx, lost) = match one.content {
+            Content::Blocks(blocks) => {
+                let mut placed = cx.lay(blocks, VerticalAlign::BASELINE);
+                let lost = std::mem::take(&mut placed.missing);
+                (placed.items, [0.0, placed.height], 0.0, lost)
+            }
+            Content::Element {
+                items,
+                size,
+                align,
+                missing,
+            } => {
+                let dx = match align {
+                    "left" => 0.0,
+                    "right" => width - size[0],
+                    _ => (width - size[0]) / 2.0,
+                };
+                (items, size, dx, missing)
+            }
+        };
         let dy = match one.vertical {
             "top" => 0.0,
-            "bottom" => height - placed.height,
-            _ => (height - placed.height) / 2.0,
+            "bottom" => height - size[1],
+            _ => (height - size[1]) / 2.0,
         };
-        let lost = std::mem::take(&mut placed.missing);
         carry(&mut cx.missing, lost, one.page as u64 + 1);
         pages[one.page]
             .items
-            .extend(placed.items.into_iter().map(|item| shift(item, x, y + dy)));
+            .extend(items.into_iter().map(|item| shift(item, x + dx, y + dy)));
     }
 }
