@@ -1,0 +1,6 @@
+# A report of 200 pages needs more memory than the default limit gives one request.
+[limits]
+memory = "1G"
+
+[limits.hard]
+memory = "1G"

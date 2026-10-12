@@ -1,7 +1,7 @@
 <?nvs
-// Renders a report with one long table, at a growing number of rows. 4000 rows fill 96 pages.
-// bench: start 125
-// bench: max 4000
+// Renders a report with one long table, at a growing number of rows. 8448 rows fill 202 pages.
+// bench: start 132
+// bench: max 8448
 use Novis\Pdf\Document;
 
 class Bench
@@ -20,4 +20,4 @@ class Bench
     }
 }
 
-echo Bench::run(125), "\n";
+echo Bench::run(132), "\n";
