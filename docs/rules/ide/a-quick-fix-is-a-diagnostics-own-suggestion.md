@@ -31,3 +31,14 @@ A rewrite with no diagnostic behind it is not an inspection. The one there is, a
 an html template (`rule:ide/a-string-converts-to-an-html-template`), is offered beside the quick fixes
 under its own `refactor.rewrite.htmlTemplate` kind and never under `source.fixAll.nvs`, since it
 changes what the line prints.
+
+**Built:** `crates/nvs-lsp/src/actions.rs` translates every suggestion a diagnostic carries, under
+`quickfix` and `source.fixAll.nvs`, and leaves an `alternative` out of the fix-all set. The suggestions
+on disk include the casing rename, the legacy cast, the `var` property's visibility and type, an
+undeclared name's import (`rule:ide/an-undeclared-name-offers-its-import`), a deprecated use's
+replacement, `W1022`'s two groupings and the regrouped bitwise comparison.
+
+**Missing:** the constructor assignment, `include` and `require_once` to `require`, the laundering
+call, the reordered qualifiers and the derived `#[Route]` path. Their diagnostics carry no suggestion.
+The laundering call is marked `alternative` when it lands: a sink usually accepts more than one
+launderer, the choice is the reader's, and so `source.fixAll.nvs` never applies it.

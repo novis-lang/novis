@@ -9,5 +9,6 @@
   "guardedBy": [
     "editors/vscode/test/contributions/contributions.test.ts",
     "editors/vscode/test/host/colour.test.ts"
-  ]
+  ],
+  "milestone": "M10"
 }

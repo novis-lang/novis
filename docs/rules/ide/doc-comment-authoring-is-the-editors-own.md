@@ -26,6 +26,10 @@ produce anything that is not a comment, so the worst case is a badly worded one.
 
 - **Memory:** none. Both affordances run in the editor and touch no compile and no request.
 
+**Built:** the `onEnterRules` continuation, in `editors/vscode/language-configuration.json`.
+**Missing:** *Paste as doc comment*. The extension's one `DocumentPasteEditProvider` is the import
+carried with a pasted type (`editors/vscode/src/imports.ts`).
+
 **Declined:**
 - **A `///`-delimited block** — `///` alone opening, an un-prefixed body, `///` alone closing. Its
   terminator is a bare `///` line, which is what a code sample of a documented member contains, so ending

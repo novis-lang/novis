@@ -10,5 +10,6 @@
     "types/var-inference",
     "ide/one-grammar-one-tree"
   ],
-  "guardedBy": []
+  "guardedBy": [],
+  "milestone": "M10"
 }

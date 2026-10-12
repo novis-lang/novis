@@ -7,5 +7,6 @@
     "ide/every-feature-is-staged-behind-its-dependency",
     "ide/five-features-are-one-reference-index"
   ],
-  "guardedBy": []
+  "guardedBy": [],
+  "milestone": "M10"
 }

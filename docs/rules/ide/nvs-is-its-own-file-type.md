@@ -12,3 +12,8 @@ A Novis file is not a PHP file to the editor for the same reason it is not one t
 (`rule:statements/nvs-is-the-only-open-tag`): the grammar, the type syntax and the diagnostics are
 different enough that a PHP tool over the file would colour valid Novis as an error and valid PHP that
 Novis rejects as fine.
+
+**Built:** the VS Code half. `editors/vscode/package.json` registers `nvs` for `.nvs` and claims no PHP
+file type, and `editors/vscode/test/contributions/contributions.test.ts` asserts both. **Missing:** the
+PhpStorm half, because no plugin exists under `editors/`
+(`rule:ide/phpstorm-bridges-to-the-same-server`).

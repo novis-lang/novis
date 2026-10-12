@@ -6,5 +6,6 @@
     "core-api/identifier-casing",
     "routing/route-attribute"
   ],
-  "guardedBy": []
+  "guardedBy": [],
+  "milestone": "M10"
 }

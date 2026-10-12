@@ -18,3 +18,6 @@ adapter's capability list is therefore the debugger's scope, and it is this:
   *tree* of isolates would need one and is not built.
 
 A fixture session exercises each of these, and `nvs dap` reports each capability at `initialize`.
+
+**Missing:** the adapter, and so every capability above
+(`rule:ide/the-debug-adapter-does-not-wait-for-an-editor`).

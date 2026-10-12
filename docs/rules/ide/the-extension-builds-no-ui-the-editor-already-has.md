@@ -13,6 +13,10 @@ That is four pieces of UI infrastructure Novis neither builds nor maintains, whi
 priority applied directly. The extension's own code is the descriptor factory, the schema contribution,
 the test provider and the command that hands a file to a viewer.
 
+**Built:** the `LanguageStatusItem` (`editors/vscode/src/extension.ts`) and coverage as `FileCoverage`
+from the lcov tracefile (`editors/vscode/src/tests.ts`). **Missing:** the speedscope profile and its
+*View Profile* command, and the debugger wiring, since `nvs dap` does not exist.
+
 **Declined:**
 - **A Novis coverage gutter and a Novis flamegraph renderer.** VS Code's Test Coverage API and the
   speedscope format already exist and are maintained elsewhere; building equivalents is scope the

@@ -8,5 +8,6 @@
     "types/unions-and-mixed",
     "types/arrays"
   ],
-  "guardedBy": []
+  "guardedBy": [],
+  "milestone": "M10"
 }

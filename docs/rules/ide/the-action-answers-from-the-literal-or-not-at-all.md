@@ -21,3 +21,5 @@ reaching the declaration and a generator that picks between answers, which
 `rule:ide/a-code-action-writes-only-what-is-already-determined` refuses. The cost half of that
 objection goes away if the reference index of `rule:ide/five-features-are-one-reference-index` comes
 to answer every write reaching a declaration; the choice half remains.
+
+**Missing:** the action these refusals bound (`rule:ide/narrow-an-annotation-to-its-literal`).

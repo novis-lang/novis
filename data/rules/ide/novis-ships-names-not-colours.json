@@ -6,5 +6,8 @@
     "ide/semantic-tokens-carry-the-qualifiers",
     "ide/tainted-has-no-default-decoration"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "editors/vscode/test/grammar/allowlist.test.ts"
+  ],
+  "milestone": "M10"
 }
