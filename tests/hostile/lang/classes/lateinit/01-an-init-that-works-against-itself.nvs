@@ -1,0 +1,101 @@
+<?nvs
+// Attack: a program writes `initProperty` methods that never finish their job.
+// One reads its own property, two wait on each other, and one fails every
+// time. Each attempt should throw an error, and the runtime should stay standing.
+// hostile: timeout-ms 20000
+// hostile: ends-early 4 LogicError
+// covers: lang:classes/lateinit
+
+final class SelfReader implements LateInit
+{
+    public lateinit int $n;
+
+    // Initializing the property reads the same property.
+    public function initProperty(string $name): void
+    {
+        $this->n = $this->n + 1;
+    }
+}
+
+final class Left implements LateInit
+{
+    public lateinit int $n;
+    public lateinit Right $other;
+
+    // Initializing `$n` here reads `$n` on the other object.
+    public function initProperty(string $name): void
+    {
+        $this->n = $this->other->n;
+    }
+}
+
+final class Right implements LateInit
+{
+    public lateinit int $n;
+    public lateinit Left $other;
+
+    // Initializing `$n` here reads `$n` on the first object again.
+    public function initProperty(string $name): void
+    {
+        $this->n = $this->other->n;
+    }
+}
+
+final class Failing implements LateInit
+{
+    public lateinit string $text;
+
+    public function initProperty(string $name): void
+    {
+        throw new RuntimeError(Core\Str::repeat('x', 1024));
+    }
+}
+
+final class Empty implements LateInit
+{
+    public lateinit int $n;
+
+    // This method returns without setting anything.
+    public function initProperty(string $name): void
+    {
+    }
+}
+
+// 1. A property that reads itself while it is initialized. The error is caught.
+try {
+    int $first = (new SelfReader())->n;
+    echo '1: BAD, the read returned ', $first, "\n";
+} catch (Throwable $e) {
+    echo '1: caught ', $e->message, "\n";
+}
+
+// 2. Two objects whose initializations read each other. The error is caught.
+var $left = new Left();
+var $right = new Right();
+$left->other = $right;
+$right->other = $left;
+try {
+    int $second = $left->n;
+    echo '2: BAD, the read returned ', $second, "\n";
+} catch (Throwable $e) {
+    echo '2: caught ', $e->message, "\n";
+}
+
+// 3. A hundred thousand reads, each one calling an `initProperty` that throws.
+var $failing = new Failing();
+int $failed = 0;
+string $text = '';
+while ($failed < 100000) {
+    try {
+        $text = $failing->text;
+    } catch (RuntimeError $error) {
+        $failed = $failed + 1;
+    }
+}
+echo '3: failed ', $failed, " times\n";
+
+// 4. An `initProperty` that sets nothing, and nothing catches the error, so
+//    the program ends here.
+echo "step 4\n";
+echo (new Empty())->n, "\n";
+echo "4: BAD, the program is still running\n";

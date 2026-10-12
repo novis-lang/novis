@@ -1,0 +1,30 @@
+<?nvs
+// Reads a `lateinit` property after `initProperty` has set it. A record that
+// loads a field on first use pays this on every later read.
+// bench: iterations 2048
+// bench: allocations 0
+// bench: complexity constant
+
+final class Lazy implements LateInit {
+    public lateinit int $level;
+
+    public function initProperty(string $name): void {
+        $this->level = 1;
+    }
+}
+
+class Bench {
+    public static function run(int $rounds): int {
+        var $lazy = new Lazy();
+        int $sum = 0;
+        int $i = 0;
+        while ($i < $rounds) {
+            // Chained: each round adds what it read to the last sum.
+            $sum = $sum + $lazy->level;
+            $i = $i + 1;
+        }
+        return $sum;
+    }
+}
+
+echo Bench::run(2048), "\n";

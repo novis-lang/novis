@@ -4,7 +4,8 @@ A class can watch every read and every write of its own properties by implementi
 You write two methods, `onPropertyGet` and `onPropertySet`. Novis calls them for every property the
 class declares: public or private, with hooks or without, written in the constructor or later, and
 declared by a subclass too. Each call gives you the property name and the value after it has settled,
-so `onPropertySet` sees what was really stored.
+so `onPropertySet` sees what was really stored. A write to one element, such as
+`$account->history[] = 5`, calls `onPropertySet` once with the whole array after the change.
 
 An observer reports, and it does not decide. Both methods return nothing, so they cannot change the
 value a read gives back. A method that throws an error stops that read or that write.

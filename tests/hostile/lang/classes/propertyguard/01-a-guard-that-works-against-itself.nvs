@@ -1,0 +1,101 @@
+<?nvs
+// Attack: a program turns its own guard against itself. The guard writes the
+// property it is checking, removes the element it is asked about, and checks
+// a million writes. The runtime should stay standing.
+// hostile: timeout-ms 20000
+// hostile: ends-early 4 LogicError
+// covers: lang:classes/propertyguard
+
+final class Endless implements PropertyGuard
+{
+    public int $n = 0;
+    public array<string> $rows = [];
+
+    public function constructor()
+    {
+        $this->rows = ['a' => 'x'];
+    }
+
+    // Checking a write of `$n` writes `$n` again.
+    public function beforePropertySet(string $name, mixed $value, array<string> $keys): void
+    {
+        if ($name == 'n') {
+            $this->n = 1;
+        }
+    }
+
+    // Checking a removal removes the same element again.
+    public function beforePropertyUnset(string $name, array<string> $keys): void
+    {
+        unset($this->rows['a']);
+    }
+}
+
+final class Counter implements PropertyGuard
+{
+    public array<int> $seen = [];
+    public int $checks = 0;
+
+    // Every element write builds a new list of keys.
+    public function beforePropertySet(string $name, mixed $value, array<string> $keys): void
+    {
+        if ($name == 'seen') {
+            $this->checks = $this->checks + (Core\Arr::count($keys) as int);
+        }
+    }
+
+    public function beforePropertyUnset(string $name, array<string> $keys): void
+    {
+    }
+}
+
+final class Refuser implements PropertyGuard
+{
+    public int $n;
+
+    public function constructor()
+    {
+        $this->n = 1;
+    }
+
+    public function beforePropertySet(string $name, mixed $value, array<string> $keys): void
+    {
+        throw new LogicError('this class refuses every write');
+    }
+
+    public function beforePropertyUnset(string $name, array<string> $keys): void
+    {
+    }
+}
+
+// 1. A check writes again, which checks again, and never settles.
+var $endless = new Endless();
+try {
+    $endless->n = 1;
+    echo "1: BAD, the write finished\n";
+} catch (Throwable $e) {
+    echo '1: caught ', $e->message, "\n";
+}
+
+// 2. A check of a removal removes again, and never settles.
+try {
+    unset($endless->rows['a']);
+    echo "2: BAD, the removal finished\n";
+} catch (Throwable $e) {
+    echo '2: caught ', $e->message, "\n";
+}
+
+// 3. A million element writes into the same entry, each one checked.
+var $counter = new Counter();
+int $written = 0;
+while ($written < 1000000) {
+    $counter->seen[0] = $written;
+    $written = $written + 1;
+}
+echo '3: wrote ', $written, ' times, checked ', $counter->checks, " keys\n";
+
+// 4. A guard throws on the write in the constructor, and nothing catches this
+//    one, so the program ends here.
+echo "step 4\n";
+var $refuser = new Refuser();
+echo "4: BAD, the program is still running\n";

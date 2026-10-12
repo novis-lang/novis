@@ -1,0 +1,8 @@
+set tags ["0"] = user
+set tags ["1"] = admin
+set tags ["2"] = beta
+set tags ["3"] = extra
+error: a profile has at most three tags
+unset tags ["0"]
+error: the tag user cannot be removed
+["user","admin","beta"]
