@@ -30,9 +30,8 @@
 //! the two calls, and the request's end drops it.
 //!
 //! Known gaps, each owned by a later stage of the goal that builds this component: `merge`,
-//! `read` and `read-text` return `runtime` until their stages land. The output is untagged, and
-//! the standards, the password and the invoice XML are checked against each other and otherwise
-//! not applied (Stage 12).
+//! `read` and `read-text` return `runtime` until their stages land. The password and the
+//! invoice XML are checked against the standard and otherwise not applied (Stage 12).
 
 pub mod assets;
 pub mod css;
@@ -130,13 +129,13 @@ pub struct Markup {
 }
 
 /// What [`first`] keeps for [`second`]: the laid-out body, the fonts it was laid out in, the
-/// assets, the metadata, the creation time and the dropped list.
+/// assets, the metadata, the options and the dropped list.
 pub struct Kept {
     laid: layout::Laid,
     fonts: fonts::Fonts,
     assets: Vec<Asset>,
     info: write::Info,
-    created: Option<Instant>,
+    options: Options,
     dropped: Vec<css::Dropped>,
 }
 
@@ -159,10 +158,10 @@ pub enum Error {
 /// The `whole` pass: `document` laid out and written in one call.
 ///
 /// An `invoice_xml` without [`Standard::PdfA3b`], or a `password` with either PDF/A standard,
-/// returns `Invalid`, as `wit/pdf.wit` says. Otherwise `standard`, `password` and
-/// `invoice_xml` are accepted and not yet applied (Stage 12). A reference the asset map does
-/// not resolve returns `Invalid` naming it, and an image whose bytes do not decode returns
-/// `Parse` naming it.
+/// returns `Invalid`, as `wit/pdf.wit` says, and so does a file that breaks its `standard`
+/// (`write`'s module doc). `password` and `invoice_xml` are accepted and not yet applied
+/// (Stage 12). A reference the asset map does not resolve returns `Invalid` naming it, and an
+/// image whose bytes do not decode returns `Parse` naming it.
 pub fn render(document: &Document) -> Result<Rendered, Error> {
     let (kept, _) = first(document, &Heights::default())?;
     finish(kept, Vec::new())
@@ -218,7 +217,7 @@ pub fn first(document: &Document, heights: &Heights) -> Result<(Kept, Rendered),
         fonts,
         assets: document.assets.clone(),
         info: write::Info::of(&dom),
-        created: options.created,
+        options: options.clone(),
         dropped: styles.dropped,
     };
     Ok((kept, rendered))
@@ -250,7 +249,7 @@ pub fn draw(kept: Kept, pages: &[Markup]) -> Result<(Kept, Vec<Overflow>), Error
         mut fonts,
         assets: owned,
         info,
-        created,
+        options,
         dropped,
     } = kept;
     let assets = assets::Assets::new(&owned);
@@ -260,7 +259,12 @@ pub fn draw(kept: Kept, pages: &[Markup]) -> Result<(Kept, Vec<Overflow>), Error
         let [top, _, bottom, left] = geometry.margin;
         let width = geometry.content_width();
         let mut areas = vec![
-            ("top", "header", markup.header.as_ref(), [left, 0.0, width, top]),
+            (
+                "top",
+                "header",
+                markup.header.as_ref(),
+                [left, 0.0, width, top],
+            ),
             (
                 "bottom",
                 "footer",
@@ -306,7 +310,7 @@ pub fn draw(kept: Kept, pages: &[Markup]) -> Result<(Kept, Vec<Overflow>), Error
         fonts,
         assets: owned,
         info,
-        created,
+        options,
         dropped,
     };
     Ok((kept, overflows))
@@ -314,7 +318,7 @@ pub fn draw(kept: Kept, pages: &[Markup]) -> Result<(Kept, Vec<Overflow>), Error
 
 /// The file of `kept`'s pages, with `overflows`.
 fn finish(kept: Kept, overflows: Vec<Overflow>) -> Result<Rendered, Error> {
-    let data = write::write(&kept.laid, &kept.info, kept.created)?;
+    let data = write::write(&kept.laid, &kept.info, &kept.options)?;
     Ok(Rendered {
         data,
         pages: facts(&kept.laid),

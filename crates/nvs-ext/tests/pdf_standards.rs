@@ -1,6 +1,7 @@
 //! The PDF component's standards as `nvs-ext` sees them (`rule:core-classes/pdf-one-engine`): every
 //! file is tagged from its HTML, with headings, paragraphs, lists, tables with header cells,
-//! figures with their `alt`, and the document's language.
+//! figures with their `alt`, and the document's language. PDF/A-2b, PDF/A-3b and PDF/UA-1 are
+//! `krilla`'s validators, and a file that breaks its standard throws naming what broke.
 
 use std::future::Future;
 use std::pin::pin;
@@ -9,7 +10,7 @@ use std::task::{Context, Poll, Waker};
 use std::time::Duration;
 
 use nvs_ext::builtin::PDF_CLASS;
-use nvs_ext::call::{Failure, Host, Meter};
+use nvs_ext::call::{Error, Failure, Host, Meter};
 use nvs_ext::convert::{Key, Value};
 use nvs_ext::load::Loader;
 
@@ -39,6 +40,16 @@ fn shape(fields: Vec<(&str, Value)>) -> Value {
 
 /// The file `Engine::render` returns for `html` with no option set.
 fn render(html: &str) -> Result<Vec<u8>, Failure> {
+    render_under(html, None, None)
+}
+
+/// The file `Engine::render` returns for `html` under the `Standard` case `standard`, created at
+/// `created` seconds since the epoch.
+fn render_under(
+    html: &str,
+    standard: Option<&str>,
+    created: Option<i64>,
+) -> Result<Vec<u8>, Failure> {
     let host = Host::new(4, |_| Ok(())).expect("the host starts");
     let builtins = Loader::new(host.engine())
         .builtins()
@@ -56,10 +67,22 @@ fn render(html: &str) -> Result<Vec<u8>, Failure> {
         (
             "options",
             shape(vec![
-                ("standard", Value::Null),
+                (
+                    "standard",
+                    standard.map_or(Value::Null, |case| Value::Case(case.to_owned())),
+                ),
                 ("password", Value::Null),
                 ("invoiceXml", Value::Null),
-                ("created", Value::Null),
+                (
+                    "created",
+                    created.map_or(Value::Null, |seconds| Value::Core {
+                        class: "Core\\Time\\Instant".to_owned(),
+                        fields: vec![
+                            ("seconds".to_owned(), Value::Int(seconds)),
+                            ("nanos".to_owned(), Value::Int(0)),
+                        ],
+                    }),
+                ),
             ]),
         ),
     ]);
@@ -118,4 +141,67 @@ fn output_is_tagged_by_default() {
         data,
         "two tagged renders differ"
     );
+}
+
+/// The message of the `Invalid` error `failure` is.
+fn invalid(failure: Result<Vec<u8>, Failure>) -> String {
+    match failure {
+        Err(Failure::Error(Error::Invalid(message))) => message,
+        Err(other) => panic!("not an invalid error: {other:?}"),
+        Ok(_) => panic!("it rendered"),
+    }
+}
+
+/// A shop's page with a title, a language, a heading, a table and an image with its `alt`.
+fn shop_page() -> String {
+    format!(
+        "<html lang=\"en\"><head><title>Shop</title></head><body><h1>Shop</h1>\
+         <p>Tea and books.</p><table><tr><th>Item</th></tr><tr><td>Tea</td></tr></table>\
+         <img alt=\"The shop's logo\" src=\"data:image/png;base64,{PIXEL_PNG}\">\
+         <p><a href=\"https://example.com/\">example.com</a></p></body></html>"
+    )
+}
+
+/// 2026-01-01 at midnight, UTC.
+const NEW_YEAR: i64 = 1_767_225_600;
+
+#[test]
+fn pdf_a_2b_and_3b_validate() {
+    let html = shop_page();
+    for (case, part) in [("PdfA2b", "2"), ("PdfA3b", "3")] {
+        let data = render_under(&html, Some(case), Some(NEW_YEAR)).expect("it renders");
+        for needle in [
+            "/GTS_PDFA1".to_owned(),
+            format!("<pdfaid:part>{part}</pdfaid:part>"),
+            "<pdfaid:conformance>B</pdfaid:conformance>".to_owned(),
+            "/StructTreeRoot".to_owned(),
+        ] {
+            assert!(contains(&data, &needle), "{case} has no `{needle}`");
+        }
+        assert_eq!(
+            render_under(&html, Some(case), Some(NEW_YEAR)).expect("it renders again"),
+            data,
+            "two {case} renders differ"
+        );
+        // PDF/A needs the creation time, and nothing in the component reads a clock.
+        let message = invalid(render_under(&html, Some(case), None));
+        assert!(message.contains("creation time"), "{message}");
+    }
+}
+
+#[test]
+fn pdf_ua_1_throws_for_an_image_without_alt() {
+    let data = render_under(&shop_page(), Some("PdfUa1"), None).expect("it renders");
+    assert!(contains(&data, "pdfuaid"), "the file does not claim PDF/UA");
+    let html = format!(
+        "<html lang=\"en\"><head><title>Shop</title></head><body><h1>Shop</h1>\
+         <img src=\"data:image/png;base64,{PIXEL_PNG}\"></body></html>"
+    );
+    let message = invalid(render_under(&html, Some("PdfUa1"), None));
+    assert!(
+        message.contains("PDF/UA-1") && message.contains("an image has no `alt` text"),
+        "{message}"
+    );
+    // Without a standard, the same document renders.
+    render(&html).expect("it renders with no standard");
 }

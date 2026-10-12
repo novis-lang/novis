@@ -155,7 +155,8 @@ impl Builder<'_, '_> {
     }
 
     /// The picture `reference` names, decoded far enough to know its size, and the name an error
-    /// about it gives.
+    /// about it gives. A raster image asks no viewer to smooth it, because PDF/A forbids that
+    /// flag and a viewer smooths by its own setting either way.
     fn decode(&self, reference: &str) -> Result<(Picture, String), Error> {
         let bytes = self.assets.resolve(reference)?.into_owned();
         let name = if reference.len() > 64 {
@@ -164,9 +165,9 @@ impl Builder<'_, '_> {
             reference.to_owned()
         };
         let decoded = match bytes.as_slice() {
-            [0x89, b'P', b'N', b'G', ..] => Image::from_png(Data::from(bytes), true),
-            [0xff, 0xd8, 0xff, ..] => Image::from_jpeg(Data::from(bytes), true),
-            [b'G', b'I', b'F', b'8', ..] => Image::from_gif(Data::from(bytes), true),
+            [0x89, b'P', b'N', b'G', ..] => Image::from_png(Data::from(bytes), false),
+            [0xff, 0xd8, 0xff, ..] => Image::from_jpeg(Data::from(bytes), false),
+            [b'G', b'I', b'F', b'8', ..] => Image::from_gif(Data::from(bytes), false),
             [
                 b'R',
                 b'I',
@@ -181,7 +182,7 @@ impl Builder<'_, '_> {
                 b'B',
                 b'P',
                 ..,
-            ] => Image::from_webp(Data::from(bytes), true),
+            ] => Image::from_webp(Data::from(bytes), false),
             _ if is_svg(&bytes) => return Ok((self.svg(&bytes, &name)?, name)),
             _ => {
                 return Err(Error::Parse(format!(

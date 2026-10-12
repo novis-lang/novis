@@ -28,12 +28,20 @@
 //! again on a later page are artifacts. A piece of a row split across pages is a `TR` of plain
 //! `TD`s, and a link annotation is not in the tree.
 //!
-//! The PDF/A and PDF/UA standards, the password and the invoice attachment are Stage 12's
-//! (`render`'s doc in the crate root says what each option does until then).
+//! **A standard is `krilla`'s validator for it**: PDF/A-2b and PDF/A-3b are its archival
+//! validators, and PDF/UA-1 its accessibility one. A file that breaks the standard returns
+//! `Invalid`, naming each thing that broke ([`broken`]). PDF/A needs the creation time, because
+//! nothing here reads a clock, and PDF/UA-1 needs a `<title>`, an `alt` on every image and an
+//! outline, which is empty when the document has no heading. Every link annotation carries its
+//! target as its alternate text, under any standard or none.
+//!
+//! The password and the invoice attachment are Stage 12's (`render`'s doc in the crate root says
+//! what each option does until then).
 
 use krilla::action::LinkAction;
 use krilla::annotation::{Annotation, LinkAnnotation, Target};
 use krilla::color::rgb;
+use krilla::configure::{Accessibility, Archival, ConfigurationBuilder, ValidationError};
 use krilla::destination::XyzDestination;
 use krilla::geom::{Path, PathBuilder, Point, Rect, Size, Transform};
 use krilla::metadata::{DateTime, Metadata};
@@ -46,8 +54,8 @@ use krilla::paint::{
 };
 use krilla::surface::Surface;
 use krilla::tagging::{
-    Artifact, ArtifactType, ContentTag, Identifier, ListNumbering, Node, SpanTag,
-    TableHeaderScope, Tag, TagGroup, TagTree,
+    Artifact, ArtifactType, ContentTag, Identifier, ListNumbering, Node, SpanTag, TableHeaderScope,
+    Tag, TagGroup, TagTree,
 };
 use krilla::text::{Font, GlyphId, KrillaGlyph};
 use krilla::{Data, Document, SerializeSettings};
@@ -58,7 +66,7 @@ use crate::css::Color;
 use crate::layout::{self, Bookmark, Href, Item, Laid, Paint, Picture, Role, Seg};
 use crate::paginate::PageBox;
 use crate::parse::{Dom, Space};
-use crate::{Error, Instant};
+use crate::{Error, Instant, Options, Standard};
 
 /// Draws `picture` with its top-left corner at the surface's origin, stretched to `size`. An
 /// SVG is drawn as vector paths.
@@ -395,10 +403,26 @@ fn outline(bookmarks: &[Bookmark]) -> Outline {
     outline
 }
 
-/// The PDF file of `laid` with `info` as its metadata, created at `created` when there is one.
-pub fn write(laid: &Laid, info: &Info, created: Option<Instant>) -> Result<Vec<u8>, Error> {
+/// The PDF file of `laid` with `info` as its metadata, created at `options.created` when there
+/// is one, under `options.standard` when there is one.
+pub fn write(laid: &Laid, info: &Info, options: &Options) -> Result<Vec<u8>, Error> {
+    let configuration = match options.standard {
+        None => ConfigurationBuilder::new(),
+        Some(Standard::PdfA2b) => {
+            ConfigurationBuilder::new().with_archival_validator(Archival::A2_B)
+        }
+        Some(Standard::PdfA3b) => {
+            ConfigurationBuilder::new().with_archival_validator(Archival::A3_B)
+        }
+        Some(Standard::PdfUa1) => {
+            ConfigurationBuilder::new().with_accessibility_validator(Accessibility::UA1)
+        }
+    }
+    .finish()
+    .map_err(|err| Error::Runtime(format!("the standard could not be configured: {err:?}")))?;
     let mut document = Document::new_with(SerializeSettings {
         enable_tagging: true,
+        configuration,
         ..SerializeSettings::default()
     });
     let mut metadata = Metadata::new()
@@ -413,13 +437,12 @@ pub fn write(laid: &Laid, info: &Info, created: Option<Instant>) -> Result<Vec<u
     if let Some(lang) = &info.lang {
         metadata = metadata.language(lang.clone());
     }
-    if let Some(created) = created {
+    if let Some(created) = options.created {
         metadata = metadata.creation_date(date(created)?);
     }
     document.set_metadata(metadata);
-    if !laid.bookmarks.is_empty() {
-        document.set_outline(outline(&laid.bookmarks));
-    }
+    // `krilla` leaves an empty outline out unless the standard needs one.
+    document.set_outline(outline(&laid.bookmarks));
     let mut faces: Vec<Option<Font>> = vec![None; laid.faces.len()];
     let mut tags = Tags::default();
     for laid_page in &laid.pages {
@@ -520,7 +543,8 @@ pub fn write(laid: &Laid, info: &Info, created: Option<Instant>) -> Result<Vec<u
                             }));
                         }
                     }
-                    surface.start_tagged(tags.content(false, margin.or(Some(ArtifactType::Layout))));
+                    surface
+                        .start_tagged(tags.content(false, margin.or(Some(ArtifactType::Layout))));
                     surface.draw_path(&path);
                     surface.end_tagged();
                     surface.set_stroke(None);
@@ -598,7 +622,14 @@ pub fn write(laid: &Laid, info: &Info, created: Option<Instant>) -> Result<Vec<u
                             None => continue,
                         },
                     };
-                    links.push(LinkAnnotation::new(rect, target).into());
+                    let alt = match href {
+                        Href::Uri(uri) => format!("Link to {uri}"),
+                        Href::Anchor(id) => format!("Link to #{id}"),
+                    };
+                    links.push(Annotation::new_link(
+                        LinkAnnotation::new(rect, target),
+                        Some(alt),
+                    ));
                 }
             }
         }
@@ -621,8 +652,72 @@ pub fn write(laid: &Laid, info: &Info, created: Option<Instant>) -> Result<Vec<u
                 .map_or("an image", |(_, name)| name.as_str());
             Error::Parse(format!("`{name}` does not decode as an image: {why}"))
         }
+        krilla::error::KrillaError::Validation(errors) => {
+            let mut what: Vec<String> = Vec::new();
+            for (error, _) in &errors {
+                let one = broken(error);
+                if !what.contains(&one) {
+                    what.push(one);
+                }
+            }
+            let standard = match options.standard {
+                Some(Standard::PdfA2b) => "PDF/A-2b",
+                Some(Standard::PdfA3b) => "PDF/A-3b",
+                Some(Standard::PdfUa1) | None => "PDF/UA-1",
+            };
+            Error::Invalid(format!(
+                "the document does not meet {standard}: {}",
+                what.join("; ")
+            ))
+        }
         other => Error::Runtime(format!("the PDF could not be written: {other}")),
     })
+}
+
+/// What `error` says broke the standard, in the words of the document's author.
+fn broken(error: &ValidationError) -> String {
+    match error {
+        ValidationError::MissingAltText(_) => "an image has no `alt` text".to_owned(),
+        ValidationError::NoDocumentTitle => "the document has no `<title>`".to_owned(),
+        ValidationError::NoDocumentLanguage => "the `<html>` element has no `lang`".to_owned(),
+        ValidationError::MissingDocumentDate => {
+            "the document has no creation time. Set `created` in the options".to_owned()
+        }
+        ValidationError::MissingHeadingTitle => "a heading has no text".to_owned(),
+        ValidationError::MissingDocumentOutline => "the document has no outline".to_owned(),
+        ValidationError::MissingAnnotationAltText(_) => "a link has no description".to_owned(),
+        ValidationError::MissingTagging => "the file is not tagged".to_owned(),
+        ValidationError::ContainsNotDefGlyph(_, _, text) => {
+            format!("no font has a glyph for `{text}`")
+        }
+        ValidationError::NoCodepointMapping(..)
+        | ValidationError::InvalidCodepointMapping(..)
+        | ValidationError::UnicodePrivateArea(..) => {
+            "a glyph has no character a reader can copy".to_owned()
+        }
+        ValidationError::RestrictedLicense(_) => {
+            "a font's licence does not allow it to be embedded".to_owned()
+        }
+        ValidationError::Transparency(_) => "the document uses transparency".to_owned(),
+        ValidationError::ContainsPostScript(_) => "a gradient repeats".to_owned(),
+        ValidationError::ImageInterpolation(_) => "an image is smoothed when scaled".to_owned(),
+        ValidationError::EmbeddedFile(..) => "the document has an attached file".to_owned(),
+        ValidationError::EmbeddedPDF(_) => "the document places a PDF page".to_owned(),
+        ValidationError::TooHighQNestingLevel => "clip paths are nested too deeply".to_owned(),
+        ValidationError::TooLongString
+        | ValidationError::TooLongName
+        | ValidationError::TooLongArray
+        | ValidationError::TooLongDictionary
+        | ValidationError::TooLargeFloat
+        | ValidationError::TooManyIndirectObjects => "the file is too large".to_owned(),
+        ValidationError::MissingCMYKProfile
+        | ValidationError::InconsistentSeparationFallback(_) => {
+            "a colour has no profile".to_owned()
+        }
+        ValidationError::RequiresNewerPdfVersion(..) => {
+            "the file needs a newer PDF version".to_owned()
+        }
+    }
 }
 
 /// `instant` as a UTC date and time, to the second. A year before 1 or after 9999 returns

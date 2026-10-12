@@ -3,7 +3,9 @@ with their `alt` text and the document's language come from the HTML, with no op
 `Document::standard` adds one of **PDF/A-2b, PDF/A-3b or PDF/UA-1**, and a document that breaks the
 standard it chose throws `LogicError` naming what broke — an image with no `alt` under PDF/UA-1, a
 font that cannot be embedded under PDF/A — through `krilla`'s own validation. One standard per
-document, because `krilla` validates against one.
+document, because `krilla` validates against one. PDF/A needs `Document::created`, because the
+component reads no clock, and PDF/UA-1 needs a `<title>`. A missing glyph, reported and never thrown
+otherwise, throws under any of the three, because each forbids the empty box drawn for it.
 
 **`Document::password`** encrypts with **AES-256, revision 6**, and nothing weaker. Its salts and its
 file key are derived from a hash of the document and the password, so equal input stays byte-equal
@@ -19,8 +21,9 @@ it and the weaker revisions are broken.
 
 **Partly on disk.** `Document::standard` and `Document::password` are in
 `extensions/pdf/nvs/Document.nvs`, and a password beside a PDF/A standard is refused before anything
-is laid out (`extensions/pdf/src/lib.rs:112`). The output is not tagged, no standard is validated
-and nothing is encrypted: the `pdf` goal's Stage 12 builds all three.
+is laid out (`extensions/pdf/src/lib.rs`'s `first`). Tagging and the three standards are
+`extensions/pdf/src/write.rs`, pinned by `crates/nvs-ext/tests/pdf_standards.rs`. Nothing is
+encrypted yet: the `pdf` goal's Stage 12 builds it.
 
 **Declined:**
 - **RC4 and AES-128 encryption, and owner permissions.** RC4 is broken, and permission flags are a
