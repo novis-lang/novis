@@ -6,6 +6,8 @@
 // covers: Novis\Pdf\Reader::attachments
 // covers: Novis\Pdf\Reader::invoiceXml
 // covers: Novis\Pdf\Reader::text
+// covers: Novis\Pdf\Engine::read
+// covers: Novis\Pdf\Engine::readText
 use Novis\Pdf\Document;
 use Novis\Pdf\Reader;
 

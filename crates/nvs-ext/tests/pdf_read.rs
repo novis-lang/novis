@@ -232,6 +232,7 @@ fn a_pdf_letterhead_is_the_page_background() {
 
 // covers: Novis\Pdf\Pages::of
 // covers: Novis\Pdf\Pages::merge
+// covers: Novis\Pdf\Engine::merge
 #[test]
 fn merge_combines_selects_and_reorders_pages() {
     let parts = || {
@@ -263,6 +264,7 @@ fn merge_combines_selects_and_reorders_pages() {
 }
 
 // covers: Novis\Pdf\Reader::open
+// covers: Novis\Pdf\Engine::read
 #[test]
 fn reader_counts_pages_and_reads_metadata() {
     let data = render(
@@ -331,6 +333,7 @@ fn reader_returns_the_factur_x_attachment() {
 }
 
 // covers: Novis\Pdf\Reader::text
+// covers: Novis\Pdf\Engine::readText
 #[test]
 fn reader_extracts_the_text_of_a_page() {
     let data = numbered(3);

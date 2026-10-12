@@ -133,6 +133,22 @@
       "perf": "`Segmenter::words` is this one crossing and nothing else, so its figure is this export's.",
       "hostile": "`Segmenter::words` passes its input to this export unchanged, so its attack is this export's."
     },
+    "Novis\\Pdf\\Engine::merge": {
+      "examples": "The manifest export `Pages::merge` calls once after it turns each `Pages` into a part; a reader learns from that member's examples, and one here would teach a part shape a program never writes.",
+      "perf": "`Pages::merge` is this one crossing plus building the parts, so its figure bounds this export's."
+    },
+    "Novis\\Pdf\\Engine::read": {
+      "examples": "The manifest export `Reader::open` calls once and keeps the result in a `Reader`; a reader learns from that member's examples, and one here would teach the raw result shape a program never needs.",
+      "perf": "`Reader::open` is this one crossing plus building the `Reader`, so its figure bounds this export's."
+    },
+    "Novis\\Pdf\\Engine::readText": {
+      "examples": "The manifest export `Reader::text` calls once for one page; a reader learns from that member's examples, and one here would teach a page list a program never writes.",
+      "perf": "`Reader::text` is this one crossing for one page, so its figure is this export's."
+    },
+    "Novis\\Pdf\\Engine::render": {
+      "examples": "The manifest export `Document::render` calls once, or twice for a header, a footer or slots, after it builds every shape; a reader learns from that member's examples, and one here would teach shapes a program never writes.",
+      "perf": "`Document::render` is one or two of these crossings plus building the shapes, so its figure bounds this export's."
+    },
     "lang:attributes/core-api-and-the-openapi-document": {
       "perf": "`#[Api]` is read while the program compiles and has no runtime surface to iterate; a loop here would measure the annotated method call instead."
     },

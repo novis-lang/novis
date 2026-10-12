@@ -1,0 +1,64 @@
+<?nvs
+// Attack: a request calls `Engine::merge` directly with part lists that `Pages` never builds.
+// Each call should return a PDF file, throw an error or stop at a limit. The server keeps running.
+// hostile: ends-early 5 FATAL
+use Novis\Pdf\Document;
+use Novis\Pdf\Engine;
+
+bytes $good = Document::fromHtml('<p>Shop</p>')->render()->bytes;
+bytes $locked = Document::fromHtml('<p>Locked</p>')->password('example-password')->render()->bytes;
+
+// 1. No parts at all, and one part with an empty page list.
+try {
+    array<{data: bytes, pages: ?array<uint>}> $noParts = [];
+    echo 'step 1 ran ', Core\Bytes::length(Engine::merge($noParts)), "\n";
+} catch (Throwable $e) {
+    echo "step 1a stopped\n";
+}
+try {
+    array<uint> $noPages = [];
+    echo 'step 1 ran ', Core\Bytes::length(Engine::merge([{data: $good, pages: $noPages}])), "\n";
+} catch (Throwable $e) {
+    echo "step 1b stopped\n";
+}
+
+// 2. Page 0 and the largest page number.
+array<uint> $numbers = [0, 18446744073709551615];
+foreach ($numbers as uint $number) {
+    try {
+        echo 'step 2 ran ', Core\Bytes::length(Engine::merge([{data: $good, pages: [$number]}])), "\n";
+    } catch (Throwable $e) {
+        echo "step 2 stopped\n";
+    }
+}
+
+// 3. Two thousand parts, the last of them encrypted.
+try {
+    array<{data: bytes, pages: ?array<uint>}> $parts = [];
+    for (int $n = 0; $n < 2000; $n++) {
+        $parts[] = {data: $good, pages: null};
+    }
+    $parts[] = {data: $locked, pages: null};
+    echo 'step 3 ran ', Core\Bytes::length(Engine::merge($parts)), "\n";
+} catch (Throwable $e) {
+    echo "step 3 stopped\n";
+}
+
+// 4. Parts that are empty bytes, a PDF header alone, and a good file with its last byte removed.
+array<bytes> $broken = ['' as bytes, "%PDF-1.7\n%%EOF\n" as bytes, Core\Bytes::slice($good, 0, Core\Bytes::length($good) as int - 1)];
+foreach ($broken as bytes $data) {
+    try {
+        echo 'step 4 ran ', Core\Bytes::length(Engine::merge([{data: $data, pages: null}])), "\n";
+    } catch (Throwable $e) {
+        echo "step 4 stopped\n";
+    }
+}
+
+// 5. One page chosen fifty thousand times.
+// The merge stops at the memory limit of the PDF engine. That ends the program, so this step is last.
+echo "step 5\n";
+array<uint> $same = [];
+for (int $i = 0; $i < 50000; $i++) {
+    $same[] = 1;
+}
+echo 'step 5 ran ', Core\Bytes::length(Engine::merge([{data: $good, pages: $same}])), "\n";

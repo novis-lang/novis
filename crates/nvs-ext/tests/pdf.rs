@@ -254,6 +254,7 @@ fn a_render_needs_no_capability_grant() {
     });
 }
 
+// covers: Novis\Pdf\Engine::render
 #[test]
 fn a_paragraph_renders_with_the_default_fonts() {
     run(|request, extension| {
