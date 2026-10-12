@@ -317,6 +317,9 @@ pub struct Page {
     pub marks: Vec<(String, String)>,
     /// Each margin box drawn on it: its name and its items' range in [`Page::items`].
     pub boxes: Vec<(&'static str, Range<usize>)>,
+    /// Each `<slot name>` of a table row drawn on it: its name, and its cell's content box as
+    /// its left edge, top, width and height on the page.
+    pub slots: Vec<(String, [f32; 4])>,
 }
 
 /// Text no font in its chain has: the characters, the chain by family name, and the page, from 1.

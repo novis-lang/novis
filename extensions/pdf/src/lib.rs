@@ -23,14 +23,16 @@
 //! drawn, and markup taller than the area is clipped and listed in [`Rendered::overflows`]. The
 //! area is the page's content width and the whole margin's height, and the markup is set at its
 //! top. The markup is styled by its own `<style>` and not the document's, and it uses the
-//! document's assets and fonts. The guest keeps the [`Kept`] in the instance between the two
-//! calls, and the request's end drops it.
+//! document's assets and fonts. Each slot's fill is drawn the same way over every area of the
+//! page whose `<slot>` has its name: its cell's content box, which does not grow, so the fill
+//! moves nothing either. A slot's overflow names the slot. [`draw`] is that half of
+//! [`second`], before the file is written. The guest keeps the [`Kept`] in the instance between
+//! the two calls, and the request's end drops it.
 //!
-//! Known gaps, each owned by a later stage of the goal that builds this component: a table is
-//! laid out as block boxes, and a slot's fill is not drawn (Stage 11). `merge`, `read` and
-//! `read-text` return `runtime` until their stages land. The output is untagged, and the
-//! standards, the password and the invoice XML are checked against each other and otherwise not
-//! applied (Stage 12).
+//! Known gaps, each owned by a later stage of the goal that builds this component: `merge`,
+//! `read` and `read-text` return `runtime` until their stages land. The output is untagged, and
+//! the standards, the password and the invoice XML are checked against each other and otherwise
+//! not applied (Stage 12).
 
 pub mod assets;
 pub mod css;
@@ -90,7 +92,8 @@ pub struct PageFacts {
     pub marks: Vec<(String, String)>,
 }
 
-/// Markup taller than its area: the page from 1, `header` or `footer`, and the markup.
+/// Markup taller than its area: the page from 1, `header`, `footer` or a slot's name, and the
+/// markup.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Overflow {
     pub page: u64,
@@ -118,11 +121,12 @@ pub struct Heights {
     pub footer: Option<String>,
 }
 
-/// The WIT `page-markup`: one page's header and footer HTML.
+/// The WIT `page-markup`: one page's header and footer HTML, and each slot's name and fill.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Markup {
     pub header: Option<String>,
     pub footer: Option<String>,
+    pub slots: Vec<(String, String)>,
 }
 
 /// What [`first`] keeps for [`second`]: the laid-out body, the fonts it was laid out in, the
@@ -134,6 +138,13 @@ pub struct Kept {
     info: write::Info,
     created: Option<Instant>,
     dropped: Vec<css::Dropped>,
+}
+
+impl Kept {
+    /// The laid-out pages.
+    pub fn laid(&self) -> &layout::Laid {
+        &self.laid
+    }
 }
 
 /// The WIT `error`: `Invalid` becomes `LogicError`, `Parse` becomes `ParseError` and `Runtime`
@@ -213,12 +224,20 @@ pub fn first(document: &Document, heights: &Heights) -> Result<(Kept, Rendered),
     Ok((kept, rendered))
 }
 
-/// The `second` pass: each page's markup in `pages` drawn over the margins of the body `kept`
-/// holds, and the file written.
+/// The `second` pass: each page's markup in `pages` drawn over the body `kept` holds, as
+/// [`draw`] draws it, and the file written.
+pub fn second(kept: Kept, pages: &[Markup]) -> Result<Rendered, Error> {
+    let (kept, overflows) = draw(kept, pages)?;
+    finish(kept, overflows)
+}
+
+/// Draws each page's header and footer markup in `pages` over that page's margins, and each
+/// slot's fill in every area of that page whose slot has its name. Returns the body with the
+/// markup drawn, and the markup taller than its area. The body does not move.
 ///
 /// A list whose length is not the page count returns `Invalid`, and so does markup that names
 /// an asset the map does not have.
-pub fn second(kept: Kept, pages: &[Markup]) -> Result<Rendered, Error> {
+pub fn draw(kept: Kept, pages: &[Markup]) -> Result<(Kept, Vec<Overflow>), Error> {
     let count = kept.laid.pages.len();
     if pages.len() != count {
         return Err(Error::Invalid(format!(
@@ -240,14 +259,23 @@ pub fn second(kept: Kept, pages: &[Markup]) -> Result<Rendered, Error> {
         let geometry = laid.pages[index].geometry;
         let [top, _, bottom, left] = geometry.margin;
         let width = geometry.content_width();
-        for (side, html, area) in [
-            ("top", &markup.header, [left, 0.0, width, top]),
+        let mut areas = vec![
+            ("top", "header", markup.header.as_ref(), [left, 0.0, width, top]),
             (
                 "bottom",
-                &markup.footer,
+                "footer",
+                markup.footer.as_ref(),
                 [left, geometry.height - bottom, width, bottom],
             ),
-        ] {
+        ];
+        for (name, html) in &markup.slots {
+            for (slot, area) in &laid.pages[index].slots {
+                if slot == name {
+                    areas.push(("slot", name.as_str(), Some(html), *area));
+                }
+            }
+        }
+        for (side, what, html, area) in areas {
             let Some(html) = html else { continue };
             let over = if area[2] > 0.0 && area[3] > 0.0 {
                 let page = format!(
@@ -267,23 +295,21 @@ pub fn second(kept: Kept, pages: &[Markup]) -> Result<Rendered, Error> {
             if over {
                 overflows.push(Overflow {
                     page: index as u64 + 1,
-                    area: if side == "top" { "header" } else { "footer" }.to_owned(),
+                    area: what.to_owned(),
                     text: html.clone(),
                 });
             }
         }
     }
-    finish(
-        Kept {
-            laid,
-            fonts,
-            assets: Vec::new(),
-            info,
-            created,
-            dropped,
-        },
-        overflows,
-    )
+    let kept = Kept {
+        laid,
+        fonts,
+        assets: owned,
+        info,
+        created,
+        dropped,
+    };
+    Ok((kept, overflows))
 }
 
 /// The file of `kept`'s pages, with `overflows`.
@@ -456,6 +482,11 @@ mod guest {
                         .map(|page| crate::Markup {
                             header: page.header,
                             footer: page.footer,
+                            slots: page
+                                .slots
+                                .into_iter()
+                                .map(|slot| (slot.name, slot.value))
+                                .collect(),
                         })
                         .collect();
                     match body {

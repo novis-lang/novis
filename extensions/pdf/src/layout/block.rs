@@ -8,6 +8,13 @@
 //! with `clear` starts below the floats it clears. An `inline-block` box or a flex item holds
 //! its floats: its own flow ends below them ([`Flow::contain`]).
 //!
+//! A box cut by a page break is painted on each page it is on. CSS's `slice` leaves its bottom
+//! edge open before the break and its top edge open after it. A table and a table cell are
+//! closed instead (`rule:core-classes/pdf-tables-across-pages`), unless their
+//! `box-decoration-break` is `slice`: each page that cuts one ends it under the last block and
+//! starts it again at the top, with its top and bottom border and padding on both sides of the
+//! break. That room is taken from the page, so [`Flow::room`] and [`Flow::next_limit`] count it.
+//!
 //! A positioned box leaves its pages when it closes and becomes a layer on each page it is on
 //! ([`Flow::lift`]), and [`Flow::finish`] draws the layers back by `z-index`, then in document
 //! order: below 0 under the page's other items, and the rest over them. A box with a
@@ -52,6 +59,10 @@ pub(super) struct BoxGeometry {
     pub(super) decor: Decor,
     /// The name of the pages it is on, its own `page` or else its parent's.
     pub(super) page: Option<String>,
+    /// Whether its top and bottom border and padding are drawn on both sides of every page
+    /// break and take room there: a table's and a table cell's, unless its
+    /// `box-decoration-break` is `slice`.
+    pub(super) closed: bool,
 }
 
 /// A block box's `position`.
@@ -211,6 +222,10 @@ pub(super) fn geometry(style: &Style, x: f32, containing: f32) -> BoxGeometry {
             .flatten(),
         decor: boxes::decor(style),
         page: None,
+        closed: matches!(
+            keyword(style, "display"),
+            Some("table" | "inline-table" | "table-cell")
+        ) && keyword(style, "box-decoration-break") != Some("slice"),
     }
 }
 
@@ -222,6 +237,9 @@ pub(super) struct Open {
     top: Option<(usize, usize, f32)>,
     /// What it carries until it closes, when it is positioned.
     stack: Option<Stack>,
+    /// For a closed box, at each page break after its top: its bottom on the page before and
+    /// its top on the page after, each from the top of its page's content.
+    cuts: Vec<(f32, f32)>,
 }
 
 /// A positioned box's part in the stacking order: its `z-index`, its place in the document,
@@ -281,6 +299,9 @@ pub(super) struct Flow {
     heights: Option<Heights>,
     /// A `break-after` that has not been taken, because nothing has been placed after it yet.
     forced: Option<Break>,
+    /// Where the last page's content starts: under the top edges the closed boxes open across
+    /// its break draw again.
+    start: f32,
     /// The baseline of the last line placed, from the top of its page's content.
     pub(super) baseline: Option<f32>,
     /// The floats on the last page, in the order they were placed.
@@ -324,6 +345,7 @@ impl Flow {
             limits: vec![limit],
             heights: None,
             forced: None,
+            start: 0.0,
             baseline: None,
             floats: Vec::new(),
             layers: Vec::new(),
@@ -379,18 +401,28 @@ impl Flow {
         flow
     }
 
-    /// How tall the last page's content is.
+    /// How tall the last page's content is, less the bottom edges of the closed boxes open.
     fn limit(&self) -> f32 {
-        self.limits.last().copied().unwrap_or(f32::INFINITY)
+        self.limits.last().copied().unwrap_or(f32::INFINITY) - self.edges(2)
     }
 
-    /// How tall the next page's content will be, named as the innermost open box's pages are.
+    /// How tall the next page's content will be, named as the innermost open box's pages are,
+    /// less the top and bottom edges of the closed boxes open.
     pub(super) fn next_limit(&self) -> f32 {
         let name = self.open.last().and_then(|o| o.geometry.page.as_deref());
         match &self.heights {
-            Some(heights) => heights(self.pages.len(), name),
+            Some(heights) => heights(self.pages.len(), name) - self.edges(0) - self.edges(2),
             None => self.limit(),
         }
+    }
+
+    /// The border and padding on the side `side` of the closed boxes open, added up.
+    fn edges(&self, side: usize) -> f32 {
+        self.open
+            .iter()
+            .filter(|o| o.geometry.closed)
+            .map(|o| o.geometry.border[side] + o.geometry.padding[side])
+            .sum()
     }
 
     /// Takes a forced break: a new page unless nothing is placed on the last one, and an empty
@@ -472,7 +504,7 @@ impl Flow {
 
     /// Whether nothing is drawn on the last page and nothing has taken space on it.
     fn empty(&self) -> bool {
-        self.cursor <= 0.0 && self.pages.last().is_some_and(|p| p.items.is_empty())
+        self.cursor <= self.start && self.pages.last().is_some_and(|p| p.items.is_empty())
     }
 
     /// The margin the next box is placed under: the pending one, which the top of a page after
@@ -485,8 +517,28 @@ impl Flow {
         }
     }
 
-    /// Starts a page, named as the innermost open box's pages are.
+    /// Starts a page, named as the innermost open box's pages are. Each closed box open across
+    /// the break ends under the last block and the bottom edges of the closed boxes inside it,
+    /// and starts again under the top edges of those around it.
     fn new_page(&mut self) {
+        let mut below = self.cursor;
+        for open in self.open.iter_mut().rev() {
+            let g = &open.geometry;
+            if g.closed && open.top.is_some() {
+                below += g.border[2] + g.padding[2];
+                open.cuts.push((below, 0.0));
+            }
+        }
+        let mut above = 0.0;
+        for open in &mut self.open {
+            let g = &open.geometry;
+            if g.closed && open.top.is_some() {
+                if let Some(cut) = open.cuts.last_mut() {
+                    cut.1 = above;
+                }
+                above += g.border[0] + g.padding[0];
+            }
+        }
         let name = self.open.last().and_then(|o| o.geometry.page.clone());
         let limit = match &self.heights {
             Some(heights) => heights(self.pages.len(), name.as_deref()),
@@ -497,7 +549,8 @@ impl Flow {
             ..Page::default()
         });
         self.limits.push(limit);
-        self.cursor = 0.0;
+        self.cursor = above;
+        self.start = above;
         self.floats.clear();
     }
 
@@ -664,6 +717,7 @@ impl Flow {
             geometry,
             top: None,
             stack,
+            cuts: Vec::new(),
         });
         if inset > 0.0 {
             self.place(inset);
@@ -675,6 +729,7 @@ impl Flow {
             geometry,
             mut top,
             stack,
+            cuts,
         }) = self.open.pop()
         else {
             return;
@@ -689,6 +744,7 @@ impl Flow {
                 geometry: g.clone(),
                 top: None,
                 stack: None,
+                cuts: Vec::new(),
             });
             self.place(0.0);
             top = self.open.pop().and_then(|o| o.top);
@@ -718,17 +774,23 @@ impl Flow {
                     painted.push(0);
                     continue;
                 }
-                let top = if page == first { at } else { 0.0 };
-                let bottom = if page == last {
-                    self.cursor
-                } else {
-                    self.limits[page]
+                // A closed box draws its top and bottom edge on each page, where `cuts` says.
+                let cut = |at: usize| cuts.get(at).filter(|_| g.closed);
+                let top = match page.checked_sub(first + 1).and_then(cut) {
+                    _ if page == first => at,
+                    Some(&(_, top)) => top,
+                    None => 0.0,
+                };
+                let bottom = match cut(page - first) {
+                    _ if page == last => self.cursor,
+                    Some(&(bottom, _)) => bottom,
+                    None => self.limits[page],
                 };
                 let mut items = boxes::paint(
                     g,
                     MARGIN + top,
                     bottom - top,
-                    [page == first, true, page == last, true],
+                    [page == first || g.closed, true, page == last || g.closed, true],
                 );
                 // A transform turns the slice of the box on this page about its own origin.
                 let grouped = g.decor.grouped();

@@ -130,6 +130,10 @@ fn pass(
                 .into_iter()
                 .map(|item| shift(item, dx, dy))
                 .collect();
+            for (_, area) in &mut page.slots {
+                area[0] += dx;
+                area[1] += dy;
+            }
         }
         page.geometry = geometry;
     }
@@ -207,7 +211,7 @@ pub(super) struct Cx<'s> {
     placed: Vec<Placed>,
     pub(super) waiting: Vec<Option<Vec<Block>>>,
     running: Vec<margin::Running>,
-    strings: Vec<margin::Set>,
+    pub(super) strings: Vec<margin::Set>,
 }
 
 /// An `inline-block` box laid out: its items with its margin box's top-left corner at 0, 0, the

@@ -22,8 +22,8 @@
 //!
 //! **Page facts.** Each page carries its named strings, each name's value as `string(name)`
 //! reads it there, and the `data-mark` marks set on it in document order. A mark is set on a
-//! page as a named string is, and one inside an inline-block, a float or a flex item counts as
-//! on the first page.
+//! page as a named string is, a table row's on the page the row is first drawn on, and one
+//! inside an inline-block, a float, a flex item or a table cell counts as on the first page.
 //!
 //! **Markup over a margin.** [`overlay`] draws a document laid out on its own, such as the markup
 //! of a header function, over one page's margin: clipped to the margin's area, and in place of

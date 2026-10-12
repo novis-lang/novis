@@ -39,6 +39,18 @@
 //! footer row on each page before the last. A page is the last one when the rest of the table
 //! fits on it.
 //!
+//! **Borders at a break.** The table's box and each cell of a split row are closed at every
+//! page break, as `block`'s module doc says, unless `box-decoration-break` is `slice`. Under
+//! `border-collapse: collapse`, cells that meet overlap by the widest cell border and the
+//! outer cells' borders lie on the table's, so two borders that meet are drawn as one. Each
+//! cell keeps all four sides, so the last row before a break and the first after it are both
+//! closed. `border-spacing` is not used, and the borders are not resolved by style or width.
+//!
+//! **Slots and marks.** A `<slot name>` in a cell draws nothing, and its content is left out.
+//! Each page its row is drawn on records the cell's content box under the slot's name
+//! ([`super::Page::slots`]), and the second pass draws the slot's fill there. A row's
+//! `data-mark` marks are set on the page it is first drawn on.
+//!
 //! **Keeping rows together.** The table's `orphans` and `widows`, 2 when unset, count body rows.
 //! A table does not start at the bottom of a page with fewer than `orphans` body rows under its
 //! header rows: it starts on the next page. A break that would leave fewer than `widows` rows
@@ -54,7 +66,7 @@
 use super::block::Flow;
 use super::flex::fit;
 use super::text::{Cx, Placed, carry, shift};
-use super::{Block, MARGIN, Missing, keyword};
+use super::{Block, MARGIN, Missing, keyword, margin};
 use crate::css::{Style, Value, value};
 
 /// A table's content box, its `border-spacing`, its `table-layout`, and what it holds.
@@ -67,6 +79,8 @@ pub(super) struct Table {
     pub(super) spacing: [f32; 2],
     /// Whether its `table-layout` is `fixed`.
     pub(super) fixed: bool,
+    /// Whether its `border-collapse` is `collapse`.
+    pub(super) collapse: bool,
     /// How many body rows a page break leaves before it and after it, when it can.
     pub(super) orphans: usize,
     pub(super) widows: usize,
@@ -84,6 +98,10 @@ pub(super) struct Row {
     pub(super) repeat: Repeat,
     /// The cells, in source order.
     pub(super) cells: Vec<Cell>,
+    /// Each `<slot name>` in it: the index of its cell, and its name.
+    pub(super) slots: Vec<(usize, String)>,
+    /// Its `data-mark` marks, set on the page it is first drawn on.
+    pub(super) marks: Vec<(String, String)>,
 }
 
 /// A cell: its index in the list of atoms, its `colspan` and its `rowspan`.
@@ -226,10 +244,13 @@ fn spread(widths: &mut [f32], from: usize, span: usize, gap: f32, need: f32) {
     }
 }
 
-/// A row laid out: each cell's left edge and its items, and the row's height.
+/// A row laid out: each cell's left edge and its items, the row's height, each slot's name
+/// and its cell's content box, its top from the row's top, and the row's marks.
 struct Laid {
     cells: Vec<(f32, Placed)>,
     height: f32,
+    slots: Vec<(String, [f32; 4])>,
+    marks: Vec<(String, String)>,
 }
 
 impl Cx<'_> {
@@ -239,8 +260,9 @@ impl Cx<'_> {
         let Table {
             x,
             width,
-            spacing: [gx, gy],
+            spacing,
             fixed,
+            collapse,
             orphans,
             widows,
             captions,
@@ -255,6 +277,22 @@ impl Cx<'_> {
                     .collect()
             })
             .collect();
+        // Under `border-collapse: collapse`, cells that meet overlap by the widest cell border,
+        // so two borders that meet are drawn as one, and the outer cells' borders lie on the
+        // table's. Each cell keeps all four, so a row is closed on both sides of a page break.
+        let [gx, gy] = if collapse {
+            let widest = blocks
+                .iter()
+                .flatten()
+                .filter_map(|cell| match cell.first() {
+                    Some(Block::Open(g)) => g.border.into_iter().reduce(f32::max),
+                    _ => None,
+                })
+                .fold(0.0, f32::max);
+            [-widest; 2]
+        } else {
+            spacing
+        };
         let (starts, columns) = grid(&rows);
         let room = (width - gx * (columns as f32 + 1.0)).max(0.0);
         let widths = if fixed {
@@ -320,9 +358,33 @@ impl Cx<'_> {
                 };
                 cells.push((lefts[starts[r][c].min(columns - 1)], placed));
             }
+            // A slot fills its cell's content box, as tall as the cell's rows.
+            let slots = row
+                .slots
+                .iter()
+                .filter(|(c, _)| *c < row.cells.len())
+                .map(|(c, name)| {
+                    let end = span_end(r, &row.cells[*c]);
+                    let tall = heights[r..end].iter().sum::<f32>() + gy * (end - r - 1) as f32;
+                    let width = cell_width(starts[r][*c], row.cells[*c].span);
+                    let [top, right, bottom, left] = match blocks[r][*c].first() {
+                        Some(Block::Open(g)) => [0, 1, 2, 3].map(|s| g.border[s] + g.padding[s]),
+                        _ => [0.0; 4],
+                    };
+                    let area = [
+                        cells[*c].0 + left,
+                        top,
+                        (width - left - right).max(0.0),
+                        (tall - top - bottom).max(0.0),
+                    ];
+                    (name.clone(), area)
+                })
+                .collect();
             laid.push(Laid {
                 cells,
                 height: heights[r],
+                slots,
+                marks: row.marks.clone(),
             });
         }
 
@@ -394,6 +456,10 @@ impl Cx<'_> {
                     from: usize,
                     extra: f32| {
             cx.rows(&shown(&foot, *first, false), &laid, gy, flow, drawn);
+            // Collapsed borders end on the table's bottom edge, as they do on the last page.
+            if gy < 0.0 {
+                flow.place(gy);
+            }
             flow.break_page();
             *first = false;
             let last = fits_rest(flow, from, false, extra);
@@ -491,6 +557,9 @@ impl Cx<'_> {
                         turn(self, flow, &mut drawn, &mut first, i + 1, extra);
                     }
                     let y = flow.place(gy + height) + gy;
+                    if part == 0 {
+                        self.mark(&laid[r], flow);
+                    }
                     for (left, cell, _) in &mut split {
                         if let Some(on) = cell.pages.get_mut(part) {
                             let items = std::mem::take(&mut on.items);
@@ -546,6 +615,9 @@ impl Cx<'_> {
         let page = flow.pages.len() as u64;
         for &r in piece {
             y += gy;
+            if !drawn[r] {
+                self.mark(&laid[r], flow);
+            }
             for (left, cell) in &laid[r].cells {
                 let left = *left;
                 let items = cell
@@ -558,8 +630,25 @@ impl Cx<'_> {
                     carry(&mut self.missing, cell.missing.clone(), page);
                 }
             }
+            for (name, [x, top, width, height]) in &laid[r].slots {
+                let area = [*x, MARGIN + y + top, *width, *height];
+                flow.page().slots.push((name.clone(), area));
+            }
             drawn[r] = true;
             y += laid[r].height;
+        }
+    }
+
+    /// Sets the marks of the row `row` on the last page of `flow`.
+    fn mark(&mut self, row: &Laid, flow: &Flow) {
+        for (name, value) in &row.marks {
+            self.strings.push(margin::Set {
+                name: name.clone(),
+                value: value.clone(),
+                page: flow.pages.len() - 1,
+                top: false,
+                mark: true,
+            });
         }
     }
 

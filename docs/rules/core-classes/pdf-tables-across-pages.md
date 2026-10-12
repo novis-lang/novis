@@ -22,10 +22,12 @@ half of the second: a table cut through a line of text, a lone header at a page 
 and a carried-forward total that cannot be written are each a reason a program reaches for a second
 tool. Each rule is the reading a person expects, so none needs a setting.
 
-- **Memory:** the table's column widths and each row's height, once, as part of the layout tree.
+- **Memory:** the table's column widths and each row's height, once, as part of the layout tree,
+  and each slot's box once on each page its row is drawn on.
 
-**Not on disk.** `extensions/pdf/src/layout.rs` lays a `display: table` box out as a block box, so
-none of the eight rules holds yet. The `pdf` goal's Stage 11 builds them.
+**On disk.** `extensions/pdf/src/layout/table.rs` lays a table out by the eight rules, and its
+module doc names what it does not do yet. A closed edge takes its border and padding from each
+page it is drawn on.
 
 **Declined:**
 - **A setting per rule.** Each default is the one a document wants; `data-repeat`,

@@ -901,6 +901,7 @@ impl Builder<'_, '_> {
                 width: inner.width,
                 spacing: table::spacing(style, self.rem),
                 fixed: table::fixed(style),
+                collapse: keyword(style, "border-collapse") == Some("collapse"),
                 orphans: lines(style, "orphans"),
                 widows: lines(style, "widows"),
                 captions: Vec::new(),
@@ -960,8 +961,8 @@ impl Builder<'_, '_> {
     }
 
     /// Opens a group or a row of the innermost table, whose children are at the stack's
-    /// `depth`.
-    fn open_part(&mut self, part: TablePart, depth: usize) {
+    /// `depth`, a row with its `data-mark` marks.
+    fn open_part(&mut self, part: TablePart, depth: usize, marks: Vec<(String, String)>) {
         let Some(t) = self.tables.last_mut() else {
             return;
         };
@@ -979,11 +980,25 @@ impl Builder<'_, '_> {
                     group: t.group,
                     repeat,
                     cells: Vec::new(),
+                    slots: Vec::new(),
+                    marks,
                 });
                 t.row = true;
                 t.depths.push((depth, true));
             }
             _ => {}
+        }
+    }
+
+    /// Records a `<slot name>` in the cell now open in the last row of the innermost table. A
+    /// slot anywhere else, or with no name, is left out.
+    fn slot(&mut self, name: Option<&str>) {
+        if let Some(name) = name.map(str::trim).filter(|n| !n.is_empty())
+            && let Some(t) = self.tables.last_mut()
+            && t.row
+            && let Some(row) = t.table.rows.last_mut()
+        {
+            row.slots.push((row.cells.len(), name.to_owned()));
         }
     }
 
@@ -1019,6 +1034,8 @@ impl Builder<'_, '_> {
                     group: t.group,
                     repeat: Repeat::Every,
                     cells: Vec::new(),
+                    slots: Vec::new(),
+                    marks: Vec::new(),
                 });
                 t.row = true;
             }
@@ -1424,6 +1441,11 @@ pub(super) fn blocks(
                 if *space != Space::Html {
                     continue;
                 }
+                // A `<slot>` draws nothing here: the second pass draws its fill in its cell.
+                if name == "slot" {
+                    builder.slot(node.attr("name"));
+                    continue;
+                }
                 let Some(style) = styles.of(at) else {
                     continue;
                 };
@@ -1549,12 +1571,16 @@ pub(super) fn blocks(
                         mark: false,
                     });
                 }
-                for (name, value) in node.attr("data-mark").map(marks).unwrap_or_default() {
-                    builder.blocks.push(Block::String {
-                        name,
-                        value,
-                        mark: true,
-                    });
+                // A row's marks are set on the page the row is drawn on, so the row keeps them.
+                let mut row_marks = node.attr("data-mark").map(marks).unwrap_or_default();
+                if !matches!(part, Some(TablePart::Row(_))) {
+                    for (name, value) in std::mem::take(&mut row_marks) {
+                        builder.blocks.push(Block::String {
+                            name,
+                            value,
+                            mark: true,
+                        });
+                    }
                 }
                 if let Some(id) = node.attr("id") {
                     builder
@@ -1643,7 +1669,7 @@ pub(super) fn blocks(
                         builder.open_table(style, inner, frames.len());
                     }
                     Some(p @ (TablePart::Group(_) | TablePart::Row(_))) => {
-                        builder.open_part(p, frames.len());
+                        builder.open_part(p, frames.len(), row_marks);
                     }
                     _ => {}
                 }
@@ -1681,7 +1707,6 @@ fn lang_of(tag: &str) -> Option<Lang> {
     Lang::from_iso(code)
 }
 
-/// `text` with a soft hyphen at each point `hypher` breaks its words at in `lang`.
 /// The marks of a `data-mark` attribute: `name:value` pairs separated by `;`, each name and
 /// value trimmed. A pair with no `:` or an empty name is left out.
 fn marks(attr: &str) -> Vec<(String, String)> {
@@ -1694,6 +1719,7 @@ fn marks(attr: &str) -> Vec<(String, String)> {
         .collect()
 }
 
+/// `text` with a soft hyphen at each point `hypher` breaks its words at in `lang`.
 fn hyphenated(text: &str, lang: Lang) -> String {
     let mut out = String::with_capacity(text.len());
     let mut rest = text;

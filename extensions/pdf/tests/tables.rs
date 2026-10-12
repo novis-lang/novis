@@ -1,7 +1,8 @@
 //! Tables across pages on the host: the same columns on every page, repeated header and footer
-//! rows, rows kept whole and the caption once (`rule:core-classes/pdf-tables-across-pages`).
+//! rows, rows kept whole, borders closed at each break and the caption once
+//! (`rule:core-classes/pdf-tables-across-pages`).
 
-use nvs_pdf::layout::{self, Item, Laid};
+use nvs_pdf::layout::{self, Item, Laid, Paint, bounds};
 use nvs_pdf::{assets, css, fonts, parse};
 
 fn lay(html: &str) -> Laid {
@@ -44,6 +45,42 @@ const PAGE: &str = "<style>
     body { margin: 0; font-size: 10pt }
     td, th { padding: 2pt; text-align: left }
     </style>";
+
+/// The top and bottom of each solid edge on `page` in the colour `rgb` that is wider than it is
+/// tall, top to bottom.
+fn edges(laid: &Laid, page: usize, rgb: (u8, u8, u8)) -> Vec<(f32, f32)> {
+    let mut out: Vec<(f32, f32)> = laid.pages[page]
+        .items
+        .iter()
+        .filter_map(|item| match item {
+            Item::Path {
+                path,
+                paint: Paint::Color(c),
+                stroke: None,
+            } if (c.r, c.g, c.b) == rgb => {
+                let (left, top, right, bottom) = bounds(path);
+                (right - left > bottom - top).then_some((top, bottom))
+            }
+            _ => None,
+        })
+        .collect();
+    out.sort_by(|a, b| a.0.total_cmp(&b.0));
+    out
+}
+
+/// The highest and the lowest baseline on `page` of a run starting with `prefix`.
+fn span(laid: &Laid, page: usize, prefix: &str) -> (f32, f32) {
+    let ys: Vec<f32> = texts(laid, page)
+        .into_iter()
+        .filter(|(t, ..)| t.starts_with(prefix))
+        .map(|r| r.2)
+        .collect();
+    assert!(!ys.is_empty(), "no {prefix} on page {page}");
+    (ys.iter().copied().fold(f32::MAX, f32::min), ys.iter().copied().fold(f32::MIN, f32::max))
+}
+
+const RED: (u8, u8, u8) = (255, 0, 0);
+const BLUE: (u8, u8, u8) = (0, 0, 255);
 
 fn body_rows(count: usize, cells: impl Fn(usize) -> String) -> String {
     (1..=count)
@@ -209,6 +246,157 @@ fn a_row_taller_than_a_page_splits_between_lines() {
         }
     }
     assert_eq!(pages_of(&laid, "After"), vec![pages - 1]);
+}
+
+#[test]
+fn borders_are_closed_at_every_break() {
+    // The table's own border: a top and a bottom edge on every page, around its rows.
+    let rows = body_rows(60, |n| format!("<td>Tea{n}</td>"));
+    let laid = lay(&format!(
+        "{PAGE}<table style='border: 2pt solid red'>{rows}</table>"
+    ));
+    let pages = laid.pages.len();
+    assert!(pages >= 3, "{pages} pages");
+    for p in 0..pages {
+        let on = edges(&laid, p, RED);
+        let (high, low) = span(&laid, p, "Tea");
+        assert_eq!(on.len(), 2, "page {p}: {on:?}");
+        assert!(on[0].1 < high - 6.0 && on[1].0 > low, "page {p}: {on:?} {high} {low}");
+        assert!((on[0].1 - on[0].0 - 2.0).abs() < 0.01, "page {p}: {on:?}");
+    }
+    // Every row is still drawn once.
+    for n in 1..=60 {
+        assert_eq!(pages_of(&laid, &format!("Tea{n}")).len(), 1, "Tea{n}");
+    }
+
+    // Collapsed cell borders: rows that meet share one edge, and the first and last row on
+    // each page have theirs.
+    let laid = lay(&format!(
+        "{PAGE}<style>td {{ border: 1pt solid blue }}</style>
+        <table style='border-collapse: collapse; border: 1pt solid red'>{rows}</table>"
+    ));
+    let pages = laid.pages.len();
+    assert!(pages >= 3, "{pages} pages");
+    for p in 0..pages {
+        let count = texts(&laid, p)
+            .iter()
+            .filter(|(t, ..)| t.starts_with("Tea"))
+            .count();
+        let mut lines: Vec<f32> = edges(&laid, p, BLUE).iter().map(|e| e.0).collect();
+        lines.dedup_by(|a, b| (*a - *b).abs() < 0.01);
+        assert_eq!(lines.len(), count + 1, "page {p}: {lines:?}");
+        let (high, low) = span(&laid, p, "Tea");
+        assert!(lines[0] < high - 6.0 && lines[count] > low, "page {p}: {lines:?}");
+        // The table's edges lie on the outer rows' edges.
+        let red = edges(&laid, p, RED);
+        assert_eq!(red.len(), 2, "page {p}: {red:?}");
+        assert!((red[0].0 - lines[0]).abs() < 0.01, "page {p}: {red:?} {lines:?}");
+        assert!((red[1].0 - lines[count]).abs() < 0.01, "page {p}: {red:?} {lines:?}");
+    }
+
+    // A cell of a row taller than a page is closed on every page it is on.
+    let lines = (1..=80)
+        .map(|n| format!("Shop{n}"))
+        .collect::<Vec<_>>()
+        .join("<br>");
+    let laid = lay(&format!(
+        "{PAGE}<style>td {{ border: 1pt solid blue }}</style>
+        <table><tr><td>{lines}</td></tr></table>"
+    ));
+    let pages = laid.pages.len();
+    assert!(pages >= 2, "{pages} pages");
+    for p in 0..pages {
+        let on = edges(&laid, p, BLUE);
+        let (high, low) = span(&laid, p, "Shop");
+        assert_eq!(on.len(), 2, "page {p}: {on:?}");
+        assert!(on[0].1 < high - 6.0 && on[1].0 > low, "page {p}: {on:?}");
+    }
+}
+
+#[test]
+fn slice_restores_the_open_edge() {
+    let rows = body_rows(60, |n| format!("<td>Tea{n}</td>"));
+    let laid = lay(&format!(
+        "{PAGE}<table style='border: 2pt solid red; box-decoration-break: slice'>{rows}</table>"
+    ));
+    let pages = laid.pages.len();
+    assert!(pages >= 3, "{pages} pages");
+    // The top edge is on the first page only and the bottom edge on the last.
+    let (high, _) = span(&laid, 0, "Tea");
+    let first = edges(&laid, 0, RED);
+    assert_eq!(first.len(), 1, "{first:?}");
+    assert!(first[0].1 < high, "{first:?}");
+    for p in 1..pages - 1 {
+        assert_eq!(edges(&laid, p, RED), vec![], "page {p}");
+    }
+    let (_, low) = span(&laid, pages - 1, "Tea");
+    let last = edges(&laid, pages - 1, RED);
+    assert_eq!(last.len(), 1, "{last:?}");
+    assert!(last[0].0 > low, "{last:?}");
+    // A sliced table takes no more pages than a closed one.
+    let closed = lay(&format!(
+        "{PAGE}<table style='border: 2pt solid red'>{rows}</table>"
+    ));
+    assert!(pages <= closed.pages.len());
+}
+
+#[test]
+fn a_slot_in_a_continued_row_is_filled_without_moving_anything() {
+    let rows = body_rows(60, |n| format!("<td>Tea{n}</td><td>4.00</td>"));
+    let html = format!(
+        "{PAGE}<table><thead><tr><th>Item</th><th>Price</th></tr></thead><tbody>{rows}</tbody>
+        <tfoot><tr data-repeat='continued'><td>Carried</td><td><slot name='carried'></slot></td></tr>
+        <tr data-repeat='last'><td>Total</td><td><slot name='total'></slot></td></tr></tfoot></table>"
+    );
+    let document = nvs_pdf::Document {
+        html,
+        ..Default::default()
+    };
+    let (kept, _) = nvs_pdf::first(&document, &nvs_pdf::Heights::default()).unwrap();
+    let pages = kept.laid().pages.len();
+    assert!(pages >= 3, "{pages} pages");
+    // Each slot is on every page its row is on.
+    for p in 0..pages {
+        let names: Vec<&str> = kept.laid().pages[p]
+            .slots
+            .iter()
+            .map(|(name, _)| name.as_str())
+            .collect();
+        let want = if p + 1 == pages { "total" } else { "carried" };
+        assert_eq!(names, vec![want], "page {p}");
+    }
+    let before: Vec<_> = (0..pages).map(|p| texts(kept.laid(), p)).collect();
+    let fill = |text: &str| format!("<style>body {{ margin: 0; font-size: 10pt }}</style>{text}");
+    let long = "A total far too long for its cell, so it wraps onto more lines than the row has";
+    let markup: Vec<nvs_pdf::Markup> = (0..pages)
+        .map(|p| nvs_pdf::Markup {
+            slots: vec![
+                ("carried".to_owned(), fill(&format!("{}.00", (p + 1) * 100))),
+                ("total".to_owned(), fill(long)),
+            ],
+            ..Default::default()
+        })
+        .collect();
+    let (kept, overflows) = nvs_pdf::draw(kept, &markup).unwrap();
+    let laid = kept.laid();
+    for (p, before) in before.iter().enumerate() {
+        let after = texts(laid, p);
+        // Everything drawn before is drawn where it was.
+        for run in before {
+            assert!(after.contains(run), "page {p}: {run:?} moved");
+        }
+        if p + 1 < pages {
+            let at = |text: &str| after.iter().find(|(t, ..)| t == text).cloned();
+            let (_, x, y) = at(&format!("{}.00", (p + 1) * 100))
+                .unwrap_or_else(|| panic!("page {p}: no fill in {after:?}"));
+            let (_, label, line) = at("Carried").expect("the carried row");
+            assert!((y - line).abs() < 1.0 && x > label, "page {p}: {after:?}");
+        }
+    }
+    // The long total is drawn in its cell and listed as an overflow.
+    assert_eq!(overflows.len(), 1, "{overflows:?}");
+    assert_eq!(overflows[0].area, "total");
+    assert_eq!(overflows[0].page, pages as u64);
 }
 
 #[test]
