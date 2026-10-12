@@ -1,11 +1,15 @@
 {
   "title": "The AST panel renders `nvs ast --json` for the active file, on the resilient tree by default, and never runs `Core\\Ast`",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "core-classes/ast-is-inert",
     "ide/one-grammar-one-tree",
     "ide/the-tree-survives-a-syntax-error",
     "ide/ast-json-schema-is-frozen"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "editors/vscode/test/surfaces/ast.test.ts",
+    "crates/nvs-cli/tests/ast.rs",
+    "editors/vscode/test/host/surfaces.test.ts"
+  ]
 }

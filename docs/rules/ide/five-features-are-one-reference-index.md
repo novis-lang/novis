@@ -2,8 +2,8 @@
 gets a walk of its own. `textDocument/references` is the index's read side, and it lists each `use` line
 that imports the name among its uses; the CodeLens count leaves those lines out, because an import brings
 a name into scope and uses nothing. `textDocument/documentHighlight`
-is the same query narrowed to the open file, which is why it waits for the index rather than shipping
-earlier: it needs resolution applied to every occurrence, not to one. CodeLens above a declaration shows
+is the same query narrowed to the open file, which is why it reads the index rather than the open
+document alone: it needs resolution applied to every occurrence, not to one. CodeLens above a declaration shows
 the reference count, a type's implementors, and the methods a method overrides and is overridden by; it is
 gated on `nvs.codeLens.enable` (default `true`), because a lens is a request per visible declaration and a
 large file is where it is least welcome. `textDocument/typeHierarchy` shows supertypes and subtypes,
@@ -29,8 +29,9 @@ same function: `textDocument/references` and `textDocument/implementation` read 
 call `query`. A caller outside the server, such as `nvs code`, gets a `Workspace` from `server.rs`, which
 builds the index for one question and drops it with the answer.
 
-The structural check is that `nvs-lsp` has exactly one symbol-index construction site and all six
-readers read it. Five features that would each walk the workspace cost one walk between them, and the
+The structure is one constructor, `SymbolIndex::build` in `crates/nvs-lsp/src/index.rs`, and all six
+readers read what it built. The server keeps one warm index; a `.lspt` case and `nvs code` call the
+same constructor for one question each. Five features that would each walk the workspace cost one walk between them, and the
 warm index is what keeps references and highlight inside `rule:ide/a-full-reanalysis-stays-under-a-bound`.
 
 - **Memory:** the index holds one entry per file the workspace's analyses reached, for the life of the

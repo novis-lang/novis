@@ -1,9 +1,12 @@
 {
   "title": "`--EXPECT--` is exact and frozen, and every response is rendered by `nvs_lsp::render` so no case invents a spelling",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "ide/an-lsp-answer-is-frozen-as-an-lspt-case",
     "testing/nvst-is-separate"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "crates/nvs-lsp/src/render.rs",
+    "crates/nvs-lsp/tests/coverage.rs"
+  ]
 }

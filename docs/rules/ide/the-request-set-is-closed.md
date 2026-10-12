@@ -1,7 +1,9 @@
-M4B answers nine standard requests plus one of Novis's own, and M10 adds eight more standard ones and a
-second of its own, each one admitted on the same test: the data structure the milestone already builds *is*
-the answer. Each is named because
-"minimal" without a list is how scope grows: `publishDiagnostics` (the existing `nvs check` pipeline, at
+`nvs lsp` answers seventeen standard requests, the code actions of
+`rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`, and seven requests of Novis's own,
+each one admitted on the same test: a data structure the compiler or the server already builds *is* the
+answer. `crates/nvs-lsp/tests/handshake.rs` holds the declared capabilities to exactly that list, and a
+method outside it is answered `MethodNotFound`. Each is named because "minimal" without a list is how
+scope grows. The first nine: `publishDiagnostics` (the existing `nvs check` pipeline, at
 the negotiated encoding, `code` set, phase-gated per `rule:ide/diagnostics-are-phase-gated`); `hover`
 (the declared type, a `Core` member's registry signature row, a declaration's doc-comment run as
 Markdown, an `autoload` prefix's namespace and roots, the class the string of `as class<T>` or a
@@ -43,34 +45,34 @@ answer nothing.
   resolved call, per compile, the `Vec` not allocated for a method that marks nothing. In the server,
   one existence test per literal, root or path argument per link or hover request. Nothing at run time.
 
-M4B's non-standard request is `nvs/redactions`
+The first non-standard request is `nvs/redactions`
 (`rule:ide/redaction-ranges-come-from-the-server`), non-standard because LSP has no shape for "do not
 show this to the room".
 
-The last three standard ones are admitted on that test rather than on being useful, and the test is what
-keeps the list from growing: a candidate either reads a structure the milestone already built or waits for
-the milestone that builds it. `codeDescription` is not set: it takes a URL per code and there is no site to
+The last three of the nine are admitted on that test rather than on being useful, and the test is what
+keeps the list from growing: a candidate either reads a structure that is already built or waits for the
+work that builds it. `codeDescription` is not set: it takes a URL per code and there is no site to
 point one at, and a link into the repository would point at a Rust constant, which is worse than none.
 When there is a site, it is the one field that changes.
 
-M10's eight are admitted the same way, and the structure each one reads is named for the same reason the
-nine are. `references` and `documentHighlight` are the workspace symbol index's read side, whole-workspace
+The other eight standard requests are admitted the same way, and the structure each one reads is named
+for the same reason the nine are. `references` and `documentHighlight` are the workspace symbol index's read side, whole-workspace
 and narrowed to the open file; `codeLens` counts that index's uses and walks its extends edge; and
 `typeHierarchy` — `prepare`, `supertypes` and `subtypes`, one request in three methods — walks the same
 edge both ways. Those four, with unused-member dimming, are
 `rule:ide/five-features-are-one-reference-index`'s five readers of the one index. `signatureHelp`,
 `typeDefinition` and `implementation` read what `hover` and `definition` already resolve. `inlayHint` is the
-eighth. It was kept out of M4B because it wanted a settings story and the idioms it would show were still
-moving, and it is admitted for the two idioms that stopped moving and no others: a `var` declaration's
+eighth, and it is admitted for two idioms that are settled and no others: a `var` declaration's
 inferred type and a bare literal argument's parameter name, both read out of the type phase's own tables
 and never re-derived. A site those tables hold nothing for gets no hint: an editor draws a hint as if the
-source said it, so a re-derived one is a confident lie. `documentHighlight` waited for the index for a reason of its own: it applies
-resolution to every occurrence of a name, which is a different walk from resolving the one under a cursor.
+source said it, so a re-derived one is a confident lie. `documentHighlight` reads the index for a reason of its own: it
+applies resolution to every occurrence of a name, which is a different walk from resolving the one under
+a cursor.
 
-M10's own second non-standard request is `nvs/regions`
+The second non-standard request is `nvs/regions`
 (`rule:ide/a-template-region-gets-the-editors-services-and-formatter`), and it passes the same test the
 eight do: the lexer already knows where a mode ends, so the boundary list is a projection of a walk the
-milestone runs anyway. It is non-standard because LSP has no shape for "these bytes are another
+analysis runs anyway. It is non-standard because LSP has no shape for "these bytes are another
 language's" — a client deriving them from a grammar of its own would be a second implementation of the
 lexer, which is `nvs/redactions`' argument applied to a boundary rather than to a range. It carries
 `.lspt` vocabulary like that one, because `nvs_lsp::render` spells a region the way it already spells a
@@ -113,8 +115,8 @@ has no `.lspt` vocabulary, and `crates/nvs-lsp/tests/autoload.rs` holds it.
 - **`textDocument/declaration`.** It is refused rather than deferred: Novis has no declaration that is
   not the definition, so it would answer identically to `textDocument/definition`. That is two
   capabilities and two menu entries for one answer, and the crate names neither spelling of it.
-- **Inlay hints for everything an editor could annotate.** The reason they waited was idioms still
-  moving, and that reason still covers every shape but the two. A third shape — a `foreach` variable, a
+- **Inlay hints for everything an editor could annotate.** Every shape but the two shows an idiom that
+  is not settled. A third shape — a `foreach` variable, a
   chained call's intermediate type, a closure's return — is a decision on the same test a new request
   is.
 - **Call hierarchy.** It needs a second index of call-site edges that nothing else reads

@@ -1,6 +1,6 @@
 {
   "title": "The Test Explorer is `nvs test --list` and `nvs test --format=json` projected: the client matches records to items and derives nothing",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "testing/report-formats",
     "ide/the-extension-builds-no-ui-the-editor-already-has",
@@ -8,6 +8,9 @@
     "ide/every-feature-is-staged-behind-its-dependency"
   ],
   "guardedBy": [
-    "tests/conformance/lang/a-test-run-lists-what-it-declares-without-running-it.nvst"
+    "tests/conformance/lang/a-test-run-lists-what-it-declares-without-running-it.nvst",
+    "editors/vscode/test/surfaces/tests.test.ts",
+    "editors/vscode/test/coverage/lcov.test.ts",
+    "crates/nvs-cli/tests/test_dir.rs"
   ]
 }

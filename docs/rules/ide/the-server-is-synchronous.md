@@ -5,9 +5,11 @@ manifest-policy test is what pins it.
 
 Concurrency is a thread and a channel, which is the shape `lsp-server` hands over and the shape the rest
 of the project already uses: a reader thread, a writer thread, and one analysis thread that owns the
-document store. A request that arrives while an older analysis is in flight cancels it, because its result
-is about a document version nobody is looking at any more; `$/cancelRequest` cancels an in-flight request
-the same way.
+document store. A running analysis is never interrupted. An analysis is not started for a version the
+client has already replaced, and one overtaken while it ran publishes nothing, because its result is
+about a document version nobody is looking at any more (`crates/nvs-lsp/src/server.rs`, `publish`).
+`$/cancelRequest` stops a request the thread has not reached yet, answering `RequestCancelled` with no
+work; a request already being answered runs to the end.
 
 The server holds one document store on one thread, so an async runtime would schedule nothing. Taking one
 would put tokio, tower and `async-trait` into every later dependency review and every build, for a process

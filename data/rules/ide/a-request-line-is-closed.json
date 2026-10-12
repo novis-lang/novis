@@ -1,9 +1,13 @@
 {
   "title": "`--REQUEST--` is one line whose argument set is closed per request, and an unknown request or argument fails the case",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "ide/an-lsp-answer-is-frozen-as-an-lspt-case",
     "ide/diagnostics-are-phase-gated"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "crates/nvs-lsp/src/case.rs",
+    "tests/lsp/diagnostics/phase-all-defeats-the-gate.lspt",
+    "tests/lsp/completion/a-prefix-and-a-limit-narrow-a-list-already-sorted-by-label.lspt"
+  ]
 }
