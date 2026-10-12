@@ -1,0 +1,44 @@
+<?nvs
+// Attack: a request checks the last page of pages whose number does not fit the page count.
+// Each check should return `true` or `false` or throw an error, and the server keeps running.
+use Novis\Pdf\Document;
+use Novis\Pdf\Page;
+
+// 1. Page 7 of a document with 3 pages.
+try {
+    echo 'step 1 ran ', (new Page(7, 3, null, [], []))->isLast() ? 'last' : 'not last', "\n";
+} catch (Throwable $e) {
+    echo "step 1 stopped\n";
+}
+
+// 2. The largest page number of the largest page count.
+try {
+    var $edge = new Page(18446744073709551615, 18446744073709551615, null, [], []);
+    echo 'step 2 ran ', $edge->isLast() ? 'last' : 'not last', "\n";
+} catch (Throwable $e) {
+    echo "step 2 stopped\n";
+}
+
+// 3. A footer on the last page that is far too tall for its margin.
+try {
+    string $tall = Core\Str::repeat('Shop terms. ', 20000);
+    var $footer = fn(Page $page): Core\Html\Markup => $page->isLast() ? html`<p>{$tall}</p>` : html``;
+    var $rendered = Document::fromHtml('<p>Invoice</p>')->footer($footer, { height: '1mm' })->render();
+    echo 'step 3 ran ', Core\Arr::count($rendered->overflows), "\n";
+} catch (Throwable $e) {
+    echo "step 3 stopped\n";
+}
+
+// 4. A footer with a negative and a huge height, for the last page only.
+try {
+    var $sign = fn(Page $page): Core\Html\Markup => $page->isLast() ? html`<p>Signature</p>` : html``;
+    echo 'step 4a ran ', Document::fromHtml('<p>Contract</p>')->footer($sign, { height: '-5cm' })->render()->pageCount, "\n";
+} catch (Throwable $e) {
+    echo "step 4a stopped\n";
+}
+try {
+    var $huge = fn(Page $page): Core\Html\Markup => $page->isLast() ? html`<p>Signature</p>` : html``;
+    echo 'step 4b ran ', Document::fromHtml('<p>Contract</p>')->footer($huge, { height: '99999999km' })->render()->pageCount, "\n";
+} catch (Throwable $e) {
+    echo "step 4b stopped\n";
+}

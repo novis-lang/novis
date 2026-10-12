@@ -1,0 +1,52 @@
+<?nvs
+// Attack: a request merges encrypted files and broken files between good ones.
+// Each merge should throw a `ParseError` or return a file, and the server keeps running.
+use Novis\Pdf\Document;
+use Novis\Pdf\Pages;
+
+var $good = Document::fromHtml('<p>Shop</p>')->render()->bytes;
+
+// 1. A file with an empty password, between two good files.
+try {
+    var $empty = Document::fromHtml('<p>Locked</p>')->password('')->render()->bytes;
+    echo 'step 1 ran ', Core\Bytes::length(Pages::merge([Pages::of($good), Pages::of($empty), Pages::of($good)])), "\n";
+} catch (Throwable $e) {
+    echo "step 1 stopped\n";
+}
+
+// 2. A good file with a forged `/Encrypt` entry added at its end.
+try {
+    var $forged = Core\Bytes::join([$good, "\ntrailer\n<< /Encrypt << /Filter /Standard /V 99 /R 99 >> >>\n%%EOF\n" as bytes]);
+    echo 'step 2 ran ', Core\Bytes::length(Pages::merge([Pages::of($forged)])), "\n";
+} catch (Throwable $e) {
+    echo "step 2 stopped\n";
+}
+
+// 3. Empty bytes, one byte, and only the header of a PDF file.
+try {
+    echo 'step 3 ran ', Core\Bytes::length(Pages::merge([Pages::of('' as bytes)])), "\n";
+} catch (Throwable $e) {
+    echo "step 3a stopped\n";
+}
+try {
+    echo 'step 3 ran ', Core\Bytes::length(Pages::merge([Pages::of('%' as bytes)])), "\n";
+} catch (Throwable $e) {
+    echo "step 3b stopped\n";
+}
+try {
+    echo 'step 3 ran ', Core\Bytes::length(Pages::merge([Pages::of("%PDF-1.7\n%%EOF\n" as bytes)])), "\n";
+} catch (Throwable $e) {
+    echo "step 3c stopped\n";
+}
+
+// 4. One encrypted file, chosen two hundred times.
+try {
+    var $locked = Document::fromHtml('<p>Locked</p>')->password('example-password')->render()->bytes;
+    array<Pages> $parts = [];
+    for (int $n = 0; $n < 200; $n++) {
+        $parts[] = Pages::of($locked);
+    }
+    echo 'step 4 ran ', Core\Bytes::length(Pages::merge($parts)), "\n";
+} catch (Throwable $e) {
+    echo "step 4 stopped\n";
+}

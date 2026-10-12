@@ -396,6 +396,10 @@ fn html_nested_past_the_element_cap_flattens_as_core_html_does() {
     });
 }
 
+// covers: Novis\Pdf\Page::constructor
+// covers: Novis\Pdf\Page::isFirst
+// covers: Novis\Pdf\Page::isLast
+// covers: Novis\Pdf\Page::string
 #[test]
 fn a_header_function_runs_once_per_page_with_its_number_and_count() {
     run(|request, extension| {
@@ -422,6 +426,8 @@ fn a_header_function_runs_once_per_page_with_its_number_and_count() {
     });
 }
 
+// covers: Novis\Pdf\Page::marks
+// covers: Novis\Pdf\Page::marksUpTo
 #[test]
 fn marks_on_a_page_and_up_to_it_reach_the_function() {
     run(|request, extension| {
@@ -496,6 +502,7 @@ fn a_header_never_moves_the_body() {
     });
 }
 
+// covers: Novis\Pdf\Rendered::constructor
 #[test]
 fn a_header_taller_than_its_margin_is_reported() {
     run(|request, extension| {

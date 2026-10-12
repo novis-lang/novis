@@ -1,0 +1,25 @@
+<?nvs
+// Merges a one-page contract with two pages of terms, as a shop does for each contract it sends.
+// bench: iterations 32
+// bench: complexity linear
+use Novis\Pdf\Document;
+use Novis\Pdf\Pages;
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        bytes $contract = Document::fromHtml("<h1>Contract</h1><p>Shop rents a bike to a customer for one week.</p>")->render()->bytes;
+        bytes $terms = Document::fromHtml("<p style=\"break-after: page\">Terms, part 1</p><p>Terms, part 2</p>")->render()->bytes;
+        array<array<uint>> $lists = [[1, 2], [2, 1], [1]];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            bytes $merged = Pages::merge([Pages::of($contract), Pages::of($terms, $lists[($total % 3) as int])]);
+            uint $step = Core\Bytes::length($merged) > 0 ? 1 : 4;
+            $total = $total + $step;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(32), "\n";

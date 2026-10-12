@@ -1,0 +1,31 @@
+<?nvs
+// Shows the total of the earlier pages at the top of each page of an invoice.
+use Novis\Pdf\Document;
+use Novis\Pdf\Page;
+
+string $rows = "";
+for (int $n = 1; $n <= 70; $n++) {
+    $rows .= "<tr data-mark=\"amount:2.00\"><td>Cake {$n}</td><td>2.00 EUR</td></tr>";
+}
+var $html = "<h1>Invoice 1042</h1><table><tbody>{$rows}</tbody></table>";
+
+// This function adds up a list of amounts.
+var $sum = fn(array<string> $amounts): decimal => {
+    decimal $total = 0.0;
+    foreach ($amounts as string $amount) {
+        $total = $total + (($amount as ?decimal) ?? 0.0 as decimal);
+    }
+    return $total;
+};
+
+// The earlier pages are every page so far, without the rows of this page.
+var $header = fn(Page $page): Core\Html\Markup => {
+    if ($page->isFirst()) {
+        return html``;
+    }
+    decimal $before = $sum($page->marksUpTo("amount")) - $sum($page->marks("amount"));
+    echo "page ", $page->number, ": brought forward ", $before, " EUR\n";
+    return html`<p>Brought forward: {$before} EUR</p>`;
+};
+
+Document::fromHtml($html)->header($header)->render();

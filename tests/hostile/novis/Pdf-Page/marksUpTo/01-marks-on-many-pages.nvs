@@ -1,0 +1,46 @@
+<?nvs
+// Attack: a request adds up marks over very many pages, and over pages made by hand with wrong numbers.
+// Each attempt should return the values or throw an error, and the server keeps running.
+use Novis\Pdf\Document;
+use Novis\Pdf\Page;
+
+// 1. A page with a number past the pages it has marks for.
+try {
+    var $past = new Page(9, 2, null, [], [[{ name: 'amount', value: '1' }], [{ name: 'amount', value: '2' }]]);
+    echo 'step 1 ran ', Core\Arr::count($past->marksUpTo('amount')), "\n";
+} catch (Throwable $e) {
+    echo "step 1 stopped\n";
+}
+
+// 2. Page 0, which comes before every page.
+try {
+    var $zero = new Page(0, 1, null, [], [[{ name: 'amount', value: '1' }]]);
+    echo 'step 2 ran ', Core\Arr::count($zero->marksUpTo('amount')), "\n";
+} catch (Throwable $e) {
+    echo "step 2 stopped\n";
+}
+
+// 3. A render of one thousand pages where every footer reads every mark so far.
+// The work grows with the square of the page count.
+try {
+    var $footer = fn(Page $page): Core\Html\Markup => html`<p><?= Core\Arr::count($page->marksUpTo('amount')) ?></p>`;
+    var $html = Core\Str::repeat('<p style="break-after: page" data-mark="amount:1;amount:2;amount:3">Row</p>', 1000);
+    echo 'step 3 ran ', Document::fromHtml($html)->footer($footer)->render()->pageCount, "\n";
+} catch (Throwable $e) {
+    echo "step 3 stopped\n";
+}
+
+// 4. A running total of mark values that are not numbers.
+try {
+    var $total = fn(Page $page): Core\Html\Markup => {
+        decimal $sum = 0.0;
+        foreach ($page->marksUpTo('amount') as string $amount) {
+            $sum = $sum + (($amount as ?decimal) ?? 0.0 as decimal);
+        }
+        return html`<p>{$sum}</p>`;
+    };
+    var $text = '<p data-mark="amount:NaN;amount:1e999999;amount:-0;amount:99999999999999999999999999999999999999">a</p>';
+    echo 'step 4 ran ', Document::fromHtml($text)->footer($total)->render()->pageCount, "\n";
+} catch (Throwable $e) {
+    echo "step 4 stopped\n";
+}

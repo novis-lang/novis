@@ -1,0 +1,38 @@
+--TEST--
+`Rendered` carries the PDF file and its page count, lists an unsupported declaration, a missing glyph and an overflowing footer, has three empty lists for a clean render, and keeps every value of one made by hand: rule:core-classes/pdf-css-subset
+--FILE--
+<?nvs
+// covers: Novis\Pdf\Rendered::constructor
+use Novis\Pdf\Document;
+use Novis\Pdf\Page;
+use Novis\Pdf\Rendered;
+
+// A document the subset draws whole has three empty lists, and its bytes are a PDF file.
+var $clean = Document::fromHtml("<style>p { break-after: page }</style><p>One</p><p>Two</p>")->render();
+echo Core\Bytes::slice($clean->bytes, 0, 5) as string, " ", $clean->pageCount, " pages, ",
+    Core\Arr::count($clean->dropped), " ", Core\Arr::count($clean->missingGlyphs), " ", Core\Arr::count($clean->overflows), "\n";
+
+// An unsupported declaration, a character no default font has and a footer taller than its margin are each listed.
+string $terms = Core\Str::repeat("Shop sells to customers in the whole country. ", 20);
+var $footer = fn(Page $page): Core\Html\Markup => html`<p>{$terms}</p>`;
+var $flawed = Document::fromHtml("<style>h1 { text-shadow: 1px 1px gray }</style><h1>Shop</h1><p>Robot \u{1F916}</p>")
+    ->footer($footer, {height: "1cm"})->render();
+foreach ($flawed->dropped as var $css) {
+    echo "dropped ", $css->property, ": ", $css->value, " in ", $css->selector, " at ", $css->line, ":", $css->column, "\n";
+}
+foreach ($flawed->missingGlyphs as var $glyph) {
+    echo "missing ", Core\Str::length($glyph->text), " character on page ", $glyph->page, ", ", Core\Arr::count($glyph->fonts) > 0 ? "fonts tried" : "no fonts", "\n";
+}
+foreach ($flawed->overflows as var $overflow) {
+    echo "overflow in the ", $overflow->area, " of page ", $overflow->page, "\n";
+}
+
+// A result made by hand keeps every value it was given.
+var $made = new Rendered("%PDF-" as bytes, 2, [], [{text: "x", fonts: ["Serif"], page: 2}], [{page: 1, area: "header", text: "Shop"}]);
+echo Core\Bytes::length($made->bytes), " ", $made->pageCount, " ", $made->missingGlyphs[0]->fonts[0], " ", $made->overflows[0]->area, "\n";
+--EXPECT--
+%PDF- 2 pages, 0 0 0
+dropped text-shadow: 1px 1px gray in h1 at 1:13
+missing 1 character on page 1, fonts tried
+overflow in the footer of page 1
+5 2 Serif header

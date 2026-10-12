@@ -1,0 +1,14 @@
+<?nvs
+// Shows the error for a page number that the file does not have.
+use Novis\Pdf\Document;
+use Novis\Pdf\Pages;
+
+var $receipt = Document::fromHtml("<p>Receipt 1042</p>")->render()->bytes;
+
+// The receipt has one page, so page 2 throws a `LogicError`.
+try {
+    Pages::merge([Pages::of($receipt, [1, 2])]);
+    echo "merged\n";
+} catch (LogicError $error) {
+    echo "LogicError: ", $error->message, "\n";
+}

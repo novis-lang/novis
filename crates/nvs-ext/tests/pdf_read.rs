@@ -230,6 +230,8 @@ fn a_pdf_letterhead_is_the_page_background() {
     );
 }
 
+// covers: Novis\Pdf\Pages::of
+// covers: Novis\Pdf\Pages::merge
 #[test]
 fn merge_combines_selects_and_reorders_pages() {
     let parts = || {

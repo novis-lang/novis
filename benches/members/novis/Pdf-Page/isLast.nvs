@@ -1,0 +1,21 @@
+<?nvs
+// Checks whether a page is the last page, as an invoice footer does before it writes the total.
+// bench: iterations 4096
+// bench: complexity constant
+use Novis\Pdf\Page;
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<Page> $pages = [new Page(1, 3, null, [], []), new Page(2, 3, null, [], []), new Page(3, 3, null, [], [])];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            uint $step = $pages[($total % 3) as int]->isLast() ? 1 : 4;
+            $total = $total + $step;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(4096), "\n";
