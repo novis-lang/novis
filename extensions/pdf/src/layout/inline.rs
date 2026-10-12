@@ -16,8 +16,8 @@ use super::block::{Break, Insets, geometry, insets, sides, z_index};
 use super::flex::{self, Flex};
 use super::table::{self, Cell, Repeat, Row, Table};
 use super::{
-    Anchor, Atom, BLACK, Block, Frame, Href, Images, Inline, MARGIN, Para, Spaces, Span, color,
-    keyword, length,
+    Anchor, Atom, BLACK, Block, Frame, Href, Images, Inline, MARGIN, Para, Role, Spaces, Span,
+    color, keyword, length,
 };
 use crate::Error;
 use crate::assets::Assets;
@@ -1262,6 +1262,8 @@ enum Step {
         table: Option<TablePart>,
         /// Whether the element opened an inline box, which closes after its `::after`.
         inline: bool,
+        /// Whether the element's content is tagged with a role, which ends before its box closes.
+        tagged: bool,
         close: Option<&'static str>,
     },
 }
@@ -1345,6 +1347,7 @@ pub(super) fn blocks(
                 flex,
                 table,
                 inline,
+                tagged,
                 close,
             } => {
                 let frame = frames.pop().expect("an exit follows its enter");
@@ -1356,6 +1359,12 @@ pub(super) fn blocks(
                 if let Some(close) = close {
                     builder.push_control(close, &frame);
                 }
+                // A table's tag is around its block, and every other one inside the box.
+                let table_tag = tagged && matches!(table, Some(TablePart::Table));
+                if tagged && !table_tag {
+                    builder.flush();
+                    builder.blocks.push(Block::Tag(None));
+                }
                 if inline {
                     builder.close_inline();
                 }
@@ -1364,7 +1373,12 @@ pub(super) fn blocks(
                     builder.close_container();
                 }
                 match table {
-                    Some(TablePart::Table) => builder.close_table(),
+                    Some(TablePart::Table) => {
+                        builder.close_table();
+                        if table_tag {
+                            builder.blocks.push(Block::Tag(None));
+                        }
+                    }
                     Some(TablePart::Cell { span, rows }) => {
                         builder.close_cell(span, rows);
                         continue;
@@ -1460,7 +1474,11 @@ pub(super) fn blocks(
                     } else {
                         frame.clone()
                     };
+                    builder.flush();
+                    let alt = node.attr("alt").map(str::to_owned);
+                    builder.blocks.push(Block::Tag(Some(Role::Figure(alt))));
                     builder.image(dom, at, style, &inner)?;
+                    builder.blocks.push(Block::Tag(None));
                     if item {
                         builder.close_anonymous();
                     }
@@ -1560,6 +1578,12 @@ pub(super) fn blocks(
                 } else {
                     builder.open_inline(style, &frame)?
                 };
+                // An inline element's text is part of the block around it, so only a box is tagged.
+                let role = Role::of(name).filter(|_| block || part.is_some());
+                let tagged = role.is_some();
+                if role.is_some() {
+                    builder.blocks.push(Block::Tag(role));
+                }
                 for (name, value) in
                     paginate::string_set(style.get("string-set"), &dom.text(at), &|attr| {
                         node.attr(attr).map(str::to_owned)
@@ -1684,6 +1708,7 @@ pub(super) fn blocks(
                     flex,
                     table: part,
                     inline,
+                    tagged,
                     close: controls.map(|(_, close)| close),
                 });
                 work.extend(node.children.iter().rev().map(|&c| Step::Enter(c)));

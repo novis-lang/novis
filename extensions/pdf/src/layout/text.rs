@@ -488,7 +488,8 @@ impl Cx<'_> {
                 | Block::Close
                 | Block::Image { .. }
                 | Block::String { .. }
-                | Block::Target(_) => {}
+                | Block::Target(_)
+                | Block::Tag(_) => {}
             }
         }
     }
@@ -586,6 +587,10 @@ impl Cx<'_> {
                         flow.target(anchor);
                     }
                 }
+                Block::Tag(role) => flow.page().items.push(match role {
+                    Some(role) => Item::Tag(role),
+                    None => Item::Untag,
+                }),
                 Block::Image {
                     image,
                     x,
@@ -1352,7 +1357,7 @@ pub(super) fn shift(mut item: Item, dx: f32, dy: f32) -> Item {
                 *m = super::transform::shift(*m, dx, dy);
             }
         }
-        Item::End => {}
+        Item::End | Item::Tag(_) | Item::Untag => {}
     }
     item
 }

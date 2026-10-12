@@ -797,20 +797,20 @@ One file set: `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/n
 
 ### State
 
-**Stage 11 is done: both its checks are green.** A table closes its borders at every break, `border-collapse: collapse` shares cell borders, `<slot name>` is filled per page by `Document::slots`, and a row's `data-mark` is set on the page it is drawn on.
+**Stage 12 is under way: every file is tagged.** `output_is_tagged_by_default` passes. The other seven tests of `nvs-ext-standards-factur-x-and-passwords` and the case of `pdf-an-e-invoice-renders` are not written, so both checks stay red until the stage ends.
 
-- `extensions/pdf/src/layout/table.rs` is the table, and its module doc says what is laid out how, borders, slots and marks included. `extensions/pdf/src/layout/block.rs`'s module doc says how a closed box (`BoxGeometry::closed`, a table's or a cell's) is cut at a page break: `Flow::new_page` records each cut in `Open::cuts`, and `Flow::limit` and `Flow::next_limit` keep room for the edges.
-- The second pass is `draw` and `second` in `extensions/pdf/src/lib.rs`. `draw` returns the `Kept` body, so a host test reads `Kept::laid` after it. Slot areas are `layout::Page::slots`.
-- `extensions/pdf/tests/tables.rs` holds the eleven tests of `pdf-tables-across-pages`. `tests/conformance/novis/pdf-an-invoice-table-carries-forward.nvst` is the invoice case.
-- Stage 10's two passes, the page model, margin boxes, anchors and links are as their module docs say: `extensions/pdf/src/paginate/mod.rs`, `extensions/pdf/src/layout/margin.rs` and `extensions/pdf/src/write.rs`.
+- A block-level element with a `layout::Role` (`Role::of` in `extensions/pdf/src/layout.rs`) is bracketed by `Block::Tag`, pushed in the walk of `extensions/pdf/src/layout/inline.rs`, which the flow turns into `Item::Tag` and `Item::Untag`. Table rows are tagged where `extensions/pdf/src/layout/table.rs` draws them.
+- The module doc of `extensions/pdf/src/write.rs` says how the writer builds the tree (`Tags`), what is an artifact and what is left out.
+- `crates/nvs-ext/tests/pdf_standards.rs` is the stage's test file. It calls the built-in component as `crates/nvs-ext/tests/pdf.rs` does.
 
 ### Next
 
-**Stage 12, tagging and the standards first**: the file set is `extensions/pdf/src/write.rs`, `extensions/pdf/src/lib.rs` and `crates/nvs-ext/tests/pdf_standards.rs` (new).
+**Stage 12, the standards and Factur-X**: the file set is `extensions/pdf/src/write.rs`, `extensions/pdf/src/lib.rs` and `crates/nvs-ext/tests/pdf_standards.rs`.
 
-- [ ] **Output is tagged** (`rule:core-classes/pdf-one-engine`, Stage 12's *Tagging*): `write` (`extensions/pdf/src/write.rs:253`) writes with `krilla`'s default `SerializeSettings` today; tag headings, paragraphs, lists, tables with header cells and figures with `alt` from the HTML, and the document language, with `output_is_tagged_by_default`. The layout items carry no structure yet, so first decide where a tag is recorded (`extensions/pdf/src/layout.rs`, `Item`). Whether `krilla`'s tagging API takes the tree in one call is *not checked*.
-- [ ] **PDF/A-2b, PDF/A-3b and PDF/UA-1** (same stage): `first` (`extensions/pdf/src/lib.rs:176`) checks the options against each other and does not apply them; pass the standard to `krilla`'s validator and throw naming what broke, with `pdf_a_2b_and_3b_validate` and `pdf_ua_1_throws_for_an_image_without_alt`.
-- [ ] **Factur-X, then the password** (`rule:core-classes/pdf-factur-x-is-the-one-attachment`): the one XML attachment under PDF/A-3b, written by `write` (`extensions/pdf/src/write.rs:253`), then AES-256 in `extensions/pdf/src/encrypt.rs` (new), kept byte-equal, with the rest of `nvs-ext-standards-factur-x-and-passwords` and the case `tests/conformance/novis/pdf-an-e-invoice-renders-as-pdf-a-3b.nvst`.
+- [x] **Output is tagged** (`rule:core-classes/pdf-one-engine`, Stage 12's *Tagging*).
+- [ ] **PDF/A-2b, PDF/A-3b and PDF/UA-1** (same stage): `first` (`extensions/pdf/src/lib.rs:176`) checks the options against each other and does not apply them. Pass the standard into `write` (`extensions/pdf/src/write.rs:399`) as `SerializeSettings::configuration` (`krilla::configure::ConfigurationBuilder`, `with_archival_validator` and `with_accessibility_validator`), and turn `krilla`'s validation error into `Invalid` naming what broke, with `pdf_a_2b_and_3b_validate` and `pdf_ua_1_throws_for_an_image_without_alt`. Whether PDF/UA also wants each link annotation tagged (`Page::add_tagged_annotation` in a `Link` group) is *not checked*.
+- [ ] **Factur-X** (`rule:core-classes/pdf-factur-x-is-the-one-attachment`): the one XML attachment under PDF/A-3b, through `Document::embed_file` (`krilla::embed::EmbeddedFile`, `AssociationKind`) in `write` beside the metadata (`extensions/pdf/src/write.rs:416`), with `factur_x_embeds_one_xml_under_pdf_a_3b`, `an_invoice_xml_outside_pdf_a_3b_throws`, `a_malformed_invoice_xml_throws` and the case `tests/conformance/novis/pdf-an-e-invoice-renders-as-pdf-a-3b.nvst`.
+- [ ] **The password**, a session of its own: `krilla` 0.8 writes no encryption, so AES-256 revision 6 is `extensions/pdf/src/encrypt.rs` (new) over the finished file that `write` returns (`extensions/pdf/src/write.rs:399`), kept byte-equal, with the last two tests.
 
 ### Backlog
 

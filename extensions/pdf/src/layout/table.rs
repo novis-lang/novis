@@ -66,7 +66,7 @@
 use super::block::Flow;
 use super::flex::fit;
 use super::text::{Cx, Placed, carry, shift};
-use super::{Block, MARGIN, Missing, keyword, margin};
+use super::{Block, Item, MARGIN, Missing, Role, keyword, margin};
 use crate::css::{Style, Value, value};
 
 /// A table's content box, its `border-spacing`, its `table-layout`, and what it holds.
@@ -560,13 +560,22 @@ impl Cx<'_> {
                     if part == 0 {
                         self.mark(&laid[r], flow);
                     }
+                    // A cell's tags do not close on the page it starts on, so each piece of
+                    // it is a cell of its own.
+                    flow.page().items.push(Item::Tag(Role::Row));
                     for (left, cell, _) in &mut split {
                         if let Some(on) = cell.pages.get_mut(part) {
-                            let items = std::mem::take(&mut on.items);
-                            let items = items.into_iter().map(|item| shift(item, *left, y));
-                            flow.page().items.extend(items);
+                            let items = std::mem::take(&mut on.items)
+                                .into_iter()
+                                .filter(|item| !matches!(item, Item::Tag(_) | Item::Untag))
+                                .map(|item| shift(item, *left, y));
+                            let page = flow.page();
+                            page.items.push(Item::Tag(Role::Cell));
+                            page.items.extend(items);
+                            page.items.push(Item::Untag);
                         }
                     }
+                    flow.page().items.push(Item::Untag);
                 }
                 for (_, _, missing) in split {
                     carry(&mut self.missing, missing, page);
@@ -618,6 +627,9 @@ impl Cx<'_> {
             if !drawn[r] {
                 self.mark(&laid[r], flow);
             }
+            // A row drawn again is not read again.
+            let role = if drawn[r] { Role::Artifact } else { Role::Row };
+            flow.page().items.push(Item::Tag(role));
             for (left, cell) in &laid[r].cells {
                 let left = *left;
                 let items = cell
@@ -630,6 +642,7 @@ impl Cx<'_> {
                     carry(&mut self.missing, cell.missing.clone(), page);
                 }
             }
+            flow.page().items.push(Item::Untag);
             for (name, [x, top, width, height]) in &laid[r].slots {
                 let area = [*x, MARGIN + y + top, *width, *height];
                 flow.page().slots.push((name.clone(), area));

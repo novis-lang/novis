@@ -257,6 +257,53 @@ pub enum Item {
         width: f32,
         height: f32,
     },
+    /// Starts the content of an element in this role, which ends at the matching
+    /// [`Item::Untag`]. It draws nothing: the writer tags the content between them with it.
+    Tag(Role),
+    Untag,
+}
+
+/// What an element is in the document's structure: the tag the writer gives its content.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Role {
+    /// An `h1` to `h6`, by its level.
+    Heading(u8),
+    Paragraph,
+    /// A `ul`, or an `ol` when `ordered`.
+    List { ordered: bool },
+    ListItem,
+    Quote,
+    /// A `figure`, or an `img` with its `alt`.
+    Figure(Option<String>),
+    Caption,
+    Table,
+    Row,
+    HeaderCell,
+    Cell,
+    /// Content that is not part of the document's text: a repeated table row.
+    Artifact,
+}
+
+impl Role {
+    /// The role of a block-level HTML element `name`, or none when it groups nothing.
+    pub fn of(name: &str) -> Option<Role> {
+        Some(match name {
+            "p" | "pre" | "address" | "dt" | "dd" => Role::Paragraph,
+            "ul" | "menu" | "dl" => Role::List { ordered: false },
+            "ol" => Role::List { ordered: true },
+            "li" => Role::ListItem,
+            "blockquote" => Role::Quote,
+            "figure" => Role::Figure(None),
+            "caption" | "figcaption" => Role::Caption,
+            "table" => Role::Table,
+            "th" => Role::HeaderCell,
+            "td" => Role::Cell,
+            _ => match name.as_bytes() {
+                [b'h', level @ b'1'..=b'6'] => Role::Heading(level - b'0'),
+                _ => return None,
+            },
+        })
+    }
 }
 
 /// Where a link goes.
@@ -467,6 +514,9 @@ enum Block {
     /// The element with an `id`, or the heading, starts on the page and at the top of the next
     /// box placed. It takes no room in the flow.
     Target(Anchor),
+    /// An [`Item::Tag`] or, with no role, an [`Item::Untag`] on the page the flow is on. It
+    /// takes no room in the flow.
+    Tag(Option<Role>),
     Image {
         image: usize,
         x: f32,

@@ -18,8 +18,17 @@
 //! walks is a `Vec` in document order. `krilla` writes no JavaScript, launch action, open
 //! action, form field or attachment unless asked, and this writer asks for none.
 //!
-//! Every document is written with `krilla`'s default settings. Tagging, the PDF/A and PDF/UA
-//! standards, the password and the invoice attachment are Stage 12 and Stage 10's
+//! **Every file is tagged.** The layout brackets an element's content with [`Item::Tag`] and
+//! [`Item::Untag`] in its [`Role`], and the writer builds `krilla`'s tag tree from them in page
+//! order, so an element that goes on past a page is one group. A heading is `H1` to `H6`, titled
+//! by its text, a list `L` of `LI` each holding an `LBody`, a table `Table` of `TR` of `TH` and
+//! `TD`, an `<img>` a `Figure` with its `alt`, and the tree carries the document's `lang`. A run
+//! of text is a span leaf and an image an `Other` leaf of the innermost element open; text
+//! outside every element is a paragraph of its own. A path, a margin box and a table row drawn
+//! again on a later page are artifacts. A piece of a row split across pages is a `TR` of plain
+//! `TD`s, and a link annotation is not in the tree.
+//!
+//! The PDF/A and PDF/UA standards, the password and the invoice attachment are Stage 12's
 //! (`render`'s doc in the crate root says what each option does until then).
 
 use krilla::action::LinkAction;
@@ -36,12 +45,17 @@ use krilla::paint::{
     StrokeDash,
 };
 use krilla::surface::Surface;
+use krilla::tagging::{
+    Artifact, ArtifactType, ContentTag, Identifier, ListNumbering, Node, SpanTag,
+    TableHeaderScope, Tag, TagGroup, TagTree,
+};
 use krilla::text::{Font, GlyphId, KrillaGlyph};
 use krilla::{Data, Document, SerializeSettings};
 use krilla_svg::{SurfaceExt, SvgSettings};
+use std::num::NonZeroU16;
 
 use crate::css::Color;
-use crate::layout::{self, Bookmark, Href, Item, Laid, Paint, Picture, Seg};
+use crate::layout::{self, Bookmark, Href, Item, Laid, Paint, Picture, Role, Seg};
 use crate::paginate::PageBox;
 use crate::parse::{Dom, Space};
 use crate::{Error, Instant};
@@ -221,6 +235,138 @@ impl Info {
     }
 }
 
+/// An element whose content is being tagged: its role, its children so far and its text.
+struct Open {
+    role: Role,
+    children: Vec<Node>,
+    text: String,
+}
+
+/// The tag tree, built while the pages are drawn in order.
+#[derive(Default)]
+struct Tags {
+    /// The elements open, innermost last. An element goes on across a page break.
+    open: Vec<Open>,
+    /// How many tags deep the content is inside a [`Role::Artifact`], 0 outside one.
+    artifact: usize,
+    /// The groups closed at the top, and the paragraph collecting text outside every element.
+    top: Vec<Node>,
+    loose: Vec<Node>,
+}
+
+impl Tags {
+    fn tag(&mut self, role: &Role) {
+        if self.artifact > 0 || *role == Role::Artifact {
+            self.artifact += 1;
+            return;
+        }
+        self.flush();
+        self.open.push(Open {
+            role: role.clone(),
+            children: Vec::new(),
+            text: String::new(),
+        });
+    }
+
+    fn untag(&mut self) {
+        if self.artifact > 0 {
+            self.artifact -= 1;
+            return;
+        }
+        let Some(Open {
+            role,
+            children,
+            text,
+        }) = self.open.pop()
+        else {
+            return;
+        };
+        let group = match role {
+            Role::Heading(level) => {
+                let level = NonZeroU16::new(level.into()).unwrap_or(NonZeroU16::MIN);
+                let title = text.split_whitespace().collect::<Vec<_>>().join(" ");
+                TagGroup::with_children(Tag::Hn(level, Some(title)), children)
+            }
+            Role::Paragraph => TagGroup::with_children(Tag::P, children),
+            Role::List { ordered } => {
+                let numbering = if ordered {
+                    ListNumbering::Decimal
+                } else {
+                    ListNumbering::Disc
+                };
+                TagGroup::with_children(Tag::L(numbering), children)
+            }
+            Role::ListItem => TagGroup::with_children(
+                Tag::LI,
+                vec![TagGroup::with_children(Tag::LBody, children).into()],
+            ),
+            Role::Quote => TagGroup::with_children(Tag::BlockQuote, children),
+            Role::Figure(alt) => TagGroup::with_children(Tag::Figure(alt), children),
+            Role::Caption => TagGroup::with_children(Tag::Caption, children),
+            Role::Table => TagGroup::with_children(Tag::Table, children),
+            Role::Row => TagGroup::with_children(Tag::TR, children),
+            Role::HeaderCell => {
+                TagGroup::with_children(Tag::TH(TableHeaderScope::Column), children)
+            }
+            Role::Cell => TagGroup::with_children(Tag::TD, children),
+            Role::Artifact => return,
+        };
+        match self.open.last_mut() {
+            Some(parent) => {
+                parent.text.push(' ');
+                parent.text.push_str(&text);
+                parent.children.push(group.into());
+            }
+            None => self.top.push(group.into()),
+        }
+    }
+
+    /// The content tag of the next leaf, a run of text or not: `artifact` when it is not part
+    /// of the document's text.
+    fn content(&self, text: bool, artifact: Option<ArtifactType>) -> ContentTag<'static> {
+        let artifact = artifact.or((self.artifact > 0).then_some(ArtifactType::Layout));
+        match artifact {
+            Some(kind) => ContentTag::Artifact(Artifact::with_kind(kind)),
+            None if text => ContentTag::Span(SpanTag::empty()),
+            None => ContentTag::Other,
+        }
+    }
+
+    /// Adds the leaf `id` and its `text` to the innermost element open.
+    fn leaf(&mut self, id: Identifier, text: &str) {
+        if self.artifact > 0 {
+            return;
+        }
+        match self.open.last_mut() {
+            Some(open) => {
+                open.children.push(id.into());
+                open.text.push_str(text);
+            }
+            None => self.loose.push(id.into()),
+        }
+    }
+
+    /// Closes the paragraph of text outside every element.
+    fn flush(&mut self) {
+        if self.open.is_empty() && !self.loose.is_empty() {
+            let loose = std::mem::take(&mut self.loose);
+            self.top.push(TagGroup::with_children(Tag::P, loose).into());
+        }
+    }
+
+    fn finish(mut self, lang: Option<String>) -> TagTree {
+        while !self.open.is_empty() {
+            self.untag();
+        }
+        self.flush();
+        let mut tree = TagTree::new().with_lang(lang);
+        for node in self.top {
+            tree.push(node);
+        }
+        tree
+    }
+}
+
 /// The outline of `bookmarks`: each one under the last before it of a lower level.
 fn outline(bookmarks: &[Bookmark]) -> Outline {
     // The open entries, outermost first, each with its level.
@@ -251,7 +397,10 @@ fn outline(bookmarks: &[Bookmark]) -> Outline {
 
 /// The PDF file of `laid` with `info` as its metadata, created at `created` when there is one.
 pub fn write(laid: &Laid, info: &Info, created: Option<Instant>) -> Result<Vec<u8>, Error> {
-    let mut document = Document::new_with(SerializeSettings::default());
+    let mut document = Document::new_with(SerializeSettings {
+        enable_tagging: true,
+        ..SerializeSettings::default()
+    });
     let mut metadata = Metadata::new()
         .authors(info.authors.clone())
         .keywords(info.keywords.clone());
@@ -272,6 +421,7 @@ pub fn write(laid: &Laid, info: &Info, created: Option<Instant>) -> Result<Vec<u
         document.set_outline(outline(&laid.bookmarks));
     }
     let mut faces: Vec<Option<Font>> = vec![None; laid.faces.len()];
+    let mut tags = Tags::default();
     for laid_page in &laid.pages {
         let mut links: Vec<Annotation> = Vec::new();
         let PageBox { width, height, .. } = laid_page.geometry;
@@ -284,7 +434,13 @@ pub fn write(laid: &Laid, info: &Info, created: Option<Instant>) -> Result<Vec<u
         let mut surface = page.surface();
         // How many states each open group pushed, innermost last.
         let mut groups: Vec<usize> = Vec::new();
-        for item in &laid_page.items {
+        for (index, item) in laid_page.items.iter().enumerate() {
+            // A margin box repeats on every page, so it is not part of the document's text.
+            let margin = laid_page
+                .boxes
+                .iter()
+                .any(|(_, range)| range.contains(&index))
+                .then_some(ArtifactType::PaginationOther);
             match item {
                 Item::Text {
                     face,
@@ -320,7 +476,12 @@ pub fn write(laid: &Laid, info: &Info, created: Option<Instant>) -> Result<Vec<u
                         })
                         .collect();
                     fill(&mut surface, *color);
+                    let id = surface.start_tagged(tags.content(true, margin));
                     surface.draw_glyphs(Point::from_xy(*x, *y), &glyphs, font, text, *size, false);
+                    surface.end_tagged();
+                    if margin.is_none() {
+                        tags.leaf(id, text);
+                    }
                 }
                 Item::Path {
                     path,
@@ -359,7 +520,9 @@ pub fn write(laid: &Laid, info: &Info, created: Option<Instant>) -> Result<Vec<u
                             }));
                         }
                     }
+                    surface.start_tagged(tags.content(false, margin.or(Some(ArtifactType::Layout))));
                     surface.draw_path(&path);
+                    surface.end_tagged();
                     surface.set_stroke(None);
                 }
                 Item::Begin {
@@ -397,9 +560,24 @@ pub fn write(laid: &Laid, info: &Info, created: Option<Instant>) -> Result<Vec<u
                     let Some(box_size) = Size::from_wh(*width, *height) else {
                         continue;
                     };
+                    let id = surface.start_tagged(tags.content(false, margin));
                     surface.push_transform(&Transform::from_translate(*x, *y));
                     draw_picture(&mut surface, &laid.images[*image].0, box_size);
                     surface.pop();
+                    surface.end_tagged();
+                    if margin.is_none() {
+                        tags.leaf(id, "");
+                    }
+                }
+                Item::Tag(role) => {
+                    if margin.is_none() {
+                        tags.tag(role);
+                    }
+                }
+                Item::Untag => {
+                    if margin.is_none() {
+                        tags.untag();
+                    }
                 }
                 Item::Link {
                     href,
@@ -433,6 +611,7 @@ pub fn write(laid: &Laid, info: &Info, created: Option<Instant>) -> Result<Vec<u
         }
         page.finish();
     }
+    document.set_tag_tree(tags.finish(info.lang.clone()));
     document.finish().map_err(|err| match err {
         krilla::error::KrillaError::Image(image, _, why) => {
             let name = laid
