@@ -5203,8 +5203,9 @@ impl<'a> Lowering<'a> {
 
     /// `isinit($obj->prop)` (`rule:classes/isinit-reads-nothing`): the receiver is evaluated,
     /// and then [`InstKind::FieldIsInit`] tests the slot's tag. The property
-    /// is not read, so no `get` hook, observer or guard runs. The checker
-    /// admitted only a `->` read of a `lateinit` property on a known class.
+    /// is not read, so no `get` hook, observer or guard runs, and on a hooked
+    /// property the test is of its backing slot. The checker admitted only a
+    /// `->` read of a `lateinit` property on a known class.
     fn lower_isinit(&mut self, operand: &Expr, env: &mut Env, cur: &mut BlockId) -> (ValueId, Ty) {
         let ExprKind::PropertyAccess { object, .. } = &operand.kind else {
             panic!(
@@ -5214,7 +5215,10 @@ impl<'a> Lowering<'a> {
             );
         };
         let (class, field) = match self.exprs.lookup(operand.span) {
-            Some(ExprInfo::Property { class, name, .. }) => (class.to_string(), name.clone()),
+            Some(
+                ExprInfo::Property { class, name, .. }
+                | ExprInfo::HookedProperty { class, name, .. },
+            ) => (class.to_string(), name.clone()),
             _ => panic!(
                 "nvs-ir: `isinit` at {:?} names no resolved property, which \
                  `nvs_types::expr::presence::check_isinit_operand` refuses",

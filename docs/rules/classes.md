@@ -400,7 +400,8 @@ opposite claims about one property rather than a composable pair.
 `lateinit` property has been written, `false` before. It does not read the property. No `get` hook
 runs, no `onPropertyGet` is told, and nothing throws: it compiles to the receiver, one load of the
 slot's tag and one compare ([`classes/an-unwritten-property-read-throws`](classes.md#classes-an-unwritten-property-read-throws)). A written `null` is a
-value, so `isinit` is `true` after `$p->author = null`.
+value, so `isinit` is `true` after `$p->author = null`. On a hooked `lateinit` property it tests the
+backing slot.
 
 It is a compile error (`E0853`) on a property that is not `lateinit`, which always has a value, and on
 an operand that is not a `->` property read. It is a compile error (`E0854`) on a receiver whose class

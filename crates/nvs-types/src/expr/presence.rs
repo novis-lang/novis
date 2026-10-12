@@ -88,7 +88,11 @@ pub(crate) fn check_isinit_operand(
         return;
     };
     match env.exprs.lookup(operand.span) {
-        Some(ExprInfo::Property { class, name, .. }) => {
+        // A hooked `lateinit` property is tested at its backing slot, as an
+        // unhooked one is.
+        Some(
+            ExprInfo::Property { class, name, .. } | ExprInfo::HookedProperty { class, name, .. },
+        ) => {
             let (class, name) = (class.clone(), name.clone());
             let lateinit =
                 crate::signatures::resolve_property_owned(&class, &name, env.signatures, env.graph)
@@ -97,10 +101,6 @@ pub(crate) fn check_isinit_operand(
             if !lateinit {
                 report_isinit_not_lateinit(operand, &format!("`${name}` always has a value"), env);
             }
-        }
-        Some(ExprInfo::HookedProperty { name, .. }) => {
-            let label = format!("`${name}` always has a value");
-            report_isinit_not_lateinit(operand, &label, env);
         }
         // An unresolved access was reported by `check_expr` already.
         None => {}
