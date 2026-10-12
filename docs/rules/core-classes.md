@@ -3284,8 +3284,9 @@ method, so a test asserts on the comparison's own numbers and the failure ledger
 detection. **Placeholders** and **palette extraction** serve the front end.
 
 **Text** renders over a font supplied as bytes, with no system font lookup, since the guest has no
-filesystem. The first wave sets Latin script only: complex shaping, ligatures and right-to-left
-text are not applied, and the reference card says so until they are. **QR codes** are one entry point, because a QR code is an image a web application
+filesystem. It is shaped by `harfrust` in runs the Unicode bidirectional algorithm orders, so
+ligatures, Arabic joining, Indic conjuncts and right-to-left lines are drawn as the font defines
+them. **QR codes** are one entry point, because a QR code is an image a web application
 produces daily. **SVG** is an input format whose declared canvas counts against the pixel cap, whose
 scripts and foreign objects are ignored, and where **no external reference is ever resolved** —
 there is nothing in the guest to resolve it with. Rasterising is how an uploaded SVG is displayed
@@ -3306,8 +3307,8 @@ both placeholder formats and how the palette clusters `color_quant`'s colours, a
 component's `qr` export over the `qrcode` crate, whose module doc `extensions/image/src/qr.rs`
 says how `size`, `margin` and the level make the image and what each default is, and
 `QrCode::render` and `QrLevel`; the host checks read each code back with `rqrr`. Text is on
-disk: the `text` step and the `text` source over `ab_glyph`, whose module doc
-`extensions/image/src/text.rs` says how a size, a line, kerning, `maxWidth` and `align` set the
+disk: the `text` step and the `text` source, shaped by `harfrust` and drawn by `ab_glyph`, whose
+module doc `extensions/image/src/text.rs` says how a size, a line, shaping, `maxWidth` and `align` set the
 text and what the box is, and `Image::text`, `Image::measureText` and `Font::fromBytes`, which
 checks only the file's first four bytes and calls no export. SVG is not, and its fixtures owe an SVG
 that references an external file and rasterises with the reference unresolved.
@@ -3329,7 +3330,7 @@ component encodes. QR codes stay `Novis\Image\QrCode`'s, which gains SVG output 
 | `Barcode::render(string $data, Barcode::Symbology $symbology, ?{height?: uint, module?: uint, margin?: uint, text?: bool, format?: Format} $options = null): bytes` | the code as an encoded image, PNG by default |
 | `Barcode::svg(string $data, Barcode::Symbology $symbology, ?{height?: uint, module?: uint, margin?: uint, text?: bool} $options = null): string` | the code as an SVG document |
 | `QrCode::svg(string $data, ?{margin?: uint, level?: QrCode::Level} $options = null): string` | a QR code as an SVG document |
-| `QrCode::giroCode({name: string, iban: string, amount?: Core\Decimal, bic?: string, reference?: string, text?: string}): string` | the EPC payment text (GiroCode) a banking app reads, for `QrCode::render` or `QrCode::svg` |
+| `QrCode::giroCode({name: string, iban: string, amount?: decimal, bic?: string, reference?: string, text?: string}): string` | the EPC payment text (GiroCode) a banking app reads, for `QrCode::render` or `QrCode::svg` |
 
 A wrong check digit, or a character the symbology cannot carry, throws `LogicError` naming it; a code
 is never repaired by computing a digit the program did not write. `giroCode` checks the IBAN's checksum
@@ -3342,9 +3343,11 @@ sandbox. Every code a test writes is read back by a reader that is a dev-depende
 
 - **Memory:** a code is at most a few thousand modules, so a render is far under the pixel cap.
 
-**Not shipped.** `wit/image.wit` declares the `barcode` export, and the component returns `runtime`
-from it: no symbology draws yet, and `Barcode`, `QrCode::svg` and `QrCode::giroCode` are not in the
-binary.
+**Shipped.** The `barcode` export draws every symbology, `qr` writes `svg`, and `Barcode`,
+`QrCode::svg` and `QrCode::giroCode` are in the binary. `extensions/image/src/barcode.rs` says what
+each symbology takes and what each option's default is. `crates/nvs-ext/tests/image_barcode.rs`
+reads every code back with `rxing`, and `crates/nvs-cli/tests/image_barcode.rs` pins the GiroCode
+layout.
 
 **Declined:**
 - **PDF417 and Aztec.** Each is a large encoder for documents almost no web application produces.
@@ -3558,7 +3561,12 @@ observable from the guest; and a `data:` image that renders.
   all inside the request's memory cap and freed when the request ends. A program that never renders
   pays nothing.
 
-**Not shipped.** There is no PDF component in the tree.
+**Partly on disk.** `extensions/pdf/src/assets.rs` resolves every reference in HTML, CSS and inline
+SVG against the map and `data:`, and throws for the rest. `crates/nvs-ext/tests/pdf.rs` renders with
+no grant, and a `file:`, `http:` and unknown name each throw there and in
+`tests/conformance/novis/pdf-a-missing-asset-throws.nvst`. The asset map does not yet reach a
+stylesheet's rules, an `@font-face` or an inline SVG's drawing, because the cascade and those
+renderers are not written.
 
 **Declined:**
 - **`Core`.** A layout engine, a font parser and image decoders would sit unsandboxed in every binary
@@ -3623,7 +3631,9 @@ The request's memory cap and deadline end a render that exceeds them as they end
 - **Memory:** a `Document` holds its HTML and its assets until it is freed; the render's own memory is
   [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io)'s.
 
-**Not shipped.** There is no PDF component in the tree.
+**Partly on disk.** `extensions/pdf/manifest.json` declares `Engine` and `Standard`, and
+`extensions/pdf/nvs/` holds `Document` without `header`, `footer` and `slots`, and `Rendered`. `Page`,
+`Pages` and `Reader` are not written.
 
 **Declined:**
 - **A `Pdf` facade with static `render($html, $options)`.** The options a render takes — assets, three
@@ -3670,7 +3680,9 @@ wholesale and must still meet them.
   milliseconds for an invoice and seconds for a long report, so a bulk or slow render belongs in the
   queue.
 
-**Not shipped.** There is no PDF component in the tree.
+**Partly on disk.** `extensions/pdf/` parses with the patched `html5ever` under the same cap, shapes
+with `parley` and writes with `krilla`. Its layout is block flow and wrapped lines on A4 pages; the
+cascade, `taffy`, `hypher`, `usvg` and `hayro` are not in it yet.
 
 **Declined:**
 - **A Novis-side document builder** that appends headings, tables and page breaks and emits HTML. It
@@ -3894,7 +3906,10 @@ The component's fixtures owe a scanner over the output of the whole fixture corp
 `/JavaScript`, `/Launch` or `/OpenAction` object and no `/EmbeddedFile` outside the Factur-X fixtures,
 and the same input rendered twice and compared byte for byte, encrypted output among it.
 
-**Not shipped.** There is no PDF component in the tree.
+**Partly on disk.** `extensions/pdf/src/write.rs` writes through `krilla` with no creation time
+unless one is passed, and `krilla`'s document id hashes the content. `crates/nvs-ext/tests/pdf.rs`
+compares two renders byte for byte and scans the output for the names above. Links, encryption and
+the Factur-X attachment are not written yet.
 
 **Declined:**
 - **Any attachment besides the invoice XML.** A program that needs to send several files sends them
@@ -4048,9 +4063,10 @@ and no code under OFL-1.1 is admitted by it.
 - **Memory:** the twelve fonts are part of each component's bytes, a few megabytes of the binary. A
   render holds the faces it uses inside its request's cap.
 
-**Not shipped.** There is no PDF component in the tree. The twelve files are under
-`extensions/fonts/` with their release recorded in `SOURCE.json`, and the image component embeds
-them.
+**Partly on disk.** The twelve files are under `extensions/fonts/` with their release recorded in
+`SOURCE.json`, and the image and PDF components embed them. `extensions/pdf/src/fonts.rs` maps the
+family names above to them. The font chain, `@font-face` and the missing-glyph list are not written
+yet.
 
 **Declined:**
 - **Noto or another font with wide script coverage as a default.** Its size grows the binary by tens of

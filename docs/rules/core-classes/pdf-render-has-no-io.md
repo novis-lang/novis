@@ -30,7 +30,12 @@ observable from the guest; and a `data:` image that renders.
   all inside the request's memory cap and freed when the request ends. A program that never renders
   pays nothing.
 
-**Not shipped.** There is no PDF component in the tree.
+**Partly on disk.** `extensions/pdf/src/assets.rs` resolves every reference in HTML, CSS and inline
+SVG against the map and `data:`, and throws for the rest. `crates/nvs-ext/tests/pdf.rs` renders with
+no grant, and a `file:`, `http:` and unknown name each throw there and in
+`tests/conformance/novis/pdf-a-missing-asset-throws.nvst`. The asset map does not yet reach a
+stylesheet's rules, an `@font-face` or an inline SVG's drawing, because the cascade and those
+renderers are not written.
 
 **Declined:**
 - **`Core`.** A layout engine, a font parser and image decoders would sit unsandboxed in every binary

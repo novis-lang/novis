@@ -20,7 +20,10 @@ The component's fixtures owe a scanner over the output of the whole fixture corp
 `/JavaScript`, `/Launch` or `/OpenAction` object and no `/EmbeddedFile` outside the Factur-X fixtures,
 and the same input rendered twice and compared byte for byte, encrypted output among it.
 
-**Not shipped.** There is no PDF component in the tree.
+**Partly on disk.** `extensions/pdf/src/write.rs` writes through `krilla` with no creation time
+unless one is passed, and `krilla`'s document id hashes the content. `crates/nvs-ext/tests/pdf.rs`
+compares two renders byte for byte and scans the output for the names above. Links, encryption and
+the Factur-X attachment are not written yet.
 
 **Declined:**
 - **Any attachment besides the invoice XML.** A program that needs to send several files sends them

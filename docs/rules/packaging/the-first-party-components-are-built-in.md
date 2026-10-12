@@ -46,7 +46,11 @@ call (`crates/nvs-cli/src/extensions.rs`), so `Novis\Image\Codec::info` answers 
 embedded the same way as `nvs_ext::builtin::INTL` with its digest folded in beside the image's. Its
 manifest class is `Novis\Intl\Icu`, of whose exports `collateOrder` and `sortKeys` are implemented and
 the others return `runtime`; its Novis half is `Novis\Intl\Collator` (`crates/nvs-ext/tests/intl.rs`).
-The PDF crate, `extensions/pdf/`, does not exist yet; its interface is `wit/pdf.wit`.
+The PDF crate is `extensions/pdf/`, built and embedded the same way as `nvs_ext::builtin::PDF`
+with its digest folded in beside the other two. Its manifest class is `Novis\Pdf\Engine`, the
+interface `wit/pdf.wit`, of whose exports `render`'s `whole` pass is implemented and the others
+return `runtime`; its Novis half is `Novis\Pdf\Document` and `Novis\Pdf\Rendered`
+(`crates/nvs-ext/tests/pdf.rs`, `tests/conformance/novis/pdf-renders-with-no-configuration.nvst`).
 
 **Declined:**
 - **Embedded, but removable by a setting or a Cargo feature.** Whether `Novis\Image` exists would
