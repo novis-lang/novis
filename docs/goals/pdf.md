@@ -91,7 +91,7 @@ stages:
         shapes: ["A `.nvst` test case"]
   - id: 14
     title: "the growth, the benches and a bundle"
-    status: open
+    status: done
     extra:
       context:
         rules: [packaging/a-nvsx-dependency-embeds-in-the-same-payload, core-classes/pdf-page-is-an-image-source]
@@ -797,18 +797,18 @@ One file set: `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/n
 
 ### State
 
-**A large result crosses, and the 200-page report renders. Stage 14 owes only the rasterising bench.**
+**Stage 14 is done: the growth, the render benches, the bundle and the rasterising bench are on disk, and both Stage 14 checks pass.**
 
-- `crates/nvs-ext/src/call.rs` sets the store's hostcall fuel to `Budget::left` before each call and at every tick, so a crossing allocates on the host at most what the request has left, and running out is `Limit::Memory`, not a trap. A call's lifted results are charged to the request while they are converted (`lifted`). `rule:packaging/a-guest-runs-under-the-requests-budget` states the cost: tens of bytes per byte of a `list<u8>`, so a typed crossing for `bytes` is what would lower it.
-- `crates/nvs-ext/tests/pdf.rs` pins it: `a_200_page_report_crosses_under_the_requests_memory` (201 pages, about 4 MB, at 1 GiB) and `a_result_the_request_cannot_afford_reaches_the_memory_limit` (192 MiB).
-- `benches/members/novis/Pdf-Document/render.scale.nvs` ramps from 132 to 8448 rows (202 pages), under the folder's `nvs.toml` of 1 GiB. Under the default limit that size reaches the memory limit.
+- The rasterising bench is two more jobs of `crates/nvs-ext/benches/image_guest.rs` (`pdf_text_page`, `pdf_image_page`), built in `crates/nvs-ext/tests/support/image_arms.rs`, and its figures are in `benches/results/image-guest.json` and `rule:core-classes/pdf-page-is-an-image-source`. With only the size crossing back, guest against native is 13 against 9 ms for the text page and 53 against 31 ms for the image page. The raw RGBA8 of an A4 page at 150 dpi adds about 390 ms crossing back, one `Val` per byte.
+- `crates/nvs-ext/tests/image_guest.rs` holds the image page byte-equal across the arms and the text page within one level, because glyph anti-aliasing rounds differently under the host's SIMD.
 
 ### Next
 
-**Stage 14's last item, then Stage 15.** The file set is `crates/nvs-ext/tests/image_decode.rs` and the image component's PDF decode.
+**Stage 15, completion and hover in the editor.** The file set is `editors/vscode/package.json`, a new `editors/vscode/data/`, `editors/vscode/test/contributions/` and a new generator under `tools/nv/cmd/`.
 
-- [ ] **The rasterising bench** (`rule:core-classes/pdf-page-is-an-image-source`): one text page and one image-heavy page, guest against the same crate native. It is a Rust bench beside the fixtures of `crates/nvs-ext/tests/image_decode.rs:650`, because a Novis bench cannot run the native side. The native side is `nvs_image::run`, which `crates/nvs-ext/tests/support/image_arms.rs` already calls. Record both figures in the rule's fragment, then set Stage 14 done.
-- [ ] **Stage 15, completion and hover in the editor**: the custom data contributed at `editors/vscode/package.json:29`, generated from `extensions/pdf/subset.json`, as the stage's text says.
+- [ ] **The generator** (`rule:core-classes/pdf-css-subset`): reads `extensions/pdf/subset.json:219` (its `html` list; `:2`, `:153`, `:171` and `:193` are the CSS lists) and writes VS Code's HTML and CSS custom data under `editors/vscode/data/`, with a `--check` that fails when they are stale.
+- [ ] **The contribution**: `contributes.html.customData` and `contributes.css.customData` at `editors/vscode/package.json:29`, pointing at the two files; `data-repeat` with its values (the subset lists three where the stage's text says four), `data-mark`, and the CSS VS Code's own data lacks, as the stage's text lists.
+- [ ] **The check**: a `describe` block beside `editors/vscode/test/contributions/contributions.test.ts:438` that the data is contributed, current and completes `data-repeat`'s values, so `npm --prefix editors/vscode run test:headless` holds it. Then Stage 16, the feature proofs.
 
 ### Backlog
 
