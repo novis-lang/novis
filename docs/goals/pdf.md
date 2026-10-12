@@ -62,7 +62,7 @@ stages:
         shapes: []
   - id: 10
     title: header and footer functions
-    status: open
+    status: done
     extra:
       context:
         playbook: ["Writing Novis > in extensions/intl/nvs/Collator.nvs"]
@@ -797,7 +797,13 @@ One file set: `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/n
 
 ### State
 
-**Stage 9 is done: `pdf-pagination` and `pdf-page-x-of-y-runs` are green.** Links, bookmarks and metadata are the last of it, and Stage 10 has not started.
+**Stage 10 is done: `nvs-ext-header-and-footer-functions` and `pdf-a-footer-carries-a-running-total` are green.** Stage 11 has not started.
+
+- The two passes are `first` and `second` in `extensions/pdf/src/lib.rs`, and its module doc says what each does. `first` keeps a `Kept` (the `Laid`, the `Fonts`, the assets, the metadata); the guest holds it in a `thread_local` `KEPT`, and every `render` call takes it, so a body is written at most once. `second` lays each page's header and footer HTML out as its own document whose `@page` is the margin's area, and `layout::overlay` (`extensions/pdf/src/layout/margin.rs`) draws its first page there, clipped, after taking off the margin boxes of that side; a second page means an overflow.
+- `layout::layout_keeping` returns the `Fonts` with the `Laid`, so the markup is set in the body's faces at the same indices. Each `layout::Page` carries `strings`, `marks` and `boxes` (each margin box's item range), filled by `margin::facts` and `margin::draw`.
+- A `data-mark` is a `Block::String` with `mark: true` (`extensions/pdf/src/layout/inline.rs`, `marks`), kept in `Cx::strings` beside the named strings, so `Cx::measure` puts it back too.
+- A function's `height` is `paginate::margin_rule`, an `@page` rule pushed after the document's own.
+- The Novis half: `extensions/pdf/nvs/Page.nvs` and `Document::header` and `::footer` in `extensions/pdf/nvs/Document.nvs`, whose `render` makes two `Engine::render` calls when either is set.
 
 - The page model is `extensions/pdf/src/paginate/mod.rs`: `Sheet` matches `@page` rules per page index, blank flag and page name, `PageBox` is a page's size and margins, and `rect`, `alignment`, `content`, `element` and `string_set` read and fill a margin box. Each `layout::Page` carries its `geometry`, `blank` and `name`, and `write.rs` sizes each PDF page from it.
 - Everything is laid out at the first page's content width with its content box at `MARGIN`, `MARGIN`; a block box that changes the page name widens its containing block by the difference (`blocks` in `extensions/pdf/src/layout/inline.rs`, `Builder::name`). `Flow::paged` gives each page its own content height by index and name, `Flow::open` names an empty page from the box opened on it, and `text::layout` moves each page to its own content box at the end.
@@ -809,11 +815,11 @@ One file set: `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/n
 
 ### Next
 
-**Stage 10, the component's two passes**: the file set is `extensions/pdf/src/lib.rs`, `wit/pdf.wit`, `extensions/pdf/src/paginate/mod.rs` and `crates/nvs-ext/tests/pdf.rs`.
+**Stage 11, a table's columns and repeated header**: the file set is `extensions/pdf/src/layout/table.rs` (new), `extensions/pdf/src/layout/inline.rs`, `extensions/pdf/src/layout/text.rs` and `extensions/pdf/tests/tables.rs` (new).
 
-- [ ] **The `first` pass** (`rule:core-classes/pdf-header-is-a-page-function`): lay out the body, keep the `Laid` in the instance, and return each page's facts: number, count, first and last, the named page, the `string-set` values and the `data-mark` marks. It replaces `not_yet` in `render` (`extensions/pdf/src/lib.rs:199`); `PageFacts` (`extensions/pdf/src/lib.rs:74`) carries only the number now.
-- [ ] **The `second` pass** (same rule): place each page's markup in its margin without moving the body, list markup taller than its area in `overflows`, and draw it over a margin box that fills the same margin (`extensions/pdf/src/lib.rs:200`, `wit/pdf.wit:83`).
-- [ ] **The host tests** (`a_header_function_runs_once_per_page_with_its_number_and_count` and the rest of `nvs-ext-header-and-footer-functions`) in `crates/nvs-ext/tests/pdf.rs:54`, beside `whole`.
+- [ ] **Column widths once for the whole table** (`rule:core-classes/pdf-tables-across-pages`): a `table` display is laid out as block boxes now (`extensions/pdf/src/layout.rs:7`); give it a `Block` of its own that computes the columns and lays out each row as one piece, beside `Block::Flex` (`extensions/pdf/src/layout.rs:408`).
+- [ ] **`thead` and `tfoot` repeat, with `data-repeat`** (same rule): draw the header rows again at the top of each page the table reaches, where `Flow::new_page` starts one (`extensions/pdf/src/layout/block.rs:480`).
+- [ ] **A row that fits is never split, and the caption shows once** (same rule): a row is placed whole through `Flow::open` (`extensions/pdf/src/layout/block.rs:622`), with `column_widths_are_the_same_on_every_page`, `thead_and_tfoot_repeat_on_every_page` and `a_row_that_fits_is_never_split` in the new `extensions/pdf/tests/tables.rs`.
 
 ### Backlog
 
@@ -822,4 +828,4 @@ One file set: `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/n
 - Floats: an `<img>` with `float` stays a block, a float in the middle of a paragraph is placed at the paragraph's top, a line with no room beside a float is not moved below it, and a float does not go on to the next page (`extensions/pdf/src/layout.rs`, `extensions/pdf/src/layout/block.rs`).
 - Grid: a track with a length and a percentage in one `calc()` is not read, and `grid-template` and `grid` shorthands are not in the subset table (`extensions/pdf/src/layout/grid.rs`). A flex or grid container's `::before` and `::after` and a `<br>` in it are not items, `align-items: baseline` has no baseline from an item, and an item's `margin: auto` does nothing (`extensions/pdf/src/layout/flex.rs`).
 - Elliptical radii and repeating gradients are not laid out (`extensions/pdf/src/layout/boxes.rs`). `hyphenate-character` is not in the subset table, so the drawn hyphen is always `-` (`extensions/pdf/subset.json`). An inline box draws its sides left to right in a right-to-left line, its `opacity` is not drawn, and it does not draw around an inline-block in it (`extensions/pdf/src/layout.rs`). Clippy's `large_enum_variant` on `layout::Block` and `inline::Step` (`cargo clippy --manifest-path extensions/pdf/Cargo.toml --all-targets`).
-- Stage 10 reaches `first` through `Pass`'s `First` case (`extensions/pdf/manifest.json`, `wit/pdf.wit`). `Grammar::Free` properties are not checked past their tokens (`extensions/pdf/src/css/properties.rs`). The guest-against-native benchmark owed by `rule:core-classes/pdf-page-is-an-image-source`, `hayro`'s `embed-cmaps`, veraPDF in CI (the user's call), and Stage 14's growth with `hypher` and `krilla-svg`.
+- Header functions: the markup is styled by its own `<style>` and not the document's, it sits at the top of its area, a `:first` or named-page margin beats a function's `height`, and `slots` and `Page::string` have no conformance case yet (`extensions/pdf/src/lib.rs`, `extensions/pdf/nvs/Page.nvs`). `Grammar::Free` properties are not checked past their tokens (`extensions/pdf/src/css/properties.rs`). The guest-against-native benchmark owed by `rule:core-classes/pdf-page-is-an-image-source`, `hayro`'s `embed-cmaps`, veraPDF in CI (the user's call), and Stage 14's growth with `hypher` and `krilla-svg`.
