@@ -1686,3 +1686,118 @@ fn a_float_right_wraps_the_text_beside_it() {
     let first = render(&document).unwrap();
     assert_eq!(first.data, render(&document).unwrap().data);
 }
+
+/// The index on the first page of the first box filled with `colour`.
+fn index_of(laid: &Laid, colour: (u8, u8, u8)) -> usize {
+    laid.pages[0]
+        .items
+        .iter()
+        .position(|item| {
+            matches!(item, Item::Path { paint: Paint::Color(c), stroke: None, .. }
+                if (c.r, c.g, c.b) == colour)
+        })
+        .unwrap_or_else(|| panic!("no box of {colour:?}"))
+}
+
+#[test]
+fn absolute_positions_against_its_containing_block() {
+    const BOX: &str = "position: relative; margin-left: 50pt; width: 300pt; height: 200pt; \
+                       border: 10pt solid #000000; padding: 5pt; background-color: #ff0000";
+    const BLUE_BOX: &str =
+        "position: absolute; width: 40pt; height: 50pt; background-color: #0000ff";
+
+    // An absolute box is placed against the padding box of the positioned box around it, and
+    // takes no room: the text after it is where it would be without it.
+    let laid = lay(&format!(
+        "<body style='margin: 0'><p style='margin: 0'>Shop</p><div style='{BOX}'><div style='{BLUE_BOX}; top: 20pt; right: 30pt'></div><p style='margin: 0'>Blog</p></div><p style='margin: 0'>Next</p>"
+    ));
+    let [red, blue] = boxes_of(&laid, &[RED, BLUE])[..] else {
+        unreachable!()
+    };
+    assert!(
+        close(red.0, MARGIN + 50.0) && close(red.2, 330.0),
+        "{red:?}"
+    );
+    assert!(
+        close(blue.0, red.0 + 10.0 + 310.0 - 30.0 - 40.0) && close(blue.1, red.1 + 10.0 + 20.0),
+        "{red:?} {blue:?}"
+    );
+    assert!(close(blue.2, 40.0) && close(blue.3, 50.0), "{blue:?}");
+    let blog = baseline_of(&laid, "Blog");
+    assert!(blog > red.1 + 15.0 && blog < red.1 + 40.0, "{blog} {red:?}");
+    assert!(baseline_of(&laid, "Next") > red.1 + red.3, "{red:?}");
+
+    // `bottom` and `left` place it against the bottom-left corner of that padding box.
+    let laid = lay(&format!(
+        "<body style='margin: 0'><div style='{BOX}'><div style='{BLUE_BOX}; bottom: 0; left: 0'></div></div>"
+    ));
+    let [red, blue] = boxes_of(&laid, &[RED, BLUE])[..] else {
+        unreachable!()
+    };
+    assert!(
+        close(blue.0, red.0 + 10.0) && close(blue.1 + blue.3, red.1 + red.3 - 10.0),
+        "{red:?} {blue:?}"
+    );
+
+    // With no positioned box around it, the page's content box is its containing block.
+    let laid = lay(&format!(
+        "<body style='margin: 0'><div style='margin-left: 50pt'><div style='{BLUE_BOX}; bottom: 0; right: 0'></div></div><p>Shop</p>"
+    ));
+    let [blue] = boxes_of(&laid, &[BLUE])[..] else {
+        unreachable!()
+    };
+    assert!(
+        close(blue.0 + blue.2, layout::PAGE_WIDTH - MARGIN)
+            && close(blue.1 + blue.3, layout::PAGE_HEIGHT - MARGIN),
+        "{blue:?}"
+    );
+
+    // A relative box is drawn moved by its offsets, and the block after it keeps its place.
+    let relative = |offset: &str| {
+        lay(&format!(
+            "<body style='margin: 0'><div style='height: 40pt; background-color: #00ff00; {offset}'></div><p style='margin: 0'>Next</p>"
+        ))
+    };
+    let still = relative("");
+    let moved = relative("position: relative; top: 10pt; left: 20pt");
+    let ([before], [after]) = (
+        &boxes_of(&still, &[GREEN])[..],
+        &boxes_of(&moved, &[GREEN])[..],
+    ) else {
+        unreachable!()
+    };
+    assert!(
+        close(after.0, before.0 + 20.0) && close(after.1, before.1 + 10.0),
+        "{before:?} {after:?}"
+    );
+    assert!(close(
+        baseline_of(&still, "Next"),
+        baseline_of(&moved, "Next")
+    ));
+
+    // Positioned boxes are drawn over the others by `z-index`, then in document order, and a
+    // box below 0 is drawn under the boxes in the flow.
+    let laid = lay(&format!(
+        "<body style='margin: 0'><div style='{BLUE_BOX}; top: 0; left: 0; z-index: 2'></div><div style='{BLUE_BOX}; top: 0; left: 0; z-index: 1; background-color: #00ff00'></div><div style='{BLUE_BOX}; top: 0; left: 0; z-index: -1; background-color: #ff0000'></div><div style='height: 60pt; background-color: #ffff00'></div>"
+    ));
+    let order = [RED, (255, 255, 0), GREEN, BLUE].map(|c| index_of(&laid, c));
+    assert!(order.is_sorted(), "{order:?}");
+
+    // A box with a `z-index` draws the boxes inside it with it: a child below 0 is still over
+    // its parent's background, and the parent stays under a later box with a higher `z-index`.
+    let laid = lay(&format!(
+        "<body style='margin: 0'><div style='{BOX}; z-index: 1'><div style='{BLUE_BOX}; top: 0; left: 0; z-index: -1'></div></div><div style='{BLUE_BOX}; top: 0; left: 0; z-index: 2; background-color: #00ff00'></div>"
+    ));
+    let order = [RED, BLUE, GREEN].map(|c| index_of(&laid, c));
+    assert!(order.is_sorted(), "{order:?}");
+
+    // It renders, and twice to the same bytes.
+    let document = Document {
+        html: format!(
+            "<div style='{BOX}'><div style='{BLUE_BOX}; top: 20pt; right: 30pt'></div>{WORDS}</div>"
+        ),
+        ..Document::default()
+    };
+    let first = render(&document).unwrap();
+    assert_eq!(first.data, render(&document).unwrap().data);
+}

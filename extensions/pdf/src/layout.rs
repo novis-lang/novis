@@ -47,6 +47,19 @@
 //! borders are not shortened, as in CSS. `clear` on a block box moves it below the floats it
 //! names. A float in an `<img>` is not read yet, so the picture stays a block.
 //!
+//! **Positioning.** A block box under `position: relative` is laid out in its place and then
+//! drawn moved by its `left` or else `right`, and its `top` or else `bottom`. A percentage of
+//! `top` or `bottom` is 0, and an inline element's `position` does nothing. An element under
+//! `position: absolute`, whatever its `display` and also in a flex or grid container, is laid
+//! out as an inline-block is and takes no room. Its margin box is placed against the padding box
+//! of the nearest positioned block box around it, or else the page's content box, by `left`
+//! or else `right`, and `top` or else `bottom`, on the page that box starts or ends on. A side
+//! with neither keeps the place the box would have in the flow. Without a `width`, it is as wide
+//! as its content, up to its parent's content box, and `left` and `right` together do not
+//! stretch it. Inside an inline-block, a float or a flex item, the item's own box is its
+//! containing block when no box between them is positioned. Positioned boxes are drawn over the
+//! others by `z-index` (`block`'s module doc).
+//!
 //! **Text** is the inline content of a block, shaped and broken into lines by `parley` over
 //! `harfrust` and `skrifa`. Each run takes its font chain (`fonts`' module doc), `font-size`,
 //! `font-weight`, `font-style`, `color`, `letter-spacing`, `word-spacing`,
@@ -291,6 +304,14 @@ enum Block {
         width: f32,
         right: bool,
         clear: [bool; 2],
+    },
+    /// An absolute box: its index in the list of [`Atom`]s, laid out as an `inline-block` box
+    /// is, the left edge of the content box it would be in, its insets and its `z-index`.
+    Absolute {
+        atom: usize,
+        x: f32,
+        insets: block::Insets,
+        z: Option<i64>,
     },
     Text {
         text: String,

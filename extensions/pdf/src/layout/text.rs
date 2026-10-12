@@ -13,8 +13,8 @@ use parley::{
 use super::block::Flow;
 use super::inline::{blocks, is_bidi_control};
 use super::{
-    Atom, Block, CONTENT_HEIGHT, Glyph, Inline, Item, Laid, MARGIN, Missing, Paint, Para, Span,
-    boxes,
+    Atom, Block, CONTENT_HEIGHT, CONTENT_WIDTH, Glyph, Inline, Item, Laid, MARGIN, Missing, Paint,
+    Para, Span, boxes,
 };
 use crate::Error;
 use crate::assets::Assets;
@@ -55,6 +55,7 @@ pub fn layout(
     while !flow.open.is_empty() {
         flow.close();
     }
+    flow.finish([MARGIN, CONTENT_WIDTH, 0.0, CONTENT_HEIGHT]);
     Ok(Laid {
         pages: flow.pages,
         images,
@@ -134,7 +135,15 @@ impl Cx<'_> {
         // after it, so no margin inside collapses through them.
         blocks.pop();
         let mut blocks = blocks.into_iter();
+        // The box's padding box: its left edge, width, top and bottom border width.
+        let mut padding_box = [0.0; 4];
         if let Some(Block::Open(g)) = blocks.next() {
+            padding_box = [
+                g.x + g.border[3],
+                g.width - g.border[1] - g.border[3],
+                g.margin[0] + g.border[0],
+                g.border[2],
+            ];
             flow.open(g);
             flow.place(0.0);
         }
@@ -144,6 +153,8 @@ impl Cx<'_> {
         while !flow.open.is_empty() {
             flow.close();
         }
+        let [left, room, top, bottom] = padding_box;
+        flow.finish([left, room, top, flow.cursor - bottom]);
         let missing = std::mem::replace(&mut self.missing, outside);
         Placed {
             items: flow
@@ -286,6 +297,14 @@ impl Cx<'_> {
                             .map(|item| shift(item, left, MARGIN + top)),
                     );
                     carry(&mut self.missing, lost, page_number);
+                }
+                Block::Absolute { atom, x, insets, z } => {
+                    let placed = &mut self.placed[atom];
+                    let size = (placed.width, placed.height);
+                    let items = std::mem::take(&mut placed.items);
+                    let lost = std::mem::take(&mut placed.missing);
+                    flow.absolute(items, size, x, insets, z);
+                    carry(&mut self.missing, lost, flow.pages.len() as u64);
                 }
                 Block::Image {
                     image,
