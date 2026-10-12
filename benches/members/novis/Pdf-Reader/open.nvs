@@ -1,0 +1,27 @@
+<?nvs
+// Opens a received PDF file and reads its page count, as a shop does for each uploaded invoice.
+// bench: iterations 32
+// bench: complexity linear
+use Novis\Pdf\Document;
+use Novis\Pdf\Reader;
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<bytes> $files = [
+            Document::fromHtml("<p>Receipt 1042</p>")->render()->bytes,
+            Document::fromHtml("<p>Receipt 1043</p>")->render()->bytes,
+            Document::fromHtml("<p>Receipt 1044</p>")->render()->bytes,
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            uint $pages = Reader::open($files[($total % 3) as int])->pageCount;
+            uint $step = $pages > 0 ? 1 : 4;
+            $total = $total + $step;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(32), "\n";

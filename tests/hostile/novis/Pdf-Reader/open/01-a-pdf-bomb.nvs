@@ -1,0 +1,103 @@
+<?nvs
+// Attack: a request uploads PDF files built to make the reader loop, nest deeply or unpack a huge file.
+// Each file should open, throw an error or stop at a limit. The server keeps running.
+// hostile: ends-early 6 FATAL
+use Novis\Pdf\Document;
+use Novis\Pdf\Reader;
+
+class Forge
+{
+    // This method builds a PDF file from its objects, with a correct table of where each object starts.
+    public static function pdf(array<bytes> $objects): bytes
+    {
+        array<bytes> $parts = ["%PDF-1.7\n" as bytes];
+        array<int> $offsets = [];
+        int $at = 9;
+        int $n = 0;
+        foreach ($objects as bytes $body) {
+            $n = $n + 1;
+            $offsets[] = $at;
+            bytes $object = Core\Bytes::join(["{$n} 0 obj\n" as bytes, $body, "\nendobj\n" as bytes]);
+            $parts[] = $object;
+            $at = $at + Core\Bytes::length($object) as int;
+        }
+        string $table = "xref\n0 " . ($n + 1) as string . "\n0000000000 65535 f \n";
+        foreach ($offsets as int $offset) {
+            $table .= Core\Str::padStart($offset as string, 10, '0') . " 00000 n \n";
+        }
+        $parts[] = ($table . "trailer\n<< /Size " . ($n + 1) as string . " /Root 1 0 R >>\nstartxref\n{$at}\n%%EOF\n") as bytes;
+        return Core\Bytes::join($parts);
+    }
+}
+
+// 1. A page tree whose page lists the tree itself as its parent and its child.
+try {
+    var $loop = Forge::pdf([
+        '<< /Type /Catalog /Pages 2 0 R >>' as bytes,
+        '<< /Type /Pages /Kids [2 0 R 3 0 R] /Count 2 >>' as bytes,
+        '<< /Type /Page /Parent 2 0 R /Kids [2 0 R] /MediaBox [0 0 200 200] >>' as bytes,
+    ]);
+    echo 'step 1 ran ', Reader::open($loop)->pageCount, "\n";
+} catch (Throwable $e) {
+    echo "step 1 stopped\n";
+}
+
+// 2. A page whose resources are nested one hundred thousand arrays deep.
+try {
+    string $deep = Core\Str::repeat('[', 100000) . Core\Str::repeat(']', 100000);
+    var $nested = Forge::pdf([
+        '<< /Type /Catalog /Pages 2 0 R >>' as bytes,
+        '<< /Type /Pages /Kids [3 0 R] /Count 1 >>' as bytes,
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] /Resources << /Deep {$deep} >> >>" as bytes,
+    ]);
+    echo 'step 2 ran ', Reader::open($nested)->pageCount, "\n";
+} catch (Throwable $e) {
+    echo "step 2 stopped\n";
+}
+
+// 3. A list of attached files whose child list names itself, so it never ends.
+try {
+    var $cycle = Forge::pdf([
+        '<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles 4 0 R >> >>' as bytes,
+        '<< /Type /Pages /Kids [3 0 R] /Count 1 >>' as bytes,
+        '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] >>' as bytes,
+        '<< /Kids [4 0 R 4 0 R] >>' as bytes,
+    ]);
+    echo 'step 3 ran ', Core\Arr::count(Reader::open($cycle)->attachments()), "\n";
+} catch (Throwable $e) {
+    echo "step 3 stopped\n";
+}
+
+// 4. A page tree that says it has four billion pages.
+try {
+    var $count = Forge::pdf([
+        '<< /Type /Catalog /Pages 2 0 R >>' as bytes,
+        '<< /Type /Pages /Kids [3 0 R] /Count 4294967295 >>' as bytes,
+        '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] >>' as bytes,
+    ]);
+    echo 'step 4 ran ', Reader::open($count)->pageCount, "\n";
+} catch (Throwable $e) {
+    echo "step 4 stopped\n";
+}
+
+// 5. A real PDF file, cut off after its first 2000 bytes.
+try {
+    var $real = Document::fromHtml('<p>Shop</p>')->render()->bytes;
+    echo 'step 5 ran ', Reader::open(Core\Bytes::slice($real, 0, 2000))->pageCount, "\n";
+} catch (Throwable $e) {
+    echo "step 5 stopped\n";
+}
+
+// 6. An attached file that is a small compressed stream and unpacks to 64 MB.
+// The reader stops at the memory limit of the PDF engine. That ends the program, so this step is last.
+echo "step 6\n";
+bytes $packed = Core\Compress::compress(Core\Str::repeat(' ', 67108864) as bytes, Core\Compress::Codec::Zlib);
+uint $length = Core\Bytes::length($packed);
+var $bomb = Forge::pdf([
+    '<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles << /Names [(big.txt) 4 0 R] >> >> >>' as bytes,
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>' as bytes,
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] >>' as bytes,
+    '<< /Type /Filespec /F (big.txt) /UF (big.txt) /EF << /F 5 0 R >> >>' as bytes,
+    Core\Bytes::join(["<< /Type /EmbeddedFile /Length {$length} /Filter /FlateDecode >>\nstream\n" as bytes, $packed, "\nendstream" as bytes]),
+]);
+echo 'step 6 ran ', Core\Arr::count(Reader::open($bomb)->attachments()), "\n";

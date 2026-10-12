@@ -262,6 +262,7 @@ fn merge_combines_selects_and_reorders_pages() {
     assert!(message.contains("2 pages"), "{message}");
 }
 
+// covers: Novis\Pdf\Reader::open
 #[test]
 fn reader_counts_pages_and_reads_metadata() {
     let data = render(
@@ -291,6 +292,8 @@ xmlns:ram=\"urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInforma
 <rsm:ExchangedDocument><ram:ID>Shop-1</ram:ID><ram:TypeCode>380</ram:TypeCode>\
 </rsm:ExchangedDocument></rsm:CrossIndustryInvoice>";
 
+// covers: Novis\Pdf\Reader::attachments
+// covers: Novis\Pdf\Reader::invoiceXml
 #[test]
 fn reader_returns_the_factur_x_attachment() {
     let created = Value::Core {
@@ -327,6 +330,7 @@ fn reader_returns_the_factur_x_attachment() {
     );
 }
 
+// covers: Novis\Pdf\Reader::text
 #[test]
 fn reader_extracts_the_text_of_a_page() {
     let data = numbered(3);

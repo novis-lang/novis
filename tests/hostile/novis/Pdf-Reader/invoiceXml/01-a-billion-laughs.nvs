@@ -1,0 +1,113 @@
+<?nvs
+// Attack: a request renders and uploads invoices whose XML expands to a billion words or reads files on the server.
+// Each step should throw an error or return the XML unchanged as text. The server keeps running.
+use Novis\Pdf\Document;
+use Novis\Pdf\Reader;
+
+class Forge
+{
+    // This method builds a PDF file from its objects, with a correct table of where each object starts.
+    public static function pdf(array<bytes> $objects): bytes
+    {
+        array<bytes> $parts = ["%PDF-1.7\n" as bytes];
+        array<int> $offsets = [];
+        int $at = 9;
+        int $n = 0;
+        foreach ($objects as bytes $body) {
+            $n = $n + 1;
+            $offsets[] = $at;
+            bytes $object = Core\Bytes::join(["{$n} 0 obj\n" as bytes, $body, "\nendobj\n" as bytes]);
+            $parts[] = $object;
+            $at = $at + Core\Bytes::length($object) as int;
+        }
+        string $table = "xref\n0 " . ($n + 1) as string . "\n0000000000 65535 f \n";
+        foreach ($offsets as int $offset) {
+            $table .= Core\Str::padStart($offset as string, 10, '0') . " 00000 n \n";
+        }
+        $parts[] = ($table . "trailer\n<< /Size " . ($n + 1) as string . " /Root 1 0 R >>\nstartxref\n{$at}\n%%EOF\n") as bytes;
+        return Core\Bytes::join($parts);
+    }
+
+    // This method builds a PDF file with one page and `$xml` attached under the name `$name`.
+    public static function invoice(string $name, bytes $xml): bytes
+    {
+        uint $length = Core\Bytes::length($xml);
+        return self::pdf([
+            "<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles << /Names [({$name}) 4 0 R] >> >> >>" as bytes,
+            '<< /Type /Pages /Kids [3 0 R] /Count 1 >>' as bytes,
+            '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] >>' as bytes,
+            "<< /Type /Filespec /F ({$name}) /UF ({$name}) /EF << /F 5 0 R >> >>" as bytes,
+            Core\Bytes::join(["<< /Type /EmbeddedFile /Length {$length} >>\nstream\n" as bytes, $xml, "\nendstream" as bytes]),
+        ]);
+    }
+}
+
+// Ten levels of entities. Each level repeats the level below ten times, so the root expands to ten billion words.
+string $entities = '<!ENTITY lol0 "lol">';
+for (int $level = 1; $level <= 10; $level++) {
+    string $below = '&lol' . ($level - 1) as string . ';';
+    $entities .= "<!ENTITY lol{$level} \"" . Core\Str::repeat($below, 10) . '">';
+}
+string $laughs = '<?xml version="1.0"?><!DOCTYPE rsm:CrossIndustryInvoice [' . $entities . ']>'
+    . '<rsm:CrossIndustryInvoice xmlns:rsm="urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100">&lol10;</rsm:CrossIndustryInvoice>';
+string $external = '<?xml version="1.0"?><!DOCTYPE x [<!ENTITY secret SYSTEM "file:///etc/passwd">]>'
+    . '<rsm:CrossIndustryInvoice xmlns:rsm="urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100">&secret;</rsm:CrossIndustryInvoice>';
+
+// 1. Renders an invoice with the billion laughs as its XML.
+try {
+    var $rendered = Document::fromHtml('<html lang="en"><head><title>Shop</title></head><body><p>Invoice</p></body></html>')
+        ->standard(Document::Standard::PdfA3b)
+        ->created(Core\Time::fromIso('2026-01-01T00:00:00Z'))
+        ->invoiceXml($laughs)
+        ->render()->bytes;
+    echo 'step 1 ran ', Core\Bytes::length($rendered), "\n";
+} catch (Throwable $e) {
+    echo "step 1 stopped\n";
+}
+
+// 2. Renders an invoice whose XML reads a file on the server.
+try {
+    var $withFile = Document::fromHtml('<html lang="en"><head><title>Shop</title></head><body><p>Invoice</p></body></html>')
+        ->standard(Document::Standard::PdfA3b)
+        ->created(Core\Time::fromIso('2026-01-01T00:00:00Z'))
+        ->invoiceXml($external)
+        ->render()->bytes;
+    echo 'step 2 ran ', Core\Bytes::length($withFile), "\n";
+} catch (Throwable $e) {
+    echo "step 2 stopped\n";
+}
+
+// 3. Reads back an uploaded file that has the billion laughs attached, under each of the three invoice names.
+array<string> $names = ['factur-x.xml', 'zugferd-invoice.xml', 'xrechnung.xml'];
+foreach ($names as string $name) {
+    try {
+        ?string $back = Reader::open(Forge::invoice($name, $laughs as bytes))->invoiceXml();
+        echo 'step 3 ran ', $back == $laughs ? 'unchanged' : 'changed', "\n";
+    } catch (Throwable $e) {
+        echo "step 3 stopped\n";
+    }
+}
+
+// 4. Parses the XML that step 3 read back, as a program that books the invoice does.
+try {
+    ?string $laughsBack = Reader::open(Forge::invoice('factur-x.xml', $laughs as bytes))->invoiceXml();
+    echo 'step 4 ran ', Core\Arr::count(Core\Xml::parse($laughsBack ?? '')->children()), "\n";
+} catch (Throwable $e) {
+    echo "step 4 stopped\n";
+}
+
+// 5. Reads back the XML that reads a file on the server, and parses it.
+try {
+    ?string $externalBack = Reader::open(Forge::invoice('factur-x.xml', $external as bytes))->invoiceXml();
+    echo 'step 5 ran ', Core\Arr::count(Core\Xml::parse($externalBack ?? '')->children()), "\n";
+} catch (Throwable $e) {
+    echo "step 5 stopped\n";
+}
+
+// 6. An invoice XML in UTF-16, which is not UTF-8 text.
+try {
+    bytes $utf16 = Core\Encoding::fromHex('fffe3c00780020002f003e00');
+    echo 'step 6 ran ', Reader::open(Forge::invoice('factur-x.xml', $utf16))->invoiceXml() ?? 'null', "\n";
+} catch (Throwable $e) {
+    echo "step 6 stopped\n";
+}
