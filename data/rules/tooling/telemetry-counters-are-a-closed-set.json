@@ -6,5 +6,6 @@
     "tooling/telemetry-show-prints-the-payload",
     "observability/the-runtime-exports-what-it-already-measures"
   ],
-  "guardedBy": []
+  "guardedBy": [],
+  "milestone": "M10"
 }

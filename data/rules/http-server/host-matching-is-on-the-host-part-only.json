@@ -9,5 +9,6 @@
   "guardedBy": [
     "crates/nvs-server/src/mount.rs",
     "crates/nvs-config/tests/mount.rs"
-  ]
+  ],
+  "goal": "request-isolation-debts"
 }

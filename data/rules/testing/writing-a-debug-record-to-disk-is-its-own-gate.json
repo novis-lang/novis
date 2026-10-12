@@ -7,5 +7,6 @@
     "errors/debug-dump",
     "errors/log-level"
   ],
-  "guardedBy": []
+  "guardedBy": [],
+  "milestone": "M10"
 }

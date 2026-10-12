@@ -4,5 +4,6 @@
   "seeAlso": [
     "testing/the-ingester-runs-whether-or-not-anyone-is-looking"
   ],
-  "guardedBy": []
+  "guardedBy": [],
+  "milestone": "M10"
 }

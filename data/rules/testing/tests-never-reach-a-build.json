@@ -5,5 +5,6 @@
     "testing/test-attribute",
     "testing/determinism-declared-on-the-test"
   ],
-  "guardedBy": []
+  "guardedBy": [],
+  "milestone": "M10"
 }

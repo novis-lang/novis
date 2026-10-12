@@ -6,5 +6,6 @@
     "config/ownership-is-the-trust-boundary",
     "config/the-config-is-an-immutable-snapshot"
   ],
-  "guardedBy": []
+  "guardedBy": [],
+  "goal": "server-rule-debts"
 }

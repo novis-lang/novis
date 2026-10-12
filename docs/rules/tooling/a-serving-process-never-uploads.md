@@ -12,6 +12,8 @@ for schedulers that want only that. There is no daemon, no timer and no backgrou
 `invocation.serve`. Every claim here is testable against a local listener, because the endpoint is
 configuration (`rule:config/telemetry-and-update-endpoints-are-configuration`).
 
+**Not on disk.** Nothing in `crates/` uploads telemetry, and there is no `nvs telemetry upload`.
+
 **Declined:**
 - **A background daemon or timer that phones home.** It is the shape people distrust even when opted
   in, and a second long-lived process to secure. An upload is carried, never initiated by a resident

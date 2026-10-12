@@ -8,3 +8,6 @@ compile time, at the exact line. With the written case closed, the only way to m
 time is to print a **computed** escape sequence, which is the attack the sink exists to neutralize.
 The diagnostic names `Cli\Text` so that a developer who wants colour finds the one raw path
 (`rule:tooling/text-is-the-one-raw-path`) instead of concluding that colour does not work.
+
+**Not on disk.** The lexer decodes `\e` to an `ESC` byte with no diagnostic
+(`crates/nvs-syntax/src/string_lit.rs:408`), and so do the `\x` and octal forms.

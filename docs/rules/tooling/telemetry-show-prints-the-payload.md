@@ -8,3 +8,5 @@ complete counter list and both endpoints' contracts, and that chapter — not a 
 user-facing statement of what is collected. The service side's contract is published with it: aggregates
 only, no IP retention, and the aggregated data itself public, so anyone can see exactly what the project
 sees.
+
+**Not on disk.** There is no `nvs telemetry show`.

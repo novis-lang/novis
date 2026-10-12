@@ -10,3 +10,8 @@ A suite run under one configuration cannot find these. Each case checks that Nov
 rules say under that one codegen, and this bug class lives only where a probe-attached or optimised
 build of the same program prints something else. The cost is CI wall-clock proportional to the added
 axes, and nothing at all at run time.
+
+**Not on disk.** The codegen tests compile with probes on (`crates/nvs-codegen/tests/probes.rs:276`),
+and CI runs the conformance suite once, with probes off (`.github/workflows/ci.yml:184`). The coverage
+flags are refused over a `.nvst` tree (`crates/nvs-cli/src/main.rs:3862`), and Cranelift's `opt_level`
+is fixed at `speed` (`crates/nvs-codegen/src/lib.rs:1949`).

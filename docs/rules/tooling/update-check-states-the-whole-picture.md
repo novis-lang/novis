@@ -8,3 +8,5 @@ The default human output **streams** as it works, one line per step, so the user
 when something is slow, and follows the terminal's conventions. The exit status is 0 whether or not an
 update exists and whether or not a telemetry send succeeded
 (`rule:tooling/a-failed-upload-never-fails-the-command`); automation reads the JSON.
+
+**Not on disk.** There is no `nvs update-check`.

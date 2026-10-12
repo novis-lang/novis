@@ -11,3 +11,7 @@ write the same two-task scaffold to get one loop's worth of behaviour.
 There is nothing for such a second member to drain in any case: the subscriber queue belongs to the
 connection, and `receive()` is the only thing that empties it. A queue that overflows closes *that*
 subscriber rather than blocking the publisher, and the overflow is asked before the wait.
+
+**Not on disk.** `receive()` answers a topic delivery and a peer frame, and checks the overflow before
+it waits (`crates/nvs-stdlib/src/socket.rs:1005`). A delivery that arrives while `receive()` is already
+parked does not wake it (`crates/nvs-stdlib/src/socket.rs:1017`).

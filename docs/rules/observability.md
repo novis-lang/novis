@@ -657,7 +657,7 @@ manifests are read again before concluding either way.
 
 <a id="observability-speedscope-timeline-export"></a>
 
-## The four event kinds export as one speedscope evented timeline, beside Callgrind, Clover/lcov and NDJSON  *(designed — not yet in the compiler)*
+## The four event kinds export as one speedscope evented timeline, beside Callgrind, Clover/lcov and NDJSON  *(designed — owned by M10)*
 
 `rule:observability/speedscope-timeline-export`
 
@@ -674,6 +674,8 @@ adding a second timeline format with a bespoke viewer to build and maintain.
 The NDJSON trace remains the format no third-party tool reads; this export closes that gap for
 visualisation, and for nothing else. The exact CLI flag that selects it is left to the exporter's
 implementation, the same way the Clover and lcov shapes were.
+
+**Not on disk.** No exporter writes speedscope's evented format.
 
 <sub>See also [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind), [`testing/debug-surface`](testing.md#testing-debug-surface).</sub>
 

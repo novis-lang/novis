@@ -21,8 +21,8 @@ The undercount is accepted and stated: opt-in telemetry reports a small share of
 and a deployed server whose operator never runs another command records forever and uploads never.
 Download counts and cronned update checks are the correction.
 
-**Not shipped.** Nothing in `crates/` implements any of this; the implementing slices are scheduled after
-the parity chain's goals reach acceptance, and the reference says nothing of it until then.
+**Not on disk.** Nothing in `crates/` implements any of this: there is no `nvs telemetry` command and no
+`nvs update-check`.
 
 **Declined:**
 - **Opt-out telemetry.** It gives bigger numbers and is the wrong default for a runtime whose first

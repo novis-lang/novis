@@ -28,3 +28,5 @@ everything else. One rendering path serves live and historical data, a backgroun
 the ingester buffer, and a browser that was closed needs no replay buffer. That sequence, not a
 record's own timestamp, orders the live view, which makes it immune to clock skew between writers and
 to a garbage timestamp in a corrupt file.
+
+**Not on disk.** There is no ingester.

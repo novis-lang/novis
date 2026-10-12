@@ -8,5 +8,4 @@ claim — the weekly upload gate, the three-second timeout, the never-uploads-fr
 payload `nvs telemetry show` prints — against a local listener, and CI never touches the real host. The
 consents, the counter schema and the two endpoints' contracts are the tooling chapter's.
 
-**Not shipped.** Nothing in `crates/` reads either variable; implementation waits until the parity
-chain's goals are done, and the reference says nothing of it until then.
+**Not on disk.** Nothing in `crates/` reads either variable.

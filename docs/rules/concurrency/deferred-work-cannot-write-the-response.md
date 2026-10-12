@@ -10,3 +10,10 @@ affect, so the log is the whole of what it can reach.
 
 `all` and `map` compose inside deferred work with no special case, because a deferred callable runs as an
 ordinary task.
+
+**Not on disk.** An uncaught throw in deferred work reaches the floor log and `onUncaughtThrow` does not
+fire (`crates/nvs-runtime/src/deferred.rs:216`), and `Core\Response::slotted` throws `LogicError` once
+the main script has ended
+(`tests/conformance/core/a-response-slotted-in-after-response-work-throws-a-logic-error.nvst`). There is
+no compile-time diagnostic for a `Core\Response` write in deferred work, and no run-time check beyond
+`slotted`'s.

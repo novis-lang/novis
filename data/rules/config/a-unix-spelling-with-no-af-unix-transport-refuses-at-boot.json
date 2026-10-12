@@ -7,5 +7,6 @@
   ],
   "guardedBy": [
     "crates/nvs-config/src/store.rs"
-  ]
+  ],
+  "goal": "server-rule-debts"
 }

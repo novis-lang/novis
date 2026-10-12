@@ -45,7 +45,7 @@ so a single `use Core\Test;` places both.
 
 <a id="testing-tests-never-reach-a-build"></a>
 
-## `nvs run` and `nvs build` lower no test, and `nvs check` type-checks every one  *(designed — not yet in the compiler)*
+## `nvs run` and `nvs build` lower no test, and `nvs check` type-checks every one  *(designed — owned by M10)*
 
 `rule:testing/tests-never-reach-a-build`
 
@@ -58,6 +58,9 @@ artifact. Production pays nothing for them, and no test surface is reachable at 
 
 `nvs check` does type-check test code. That is the one place tests and non-tests are treated alike,
 and deliberately so: a test cannot rot silently while the code around it changes.
+
+**Not on disk.** `nvs check` type-checks test methods (`crates/nvs-types/src/check.rs:409`). `nvs run`
+and `nvs build` still lower them: nothing in the lowering leaves a `#[Test]` method out.
 
 <sub>See also [`testing/test-attribute`](testing.md#testing-test-attribute), [`testing/determinism-declared-on-the-test`](testing.md#testing-determinism-declared-on-the-test).</sub>
 
@@ -95,7 +98,7 @@ machine.
 
 <a id="testing-private-in-the-same-file"></a>
 
-## A test reaches `private` members of classes declared in its own file, and nowhere else  *(designed — not yet in the compiler)*
+## A test reaches `private` members of classes declared in its own file, and nowhere else  *(designed — owned by M10)*
 
 `rule:testing/private-in-the-same-file`
 
@@ -105,6 +108,10 @@ A test in a separate file is held to the public contract.
 This is the narrowest rule that avoids the failure it exists to prevent: a `public` method that
 exists only because a test needed to reach it. White-box testing stays possible where the author has
 already chosen to put the test next to the code; everything at a distance tests behaviour.
+
+**Not on disk.** Member visibility is checked against the accessing class alone
+(`crates/nvs-types/src/expr/members.rs:1844`), so a test in the same file is held to the public contract
+too.
 
 <sub>See also [`testing/test-attribute`](testing.md#testing-test-attribute), [`testing/tests-never-reach-a-build`](testing.md#testing-tests-never-reach-a-build).</sub>
 
@@ -195,7 +202,7 @@ method's own parameters are filled by [`testing/fixtures`](testing.md#testing-fi
 
 <a id="testing-after-hook"></a>
 
-## `#[After]` is for state that outlives the isolate, and nothing else needs teardown  *(designed — not yet in the compiler)*
+## `#[After]` is for state that outlives the isolate, and nothing else needs teardown  *(designed — owned by M10)*
 
 `rule:testing/after-hook`
 
@@ -205,6 +212,9 @@ inside it with it, which is what leaves this marker one narrow job rather than a
 
 Every such residue is capability-bearing, so there is nothing `#[After]` can usefully do until a
 test run can hold a capability.
+
+**Not on disk.** `#[After]` is not a recognised attribute (`crates/nvs-types/src/derive.rs:71`), and a
+test run cannot hold a capability yet.
 
 <sub>See also [`testing/constructor-is-setup`](testing.md#testing-constructor-is-setup), [`testing/isolate-per-test`](testing.md#testing-isolate-per-test).</sub>
 
@@ -528,7 +538,7 @@ surface, and a table that pretended to them would be asserting its own implement
 
 <a id="testing-property-testing"></a>
 
-## `#[Property]` derives its generators from the parameters' declared types  *(designed — not yet in the compiler)*
+## `#[Property]` derives its generators from the parameters' declared types  *(designed — owned by M10)*
 
 `rule:testing/property-testing`
 
@@ -542,6 +552,9 @@ A failure shrinks to a minimal counterexample and reports the seed that reproduc
 `gen:` option narrows one parameter where its declared type is wider than the domain. A generated
 `string` is valid UTF-8 including combining marks and grapheme clusters, because that is what a
 `string` is — a property that only holds for ASCII is a property that is not true.
+
+**Not on disk.** `#[Property]` is not a recognised attribute (`crates/nvs-types/src/derive.rs:71`), and
+nothing derives a generator or shrinks a counterexample.
 
 <sub>See also [`testing/data-rows`](testing.md#testing-data-rows), [`testing/assertions-are-typed`](testing.md#testing-assertions-are-typed).</sub>
 
@@ -578,7 +591,7 @@ so a snapshot cannot become the place secrets get committed.
 
 <a id="testing-mutation-testing"></a>
 
-## A mutation run asks whether any test would have noticed the code being wrong  *(designed — not yet in the compiler)*
+## A mutation run asks whether any test would have noticed the code being wrong  *(designed — owned by M10)*
 
 `rule:testing/mutation-testing`
 
@@ -595,6 +608,8 @@ mutant runs against those rather than against the whole suite. On two thousand t
 hundred mutants that is the difference between minutes and most of a day.
 
 The operator set is enumerated where it is implemented, so adding an operator changes no rule.
+
+**Not on disk.** Nothing generates or runs a mutant.
 
 <sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/feature-proofs`](testing.md#testing-feature-proofs).</sub>
 
@@ -1249,7 +1264,7 @@ collect coverage, and the two are independent mechanisms.
 
 <a id="testing-debug-surface"></a>
 
-## Each probe starts and stops mid-request, and exports what existing tooling already reads  *(designed — not yet in the compiler)*
+## Each probe starts and stops mid-request, and exports what existing tooling already reads  *(designed — owned by M10)*
 
 `rule:testing/debug-surface`
 
@@ -1277,6 +1292,12 @@ A spawned isolate starts from its parent's current flag word and may only narrow
 never merges into the parent's live state; it comes back as fields on the result, by the same
 copy-out rule a value, an error and a usage figure already use.
 
+**Not on disk.** The probe bits exist (`crates/nvs-runtime/src/ctx/mod.rs:287`), and `nvs test` writes
+lcov, Clover and Cobertura coverage (`crates/nvs-cli/src/main.rs:617`,
+`crates/nvs-cli/src/coverage.rs`). `Core\Debug` has no start, stop or coverage read-back
+(`crates/nvs-stdlib/src/debug.rs:117`), there is no Callgrind exporter and no streamed trace sink, `nvs
+run` has no probe flags, and a spawned isolate's probe data does not come back on its result.
+
 **Declined:**
 - **A Novis-native coverage and profile format with a converter.** Both already have dominant
   consumers, and a conversion step is friction for every project that uses them.
@@ -1290,7 +1311,7 @@ copy-out rule a value, an error and a usage figure already use.
 
 <a id="testing-probes-on-is-a-tested-configuration"></a>
 
-## The conformance suite runs with the probes on, and once per optimisation level  *(designed — not yet in the compiler)*
+## The conformance suite runs with the probes on, and once per optimisation level  *(designed — owned by M10)*
 
 `rule:testing/probes-on-is-a-tested-configuration`
 
@@ -1307,11 +1328,16 @@ rules say under that one codegen, and this bug class lives only where a probe-at
 build of the same program prints something else. The cost is CI wall-clock proportional to the added
 axes, and nothing at all at run time.
 
+**Not on disk.** The codegen tests compile with probes on (`crates/nvs-codegen/tests/probes.rs:276`),
+and CI runs the conformance suite once, with probes off (`.github/workflows/ci.yml:184`). The coverage
+flags are refused over a `.nvst` tree (`crates/nvs-cli/src/main.rs:3862`), and Cranelift's `opt_level`
+is fixed at `speed` (`crates/nvs-codegen/src/lib.rs:1949`).
+
 <sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/the-deep-lane`](testing.md#testing-the-deep-lane), [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate).</sub>
 
 <a id="testing-writing-a-debug-record-to-disk-is-its-own-gate"></a>
 
-## `[debug] store` is off by default and can only subtract, so no run mode or log level ever turns debug records on  *(designed — not yet in the compiler)*
+## `[debug] store` is off by default and can only subtract, so no run mode or log level ever turns debug records on  *(designed — owned by M10)*
 
 `rule:testing/writing-a-debug-record-to-disk-is-its-own-gate`
 
@@ -1331,11 +1357,14 @@ second key said yes, and a tree that writes no `[debug]` block gets no debug str
 With the gate off nothing reaches the disk, so a debug record that survives into a deployment costs
 the predicted-not-taken branch [`testing/debug-probes`](testing.md#testing-debug-probes) already pays and nothing further.
 
+**Not on disk.** `[debug]` has no `store` key (`crates/nvs-config/src/default.toml:313`), and nothing
+writes a debug record to disk.
+
 <sub>See also [`testing/debug-mode-directive`](testing.md#testing-debug-mode-directive), [`testing/debug-surface`](testing.md#testing-debug-surface), [`errors/debug-dump`](errors.md#errors-debug-dump), [`errors/log-level`](errors.md#errors-log-level).</sub>
 
 <a id="testing-the-debug-stream-reaches-the-service-through-the-disk"></a>
 
-## A debug record reaches the service through a sealed spool file that one writer owns, never over a socket  *(designed — not yet in the compiler)*
+## A debug record reaches the service through a sealed spool file that one writer owns, never over a socket  *(designed — owned by M10)*
 
 `rule:testing/the-debug-stream-reaches-the-service-through-the-disk`
 
@@ -1367,6 +1396,8 @@ makes the service a viewer for a copied-down log directory or a CI artifact.
 
 - **Memory:** one write buffer per writer, held while the writer lives, and no queue anywhere.
 
+**Not on disk.** Nothing writes a spool file and nothing reads one.
+
 **Declined:**
 - **A socket collector with the application as its client.** It needs a bounded queue, a background
   drain, a circuit breaker, a retry window, a drop counter, a connect timeout on the request path and
@@ -1380,7 +1411,7 @@ makes the service a viewer for a copied-down log directory or a CI artifact.
 
 <a id="testing-the-ingester-runs-whether-or-not-anyone-is-looking"></a>
 
-## The ingester owns every write to the index and runs without a browser, and the viewer only ever reads  *(designed — not yet in the compiler)*
+## The ingester owns every write to the index and runs without a browser, and the viewer only ever reads  *(designed — owned by M10)*
 
 `rule:testing/the-ingester-runs-whether-or-not-anyone-is-looking`
 
@@ -1415,11 +1446,13 @@ the ingester buffer, and a browser that was closed needs no replay buffer. That 
 record's own timestamp, orders the live view, which makes it immune to clock skew between writers and
 to a garbage timestamp in a corrupt file.
 
+**Not on disk.** There is no ingester.
+
 <sub>See also [`testing/the-debug-stream-reaches-the-service-through-the-disk`](testing.md#testing-the-debug-stream-reaches-the-service-through-the-disk), [`testing/a-bad-line-degrades-and-a-bad-file-is-quarantined`](testing.md#testing-a-bad-line-degrades-and-a-bad-file-is-quarantined), [`errors/log-write`](errors.md#errors-log-write).</sub>
 
 <a id="testing-a-bad-line-degrades-and-a-bad-file-is-quarantined"></a>
 
-## A malformed line becomes a visible record and an unreadable file is quarantined under a backoff, so ingestion never stops  *(designed — not yet in the compiler)*
+## A malformed line becomes a visible record and an unreadable file is quarantined under a backoff, so ingestion never stops  *(designed — owned by M10)*
 
 `rule:testing/a-bad-line-degrades-and-a-bad-file-is-quarantined`
 
@@ -1443,11 +1476,13 @@ Work is bounded per source per pass and sources are taken in turn, so one enormo
 the live spool. A disk that is full or an index that errors backs off rather than spinning, and never
 deletes a spool file whose batch did not commit.
 
+**Not on disk.** There is no ingester, so nothing reads a debug file and nothing quarantines one.
+
 <sub>See also [`testing/the-ingester-runs-whether-or-not-anyone-is-looking`](testing.md#testing-the-ingester-runs-whether-or-not-anyone-is-looking).</sub>
 
 <a id="testing-the-viewer-shows-the-stream-and-hands-off-every-artifact"></a>
 
-## The viewer renders the correlated request stream and hands every artifact with an existing viewer to it  *(designed — not yet in the compiler)*
+## The viewer renders the correlated request stream and hands every artifact with an existing viewer to it  *(designed — owned by M10)*
 
 `rule:testing/the-viewer-shows-the-stream-and-hands-off-every-artifact`
 
@@ -1488,6 +1523,9 @@ no Novis code.
 The viewer's assets ship in every binary. What keeps that cheap is reachability rather than size: a
 server process never has a viewer in it.
 
+**Not on disk.** There is no viewer. The one hand-off built is the editor's: the VS Code extension reads
+the lcov file `nvs test` writes (`editors/vscode/src/tests.ts:237`).
+
 **Declined:**
 - **Fetching a value tree lazily as the developer expands it.** The tree is already bounded before it
   is written, so a fetch per expansion would add round trips and server-side state to make a bounded
@@ -1497,7 +1535,7 @@ server process never has a viewer in it.
 
 <a id="testing-bench-counters"></a>
 
-## `#[Bench]` reports counted semantic work, and CI may gate on the counts but never on wall-clock  *(designed — not yet in the compiler)*
+## `#[Bench]` reports counted semantic work, and CI may gate on the counts but never on wall-clock  *(designed — owned by M10)*
 
 `rule:testing/bench-counters`
 
@@ -1516,6 +1554,13 @@ eliminates work, so one program's statement count falls between them. "Did my al
 this rule's question; "did Novis get faster" is [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms)'s, and the two do
 not overlap. There is no per-member cost table and there will not be one — a hand-written claim
 about what a `Core` member costs is a number with no guard test.
+
+**Not on disk.** The counting mode is built: `nvs run --count` prints statements, calls, allocations and
+bytes at exit (`crates/nvs-cli/src/main.rs:437`, `DebugFlags::COUNT` at
+`crates/nvs-runtime/src/ctx/mod.rs:297`). `#[Bench]` is not a recognised attribute
+(`crates/nvs-types/src/derive.rs:71`), no test report carries its rows
+(`crates/nvs-cli/src/runner.rs:1892`), and there is no GC-cycle count and no advisory wall-clock beside
+the counts.
 
 **Declined:**
 - **Wall-clock benchmarks with statistical treatment.** It is what other languages ship, and it

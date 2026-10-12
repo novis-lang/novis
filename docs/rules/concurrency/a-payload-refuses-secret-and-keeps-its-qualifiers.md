@@ -8,3 +8,7 @@ comes back `tainted` (`rule:security/tainted-qualifier`), so the analysis surviv
 instead of being laundered by a database. The queue's table is trusted exactly as far as the rest of
 the application's database is — an attacker who can write to it has already won — which is a better
 answer than returning every field `tainted` and training every job to launder reflexively.
+
+**Not on disk.** A `secret` argument to an enqueue does not compile
+(`crates/nvs-types/src/expr/quals.rs:1248`). The other qualifiers are not recorded with the payload, and
+nothing restores them on decode.

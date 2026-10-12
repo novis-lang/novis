@@ -370,7 +370,7 @@ accepted into the wrong block.
 
 <a id="config-the-resolved-root-is-announced-and-stored"></a>
 
-## The resolved root is canonicalized once at boot, announced with every file it reached, and re-read from that stored path on reload  *(designed — not yet in the compiler)*
+## The resolved root is canonicalized once at boot, announced with every file it reached, and re-read from that stored path on reload  *(designed — owned by goal server-rule-debts)*
 
 `rule:config/the-resolved-root-is-announced-and-stored`
 
@@ -395,6 +395,11 @@ The announcement is half of what makes the two implicit steps of
 `nvs.toml` and the data folder's: reading the wrong file is visible in one line rather than silent.
 When no step finds a file, the shipped-defaults line is printed instead, and the resolved absolute
 path is logged in every case.
+
+**Not on disk.** `--config` paths are made absolute (`crates/nvs-config/src/resolve.rs:392`), and a
+reload reads the `--config` roots as they were written (`crates/nvs-cli/src/reload.rs:137`). A root
+found as `./nvs.toml` or in the data folder is not stored as a canonical path, and boot prints no line
+naming the root (`crates/nvs-cli/src/config.rs:537`).
 
 <sub>See also [`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults), [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot).</sub>
 
@@ -2194,7 +2199,7 @@ socket is coherent across cores and a per-core map is not.
 
 <a id="config-a-unix-spelling-with-no-af-unix-transport-refuses-at-boot"></a>
 
-## A Unix spelling on a build with no `AF_UNIX` transport is refused at boot, never read as loopback TCP  *(designed — not yet in the compiler)*
+## A Unix spelling on a build with no `AF_UNIX` transport is refused at boot, never read as loopback TCP  *(designed — owned by goal server-rule-debts)*
 
 `rule:config/a-unix-spelling-with-no-af-unix-transport-refuses-at-boot`
 
@@ -2215,6 +2220,11 @@ refused where it is written, so a deployment cannot run believing it has a store
 **Silently reading it as loopback TCP is refused.** A configuration that reads as one transport and
 runs as another is worse than one that does not run, because the difference is invisible in exactly
 the review that would have caught it.
+
+**Not on disk.** A `unix:` URL in `[cache.shared] url` is refused at boot with `E_NO_UNIX_TRANSPORT`
+(`crates/nvs-config/src/store.rs:93`), and `nvs serve` refuses a socket path in `[server] listen` before
+it binds anything (`crates/nvs-cli/src/serve.rs:2245`). A socket path in `[db.<name>] host` is refused
+only when a connection is opened (`crates/nvs-db/src/conn.rs:135`).
 
 <sub>See also [`config/unix-scheme-in-a-url-and-a-bare-path-in-a-host`](config.md#config-unix-scheme-in-a-url-and-a-bare-path-in-a-host), [`core-api/session-roster`](core-api.md#core-api-session-roster).</sub>
 
@@ -2386,7 +2396,7 @@ world-writable directory are the packaging chapter's; this rule is only the rost
 
 <a id="config-telemetry-and-update-endpoints-are-configuration"></a>
 
-## The update-check and telemetry endpoints are compiled-in defaults overridable by `NVS_UPDATE_URL` and `NVS_TELEMETRY_URL`  *(designed — not yet in the compiler)*
+## The update-check and telemetry endpoints are compiled-in defaults overridable by `NVS_UPDATE_URL` and `NVS_TELEMETRY_URL`  *(designed — owned by M10)*
 
 `rule:config/telemetry-and-update-endpoints-are-configuration`
 
@@ -2400,5 +2410,4 @@ claim — the weekly upload gate, the three-second timeout, the never-uploads-fr
 payload `nvs telemetry show` prints — against a local listener, and CI never touches the real host. The
 consents, the counter schema and the two endpoints' contracts are the tooling chapter's.
 
-**Not shipped.** Nothing in `crates/` reads either variable; implementation waits until the parity
-chain's goals are done, and the reference says nothing of it until then.
+**Not on disk.** Nothing in `crates/` reads either variable.

@@ -13,3 +13,6 @@ second key said yes, and a tree that writes no `[debug]` block gets no debug str
 
 With the gate off nothing reaches the disk, so a debug record that survives into a deployment costs
 the predicted-not-taken branch `rule:testing/debug-probes` already pays and nothing further.
+
+**Not on disk.** `[debug]` has no `store` key (`crates/nvs-config/src/default.toml:313`), and nothing
+writes a debug record to disk.

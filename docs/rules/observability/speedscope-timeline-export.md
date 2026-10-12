@@ -11,3 +11,5 @@ adding a second timeline format with a bespoke viewer to build and maintain.
 The NDJSON trace remains the format no third-party tool reads; this export closes that gap for
 visualisation, and for nothing else. The exact CLI flag that selects it is left to the exporter's
 implementation, the same way the Clover and lcov shapes were.
+
+**Not on disk.** No exporter writes speedscope's evented format.

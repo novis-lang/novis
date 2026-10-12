@@ -11,3 +11,5 @@ mutant runs against those rather than against the whole suite. On two thousand t
 hundred mutants that is the difference between minutes and most of a day.
 
 The operator set is enumerated where it is implemented, so adding an operator changes no rule.
+
+**Not on disk.** Nothing generates or runs a mutant.

@@ -12,5 +12,6 @@
   "guardedBy": [
     "tests/conformance/core/a-file-parts-read-all-bound-is-a-count-of-bytes-in-a-closed-bag.nvst",
     "crates/nvs-stdlib/src/request.rs"
-  ]
+  ],
+  "goal": "server-rule-debts"
 }

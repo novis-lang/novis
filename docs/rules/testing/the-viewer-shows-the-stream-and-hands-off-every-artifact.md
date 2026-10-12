@@ -35,6 +35,9 @@ no Novis code.
 The viewer's assets ship in every binary. What keeps that cheap is reachability rather than size: a
 server process never has a viewer in it.
 
+**Not on disk.** There is no viewer. The one hand-off built is the editor's: the VS Code extension reads
+the lcov file `nvs test` writes (`editors/vscode/src/tests.ts:237`).
+
 **Declined:**
 - **Fetching a value tree lazily as the developer expands it.** The tree is already bounded before it
   is written, so a fetch per expansion would add round trips and server-side state to make a bounded

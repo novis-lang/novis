@@ -3,3 +3,6 @@
 It renders through the one diagnostic record — text in development, JSON in production (`rule:errors/renderings`) — and there is deliberately **no Common or Combined Log Format**, which would be a second renderer. The fields are method, path, status, duration, response bytes, `clientIp`, the route name when the application matched one, and the trace id (`rule:errors/log-fields`). The health probe is skipped.
 
 **An error is logged unconditionally**, whatever `access` says: a `5xx` is a diagnostic rather than access telemetry, and losing one because access logging was off would be the wrong failure.
+
+**Not on disk.** The mode table has the `log.access` row (`crates/nvs-config/src/mode.rs:85`), and
+nothing reads it: no access line is written, for a `5xx` or for any other response.

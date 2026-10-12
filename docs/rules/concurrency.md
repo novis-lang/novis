@@ -355,7 +355,7 @@ goes inside the transaction that made it necessary, in
 
 <a id="concurrency-a-deadline-bounds-the-cancel-not-the-return"></a>
 
-## A deadline bounds when cancellation is asked for, not when the call returns  *(designed — not yet in the compiler)*
+## A deadline bounds when cancellation is asked for, not when the call returns  *(designed — owned by goal request-isolation-debts)*
 
 `rule:concurrency/a-deadline-bounds-the-cancel-not-the-return`
 
@@ -372,6 +372,11 @@ So `deadline: 2s` can return at two seconds plus one connection timeout in the p
 Overrunning a stated deadline by a bounded amount is the correct trade against handing a poisoned
 connection back to a pool, where it would fail some later, unrelated request. A deadline is a bound
 on when the work stops being asked for; it is not a hard wall-clock guarantee on return.
+
+**Not on disk.** A deadline cancels every child still running, and the call waits for them
+(`crates/nvs-host/src/group.rs:60`). Nothing sends the driver's own cancel: the Postgres cancel key is
+kept (`crates/nvs-db/src/pg.rs:337`) and never used, no `KILL QUERY` is sent, and the drain is not
+bounded by the connection's `timeout`.
 
 **Declined:**
 - **Returning at the deadline and abandoning the blocked child.** It would make the deadline exact,
@@ -448,7 +453,7 @@ only a little.
 
 <a id="concurrency-deferred-work-cannot-write-the-response"></a>
 
-## Deferred work may read the request but not write the response, and its uncaught throw reaches the log alone  *(designed — not yet in the compiler)*
+## Deferred work may read the request but not write the response, and its uncaught throw reaches the log alone  *(designed — owned by goal server-rule-debts)*
 
 `rule:concurrency/deferred-work-cannot-write-the-response`
 
@@ -464,6 +469,13 @@ affect, so the log is the whole of what it can reach.
 
 `all` and `map` compose inside deferred work with no special case, because a deferred callable runs as an
 ordinary task.
+
+**Not on disk.** An uncaught throw in deferred work reaches the floor log and `onUncaughtThrow` does not
+fire (`crates/nvs-runtime/src/deferred.rs:216`), and `Core\Response::slotted` throws `LogicError` once
+the main script has ended
+(`tests/conformance/core/a-response-slotted-in-after-response-work-throws-a-logic-error.nvst`). There is
+no compile-time diagnostic for a `Core\Response` write in deferred work, and no run-time check beyond
+`slotted`'s.
 
 <sub>See also [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/on-uncaught-throw`](errors.md#errors-on-uncaught-throw), [`security/response-body-is-one-typed-member`](security.md#security-response-body-is-one-typed-member).</sub>
 
@@ -933,7 +945,7 @@ handler's return value, so an upgrade handed back to the runtime would be handed
 
 <a id="concurrency-an-upgrades-options-are-spawn-scripts"></a>
 
-## An upgrade's `args`, `limits`, `grants` and `on` are a spawned script's options as ordinary named arguments  *(designed — not yet in the compiler)*
+## An upgrade's `args`, `limits`, `grants` and `on` are a spawned script's options as ordinary named arguments  *(designed — owned by goal server-rule-debts)*
 
 `rule:concurrency/an-upgrades-options-are-spawn-scripts`
 
@@ -952,6 +964,10 @@ Until the parameters exist, `limits:`, `grants:` and `on:` are **refused by name
 accepted and dropped. A narrowing that is silently ignored hands the connection the authority its
 request meant to give up, and a refusal is the only spelling that lets a reader tell a narrowing that
 was applied from one that was not.
+
+**Not on disk.** `Core\Socket::upgrade` takes `entry` and `args` only
+(`crates/nvs-stdlib/src/socket.rs:238`), so a call that passes `limits:`, `grants:` or `on:` does not
+compile.
 
 <sub>See also [`concurrency/an-upgrade-is-spawn-shaped`](concurrency.md#concurrency-an-upgrade-is-spawn-shaped), [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing).</sub>
 
@@ -987,7 +1003,7 @@ A `Core\Socket\Message` cannot be constructed, so the only way to hold one is to
 
 <a id="concurrency-receive-is-the-one-wait"></a>
 
-## `receive()` is the one wait, and it answers the peer or a subscribed topic, whichever arrives first  *(designed — not yet in the compiler)*
+## `receive()` is the one wait, and it answers the peer or a subscribed topic, whichever arrives first  *(designed — owned by goal server-rule-debts)*
 
 `rule:concurrency/receive-is-the-one-wait`
 
@@ -1004,6 +1020,10 @@ write the same two-task scaffold to get one loop's worth of behaviour.
 There is nothing for such a second member to drain in any case: the subscriber queue belongs to the
 connection, and `receive()` is the only thing that empties it. A queue that overflows closes *that*
 subscriber rather than blocking the publisher, and the overflow is asked before the wait.
+
+**Not on disk.** `receive()` answers a topic delivery and a peer frame, and checks the overflow before
+it waits (`crates/nvs-stdlib/src/socket.rs:1005`). A delivery that arrives while `receive()` is already
+parked does not wake it (`crates/nvs-stdlib/src/socket.rs:1017`).
 
 <sub>See also [`concurrency/a-connection-is-a-loop`](concurrency.md#concurrency-a-connection-is-a-loop), [`core-classes/topic`](core-classes.md#core-classes-topic).</sub>
 
@@ -1825,7 +1845,7 @@ beside it, and its argv is written into units on disk ([`packaging/a-service-is-
 
 <a id="concurrency-a-payload-refuses-secret-and-keeps-its-qualifiers"></a>
 
-## A durable payload refuses `secret`, and a `tainted` value comes back `tainted`  *(designed — not yet in the compiler)*
+## A durable payload refuses `secret`, and a `tainted` value comes back `tainted`  *(designed — owned by goal request-isolation-debts)*
 
 `rule:concurrency/a-payload-refuses-secret-and-keeps-its-qualifiers`
 
@@ -1840,11 +1860,15 @@ instead of being laundered by a database. The queue's table is trusted exactly a
 the application's database is — an attacker who can write to it has already won — which is a better
 answer than returning every field `tainted` and training every job to launder reflexively.
 
+**Not on disk.** A `secret` argument to an enqueue does not compile
+(`crates/nvs-types/src/expr/quals.rs:1248`). The other qualifiers are not recorded with the payload, and
+nothing restores them on decode.
+
 <sub>See also [`security/secret-qualifier`](security.md#security-secret-qualifier), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`concurrency/a-job-names-a-file`](concurrency.md#concurrency-a-job-names-a-file).</sub>
 
 <a id="concurrency-foreign-connection-enqueue-is-counted"></a>
 
-## A `push` on a connection other than the queue's is not transactional, and is counted rather than assumed away  *(designed — not yet in the compiler)*
+## A `push` on a connection other than the queue's is not transactional, and is counted rather than assumed away  *(designed — owned by goal server-rule-debts)*
 
 `rule:concurrency/foreign-connection-enqueue-is-counted`
 
@@ -1857,6 +1881,9 @@ Nothing at compile time can see this: the queue's connection name is operator-ow
 the program never writes it, so the checker has no way to compare the two. The runtime therefore
 **records** it, and `stats` reports non-transactional enqueues, so a deployment that has quietly lost
 the property can find out by reading a counter rather than by losing a job.
+
+**Not on disk.** No job row records the case, and `Core\Queue::stats` has no field for it
+(`crates/nvs-stdlib/src/queue.rs:2706`).
 
 <sub>See also [`concurrency/enqueue-commits-with-your-write`](concurrency.md#concurrency-enqueue-commits-with-your-write), [`concurrency/queue-four-members`](concurrency.md#concurrency-queue-four-members).</sub>
 

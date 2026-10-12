@@ -461,7 +461,7 @@ There is **no `X-Forwarded-Host` and no absolute-URL generation from `Host`**. `
 
 <a id="http-server-host-matching-is-on-the-host-part-only"></a>
 
-## An absent `Host` is a `400`; matching strips the port, folds ASCII case and one trailing dot, refuses non-ASCII, and an unknown host on a host-mounted deployment is a `404`  *(designed — not yet in the compiler)*
+## An absent `Host` is a `400`; matching strips the port, folds ASCII case and one trailing dot, refuses non-ASCII, and an unknown host on a host-mounted deployment is a `404`  *(designed — owned by goal request-isolation-debts)*
 
 `rule:http-server/host-matching-is-on-the-host-part-only`
 
@@ -470,6 +470,12 @@ An absent `Host` on HTTP/1.1 is a `400`. A mount's `host` is compared against th
 A deployment that declares only host mounts gets a `404` for an unknown host, with no allowlist directive to remember — the failure Django had to add `ALLOWED_HOSTS` for. The forwarded walk never reaches this value: what a trusted proxy may assert is the client address and the scheme, and neither is read here.
 
 The proxy note that belongs in the operator documentation: nginx's `proxy_pass` sends `Host: $proxy_host` unless told otherwise, so a host-mounted deployment must set `proxy_set_header Host $host;` or every request arrives with the wrong name and lands on the fallback — silently.
+
+**Not on disk.** The port is stripped and the comparison ignores ASCII case
+(`crates/nvs-server/src/mount.rs:214`, `:289`), and the mount table holds a declared host in lower case
+(`crates/nvs-config/src/mount.rs:571`). A trailing dot is not removed, and a `Host` with non-ASCII in it
+is read as no `Host`. A request with no `Host` is not a `400`: it skips every host mount and reaches the
+mounts that declare no host (`crates/nvs-server/src/mount.rs:290`).
 
 <sub>See also [`http-server/a-mount-table-expands-at-boot`](http-server.md#http-server-a-mount-table-expands-at-boot), [`http-server/x-forwarded-proto-sets-the-scheme-and-hsts-only`](http-server.md#http-server-x-forwarded-proto-sets-the-scheme-and-hsts-only), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused).</sub>
 
@@ -624,7 +630,7 @@ The trace id is the request identifier, and there is no second one. A trace id e
 
 <a id="http-server-the-access-log-is-a-mode-default"></a>
 
-## `[log] access` is a mode default — on in development, off in production — and a `5xx` is logged whatever it says  *(designed — not yet in the compiler)*
+## `[log] access` is a mode default — on in development, off in production — and a `5xx` is logged whatever it says  *(designed — owned by goal server-rule-debts)*
 
 `rule:http-server/the-access-log-is-a-mode-default`
 
@@ -633,6 +639,9 @@ The trace id is the request identifier, and there is no second one. A trace id e
 It renders through the one diagnostic record — text in development, JSON in production ([`errors/renderings`](errors.md#errors-renderings)) — and there is deliberately **no Common or Combined Log Format**, which would be a second renderer. The fields are method, path, status, duration, response bytes, `clientIp`, the route name when the application matched one, and the trace id ([`errors/log-fields`](errors.md#errors-log-fields)). The health probe is skipped.
 
 **An error is logged unconditionally**, whatever `access` says: a `5xx` is a diagnostic rather than access telemetry, and losing one because access logging was off would be the wrong failure.
+
+**Not on disk.** The mode table has the `log.access` row (`crates/nvs-config/src/mode.rs:85`), and
+nothing reads it: no access line is written, for a `5xx` or for any other response.
 
 <sub>See also [`http-server/the-trace-id-is-the-request-identifier`](http-server.md#http-server-the-trace-id-is-the-request-identifier), [`http-server/health-path-is-off-and-checks-nothing`](http-server.md#http-server-health-path-is-off-and-checks-nothing), [`config/a-mode-is-five-defaults`](config.md#config-a-mode-is-five-defaults), [`errors/log-fields`](errors.md#errors-log-fields), [`errors/renderings`](errors.md#errors-renderings), [`observability/the-runtime-exports-what-it-already-measures`](observability.md#observability-the-runtime-exports-what-it-already-measures).</sub>
 
@@ -1060,7 +1069,7 @@ A part's bytes are readable exactly once, in order, whichever of the three consu
 
 <a id="http-server-request-body-and-upload-total-are-two-caps"></a>
 
-## `request_body` caps bytes parsed into memory and `upload_total` caps a streamed multipart body, and both are `[limits]` rows  *(designed — not yet in the compiler)*
+## `request_body` caps bytes parsed into memory and `upload_total` caps a streamed multipart body, and both are `[limits]` rows  *(designed — owned by goal server-rule-debts)*
 
 `rule:http-server/request-body-and-upload-total-are-two-caps`
 
@@ -1072,6 +1081,11 @@ A part's bytes are readable exactly once, in order, whichever of the three consu
 Both are rows in the `[limits]`/`[limits.hard]` pair that [`config/three-changeability-classes`](config.md#config-three-changeability-classes) established — a `Runtime` default beside a `System` ceiling per [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives) — not a third instance of that pattern. `nvs info --config` prints both, and this table is the only place their meanings are defined.
 
 The split follows from what the two measure. Content parsed into memory deserves the tighter number, because it is resident and O(in-flight); content streamed to disk deserves a ceiling shaped like what uploads are, because a phone photo is 5–12M and an 8M refusal is advice rather than protection. One number governing both would have to be the larger, and would then license a quarter-gigabyte JSON body parsed wholly into memory on the strength of an argument made about files. [`http-server/upload-total-is-enforced-on-the-wire`](http-server.md#http-server-upload-total-is-enforced-on-the-wire) is where the second cap bites.
+
+**Not on disk.** Both caps are constants at their defaults: `upload_total` is 256 MiB and enforced at
+the door (`crates/nvs-server/src/body.rs:60`), and `request_body` is 8 MiB and applied to a multipart
+field (`crates/nvs-stdlib/src/request.rs:2832`). Neither is a `[limits]` row, and neither has a
+`[limits.hard]` ceiling.
 
 <sub>See also [`http-server/upload-total-is-enforced-on-the-wire`](http-server.md#http-server-upload-total-is-enforced-on-the-wire), [`http-server/a-part-is-consumed-in-one-of-three-ways`](http-server.md#http-server-a-part-is-consumed-in-one-of-three-ways), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives), [`errors/multipart-part-count`](errors.md#errors-multipart-part-count), [`http-server/the-body-is-read-on-demand-under-two-caps`](http-server.md#http-server-the-body-is-read-on-demand-under-two-caps).</sub>
 
@@ -2039,7 +2053,7 @@ There is one such thread for the process, not one per core, started when the fir
 
 <a id="http-server-a-wedged-core-is-shed-never-killed"></a>
 
-## A reported core stops accepting and `max_in_flight` counts its share as unavailable; a wedged worker is never killed in-process  *(designed — not yet in the compiler)*
+## A reported core stops accepting and `max_in_flight` counts its share as unavailable; a wedged worker is never killed in-process  *(designed — owned by goal request-isolation-debts)*
 
 `rule:http-server/a-wedged-core-is-shed-never-killed`
 
@@ -2050,6 +2064,11 @@ unit with `WatchdogSec=` set stops a process that has stopped pinging, and
 [`packaging/the-generated-unit-is-hardened`](packaging.md#packaging-the-generated-unit-is-hardened) gates that ping on this rule's detector — withheld only
 where **no** core is turning, which is a process with nothing left to shed onto and nothing still
 serving to be ended. Detection without a kill is still worth its cost: a wedged core that is reported degrades a service measurably, while a wedged core that is silent looks like a capacity problem for as long as anyone is willing to add capacity.
+
+**Not on disk.** The detection is built: the watchdog reports a wedged core and never kills it
+(`crates/nvs-host/src/watchdog.rs:28`), and the service manager's ping is withheld only where no core is
+turning (`crates/nvs-cli/src/service.rs:1291`). The shedding is not: a wedged core keeps accepting, and
+admission does not count its share of `max_in_flight` as unavailable.
 
 <sub>See also [`http-server/a-wedged-core-is-detected-by-its-deadline`](http-server.md#http-server-a-wedged-core-is-detected-by-its-deadline), [`http-server/admission-is-arithmetic-not-a-number`](http-server.md#http-server-admission-is-arithmetic-not-a-number), [`http-server/the-residue-is-one-named-fault-class`](http-server.md#http-server-the-residue-is-one-named-fault-class), [`http-server/the-server-block-is-boot-class`](http-server.md#http-server-the-server-block-is-boot-class).</sub>
 

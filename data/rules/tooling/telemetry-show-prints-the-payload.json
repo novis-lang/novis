@@ -6,5 +6,6 @@
     "tooling/telemetry-is-two-opt-ins",
     "config/telemetry-and-update-endpoints-are-configuration"
   ],
-  "guardedBy": []
+  "guardedBy": [],
+  "milestone": "M10"
 }

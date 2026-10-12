@@ -7,3 +7,6 @@ Nothing at compile time can see this: the queue's connection name is operator-ow
 the program never writes it, so the checker has no way to compare the two. The runtime therefore
 **records** it, and `stats` reports non-transactional enqueues, so a deployment that has quietly lost
 the property can find out by reading a counter rather than by losing a job.
+
+**Not on disk.** No job row records the case, and `Core\Queue::stats` has no field for it
+(`crates/nvs-stdlib/src/queue.rs:2706`).

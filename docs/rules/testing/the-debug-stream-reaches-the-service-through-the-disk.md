@@ -26,6 +26,8 @@ makes the service a viewer for a copied-down log directory or a CI artifact.
 
 - **Memory:** one write buffer per writer, held while the writer lives, and no queue anywhere.
 
+**Not on disk.** Nothing writes a spool file and nothing reads one.
+
 **Declined:**
 - **A socket collector with the application as its client.** It needs a bounded queue, a background
   drain, a circuit breaker, a retry window, a drop counter, a connect timeout on the request path and

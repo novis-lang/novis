@@ -19,3 +19,8 @@ The announcement is half of what makes the two implicit steps of
 `nvs.toml` and the data folder's: reading the wrong file is visible in one line rather than silent.
 When no step finds a file, the shipped-defaults line is printed instead, and the resolved absolute
 path is logged in every case.
+
+**Not on disk.** `--config` paths are made absolute (`crates/nvs-config/src/resolve.rs:392`), and a
+reload reads the `--config` roots as they were written (`crates/nvs-cli/src/reload.rs:137`). A root
+found as `./nvs.toml` or in the data folder is not stored as a canonical path, and boot prints no line
+naming the root (`crates/nvs-cli/src/config.rs:537`).

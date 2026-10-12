@@ -14,6 +14,13 @@ this rule's question; "did Novis get faster" is `rule:testing/perf-two-mechanism
 not overlap. There is no per-member cost table and there will not be one — a hand-written claim
 about what a `Core` member costs is a number with no guard test.
 
+**Not on disk.** The counting mode is built: `nvs run --count` prints statements, calls, allocations and
+bytes at exit (`crates/nvs-cli/src/main.rs:437`, `DebugFlags::COUNT` at
+`crates/nvs-runtime/src/ctx/mod.rs:297`). `#[Bench]` is not a recognised attribute
+(`crates/nvs-types/src/derive.rs:71`), no test report carries its rows
+(`crates/nvs-cli/src/runner.rs:1892`), and there is no GC-cycle count and no advisory wall-clock beside
+the counts.
+
 **Declined:**
 - **Wall-clock benchmarks with statistical treatment.** It is what other languages ship, and it
   produces a number CI cannot gate on. The counters cost less and produce one it can.

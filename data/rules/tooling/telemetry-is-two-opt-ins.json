@@ -8,5 +8,6 @@
     "config/telemetry-and-update-endpoints-are-configuration",
     "packaging/a-package-is-its-digest"
   ],
-  "guardedBy": []
+  "guardedBy": [],
+  "milestone": "M10"
 }

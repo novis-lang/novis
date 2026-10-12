@@ -6,5 +6,6 @@
     "concurrency/a-connection-is-a-root-isolate",
     "security/isolate-shares-nothing"
   ],
-  "guardedBy": []
+  "guardedBy": [],
+  "goal": "server-rule-debts"
 }

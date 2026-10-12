@@ -289,7 +289,7 @@ not worth making while `echo` writes standard output and nothing else can observ
 
 <a id="tooling-an-escape-in-source-text-is-a-compile-error"></a>
 
-## An `ESC` in a string literal in the source is a compile error that names `Core\Cli\Text`  *(designed — not yet in the compiler)*
+## An `ESC` in a string literal in the source is a compile error that names `Core\Cli\Text`  *(designed — owned by goal language-rule-debts)*
 
 `rule:tooling/an-escape-in-source-text-is-a-compile-error`
 
@@ -303,6 +303,9 @@ compile time, at the exact line. With the written case closed, the only way to m
 time is to print a **computed** escape sequence, which is the attack the sink exists to neutralize.
 The diagnostic names `Cli\Text` so that a developer who wants colour finds the one raw path
 ([`tooling/text-is-the-one-raw-path`](tooling.md#tooling-text-is-the-one-raw-path)) instead of concluding that colour does not work.
+
+**Not on disk.** The lexer decodes `\e` to an `ESC` byte with no diagnostic
+(`crates/nvs-syntax/src/string_lit.rs:408`), and so do the `\x` and octal forms.
 
 <sub>See also [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink), [`tooling/text-is-the-one-raw-path`](tooling.md#tooling-text-is-the-one-raw-path).</sub>
 
@@ -751,7 +754,7 @@ evolves ([`tooling/fmt-is-idempotent`](tooling.md#tooling-fmt-is-idempotent)).
 
 <a id="tooling-fmt-a-list-is-one-line-or-one-item-per-line"></a>
 
-## A list is on one line or has one item per line, and a line break its author wrote at the list's own level is what breaks it  *(designed — not yet in the compiler)*
+## A list is on one line or has one item per line, and a line break its author wrote at the list's own level is what breaks it  *(designed — owned by M10)*
 
 `rule:tooling/fmt-a-list-is-one-line-or-one-item-per-line`
 
@@ -807,6 +810,10 @@ enum Permission: uint
 A comment inside a broken list stays on the line of the item it follows, or keeps a line of its own
 when it was written on one. A line comment breaks the list it sits in, because a line break follows
 it. `match` arms keep their own rule ([`tooling/fmt-novis-constructs`](tooling.md#tooling-fmt-novis-constructs)).
+
+**Not on disk.** `nvs fmt` lays out every other list this way (`crates/nvs-fmt/src/list.rs:7`). A shape
+type's fields keep the line breaks and the trailing comma their author wrote, because a shape type is
+not a node and the formatter cannot tell its `{` from a block's (`crates/nvs-fmt/src/list.rs:54`).
 
 **Declined:**
 - **Keeping several items per line in a broken list.** That is the packing a width-fitting printer
@@ -1938,7 +1945,7 @@ step, and the byte-identical gate is what stops one rotting silently.
 
 <a id="tooling-telemetry-is-two-opt-ins"></a>
 
-## Usage telemetry and the update check are two independent opt-ins, both off by default, and neither ever implies the other  *(designed — not yet in the compiler)*
+## Usage telemetry and the update check are two independent opt-ins, both off by default, and neither ever implies the other  *(designed — owned by M10)*
 
 `rule:tooling/telemetry-is-two-opt-ins`
 
@@ -1965,8 +1972,8 @@ The undercount is accepted and stated: opt-in telemetry reports a small share of
 and a deployed server whose operator never runs another command records forever and uploads never.
 Download counts and cronned update checks are the correction.
 
-**Not shipped.** Nothing in `crates/` implements any of this; the implementing slices are scheduled after
-the parity chain's goals reach acceptance, and the reference says nothing of it until then.
+**Not on disk.** Nothing in `crates/` implements any of this: there is no `nvs telemetry` command and no
+`nvs update-check`.
 
 **Declined:**
 - **Opt-out telemetry.** It gives bigger numbers and is the wrong default for a runtime whose first
@@ -1979,7 +1986,7 @@ the parity chain's goals reach acceptance, and the reference says nothing of it 
 
 <a id="tooling-telemetry-counters-are-a-closed-set"></a>
 
-## A counter is `invocation.<subcommand>` from the compiled-in command table or `invocation.unknown`, and nothing derived from traffic is ever counted  *(designed — not yet in the compiler)*
+## A counter is `invocation.<subcommand>` from the compiled-in command table or `invocation.unknown`, and nothing derived from traffic is ever counted  *(designed — owned by M10)*
 
 `rule:tooling/telemetry-counters-are-a-closed-set`
 
@@ -2003,11 +2010,13 @@ default. The counter file is provably a function of what the operator did.
   `nvs serve` that append happens once, at startup, before the listener binds. Nothing is spent on the
   request path.
 
+**Not on disk.** There is no counter file and no payload.
+
 <sub>See also [`tooling/telemetry-is-two-opt-ins`](tooling.md#tooling-telemetry-is-two-opt-ins), [`tooling/telemetry-show-prints-the-payload`](tooling.md#tooling-telemetry-show-prints-the-payload), [`observability/the-runtime-exports-what-it-already-measures`](observability.md#observability-the-runtime-exports-what-it-already-measures).</sub>
 
 <a id="tooling-telemetry-show-prints-the-payload"></a>
 
-## `nvs telemetry show` prints the exact payload the next upload would send, and the schema, the endpoint contracts and the aggregated data are all published  *(designed — not yet in the compiler)*
+## `nvs telemetry show` prints the exact payload the next upload would send, and the schema, the endpoint contracts and the aggregated data are all published  *(designed — owned by M10)*
 
 `rule:tooling/telemetry-show-prints-the-payload`
 
@@ -2022,11 +2031,13 @@ user-facing statement of what is collected. The service side's contract is publi
 only, no IP retention, and the aggregated data itself public, so anyone can see exactly what the project
 sees.
 
+**Not on disk.** There is no `nvs telemetry show`.
+
 <sub>See also [`tooling/telemetry-counters-are-a-closed-set`](tooling.md#tooling-telemetry-counters-are-a-closed-set), [`tooling/telemetry-is-two-opt-ins`](tooling.md#tooling-telemetry-is-two-opt-ins), [`config/telemetry-and-update-endpoints-are-configuration`](config.md#config-telemetry-and-update-endpoints-are-configuration).</sub>
 
 <a id="tooling-a-serving-process-never-uploads"></a>
 
-## An upload carries only the previous finished week, rides a short-lived user-initiated command at most weekly, and a process that has bound a socket never uploads  *(designed — not yet in the compiler)*
+## An upload carries only the previous finished week, rides a short-lived user-initiated command at most weekly, and a process that has bound a socket never uploads  *(designed — owned by M10)*
 
 `rule:tooling/a-serving-process-never-uploads`
 
@@ -2044,6 +2055,8 @@ for schedulers that want only that. There is no daemon, no timer and no backgrou
 `invocation.serve`. Every claim here is testable against a local listener, because the endpoint is
 configuration ([`config/telemetry-and-update-endpoints-are-configuration`](config.md#config-telemetry-and-update-endpoints-are-configuration)).
 
+**Not on disk.** Nothing in `crates/` uploads telemetry, and there is no `nvs telemetry upload`.
+
 **Declined:**
 - **A background daemon or timer that phones home.** It is the shape people distrust even when opted
   in, and a second long-lived process to secure. An upload is carried, never initiated by a resident
@@ -2054,7 +2067,7 @@ configuration ([`config/telemetry-and-update-endpoints-are-configuration`](confi
 
 <a id="tooling-a-failed-upload-never-fails-the-command"></a>
 
-## An upload gets three seconds, is abandoned with its counters kept when that expires, says so, and never changes the carrying command's exit status  *(designed — not yet in the compiler)*
+## An upload gets three seconds, is abandoned with its counters kept when that expires, says so, and never changes the carrying command's exit status  *(designed — owned by M10)*
 
 `rule:tooling/a-failed-upload-never-fails-the-command`
 
@@ -2068,11 +2081,13 @@ An operator who opted in is lending a command they ran for another reason
 one honest line, never a failed cron job or a changed exit code
 ([`tooling/update-check-states-the-whole-picture`](tooling.md#tooling-update-check-states-the-whole-picture)).
 
+**Not on disk.** Nothing in `crates/` uploads telemetry, so there is no upload to fail.
+
 <sub>See also [`tooling/a-serving-process-never-uploads`](tooling.md#tooling-a-serving-process-never-uploads), [`tooling/update-check-states-the-whole-picture`](tooling.md#tooling-update-check-states-the-whole-picture).</sub>
 
 <a id="tooling-update-check-states-the-whole-picture"></a>
 
-## `nvs update-check` always reports the telemetry switch, the local and latest versions, and with telemetry on its upload history; `--json` is stable and the exit status is always 0  *(designed — not yet in the compiler)*
+## `nvs update-check` always reports the telemetry switch, the local and latest versions, and with telemetry on its upload history; `--json` is stable and the exit status is always 0  *(designed — owned by M10)*
 
 `rule:tooling/update-check-states-the-whole-picture`
 
@@ -2086,6 +2101,8 @@ The default human output **streams** as it works, one line per step, so the user
 when something is slow, and follows the terminal's conventions. The exit status is 0 whether or not an
 update exists and whether or not a telemetry send succeeded
 ([`tooling/a-failed-upload-never-fails-the-command`](tooling.md#tooling-a-failed-upload-never-fails-the-command)); automation reads the JSON.
+
+**Not on disk.** There is no `nvs update-check`.
 
 <sub>See also [`tooling/telemetry-is-two-opt-ins`](tooling.md#tooling-telemetry-is-two-opt-ins), [`tooling/a-failed-upload-never-fails-the-command`](tooling.md#tooling-a-failed-upload-never-fails-the-command), [`config/telemetry-and-update-endpoints-are-configuration`](config.md#config-telemetry-and-update-endpoints-are-configuration), [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink).</sub>
 

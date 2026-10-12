@@ -5,5 +5,6 @@
     "testing/test-attribute",
     "testing/tests-never-reach-a-build"
   ],
-  "guardedBy": []
+  "guardedBy": [],
+  "milestone": "M10"
 }

@@ -6,5 +6,6 @@
     "testing/a-bad-line-degrades-and-a-bad-file-is-quarantined",
     "errors/log-write"
   ],
-  "guardedBy": []
+  "guardedBy": [],
+  "milestone": "M10"
 }

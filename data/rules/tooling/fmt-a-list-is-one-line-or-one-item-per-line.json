@@ -11,5 +11,6 @@
   ],
   "guardedBy": [
     "crates/nvs-fmt/tests/list_layout.rs"
-  ]
+  ],
+  "milestone": "M10"
 }

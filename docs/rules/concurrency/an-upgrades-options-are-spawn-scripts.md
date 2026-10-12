@@ -13,3 +13,7 @@ Until the parameters exist, `limits:`, `grants:` and `on:` are **refused by name
 accepted and dropped. A narrowing that is silently ignored hands the connection the authority its
 request meant to give up, and a refusal is the only spelling that lets a reader tell a narrowing that
 was applied from one that was not.
+
+**Not on disk.** `Core\Socket::upgrade` takes `entry` and `args` only
+(`crates/nvs-stdlib/src/socket.rs:238`), so a call that passes `limits:`, `grants:` or `on:` does not
+compile.

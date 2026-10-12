@@ -6,5 +6,6 @@
     "errors/on-uncaught-throw",
     "security/response-body-is-one-typed-member"
   ],
-  "guardedBy": []
+  "guardedBy": [],
+  "goal": "server-rule-debts"
 }

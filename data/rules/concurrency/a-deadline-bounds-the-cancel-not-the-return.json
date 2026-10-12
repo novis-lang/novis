@@ -6,5 +6,6 @@
     "core-classes/db-one-api",
     "core-classes/db-connection-busy-state"
   ],
-  "guardedBy": []
+  "guardedBy": [],
+  "goal": "request-isolation-debts"
 }

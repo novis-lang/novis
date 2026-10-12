@@ -4,3 +4,7 @@ A test in a separate file is held to the public contract.
 This is the narrowest rule that avoids the failure it exists to prevent: a `public` method that
 exists only because a test needed to reach it. White-box testing stays possible where the author has
 already chosen to put the test next to the code; everything at a distance tests behaviour.
+
+**Not on disk.** Member visibility is checked against the accessing class alone
+(`crates/nvs-types/src/expr/members.rs:1844`), so a test in the same file is held to the public contract
+too.

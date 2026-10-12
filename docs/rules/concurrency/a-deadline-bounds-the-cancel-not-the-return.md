@@ -12,6 +12,11 @@ Overrunning a stated deadline by a bounded amount is the correct trade against h
 connection back to a pool, where it would fail some later, unrelated request. A deadline is a bound
 on when the work stops being asked for; it is not a hard wall-clock guarantee on return.
 
+**Not on disk.** A deadline cancels every child still running, and the call waits for them
+(`crates/nvs-host/src/group.rs:60`). Nothing sends the driver's own cancel: the Postgres cancel key is
+kept (`crates/nvs-db/src/pg.rs:337`) and never used, no `KILL QUERY` is sent, and the drain is not
+bounded by the connection's `timeout`.
+
 **Declined:**
 - **Returning at the deadline and abandoning the blocked child.** It would make the deadline exact,
   and it breaks `rule:concurrency/nothing-is-still-running-when-a-call-returns` and puts a

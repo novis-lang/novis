@@ -17,3 +17,5 @@ stopped being read says so instead of merely not appearing. Other files keep flo
 Work is bounded per source per pass and sources are taken in turn, so one enormous file cannot starve
 the live spool. A disk that is full or an index that errors backs off rather than spinning, and never
 deletes a spool file whose batch did not commit.
+
+**Not on disk.** There is no ingester, so nothing reads a debug file and nothing quarantines one.

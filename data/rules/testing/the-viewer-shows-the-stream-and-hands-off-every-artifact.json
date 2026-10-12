@@ -7,5 +7,6 @@
     "observability/a-trace-id-exists-for-every-request",
     "errors/record-transformations"
   ],
-  "guardedBy": []
+  "guardedBy": [],
+  "milestone": "M10"
 }

@@ -17,3 +17,5 @@ default. The counter file is provably a function of what the operator did.
 - **Memory:** a few KiB in one local file per user, and one buffered append per invocation. For
   `nvs serve` that append happens once, at startup, before the listener binds. Nothing is spent on the
   request path.
+
+**Not on disk.** There is no counter file and no payload.

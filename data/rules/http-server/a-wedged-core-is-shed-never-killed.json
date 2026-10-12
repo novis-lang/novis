@@ -7,5 +7,6 @@
     "http-server/the-residue-is-one-named-fault-class",
     "http-server/the-server-block-is-boot-class"
   ],
-  "guardedBy": []
+  "guardedBy": [],
+  "goal": "request-isolation-debts"
 }

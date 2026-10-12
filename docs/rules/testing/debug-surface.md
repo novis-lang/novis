@@ -22,6 +22,12 @@ A spawned isolate starts from its parent's current flag word and may only narrow
 never merges into the parent's live state; it comes back as fields on the result, by the same
 copy-out rule a value, an error and a usage figure already use.
 
+**Not on disk.** The probe bits exist (`crates/nvs-runtime/src/ctx/mod.rs:287`), and `nvs test` writes
+lcov, Clover and Cobertura coverage (`crates/nvs-cli/src/main.rs:617`,
+`crates/nvs-cli/src/coverage.rs`). `Core\Debug` has no start, stop or coverage read-back
+(`crates/nvs-stdlib/src/debug.rs:117`), there is no Callgrind exporter and no streamed trace sink, `nvs
+run` has no probe flags, and a spawned isolate's probe data does not come back on its result.
+
 **Declined:**
 - **A Novis-native coverage and profile format with a converter.** Both already have dominant
   consumers, and a conversion step is friction for every project that uses them.

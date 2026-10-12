@@ -7,3 +7,5 @@ An operator who opted in is lending a command they ran for another reason
 (`rule:tooling/a-serving-process-never-uploads`); an unreachable endpoint may cost them three seconds and
 one honest line, never a failed cron job or a changed exit code
 (`rule:tooling/update-check-states-the-whole-picture`).
+
+**Not on disk.** Nothing in `crates/` uploads telemetry, so there is no upload to fail.

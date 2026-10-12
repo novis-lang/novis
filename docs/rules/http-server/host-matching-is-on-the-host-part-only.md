@@ -3,3 +3,9 @@ An absent `Host` on HTTP/1.1 is a `400`. A mount's `host` is compared against th
 A deployment that declares only host mounts gets a `404` for an unknown host, with no allowlist directive to remember — the failure Django had to add `ALLOWED_HOSTS` for. The forwarded walk never reaches this value: what a trusted proxy may assert is the client address and the scheme, and neither is read here.
 
 The proxy note that belongs in the operator documentation: nginx's `proxy_pass` sends `Host: $proxy_host` unless told otherwise, so a host-mounted deployment must set `proxy_set_header Host $host;` or every request arrives with the wrong name and lands on the fallback — silently.
+
+**Not on disk.** The port is stripped and the comparison ignores ASCII case
+(`crates/nvs-server/src/mount.rs:214`, `:289`), and the mount table holds a declared host in lower case
+(`crates/nvs-config/src/mount.rs:571`). A trailing dot is not removed, and a `Host` with non-ASCII in it
+is read as no `Host`. A request with no `Host` is not a `400`: it skips every host mount and reaches the
+mounts that declare no host (`crates/nvs-server/src/mount.rs:290`).
