@@ -1,0 +1,40 @@
+<?nvs
+// Attack: a request makes SVG QR codes with extreme text and extreme options.
+// Each attempt should return a document or throw an error, and the server keeps running.
+use Novis\Image\QrCode;
+
+// 1. An empty text.
+try {
+    echo 'step 1 ran ', Core\Str::length(QrCode::svg('')), "\n";
+} catch (Throwable $e) {
+    echo "step 1 stopped\n";
+}
+
+// 2. A text of one million characters.
+try {
+    echo 'step 2 ran ', Core\Str::length(QrCode::svg(Core\Str::repeat('x', 1000000))), "\n";
+} catch (Throwable $e) {
+    echo "step 2 stopped\n";
+}
+
+// 3. The largest possible margin, which overflows when it is added to the code.
+try {
+    echo 'step 3 ran ', Core\Str::length(QrCode::svg('https://example.com', { margin: 18446744073709551615 })), "\n";
+} catch (Throwable $e) {
+    echo "step 3 stopped\n";
+}
+
+// 4. The longest text that fits at the lowest level, which makes the largest code.
+try {
+    echo 'step 4 ran ', Core\Str::length(QrCode::svg(Core\Str::repeat('7', 7089), { level: QrCode::Level::Low })), "\n";
+} catch (Throwable $e) {
+    echo "step 4 stopped\n";
+}
+
+// 5. Markup and a NUL character in the text.
+try {
+    string $svg = QrCode::svg("<script>alert(1)</script>\u{0}");
+    echo 'step 5 ran ', Core\Str::contains($svg, '<script') ? 'TAG' : 'text', "\n";
+} catch (Throwable $e) {
+    echo "step 5 stopped\n";
+}

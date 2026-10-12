@@ -28,7 +28,7 @@ final class QrCode
     }
 
     /// `QrCode::giroCode` returns the text of a SEPA bank transfer, for a QR code that a banking app reads.
-    /// A wrong IBAN, a field that is too long, or both `reference` and `text` throw a `LogicError`.
+    /// A wrong IBAN, a field that is too long or has a line break, or both `reference` and `text` throw a `LogicError`.
     public static function giroCode({name: string, iban: string, amount?: decimal, bic?: string, reference?: string, text?: string} $payment): string
     {
         string $iban = Core\Str::upper(Core\Str::replace($payment->iban, " ", ""));
@@ -45,6 +45,12 @@ final class QrCode
         }
         string $reference = $payment?->reference ?? "";
         string $text = $payment?->text ?? "";
+        array<string> $fields = [$name, $bic, $reference, $text];
+        foreach ($fields as string $field) {
+            if (Core\Str::contains($field, "\n") || Core\Str::contains($field, "\r")) {
+                throw new LogicError("a field of a payment cannot contain a line break");
+            }
+        }
         if (Core\Str::length($reference) > 35) {
             throw new LogicError("a payment reference is at most 35 characters long");
         }

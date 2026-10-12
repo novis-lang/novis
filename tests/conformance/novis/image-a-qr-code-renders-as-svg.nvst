@@ -1,0 +1,34 @@
+--TEST--
+`Novis\Image\QrCode::svg` returns a QR code as an SVG document 256 pixels square whose `viewBox` counts the modules with the `margin`, which opens as an image, and data too long for its `QrCode::Level` throws a `LogicError`: rule:core-classes/image-one-entry-point-per-job
+--FILE--
+<?nvs
+// covers: Novis\Image\QrCode::svg
+use Novis\Image\Image;
+use Novis\Image\QrCode;
+
+// "Shop" is 21 modules wide, and the default margin is 4 on each side.
+string $plain = QrCode::svg("Shop");
+echo Core\Str::slice($plain, 0, 84), "\n";
+
+// A margin of 1 makes the code 23 modules wide, and the size stays 256 pixels.
+string $tight = QrCode::svg("Shop", {margin: 1, level: QrCode::Level::High});
+echo Core\Str::contains($tight, "width=\"256\" height=\"256\" viewBox=\"0 0 23 23\"") ? "23 modules" : $tight, "\n";
+
+// The document opens as an image.
+var $raw = Image::open($plain as bytes)->raw();
+echo $raw->width, "x", $raw->height, "\n";
+
+// 2000 bytes fit at `Low`, but not at `High`.
+string $long = Core\Str::repeat("x", 2000);
+echo Core\Str::startsWith(QrCode::svg($long, {level: QrCode::Level::Low}), "<svg") ? "fits" : "empty", "\n";
+try {
+    QrCode::svg($long, {level: QrCode::Level::High});
+} catch (LogicError $error) {
+    echo $error->message, "\n";
+}
+--EXPECT--
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 29 29"
+23 modules
+256x256
+fits
+2000 bytes do not fit in a QR code at level High: data too long

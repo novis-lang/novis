@@ -1,0 +1,50 @@
+--TEST--
+`Novis\Image\QrCode::giroCode` returns the EPC payment text with one field per line, and a field holding a line break, which would move the IBAN to another line, throws a `LogicError` like a wrong IBAN does: rule:core-classes/image-barcode-roster
+--FILE--
+<?nvs
+// covers: Novis\Image\QrCode::giroCode
+use Novis\Image\QrCode;
+
+// The IBAN loses its spaces and the BIC is upper case. The amount has 2 decimals.
+string $payment = QrCode::giroCode({name: "Shop GmbH", iban: "DE89 3704 0044 0532 0130 00", bic: "cobadeff", amount: 7.0, text: "Order 42"});
+echo Core\Str::replace($payment, "\n", "|"), "\n";
+
+// The text a payment carries is a QR code's data.
+echo Core\Str::startsWith(QrCode::svg($payment), "<svg") ? "drawn" : "not drawn", "\n";
+
+// A line break in any field throws, so no field can add a line of its own.
+try {
+    QrCode::giroCode({name: "Shop\nAT611904300234573201", iban: "DE89370400440532013000"});
+} catch (LogicError $error) {
+    echo $error->message, "\n";
+}
+try {
+    QrCode::giroCode({name: "Shop", iban: "DE89370400440532013000", bic: "COBA\rDEF"});
+} catch (LogicError $error) {
+    echo $error->message, "\n";
+}
+try {
+    QrCode::giroCode({name: "Shop", iban: "DE89370400440532013000", reference: "RF18\n5390"});
+} catch (LogicError $error) {
+    echo $error->message, "\n";
+}
+
+// A BIC of another length, and an amount below a cent.
+try {
+    QrCode::giroCode({name: "Shop", iban: "DE89370400440532013000", bic: "COBADE"});
+} catch (LogicError $error) {
+    echo $error->message, "\n";
+}
+try {
+    QrCode::giroCode({name: "Shop", iban: "DE89370400440532013000", amount: 0.0});
+} catch (LogicError $error) {
+    echo $error->message, "\n";
+}
+--EXPECT--
+BCD|002|1|SCT|COBADEFF|Shop GmbH|DE89370400440532013000|EUR7.00|||Order 42
+drawn
+a field of a payment cannot contain a line break
+a field of a payment cannot contain a line break
+a field of a payment cannot contain a line break
+a BIC is 8 or 11 characters long, and `COBADE` is not
+an amount is from 0.01 to 999999999.99 euros, with at most 2 decimals

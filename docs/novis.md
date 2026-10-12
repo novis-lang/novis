@@ -28836,7 +28836,7 @@ Novis\Image\QrCode::giroCode({name: string, iban: string, amount?: decimal, bic?
 ```
 
 `QrCode::giroCode` returns the text of a SEPA bank transfer, for a QR code that a banking app reads.
-A wrong IBAN, a field that is too long, or both `reference` and `text` throw a `LogicError`.
+A wrong IBAN, a field that is too long or has a line break, or both `reference` and `text` throw a `LogicError`.
 
 **Returns** `string`
 

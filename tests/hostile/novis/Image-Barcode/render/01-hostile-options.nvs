@@ -1,0 +1,66 @@
+<?nvs
+// Attack: a request makes barcodes with extreme data and extreme options.
+// Each attempt should return an image or throw an error, and the server keeps running.
+use Novis\Image\Barcode;
+use Novis\Image\Format;
+
+// 1. An empty Code 128.
+try {
+    echo 'step 1 ran ', Core\Bytes::length(Barcode::render('', Barcode::Symbology::Code128)), "\n";
+} catch (Throwable $e) {
+    echo "step 1 stopped\n";
+}
+
+// 2. A Code 128 of one million characters.
+try {
+    echo 'step 2 ran ', Core\Bytes::length(Barcode::render(Core\Str::repeat('x', 1000000), Barcode::Symbology::Code128)), "\n";
+} catch (Throwable $e) {
+    echo "step 2 stopped\n";
+}
+
+// 3. The largest possible bar width, which overflows when the width is counted.
+try {
+    echo 'step 3 ran ', Core\Bytes::length(Barcode::render('Shop', Barcode::Symbology::Code128, { module: 18446744073709551615 })), "\n";
+} catch (Throwable $e) {
+    echo "step 3 stopped\n";
+}
+
+// 4. The largest possible border and height together.
+try {
+    echo 'step 4 ran ', Core\Bytes::length(Barcode::render('Shop', Barcode::Symbology::Code128, { margin: 18446744073709551615, height: 18446744073709551615 })), "\n";
+} catch (Throwable $e) {
+    echo "step 4 stopped\n";
+}
+
+// 5. A bar width and a height of 0 pixels.
+try {
+    echo 'step 5 ran ', Core\Bytes::length(Barcode::render('Shop', Barcode::Symbology::Code128, { module: 0, height: 0 })), "\n";
+} catch (Throwable $e) {
+    echo "step 5 stopped\n";
+}
+
+// 6. A DataMatrix of 100000 characters, more than the largest code contains.
+try {
+    echo 'step 6 ran ', Core\Bytes::length(Barcode::render(Core\Str::repeat('a', 100000), Barcode::Symbology::DataMatrix)), "\n";
+} catch (Throwable $e) {
+    echo "step 6 stopped\n";
+}
+
+// 7. GS1-128 data with brackets that never close, and an empty value.
+try {
+    echo 'step 7 ran ', Core\Bytes::length(Barcode::render('(01((((', Barcode::Symbology::Gs1128)), "\n";
+} catch (Throwable $e) {
+    echo "step 7 stopped\n";
+}
+try {
+    echo 'step 7 ran ', Core\Bytes::length(Barcode::render('(10)', Barcode::Symbology::Gs1128)), "\n";
+} catch (Throwable $e) {
+    echo "step 7 stopped\n";
+}
+
+// 8. Long text under the bars, with a format that can only be read.
+try {
+    echo 'step 8 ran ', Core\Bytes::length(Barcode::render(Core\Str::repeat('W', 2000), Barcode::Symbology::Code39, { text: true, format: Format::Pdf })), "\n";
+} catch (Throwable $e) {
+    echo "step 8 stopped\n";
+}

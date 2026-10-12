@@ -1,0 +1,44 @@
+--TEST--
+`Novis\Image\Barcode::render` draws a 1D code as bars `height` pixels high and `module` pixels per module inside a `margin`, a DataMatrix as a square, in the format given, and a wrong check digit or a character the symbology cannot carry throws a `LogicError` naming it: rule:core-classes/image-barcode-roster
+--FILE--
+<?nvs
+// covers: Novis\Image\Barcode::render, Novis\Image\Barcode::Symbology
+use Novis\Image\Barcode;
+use Novis\Image\Format;
+use Novis\Image\Image;
+
+// A Code 128 is a PNG, 80 pixels of bars between borders of 10 modules of 2 pixels.
+var $plain = Image::info(Barcode::render("Shop-42", Barcode::Symbology::Code128));
+echo Image::mime($plain->format), " ", $plain->width, "x", $plain->height, "\n";
+
+// An EAN-13 with its number under the bars, 3 pixels per module, as WebP.
+var $ean = Image::info(Barcode::render("4006381333931", Barcode::Symbology::Ean13, {height: 60, module: 3, margin: 5, text: true, format: Format::Webp}));
+echo Image::mime($ean->format), " ", $ean->width, "x", $ean->height, "\n";
+
+// A DataMatrix is square.
+var $matrix = Image::info(Barcode::render("Shop order 1042", Barcode::Symbology::DataMatrix));
+echo $matrix->width, "x", $matrix->height, "\n";
+
+// A check digit is never added, and a character outside the symbology is named.
+try {
+    Barcode::render("4006381333932", Barcode::Symbology::Ean13);
+} catch (LogicError $error) {
+    echo $error->message, "\n";
+}
+try {
+    Barcode::render("order-42", Barcode::Symbology::Code39);
+} catch (LogicError $error) {
+    echo $error->message, "\n";
+}
+try {
+    Barcode::render("Shop", Barcode::Symbology::Code128, {module: 0});
+} catch (LogicError $error) {
+    echo $error->message, "\n";
+}
+--EXPECT--
+image/png 264x120
+image/webp 315x114
+80x80
+the check digit of the EAN-13 4006381333932 is 1, and the data ends in 2
+Code 39 cannot carry the character 'o' at position 1
+a barcode needs a `module` and a `height` above 0

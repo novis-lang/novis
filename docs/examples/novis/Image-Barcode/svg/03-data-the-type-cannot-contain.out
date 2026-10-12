@@ -1,0 +1,2 @@
+Code 39 cannot carry the character 'o' at position 1
+EAN-8 takes 8 digits, its check digit last, and was given "9638507"

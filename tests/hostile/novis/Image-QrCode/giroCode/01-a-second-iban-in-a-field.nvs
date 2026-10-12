@@ -1,0 +1,52 @@
+<?nvs
+// Attack: a request puts a line break and a second IBAN into a field of a payment.
+// A banking app reads one field per line, so this could send the money to another account.
+// Every attempt should throw an error.
+use Novis\Image\QrCode;
+
+// 1. The name of the receiver has a line break and another IBAN.
+try {
+    echo 'step 1 ran ', QrCode::giroCode({ name: "Shop\nAT611904300234573201", iban: 'DE89370400440532013000' }), "\n";
+} catch (Throwable $e) {
+    echo "step 1 stopped\n";
+}
+
+// 2. The BIC is 8 characters long, and one of them is a line break.
+try {
+    echo 'step 2 ran ', QrCode::giroCode({ name: 'Shop', iban: 'DE89370400440532013000', bic: "COBA\nDEF" }), "\n";
+} catch (Throwable $e) {
+    echo "step 2 stopped\n";
+}
+
+// 3. The text has a carriage return and an amount line.
+try {
+    echo 'step 3 ran ', QrCode::giroCode({ name: 'Shop', iban: 'DE89370400440532013000', text: "Order\rEUR999999999.99" }), "\n";
+} catch (Throwable $e) {
+    echo "step 3 stopped\n";
+}
+
+// 4. An IBAN with a line break between its digits.
+try {
+    echo 'step 4 ran ', QrCode::giroCode({ name: 'Shop', iban: "DE89\n370400440532013000" }), "\n";
+} catch (Throwable $e) {
+    echo "step 4 stopped\n";
+}
+
+// 5. A negative amount, and an amount above the largest one allowed.
+try {
+    echo 'step 5 ran ', QrCode::giroCode({ name: 'Shop', iban: 'DE89370400440532013000', amount: -5.0 }), "\n";
+} catch (Throwable $e) {
+    echo "step 5 stopped\n";
+}
+try {
+    echo 'step 5 ran ', QrCode::giroCode({ name: 'Shop', iban: 'DE89370400440532013000', amount: 1000000000.0 }), "\n";
+} catch (Throwable $e) {
+    echo "step 5 stopped\n";
+}
+
+// 6. An IBAN of one million characters.
+try {
+    echo 'step 6 ran ', QrCode::giroCode({ name: 'Shop', iban: Core\Str::repeat('9', 1000000) }), "\n";
+} catch (Throwable $e) {
+    echo "step 6 stopped\n";
+}
