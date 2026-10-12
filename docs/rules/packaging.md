@@ -3,7 +3,7 @@
 
 # Packaging
 
-*43 of 79 rules below are **designed** rather than shipped, and are marked where they appear.*
+*19 of 78 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="packaging-an-artifact-is-one-immutable-content-addressed-file"></a>
 
@@ -105,7 +105,7 @@ file becomes a plain miss rather than one relocated under yesterday's rules.
 
 <a id="packaging-the-artifact-cache-is-read-not-mapped"></a>
 
-## A compiled-unit cache entry is read into memory, never mapped  *(designed — not yet in the compiler)*
+## A compiled-unit cache entry is read into memory, never mapped  *(designed — owned by goal request-isolation-debts)*
 
 `rule:packaging/the-artifact-cache-is-read-not-mapped`
 
@@ -122,6 +122,9 @@ buys isolation, which is the direction the priority ordering exists to permit.
 What the entry contains, how it is verified before it becomes executable, and why its key carries the
 extension set ([`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key)) are unchanged by how its bytes
 arrive; only the read path is.
+
+**Not on disk.** `crates/nvs-cli/src/cache.rs` maps a cached unit's file with `memmap2` and verifies
+the mapping, so a file truncated or replaced after the load can still raise `SIGBUS` in the reader.
 
 **Memory:** one in-memory copy of each loaded unit's bytes for the process. It grows with the units a
 program loads, never with requests served.
@@ -293,7 +296,7 @@ time through [`packaging/nvs-cache-gc-and-clear-are-the-deterministic-escape`](p
 
 <a id="packaging-nvs-cache-gc-and-clear-are-the-deterministic-escape"></a>
 
-## `nvs cache gc` and `nvs cache clear` are the operator's deterministic alternative to the roll  *(designed — not yet in the compiler)*
+## `nvs cache gc` and `nvs cache clear` are the operator's deterministic alternative to the roll  *(designed — owned by M10)*
 
 `rule:packaging/nvs-cache-gc-and-clear-are-the-deterministic-escape`
 
@@ -305,6 +308,8 @@ otherwise does nothing. `nvs cache clear` empties the store.
 Neither is ever needed for correctness. A content-addressed entry cannot be stale — a changed source, a
 changed toolchain or a changed extension set is a different key — so the only thing either command
 changes is disk usage, and the next run of anything they removed pays one cold compile.
+
+**Not on disk.** The eviction walk runs on a cold miss, and `nvs` has no `cache` command.
 
 <sub>See also [`packaging/eviction-rides-the-cold-miss-at-a-probability`](packaging.md#packaging-eviction-rides-the-cold-miss-at-a-probability).</sub>
 
@@ -340,7 +345,7 @@ time.
 
 <a id="packaging-a-wasm-module-cache-reuses-the-artifact-cache"></a>
 
-## A compiled extension module is cached in the same store, under the same key, header and verify shape  *(designed — not yet in the compiler)*
+## A compiled extension module is cached in the same store, under the same key, header and verify shape
 
 `rule:packaging/a-wasm-module-cache-reuses-the-artifact-cache`
 
@@ -505,7 +510,7 @@ the bundler's own surface at one input, one output and one footer.
 
 <a id="packaging-a-nvsx-dependency-embeds-in-the-same-payload"></a>
 
-## A `.nvsx` the program depends on is embedded as one opaque entry of the same flat list  *(designed — not yet in the compiler)*
+## A `.nvsx` the program depends on is embedded as one opaque entry of the same flat list
 
 `rule:packaging/a-nvsx-dependency-embeds-in-the-same-payload`
 
@@ -524,7 +529,7 @@ An embedded entry keeps its `grants` as written, each root made absolute at buil
 before the run's own `[[extension]]` entries, so a class both declare refuses the start. Each embedded
 pin is checked when the bundle builds and again when it starts.
 
-**Not on disk.** The built-in components do not exist yet. `nvs build --compile` embeds each listed
+**On disk.** `nvs build --compile` embeds each listed
 `.nvsx` and its entry, and the bundle loads them from its payload with no file beside it
 (`crates/nvs-cli/tests/bundle.rs`; the layout is in `crates/nvs-cli/src/bundle.rs`'s module doc).
 
@@ -854,7 +859,7 @@ flag-gated for reasons this command does not share.
 
 <a id="packaging-a-package-name-is-vendor-slash-name"></a>
 
-## A package name is `vendor/name`, lowercase ASCII compared exactly, and `nvs` is reserved for first-party packages  *(designed — not yet in the compiler)*
+## A package name is `vendor/name`, lowercase ASCII compared exactly, and `nvs` is reserved for first-party packages  *(designed — owned by M15)*
 
 `rule:packaging/a-package-name-is-vendor-slash-name`
 
@@ -870,11 +875,13 @@ registry whose maintainers do not depend on it does not stay good.
 
 Names are first-come, and the squatting policy is the registry operator's own operational document.
 
+**Not on disk.** The tree has no package system.
+
 <sub>See also [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest), [`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace), [`programs/path-case`](programs.md#programs-path-case), [`packaging/a-c-dependency-answers-two-questions`](packaging.md#packaging-a-c-dependency-answers-two-questions).</sub>
 
 <a id="packaging-a-package-is-its-digest"></a>
 
-## A package is an immutable source archive whose identity is its BLAKE3 digest  *(designed — not yet in the compiler)*
+## A package is an immutable source archive whose identity is its BLAKE3 digest  *(designed — owned by M15)*
 
 `rule:packaging/a-package-is-its-digest`
 
@@ -904,7 +911,7 @@ archive.
 
 <a id="packaging-package-toml-is-a-tool-input"></a>
 
-## `package.toml` is read by the `nvs` CLI, never by the runtime and never by name resolution  *(designed — not yet in the compiler)*
+## `package.toml` is read by the `nvs` CLI, never by the runtime and never by name resolution  *(designed — owned by M15)*
 
 `rule:packaging/package-toml-is-a-tool-input`
 
@@ -929,11 +936,13 @@ It is TOML with unknown fields refused ([`config/a-duplicate-key-is-an-error-and
 and its integration with the program is the generated file
 [`packaging/a-fetched-package-is-an-autoload-line`](packaging.md#packaging-a-fetched-package-is-an-autoload-line) describes.
 
+**Not on disk.** The tree has no package system and reads no `package.toml`.
+
 <sub>See also [`packaging/a-fetched-package-is-an-autoload-line`](packaging.md#packaging-a-fetched-package-is-an-autoload-line), [`config/nvs-toml-is-not-a-project-manifest`](config.md#config-nvs-toml-is-not-a-project-manifest), [`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one), [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload), [`security/optional-capability-degrades`](security.md#security-optional-capability-degrades).</sub>
 
 <a id="packaging-a-package-file-stays-under-its-declared-prefix"></a>
 
-## Every file in a fetched package declares a namespace under the prefix its manifest claims, and two packages claiming one prefix is a fetch error naming both  *(designed — not yet in the compiler)*
+## Every file in a fetched package declares a namespace under the prefix its manifest claims, and two packages claiming one prefix is a fetch error naming both  *(designed — owned by M15)*
 
 `rule:packaging/a-package-file-stays-under-its-declared-prefix`
 
@@ -958,14 +967,14 @@ so no such check; what it has instead is a human writing the `autoload` line tha
 and the audit warning [`security/an-unmatched-namespace-holds-the-application`](security.md#security-an-unmatched-namespace-holds-the-application) describes if they
 did not think about it.
 
-**Not on disk.** The diagnostic code the design named has since been issued to a configuration
-refusal; the check takes the band's next free number when it lands.
+**Not on disk.** Nothing checks a package file's path against its prefix. The check's diagnostic
+takes the next free code in its band.
 
 <sub>See also [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace), [`security/an-unmatched-namespace-holds-the-application`](security.md#security-an-unmatched-namespace-holds-the-application), [`packaging/a-fetched-package-is-an-autoload-line`](packaging.md#packaging-a-fetched-package-is-an-autoload-line).</sub>
 
 <a id="packaging-a-fetched-package-is-an-autoload-line"></a>
 
-## A fetched package is reached by an ordinary `autoload` line in a committed, generated `vendor/packages.nvs`  *(designed — not yet in the compiler)*
+## A fetched package is reached by an ordinary `autoload` line in a committed, generated `vendor/packages.nvs`  *(designed — owned by M15)*
 
 `rule:packaging/a-fetched-package-is-an-autoload-line`
 
@@ -998,7 +1007,7 @@ compilation ([`packaging/a-package-file-stays-under-its-declared-prefix`](packag
 
 <a id="packaging-nothing-runs-before-the-program"></a>
 
-## Nothing in a package runs before your program does  *(designed — not yet in the compiler)*
+## Nothing in a package runs before your program does  *(designed — owned by M15)*
 
 `rule:packaging/nothing-runs-before-the-program`
 
@@ -1022,11 +1031,13 @@ language with no FFI and no native compilation step available to userland, an al
 "packages that genuinely need it" would exist only to be abused, and if such a need ever appears
 the rule is re-argued from scratch rather than amended.
 
+**Not on disk.** The tree has no package system.
+
 <sub>See also [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest), [`security/no-eval`](security.md#security-no-eval), [`security/closed-doors`](security.md#security-closed-doors), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time).</sub>
 
 <a id="packaging-a-package-cannot-reach-its-host"></a>
 
-## A package ships no `nvs.toml`, and none of its `require` or `autoload` paths reaches outside its own directory  *(designed — not yet in the compiler)*
+## A package ships no `nvs.toml`, and none of its `require` or `autoload` paths reaches outside its own directory  *(designed — owned by M15)*
 
 `rule:packaging/a-package-cannot-reach-its-host`
 
@@ -1050,7 +1061,7 @@ map against which to check a path.
 
 <a id="packaging-resolution-takes-the-highest-minimum"></a>
 
-## Resolution selects the highest minimum any package asked for, and nothing upgrades itself  *(designed — not yet in the compiler)*
+## Resolution selects the highest minimum any package asked for, and nothing upgrades itself  *(designed — owned by M15)*
 
 `rule:packaging/resolution-takes-the-highest-minimum`
 
@@ -1076,6 +1087,8 @@ always acceptable — which is what [`packaging/a-breaking-release-is-a-new-name
 A graph where two packages require different minimums of a third selects the higher, and no other
 package's version changes. No manifest exists for which resolution reports a conflict.
 
+**Not on disk.** The tree has no package system and no resolver.
+
 **Declined:**
 - **A solver over version ranges.** A range can say "not 2.3.1, it is broken", and every incumbent has
   one. It brings back unsolvable graphs, slow resolution, and an error that blames the user for a
@@ -1088,7 +1101,7 @@ package's version changes. No manifest exists for which resolution reports a con
 
 <a id="packaging-the-lockfile-holds-every-digest"></a>
 
-## `package.lock` records every package's digest, a mismatch is a hard error, and `--locked` fetches nothing the lock does not name  *(designed — not yet in the compiler)*
+## `package.lock` records every package's digest, a mismatch is a hard error, and `--locked` fetches nothing the lock does not name  *(designed — owned by M15)*
 
 `rule:packaging/the-lockfile-holds-every-digest`
 
@@ -1108,11 +1121,13 @@ The lock is for integrity, not for determinism: [`packaging/resolution-takes-the
 is deterministic on its own, and `nvs build --locked` on a clean machine with an empty cache produces
 byte-identical compiled units to the machine that wrote the lock, on all three platforms.
 
+**Not on disk.** The tree has no package system and no `package.lock`.
+
 <sub>See also [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest), [`packaging/the-registry-keeps-an-append-only-log`](packaging.md#packaging-the-registry-keeps-an-append-only-log), [`packaging/resolution-takes-the-highest-minimum`](packaging.md#packaging-resolution-takes-the-highest-minimum), [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file).</sub>
 
 <a id="packaging-a-git-dependency-is-root-only"></a>
 
-## A git dependency pins an exact commit, and only the root application may declare one  *(designed — not yet in the compiler)*
+## A git dependency pins an exact commit, and only the root application may declare one  *(designed — owned by M15)*
 
 `rule:packaging/a-git-dependency-is-root-only`
 
@@ -1148,7 +1163,7 @@ that cannot use the public one runs or mirrors its own, and nothing above change
 
 <a id="packaging-the-registry-keeps-an-append-only-log"></a>
 
-## The registry publishes an append-only transparency log, and a client verifies inclusion and consistency before using an artifact  *(designed — not yet in the compiler)*
+## The registry publishes an append-only transparency log, and a client verifies inclusion and consistency before using an artifact  *(designed — owned by M15)*
 
 `rule:packaging/the-registry-keeps-an-append-only-log`
 
@@ -1168,11 +1183,13 @@ The log is also why a registry, rather than git URLs alone, is the transitive so
 the advisory feed and `nvs audit` all need a namespace with an authority behind it that cannot
 quietly rewrite what it said.
 
+**Not on disk.** There is no registry and no log.
+
 <sub>See also [`packaging/the-lockfile-holds-every-digest`](packaging.md#packaging-the-lockfile-holds-every-digest), [`packaging/a-known-bad-version-is-retracted-not-deleted`](packaging.md#packaging-a-known-bad-version-is-retracted-not-deleted), [`packaging/publishing-never-overwrites`](packaging.md#packaging-publishing-never-overwrites).</sub>
 
 <a id="packaging-publishing-never-overwrites"></a>
 
-## `nvs publish` uploads a clean-checkout archive, and the registry never overwrites a published `name@version`  *(designed — not yet in the compiler)*
+## `nvs publish` uploads a clean-checkout archive, and the registry never overwrites a published `name@version`  *(designed — owned by M15)*
 
 `rule:packaging/publishing-never-overwrites`
 
@@ -1193,11 +1210,13 @@ Operating the registry — index, artifact store, log, advisory feed, accounts, 
 is a real and permanent responsibility; the protocol is static signed files so that the serving side
 is cheap and mirrorable, but the responsibility is the main cost of having a package system at all.
 
+**Not on disk.** The tree has no package system and no `nvs publish`.
+
 <sub>See also [`packaging/the-registry-keeps-an-append-only-log`](packaging.md#packaging-the-registry-keeps-an-append-only-log), [`packaging/a-git-dependency-is-root-only`](packaging.md#packaging-a-git-dependency-is-root-only), [`packaging/a-package-cannot-reach-its-host`](packaging.md#packaging-a-package-cannot-reach-its-host), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time).</sub>
 
 <a id="packaging-a-known-bad-version-is-retracted-not-deleted"></a>
 
-## A known-bad version is retracted, never deleted, and `nvs audit` names the minimum bump that clears it  *(designed — not yet in the compiler)*
+## A known-bad version is retracted, never deleted, and `nvs audit` names the minimum bump that clears it  *(designed — owned by M15)*
 
 `rule:packaging/a-known-bad-version-is-retracted-not-deleted`
 
@@ -1214,11 +1233,13 @@ range expresses that a minimum cannot: "not 2.3.1, it is broken".
 If audit proves insufficient in practice and users sit on known-vulnerable versions, the thing to
 argue is a narrowly scoped automatic patch floor, not a general range system.
 
+**Not on disk.** The tree has no package system.
+
 <sub>See also [`packaging/resolution-takes-the-highest-minimum`](packaging.md#packaging-resolution-takes-the-highest-minimum), [`packaging/the-registry-keeps-an-append-only-log`](packaging.md#packaging-the-registry-keeps-an-append-only-log).</sub>
 
 <a id="packaging-a-breaking-release-is-a-new-name"></a>
 
-## A package that breaks its API publishes under a new name carrying `supersedes`  *(designed — not yet in the compiler)*
+## A package that breaks its API publishes under a new name carrying `supersedes`  *(designed — owned by M15)*
 
 `rule:packaging/a-breaking-release-is-a-new-name`
 
@@ -1236,6 +1257,8 @@ dependencies — is what makes a rename rare enough to live with.
 
 The rule is watched rather than enforced: if library authors route around it by shipping breaks
 under the same name, either an API-diff check at publish or a ceiling mechanism becomes necessary.
+
+**Not on disk.** The tree has no package system.
 
 <sub>See also [`packaging/resolution-takes-the-highest-minimum`](packaging.md#packaging-resolution-takes-the-highest-minimum), [`packaging/a-dependency-break-is-absorbed-never-forwarded`](packaging.md#packaging-a-dependency-break-is-absorbed-never-forwarded), [`packaging/a-known-bad-version-is-retracted-not-deleted`](packaging.md#packaging-a-known-bad-version-is-retracted-not-deleted).</sub>
 
@@ -1268,7 +1291,7 @@ there, and the workspace version is below it.
 
 <a id="packaging-the-versioned-surface-is-enumerated"></a>
 
-## A version number describes the enumerated surface, and the Rust crate APIs, the artifact cache, diagnostic prose and MSRV carry no promise  *(designed — not yet in the compiler)*
+## A version number describes the enumerated surface, and the Rust crate APIs, the artifact cache, diagnostic prose and MSRV carry no promise
 
 `rule:packaging/the-versioned-surface-is-enumerated`
 
@@ -1327,7 +1350,7 @@ a slot *promises* is the contract's, through [`packaging/who-can-see-it-decides-
 
 <a id="packaging-who-can-see-it-decides-the-release-slot"></a>
 
-## A change a dependency forced ships as a patch, a minor or a major by who can see it, never by how big the diff was  *(designed — not yet in the compiler)*
+## A change a dependency forced ships as a patch, a minor or a major by who can see it, never by how big the diff was
 
 `rule:packaging/who-can-see-it-decides-the-release-slot`
 
@@ -1360,7 +1383,7 @@ is where it becomes visible ([`packaging/one-bump-one-commit`](packaging.md#pack
 
 <a id="packaging-a-dependency-break-is-absorbed-never-forwarded"></a>
 
-## A dependency break that a program author could see goes down a seven-step ladder, and shipping it is the last step  *(designed — not yet in the compiler)*
+## A dependency break that a program author could see goes down a seven-step ladder, and shipping it is the last step
 
 `rule:packaging/a-dependency-break-is-absorbed-never-forwarded`
 
@@ -1405,7 +1428,7 @@ forces the ladder is a design problem, not an update problem; the hold dates are
 
 <a id="packaging-a-forced-break-is-announced-before-it-lands"></a>
 
-## A forced user-facing break survives one minor release as a warning naming its replacement, and is removed in the next major  *(designed — not yet in the compiler)*
+## A forced user-facing break survives one minor release as a warning naming its replacement, and is removed in the next major
 
 `rule:packaging/a-forced-break-is-announced-before-it-lands`
 
@@ -1507,7 +1530,7 @@ in between. Deferring a bump never makes the next one cheaper.
 
 <a id="packaging-an-extension-is-a-sandboxed-wasm-component"></a>
 
-## A third-party extension is a sandboxed WebAssembly component, never a shared library loaded with `dlopen`  *(designed — not yet in the compiler)*
+## A third-party extension is a sandboxed WebAssembly component, never a shared library loaded with `dlopen`
 
 `rule:packaging/an-extension-is-a-sandboxed-wasm-component`
 
@@ -1549,43 +1572,11 @@ under the request's budget (`crates/nvs-ext/tests/call.rs`).
 - **A wasm engine of Novis's own on the Cranelift it already embeds.** Its validator would be a
   sandbox nobody else audits.
 
-<sub>See also [`packaging/three-tiers`](packaging.md#packaging-three-tiers), [`packaging/values-cross-as-handles`](packaging.md#packaging-values-cross-as-handles), [`packaging/a-guest-has-no-ambient-authority`](packaging.md#packaging-a-guest-has-no-ambient-authority), [`security/no-ffi`](security.md#security-no-ffi), [`security/closed-doors`](security.md#security-closed-doors), [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest).</sub>
-
-<a id="packaging-three-tiers"></a>
-
-## Library and extension code sits at one of three tiers: built-in, sandboxed component, or statically linked native  *(designed — not yet in the compiler)*
-
-`rule:packaging/three-tiers`
-
-Library and extension code lives at one of three tiers, and each exists because it is the right
-answer for a different class of code:
-
-- **Tier 0 — built-in.** `nvs-stdlib`, compiled into the binary: native speed, direct heap access,
-  no boundary. This is where fine-grained primitives go — string, array and arithmetic operations,
-  anything whose whole cost is comparable to a call — each a `static` member of a `Core` domain
-  class ([`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants)).
-- **Tier 1 — a sandboxed `.nvsx` component.** The default and recommended path for third-party
-  code, and where hostile-bytes parsers go ([`packaging/an-extension-is-a-sandboxed-wasm-component`](packaging.md#packaging-an-extension-is-a-sandboxed-wasm-component)).
-  The two first-party components, image and intl, are Tier 1 built into the binary and always
-  present under `Novis\` ([`packaging/the-first-party-components-are-built-in`](packaging.md#packaging-the-first-party-components-are-built-in)); every other
-  component is loaded from an `[[extension]]` entry.
-- **Tier 2 — statically linked native.** A Rust crate compiled into the `nvs` binary, for
-  first-party subsystems that need raw sockets, TLS termination or the heap: the database drivers,
-  the regex engine, crypto. Safe because it is safe Rust, and built from source, which is exactly the
-  right friction for code that runs unsandboxed.
-
-What it spends is two host interfaces to keep in step: the internal one Tier 0 uses and the WIT world
-Tier 1 uses.
-
-Which tier a candidate lands at is decided by [`core-api/tier-placement`](core-api.md#core-api-tier-placement)'s six ordered tests,
-and the resulting roster is [`core-api/tier-roster`](core-api.md#core-api-tier-roster). Those tests decide the partition, and no
-other runtime's packaging is a reason to place a candidate.
-
-<sub>See also [`core-api/five-placements`](core-api.md#core-api-five-placements), [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`core-api/tier-roster`](core-api.md#core-api-tier-roster), [`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost).</sub>
+<sub>See also [`core-api/five-placements`](core-api.md#core-api-five-placements), [`packaging/values-cross-as-handles`](packaging.md#packaging-values-cross-as-handles), [`packaging/a-guest-has-no-ambient-authority`](packaging.md#packaging-a-guest-has-no-ambient-authority), [`security/no-ffi`](security.md#security-no-ffi), [`security/closed-doors`](security.md#security-closed-doors), [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest).</sub>
 
 <a id="packaging-the-first-party-components-are-built-in"></a>
 
-## The image and intl components are built into every `nvs` binary, sandboxed, and always present under `Novis\`  *(designed — not yet in the compiler)*
+## The image, intl and PDF components are built into every `nvs` binary, sandboxed, and always present under `Novis\`
 
 `rule:packaging/the-first-party-components-are-built-in`
 
@@ -1622,9 +1613,8 @@ A clean build compiles all three for wasm, ICU4X's compiled data among them, and
 their target directory. The one C library is prebuilt
 ([`packaging/a-prebuilt-wasm-library-is-rebuilt-in-ci`](packaging.md#packaging-a-prebuilt-wasm-library-is-rebuilt-in-ci)).
 
-**Partly on disk.** The image crate is `extensions/image/`, excluded from the workspace, and builds for
-`wasm32-wasip2` with `simd128` on. Its implemented exports are `info`, `run` and `variants`; the others return `runtime`.
-Its Novis source half is every `.nvs` file in `extensions/image/nvs/`, which the build packs into `nvs.source`.
+**On disk.** The image crate is `extensions/image/`, excluded from the workspace, and builds for
+`wasm32-wasip2` with `simd128` on. Its Novis source half is every `.nvs` file in `extensions/image/nvs/`, which the build packs into `nvs.source`.
 `crates/nvs-ext/build.rs` builds it into `target/ext/`, packs it with `extensions/image/manifest.json`
 and embeds it as `nvs_ext::builtin::IMAGE` with its digest. `nvs_ext::load::Loader::builtins` reads
 its manifest without compiling, and `Builtin::extension` compiles and checks it on first use
@@ -1635,13 +1625,14 @@ call (`crates/nvs-cli/src/extensions.rs`), so `Novis\Image\Codec::info` answers 
 (`tests/conformance/novis/image-info-answers-with-no-configuration.nvst`). The loader refuses a
 `Novis\` class from every `[[extension]]` entry. The intl crate is `extensions/intl/`, built and
 embedded the same way as `nvs_ext::builtin::INTL` with its digest folded in beside the image's. Its
-manifest class is `Novis\Intl\Icu`, of whose exports `collateOrder` and `sortKeys` are implemented and
-the others return `runtime`; its Novis half is `Novis\Intl\Collator` (`crates/nvs-ext/tests/intl.rs`).
+manifest class is `Novis\Intl\Icu`, and its Novis half is the `Novis\Intl` classes
+(`crates/nvs-ext/tests/intl.rs`, `tests/conformance/novis/intl-answers-with-no-configuration.nvst`).
 The PDF crate is `extensions/pdf/`, built and embedded the same way as `nvs_ext::builtin::PDF`
 with its digest folded in beside the other two. Its manifest class is `Novis\Pdf\Engine`, the
-interface `wit/pdf.wit`, of whose exports `render`'s `whole` pass is implemented and the others
-return `runtime`; its Novis half is `Novis\Pdf\Document` and `Novis\Pdf\Rendered`
+interface `wit/pdf.wit`, and its Novis half is `Novis\Pdf\Document` and `Novis\Pdf\Rendered`
 (`crates/nvs-ext/tests/pdf.rs`, `tests/conformance/novis/pdf-renders-with-no-configuration.nvst`).
+`render`'s `whole` pass is implemented, and the exports [`core-classes/pdf-roster`](core-classes.md#core-classes-pdf-roster) still owes
+return `runtime`.
 
 **Declined:**
 - **Embedded, but removable by a setting or a Cargo feature.** Whether `Novis\Image` exists would
@@ -1652,11 +1643,11 @@ return `runtime`; its Novis half is `Novis\Pdf\Document` and `Novis\Pdf\Rendered
 - **Both finished `.nvsx` files committed.** Tens of megabytes of binary in git on every CLDR or codec
   update.
 
-<sub>See also [`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present), [`packaging/three-tiers`](packaging.md#packaging-three-tiers), [`core-api/tier-roster`](core-api.md#core-api-tier-roster), [`core-classes/intl-roster`](core-classes.md#core-classes-intl-roster).</sub>
+<sub>See also [`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present), [`core-api/five-placements`](core-api.md#core-api-five-placements), [`core-api/tier-roster`](core-api.md#core-api-tier-roster), [`core-classes/intl-roster`](core-classes.md#core-classes-intl-roster).</sub>
 
 <a id="packaging-a-prebuilt-wasm-library-is-rebuilt-in-ci"></a>
 
-## The prebuilt libwebp wasm library is committed beside its source hash, and CI rebuilds it and fails on a difference  *(designed — not yet in the compiler)*
+## The prebuilt libwebp wasm library is committed beside its source hash, and CI rebuilds it and fails on a difference
 
 `rule:packaging/a-prebuilt-wasm-library-is-rebuilt-in-ci`
 
@@ -1670,12 +1661,12 @@ wasi-sdk — while the committed bytes stay a function of reviewable source rath
 reviewer has to trust. The library runs only inside the sandbox, which is the condition under which
 [`packaging/a-c-dependency-answers-two-questions`](packaging.md#packaging-a-c-dependency-answers-two-questions) admits it.
 
-**Partly on disk.** `bun nv webp-lib` builds libwebp into `extensions/image/libwebp/libwebp.a`, and
+**On disk.** `bun nv webp-lib` builds libwebp into `extensions/image/libwebp/libwebp.a`, and
 `SOURCE.json` beside it pins the source tarball and the wasi-sdk release by sha256 and records the
 library's own. The build runs on Linux, and under WSL on Windows, and refuses a tarball whose digest
 differs from its pin. `--check` holds the committed bytes to their digest, and CI's `webp-lib` job
-runs `--verify`, which rebuilds and compares (`tools/nv/test/webp-lib.test.ts`). The image crate
-does not link the library yet.
+runs `--verify`, which rebuilds and compares (`tools/nv/test/webp-lib.test.ts`). The image crate's
+`build.rs` links the library into its wasm build only, for lossy WebP.
 
 **Declined:**
 - **libwebp compiled from source on every clean build.** Every contributor and every CI leg would need
@@ -1685,7 +1676,7 @@ does not link the library yet.
 
 <a id="packaging-an-nvsx-is-one-file-carrying-its-manifest"></a>
 
-## A `.nvsx` is a single WebAssembly component whose manifest is an `nvs.manifest` custom section  *(designed — not yet in the compiler)*
+## A `.nvsx` is a single WebAssembly component whose manifest is an `nvs.manifest` custom section
 
 `rule:packaging/an-nvsx-is-one-file-carrying-its-manifest`
 
@@ -1714,18 +1705,19 @@ The world is WIT and versioned by semver. A host implementing `1.y` loads a comp
 newer minor or another major is refused, naming both versions. An `.nvsx` compiled against
 `nvs:ext@1.0.0` is not recompiled for a minor engine release.
 
-**Not on disk.** The world `nvs:ext@1.0.0` is written under `wit/nvs-ext/`, with the WASI 0.2 WIT it
+**On disk.** The world `nvs:ext@1.0.0` is written under `wit/nvs-ext/`, with the WASI 0.2 WIT it
 imports vendored under `deps/`, and `crates/nvs-stdlib/tests/ext_world.rs` parses it. `nvs-ext`
 reads both sections and parses the manifest and the source list without linking wasmtime
 (`crates/nvs-ext/tests/manifest.rs`), and its module doc owns the JSON shapes. `nvs_ext::load`
 checks a manifest against its component's exports and the world's version
-(`crates/nvs-ext/tests/load.rs`), and nothing builds a component against the world.
+(`crates/nvs-ext/tests/load.rs`). The built-in components and `nvs ext build`'s output are
+components built against the world.
 
 <sub>See also [`packaging/extension-calls-are-statically-typed`](packaging.md#packaging-extension-calls-are-statically-typed), [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key).</sub>
 
 <a id="packaging-an-extension-package-carries-two-payloads"></a>
 
-## An extension package may carry Novis source beside its `.nvsx`, under one namespace, and the component's manifest registers exactly one class  *(designed — not yet in the compiler)*
+## An extension package may carry Novis source beside its `.nvsx`, under one namespace, and the component's manifest registers exactly one class
 
 `rule:packaging/an-extension-package-carries-two-payloads`
 
@@ -1750,7 +1742,7 @@ would spend a boundary crossing per method to append to an array
 ([`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost)), and would hold plan state across calls in an instance
 whose whole premise is that state does not outlive a request.
 
-**Not on disk.** `nvs_ext::source` reads the section, and the loader refuses a file whose
+**On disk.** `nvs_ext::source` reads the section, and the loader refuses a file whose
 `namespace` is not under the class's own (`crates/nvs-ext/tests/load.rs`). The graph walk resolves
 a name under that namespace to the carried file with no `autoload` line
 (`nvs_hir::ExtensionClass::source`), and `nvs run`, `nvs check` and `nvs test` fill that field
@@ -1767,7 +1759,7 @@ from the set's manifests
 
 <a id="packaging-extension-loading-is-root-controlled"></a>
 
-## An extension loads only from an `[[extension]]` entry in the root-owned `nvs.toml`, pinned by its `sha256`  *(designed — not yet in the compiler)*
+## An extension loads only from an `[[extension]]` entry in the root-owned `nvs.toml`, pinned by its `sha256`
 
 `rule:packaging/extension-loading-is-root-controlled`
 
@@ -1801,15 +1793,14 @@ is a lazy recompile with no invalidation pass. A component is compiled once, int
 content-addressed artifact cache as Novis's own code, and the compiled module is shared across every
 core.
 
-**Not on disk.** The entry's shape is enforced: `nvs_config::extension::validate` refuses an entry
+**On disk.** The entry's shape is enforced: `nvs_config::extension::validate` refuses an entry
 with no `path`, no `sha256` or a pin that is not 64 hexadecimal digits, at boot and at reload, naming
 its file and line (`E0651`), and the pins fold into `env_hash`. `nvs_ext::load` reads the file and
 runs every load refusal above, each naming the entry's path (`crates/nvs-ext/tests/load.rs`).
 `nvs serve` runs it over every entry at boot and at every reload, and one entry that does not load
 stops the boot or refuses the whole reload with the previous set live, naming its file and line
 (`E0652`, `crates/nvs-cli/tests/live_config.rs`), and stores each compiled component in the
-artifact cache. No named type (an enum, a `Core` value class, a union, a `resource`) passes its
-export check. `nvs ext pin` prints an entry `nvs config check` accepts, for a file that loads
+artifact cache. `nvs ext pin` prints an entry `nvs config check` accepts, for a file that loads
 (`crates/nvs-cli/tests/ext_command.rs`).
 
 **Declined:**
@@ -1824,7 +1815,7 @@ export check. `nvs ext pin` prints an entry `nvs config check` accepts, for a fi
 
 <a id="packaging-extension-calls-are-statically-typed"></a>
 
-## An extension's classes are registered from its manifest at load, and a call into one is type-checked at compile time and emitted as a direct call  *(designed — not yet in the compiler)*
+## An extension's classes are registered from its manifest at load, and a call into one is type-checked at compile time and emitted as a direct call
 
 `rule:packaging/extension-calls-are-statically-typed`
 
@@ -1840,15 +1831,16 @@ The registered methods carry the manifest's qualifier declarations in the same s
 read the manifests of the resolved configuration's set and never instantiate a component.
 
 Consequently `nvs check` type-checks a call into an extension at compile time, and codegen emits a
-**direct call** to a per-export trampoline that converts the arguments by
-[`packaging/a-value-crosses-as-its-wit-type`](packaging.md#packaging-a-value-crosses-as-its-wit-type)'s table, rather than a dynamic dispatch.
+**direct call** of one runtime helper, with the export's `Class::method` name in its first slot and
+the arguments after it, rather than a dynamic dispatch. The host finds the export by that name and
+converts the arguments by [`packaging/a-value-crosses-as-its-wit-type`](packaging.md#packaging-a-value-crosses-as-its-wit-type)'s table. What one helper
+costs beside a trampoline per export is that lookup of the name on every call.
 
-The direct call is why the loaded extension set is a codegen input: an artifact compiled against one set
-holds a jump into a trampoline that another set may have moved, so the set is part of every compiled
-unit's key and a changed set is an ordinary cache miss
-([`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key)).
+The typed call is why the loaded extension set is a codegen input: a unit compiled against one set
+names exports another set may not declare, so the set is part of every compiled unit's key and a
+changed set is an ordinary cache miss ([`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key)).
 
-**Not on disk.** The checker layer is: `nvs_types::ext_lib` seeds a set's manifests into the
+**On disk.** The checker layer is: `nvs_types::ext_lib` seeds a set's manifests into the
 signature table and `nvs_hir::resolve_file_with_extensions` declares their classes
 (`crates/nvs-types/tests/extensions.rs`). `nvs check` and `nvs run` read the configuration's set with
 `nvs_ext::load::read_manifests` and type a program against it
@@ -1868,7 +1860,7 @@ Codegen emits it as a direct call of one runtime helper with the export named in
 
 <a id="packaging-a-value-crosses-as-its-wit-type"></a>
 
-## A value crosses into an extension as the WIT type one closed table gives its Novis type, copied whole  *(designed — not yet in the compiler)*
+## A value crosses into an extension as the WIT type one closed table gives its Novis type, copied whole
 
 `rule:packaging/a-value-crosses-as-its-wit-type`
 
@@ -1900,7 +1892,7 @@ What it costs is the copy: a guest that needs one field of a large array still r
 at about 12 ns per KiB. Coarse APIs are the rule already ([`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost)),
 and `mixed` keeps the pull-only path for the case that needs it.
 
-**Not on disk.** The world is written: `wit/nvs-ext/types.wit` holds the `error` variant, the `value`
+**On disk.** The world is written: `wit/nvs-ext/types.wit` holds the `error` variant, the `value`
 resource and one record per `Core` value class that crosses, and `crates/nvs-stdlib/tests/ext_world.rs`
 names every other value class with the reason it cannot. A manifest declares its enums, closed
 unions of shapes and resources by name, the loader holds each against the export's `enum`,
@@ -1924,7 +1916,7 @@ as an object whose one slot is the request's number for it (`nvs_types::ext_lib`
 
 <a id="packaging-values-cross-as-handles"></a>
 
-## A value crosses the guest boundary as a bounds-checked handle, never as a pointer  *(designed — not yet in the compiler)*
+## A value crosses the guest boundary as a bounds-checked handle, never as a pointer  *(designed — owned by M9)*
 
 `rule:packaging/values-cross-as-handles`
 
@@ -1945,18 +1937,20 @@ accessor call is a fixed cost, a bulk copy is nearly free, and the design that w
 a few times rather than words many times ([`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost),
 [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline)).
 
-**Not on disk.** `nvs_ext::handle` is the per-call table and the `value` accessors, and
+**Partly on disk.** `nvs_ext::handle` is the per-call table and the `value` accessors, and
 `nvs_ext::call::Request::call_values` lends a `mixed` argument through it; a handle kept past its
 call traps when it is read (`crates/nvs-ext/tests/convert.rs`). `nvs run` calls an extension from a
 program, and the row-table case passes `mixed` values to the fixture's `kindOf`
-(`tests/conformance/ext/an-extension-call-crosses-every-row-of-the-value-table.nvst`). There is
-no bulk byte copy beyond `as-bytes`.
+(`tests/conformance/ext/an-extension-call-crosses-every-row-of-the-value-table.nvst`). The bulk
+copy is missing: a guest reads a handle's bytes only through `as-bytes`, and a byte list crosses as
+one wasmtime `Val` per byte, so it costs tens of nanoseconds per byte rather than about 12 ns per KiB
+(`data/gaps/nvs-ext/bytes-cross-one-val-per-byte.json`).
 
 <sub>See also [`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost), [`core-api/a-lifetime-is-an-object`](core-api.md#core-api-a-lifetime-is-an-object).</sub>
 
 <a id="packaging-a-fresh-instance-per-request"></a>
 
-## A guest is instantiated fresh for each request that calls it, so extension state cannot leak between requests  *(designed — not yet in the compiler)*
+## A guest is instantiated fresh for each request that calls it, so extension state cannot leak between requests
 
 `rule:packaging/a-fresh-instance-per-request`
 
@@ -1980,7 +1974,7 @@ because a guest re-instantiated per request loses them every time; such a client
 
 <a id="packaging-a-guest-call-yields-on-its-core"></a>
 
-## A guest call runs on its request's core as an async call the request's coroutine polls, and yields at every epoch tick  *(designed — not yet in the compiler)*
+## A guest call runs on its request's core as an async call the request's coroutine polls, and yields at every epoch tick
 
 `rule:packaging/a-guest-call-yields-on-its-core`
 
@@ -2023,7 +2017,7 @@ first is parked inside wasm, and the CPU deadline traps a call that keeps yieldi
 
 <a id="packaging-a-guest-runs-under-the-requests-budget"></a>
 
-## A guest runs under the request's CPU and memory caps, and a runaway guest traps rather than hanging a core  *(designed — not yet in the compiler)*
+## A guest runs under the request's CPU and memory caps, and a runaway guest traps rather than hanging a core  *(designed — owned by goal request-isolation-debts)*
 
 `rule:packaging/a-guest-runs-under-the-requests-budget`
 
@@ -2046,17 +2040,21 @@ in flight.
 What it spends: the guest's linear memory, charged to the calling request and freed when the request
 ends — O(in-flight). The pooling allocator reserves address space per slot, not committed memory.
 
-**Not on disk.** `nvs_ext::call` charges every growth to a `Budget` and traps a guest past its CPU
-deadline or the least of the three memory limits (`crates/nvs-ext/tests/call.rs`), but nothing
-implements that budget over a request's own deadline and memory accounting yet. A limit's outcome
-is a `FATAL` naming the limit as `onLimit` receives it (`crates/nvs-ext/tests/failure.rs`), and no
-host raises it on a request yet.
+**Partly on disk.** `nvs_ext::call` charges every growth to a `Budget` and traps a guest past its
+CPU deadline or the least of the three memory limits (`crates/nvs-ext/tests/call.rs`). A limit's
+outcome is a `FATAL` naming the limit as `onLimit` receives it (`crates/nvs-ext/tests/failure.rs`),
+and `nvs run` runs the request's limit handler before it
+(`tests/conformance/ext/an-extension-that-reaches-the-memory-limit-runs-the-limit-handler.nvst`).
+The budget `nvs run` and `nvs serve` hand a guest is not the request's own:
+`nvs_cli::extensions::Spent` is made at the request's first call from its `[limits]`, so its CPU
+deadline starts there rather than at the request's start, and its memory is a second allowance beside
+the count the runtime keeps for the request.
 
 <sub>See also [`errors/on-limit`](errors.md#errors-on-limit), [`packaging/a-fresh-instance-per-request`](packaging.md#packaging-a-fresh-instance-per-request).</sub>
 
 <a id="packaging-a-guest-crash-throws"></a>
 
-## A guest's error result throws its mapped class, a trap throws `ExtensionError`, and only a CPU or memory limit is a `FATAL`  *(designed — not yet in the compiler)*
+## A guest's error result throws its mapped class, a trap throws `ExtensionError`, and only a CPU or memory limit is a `FATAL`
 
 `rule:packaging/a-guest-crash-throws`
 
@@ -2077,7 +2075,7 @@ answers one the decoder refused.
 A limit stays a `FATAL` because the request, not the extension, asked for too much, and a resource
 limit is not a `Throwable` ([`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy)).
 
-**Not on disk.** `ExtensionError` is in the compiler's exception tree under `RuntimeError` with no
+**On disk.** `ExtensionError` is in the compiler's exception tree under `RuntimeError` with no
 property of its own (`nvs_hir::errors::TREE`) and in the runtime's thrown-class roster, and
 `nvs_ext::call` turns every failure into the table's outcome — the class or the limit named as the
 runtime spells it, a trapped instance dropped and an `err`'s kept (`crates/nvs-ext/tests/failure.rs`)
@@ -2095,7 +2093,7 @@ A limit runs the request's limit handler before its `FATAL`
 
 <a id="packaging-a-guest-has-no-ambient-authority"></a>
 
-## A guest has no ambient authority: WASI is not granted by default, and every host function it receives is capability-checked  *(designed — not yet in the compiler)*
+## A guest has no ambient authority: WASI is not granted by default, and every host function it receives is capability-checked
 
 `rule:packaging/a-guest-has-no-ambient-authority`
 
@@ -2124,7 +2122,7 @@ is refused at boot and at reload, and the guest reads the block through `nvs:ext
 only narrows what the component does, as `[image] max_pixels` does, and never grants anything: the
 entry's `grants` are the only place a guest gains I/O.
 
-**Not on disk.** The import list is written as the `extension` world in `wit/nvs-ext/world.wit`, and
+**On disk.** The import list is written as the `extension` world in `wit/nvs-ext/world.wit`, and
 `crates/nvs-stdlib/tests/ext_world.rs` checks it imports exactly the allowed interfaces. `nvs_ext::wasi`
 links every WASI interface of the world, and the loader admits a WASI import only from the
 ones it links (`crates/nvs-ext/tests/wasi.rs`). A guest holds a preopen for each root of its
@@ -2152,7 +2150,7 @@ transport under the request's own context (`crates/nvs-ext/tests/http.rs`).
 
 <a id="packaging-nvs-ext-is-the-authoring-tool"></a>
 
-## `nvs ext` creates, builds, inspects, tests, verifies and pins an extension, with Rust and C templates  *(designed — not yet in the compiler)*
+## `nvs ext` creates, builds, inspects, tests, verifies and pins an extension, with Rust and C templates
 
 `rule:packaging/nvs-ext-is-the-authoring-tool`
 
@@ -2172,14 +2170,14 @@ Rust and C are the two templates because they are the two languages the first-pa
 target work by hand. The packer behind `nvs ext build` is the same code the binary's own build uses for
 the built-in components ([`packaging/the-first-party-components-are-built-in`](packaging.md#packaging-the-first-party-components-are-built-in)).
 
-**Not on disk.** `nvs ext` and its six subcommands parse. `nvs ext build` reads `nvsx.toml`, packs
+**On disk.** `nvs ext` has its six subcommands. `nvs ext build` reads `nvsx.toml`, packs
 the project, runs every load check and writes the `.nvsx` beside `nvsx.toml`, printing its path and
 pin; it refuses a WASI preview 1 module naming `wasm32-wasip2`. `nvs ext new` writes the Rust or C
 template into a new or empty folder, with the world's WIT copied from the binary under `wit/deps/`,
-and `rust-toolchain.toml` lists `wasm32-wasip2`. The Rust template builds, loads, passes `nvs ext test`
-and is called from a program: the `wasi:cli/terminal-*` imports its standard library makes link as
-refusing stubs (`crates/nvs-ext/src/wasi.rs`), and `bun nv ext-templates`, which CI's `ext-templates`
-job runs on three platforms, does every step; the C template is not checked here. `nvs ext inspect`
+and `rust-toolchain.toml` lists `wasm32-wasip2`. Each template builds, loads, passes `nvs ext test`
+and is called from a program, and `bun nv ext-templates`, which CI's `ext-templates` job runs on three
+platforms, does every step for both. The Rust template's standard library imports
+`wasi:cli/terminal-*`, which link as refusing stubs (`crates/nvs-ext/src/wasi.rs`). `nvs ext inspect`
 prints the manifest, the I/O it requests and the source paths, and with `--source` the source, every
 string from the file with its control characters escaped; `nvs ext verify` runs boot's loader on a file
 under its own pin and instantiates nothing; `nvs ext pin` prints the entry with its absolute `path` and
@@ -2194,7 +2192,7 @@ the project, and writes a `.nvsx` that loads, the same bytes each time (`crates/
 
 <a id="packaging-the-boundary-is-the-cost"></a>
 
-## An extension call costs a fixed ten-odd nanoseconds over a built-in call, so an extension's API is coarse-grained  *(designed — not yet in the compiler)*
+## An extension call costs a fixed ten-odd nanoseconds over a built-in call, so an extension's API is coarse-grained
 
 `rule:packaging/the-boundary-is-the-cost`
 
@@ -2209,12 +2207,12 @@ In-guest compute is measured against the same crate built native in
 guest takes two to three times as long as native when only its size header comes back. A whole call
 that returns the pixels takes over twenty times as long, for a resize as for a decode, because a byte list
 crosses as one wasmtime `Val` per byte
-(`data/gaps/nvs-ext/bytes-cross-one-val-per-byte.json`). So today the copy, not the compute, is
-what a large image pays.
+(`data/gaps/nvs-ext/bytes-cross-one-val-per-byte.json`). So the copy, not the compute, is what a
+large image pays.
 
 That is noise for coarse-grained work — image codecs, compression, crypto, document parsing — and
 decisive for fine-grained work, which is why primitives are Tier 0 and performance-critical first-party
-subsystems are Tier 2 ([`packaging/three-tiers`](packaging.md#packaging-three-tiers)). An extension author controls the boundary, not the
+subsystems are Tier 2 ([`core-api/five-placements`](core-api.md#core-api-five-placements)). An extension author controls the boundary, not the
 compute, so an extension's API is designed **coarse**: whole inputs in, whole outputs out, a batch where
 a library would usually offer a per-item call. Collation exposes sort-key generation and whole-array sort rather than
 a comparator, because sorting ten thousand strings through a per-comparison boundary would be about
@@ -2224,7 +2222,7 @@ a comparator, because sorting ten thousand strings through a per-comparison boun
 A capability whose in-guest compute is too slow for a real workload moves to Tier 0 or Tier 2. It never
 opens a native loading path ([`security/no-ffi`](security.md#security-no-ffi)).
 
-<sub>See also [`packaging/three-tiers`](packaging.md#packaging-three-tiers), [`packaging/values-cross-as-handles`](packaging.md#packaging-values-cross-as-handles), [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline).</sub>
+<sub>See also [`core-api/five-placements`](core-api.md#core-api-five-placements), [`packaging/values-cross-as-handles`](packaging.md#packaging-values-cross-as-handles), [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline).</sub>
 
 <a id="packaging-a-c-dependency-answers-two-questions"></a>
 
@@ -2288,29 +2286,35 @@ before either is written.
 
 <a id="packaging-pdf-decoding-ships-in-the-image-package"></a>
 
-## Rasterising a PDF page is a decode-only format of `Novis\Image`, and never a member of `Novis\Pdf`  *(designed — not yet in the compiler)*
+## Rasterising a PDF page is a decode-only format of `Novis\Image`, and never a member of `Novis\Pdf`
 
 `rule:packaging/pdf-decoding-ships-in-the-image-package`
 
-PDF joins the image component's format roster **decode only**, in the second wave beside SVG, with
-`Format` gaining a `Pdf` case and no new entry point: the plan/terminal shape and the component's closed
-set of exports are unchanged ([`core-classes/image-format-roster`](core-classes.md#core-classes-image-format-roster),
-[`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source)).
+PDF is on the image component's format roster **decode only**, beside SVG, as `Format`'s `Pdf` case
+with no entry point of its own: a page opens through the same plan/terminal shape and the same closed
+set of exports as every other format ([`core-classes/image-format-roster`](core-classes.md#core-classes-image-format-roster),
+[`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source)). The image component compiles the PDF interpreter,
+`hayro`, into its sandbox.
 
 Rasterising is not a member of `Novis\Pdf`. A raster produced in the PDF component would have to
 recross the boundary to enter the image pipeline that is the whole point of loading one. Everything a
 program does with a PDF that ends in text or bytes — reading its text, metadata and attachments,
 merging and splitting pages, placing a page in a document — is `Novis\Pdf`'s
-([`core-classes/pdf-reader-and-merge`](core-classes.md#core-classes-pdf-reader-and-merge)), and both components compile the same interpreter, `hayro`,
-into their own sandbox.
+([`core-classes/pdf-reader-and-merge`](core-classes.md#core-classes-pdf-reader-and-merge)), which compiles its own copy of `hayro` into its own
+sandbox.
+
+**On disk.** `extensions/image/src/pdf.rs` decodes a page, and a page opens as an image
+(`tests/conformance/novis/image-a-pdf-page-opens-as-an-image.nvst`,
+`crates/nvs-ext/tests/image_decode.rs`).
 
 The usual alternative is ImageMagick delegating to Ghostscript — an installed, unsandboxed
 interpreter with an RCE history long enough that ImageMagick's stock policy ships with the PDF coder
 disabled. A PDF interpreter is a strictly larger hostile-bytes case than any format already on the
 roster, and the sandbox is where a parser that size belongs.
 
-- **Memory:** the interpreter is in both components' bytes, so the binary carries it twice; each
-  request instantiates only the component it calls.
+- **Memory:** the interpreter is in the image component's bytes, and the PDF component's reader
+  carries a second copy, so the binary holds it twice; each request instantiates only the component
+  it calls.
 
 **Declined:**
 - **Leaving PDF rasterising to the third-party channel.** Thumbnailing and counting the pages of an
@@ -2426,7 +2430,7 @@ uninstall` removes it.
 
 <a id="packaging-the-argv-lives-in-imagepath"></a>
 
-## On Windows the argv is encoded into the SCM's one `ImagePath` string, the binary path is always quoted, and nothing else holds it  *(designed — not yet in the compiler)*
+## On Windows the argv is encoded into the SCM's one `ImagePath` string, the binary path is always quoted, and nothing else holds it  *(designed — owned by goal request-isolation-debts)*
 
 `rule:packaging/the-argv-lives-in-imagepath`
 
@@ -2450,11 +2454,16 @@ Novis's default install location is such a path, and the finding usually appears
 the installation. Arguments given to `sc start <name> arg` reach `ServiceMain` but are not persisted;
 nothing may depend on them, and `nvs service run` ignores them.
 
+**Partly on disk.** `nvs_cli::service::image_path` is the encoder and `decode` its
+`CommandLineToArgvW` half, and the tests in `crates/nvs-cli/src/service.rs` hold their round trip and
+the unconditional quote. There is no fuzz target: `nvs-cli` is a binary, which the fuzz workspace
+cannot depend on.
+
 <sub>See also [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only), [`packaging/a-service-is-one-stored-argv`](packaging.md#packaging-a-service-is-one-stored-argv).</sub>
 
 <a id="packaging-a-service-runs-as-a-virtual-account"></a>
 
-## A service's default identity is the local system account, and `--account` names any other, the per-service virtual account included  *(designed — not yet in the compiler)*
+## A service's default identity is the local system account, and `--account` names any other, the per-service virtual account included
 
 `rule:packaging/a-service-runs-as-a-virtual-account`
 
@@ -2596,7 +2605,7 @@ checked against.
 
 <a id="packaging-the-generated-unit-is-hardened"></a>
 
-## The generated unit carries the hardening block, `ReadWritePaths` on exactly the install's write grants, `Type=notify`, `MemoryMax` from `[limits]`, and `AmbientCapabilities` only for a privileged port  *(designed — not yet in the compiler)*
+## The generated unit carries the hardening block, `ReadWritePaths` on exactly the install's write grants, `Type=notify`, `MemoryMax` from `[limits]`, and `AmbientCapabilities` only for a privileged port
 
 `rule:packaging/the-generated-unit-is-hardened`
 

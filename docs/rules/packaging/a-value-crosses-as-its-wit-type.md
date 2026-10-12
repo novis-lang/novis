@@ -26,7 +26,7 @@ What it costs is the copy: a guest that needs one field of a large array still r
 at about 12 ns per KiB. Coarse APIs are the rule already (`rule:packaging/the-boundary-is-the-cost`),
 and `mixed` keeps the pull-only path for the case that needs it.
 
-**Not on disk.** The world is written: `wit/nvs-ext/types.wit` holds the `error` variant, the `value`
+**On disk.** The world is written: `wit/nvs-ext/types.wit` holds the `error` variant, the `value`
 resource and one record per `Core` value class that crosses, and `crates/nvs-stdlib/tests/ext_world.rs`
 names every other value class with the reason it cannot. A manifest declares its enums, closed
 unions of shapes and resources by name, the loader holds each against the export's `enum`,

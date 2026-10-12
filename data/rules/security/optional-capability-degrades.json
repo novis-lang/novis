@@ -9,5 +9,6 @@
   "guardedBy": [
     "tests/conformance/core/a-capability-query-answers-the-grant-table-both-ways.nvst",
     "tests/conformance/core/a-capability-query-refuses-a-name-no-grant-can-hold.nvst"
-  ]
+  ],
+  "milestone": "M15"
 }

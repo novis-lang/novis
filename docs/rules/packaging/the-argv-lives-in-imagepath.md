@@ -17,3 +17,8 @@ unquoted `ImagePath` under a path with a space is the textbook Windows privilege
 Novis's default install location is such a path, and the finding usually appears after somebody moves
 the installation. Arguments given to `sc start <name> arg` reach `ServiceMain` but are not persisted;
 nothing may depend on them, and `nvs service run` ignores them.
+
+**Partly on disk.** `nvs_cli::service::image_path` is the encoder and `decode` its
+`CommandLineToArgvW` half, and the tests in `crates/nvs-cli/src/service.rs` hold their round trip and
+the unconditional quote. There is no fuzz target: `nvs-cli` is a binary, which the fuzz workspace
+cannot depend on.

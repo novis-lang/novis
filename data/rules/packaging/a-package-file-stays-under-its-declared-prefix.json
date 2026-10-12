@@ -7,5 +7,6 @@
     "security/an-unmatched-namespace-holds-the-application",
     "packaging/a-fetched-package-is-an-autoload-line"
   ],
-  "guardedBy": []
+  "guardedBy": [],
+  "milestone": "M15"
 }

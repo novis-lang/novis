@@ -7,5 +7,6 @@
     "packaging/an-artifact-is-verified-whole-before-a-page-is-executable",
     "http-server/a-requests-blast-radius-is-bounded-at-four-tiers"
   ],
-  "guardedBy": []
+  "guardedBy": [],
+  "goal": "request-isolation-debts"
 }

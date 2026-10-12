@@ -15,9 +15,11 @@ accessor call is a fixed cost, a bulk copy is nearly free, and the design that w
 a few times rather than words many times (`rule:packaging/the-boundary-is-the-cost`,
 `rule:core-classes/image-pipeline`).
 
-**Not on disk.** `nvs_ext::handle` is the per-call table and the `value` accessors, and
+**Partly on disk.** `nvs_ext::handle` is the per-call table and the `value` accessors, and
 `nvs_ext::call::Request::call_values` lends a `mixed` argument through it; a handle kept past its
 call traps when it is read (`crates/nvs-ext/tests/convert.rs`). `nvs run` calls an extension from a
 program, and the row-table case passes `mixed` values to the fixture's `kindOf`
-(`tests/conformance/ext/an-extension-call-crosses-every-row-of-the-value-table.nvst`). There is
-no bulk byte copy beyond `as-bytes`.
+(`tests/conformance/ext/an-extension-call-crosses-every-row-of-the-value-table.nvst`). The bulk
+copy is missing: a guest reads a handle's bytes only through `as-bytes`, and a byte list crosses as
+one wasmtime `Val` per byte, so it costs tens of nanoseconds per byte rather than about 12 ns per KiB
+(`data/gaps/nvs-ext/bytes-cross-one-val-per-byte.json`).

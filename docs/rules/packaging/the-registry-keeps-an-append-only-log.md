@@ -13,3 +13,5 @@ client need not trust the registry twice.
 The log is also why a registry, rather than git URLs alone, is the transitive source: retraction,
 the advisory feed and `nvs audit` all need a namespace with an authority behind it that cannot
 quietly rewrite what it said.
+
+**Not on disk.** There is no registry and no log.

@@ -5,5 +5,6 @@
     "packaging/resolution-takes-the-highest-minimum",
     "packaging/the-registry-keeps-an-append-only-log"
   ],
-  "guardedBy": []
+  "guardedBy": [],
+  "milestone": "M15"
 }

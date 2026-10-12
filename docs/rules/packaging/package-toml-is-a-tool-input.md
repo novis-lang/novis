@@ -18,3 +18,5 @@ its own project is a different question from a language locating a declaration.
 It is TOML with unknown fields refused (`rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`),
 and its integration with the program is the generated file
 `rule:packaging/a-fetched-package-is-an-autoload-line` describes.
+
+**Not on disk.** The tree has no package system and reads no `package.toml`.

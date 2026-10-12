@@ -20,6 +20,8 @@ always acceptable — which is what `rule:packaging/a-breaking-release-is-a-new-
 A graph where two packages require different minimums of a third selects the higher, and no other
 package's version changes. No manifest exists for which resolution reports a conflict.
 
+**Not on disk.** The tree has no package system and no resolver.
+
 **Declined:**
 - **A solver over version ranges.** A range can say "not 2.3.1, it is broken", and every incumbent has
   one. It brings back unsolvable graphs, slow resolution, and an error that blames the user for a

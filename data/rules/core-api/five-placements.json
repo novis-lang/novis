@@ -4,7 +4,9 @@
   "seeAlso": [
     "core-api/tier-placement",
     "core-api/tier-roster",
-    "core-api/core-means-always-present"
+    "core-api/core-means-always-present",
+    "packaging/an-extension-is-a-sandboxed-wasm-component",
+    "packaging/the-boundary-is-the-cost"
   ],
   "guardedBy": [
     "crates/nvs-stdlib/tests/tier_boundary.rs"

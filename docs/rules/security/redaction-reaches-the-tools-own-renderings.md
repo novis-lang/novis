@@ -4,19 +4,21 @@ else: no command this project ships prints one in the clear. The diagnostic reco
 the redaction as a node kind, which is what makes plaintext, JSON and HTML renderings agree from one
 place (`rule:errors/record-transformations`).
 
-The AST dump is the surface that would otherwise disagree: a node's own scalar fields include a string
-literal's text, so anything reading the dump would render a value every other rendering redacts. A
-literal node whose static type carries `secret` emits the same fixed placeholder a dumped property
-gets, **in the JSON itself** rather than in whatever displays it, so two readers of one dump cannot
-diverge.
+The AST dump carries **no literal text**: a literal node has its span, so a reader holding the file
+already has the text, and a reader without the file is never handed a `secret` literal's bytes
+(`crates/nvs-syntax/src/walk.rs`, `rule:ide/ast-json-schema-is-frozen`). The dump needs no placeholder,
+because the parse that writes it cannot know which literal is `secret` and so prints none of them.
 
-The cost is that a frozen dump schema now has a type-dependent field value, and a reader can no longer
-assume a literal node's text is the source text.
+A compiler diagnostic's source snippet is the surface still missing. It quotes the lines a diagnostic
+points at as written, a `secret` literal among them, because a compiler diagnostic is not a producer
+of the diagnostic record whose redaction node the other renderings share
+(`crates/nvs-diagnostics/src/render.rs`, `data/gaps/nvs-render/compiler-diagnostic-is-not-a-producer.json`).
 
 This rule is about what the toolchain **prints**, and it is enforced by the compiler for every caller.
 What an editor draws over a buffer it did not print is a separate mechanism in a separate chapter
 (`rule:ide/redaction-ranges-come-from-the-server`), and neither one covers for the other: the
-placeholder here holds with no editor running, and no decoration anywhere puts a value back into a
-dump this rule has already redacted.
+dump holds no literal with no editor running, and no decoration anywhere puts a value back into a
+rendering this rule has already redacted.
 
-**Not on disk.** The dump emits no such placeholder.
+**Partly on disk.** The dump and every rendering of the diagnostic record print no `secret` in the
+clear. A compiler diagnostic's snippet does.

@@ -6,5 +6,6 @@
     "packaging/the-lockfile-holds-every-digest",
     "packaging/publishing-never-overwrites"
   ],
-  "guardedBy": []
+  "guardedBy": [],
+  "milestone": "M15"
 }

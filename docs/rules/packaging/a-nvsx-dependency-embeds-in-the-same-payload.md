@@ -13,6 +13,6 @@ An embedded entry keeps its `grants` as written, each root made absolute at buil
 before the run's own `[[extension]]` entries, so a class both declare refuses the start. Each embedded
 pin is checked when the bundle builds and again when it starts.
 
-**Not on disk.** The built-in components do not exist yet. `nvs build --compile` embeds each listed
+**On disk.** `nvs build --compile` embeds each listed
 `.nvsx` and its entry, and the bundle loads them from its payload with no file beside it
 (`crates/nvs-cli/tests/bundle.rs`; the layout is in `crates/nvs-cli/src/bundle.rs`'s module doc).

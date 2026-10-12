@@ -8,5 +8,6 @@
     "programs/no-runtime-autoload",
     "security/optional-capability-degrades"
   ],
-  "guardedBy": []
+  "guardedBy": [],
+  "milestone": "M15"
 }

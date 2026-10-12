@@ -11,7 +11,7 @@ use parley::{
     TextWrapMode, VerticalAlign, WordBreak,
 };
 
-use super::block::{Insets, geometry, insets, sides, z_index};
+use super::block::{Break, Insets, geometry, insets, sides, z_index};
 use super::flex::{self, Flex};
 use super::{
     Atom, BLACK, Block, Frame, Images, Inline, MARGIN, Para, Spaces, Span, color, keyword, length,
@@ -20,6 +20,7 @@ use crate::Error;
 use crate::assets::Assets;
 use crate::css::{Style, Styles, Value};
 use crate::fonts::Fonts;
+use crate::paginate;
 use crate::parse::{Dom, Kind, Space};
 
 pub(super) fn span_of(style: &Style, fonts: &Fonts, parent: Option<&Span>) -> Span {
@@ -449,6 +450,8 @@ pub(super) struct Builder<'a, 'd> {
     containers: Vec<Container>,
     /// The first page's content height, which an image is scaled down to fit.
     pub(super) page_height: f32,
+    /// The page name of the last block box opened.
+    page: Option<String>,
 }
 
 /// A flex container whose element has not closed.
@@ -568,6 +571,18 @@ impl Builder<'_, '_> {
         self.blocks.push(Block::Open(geometry));
         self.indented = false;
         Ok(())
+    }
+
+    /// Gives the block box just opened the page name `page`, and a break before it when the
+    /// block box before it had another.
+    fn name(&mut self, page: Option<String>) {
+        if let Some(Block::Open(geometry)) = self.blocks.last_mut() {
+            if self.page != page && geometry.breaks[0].is_none() {
+                geometry.breaks[0] = Some(Break::Page);
+            }
+            geometry.page.clone_from(&page);
+        }
+        self.page = page;
     }
 
     /// Opens the box of an inline element with `style`, inside the content box of `frame`, when
@@ -946,15 +961,18 @@ enum Step {
 /// styles.
 type Collected = (Vec<Block>, Vec<Atom>, Images, Vec<Span>);
 
-/// The blocks of `dom`, in document order, and the text styles they name.
+/// The blocks of `dom`, in document order, and the text styles they name. `content` is the first
+/// page's content width and height, and `named` gives the content width of a named page.
 pub(super) fn blocks(
     dom: &Dom,
     styles: &Styles,
     fonts: &Fonts,
     assets: &Assets<'_>,
     content: [f32; 2],
+    named: &dyn Fn(&str) -> f32,
 ) -> Result<Collected, Error> {
     let [width, height] = content;
+    let width_of = |page: Option<&str>| page.map_or(width, named);
     let empty = Style::default();
     // The root element is the first in document order.
     let rem = styles
@@ -981,6 +999,7 @@ pub(super) fn blocks(
         outside: Vec::new(),
         containers: Vec::new(),
         page_height: height,
+        page: None,
     };
     let root = Frame {
         x: MARGIN,
@@ -991,6 +1010,7 @@ pub(super) fn blocks(
         transform: None,
         lang: None,
         hyphenate: None,
+        page: None,
     };
     let mut counters = Counters::default();
     // An explicit stack, so a deep tree costs heap and never the call stack.
@@ -1155,11 +1175,33 @@ pub(super) fn blocks(
                     builder.open_atom(style, &frame, &mut inner)?;
                     false
                 } else if block {
-                    builder.open(style, &frame, &mut inner)?;
+                    let page = match style.get("page") {
+                        Some(Value::Text(name)) if name.trim() != "auto" => {
+                            Some(name.trim().to_owned())
+                        }
+                        _ => frame.page.clone(),
+                    };
+                    // A box that changes the page name is laid out at the new page's width.
+                    let outer = Frame {
+                        width: (frame.width + width_of(page.as_deref())
+                            - width_of(frame.page.as_deref()))
+                        .max(0.0),
+                        ..frame.clone()
+                    };
+                    builder.open(style, &outer, &mut inner)?;
+                    builder.name(page.clone());
+                    inner.page = page;
                     false
                 } else {
                     builder.open_inline(style, &frame)?
                 };
+                for (name, value) in
+                    paginate::string_set(style.get("string-set"), &dom.text(at), &|attr| {
+                        node.attr(attr).map(str::to_owned)
+                    })
+                {
+                    builder.blocks.push(Block::String { name, value });
+                }
                 let depth = frames.len();
                 counters.apply(style, depth);
                 if name == "ol"

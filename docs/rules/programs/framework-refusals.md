@@ -17,3 +17,5 @@
   already does while compiling.
 - **No second way to do anything the language does.** The framework ships no collections of its own, no
   date type, no string helpers and no error hierarchy.
+
+**Not on disk.** There is no `nvs/web` package for these refusals to hold.

@@ -29,13 +29,14 @@ pub fn layout(
     fonts: Fonts,
 ) -> Result<Laid, Error> {
     let sheet = Sheet::new(&styles.pages);
-    let first = sheet.page(0, false);
+    let first = sheet.page(0, false, None);
     let (blocks, atoms, images, spans) = blocks(
         dom,
         styles,
         &fonts,
         assets,
         [first.content_width(), first.content_height()],
+        &|name| sheet.page(0, false, Some(name)).content_width(),
     )?;
     let mut cx = Cx {
         lcx: LayoutContext::new(),
@@ -45,6 +46,7 @@ pub fn layout(
         placed: Vec::with_capacity(atoms.len()),
         waiting: Vec::with_capacity(atoms.len()),
         running: Vec::new(),
+        strings: Vec::new(),
     };
     // An inner inline-block comes before the one around it, so each one's inner boxes are
     // placed before it is laid out. A flex item waits for its container, which sizes it.
@@ -59,8 +61,8 @@ pub fn layout(
         }
     }
     let heights = sheet.clone();
-    let mut flow = Flow::paged(Box::new(move |page| {
-        heights.page(page, false).content_height()
+    let mut flow = Flow::paged(Box::new(move |page, name| {
+        heights.page(page, false, name).content_height()
     }));
     cx.run(blocks, &mut flow);
     while !flow.open.is_empty() {
@@ -69,7 +71,7 @@ pub fn layout(
     flow.finish([MARGIN, first.content_width(), 0.0], None);
     // Each page was laid out with its content box at `MARGIN`, `MARGIN`, and is moved to its own.
     for (index, page) in flow.pages.iter_mut().enumerate() {
-        let geometry = sheet.page(index, page.blank);
+        let geometry = sheet.page(index, page.blank, page.name.as_deref());
         let (dx, dy) = (geometry.margin[3] - MARGIN, geometry.margin[0] - MARGIN);
         if dx != 0.0 || dy != 0.0 {
             page.items = std::mem::take(&mut page.items)
@@ -93,10 +95,18 @@ pub fn layout(
         fonts,
         missing,
         running,
+        strings,
         ..
     } = cx;
     let mut spans = spans;
-    let boxes = margin::collect(&flow.pages, &sheet, &root, &fonts, &running, &mut spans);
+    let boxes = margin::collect(
+        &flow.pages,
+        &sheet,
+        &root,
+        &fonts,
+        (&running, &strings),
+        &mut spans,
+    );
     let mut cx = Cx {
         lcx,
         fonts,
@@ -105,6 +115,7 @@ pub fn layout(
         placed: Vec::new(),
         waiting: Vec::new(),
         running: Vec::new(),
+        strings: Vec::new(),
     };
     margin::draw(&mut cx, boxes, &mut flow.pages);
     Ok(Laid {
@@ -118,7 +129,7 @@ pub fn layout(
 /// What laying out every block shares: the shaping context, the fonts, the text styles, the
 /// text no font has, each `inline-block` box laid out so far, and the blocks of each flex item
 /// whose container is not laid out yet, both by their index in the list of atoms, and the
-/// running elements met so far in document order.
+/// running elements and named strings met so far in document order.
 pub(super) struct Cx<'s> {
     lcx: LayoutContext<usize>,
     fonts: Fonts,
@@ -127,6 +138,7 @@ pub(super) struct Cx<'s> {
     placed: Vec<Placed>,
     pub(super) waiting: Vec<Option<Vec<Block>>>,
     running: Vec<margin::Running>,
+    strings: Vec<margin::Set>,
 }
 
 /// An `inline-block` box laid out: its items with its margin box's top-left corner at 0, 0, the
@@ -326,7 +338,8 @@ impl Cx<'_> {
 
     /// How tall the box whose blocks are `blocks`, from its opening to its close, is from its
     /// top border edge to its bottom one, laid out on a page of its own. Every `inline-block`
-    /// box and running element it takes is put back, so laying it out again draws them.
+    /// box, running element and named string it takes is put back, so laying it out again
+    /// draws and sets them.
     fn measure(&mut self, blocks: Vec<Block>) -> f32 {
         let mut atoms = Vec::new();
         self.atoms_in(&blocks, &mut atoms);
@@ -334,13 +347,14 @@ impl Cx<'_> {
             .into_iter()
             .map(|a| (a, self.placed[a].clone(), self.waiting[a].clone()))
             .collect();
-        let running = self.running.len();
+        let (running, strings) = (self.running.len(), self.strings.len());
         let margin = match blocks.first() {
             Some(Block::Open(g)) => g.margin[0] + g.margin[2],
             _ => 0.0,
         };
         let height = self.lay(blocks, VerticalAlign::BASELINE).height;
         self.running.truncate(running);
+        self.strings.truncate(strings);
         for (a, placed, waiting) in saved {
             self.placed[a] = placed;
             self.waiting[a] = waiting;
@@ -364,7 +378,7 @@ impl Cx<'_> {
                         }
                     }
                 }
-                Block::Open(_) | Block::Close | Block::Image { .. } => {}
+                Block::Open(_) | Block::Close | Block::Image { .. } | Block::String { .. } => {}
             }
         }
     }
@@ -448,6 +462,12 @@ impl Cx<'_> {
                         missing: std::mem::take(&mut placed.missing),
                     });
                 }
+                Block::String { name, value } => self.strings.push(margin::Set {
+                    name,
+                    value,
+                    page: flow.landing(),
+                    top: flow.at_top(),
+                }),
                 Block::Image {
                     image,
                     x,

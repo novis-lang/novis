@@ -1,11 +1,14 @@
 {
   "title": "Rasterising a PDF page is a decode-only format of `Novis\\Image`, and never a member of `Novis\\Pdf`",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "core-classes/pdf-page-is-an-image-source",
     "core-classes/image-format-roster",
     "core-classes/pdf-reader-and-merge",
     "packaging/an-extension-package-carries-two-payloads"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "tests/conformance/novis/image-a-pdf-page-opens-as-an-image.nvst",
+    "crates/nvs-ext/tests/image_decode.rs"
+  ]
 }

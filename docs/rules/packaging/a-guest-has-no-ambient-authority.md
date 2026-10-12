@@ -23,7 +23,7 @@ is refused at boot and at reload, and the guest reads the block through `nvs:ext
 only narrows what the component does, as `[image] max_pixels` does, and never grants anything: the
 entry's `grants` are the only place a guest gains I/O.
 
-**Not on disk.** The import list is written as the `extension` world in `wit/nvs-ext/world.wit`, and
+**On disk.** The import list is written as the `extension` world in `wit/nvs-ext/world.wit`, and
 `crates/nvs-stdlib/tests/ext_world.rs` checks it imports exactly the allowed interfaces. `nvs_ext::wasi`
 links every WASI interface of the world, and the loader admits a WASI import only from the
 ones it links (`crates/nvs-ext/tests/wasi.rs`). A guest holds a preopen for each root of its

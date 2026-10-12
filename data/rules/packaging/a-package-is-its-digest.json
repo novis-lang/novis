@@ -12,5 +12,6 @@
     "packaging/an-extension-package-carries-two-payloads",
     "packaging/an-artifact-is-one-immutable-content-addressed-file"
   ],
-  "guardedBy": []
+  "guardedBy": [],
+  "milestone": "M15"
 }

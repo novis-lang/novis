@@ -6,5 +6,6 @@
     "packaging/a-dependency-break-is-absorbed-never-forwarded",
     "packaging/a-known-bad-version-is-retracted-not-deleted"
   ],
-  "guardedBy": []
+  "guardedBy": [],
+  "milestone": "M15"
 }

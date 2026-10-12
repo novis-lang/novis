@@ -28,15 +28,14 @@ is a lazy recompile with no invalidation pass. A component is compiled once, int
 content-addressed artifact cache as Novis's own code, and the compiled module is shared across every
 core.
 
-**Not on disk.** The entry's shape is enforced: `nvs_config::extension::validate` refuses an entry
+**On disk.** The entry's shape is enforced: `nvs_config::extension::validate` refuses an entry
 with no `path`, no `sha256` or a pin that is not 64 hexadecimal digits, at boot and at reload, naming
 its file and line (`E0651`), and the pins fold into `env_hash`. `nvs_ext::load` reads the file and
 runs every load refusal above, each naming the entry's path (`crates/nvs-ext/tests/load.rs`).
 `nvs serve` runs it over every entry at boot and at every reload, and one entry that does not load
 stops the boot or refuses the whole reload with the previous set live, naming its file and line
 (`E0652`, `crates/nvs-cli/tests/live_config.rs`), and stores each compiled component in the
-artifact cache. No named type (an enum, a `Core` value class, a union, a `resource`) passes its
-export check. `nvs ext pin` prints an entry `nvs config check` accepts, for a file that loads
+artifact cache. `nvs ext pin` prints an entry `nvs config check` accepts, for a file that loads
 (`crates/nvs-cli/tests/ext_command.rs`).
 
 **Declined:**

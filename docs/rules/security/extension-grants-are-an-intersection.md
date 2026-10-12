@@ -28,7 +28,7 @@ cannot know the operator's folders; its `connect` hosts are matched one by one. 
 path: a root it holds inside an entry root replaces that root. A `write` root is opened read-write, so
 the caller must hold both `fs.write` and `fs.read` over it.
 
-**Not on disk.** `nvs_config::tree::Grants` reads the entry's `grants`, refusing an unknown key,
+**On disk.** `nvs_config::tree::Grants` reads the entry's `grants`, refusing an unknown key,
 and `nvs_config::extension::grants` makes its roots absolute against the file that wrote each list;
 `env_hash` does not read it. `nvs_ext::grants::effective` computes the intersection
 (`crates/nvs-ext/tests/grants.rs`) when an instance is made, from the entry's grants, the manifest

@@ -7,5 +7,6 @@
   ],
   "guardedBy": [
     "benches/abi-probe/tests/wasm_sandbox.rs"
-  ]
+  ],
+  "milestone": "M9"
 }

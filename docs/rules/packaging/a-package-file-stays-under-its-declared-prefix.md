@@ -19,5 +19,5 @@ so no such check; what it has instead is a human writing the `autoload` line tha
 and the audit warning `rule:security/an-unmatched-namespace-holds-the-application` describes if they
 did not think about it.
 
-**Not on disk.** The diagnostic code the design named has since been issued to a configuration
-refusal; the check takes the band's next free number when it lands.
+**Not on disk.** Nothing checks a package file's path against its prefix. The check's diagnostic
+takes the next free code in its band.

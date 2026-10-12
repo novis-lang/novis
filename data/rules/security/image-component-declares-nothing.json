@@ -7,5 +7,6 @@
     "security/secret-does-not-cross-an-extension",
     "core-classes/image-pipeline"
   ],
-  "guardedBy": []
+  "guardedBy": [],
+  "goal": "request-isolation-debts"
 }

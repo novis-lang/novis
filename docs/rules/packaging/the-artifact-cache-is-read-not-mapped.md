@@ -12,5 +12,8 @@ What the entry contains, how it is verified before it becomes executable, and wh
 extension set (`rule:config/the-extension-set-is-in-every-unit-key`) are unchanged by how its bytes
 arrive; only the read path is.
 
+**Not on disk.** `crates/nvs-cli/src/cache.rs` maps a cached unit's file with `memmap2` and verifies
+the mapping, so a file truncated or replaced after the load can still raise `SIGBUS` in the reader.
+
 **Memory:** one in-memory copy of each loaded unit's bytes for the process. It grows with the units a
 program loads, never with requests served.

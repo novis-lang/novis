@@ -12,4 +12,5 @@ provider. They are out permanently, and are ordinary userland or package code bu
 The closed list will be argued with, and this test is the answer — recording the boundary is what
 makes it a decision rather than a negotiation.
 
-**Not on disk.** Nothing enforces the test; it governs what a future member may be.
+The test is applied in review, to every member proposed for the roster; no check in the tree runs
+it.

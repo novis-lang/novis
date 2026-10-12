@@ -1,6 +1,6 @@
 {
   "title": "A dependency break that a program author could see goes down a seven-step ladder, and shipping it is the last step",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "packaging/who-can-see-it-decides-the-release-slot",
     "packaging/a-forced-break-is-announced-before-it-lands",

@@ -6,5 +6,6 @@
     "packaging/a-known-bad-version-is-retracted-not-deleted",
     "packaging/publishing-never-overwrites"
   ],
-  "guardedBy": []
+  "guardedBy": [],
+  "milestone": "M15"
 }

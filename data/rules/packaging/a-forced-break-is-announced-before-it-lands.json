@@ -1,6 +1,6 @@
 {
   "title": "A forced user-facing break survives one minor release as a warning naming its replacement, and is removed in the next major",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "packaging/a-dependency-break-is-absorbed-never-forwarded",
     "packaging/who-can-see-it-decides-the-release-slot"

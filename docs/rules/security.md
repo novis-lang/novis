@@ -3,7 +3,7 @@
 
 # Security and isolation
 
-*16 of 94 rules below are **designed** rather than shipped, and are marked where they appear.*
+*8 of 94 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="security-isolate-shares-nothing"></a>
 
@@ -645,7 +645,7 @@ own surface is a closed claim rather than a list with an exception column.
 
 <a id="security-authority-is-the-enclosing-namespace"></a>
 
-## Authority is a property of the namespace enclosing the code, never of the nesting depth or the name being called  *(designed — not yet in the compiler)*
+## Authority is a property of the namespace enclosing the code, never of the nesting depth or the name being called  *(designed — owned by M15)*
 
 `rule:security/authority-is-the-enclosing-namespace`
 
@@ -670,7 +670,7 @@ it reaches code no package manager ever touched.
 
 <a id="security-grants-are-keyed-on-a-namespace"></a>
 
-## The application's grant table is keyed on namespace prefixes, and a capability it names must be on the roster  *(designed — not yet in the compiler)*
+## The application's grant table is keyed on namespace prefixes, and a capability it names must be on the roster  *(designed — owned by M15)*
 
 `rule:security/grants-are-keyed-on-a-namespace`
 
@@ -722,7 +722,7 @@ table, and the diagnostics this rule needs do not exist.
 
 <a id="security-longest-prefix-wins"></a>
 
-## The longest matching grant key wins, and a subtree is spelled out because it reaches code that does not exist yet  *(designed — not yet in the compiler)*
+## The longest matching grant key wins, and a subtree is spelled out because it reaches code that does not exist yet  *(designed — owned by M15)*
 
 `rule:security/longest-prefix-wins`
 
@@ -747,7 +747,7 @@ thing costs two extra characters and is visible in review as its own token.
 
 <a id="security-an-unmatched-namespace-holds-the-application"></a>
 
-## A namespace matching no grant line holds the application's own authority, and a fetch leaves nothing unmatched  *(designed — not yet in the compiler)*
+## A namespace matching no grant line holds the application's own authority, and a fetch leaves nothing unmatched  *(designed — owned by M15)*
 
 `rule:security/an-unmatched-namespace-holds-the-application`
 
@@ -887,7 +887,7 @@ deployment never looks like a negative result.
 
 <a id="security-optional-capability-degrades"></a>
 
-## A capability is required or optional, and only a required one refuses to build  *(designed — not yet in the compiler)*
+## A capability is required or optional, and only a required one refuses to build  *(designed — owned by M15)*
 
 `rule:security/optional-capability-degrades`
 
@@ -974,7 +974,7 @@ is rather than because of how it is written.
 
 <a id="security-package-authority-is-granted-one-line-at-a-time"></a>
 
-## A dependency's authority is granted by the application one line at a time, and a declaration grants nothing  *(designed — not yet in the compiler)*
+## A dependency's authority is granted by the application one line at a time, and a declaration grants nothing  *(designed — owned by M15)*
 
 `rule:security/package-authority-is-granted-one-line-at-a-time`
 
@@ -2227,7 +2227,7 @@ to rewrite the developer's terminal from inside a failure message.
 
 <a id="security-redaction-reaches-the-tools-own-renderings"></a>
 
-## No rendering the toolchain itself produces prints a `secret` in the clear, the AST dump included  *(designed — not yet in the compiler)*
+## No rendering the toolchain itself produces prints a `secret` in the clear, the AST dump included  *(designed — owned by M10)*
 
 `rule:security/redaction-reaches-the-tools-own-renderings`
 
@@ -2237,28 +2237,30 @@ else: no command this project ships prints one in the clear. The diagnostic reco
 the redaction as a node kind, which is what makes plaintext, JSON and HTML renderings agree from one
 place ([`errors/record-transformations`](errors.md#errors-record-transformations)).
 
-The AST dump is the surface that would otherwise disagree: a node's own scalar fields include a string
-literal's text, so anything reading the dump would render a value every other rendering redacts. A
-literal node whose static type carries `secret` emits the same fixed placeholder a dumped property
-gets, **in the JSON itself** rather than in whatever displays it, so two readers of one dump cannot
-diverge.
+The AST dump carries **no literal text**: a literal node has its span, so a reader holding the file
+already has the text, and a reader without the file is never handed a `secret` literal's bytes
+(`crates/nvs-syntax/src/walk.rs`, [`ide/ast-json-schema-is-frozen`](ide.md#ide-ast-json-schema-is-frozen)). The dump needs no placeholder,
+because the parse that writes it cannot know which literal is `secret` and so prints none of them.
 
-The cost is that a frozen dump schema now has a type-dependent field value, and a reader can no longer
-assume a literal node's text is the source text.
+A compiler diagnostic's source snippet is the surface still missing. It quotes the lines a diagnostic
+points at as written, a `secret` literal among them, because a compiler diagnostic is not a producer
+of the diagnostic record whose redaction node the other renderings share
+(`crates/nvs-diagnostics/src/render.rs`, `data/gaps/nvs-render/compiler-diagnostic-is-not-a-producer.json`).
 
 This rule is about what the toolchain **prints**, and it is enforced by the compiler for every caller.
 What an editor draws over a buffer it did not print is a separate mechanism in a separate chapter
 ([`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server)), and neither one covers for the other: the
-placeholder here holds with no editor running, and no decoration anywhere puts a value back into a
-dump this rule has already redacted.
+dump holds no literal with no editor running, and no decoration anywhere puts a value back into a
+rendering this rule has already redacted.
 
-**Not on disk.** The dump emits no such placeholder.
+**Partly on disk.** The dump and every rendering of the diagnostic record print no `secret` in the
+clear. A compiler diagnostic's snippet does.
 
 <sub>See also [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`errors/record-transformations`](errors.md#errors-record-transformations), [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server).</sub>
 
 <a id="security-extension-manifest-only-tightens"></a>
 
-## Everything an extension manifest may declare is a restriction, so a hostile manifest cannot make a calling program less safe  *(designed — not yet in the compiler)*
+## Everything an extension manifest may declare is a restriction, so a hostile manifest cannot make a calling program less safe
 
 `rule:security/extension-manifest-only-tightens`
 
@@ -2275,7 +2277,7 @@ An extension call site is checked by the same code path as a `Core` call site, r
 from the registered signature rather than from a table of built-ins. There is no second analysis and
 no extension-specific relaxation, so the two cannot drift.
 
-**On disk in the checker.** `nvs_ext::manifest` reads `sink` and `source` as the only qualifier keys,
+**On disk.** `nvs_ext::manifest` reads `sink` and `source` as the only qualifier keys,
 refuses any other key, and refuses a `secret` or `tainted` written into a type
 (`crates/nvs-ext/tests/load.rs`). `nvs_types::ext_lib` writes the two declarations into the
 `MethodSig` fields a `Core` row fills, and the call is checked by the code a `Core` call goes through
@@ -2285,7 +2287,7 @@ refuses any other key, and refuses a `secret` or `tainted` written into a type
 
 <a id="security-extension-grants-are-an-intersection"></a>
 
-## An extension's files and outbound HTTP are the intersection of its entry's grant, its manifest's request and its caller's own grant  *(designed — not yet in the compiler)*
+## An extension's files and outbound HTTP are the intersection of its entry's grant, its manifest's request and its caller's own grant
 
 `rule:security/extension-grants-are-an-intersection`
 
@@ -2319,7 +2321,7 @@ cannot know the operator's folders; its `connect` hosts are matched one by one. 
 path: a root it holds inside an entry root replaces that root. A `write` root is opened read-write, so
 the caller must hold both `fs.write` and `fs.read` over it.
 
-**Not on disk.** `nvs_config::tree::Grants` reads the entry's `grants`, refusing an unknown key,
+**On disk.** `nvs_config::tree::Grants` reads the entry's `grants`, refusing an unknown key,
 and `nvs_config::extension::grants` makes its roots absolute against the file that wrote each list;
 `env_hash` does not read it. `nvs_ext::grants::effective` computes the intersection
 (`crates/nvs-ext/tests/grants.rs`) when an instance is made, from the entry's grants, the manifest
@@ -2340,7 +2342,7 @@ that sends it, so the address policy, TLS trust and the proxy apply (`crates/nvs
 
 <a id="security-extension-contagion"></a>
 
-## An extension call is an ordinary operation for taint, so contagion is the default and needs no declaration  *(designed — not yet in the compiler)*
+## An extension call is an ordinary operation for taint, so contagion is the default and needs no declaration
 
 `rule:security/extension-contagion`
 
@@ -2369,7 +2371,7 @@ round trip cleaned it, the standard library would itself be the bypass.
 
 <a id="security-extension-declares-sink-or-source"></a>
 
-## An extension manifest may declare exactly two things: a parameter that refuses `tainted`, and a return that is always `tainted`  *(designed — not yet in the compiler)*
+## An extension manifest may declare exactly two things: a parameter that refuses `tainted`, and a return that is always `tainted`
 
 `rule:security/extension-declares-sink-or-source`
 
@@ -2400,7 +2402,7 @@ is a source.
 
 <a id="security-extension-cannot-launder"></a>
 
-## No extension may remove the `tainted` qualifier, in any manifest spelling  *(designed — not yet in the compiler)*
+## No extension may remove the `tainted` qualifier, in any manifest spelling
 
 `rule:security/extension-cannot-launder`
 
@@ -2428,7 +2430,7 @@ into a type, so no spelling reaches a parameter mark that launders (`crates/nvs-
 
 <a id="security-secret-does-not-cross-an-extension"></a>
 
-## A `secret` value is refused at every extension boundary, in either direction  *(designed — not yet in the compiler)*
+## A `secret` value is refused at every extension boundary, in either direction
 
 `rule:security/secret-does-not-cross-an-extension`
 
@@ -2459,7 +2461,7 @@ declaring a `secret` return does not load (`crates/nvs-ext/tests/load.rs`).
 
 <a id="security-image-component-declares-nothing"></a>
 
-## The image component declares no qualifier deviation and requests no capability  *(designed — not yet in the compiler)*
+## The image component declares no qualifier deviation and requests no capability  *(designed — owned by goal request-isolation-debts)*
 
 `rule:security/image-component-declares-nothing`
 
@@ -2474,8 +2476,8 @@ program's side of the boundary, where the grant already is
 ([`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door)) — and it is recorded because "declares nothing" is a
 claim worth being able to check rather than an absence nobody looked at.
 
-**On disk.** `extensions/image/manifest.json` declares no qualifier and no capability; no test
-holds the absence yet.
+**Partly on disk.** `extensions/image/manifest.json` declares no qualifier and no capability, and no
+test holds the absence.
 
 <sub>See also [`security/extension-contagion`](security.md#security-extension-contagion), [`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table), [`security/secret-does-not-cross-an-extension`](security.md#security-secret-does-not-cross-an-extension), [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline).</sub>
 
@@ -2598,7 +2600,7 @@ stateless over the key it is handed.
 
 <a id="security-protocol-admission-test"></a>
 
-## Three conditions and one boundary decide what may join the roster, and a flow never does  *(designed — not yet in the compiler)*
+## Three conditions and one boundary decide what may join the roster, and a flow never does
 
 `rule:security/protocol-admission-test`
 
@@ -2616,7 +2618,8 @@ provider. They are out permanently, and are ordinary userland or package code bu
 The closed list will be argued with, and this test is the answer — recording the boundary is what
 makes it a decision rather than a negotiation.
 
-**Not on disk.** Nothing enforces the test; it governs what a future member may be.
+The test is applied in review, to every member proposed for the roster; no check in the tree runs
+it.
 
 <sub>See also [`security/protocol-roster`](security.md#security-protocol-roster), [`security/algorithm-comes-from-the-key`](security.md#security-algorithm-comes-from-the-key).</sub>
 
@@ -3184,7 +3187,7 @@ boundary sits, and this rule is the boundary's home.
 
 <a id="security-a-session-id-the-store-did-not-issue-is-rejected"></a>
 
-## A session id the store did not issue is rejected, always, with no toggle  *(designed — not yet in the compiler)*
+## A session id the store did not issue is rejected, always, with no toggle
 
 `rule:security/a-session-id-the-store-did-not-issue-is-rejected`
 
@@ -3196,7 +3199,8 @@ property of the language, not of a deployment's configuration.
 
 It follows that the session store must be able to answer "did I issue this id". A store that holds
 nothing, such as a signed cookie carrying the record itself, cannot answer it and so cannot be the
-session store ([`core-api/session-roster`](core-api.md#core-api-session-roster)). The acceptance test presents a fabricated id and
-asserts that a fresh one comes back.
+session store ([`core-api/session-roster`](core-api.md#core-api-session-roster)). `nvs_stdlib::session`'s test
+`start_opens_a_held_record_and_issues_a_new_id_for_one_the_store_does_not_hold` presents a forged id
+and gets a fresh one back.
 
 <sub>See also [`core-classes/session-is-started-explicitly`](core-classes.md#core-classes-session-is-started-explicitly), [`core-api/session-roster`](core-api.md#core-api-session-roster).</sub>
