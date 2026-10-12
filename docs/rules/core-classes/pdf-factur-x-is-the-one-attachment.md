@@ -2,8 +2,11 @@
 is the only attachment the writer ever emits (`rule:core-classes/pdf-output-is-inert`). The file name,
 the `AFRelationship` and the XMP fields are the ones the standard fixes, so the program passes the XML
 and nothing else. The XML is checked well-formed, inside the request's memory cap and with no entity
-expansion, and is otherwise the program's to build: the component does not read the invoice it
-carries.
+expansion, and is otherwise the program's to build. The component reads one thing from it: the
+guideline id of its `GuidelineSpecifiedDocumentContextParameter`, which gives the profile
+`fx:ConformanceLevel` names, `EN 16931` when the id is not one the standard lists. `MINIMUM` and
+`BASIC WL` are attached as `Data`, because neither is a whole invoice, and every other profile as
+`Alternative`.
 
 An invoice XML without `Document::Standard::PdfA3b` throws `LogicError`, because Factur-X is defined
 only on PDF/A-3. An XML that is not well-formed throws `ParseError`. `Reader::invoiceXml` returns the
@@ -15,9 +18,10 @@ delivery channel `pdf-output-is-inert` closes.
 
 - **Memory:** the XML once, inside the request's cap, and the bytes it adds to the output.
 
-**Partly on disk.** `Document::invoiceXml` is in `extensions/pdf/nvs/Document.nvs`, and an invoice
-XML without PDF/A-3b is refused before anything is laid out (`extensions/pdf/src/lib.rs:107`). The
-XML is not checked for well-formedness and not embedded: the `pdf` goal's Stage 12 does both.
+**On disk.** `Document::invoiceXml` is in `extensions/pdf/nvs/Document.nvs`. An invoice XML without
+PDF/A-3b, and one that is not well-formed, is refused before anything is laid out
+(`extensions/pdf/src/lib.rs`'s `first`). `extensions/pdf/src/factur_x.rs` checks, embeds and writes
+the XMP fields, and its module doc says how.
 
 **Declined:**
 - **General attachments.** A file a reader opens from inside a PDF is a delivery channel for anything,

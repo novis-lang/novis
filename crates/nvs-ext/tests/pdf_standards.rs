@@ -1,7 +1,9 @@
 //! The PDF component's standards as `nvs-ext` sees them (`rule:core-classes/pdf-one-engine`): every
 //! file is tagged from its HTML, with headings, paragraphs, lists, tables with header cells,
 //! figures with their `alt`, and the document's language. PDF/A-2b, PDF/A-3b and PDF/UA-1 are
-//! `krilla`'s validators, and a file that breaks its standard throws naming what broke.
+//! `krilla`'s validators, and a file that breaks its standard throws naming what broke. A
+//! Factur-X invoice XML is embedded under PDF/A-3b alone, with the standard's XMP fields, and an
+//! XML that is not well-formed throws.
 
 use std::future::Future;
 use std::pin::pin;
@@ -50,6 +52,16 @@ fn render_under(
     standard: Option<&str>,
     created: Option<i64>,
 ) -> Result<Vec<u8>, Failure> {
+    render_invoice(html, standard, created, None)
+}
+
+/// The file `Engine::render` returns as [`render_under`] does, with `invoice` as its invoice XML.
+fn render_invoice(
+    html: &str,
+    standard: Option<&str>,
+    created: Option<i64>,
+    invoice: Option<&str>,
+) -> Result<Vec<u8>, Failure> {
     let host = Host::new(4, |_| Ok(())).expect("the host starts");
     let builtins = Loader::new(host.engine())
         .builtins()
@@ -72,7 +84,10 @@ fn render_under(
                     standard.map_or(Value::Null, |case| Value::Case(case.to_owned())),
                 ),
                 ("password", Value::Null),
-                ("invoiceXml", Value::Null),
+                (
+                    "invoiceXml",
+                    invoice.map_or(Value::Null, |xml| Value::String(xml.to_owned())),
+                ),
                 (
                     "created",
                     created.map_or(Value::Null, |seconds| Value::Core {
@@ -204,4 +219,128 @@ fn pdf_ua_1_throws_for_an_image_without_alt() {
     );
     // Without a standard, the same document renders.
     render(&html).expect("it renders with no standard");
+}
+
+/// A Factur-X invoice of the EN 16931 profile from a shop, cut down to its context and number.
+const INVOICE: &str = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\
+<rsm:CrossIndustryInvoice \
+xmlns:rsm=\"urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100\" \
+xmlns:ram=\"urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100\">\
+<rsm:ExchangedDocumentContext><ram:GuidelineSpecifiedDocumentContextParameter>\
+<ram:ID>urn:cen.eu:en16931:2017</ram:ID>\
+</ram:GuidelineSpecifiedDocumentContextParameter></rsm:ExchangedDocumentContext>\
+<rsm:ExchangedDocument><ram:ID>Shop-1</ram:ID><ram:TypeCode>380</ram:TypeCode>\
+</rsm:ExchangedDocument></rsm:CrossIndustryInvoice>";
+
+/// How often `needle` occurs in `haystack`.
+fn count(haystack: &[u8], needle: &str) -> usize {
+    haystack
+        .windows(needle.len())
+        .filter(|window| *window == needle.as_bytes())
+        .count()
+}
+
+/// Every in-use entry of `file`'s cross-reference table points at its object's header.
+fn assert_xref_points_at_objects(file: &[u8]) {
+    let start = file
+        .windows(10)
+        .rposition(|window| window == b"startxref\n")
+        .expect("the file has a startxref");
+    // The table and the trailer after it are ASCII.
+    let tail = std::str::from_utf8(&file[start + 10..]).expect("the trailer is ASCII");
+    let xref: usize = tail
+        .lines()
+        .next()
+        .and_then(|line| line.parse().ok())
+        .expect("startxref names an offset");
+    let table = std::str::from_utf8(&file[xref..start]).expect("the table is ASCII");
+    assert!(table.starts_with("xref\n0 "), "startxref misses the table");
+    let mut lines = table.lines().skip(1);
+    let total: usize = lines
+        .next()
+        .and_then(|line| line.strip_prefix("0 "))
+        .and_then(|count| count.parse().ok())
+        .expect("the table has a count");
+    for (id, entry) in lines.take(total).enumerate() {
+        if !entry.trim_end().ends_with('n') {
+            continue;
+        }
+        let offset: usize = entry[..10].parse().expect("an entry has an offset");
+        assert!(
+            file[offset..].starts_with(format!("{id} 0 obj").as_bytes()),
+            "object {id} is not at {offset}"
+        );
+    }
+}
+
+#[test]
+fn factur_x_embeds_one_xml_under_pdf_a_3b() {
+    let html = shop_page();
+    let data =
+        render_invoice(&html, Some("PdfA3b"), Some(NEW_YEAR), Some(INVOICE)).expect("it renders");
+    for needle in [
+        "(factur-x.xml)",
+        "/EmbeddedFiles",
+        "/AF",
+        "/Alternative",
+        "/text#2Fxml",
+        "<pdfaid:part>3</pdfaid:part>",
+        "<pdfaSchema:prefix>fx</pdfaSchema:prefix>",
+        "<fx:DocumentType>INVOICE</fx:DocumentType>",
+        "<fx:DocumentFileName>factur-x.xml</fx:DocumentFileName>",
+        "<fx:Version>1.0</fx:Version>",
+        "<fx:ConformanceLevel>EN 16931</fx:ConformanceLevel>",
+    ] {
+        assert!(contains(&data, needle), "the file has no `{needle}`");
+    }
+    assert_eq!(
+        count(&data, "/EmbeddedFile"),
+        2,
+        "one file stream and the name tree"
+    );
+    assert_xref_points_at_objects(&data);
+    assert_eq!(
+        render_invoice(&html, Some("PdfA3b"), Some(NEW_YEAR), Some(INVOICE))
+            .expect("it renders again"),
+        data,
+        "two invoice renders differ"
+    );
+    // The profile comes from the invoice's guideline id.
+    let basic = INVOICE.replace(
+        "urn:cen.eu:en16931:2017<",
+        "urn:cen.eu:en16931:2017#compliant#urn:factur-x.eu:1p0:basic<",
+    );
+    let data =
+        render_invoice(&html, Some("PdfA3b"), Some(NEW_YEAR), Some(&basic)).expect("it renders");
+    assert!(contains(
+        &data,
+        "<fx:ConformanceLevel>BASIC</fx:ConformanceLevel>"
+    ));
+    assert_xref_points_at_objects(&data);
+}
+
+#[test]
+fn an_invoice_xml_outside_pdf_a_3b_throws() {
+    for standard in [None, Some("PdfA2b"), Some("PdfUa1")] {
+        let message = invalid(render_invoice(
+            &shop_page(),
+            standard,
+            Some(NEW_YEAR),
+            Some(INVOICE),
+        ));
+        assert!(message.contains("PDF/A-3b"), "{standard:?}: {message}");
+    }
+}
+
+#[test]
+fn a_malformed_invoice_xml_throws() {
+    let entity = "<?xml version=\"1.0\"?><!DOCTYPE i [<!ENTITY a \"aaaa\">]><i>&a;&a;</i>";
+    for xml in ["<rsm:CrossIndustryInvoice><unclosed>", "not XML", entity] {
+        match render_invoice(&shop_page(), Some("PdfA3b"), Some(NEW_YEAR), Some(xml)) {
+            Err(Failure::Error(Error::Parse(message))) => {
+                assert!(message.contains("invoice XML"), "{message}");
+            }
+            other => panic!("{xml}: not a parse error: {other:?}"),
+        }
+    }
 }

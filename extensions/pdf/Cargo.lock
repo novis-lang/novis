@@ -698,6 +698,7 @@ dependencies = [
  "parley",
  "png",
  "precomputed-hash",
+ "roxmltree 0.21.1",
  "selectors",
  "serde_json",
  "taffy",

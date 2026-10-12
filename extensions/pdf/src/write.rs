@@ -35,8 +35,9 @@
 //! outline, which is empty when the document has no heading. Every link annotation carries its
 //! target as its alternate text, under any standard or none.
 //!
-//! The password and the invoice attachment are Stage 12's (`render`'s doc in the crate root says
-//! what each option does until then).
+//! **The invoice XML is the one attachment** (`factur_x`'s module doc): embedded beside the
+//! metadata, and its XMP fields written into the finished file. The password is Stage 12's
+//! (`render`'s doc in the crate root says what it does until then).
 
 use krilla::action::LinkAction;
 use krilla::annotation::{Annotation, LinkAnnotation, Target};
@@ -63,6 +64,7 @@ use krilla_svg::{SurfaceExt, SvgSettings};
 use std::num::NonZeroU16;
 
 use crate::css::Color;
+use crate::factur_x::{self, Level};
 use crate::layout::{self, Bookmark, Href, Item, Laid, Paint, Picture, Role, Seg};
 use crate::paginate::PageBox;
 use crate::parse::{Dom, Space};
@@ -404,8 +406,14 @@ fn outline(bookmarks: &[Bookmark]) -> Outline {
 }
 
 /// The PDF file of `laid` with `info` as its metadata, created at `options.created` when there
-/// is one, under `options.standard` when there is one.
-pub fn write(laid: &Laid, info: &Info, options: &Options) -> Result<Vec<u8>, Error> {
+/// is one, under `options.standard` when there is one, and carrying `options.invoice_xml` as its
+/// Factur-X invoice of `invoice`'s level when both are there.
+pub fn write(
+    laid: &Laid,
+    info: &Info,
+    options: &Options,
+    invoice: Option<Level>,
+) -> Result<Vec<u8>, Error> {
     let configuration = match options.standard {
         None => ConfigurationBuilder::new(),
         Some(Standard::PdfA2b) => {
@@ -437,10 +445,14 @@ pub fn write(laid: &Laid, info: &Info, options: &Options) -> Result<Vec<u8>, Err
     if let Some(lang) = &info.lang {
         metadata = metadata.language(lang.clone());
     }
-    if let Some(created) = options.created {
-        metadata = metadata.creation_date(date(created)?);
+    let created = options.created.map(date).transpose()?;
+    if let Some(created) = created {
+        metadata = metadata.creation_date(created);
     }
     document.set_metadata(metadata);
+    if let (Some(xml), Some(level)) = (&options.invoice_xml, invoice) {
+        factur_x::embed(&mut document, xml, level, created);
+    }
     // `krilla` leaves an empty outline out unless the standard needs one.
     document.set_outline(outline(&laid.bookmarks));
     let mut faces: Vec<Option<Font>> = vec![None; laid.faces.len()];
@@ -643,7 +655,7 @@ pub fn write(laid: &Laid, info: &Info, options: &Options) -> Result<Vec<u8>, Err
         page.finish();
     }
     document.set_tag_tree(tags.finish(info.lang.clone()));
-    document.finish().map_err(|err| match err {
+    let file = document.finish().map_err(|err| match err {
         krilla::error::KrillaError::Image(image, _, why) => {
             let name = laid
                 .images
@@ -671,7 +683,11 @@ pub fn write(laid: &Laid, info: &Info, options: &Options) -> Result<Vec<u8>, Err
             ))
         }
         other => Error::Runtime(format!("the PDF could not be written: {other}")),
-    })
+    })?;
+    match invoice {
+        Some(level) if options.invoice_xml.is_some() => factur_x::xmp(file, level),
+        _ => Ok(file),
+    }
 }
 
 /// What `error` says broke the standard, in the words of the document's author.

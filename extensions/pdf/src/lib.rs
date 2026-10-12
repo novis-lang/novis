@@ -30,11 +30,12 @@
 //! the two calls, and the request's end drops it.
 //!
 //! Known gaps, each owned by a later stage of the goal that builds this component: `merge`,
-//! `read` and `read-text` return `runtime` until their stages land. The password and the
-//! invoice XML are checked against the standard and otherwise not applied (Stage 12).
+//! `read` and `read-text` return `runtime` until their stages land. The password is checked
+//! against the standard and otherwise not applied (Stage 12).
 
 pub mod assets;
 pub mod css;
+pub mod factur_x;
 pub mod fonts;
 pub mod layout;
 pub mod paginate;
@@ -136,6 +137,8 @@ pub struct Kept {
     assets: Vec<Asset>,
     info: write::Info,
     options: Options,
+    /// The level of the invoice XML, checked before anything is laid out.
+    invoice: Option<factur_x::Level>,
     dropped: Vec<css::Dropped>,
 }
 
@@ -159,8 +162,8 @@ pub enum Error {
 ///
 /// An `invoice_xml` without [`Standard::PdfA3b`], or a `password` with either PDF/A standard,
 /// returns `Invalid`, as `wit/pdf.wit` says, and so does a file that breaks its `standard`
-/// (`write`'s module doc). `password` and `invoice_xml` are accepted and not yet applied
-/// (Stage 12). A reference the asset map does not resolve returns `Invalid` naming it, and an
+/// (`write`'s module doc). An `invoice_xml` that is not well-formed returns `Parse`
+/// (`factur_x`'s module doc). `password` is accepted and not yet applied (Stage 12). A reference the asset map does not resolve returns `Invalid` naming it, and an
 /// image whose bytes do not decode returns `Parse` naming it.
 pub fn render(document: &Document) -> Result<Rendered, Error> {
     let (kept, _) = first(document, &Heights::default())?;
@@ -186,6 +189,11 @@ pub fn first(document: &Document, heights: &Heights) -> Result<(Kept, Rendered),
             "a PDF/A document cannot have a password".to_owned(),
         ));
     }
+    let invoice = options
+        .invoice_xml
+        .as_deref()
+        .map(factur_x::check)
+        .transpose()?;
     let dom = parse::parse(&document.html);
     let assets = assets::Assets::new(&document.assets);
     assets::check(&dom, &assets)?;
@@ -218,6 +226,7 @@ pub fn first(document: &Document, heights: &Heights) -> Result<(Kept, Rendered),
         assets: document.assets.clone(),
         info: write::Info::of(&dom),
         options: options.clone(),
+        invoice,
         dropped: styles.dropped,
     };
     Ok((kept, rendered))
@@ -250,6 +259,7 @@ pub fn draw(kept: Kept, pages: &[Markup]) -> Result<(Kept, Vec<Overflow>), Error
         assets: owned,
         info,
         options,
+        invoice,
         dropped,
     } = kept;
     let assets = assets::Assets::new(&owned);
@@ -311,6 +321,7 @@ pub fn draw(kept: Kept, pages: &[Markup]) -> Result<(Kept, Vec<Overflow>), Error
         assets: owned,
         info,
         options,
+        invoice,
         dropped,
     };
     Ok((kept, overflows))
@@ -318,7 +329,7 @@ pub fn draw(kept: Kept, pages: &[Markup]) -> Result<(Kept, Vec<Overflow>), Error
 
 /// The file of `kept`'s pages, with `overflows`.
 fn finish(kept: Kept, overflows: Vec<Overflow>) -> Result<Rendered, Error> {
-    let data = write::write(&kept.laid, &kept.info, &kept.options)?;
+    let data = write::write(&kept.laid, &kept.info, &kept.options, kept.invoice)?;
     Ok(Rendered {
         data,
         pages: facts(&kept.laid),
