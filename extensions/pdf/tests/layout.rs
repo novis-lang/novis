@@ -844,6 +844,49 @@ fn an_inline_svg_is_vector_content_in_the_output() {
 }
 
 #[test]
+fn an_svg_text_is_drawn_with_the_default_fonts() {
+    // An SVG's `<text>` lays out over the twelve default faces and is drawn as glyphs, so the
+    // output embeds a font and its text reads back. A family the database lacks is Serif.
+    let svg = |family: &str| {
+        format!(
+            "<svg width='200' height='40'><text x='4' y='24' font-family='{family}' \
+             font-size='16'>Shop total</text></svg>"
+        )
+    };
+    let has = |data: &[u8], what: &[u8]| data.windows(what.len()).any(|w| w == what);
+    for (family, face) in [
+        ("monospace", &b"LiberationMono"[..]),
+        ("sans-serif", b"LiberationSans"),
+        ("Unknown", b"LiberationSerif"),
+    ] {
+        let rendered = render(&Document {
+            html: svg(family),
+            ..Document::default()
+        })
+        .unwrap();
+        assert!(has(&rendered.data, b"/FontFile2"), "{family}");
+        assert!(has(&rendered.data, face), "{family}");
+        let text = nvs_pdf::read::text(rendered.data, &[1]).unwrap();
+        assert!(text[0].contains("Shop total"), "{family}: {text:?}");
+    }
+
+    // An `<img>` of an SVG file draws its `<text>` too.
+    let assets = [Asset {
+        name: "label.svg".to_owned(),
+        data: svg("serif")
+            .replace("<svg ", "<svg xmlns='http://www.w3.org/2000/svg' ")
+            .into_bytes(),
+    }];
+    let rendered = render(&Document {
+        html: "<img src='label.svg'>".to_owned(),
+        assets: assets.to_vec(),
+        ..Document::default()
+    })
+    .unwrap();
+    assert!(has(&rendered.data, b"LiberationSerif"));
+}
+
+#[test]
 fn object_fit_and_object_position_place_the_picture_in_its_box() {
     // The PNG is 1.5pt square, and each `<img>` box is 30pt by 15pt at the page margin.
     let assets = [Asset {

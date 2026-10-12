@@ -145,8 +145,9 @@
 //! is a [`Picture::Vector`]: `usvg` parses it, and the writer draws it as PDF paths through
 //! `krilla-svg`. An inline `<svg>` is its subtree written out again as an SVG document
 //! ([`image::svg_markup`]), with every element outside the SVG namespace left out. An `<image>`
-//! in an SVG loads through the asset map, as an `<img>` does. Its `<text>` draws nothing, because
-//! its font database is empty. Nothing else outside the HTML namespace is drawn.
+//! in an SVG loads through the asset map, as an `<img>` does. Its `<text>` is laid out by `usvg`
+//! over the twelve default faces ([`crate::fonts::svg_database`]) and drawn as glyphs. Nothing
+//! else outside the HTML namespace is drawn.
 //!
 //! The submodules: `inline` walks the document into [`Block`]s, `image` loads the pictures they
 //! draw, `block` is the vertical flow of boxes, `text` shapes and places each block's lines,

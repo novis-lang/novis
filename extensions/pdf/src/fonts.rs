@@ -16,11 +16,12 @@
 //! `@font-face` rule registered, then the default its first generic or known name maps to, and
 //! Liberation Sans when no name maps to a default. A name that is neither is skipped.
 //!
-//! Memory: the default faces are part of the component's bytes and are never copied. A render
+//! Memory: the default faces are part of the component's bytes and are never copied. The first
+//! SVG with `<text>` builds [`svg_database`]'s index of them once per instance. A render
 //! holds one copy of each `@font-face` file and `fontique`'s index of every face, freed when the
 //! render returns.
 
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use parley::FontContext;
 use parley::fontique::{
@@ -113,6 +114,25 @@ pub fn face_index(data: &[u8]) -> Option<usize> {
     FACES
         .iter()
         .position(|face| face.as_ptr() == data.as_ptr() && face.len() == data.len())
+}
+
+/// The font database `usvg` lays out an SVG's `<text>` with: the twelve faces and no system
+/// font, `serif`, `sans-serif` and `monospace` mapped to Liberation, and any other family
+/// name falling back to Liberation Serif, as `usvg` falls back to `serif`. It is built on first
+/// use and shared, and it borrows the embedded bytes.
+pub fn svg_database() -> Arc<usvg::fontdb::Database> {
+    static DATABASE: OnceLock<Arc<usvg::fontdb::Database>> = OnceLock::new();
+    let database = DATABASE.get_or_init(|| {
+        let mut database = usvg::fontdb::Database::new();
+        for face in FACES {
+            database.load_font_source(usvg::fontdb::Source::Binary(Arc::new(face)));
+        }
+        database.set_serif_family(Family::Serif.registered_name());
+        database.set_sans_serif_family(Family::Sans.registered_name());
+        database.set_monospace_family(Family::Mono.registered_name());
+        Arc::new(database)
+    });
+    Arc::clone(database)
 }
 
 /// A font context that holds the twelve faces and no system font.

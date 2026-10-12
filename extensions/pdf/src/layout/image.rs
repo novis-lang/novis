@@ -251,6 +251,7 @@ fn svg(assets: &Assets<'_>, data: &[u8], name: &str) -> Result<Picture, Error> {
                 }
             }),
         },
+        fontdb: crate::fonts::svg_database(),
         ..usvg::Options::default()
     };
     let tree = usvg::Tree::from_data(data, &options)
