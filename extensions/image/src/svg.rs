@@ -11,12 +11,15 @@
 //! pixel, is held to the cap before the pixmap exists. `usvg` refuses a document of more than a
 //! million elements, and the guest's memory cap and deadline bound the rest.
 //!
-//! `<text>` is not drawn: the component is built without `usvg`'s text feature, which needs fonts.
-//! The result is straight-alpha RGBA, with no EXIF block.
+//! **`<text>` is drawn with the twelve Liberation faces** the component embeds, and no system font
+//! is ever read. A family the database lacks falls back to Liberation Serif, as `usvg` falls back
+//! to `serif`. The database is built once per instance, on the first SVG parsed, and borrows the
+//! embedded bytes. The result is straight-alpha RGBA, with no EXIF block.
 
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 
 use resvg::tiny_skia::{Pixmap, Transform};
+use resvg::usvg::fontdb::{Database, Source};
 use resvg::usvg::{ImageHrefResolver, Options, Tree};
 
 use crate::decode::{Pixels, check};
@@ -37,6 +40,23 @@ pub(crate) fn sniff(data: &[u8]) -> bool {
     opens && head.windows(4).any(|window| window == b"<svg")
 }
 
+/// The font database `<text>` is laid out with: the twelve Liberation faces and no system font,
+/// with `serif`, `sans-serif` and `monospace` mapped to them. Built on first use and shared.
+fn database() -> Arc<Database> {
+    static DATABASE: OnceLock<Arc<Database>> = OnceLock::new();
+    let database = DATABASE.get_or_init(|| {
+        let mut database = Database::new();
+        for face in crate::pdf::liberation() {
+            database.load_font_source(Source::Binary(Arc::new(face)));
+        }
+        database.set_serif_family("Liberation Serif");
+        database.set_sans_serif_family("Liberation Sans");
+        database.set_monospace_family("Liberation Mono");
+        Arc::new(database)
+    });
+    Arc::clone(database)
+}
+
 /// The parsed document. An external `href` returns `Runtime` naming it, and a document that does
 /// not parse returns `Parse`.
 fn parse(data: &[u8]) -> Result<Tree, Error> {
@@ -52,6 +72,7 @@ fn parse(data: &[u8]) -> Result<Tree, Error> {
                 None
             }),
         },
+        fontdb: database(),
         ..Options::default()
     };
     let tree = Tree::from_data(data, &options)
@@ -142,6 +163,22 @@ mod tests {
             decode(SQUARE.as_bytes(), 11),
             Err(Error::Runtime(_))
         ));
+    }
+
+    #[test]
+    fn a_text_draws_glyphs_in_each_default_family() {
+        let inked = |family: &str| {
+            let svg = format!(
+                r#"<svg xmlns="http://www.w3.org/2000/svg" width="120" height="30"><text x="2" y="22" font-family="{family}" font-size="20">Shop</text></svg>"#
+            );
+            let got = decode(svg.as_bytes(), 10_000).unwrap();
+            got.rgba.chunks_exact(4).filter(|px| px[3] > 128).count()
+        };
+        let counts = ["serif", "sans-serif", "monospace"].map(inked);
+        assert!(counts.iter().all(|&n| n > 50), "{counts:?}");
+        assert_ne!(counts[0], counts[1]);
+        assert_ne!(counts[1], counts[2]);
+        assert_eq!(inked("Unknown"), counts[0]);
     }
 
     #[test]

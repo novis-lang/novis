@@ -125,6 +125,26 @@ fn substitute(font: &StandardFont) -> &'static [u8] {
     }
 }
 
+/// The twelve Liberation faces: Sans, Serif and Mono, each regular, bold, italic and bold italic.
+pub(crate) fn liberation() -> [&'static [u8]; 12] {
+    use StandardFont::*;
+    [
+        Helvetica,
+        HelveticaBold,
+        HelveticaOblique,
+        HelveticaBoldOblique,
+        TimesRoman,
+        TimesBold,
+        TimesItalic,
+        TimesBoldItalic,
+        Courier,
+        CourierBold,
+        CourierOblique,
+        CourierBoldOblique,
+    ]
+    .map(|font| substitute(&font))
+}
+
 /// Liberation Sans Regular, the font `barcode` prints a code's text in.
 pub(crate) fn sans() -> &'static [u8] {
     substitute(&StandardFont::Helvetica)

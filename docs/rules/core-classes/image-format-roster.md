@@ -25,5 +25,6 @@ Only the first frame of an animated input is decoded, so `Image::info`'s `frames
 frame of APNG and the other animated formats and reports the real count (`docs/plan/m17.md`). SVG
 decodes through `resvg` with an image
 resolver that reads only `data:` URIs and throws `RuntimeError` naming any other `href`
-(`extensions/image/src/svg.rs`); its `<text>` is not drawn, because `usvg`'s text feature is off. A
+(`extensions/image/src/svg.rs`); its `<text>` is drawn with the twelve Liberation faces and never a
+system font, in `Novis\Image` and in a `Novis\Pdf` render (`extensions/pdf/src/fonts.rs`). A
 PDF page rasterises through `hayro` (`extensions/image/src/pdf.rs`).
