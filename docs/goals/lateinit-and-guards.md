@@ -302,24 +302,21 @@ by stages 1 and 5, `lateinit-read-before-write` by stage 3.
 
 ### State
 
-Every stage's items are done. The reference chapter has `# LateInit` and `# PropertyGuard` before
-`# PropertyObserver`, which registers `lang:classes/lateinit` and `lang:classes/propertyguard`. Each
-has its about, three examples, a bench, an attack and the conformance cases. The two website pages
-have a `LateInit` and a `PropertyGuard` section with a snippet each, and are stamped. The perf
-ledger was re-recorded for `lang:classes`, because every feature of the chapter hashes the chapter
-file. What is left is the goal-end work and the backlog decisions below.
+Every stage's items are done, and both goal-end gates are green: `bun nv verify --doc` finds no
+broken link, and `bun nv owners --closes lateinit-and-guards` finds no gap. Every standing decision
+already has its home in a fragment under `docs/rules/classes/` or in
+`docs/rules/programs/framework-refusals.md`, so the goal file holds nothing left to move. A
+delegation forward over a `lateinit` field now takes the erased read, so it calls `initProperty` in
+a `LateInit` class. `isinit` on a hooked `lateinit` property tests the backing slot. Each has a
+conformance case. Two code items in `stmt.rs` stay before the branch lands.
 
 ### Next
 
-**The goal-end gates.** The file set is `docs/goals/lateinit-and-guards.md` and the three new fragments under `docs/rules/classes/`.
+**The last two `stmt.rs` items, then landing.** The file set is `crates/nvs-ir/src/lower/stmt.rs`.
 
-- [ ] `bun nv verify --doc`, and every broken link it names fixed (`AGENTS.md` § *In the loop*). `docs/reference/lang/50-classes.md:992`
-- [ ] `bun nv owners --closes lateinit-and-guards`, and every gap it names closed or given another owner. `docs/goals/lateinit-and-guards.md:1`
-- [ ] Move each standing decision only this file holds into its fragment, then land the branch on `main` and delete the goal file. `docs/rules/classes/property-guard-runs-before-the-write.md:1`
+- [ ] Probe whether an element `unset` through a call receiver, `$b->self()->rows["k"]`, calls `self()` twice for the guard, and fix it if it does (`rule:classes/property-guard-runs-before-the-write`). `crates/nvs-ir/src/lower/stmt.rs:1722`
+- [ ] Make a `set` hook on a `lateinit` property plain while `initProperty` initializes it, as the slot write already is (`rule:classes/late-init-initializes-on-the-first-read`). `crates/nvs-ir/src/lower/stmt.rs:1402`
+- [ ] Land the branch on `main` and delete this goal file, with the user's answer on the default bodies below. `docs/goals/lateinit-and-guards.md:1`
 
 ### Backlog
-- A delegation forward over a `lateinit` field still throws without calling `initProperty` (`crates/nvs-ir/src/lower/call.rs:1478`); decide before the goal lands.
-- Whether `PropertyGuard` and `PropertyObserver` give their methods empty default bodies, since interfaces may have default methods (`docs/reference/lang/50-classes.md:381`); ask the user.
-- `isinit` on a hooked `lateinit` property reports `E0853`; decide before the goal lands whether it should test the slot (`crates/nvs-types/src/expr/presence.rs`).
-- An element `unset` lowers the root's receiver a second time for the guard, as `write_back_array` already does. `$b->self()->rows["k"]` would call `self()` again (`crates/nvs-ir/src/lower/stmt.rs:1722`).
-- A `set` hook on a `lateinit` property is not plain during `initProperty`; only the slot write takes `open_unless_plain` (`crates/nvs-ir/src/lower/stmt.rs:1251`).
+- Whether `PropertyGuard` and `PropertyObserver` give their methods empty default bodies, since interfaces may have default methods (`docs/reference/lang/50-classes.md:381`); ask the user. The safe default is no bodies, because adding them later breaks no program.
