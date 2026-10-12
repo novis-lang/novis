@@ -4997,16 +4997,20 @@ fn read_erased_property_hinted(
 /// `object`'s `lateinit` property `$name` unset, so this runs `initProperty`
 /// once and returns. The caller reads the slot again.
 ///
-/// **The in-flight table is [`Ctx::begin_late_init`]'s**, keyed by the object's
-/// address and the slot. An entry lives only while its `initProperty` runs, so
-/// the table costs O(in-flight initializations) and nothing per slot. An entry
-/// already present means the read is inside its own `initProperty`.
+/// **The in-flight tables are [`Ctx::begin_late_init`]'s**, keyed by the
+/// object's address and the slot; `crate::ctx::late_init` owns them. A call
+/// already running in this task means the read is inside its own
+/// `initProperty`. A call running in another task of the request makes this
+/// read park until it ends: after a return the caller reads again, and after a
+/// throw or a cancellation this read looks again and may call `initProperty`
+/// itself.
 ///
 /// # Errors
 ///
 /// A `LogicError` when the class does not implement `LateInit`, or when the
 /// read is inside the same property's `initProperty`. [`Fault::Pending`] when
 /// `initProperty` throws, which leaves the property unset for the next read.
+/// [`Ctx::cancel`]'s fault when the task is cancelled while it is parked.
 fn initialize_late(
     ctx: &mut Ctx,
     receiver: Value,
@@ -5030,15 +5034,30 @@ fn initialize_late(
         object as usize,
         desc.field_slot(name, hint).unwrap_or(usize::MAX),
     );
-    if !ctx.begin_late_init(key) {
-        return Err(Fault::thrown_as(
-            crate::ThrownClass::Logic,
-            format!("`${name}` is read while `initProperty` initializes it."),
-        ));
-    }
+    let call = loop {
+        match ctx.begin_late_init(key) {
+            crate::LateInit::Started(call) => break call,
+            crate::LateInit::Recursive => {
+                return Err(Fault::thrown_as(
+                    crate::ThrownClass::Logic,
+                    format!("`${name}` is read while `initProperty` initializes it."),
+                ));
+            }
+            crate::LateInit::Running => {
+                if ctx.wait_late_init(key)? == Some(crate::Settled::Returned) {
+                    return Ok(());
+                }
+            }
+        }
+    };
     let told = Value::str(crate::NvsStr::new(name.as_bytes()));
     let answered = crate::dispatch::call_erased_method(ctx, receiver, "initProperty", &[told]);
-    ctx.end_late_init(key);
+    let settled = if answered.is_ok() {
+        crate::Settled::Returned
+    } else {
+        crate::Settled::Failed
+    };
+    ctx.end_late_init(call, settled);
     #[expect(
         unsafe_code,
         reason = "this frame made that string and still owns it, as \

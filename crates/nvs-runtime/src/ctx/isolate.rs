@@ -441,6 +441,10 @@ impl Ctx {
         // A slot and after-response work are children started once the main
         // script is over, so `Core\Response::slotted()` throws in them too.
         child.main_ended = self.main_ended;
+        // A task reads the same objects as its request, so it sees the same
+        // `initProperty` calls in flight and waits for one another task runs.
+        // Its own calls are its own (`late_init`'s module doc).
+        child.late_table = std::cell::OnceCell::from(std::rc::Rc::clone(self.late_table()));
         child
     }
 

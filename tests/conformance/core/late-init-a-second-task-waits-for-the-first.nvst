@@ -1,0 +1,80 @@
+--TEST--
+A task that reads a property while another task's `initProperty` initializes it waits for that call, and never calls `initProperty` a second time — `rule:classes/late-init-initializes-on-the-first-read`
+--FILE--
+<?nvs
+// covers: lang:classes/lateinit
+final class Log {
+    public array<string> $lines = [];
+}
+
+final class Post implements LateInit {
+    public lateinit string $author;
+
+    public function constructor(private Log $log) {}
+
+    public function initProperty(string $name): void {
+        $this->log->lines[] = "init " . $name . " starts";
+        Core\Time::sleep(20ms);
+        $this->log->lines[] = "init " . $name . " ends";
+        $this->author = "Ada";
+    }
+}
+
+final class Draft implements LateInit {
+    public lateinit string $author;
+
+    public function constructor(private Log $log) {}
+
+    public function initProperty(string $name): void {
+        $this->log->lines[] = "init " . $name;
+        Core\Time::sleep(20ms);
+    }
+}
+
+// The first task sleeps inside `initProperty`. The second task reads the same
+// property in that time, waits, and then reads the value the first task wrote.
+Log $log = new Log();
+Post $p = new Post($log);
+var $read = Core\Task::all({
+    first: fn (): string => $p->author,
+    second: fn (): string => {
+        Core\Time::sleep(5ms);
+        $log->lines[] = "second task reads";
+        return $p->author;
+    },
+});
+foreach ($log->lines as string $line) {
+    echo $line, "\n";
+}
+echo $read->first, " ", $read->second, "\n";
+
+// Here `initProperty` returns without a value, so both reads throw.
+// `initProperty` still runs once.
+Log $drafts = new Log();
+Draft $d = new Draft($drafts);
+var $failed = Core\Task::all({
+    first: fn (): string => {
+        try {
+            return $d->author;
+        } catch (LogicError $e) {
+            return $e->message;
+        }
+    },
+    second: fn (): string => {
+        try {
+            return $d->author;
+        } catch (LogicError $e) {
+            return $e->message;
+        }
+    },
+});
+echo Core\Arr::count($drafts->lines), " call\n";
+echo $failed->first, "\n", $failed->second, "\n";
+--EXPECT--
+init author starts
+second task reads
+init author ends
+Ada Ada
+1 call
+`initProperty` returned, but `$author` is still not initialized.
+`initProperty` returned, but `$author` is still not initialized.

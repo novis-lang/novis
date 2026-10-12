@@ -214,6 +214,7 @@ impl Ctx {
             peer: None,
             deliveries: None,
             late_inits: Vec::new(),
+            late_table: std::cell::OnceCell::new(),
             live: std::rc::Rc::new(crate::object::LiveList::default()),
         };
         ctx.arm_stack_limit(base, STACK_CEILING);
@@ -300,32 +301,6 @@ impl Ctx {
     #[must_use]
     pub fn exit_code(&self) -> i64 {
         self.exit_code
-    }
-
-    /// Records that an `initProperty` call for `key` (the object's address and
-    /// the slot) starts, and returns `false` where one for the same key is
-    /// already running in this context. See [`Self::late_inits`].
-    pub fn begin_late_init(&mut self, key: (usize, usize)) -> bool {
-        if self.late_inits.contains(&key) {
-            return false;
-        }
-        self.late_inits.push(key);
-        true
-    }
-
-    /// Records that the `initProperty` call [`Self::begin_late_init`] started
-    /// for `key` has returned or thrown.
-    pub fn end_late_init(&mut self, key: (usize, usize)) {
-        if let Some(at) = self.late_inits.iter().rposition(|held| *held == key) {
-            self.late_inits.remove(at);
-        }
-    }
-
-    /// Whether an `initProperty` call is running in this context, which is
-    /// what makes a write that initializes a `lateinit` property plain.
-    #[must_use]
-    pub fn late_init_running(&self) -> bool {
-        !self.late_inits.is_empty()
     }
 
     /// Records the status `exit(n)` named — `nvs_exit`'s one side effect.

@@ -8,9 +8,18 @@ or by an earlier call, calls nothing, and `isinit` never calls it
 
 `initProperty` runs once per property per object while it succeeds. A throw out of it leaves the
 property uninitialized and propagates from the read, so the next read calls it again. A read of the
-same property of the same object while its own `initProperty` runs throws a `LogicError`: "`$author`
-is read while `initProperty` initializes it." The class is decided at run time from the object's own
-class, so a compiled read and a read through `mixed` or `Core\Reflect` behave the same.
+same property of the same object, in the same task, while its own `initProperty` runs throws a
+`LogicError`: "`$author` is read while `initProperty` initializes it." The class is decided at run
+time from the object's own class, so a compiled read and a read through `mixed` or `Core\Reflect`
+behave the same.
+
+**Across tasks.** A task shares its request's objects (`rule:concurrency/one-scheduler`), so a read
+from another task can find the call running. That read parks until the call ends
+(`rule:concurrency/the-parking-contract`). After a return it reads the slot again and never calls
+`initProperty` a second time. After a throw or a cancellation the property is still uninitialized,
+and the parked read looks again: it calls `initProperty` itself, or parks on a call a third task
+started first. Coordinating a batch across *different* objects is the program's own job, with a
+`Core\Task\Channel`. An isolate shares no object, so it never sees another isolate's calls.
 
 **Plain writes.** While an `initProperty` call runs in a task, a write in that task that initializes
 an uninitialized `lateinit` property is plain, on any object and through any write form: no
@@ -22,8 +31,10 @@ The compiled read keeps the one tag compare of `rule:classes/an-unwritten-proper
 only its uninitialized branch reaches the runtime. An observed `lateinit` write tests the tag before it
 stores, and asks whether an `initProperty` call is running only when the slot was uninitialized.
 
-- **Memory:** one entry, two words, per `initProperty` call while it runs, in a request-local table
-  keyed by object and slot. Nothing per property or per object.
+- **Memory:** per `initProperty` call while it runs, one two-word entry in the task's own table and
+  one in the request's shared table, keyed by object and slot, plus one entry per read parked on it.
+  The shared table is one small allocation per request that calls `initProperty` or starts a task.
+  Nothing per property or per object.
 
 **Declined:**
 - **Every write inside `initProperty` is plain.** Any validation an observer makes could then be

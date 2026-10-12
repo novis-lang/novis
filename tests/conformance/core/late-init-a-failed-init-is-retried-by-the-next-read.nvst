@@ -1,0 +1,86 @@
+--TEST--
+An `initProperty` that throws or is cancelled leaves the property uninitialized, and the next read calls it again, a waiting task's read included — `rule:classes/late-init-initializes-on-the-first-read`
+--FILE--
+<?nvs
+// covers: lang:classes/lateinit
+final class Log {
+    public array<string> $lines = [];
+}
+
+final class Post implements LateInit {
+    public lateinit string $author;
+    public int $calls = 0;
+
+    public function constructor(private Log $log) {}
+
+    public function initProperty(string $name): void {
+        $this->calls = $this->calls + 1;
+        $this->log->lines[] = "call " . $this->calls . " starts";
+        Core\Time::sleep(20ms);
+        if ($this->calls == 1) {
+            $this->log->lines[] = "call 1 throws";
+            throw new RuntimeError("the first call fails");
+        }
+        $this->author = "Ada";
+    }
+}
+
+final class Page implements LateInit {
+    public lateinit string $title;
+    public int $calls = 0;
+
+    public function initProperty(string $name): void {
+        $this->calls = $this->calls + 1;
+        echo "init ", $name, " call ", $this->calls, "\n";
+        if ($this->calls == 1) {
+            Core\Time::sleep(2s);
+        }
+        $this->title = "Hello";
+    }
+}
+
+// The first task's call throws. The second task was waiting for it, so it
+// calls `initProperty` again and reads the value.
+Log $log = new Log();
+Post $p = new Post($log);
+var $read = Core\Task::all({
+    first: fn (): string => {
+        try {
+            return $p->author;
+        } catch (RuntimeError $e) {
+            return $e->message;
+        }
+    },
+    second: fn (): string => {
+        Core\Time::sleep(5ms);
+        $log->lines[] = "second task reads";
+        return $p->author;
+    },
+});
+foreach ($log->lines as string $line) {
+    echo $line, "\n";
+}
+echo $read->first, "\n", $read->second, "\n";
+echo $p->author, "\n";
+
+// The deadline cancels the task inside its first call. The next read calls
+// `initProperty` again.
+Page $page = new Page();
+try {
+    Core\Task::map([1], fn (int $n): string => $page->title, {deadline: 20ms});
+} catch (TimeoutError $e) {
+    echo "the deadline was hit\n";
+}
+echo $page->title, "\n";
+--EXPECT--
+call 1 starts
+second task reads
+call 1 throws
+call 2 starts
+the first call fails
+Ada
+Ada
+init title call 1
+the deadline was hit
+init title call 2
+Hello
