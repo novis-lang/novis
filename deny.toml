@@ -28,6 +28,10 @@ ignore = [
     # `ab_glyph` parses through it too, so leaving it means replacing the font stack. The extension
     # runs in the wasm sandbox. Revisit 2027-04-01.
     { id = "RUSTSEC-2026-0192", reason = "font parsing inside the sandboxed image extension; no maintained drop-in" },
+    # `rustybuzz` is unmaintained, not vulnerable. `krilla` and `usvg` shape text with it inside the
+    # PDF component, so leaving it means a `krilla` release that moves to `harfrust`. The component
+    # runs in the wasm sandbox. Revisit 2027-04-01.
+    { id = "RUSTSEC-2026-0206", reason = "text shaping inside the sandboxed PDF component, through krilla and usvg; no drop-in under them" },
 ]
 
 # ---------------------------------------------------------------------------
