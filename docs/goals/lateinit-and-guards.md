@@ -46,7 +46,7 @@ stages:
         shapes: ["A `.nvst` test case"]
   - id: 6
     title: "the rules, the reference and the feature proofs"
-    status: open
+    status: done
     context: [docs/reference/lang/50-classes.md, website/src/content/docs/syntax/classes/properties.mdx, website/src/content/docs/syntax/classes/property-hooks.mdx]
     extra:
       context:
@@ -294,36 +294,32 @@ by stages 1 and 5, `lateinit-read-before-write` by stage 3.
 **Does:** the fragments, the reference chapter, the website and every feature proof are written.
 
 - [x] The three new fragments and the rewritten `framework-refusals`. `docs/rules/programs/framework-refusals.md:1`
-- [ ] A top-level `LateInit` section and a `PropertyGuard` section in the reference chapter, and `lateinit` widened there. `docs/reference/lang/50-classes.md:170`
-- [ ] The website pages. `website/src/content/docs/syntax/classes/properties.mdx:1`
-- [ ] The feature proofs of `lang:classes/lateinit` and `lang:classes/propertyguard`, and `propertyobserver`'s updated. `docs/examples/lang/classes/propertyobserver/about.md:1`
+- [x] A top-level `LateInit` section and a `PropertyGuard` section in the reference chapter, and `lateinit` widened there. `docs/reference/lang/50-classes.md:170`
+- [x] The website pages. `website/src/content/docs/syntax/classes/properties.mdx:1`
+- [x] The feature proofs of `lang:classes/lateinit` and `lang:classes/propertyguard`, and `propertyobserver`'s updated. `docs/examples/lang/classes/propertyobserver/about.md:1`
 
 ## Handoff
 
 ### State
 
-Stages 1 to 5 are done, and every check through `property-guard` is green, as are `the-rules` and
-`the-guard-rule`. Stage 6's first item is done: the pipeline fragment holds the full order, the new
-fragment `classes/property-guard-runs-before-the-write` exists, and `framework-refusals` names
-`LateInit`. The erased write's guard has its test
-(`a_write_through_mixed_runs_the_guard_and_a_throw_keeps_the_old_value` in
-`crates/nvs-codegen/tests/late_init.rs`). That test found an erased write to a hooked property
-telling no observer; `write_erased_property` now reads the slot back after the hook and calls
-`tell_erased_write` (`crates/nvs-runtime/src/object.rs:5174`). Open: the reference chapter, the
-website and the feature proofs. `bun nv proofs --id lang:classes/propertyguard` says "no feature",
-so the feature is not registered yet.
+Every stage's items are done. The reference chapter has `# LateInit` and `# PropertyGuard` before
+`# PropertyObserver`, which registers `lang:classes/lateinit` and `lang:classes/propertyguard`. Each
+has its about, three examples, a bench, an attack and the conformance cases. The two website pages
+have a `LateInit` and a `PropertyGuard` section with a snippet each, and are stamped. The perf
+ledger was re-recorded for `lang:classes`, because every feature of the chapter hashes the chapter
+file. What is left is the goal-end work and the backlog decisions below.
 
 ### Next
 
-**Stage 6, the reference and the feature proofs.** The file set is `docs/reference/lang/50-classes.md` and `docs/examples/lang/classes/`.
+**The goal-end gates.** The file set is `docs/goals/lateinit-and-guards.md` and the three new fragments under `docs/rules/classes/`.
 
-- [ ] A top-level `LateInit` section and a `PropertyGuard` section beside `# PropertyObserver`, and the `lateinit` section widened to every type (`rule:classes/late-init-initializes-on-the-first-read`, `rule:classes/property-guard-runs-before-the-write`). `docs/reference/lang/50-classes.md:170`, `docs/reference/lang/50-classes.md:990`
-- [ ] Register the features `lang:classes/lateinit` and `lang:classes/propertyguard` so `bun nv proofs --id` finds them, then write what each owes. `docs/examples/lang/classes/propertyobserver/about.md:1`
-- [ ] The website pages. `website/src/content/docs/syntax/classes/properties.mdx:1`
+- [ ] `bun nv verify --doc`, and every broken link it names fixed (`AGENTS.md` § *In the loop*). `docs/reference/lang/50-classes.md:992`
+- [ ] `bun nv owners --closes lateinit-and-guards`, and every gap it names closed or given another owner. `docs/goals/lateinit-and-guards.md:1`
+- [ ] Move each standing decision only this file holds into its fragment, then land the branch on `main` and delete the goal file. `docs/rules/classes/property-guard-runs-before-the-write.md:1`
 
 ### Backlog
-- A delegation forward over a `lateinit` field still throws without calling `initProperty` (`crates/nvs-ir/src/lower/call.rs:1478`); decide in stage 6.
+- A delegation forward over a `lateinit` field still throws without calling `initProperty` (`crates/nvs-ir/src/lower/call.rs:1478`); decide before the goal lands.
 - Whether `PropertyGuard` and `PropertyObserver` give their methods empty default bodies, since interfaces may have default methods (`docs/reference/lang/50-classes.md:381`); ask the user.
-- `isinit` on a hooked `lateinit` property reports `E0853`; decide in stage 6 whether it should test the slot (`crates/nvs-types/src/expr/presence.rs`).
+- `isinit` on a hooked `lateinit` property reports `E0853`; decide before the goal lands whether it should test the slot (`crates/nvs-types/src/expr/presence.rs`).
 - An element `unset` lowers the root's receiver a second time for the guard, as `write_back_array` already does. `$b->self()->rows["k"]` would call `self()` again (`crates/nvs-ir/src/lower/stmt.rs:1722`).
 - A `set` hook on a `lateinit` property is not plain during `initProperty`; only the slot write takes `open_unless_plain` (`crates/nvs-ir/src/lower/stmt.rs:1251`).
