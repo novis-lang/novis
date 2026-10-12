@@ -121,7 +121,7 @@ pub fn render(document: &Document) -> Result<Rendered, Error> {
     let styles = css::cascade(&dom, &document.html, &assets);
     let fonts = fonts::Fonts::new(&styles.font_faces, &assets)?;
     let laid = layout::layout(&dom, &styles, &assets, fonts)?;
-    let data = write::write(&laid, options.created)?;
+    let data = write::write(&laid, &write::Info::of(&dom), options.created)?;
     let pages = (1..=laid.pages.len() as u64)
         .map(|number| PageFacts { number })
         .collect();

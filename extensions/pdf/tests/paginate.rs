@@ -1,7 +1,8 @@
-//! Pagination on the host: the `@page` rules, forced breaks and margin boxes
-//! (`rule:core-classes/pdf-css-subset-table`).
+//! Pagination on the host: the `@page` rules, forced breaks, margin boxes, links, bookmarks
+//! and metadata (`rule:core-classes/pdf-css-subset-table`).
 
-use nvs_pdf::layout::{self, Item, Laid};
+use nvs_pdf::layout::{self, Bookmark, Href, Item, Laid};
+use nvs_pdf::write::Info;
 use nvs_pdf::{Document, assets, css, fonts, parse, render};
 
 fn lay(html: &str) -> Laid {
@@ -493,4 +494,165 @@ fn page_numbers_that_never_settle_throw() {
         <p class=n></p><p id=x style='break-before: page'>News</p>"
     ));
     assert_eq!(drawn(&laid, 0, 50.0, 70.0)[0].0, "2");
+}
+
+fn rendered(html: &str) -> Vec<u8> {
+    render(&Document {
+        html: html.to_owned(),
+        ..Document::default()
+    })
+    .unwrap()
+    .data
+}
+
+fn count(haystack: &[u8], needle: &[u8]) -> usize {
+    haystack
+        .windows(needle.len())
+        .filter(|w| *w == needle)
+        .count()
+}
+
+#[test]
+fn headings_become_bookmarks() {
+    let html = format!(
+        "{TEN_LINES}<style>h1, h2, h3 {{ margin: 0; font-size: 12pt; line-height: 20pt }}</style>
+        <h1>Shop</h1><h2>Blog
+        one</h2>{}<h2>News</h2><h3>Team</h3><h1>Help</h1><h2></h2>",
+        "<p>Line</p>".repeat(12)
+    );
+    // Each heading's page index and top: ten lines fit on a page, so the last three are on the
+    // second page under the four lines left over. An empty heading has no entry.
+    let laid = lay(&html);
+    let want = [
+        (1, "Shop", 0, 50.0),
+        (2, "Blog one", 0, 70.0),
+        (2, "News", 1, 130.0),
+        (3, "Team", 1, 150.0),
+        (1, "Help", 1, 170.0),
+    ];
+    assert_eq!(laid.bookmarks.len(), want.len(), "{:?}", laid.bookmarks);
+    for (
+        Bookmark {
+            level,
+            title,
+            page,
+            y,
+        },
+        (l, t, p, top),
+    ) in laid.bookmarks.iter().zip(want)
+    {
+        assert_eq!((*level, title.as_str(), *page), (l, t, p));
+        assert!(close(*y, top), "{title} at {y}");
+    }
+
+    // The outline has the five entries, `Blog` and `News` under `Shop` and `Team` under `News`.
+    let data = rendered(&html);
+    assert_eq!(count(&data, b"/Type/Outlines"), 1);
+    for title in ["Shop", "Blog one", "News", "Team", "Help"] {
+        assert!(
+            contains(&data, format!("/Title({title})").as_bytes()),
+            "{title}"
+        );
+    }
+    // A closed entry's `/Count` is minus the number of entries directly under it.
+    assert!(contains(&data, b"/Count -2/Title(Shop)"));
+    assert!(contains(&data, b"/Count -1/Title(News)"));
+    assert!(contains(&data, b"/Count 2>>"));
+    assert!(!contains(&rendered("<p>Shop</p>"), b"/Outlines"));
+}
+
+#[test]
+fn internal_and_external_links_are_annotations() {
+    let html = format!(
+        "{TEN_LINES}<p><a href='https://example.com/shop'>Shop</a> and
+        <a href=' MAILTO:team@example.com'>mail <b>us</b></a> and <a href='#news'>News</a>
+        <a href='javascript:alert(1)'>Bad</a> <a href='file:///etc/passwd'>Disk</a>
+        <a href='#gone'>Gone</a> <a>Plain</a></p>{}<p id=news>News</p>",
+        "<p>Line</p>".repeat(9)
+    );
+    let laid = lay(&html);
+    let links: Vec<(Href, f32, f32, f32, f32)> = laid.pages[0]
+        .items
+        .iter()
+        .filter_map(|item| match item {
+            Item::Link {
+                href,
+                x,
+                y,
+                width,
+                height,
+            } => Some((href.clone(), *x, *y, *width, *height)),
+            _ => None,
+        })
+        .collect();
+    // `mail us` is two runs in two styles, so it is two boxes. A `javascript:` or `file:` link,
+    // and an `<a>` with no `href`, is no link.
+    let hrefs: Vec<&Href> = links.iter().map(|l| &l.0).collect();
+    let uri = |s: &str| Href::Uri(s.to_owned());
+    let anchor = |s: &str| Href::Anchor(s.to_owned());
+    assert_eq!(
+        hrefs,
+        [
+            &uri("https://example.com/shop"),
+            &uri("MAILTO:team@example.com"),
+            &uri("MAILTO:team@example.com"),
+            &anchor("news"),
+            &anchor("gone"),
+        ]
+    );
+    // The first box covers the text `Shop` from its ascent to its descent.
+    let (_, x, y, width, height) = links[0];
+    let (text, start, end) = &drawn(&laid, 0, 50.0, 70.0)[0];
+    assert!(text.starts_with("Shop"), "{text}");
+    assert!(close(x, *start) && x + width <= *end + 0.01, "{links:?}");
+    assert!(
+        (50.0..60.0).contains(&y) && height > 8.0 && y + height <= 72.0,
+        "{links:?}"
+    );
+    // The paragraph with `id=news` is the first line of the second page.
+    let (page, top) = laid.anchors["news"];
+    assert!(page == 1 && close(top, 50.0), "{page} {top}");
+
+    // The file has a URI action for each address and a destination for `#news`, and the link
+    // to `#gone` is left out because no element has that `id`.
+    let data = rendered(&html);
+    assert_eq!(count(&data, b"/Subtype/Link"), 4);
+    assert!(contains(&data, b"/URI(https://example.com/shop)"));
+    assert_eq!(count(&data, b"/URI(MAILTO:team@example.com)"), 2);
+    for word in [&b"javascript"[..], b"/JavaScript", b"passwd", b"/Launch"] {
+        assert!(!contains(&data, word), "{}", String::from_utf8_lossy(word));
+    }
+}
+
+#[test]
+fn title_meta_and_lang_become_metadata() {
+    let html = "<!doctype html><html lang=de><head><title> Shop
+        invoice </title><title>Second</title>
+        <meta name=author content='Shop team'><meta name=Description content='An invoice'>
+        <meta name=keywords content='invoice, shop,'><meta name=generator content=Blog>
+        </head><body><p>Shop</p></body></html>";
+    let info = Info::of(&parse::parse(html));
+    assert_eq!(
+        info,
+        Info {
+            title: Some("Shop invoice".to_owned()),
+            authors: vec!["Shop team".to_owned()],
+            description: Some("An invoice".to_owned()),
+            keywords: vec!["invoice".to_owned(), "shop".to_owned()],
+            lang: Some("de".to_owned()),
+        }
+    );
+    let data = rendered(html);
+    for entry in [
+        &b"/Title(Shop invoice)"[..],
+        b"/Author(Shop team)",
+        b"/Subject(An invoice)",
+        b"/Lang(de)",
+    ] {
+        assert!(contains(&data, entry), "{}", String::from_utf8_lossy(entry));
+    }
+    assert!(contains(&data, b"invoice") && !contains(&data, b"Second"));
+    // A document with none of them has no title and no language.
+    let data = rendered("<p>Shop</p>");
+    assert!(!contains(&data, b"/Title") && !contains(&data, b"/Lang"));
 }

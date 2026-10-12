@@ -17,10 +17,12 @@
 //! where the page's content box is its containing block. A `fixed` box always waits in the
 //! flow, and [`Flow::finish`] places a copy of it on every page against that page's content box.
 
+use std::collections::BTreeMap;
+
 use super::boxes::{self, Decor};
 use super::inline::Targets;
 use super::text::shift;
-use super::{Item, MARGIN, Page, keyword, length};
+use super::{Anchor, Bookmark, Item, MARGIN, Page, keyword, length};
 use crate::css::{Style, Value};
 
 /// A block box's geometry: its border box's `x` and `width`, and the rest top, right, bottom,
@@ -291,11 +293,15 @@ pub(super) struct Flow {
     fixed: Vec<Absolute>,
     /// The number of positioned boxes met so far, which orders those of equal `z-index`.
     order: usize,
-    /// The `id`s met since the last box was placed. Each lands on the page the next box is
-    /// placed on.
-    waiting: Vec<String>,
+    /// The `id`s and headings met since the last box was placed. Each lands on the page the
+    /// next box is placed on.
+    waiting: Vec<Anchor>,
     /// The page, counting from 1, each `id` landed on, the first of each name.
     pub(super) landed: Targets,
+    /// The page index and the top in the content box of each `id`, the first of each name.
+    pub(super) tops: BTreeMap<String, (usize, f32)>,
+    /// Each heading landed so far, its top in the content box.
+    pub(super) bookmarks: Vec<Bookmark>,
 }
 
 /// A float's margin box on its page: its left and right edge, its top and bottom from the top
@@ -326,20 +332,43 @@ impl Flow {
             order: 0,
             waiting: Vec::new(),
             landed: Targets::new(),
+            tops: BTreeMap::new(),
+            bookmarks: Vec::new(),
         }
     }
 
-    /// Records that the element with `id` starts at the next box placed.
-    pub(super) fn target(&mut self, id: String) {
-        self.waiting.push(id);
+    /// Records that the element with an `id`, or the heading, starts at the next box placed.
+    pub(super) fn target(&mut self, anchor: Anchor) {
+        self.waiting.push(anchor);
     }
 
-    /// Lands every `id` still waiting on the page the next box would start on, at the end of
-    /// the document.
+    /// Lands every `id` and heading still waiting on the page the next box would start on, at
+    /// the end of the document: at the top of that page when it is a new one.
     pub(super) fn land(&mut self) {
-        let page = self.landing() + 1;
-        for id in std::mem::take(&mut self.waiting) {
-            self.landed.entry(id).or_insert(page);
+        let page = self.landing();
+        let top = if page == self.pages.len() - 1 {
+            self.cursor
+        } else {
+            0.0
+        };
+        self.arrive(page, top);
+    }
+
+    /// Lands every `id` and heading waiting at `top` on the page at index `page`.
+    fn arrive(&mut self, page: usize, top: f32) {
+        for anchor in std::mem::take(&mut self.waiting) {
+            match anchor {
+                Anchor::Id(id) => {
+                    self.landed.entry(id.clone()).or_insert(page + 1);
+                    self.tops.entry(id).or_insert((page, top));
+                }
+                Anchor::Heading(level, title) => self.bookmarks.push(Bookmark {
+                    level,
+                    title,
+                    page,
+                    y: top,
+                }),
+            }
         }
     }
 
@@ -581,9 +610,7 @@ impl Flow {
         for open in &mut self.open {
             open.top.get_or_insert((page, item, top));
         }
-        for id in std::mem::take(&mut self.waiting) {
-            self.landed.entry(id).or_insert(page + 1);
-        }
+        self.arrive(page, top);
         self.cursor += height;
         top
     }

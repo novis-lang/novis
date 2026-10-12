@@ -15,7 +15,8 @@ use parley::{
 use super::block::{Break, Insets, geometry, insets, sides, z_index};
 use super::flex::{self, Flex};
 use super::{
-    Atom, BLACK, Block, Frame, Images, Inline, MARGIN, Para, Spaces, Span, color, keyword, length,
+    Anchor, Atom, BLACK, Block, Frame, Href, Images, Inline, MARGIN, Para, Spaces, Span, color,
+    keyword, length,
 };
 use crate::Error;
 use crate::assets::Assets;
@@ -56,6 +57,7 @@ pub(super) fn span_of(style: &Style, fonts: &Fonts, parent: Option<&Span>) -> Sp
         underline: has("underline").or(parent.and_then(|p| p.underline)),
         strike: has("line-through").or(parent.and_then(|p| p.strike)),
         align: vertical_align(style, parent),
+        link: parent.and_then(|p| p.link.clone()),
     }
 }
 
@@ -621,9 +623,13 @@ impl Builder<'_, '_> {
         }
     }
 
-    /// The index in [`Builder::spans`] of `style`'s text style inside the one at `parent`.
-    fn span(&mut self, style: &Style, parent: usize, fonts: &Fonts) -> usize {
-        let span = span_of(style, fonts, Some(&self.spans[parent]));
+    /// The index in [`Builder::spans`] of `style`'s text style inside the one at `parent`, linked
+    /// to `link` when there is one and to the parent's link otherwise.
+    fn span(&mut self, style: &Style, parent: usize, fonts: &Fonts, link: Option<Href>) -> usize {
+        let mut span = span_of(style, fonts, Some(&self.spans[parent]));
+        if link.is_some() {
+            span.link = link;
+        }
         if span == self.spans[parent] {
             parent
         } else {
@@ -931,7 +937,7 @@ impl Builder<'_, '_> {
         };
         self.targeted |= content.targeted;
         let mut inner = Frame {
-            span: self.span(style, frame.span, fonts),
+            span: self.span(style, frame.span, fonts, None),
             spaces: spaces_of(style),
             ..frame.clone()
         };
@@ -1231,7 +1237,8 @@ pub(super) fn blocks(
                     builder.after_space = true;
                     continue;
                 }
-                let span = builder.span(style, frame.span, fonts);
+                let link = node.attr("href").filter(|_| name == "a").and_then(Href::of);
+                let span = builder.span(style, frame.span, fonts, link);
                 let mut inner = Frame {
                     span,
                     spaces: spaces_of(style),
@@ -1302,7 +1309,21 @@ pub(super) fn blocks(
                     builder.blocks.push(Block::String { name, value });
                 }
                 if let Some(id) = node.attr("id") {
-                    builder.blocks.push(Block::Target(id.to_owned()));
+                    builder
+                        .blocks
+                        .push(Block::Target(Anchor::Id(id.to_owned())));
+                }
+                if let [b'h', level @ b'1'..=b'6'] = name.as_bytes() {
+                    let title = dom
+                        .text(at)
+                        .split_whitespace()
+                        .collect::<Vec<_>>()
+                        .join(" ");
+                    if !title.is_empty() {
+                        builder
+                            .blocks
+                            .push(Block::Target(Anchor::Heading(level - b'0', title)));
+                    }
                 }
                 let depth = frames.len();
                 counters.apply(style, depth);

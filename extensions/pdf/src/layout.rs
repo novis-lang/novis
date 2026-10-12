@@ -129,6 +129,13 @@
 //! left edge. A document that reads a page is laid out again with the pages the last pass gave,
 //! until no page changes, and `text::layout` throws after five passes.
 //!
+//! **Links and bookmarks.** An `<a href>` to `http:`, `https:` or `mailto:`, or to `#` and an
+//! `id`, gives its text style an [`Href`], and each glyph run drawn in that style is followed by
+//! an [`Item::Link`] over the run's advance, from its ascent to its descent. Any other `href`
+//! is no link. Each element with an `id` records the page and the top of the first box placed
+//! after it in [`Laid::anchors`], and each `h1` to `h6` a [`Bookmark`] the same way, so a link
+//! to an `id` no element has goes nowhere and the writer leaves it out.
+//!
 //! **Images**: an `<img>` whose bytes are PNG, JPEG, GIF, WebP or an SVG document, and an inline
 //! `<svg>`, is a block at its CSS `width` and `height`, else its `width` and `height` attributes,
 //! else its natural size, a pixel being a CSS pixel, scaled down to fit the content box. The
@@ -148,6 +155,7 @@
 //! Memory: one shaped `parley` layout at a time, and the positioned items of every page until
 //! the writer has drawn them.
 
+use std::collections::BTreeMap;
 use std::ops::Range;
 
 use hypher::Lang;
@@ -238,6 +246,56 @@ pub enum Item {
         transform: Option<Matrix>,
     },
     End,
+    /// The box `x`, `y`, `width`, `height` follows `href` when it is clicked. It draws nothing.
+    Link {
+        href: Href,
+        x: f32,
+        y: f32,
+        width: f32,
+        height: f32,
+    },
+}
+
+/// Where a link goes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Href {
+    /// An `http:`, `https:` or `mailto:` address.
+    Uri(String),
+    /// The element with this `id`.
+    Anchor(String),
+}
+
+impl Href {
+    /// The link an `href` attribute gives, or none when its scheme is not one a link may have.
+    pub fn of(href: &str) -> Option<Href> {
+        let href = href.trim();
+        if let Some(id) = href.strip_prefix('#') {
+            return (!id.is_empty()).then(|| Href::Anchor(id.to_owned()));
+        }
+        let (scheme, _) = href.split_once(':')?;
+        ["http", "https", "mailto"]
+            .iter()
+            .any(|s| s.eq_ignore_ascii_case(scheme))
+            .then(|| Href::Uri(href.to_owned()))
+    }
+}
+
+/// An outline entry: a heading's level from 1, its text, its page index and its top.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Bookmark {
+    pub level: u8,
+    pub title: String,
+    pub page: usize,
+    pub y: f32,
+}
+
+/// What a [`Block::Target`] records where it lands.
+#[derive(Debug, Clone)]
+enum Anchor {
+    /// The element with this `id`.
+    Id(String),
+    /// A heading of this level and text.
+    Heading(u8, String),
 }
 
 #[derive(Debug, Clone, Default)]
@@ -266,6 +324,10 @@ pub struct Laid {
     pub images: Images,
     pub faces: Vec<FaceData>,
     pub missing: Vec<Missing>,
+    /// The page index and the top of each `id`, the first element of each name.
+    pub anchors: BTreeMap<String, (usize, f32)>,
+    /// Each heading in document order.
+    pub bookmarks: Vec<Bookmark>,
 }
 
 /// Each picture a document draws, with the reference it was loaded from.
@@ -287,6 +349,8 @@ struct Span {
     /// Its `vertical-align`, with the parent's shift added to its own because each span's
     /// shift is given against the paragraph's baseline.
     align: VerticalAlign,
+    /// The link of the `<a href>` the text is in.
+    link: Option<Href>,
 }
 
 /// What a block's lines are broken and aligned with.
@@ -384,9 +448,9 @@ enum Block {
         /// the character it repeats. It fills the room left on its line.
         leaders: Vec<(usize, usize, String)>,
     },
-    /// The element with this `id` starts on the page the next box placed starts on. It takes
-    /// no room in the flow.
-    Target(String),
+    /// The element with an `id`, or the heading, starts on the page and at the top of the next
+    /// box placed. It takes no room in the flow.
+    Target(Anchor),
     Image {
         image: usize,
         x: f32,

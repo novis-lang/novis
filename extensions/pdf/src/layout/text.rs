@@ -107,6 +107,8 @@ fn pass(
     }
     flow.land();
     let landed = std::mem::take(&mut flow.landed);
+    let tops = std::mem::take(&mut flow.tops);
+    let mut bookmarks = std::mem::take(&mut flow.bookmarks);
     flow.finish([MARGIN, first.content_width(), 0.0], None);
     // Each page was laid out with its content box at `MARGIN`, `MARGIN`, and is moved to its own.
     for (index, page) in flow.pages.iter_mut().enumerate() {
@@ -119,6 +121,19 @@ fn pass(
                 .collect();
         }
         page.geometry = geometry;
+    }
+    // An `id` or a heading at the very end lands on the last page.
+    let last = flow.pages.len() - 1;
+    let on_page = |page: usize, top: f32| {
+        let page = page.min(last);
+        (page, flow.pages[page].geometry.margin[0] + top)
+    };
+    let anchors = tops
+        .into_iter()
+        .map(|(id, (page, top))| (id, on_page(page, top)))
+        .collect();
+    for bookmark in &mut bookmarks {
+        (bookmark.page, bookmark.y) = on_page(bookmark.page, bookmark.y);
     }
     // The margin boxes come last, when the page count is known, each with a text style of its
     // own after the document's.
@@ -162,6 +177,8 @@ fn pass(
         images,
         faces: cx.fonts.faces.clone(),
         missing: cx.missing,
+        anchors,
+        bookmarks,
     };
     Ok((laid, cx.fonts, landed, targeted))
 }
@@ -526,9 +543,9 @@ impl Cx<'_> {
                     top: flow.at_top(),
                 }),
                 // An `id` in a box laid out on a page of its own is not on any page yet.
-                Block::Target(id) => {
+                Block::Target(anchor) => {
                     if flow.paginates() {
-                        flow.target(id);
+                        flow.target(anchor);
                     }
                 }
                 Block::Image {
@@ -808,6 +825,17 @@ impl Cx<'_> {
                                             color: span.color,
                                             glyphs,
                                             text: line_text.to_owned(),
+                                        });
+                                    }
+                                    if let Some(href) = &span.link
+                                        && advance > 0.0
+                                    {
+                                        items.push(Item::Link {
+                                            href: href.clone(),
+                                            x: start,
+                                            y: baseline - font_metrics.ascent,
+                                            width: advance,
+                                            height: font_metrics.ascent + font_metrics.descent,
                                         });
                                     }
                                 };
@@ -1255,7 +1283,7 @@ fn break_lines(
 /// `item` moved right by `dx` and down by `dy`.
 pub(super) fn shift(mut item: Item, dx: f32, dy: f32) -> Item {
     match &mut item {
-        Item::Text { x, y, .. } | Item::Image { x, y, .. } => {
+        Item::Text { x, y, .. } | Item::Image { x, y, .. } | Item::Link { x, y, .. } => {
             *x += dx;
             *y += dy;
         }

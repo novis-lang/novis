@@ -1,10 +1,15 @@
 //! The writer: laid-out pages as a PDF file, by `krilla` (`rule:core-classes/pdf-output-is-inert`).
 //!
-//! Each page is A4, and each glyph run is drawn in its colour and its face, a default or an
-//! `@font-face` font, which `krilla` subsets to the glyphs the document draws. Each path is
-//! filled with the even-odd rule or stroked, in a colour, a gradient or an image's tiles, and each
-//! image is drawn at its box. A group is a clip path, an opacity or both, pushed at its start and
-//! popped at its end.
+//! Each page has the size its `@page` rules give, and each glyph run is drawn in its colour and
+//! its face, a default or an `@font-face` font, which `krilla` subsets to the glyphs the document
+//! draws. Each path is filled with the even-odd rule or stroked, in a colour, a gradient or an
+//! image's tiles, and each image is drawn at its box. A group is a clip path, an opacity or both,
+//! pushed at its start and popped at its end.
+//!
+//! Each [`Item::Link`] is a link annotation with no border: a URI action for an address, and a
+//! destination at the page and top of the `id` for an anchor, left out when no element has that
+//! `id`. The headings are the outline, each one under the last heading of a lower level before
+//! it. [`Info`] is the document's title, authors, description, keywords and language.
 //!
 //! The file is the same bytes for the same input. Nothing here reads a clock: the creation
 //! time is written only when the program passes one, in UTC. The file's `/ID` and its XMP
@@ -17,10 +22,14 @@
 //! standards, the password and the invoice attachment are Stage 12 and Stage 10's
 //! (`render`'s doc in the crate root says what each option does until then).
 
+use krilla::action::LinkAction;
+use krilla::annotation::{Annotation, LinkAnnotation, Target};
 use krilla::color::rgb;
-use krilla::geom::{Path, PathBuilder, Point, Size, Transform};
+use krilla::destination::XyzDestination;
+use krilla::geom::{Path, PathBuilder, Point, Rect, Size, Transform};
 use krilla::metadata::{DateTime, Metadata};
 use krilla::num::NormalizedF32;
+use krilla::outline::{Outline, OutlineNode};
 use krilla::page::PageSettings;
 use krilla::paint::{
     Fill, FillRule, LineCap, LinearGradient, Pattern, RadialGradient, SpreadMethod, Stop, Stroke,
@@ -32,8 +41,9 @@ use krilla::{Data, Document, SerializeSettings};
 use krilla_svg::{SurfaceExt, SvgSettings};
 
 use crate::css::Color;
-use crate::layout::{self, Item, Laid, Paint, Picture, Seg};
+use crate::layout::{self, Bookmark, Href, Item, Laid, Paint, Picture, Seg};
 use crate::paginate::PageBox;
+use crate::parse::{Dom, Space};
 use crate::{Error, Instant};
 
 /// Draws `picture` with its top-left corner at the surface's origin, stretched to `size`. An
@@ -166,14 +176,104 @@ fn paint_of(
     })
 }
 
-/// The PDF file of `laid`, created at `created` when there is one.
-pub fn write(laid: &Laid, created: Option<Instant>) -> Result<Vec<u8>, Error> {
+/// What a document says about itself: the text of its first `<title>`, the `content` of its
+/// `<meta name>` for `author`, `description` and `keywords`, and the `lang` of its root element.
+/// The keywords are split at commas, and an empty value is left out.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Info {
+    pub title: Option<String>,
+    pub authors: Vec<String>,
+    pub description: Option<String>,
+    pub keywords: Vec<String>,
+    pub lang: Option<String>,
+}
+
+impl Info {
+    pub fn of(dom: &Dom) -> Info {
+        let mut info = Info::default();
+        let words = |text: &str| {
+            let text = text.split_whitespace().collect::<Vec<_>>().join(" ");
+            (!text.is_empty()).then_some(text)
+        };
+        for (at, node) in dom.nodes.iter().enumerate() {
+            match node.element(Space::Html) {
+                Some("html") if info.lang.is_none() => {
+                    info.lang = node.attr("lang").and_then(words);
+                }
+                Some("title") if info.title.is_none() => info.title = words(&dom.text(at)),
+                Some("meta") => {
+                    let content = node.attr("content").unwrap_or_default();
+                    match node.attr("name").map(str::to_ascii_lowercase).as_deref() {
+                        Some("author") => info.authors.extend(words(content)),
+                        Some("description") if info.description.is_none() => {
+                            info.description = words(content);
+                        }
+                        Some("keywords") => {
+                            info.keywords.extend(content.split(',').filter_map(words));
+                        }
+                        _ => {}
+                    }
+                }
+                _ => {}
+            }
+        }
+        info
+    }
+}
+
+/// The outline of `bookmarks`: each one under the last before it of a lower level.
+fn outline(bookmarks: &[Bookmark]) -> Outline {
+    // The open entries, outermost first, each with its level.
+    let mut open: Vec<(u8, OutlineNode)> = Vec::new();
+    let mut outline = Outline::new();
+    let close = |open: &mut Vec<(u8, OutlineNode)>, outline: &mut Outline| {
+        let (_, node) = open.pop().expect("an entry is open");
+        match open.last_mut() {
+            Some((_, parent)) => parent.push_child(node),
+            None => outline.push_child(node),
+        }
+    };
+    for bookmark in bookmarks {
+        while open
+            .last()
+            .is_some_and(|(level, _)| *level >= bookmark.level)
+        {
+            close(&mut open, &mut outline);
+        }
+        let to = XyzDestination::new(bookmark.page, Point::from_xy(0.0, bookmark.y));
+        open.push((bookmark.level, OutlineNode::new(bookmark.title.clone(), to)));
+    }
+    while !open.is_empty() {
+        close(&mut open, &mut outline);
+    }
+    outline
+}
+
+/// The PDF file of `laid` with `info` as its metadata, created at `created` when there is one.
+pub fn write(laid: &Laid, info: &Info, created: Option<Instant>) -> Result<Vec<u8>, Error> {
     let mut document = Document::new_with(SerializeSettings::default());
+    let mut metadata = Metadata::new()
+        .authors(info.authors.clone())
+        .keywords(info.keywords.clone());
+    if let Some(title) = &info.title {
+        metadata = metadata.title(title.clone());
+    }
+    if let Some(description) = &info.description {
+        metadata = metadata.description(description.clone());
+    }
+    if let Some(lang) = &info.lang {
+        metadata = metadata.language(lang.clone());
+    }
     if let Some(created) = created {
-        document.set_metadata(Metadata::new().creation_date(date(created)?));
+        metadata = metadata.creation_date(date(created)?);
+    }
+    document.set_metadata(metadata);
+    if !laid.bookmarks.is_empty() {
+        document.set_outline(outline(&laid.bookmarks));
     }
     let mut faces: Vec<Option<Font>> = vec![None; laid.faces.len()];
     for laid_page in &laid.pages {
+        let mut links: Vec<Annotation> = Vec::new();
         let PageBox { width, height, .. } = laid_page.geometry;
         let size = PageSettings::from_wh(width, height).ok_or_else(|| {
             Error::Invalid(format!(
@@ -301,12 +401,36 @@ pub fn write(laid: &Laid, created: Option<Instant>) -> Result<Vec<u8>, Error> {
                     draw_picture(&mut surface, &laid.images[*image].0, box_size);
                     surface.pop();
                 }
+                Item::Link {
+                    href,
+                    x,
+                    y,
+                    width,
+                    height,
+                } => {
+                    let Some(rect) = Rect::from_xywh(*x, *y, *width, *height) else {
+                        continue;
+                    };
+                    let target = match href {
+                        Href::Uri(uri) => Target::Action(LinkAction::new(uri.clone()).into()),
+                        Href::Anchor(id) => match laid.anchors.get(id) {
+                            Some(&(page, top)) => Target::Destination(
+                                XyzDestination::new(page, Point::from_xy(0.0, top)).into(),
+                            ),
+                            None => continue,
+                        },
+                    };
+                    links.push(LinkAnnotation::new(rect, target).into());
+                }
             }
         }
         for _ in 0..groups.into_iter().sum::<usize>() {
             surface.pop();
         }
         surface.finish();
+        for link in links {
+            page.add_annotation(link);
+        }
         page.finish();
     }
     document.finish().map_err(|err| match err {
