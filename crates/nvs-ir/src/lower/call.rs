@@ -1375,14 +1375,15 @@ impl<'a> Lowering<'a> {
 /// a slot holding nothing reads the *forwarding* class back and the forward
 /// calls itself until the stack is gone. So the read is guarded exactly as a
 /// written `$w->logger` is — `Lowering::emit_never_written_guard` owns the
-/// argument for why the test is the tag — and the throw is the same
-/// `LogicError`, worded the same way, so that `rule:classes/delegation-by-field`'s forward reports
-/// the failure `rule:classes/an-unwritten-property-read-throws` defines rather than one of its own.
+/// argument for why the test is the tag. Its unset edge is the same erased
+/// read, so a forward over a `lateinit` field in a `LateInit` class calls
+/// `initProperty` first (`rule:classes/late-init-initializes-on-the-first-read`),
+/// and otherwise throws the `LogicError` `rule:classes/an-unwritten-property-read-throws`
+/// defines.
 ///
-/// The guarded edge is the one place this function's ownership is not the
-/// callee's: no call runs, so every argument it was transferred is released
-/// where the callee would have released it, and `$this` is left to the
-/// landing block that already owes it.
+/// A throw from that read is the one place this function's ownership is not
+/// the callee's: no call runs, so its own landing block releases every
+/// argument it was transferred, where the callee would have, and `$this`.
 ///
 /// `None` only when the parameter list is longer than an ABI slot index can
 /// count. Every type it declares erases — including a compiler-owned
@@ -1436,6 +1437,78 @@ pub(crate) fn delegation_forward(
         params.push(ty);
         args.push(value);
     }
+    // `rule:classes/an-unwritten-property-read-throws`'s guard, which splits the entry block: an unguarded
+    // forward keeps the single entry block the rest of this function builds.
+    let mut guard_blocks = Vec::new();
+    if never_written {
+        let is_init = ids.next_value();
+        let unset = ids.next_block();
+        let unset_landing = ids.next_block();
+        let body = ids.next_block();
+        insts.push(defines(
+            is_init,
+            Ty::Bool,
+            InstKind::FieldIsInit {
+                object: this,
+                class: delegation.class.clone(),
+                field: delegation.field.clone(),
+            },
+        ));
+        let entry_insts = std::mem::take(&mut insts);
+        let written_edge = ids.next_edge(delegation.span);
+        let unset_edge = ids.next_edge(delegation.span);
+        guard_blocks.push(BasicBlock {
+            id: entry,
+            insts: entry_insts,
+            term: Terminator::Branch {
+                cond: is_init,
+                then_block: body,
+                then_edge: written_edge,
+                else_block: unset,
+                else_edge: unset_edge,
+            },
+        });
+        // The erased read, as `Lowering::emit_never_written_guard`'s unset
+        // branch is: the runtime calls `initProperty` where the object's class
+        // implements `LateInit`, and throws the `LogicError` where it does
+        // not or where the slot is still unset after the call. The value it
+        // returns is borrowed and not used, because the body reads the slot
+        // again.
+        let initialized = ids.next_value();
+        guard_blocks.push(BasicBlock {
+            id: unset,
+            insts: vec![Inst {
+                result: Some(initialized),
+                ty: Some(Ty::Object),
+                kind: InstKind::SlotGet {
+                    object: this,
+                    field: delegation.field.clone(),
+                    slot: 0,
+                    absent: AbsentKey::Throws,
+                },
+                on_error: Some(unset_landing),
+                raise_site: None,
+            }],
+            term: Terminator::Jump(body),
+        });
+        // No call ran when the read throws, so each argument's transferred
+        // reference is this frame's to pay back, and so is `$this`.
+        let mut released: Vec<Inst> = args
+            .iter()
+            .zip(params.iter().skip(1))
+            .filter(|(_, param)| param.is_refcounted())
+            .map(|(&arg, _)| plain(InstKind::Release { operand: arg }))
+            .collect();
+        released.push(plain(InstKind::Release { operand: this }));
+        guard_blocks.push(BasicBlock {
+            id: unset_landing,
+            insts: released,
+            term: Terminator::Propagate {
+                frame: delegation.frame.clone(),
+            },
+        });
+        entry_block = body;
+    }
     insts.push(defines(
         inner,
         Ty::Object,
@@ -1445,88 +1518,6 @@ pub(crate) fn delegation_forward(
             field: delegation.field.clone(),
         },
     ));
-    // `rule:classes/an-unwritten-property-read-throws`'s guard, which splits the entry block: an unguarded
-    // forward keeps the single entry block the rest of this function builds.
-    let mut guard_blocks = Vec::new();
-    if never_written {
-        let is_unset = ids.next_value();
-        let unset = ids.next_block();
-        let body = ids.next_block();
-        insts.push(defines(
-            is_unset,
-            Ty::Bool,
-            InstKind::IsNull { operand: inner },
-        ));
-        let entry_insts = std::mem::take(&mut insts);
-        let mut refused = Vec::new();
-        // No call runs on this edge, so each argument's transferred
-        // reference is this frame's to pay back; `$this` is the landing
-        // block's, which every other exit already leaves to it.
-        for (&arg, param) in args.iter().zip(params.iter().skip(1)) {
-            if param.is_refcounted() {
-                refused.push(plain(InstKind::Release { operand: arg }));
-            }
-        }
-        let message = ids.next_value();
-        let absent = ids.next_value();
-        let tagged = ids.next_value();
-        let exception = ids.next_value();
-        refused.push(defines(
-            message,
-            Ty::Str,
-            InstKind::ConstStr(format!(
-                "`{}`'s property `${}` is read before it is initialized",
-                delegation.class, delegation.field
-            )),
-        ));
-        // Argument 2 is the `{previous}` bag flattened to its own `null`
-        // default, widened into the `Ty::Tagged` slot spec § 10's
-        // `Throwable|null` erases to — the list every hand-built throw in
-        // this crate assembles, `Lowering::lower_match`'s included.
-        refused.push(defines(absent, Ty::Null, InstKind::ConstNull));
-        refused.push(defines(
-            tagged,
-            Ty::Tagged,
-            InstKind::Tag { operand: absent },
-        ));
-        refused.push(Inst {
-            result: Some(exception),
-            ty: Some(Ty::Object),
-            kind: InstKind::New {
-                class: "LogicError".to_owned(),
-                ctor: Some(super::exception::THROWABLE_CTOR.to_owned()),
-                args: vec![message, tagged],
-            },
-            on_error: Some(landing),
-            raise_site: None,
-        });
-        let unset_edge = ids.next_edge(delegation.span);
-        let body_edge = ids.next_edge(delegation.span);
-        guard_blocks.push(BasicBlock {
-            id: entry,
-            insts: entry_insts,
-            term: Terminator::Branch {
-                cond: is_unset,
-                then_block: unset,
-                then_edge: unset_edge,
-                else_block: body,
-                else_edge: body_edge,
-            },
-        });
-        guard_blocks.push(BasicBlock {
-            id: unset,
-            insts: refused,
-            // No source: this block is synthesized around a delegation the
-            // program never wrote a `throw` in, and the machinery that resolves
-            // a span to a line is `Lowering`'s rather than this builder's.
-            term: Terminator::Throw {
-                value: exception,
-                source: None,
-                landing,
-            },
-        });
-        entry_block = body;
-    }
     insts.push(plain(InstKind::Retain { operand: inner }));
     insts.push(defines(
         desc,
