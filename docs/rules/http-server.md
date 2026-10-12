@@ -3,7 +3,7 @@
 
 # The HTTP server
 
-*4 of 80 rules below are **designed** rather than shipped, and are marked where they appear.*
+*5 of 80 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="http-server-two-deployments-and-nothing-a-proxy-owns"></a>
 
@@ -1900,7 +1900,7 @@ a program's cost.
 
 <a id="http-server-a-requests-blast-radius-is-bounded-at-four-tiers"></a>
 
-## Nothing a request can send terminates or wedges a worker: its blast radius is bounded at four named tiers, and the residue is one stated fault class
+## Nothing a request can send terminates or wedges a worker: its blast radius is bounded at four named tiers, and the residue is one stated fault class  *(designed — owned by goal request-isolation-debts)*
 
 `rule:http-server/a-requests-blast-radius-is-bounded-at-four-tiers`
 
@@ -1908,10 +1908,12 @@ A request's blast radius is bounded by construction at four named tiers, and the
 
 | Tier | Statement | Held by |
 |---|---|---|
-| **A** | No input a request can send terminates a worker process. | [`http-server/containment-does-not-end-at-the-helper`](http-server.md#http-server-containment-does-not-end-at-the-helper), [`http-server/no-path-reaches-abort`](http-server.md#http-server-no-path-reaches-abort), [`http-server/engine-depth-is-bounded-per-decoder`](http-server.md#http-server-engine-depth-is-bounded-per-decoder), [`http-server/a-jit-page-is-never-writable-and-executable-at-once`](http-server.md#http-server-a-jit-page-is-never-writable-and-executable-at-once), and the artifact cache being read rather than mapped |
+| **A** | No input a request can send terminates a worker process. | [`http-server/containment-does-not-end-at-the-helper`](http-server.md#http-server-containment-does-not-end-at-the-helper), [`http-server/no-path-reaches-abort`](http-server.md#http-server-no-path-reaches-abort), [`http-server/engine-depth-is-bounded-per-decoder`](http-server.md#http-server-engine-depth-is-bounded-per-decoder), [`http-server/a-jit-page-is-never-writable-and-executable-at-once`](http-server.md#http-server-a-jit-page-is-never-writable-and-executable-at-once), [`packaging/the-artifact-cache-is-read-not-mapped`](packaging.md#packaging-the-artifact-cache-is-read-not-mapped) |
 | **B** | No request causes another to fail, stall, or observe its data. | [`http-server/time-is-bounded-inside-a-helper`](http-server.md#http-server-time-is-bounded-inside-a-helper), [`http-server/a-core-is-never-blocked-on-a-syscall`](http-server.md#http-server-a-core-is-never-blocked-on-a-syscall), [`http-server/a-wedged-core-is-detected-by-its-deadline`](http-server.md#http-server-a-wedged-core-is-detected-by-its-deadline), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing) |
 | **C** | No request consumes beyond its own budget, a core's time included. | [`http-server/time-is-bounded-inside-a-helper`](http-server.md#http-server-time-is-bounded-inside-a-helper), [`http-server/a-core-is-never-blocked-on-a-syscall`](http-server.md#http-server-a-core-is-never-blocked-on-a-syscall), [`http-server/admission-is-arithmetic-not-a-number`](http-server.md#http-server-admission-is-arithmetic-not-a-number) |
 | **D** | *Residue.* An engine fault may terminate the process; the service recovers under its supervisor in about a cold start, and the requests in flight at that moment are lost. | [`http-server/the-residue-is-one-named-fault-class`](http-server.md#http-server-the-residue-is-one-named-fault-class) |
+
+Tier A holds once [`packaging/the-artifact-cache-is-read-not-mapped`](packaging.md#packaging-the-artifact-cache-is-read-not-mapped) ships: until then a cached unit is mapped, and a file truncated or replaced under the mapping can raise `SIGBUS` in the worker that reads it.
 
 [`errors/propagation`](errors.md#errors-propagation) contains a panic to one request at the ABI, [`errors/escalation-ladder`](errors.md#errors-escalation-ladder) gives every `FATAL` a path that ends in a log line, and [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused) refuses text whose spelling and meaning come apart. What goes *around* all of them falls into three shapes, and only three: a process `abort()`, a signal, and a core that is alive and never comes back. Each tier names which of those it closes, so the guarantee is falsifiable — a corpus of hostile requests either terminates a worker or does not. Tier D is written down because a residue that is named can be measured and revisited; the one that is not named is the one an operator discovers.
 

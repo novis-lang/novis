@@ -1,11 +1,12 @@
 {
-  "title": "A path capture the matcher cannot convert is a `404`, and one a class built from text refuses is a `400`",
-  "status": "shipped",
+  "title": "A `#[Query]` value that does not convert is a `400`, where a path capture the matcher cannot convert is a `404`",
+  "status": "designed",
   "seeAlso": [
     "routing/a-query-parameter-is-declared-like-a-capture",
     "security/route-capture-is-laundered-by-its-type"
   ],
   "guardedBy": [
     "tests/conformance/core/a-segment-the-class-refuses-never-reaches-the-handler.nvst"
-  ]
+  ],
+  "milestone": "M16"
 }

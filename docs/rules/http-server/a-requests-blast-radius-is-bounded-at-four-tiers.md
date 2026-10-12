@@ -2,9 +2,11 @@ A request's blast radius is bounded by construction at four named tiers, and the
 
 | Tier | Statement | Held by |
 |---|---|---|
-| **A** | No input a request can send terminates a worker process. | `rule:http-server/containment-does-not-end-at-the-helper`, `rule:http-server/no-path-reaches-abort`, `rule:http-server/engine-depth-is-bounded-per-decoder`, `rule:http-server/a-jit-page-is-never-writable-and-executable-at-once`, and the artifact cache being read rather than mapped |
+| **A** | No input a request can send terminates a worker process. | `rule:http-server/containment-does-not-end-at-the-helper`, `rule:http-server/no-path-reaches-abort`, `rule:http-server/engine-depth-is-bounded-per-decoder`, `rule:http-server/a-jit-page-is-never-writable-and-executable-at-once`, `rule:packaging/the-artifact-cache-is-read-not-mapped` |
 | **B** | No request causes another to fail, stall, or observe its data. | `rule:http-server/time-is-bounded-inside-a-helper`, `rule:http-server/a-core-is-never-blocked-on-a-syscall`, `rule:http-server/a-wedged-core-is-detected-by-its-deadline`, `rule:security/isolate-shares-nothing` |
 | **C** | No request consumes beyond its own budget, a core's time included. | `rule:http-server/time-is-bounded-inside-a-helper`, `rule:http-server/a-core-is-never-blocked-on-a-syscall`, `rule:http-server/admission-is-arithmetic-not-a-number` |
 | **D** | *Residue.* An engine fault may terminate the process; the service recovers under its supervisor in about a cold start, and the requests in flight at that moment are lost. | `rule:http-server/the-residue-is-one-named-fault-class` |
+
+Tier A holds once `rule:packaging/the-artifact-cache-is-read-not-mapped` ships: until then a cached unit is mapped, and a file truncated or replaced under the mapping can raise `SIGBUS` in the worker that reads it.
 
 `rule:errors/propagation` contains a panic to one request at the ABI, `rule:errors/escalation-ladder` gives every `FATAL` a path that ends in a log line, and `rule:errors/ambiguous-input-refused` refuses text whose spelling and meaning come apart. What goes *around* all of them falls into three shapes, and only three: a process `abort()`, a signal, and a core that is alive and never comes back. Each tier names which of those it closes, so the guarantee is falsifiable — a corpus of hostile requests either terminates a worker or does not. Tier D is written down because a residue that is named can be measured and revisited; the one that is not named is the one an operator discovers.
