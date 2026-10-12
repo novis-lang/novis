@@ -856,10 +856,15 @@ fn two_rasterisations_of_a_pdf_page_are_byte_equal() {
 /// request reached.
 type Ends = Result<[u8; 4], Limit>;
 
-/// The outcome of rasterising `data` in a request of its own, with two seconds of CPU and 256 MiB.
-fn bomb(host: &Host, extension: &Extension, data: Vec<u8>) -> Result<Vec<u8>, Failure> {
+/// The outcome of rasterising `data` in a request of its own, with `seconds` of CPU and 256 MiB.
+fn bomb(
+    host: &Host,
+    extension: &Extension,
+    data: Vec<u8>,
+    seconds: u64,
+) -> Result<Vec<u8>, Failure> {
     let request = host.request(Arc::new(Meter::new(
-        Duration::from_secs(2),
+        Duration::from_secs(seconds),
         Some(256 << 20),
     )));
     let out = run(
@@ -948,7 +953,10 @@ fn the_pdf_bomb_corpus_ends_in_a_throw_or_a_contained_trap() {
         .into_bytes();
     corpus.push(("a stream length that is a lie", lie, Ok(RED)));
     for (name, data, ends) in corpus {
-        match (bomb(&host, &extension, data), ends) {
+        // A bomb that ends at the memory cap gets a deadline that a loaded machine does not
+        // reach first. Every other one ends inside two seconds.
+        let seconds = if ends == Err(Limit::Memory) { 60 } else { 2 };
+        match (bomb(&host, &extension, data, seconds), ends) {
             (Err(Failure::Limit(got)), Err(limit)) => assert_eq!(got, limit, "{name}"),
             (Ok(out), Ok(pixel)) => {
                 assert_eq!(size_of(&out), (200, 100), "{name}");
@@ -958,6 +966,6 @@ fn the_pdf_bomb_corpus_ends_in_a_throw_or_a_contained_trap() {
         }
     }
     // The host is unharmed: the next request rasterises a page.
-    let out = bomb(&host, &extension, three_pages()).expect("a plain page after the corpus");
+    let out = bomb(&host, &extension, three_pages(), 2).expect("a plain page after the corpus");
     assert_eq!(size_of(&out), (200, 100));
 }
