@@ -300,8 +300,8 @@ struct TryFrame<'a> {
 /// The constant is translated here rather than in `nvs-codegen` because
 /// `nvs_types::ConstArg` is everything a *signature* can carry and
 /// `nvs_types::FieldDefault` is only what a written property declaration can
-/// reach: a variant outside that set is unreachable rather than lossy, since
-/// `nvs_types::defaults::eval_property_default` cannot produce one.
+/// reach. A written `= null` is outside that set, and [`field_default`] owns
+/// what it does.
 fn property_defaults(
     label: &str,
     layout: &nvs_types::ClassLayout,
@@ -338,13 +338,16 @@ fn property_defaults(
         .collect()
 }
 
-/// One evaluated constant, as the runtime's own smaller vocabulary spells it —
-/// `None` for a variant neither a written property declaration nor a written
-/// parameter default can reach, which is unreachable rather than lossy for
-/// [`property_defaults`]' reason and for [`codec_fields`]'. They are one
-/// reason twice: `nvs_types::defaults` accepts a literal of the declared type
-/// and nothing else, and the two literal sets differ only by the `= []` and the
-/// folded named constant a property may additionally write.
+/// One evaluated constant, as the runtime's own smaller vocabulary spells it,
+/// or `None` where that vocabulary has no member for it.
+///
+/// `ConstArg::Null` reaches this: a property or a `static` written `= null`
+/// gives `None` and arms nothing, and its slot reads `null`
+/// (`tests/conformance/core/a-nullable-property-defaults-to-null.nvst`). What a
+/// `?T $x = null` constructor parameter's codec field still lacks is
+/// `rule:core-api/required-optional-and-nullable`'s. Every other `None` arm is
+/// a constant `nvs_types::defaults` does not accept as a written property
+/// default, which the comments on the arms below name one by one.
 fn field_default(value: &nvs_types::ConstArg) -> Option<nvs_types::FieldDefault> {
     use nvs_types::{ConstArg, FieldDefault};
 

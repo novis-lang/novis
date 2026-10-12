@@ -23,7 +23,7 @@ stages:
   - id: 3
     title: the renderings match the rule
     status: open
-    context: [crates/nvs-render/src/plain.rs, crates/nvs-stdlib/src/debug.rs, crates/nvs-stdlib/src/cli.rs]
+    context: [crates/nvs-render/src/plain.rs, crates/nvs-runtime/src/ctx/output.rs, crates/nvs-stdlib/src/cli.rs]
     extra:
       context:
         rules: [errors/renderings, tooling/the-terminal-profile-resolves-once]
@@ -81,6 +81,11 @@ checks:
     name: "nvs-render (the plaintext rendering is coloured when the terminal profile has colour, and plain when it has none)"
     run: [cargo, test, --lib, "plain::"]
     tests: [the_plaintext_rendering_is_coloured_when_the_profile_has_colour, the_plaintext_rendering_has_no_colour_when_the_profile_has_none]
+  - id: renderings-inline-style
+    stage: 3
+    name: "nvs-runtime (the `[debug] inline` block carries its style once per response, under the request's CSP nonce)"
+    run: [cargo, test, --lib, inline_debug]
+    tests: [the_inline_debug_block_carries_its_style_once_under_the_requests_nonce]
   - id: generator-clone
     stage: 4
     name: "a `clone` of a generator does not compile, and one reached through `mixed` throws"
@@ -144,10 +149,10 @@ case's source is corrected and its expected output is not touched; the commit sa
 
 **The renderings.** The plaintext rendering is coloured exactly when the resolved terminal profile has
 colour, read from `Core\Cli`'s one profile (`crates/nvs-stdlib/src/cli.rs:4`); the "no colour yet"
-section of `crates/nvs-render/src/plain.rs:15-23` goes. The fragment's carrier table is rewritten to
-what ships: `Core\Debug::render` returns `Core\Cli\Text` under every sink
-(`crates/nvs-stdlib/src/debug.rs:69-81`), and the fragment says so. The session checks each other row
-against the code before it flips the rule (not checked when this goal was written).
+section of `crates/nvs-render/src/plain.rs:15-23` goes. The `[debug] inline` block carries its own
+style, inline and once per response, under the request's CSP nonce; today the block is appended with no style and no nonce (`crates/nvs-runtime/src/ctx/output.rs:602`).
+No response draws a CSP nonce yet: the slotted scripts reach a written `Content-Security-Policy` by
+hash instead (`crates/nvs-server/src/slotted/mod.rs:70`).
 
 **A generator does not `clone`.** The copy walk already refuses a generator
 (`crates/nvs-runtime/src/graph.rs:394`). `clone` of a value whose type is a generator is a compile
@@ -200,10 +205,10 @@ user reads*.
 
 ### 3. the renderings match the rule
 
-**Does:** the plaintext rendering is coloured from the terminal profile, and the fragment's table is what ships.
+**Does:** the plaintext rendering is coloured from the terminal profile, and the HTML debug block carries its style under the request's CSP nonce.
 
 - [ ] Colour from the one profile, and the "no colour yet" section rewritten. `crates/nvs-render/src/plain.rs:15`
-- [ ] The carrier table reconciled with `Core\Debug::render`. `crates/nvs-stdlib/src/debug.rs:69`
+- [ ] The `[debug] inline` block's style, inline and once per response, under the request's CSP nonce. `crates/nvs-runtime/src/ctx/output.rs:602`
 
 ### 4. a generator does not `clone`
 

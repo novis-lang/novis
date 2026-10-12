@@ -116,9 +116,9 @@ fn initialize_declares_exactly_the_capabilities_this_goal_ships() {
     // The absences are the load-bearing half. `rename` and `workspaceSymbol`
     // each look one line away from being free and are not: both need an edit
     // and a query the symbol index does not hold.
-    // `rule:ide/the-request-set-is-closed` is where the test a request outside
-    // M4B's nine has to pass is written down, and this assertion is what makes
-    // failing it visible.
+    // `rule:ide/the-request-set-is-closed` writes down the test a request must
+    // pass before the server declares it, and this assertion is what makes a
+    // request declared without passing it visible.
     let declared = nvs_lsp::declared_capabilities(PositionEncodingKind::UTF8);
     let keys: BTreeSet<&str> = declared
         .as_object()

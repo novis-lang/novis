@@ -27,8 +27,8 @@
 //! current, and [`analyse_file`] is the one place a map is lent.
 //!
 //! **Diagnostics are published only for open documents.** Publishing for a file
-//! nobody opened is workspace-wide analysis, which is M10's, and
-//! [`Documents::to_republish`] is where that boundary sits. It answers the
+//! nobody opened would be workspace-wide analysis, which this server does not
+//! do, and [`Documents::to_republish`] is where that boundary sits. It answers the
 //! other half of the rule too — editing one document re-analyses every open
 //! document whose graph contains it — out of the reverse index
 //! [`Documents::record_graph`] builds from the analysis that has just run,

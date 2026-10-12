@@ -105,10 +105,8 @@ const CARD: ClassDoc = ClassDoc {
 
 /// Spec § 16's `Core\Debug`, as much of it as `rule:errors/debug-dump` declares.
 ///
-/// The coverage, trace and profile members that section also lists are
-/// `rule:testing/debug-probes`'s
-/// and land at M10 — that ADR's own scope, which the spec row used to
-/// attribute `dump` to as well.
+/// The coverage, trace and profile members that section also lists are not
+/// here: they are `rule:testing/debug-surface`'s, which M10 owns.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),

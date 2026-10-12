@@ -67,8 +67,8 @@
 //! hold the file must not be handed a `secret` literal's bytes, which this
 //! walk cannot recognise because it is a parse and the qualifier is a type
 //! (`rule:security/redaction-reaches-the-tools-own-renderings`,
-//! `rule:ide/ast-json-schema-is-frozen`). Text arrives here the day a caller
-//! arrives that has type-checked, and the placeholder arrives with it.
+//! `rule:ide/ast-json-schema-is-frozen`). So the dump carries no literal text
+//! at all, and needs no placeholder for a `secret` one.
 //!
 //! **What it spends:** one [`Node`] per statement, expression and member —
 //! two words for the kind, a span, an optional second span for the name, and
