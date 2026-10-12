@@ -1700,6 +1700,16 @@ pub(crate) struct Lowering<'a> {
     /// this flag says which of the two is being lowered. `false` everywhere
     /// else.
     reading_guarded_target: bool,
+    /// The spans of the root properties of the element writes and `unset`s
+    /// being lowered — `$p->tags` in `$p->tags["0"] = v` — whose reads skip
+    /// `onPropertyGet` (`rule:classes/property-observer-pipeline`).
+    ///
+    /// An element write reads its root property only to separate the array
+    /// and store it back, so the observer is told of it once, by the
+    /// `onPropertySet` [`Self::write_back_array`] emits. Pushed by the three
+    /// element-write paths around the read and truncated after it; empty
+    /// everywhere else, and never more than a statement's nesting long.
+    silenced_gets: Vec<Span>,
     /// The representation of every local this frame has **declared without an
     /// initializer** — `int $x;`, whose type `rule:types/var-inference` fixes at the
     /// declaration while its first value arrives on some later line.
@@ -2072,6 +2082,7 @@ impl<'a> Lowering<'a> {
             owned_temporaries: Vec::new(),
             staged_targets: Vec::new(),
             reading_guarded_target: false,
+            silenced_gets: Vec::new(),
             declared_tys: FxHashMap::default(),
             lsb: None,
             this: None,
@@ -3107,7 +3118,12 @@ impl<'a> Lowering<'a> {
                 env.insert(name, (written, ty));
             }
             ExprKind::PropertyAccess { object, .. } => {
-                let Some(ExprInfo::Property { class, name, .. }) = self.exprs.lookup(base.span)
+                let Some(ExprInfo::Property {
+                    class,
+                    name,
+                    observer,
+                    ..
+                }) = self.exprs.lookup(base.span)
                 else {
                     unreachable!(
                         "nvs-ir reaches an element write back through the property at {:?} \
@@ -3128,6 +3144,7 @@ impl<'a> Lowering<'a> {
                 };
                 let class_label = class.to_string();
                 let field_name = name.clone();
+                let observer = observer.clone();
                 let (object_v, receiver_ty) = self.lower_expr(object, None, env, cur);
                 // A narrowed `?T` receiver is still one tagged slot wide, so it
                 // arrives here as a `Ty::Tagged` — see
@@ -3135,8 +3152,26 @@ impl<'a> Lowering<'a> {
                 // property already goes through. Without it the `FieldSet`
                 // below stores through a 128-bit "pointer" and cranelift
                 // rejects the function rather than anything panicking here.
-                let (object_v, _) = self.untag_receiver(object_v, receiver_ty, *cur);
-                self.emit_field_set(*cur, object_v, class_label, field_name, written);
+                let (object_v, receiver_ty) = self.untag_receiver(object_v, receiver_ty, *cur);
+                self.emit_field_set(*cur, object_v, class_label, field_name.clone(), written);
+                // `rule:classes/property-observer-pipeline`: an element write
+                // and an element `unset` report the whole array once it is
+                // stored. The root's read reported nothing (see
+                // `Self::silenced_gets`), so this is the one call the
+                // observer gets.
+                if let Some(calls) = observer {
+                    self.emit_observer_call(
+                        *cur,
+                        object_v,
+                        receiver_ty,
+                        &field_name,
+                        written,
+                        Ty::Array,
+                        "onPropertySet",
+                        calls.set,
+                        env,
+                    );
+                }
             }
             // `Class::$prop[k] = v` — `Self::static_property_of` answers the
             // slot's whole identity out of the typed-expression table, so
@@ -3157,6 +3192,23 @@ impl<'a> Lowering<'a> {
                  the same table"
             ),
         }
+    }
+    /// Silences `onPropertyGet` on the root of the element path `target` when
+    /// that root is a property, and returns the mark [`Self::silenced_gets`]
+    /// is truncated back to once the root has been read.
+    pub(crate) fn silence_root_get(&mut self, target: &Expr) -> usize {
+        let mark = self.silenced_gets.len();
+        let mut root = target.unparenthesized();
+        if !matches!(root.kind, ExprKind::Index { .. }) {
+            return mark;
+        }
+        while let ExprKind::Index { base, .. } = &root.kind {
+            root = base.unparenthesized();
+        }
+        if matches!(root.kind, ExprKind::PropertyAccess { .. }) {
+            self.silenced_gets.push(root.span);
+        }
+        mark
     }
     /// The declared type behind the `inout $name` parameter `name` — the pointee
     /// representation [`Self::ref_locals`] remembers, which the parameter's

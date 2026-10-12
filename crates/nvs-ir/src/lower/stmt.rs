@@ -688,7 +688,11 @@ impl<'a> Lowering<'a> {
             &mut self.reading_guarded_target,
             op == BinaryOp::Coalesce || defaults,
         );
+        // An element target's root property reports no `onPropertyGet`: the
+        // store below reports the whole array once (`Self::silenced_gets`).
+        let silenced = self.silence_root_get(target);
         let (old, old_ty) = self.lower_expr(target, None, env, cur);
+        self.silenced_gets.truncate(silenced);
         self.reading_guarded_target = outer;
         self.stage(target.span, old, old_ty);
         // An increment's `1` has no source span to build an `ExprKind::Int`
@@ -1494,7 +1498,9 @@ impl<'a> Lowering<'a> {
                 let temporaries = self.temporaries_mark();
                 let addresses = self.staged_mark();
                 self.stage_target_address(root, env, cur);
+                let silenced = self.silence_root_get(target);
                 let (root_v, _) = self.lower_expr(root, None, env, cur);
+                self.silenced_gets.truncate(silenced);
                 // Every key, then the value: left to right, each exactly
                 // once, and every retain deferred until nothing that can
                 // throw is left to lower. An intermediate level may itself be
@@ -1725,7 +1731,9 @@ impl<'a> Lowering<'a> {
             root = inner.unparenthesized();
         }
         levels.reverse();
+        let silenced = self.silence_root_get(target);
         let (root_v, root_ty) = self.lower_expr(root, None, env, cur);
+        self.silenced_gets.truncate(silenced);
         assert!(
             root_ty == Ty::Array,
             "nvs-ir: an `unset` target's root lowered to {root_ty:?} rather than an array — \

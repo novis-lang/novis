@@ -4925,8 +4925,12 @@ impl<'a> Lowering<'a> {
         // `onPropertyGet` returns `void`. Emitted before the temporaries are
         // released so a throw out of the observer body drops the base too,
         // and before the fresh-producer retain below so the observer's own
-        // reference is accounted separately from the caller's.
-        if let Some(calls) = observer {
+        // reference is accounted separately from the caller's. The root of an
+        // element write reports nothing here: its write-back reports the
+        // whole array instead (`Self::silenced_gets`).
+        if let Some(calls) = observer
+            && !self.silenced_gets.contains(&expr.span)
+        {
             self.emit_observer_call(
                 *cur,
                 object_v,
