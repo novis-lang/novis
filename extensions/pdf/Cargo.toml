@@ -1,0 +1,43 @@
+[package]
+name = "nvs-pdf"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+publish = false
+description = "The PDF component built into every `nvs` binary: `nvs:pdf/engine`, compiled for `wasm32-wasip2`"
+
+# `cdylib` is the wasm file the build packs; `rlib` lets the engine core's tests
+# run on the host, where the WIT glue is not compiled.
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+base64 = "0.22"
+cssparser = "0.38"
+html5ever = "0.39"
+krilla = { version = "0.8", default-features = false, features = ["raster-images"] }
+parley = { version = "0.12", default-features = false, features = ["std"] }
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+wit-bindgen = "0.62"
+
+[dev-dependencies]
+png = "0.18"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"
+
+# This crate is not a member of the repository's workspace (its `exclude` names
+# `extensions`), and this table makes it a workspace of its own, so `cargo`
+# never resolves it for the host as part of the tree's ordinary build.
+[workspace]
+
+# The repository's patched html5ever 0.39.0, which `rule:core-classes/html-parsing`
+# needs for its cap on open elements. The root `Cargo.toml`'s `[patch.crates-io]`
+# row says what the patch carries; a workspace of its own needs the row again.
+[patch.crates-io]
+html5ever = { path = "../../vendor/html5ever" }
