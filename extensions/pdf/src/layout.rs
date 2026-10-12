@@ -4,8 +4,9 @@
 //! A page is A4 with a 2 cm margin on every side, and every length here is in PDF points (1/72
 //! inch, three quarters of a CSS pixel). An element's `display` comes from the cascade, whose
 //! user-agent sheet gives HTML's defaults: `none` draws nothing, `block`, `list-item` and the
-//! display types later stages lay out (`flex`, `grid`, `table` and `inline-block`) start a block
-//! box, and anything else is inline.
+//! display types later stages lay out (`flex`, `grid` and `table`) start a block box,
+//! `inline-block` is an atomic inline box, and anything else is inline. A `::before` or
+//! `::after` box whose `display` is `inline-block` is a block box.
 //!
 //! **Blocks** are laid top to bottom. A block box takes its margins, borders, padding, `width`,
 //! `min-width`, `max-width`, `height`, `min-height` and `box-sizing` from its style, with a
@@ -25,6 +26,16 @@
 //! starts on and its right side on the line it ends on, as in a left-to-right line, whatever the
 //! direction. Its vertical margins, and its `opacity`, change nothing. A block inside it splits
 //! it, and the part after the block draws its left side again.
+//!
+//! **Inline-blocks.** An `inline-block` box is an [`Atom`]: its content is laid out as a block of
+//! its own, then placed in its line as an in-flow `parley` inline box as wide and tall as its
+//! margin box, its baseline on the line's at its last line's baseline, or at its bottom margin
+//! edge when it has no line. A line grows to hold it, and it is never split across lines or
+//! pages. Without a `width`, it is as wide as its widest line laid out unbroken, up to its
+//! containing block: the box and every block in it whose width fills its own containing block
+//! narrow by the room left over. Its vertical margins do not collapse with its content's. An
+//! inner one is laid out before the one around it, each once, so nesting costs no recursion.
+//! The inline box around it draws around its text and not around the inline-block.
 //!
 //! **Text** is the inline content of a block, shaped and broken into lines by `parley` over
 //! `harfrust` and `skrifa`. Each run takes its font chain (`fonts`' module doc), `font-size`,
@@ -266,6 +277,9 @@ enum Block {
         marker: bool,
         /// The boxes of the inline elements in the text that draw one, outermost first.
         inline: Vec<Inline>,
+        /// Each `inline-block` box in the text: its byte offset there and its index in the list
+        /// of [`Atom`]s.
+        atoms: Vec<(usize, usize)>,
     },
     Image {
         image: usize,
@@ -276,6 +290,14 @@ enum Block {
         /// left and top from the box's, and its width and height. The box clips it.
         draw: [f32; 4],
     },
+}
+
+/// An `inline-block` box: laid out as a block of its own, then placed in its line as one piece.
+struct Atom {
+    /// Its blocks, from its own box's opening to its close, against a containing block at `x` 0.
+    blocks: Vec<Block>,
+    /// Its `vertical-align` in its line.
+    align: VerticalAlign,
 }
 
 /// What every element on the stack passes to its content.

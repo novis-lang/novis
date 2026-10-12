@@ -13,8 +13,8 @@ use parley::{
 
 use super::block::geometry;
 use super::{
-    BLACK, Block, CONTENT_WIDTH, Frame, Images, Inline, MARGIN, Para, Spaces, Span, color, keyword,
-    length,
+    Atom, BLACK, Block, CONTENT_WIDTH, Frame, Images, Inline, MARGIN, Para, Spaces, Span, color,
+    keyword, length,
 };
 use crate::Error;
 use crate::assets::Assets;
@@ -427,6 +427,25 @@ pub(super) struct Builder<'a, 'd> {
     inline: Vec<Inline>,
     /// The index in `inline` of each inline box still open, innermost last.
     open_inline: Vec<usize>,
+    /// Each `inline-block` box in the text being collected: its byte offset and its index in
+    /// `atoms`.
+    text_atoms: Vec<(usize, usize)>,
+    /// Every `inline-block` box closed so far, so an inner one comes before the one around it.
+    pub(super) atoms: Vec<Atom>,
+    /// The text and blocks around each `inline-block` box still open, innermost last.
+    outside: Vec<Outside>,
+}
+
+/// What an `inline-block` box sets aside while its own blocks are collected.
+struct Outside {
+    blocks: Vec<Block>,
+    text: String,
+    runs: Vec<(Range<usize>, usize)>,
+    owner: Option<(Para, f32, f32)>,
+    indented: bool,
+    inline: Vec<Inline>,
+    open_inline: Vec<usize>,
+    text_atoms: Vec<(usize, usize)>,
 }
 
 impl Builder<'_, '_> {
@@ -548,6 +567,51 @@ impl Builder<'_, '_> {
         Ok(drawn)
     }
 
+    /// Opens the `inline-block` box of `style` inside the content box of `outer`: sets the
+    /// text around it aside and opens its box against a containing block at `x` 0.
+    fn open_atom(&mut self, style: &Style, outer: &Frame, inner: &mut Frame) -> Result<(), Error> {
+        self.outside.push(Outside {
+            blocks: std::mem::take(&mut self.blocks),
+            text: std::mem::take(&mut self.text),
+            runs: std::mem::take(&mut self.runs),
+            owner: self.owner.take(),
+            indented: self.indented,
+            inline: std::mem::take(&mut self.inline),
+            open_inline: std::mem::take(&mut self.open_inline),
+            text_atoms: std::mem::take(&mut self.text_atoms),
+        });
+        let origin = Frame {
+            x: 0.0,
+            ..outer.clone()
+        };
+        self.open(style, &origin, inner)
+    }
+
+    /// Closes the innermost open `inline-block` box, whose `vertical-align` is `align`, and
+    /// adds it to the text around it at the end of that text, in `frame`'s paragraph.
+    fn close_atom(&mut self, align: VerticalAlign, frame: &Frame) {
+        self.flush();
+        self.blocks.push(Block::Close);
+        let Some(outside) = self.outside.pop() else {
+            return;
+        };
+        let blocks = std::mem::replace(&mut self.blocks, outside.blocks);
+        self.text = outside.text;
+        self.runs = outside.runs;
+        self.owner = outside.owner;
+        self.indented = outside.indented;
+        self.inline = outside.inline;
+        self.open_inline = outside.open_inline;
+        self.text_atoms = outside.text_atoms;
+        if self.owner.is_none() {
+            self.owner = Some((frame.para, frame.x, frame.width));
+        }
+        self.text_atoms.push((self.text.len(), self.atoms.len()));
+        self.atoms.push(Atom { blocks, align });
+        // Spaces after an inline-block are kept, as after a word.
+        self.after_space = false;
+    }
+
     /// Closes the innermost open inline box at the end of the text so far.
     fn close_inline(&mut self) {
         if let Some(at) = self.open_inline.pop() {
@@ -603,12 +667,14 @@ impl Builder<'_, '_> {
 
     /// Ends the text block being collected, if it has anything to draw. A control character
     /// that closes the paragraph is trimmed with its trailing spaces, because the paragraph's end
-    /// closes it too.
+    /// closes it too, but nothing before its last `inline-block` box is.
     pub(super) fn flush(&mut self) {
+        let floor = self.text_atoms.last().map_or(0, |(at, _)| *at);
         let trimmed = self
             .text
             .trim_end_matches(|c| c == ' ' || c == '\n' || is_bidi_control(c))
-            .len();
+            .len()
+            .max(floor);
         self.text.truncate(trimmed);
         self.runs.retain_mut(|(range, _)| {
             range.end = range.end.min(trimmed);
@@ -629,8 +695,9 @@ impl Builder<'_, '_> {
             i.range.end = i.range.end.min(trimmed);
             i.range.start < i.range.end
         });
+        let atoms = std::mem::take(&mut self.text_atoms);
         if let Some((mut para, x, width)) = self.owner.take()
-            && !self.runs.is_empty()
+            && (!self.runs.is_empty() || !atoms.is_empty())
         {
             if self.indented {
                 para.indent = 0.0;
@@ -644,6 +711,7 @@ impl Builder<'_, '_> {
                 width,
                 marker: false,
                 inline,
+                atoms,
             });
         }
         self.text.clear();
@@ -660,11 +728,17 @@ enum Step {
     Exit {
         at: usize,
         block: bool,
+        /// The `vertical-align` of an `inline-block` box, which closes into the text around it.
+        atom: Option<VerticalAlign>,
         /// Whether the element opened an inline box, which closes after its `::after`.
         inline: bool,
         close: Option<&'static str>,
     },
 }
+
+/// What [`blocks`] collects: the blocks, the `inline-block` boxes, the pictures and the text
+/// styles.
+type Collected = (Vec<Block>, Vec<Atom>, Images, Vec<Span>);
 
 /// The blocks of `dom`, in document order, and the text styles they name.
 pub(super) fn blocks(
@@ -672,7 +746,7 @@ pub(super) fn blocks(
     styles: &Styles,
     fonts: &Fonts,
     assets: &Assets<'_>,
-) -> Result<(Vec<Block>, Images, Vec<Span>), Error> {
+) -> Result<Collected, Error> {
     let empty = Style::default();
     // The root element is the first in document order.
     let rem = styles
@@ -694,6 +768,9 @@ pub(super) fn blocks(
         rem,
         inline: Vec::new(),
         open_inline: Vec::new(),
+        text_atoms: Vec::new(),
+        atoms: Vec::new(),
+        outside: Vec::new(),
     };
     let root = Frame {
         x: MARGIN,
@@ -715,6 +792,7 @@ pub(super) fn blocks(
             Step::Exit {
                 at,
                 block,
+                atom,
                 inline,
                 close,
             } => {
@@ -731,7 +809,10 @@ pub(super) fn blocks(
                     builder.close_inline();
                 }
                 counters.leave(depth);
-                if block {
+                if let Some(align) = atom {
+                    let outer = frames.last().expect("the root frame stays");
+                    builder.close_atom(align, outer);
+                } else if block {
                     builder.flush();
                     builder.blocks.push(Block::Close);
                 }
@@ -796,7 +877,11 @@ pub(super) fn blocks(
                     None
                 };
                 let block = display != "inline";
-                let inline = if block {
+                let atom = (display == "inline-block").then(|| vertical_align(style, None));
+                let inline = if atom.is_some() {
+                    builder.open_atom(style, &frame, &mut inner)?;
+                    false
+                } else if block {
                     builder.open(style, &frame, &mut inner)?;
                     false
                 } else {
@@ -847,6 +932,7 @@ pub(super) fn blocks(
                                 width: inner.width,
                                 marker: true,
                                 inline: Vec::new(),
+                                atoms: Vec::new(),
                             });
                         }
                     }
@@ -863,6 +949,7 @@ pub(super) fn blocks(
                 work.push(Step::Exit {
                     at,
                     block,
+                    atom,
                     inline,
                     close: controls.map(|(_, close)| close),
                 });
@@ -871,7 +958,7 @@ pub(super) fn blocks(
         }
     }
     builder.flush();
-    Ok((builder.blocks, builder.images, builder.spans))
+    Ok((builder.blocks, builder.atoms, builder.images, builder.spans))
 }
 
 /// The language of a `lang` attribute, by its primary subtag, if `hypher` has its patterns.

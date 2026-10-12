@@ -2,7 +2,7 @@
 //! lines down the pages and paints each box under its content when it closes.
 
 use super::boxes::{self, Decor};
-use super::{CONTENT_HEIGHT, Item, MARGIN, Page, keyword, length};
+use super::{Item, MARGIN, Page, keyword, length};
 use crate::css::{Style, Value};
 
 /// A block box's geometry: its border box's `x` and `width`, and the rest top, right, bottom,
@@ -16,6 +16,9 @@ pub(super) struct BoxGeometry {
     pub(super) padding: [f32; 4],
     /// The content box's least height, from `height` and `min-height`.
     pub(super) min_content: f32,
+    /// Whether its width is its containing block's less its margins, so it narrows when that
+    /// block does.
+    pub(super) fill: bool,
     pub(super) decor: Decor,
 }
 
@@ -45,9 +48,10 @@ pub(super) fn geometry(style: &Style, x: f32, containing: f32) -> BoxGeometry {
     let insets = border[1] + border[3] + padding[1] + padding[3];
     let border_box = keyword(style, "box-sizing") == Some("border-box");
     let to_border = |w: f32| if border_box { w } else { w + insets };
+    let filled = containing - margin[1] - margin[3];
     let mut width = match length(style, "width", containing) {
         Some(w) => to_border(w),
-        None => containing - margin[1] - margin[3],
+        None => filled,
     };
     if let Some(max) = length(style, "max-width", containing) {
         width = width.min(to_border(max));
@@ -55,6 +59,7 @@ pub(super) fn geometry(style: &Style, x: f32, containing: f32) -> BoxGeometry {
     if let Some(min) = length(style, "min-width", containing) {
         width = width.max(to_border(min));
     }
+    let fill = style.get("width").is_none() && width == filled;
     width = width.max(insets);
     let auto = |s: &str| keyword(style, &format!("margin-{s}")) == Some("auto");
     if style.get("width").is_some() || style.get("max-width").is_some() {
@@ -88,6 +93,7 @@ pub(super) fn geometry(style: &Style, x: f32, containing: f32) -> BoxGeometry {
         border,
         padding,
         min_content,
+        fill,
         decor: boxes::decor(style),
     }
 }
@@ -106,9 +112,24 @@ pub(super) struct Flow {
     pub(super) cursor: f32,
     pub(super) pending: f32,
     pub(super) open: Vec<Open>,
+    /// How tall a page's content is: the page's, or unbounded for an inline-block's one page.
+    limit: f32,
+    /// The baseline of the last line placed, from the top of its page's content.
+    pub(super) baseline: Option<f32>,
 }
 
 impl Flow {
+    pub(super) fn new(limit: f32) -> Flow {
+        Flow {
+            pages: vec![Page::default()],
+            cursor: 0.0,
+            pending: 0.0,
+            open: Vec::new(),
+            limit,
+            baseline: None,
+        }
+    }
+
     /// Moves to a new page when `height` does not fit under the last block, unless the page is
     /// empty, and returns the top of the box `height` is placed in.
     pub(super) fn place(&mut self, height: f32) -> f32 {
@@ -118,7 +139,7 @@ impl Flow {
         } else {
             self.pending
         };
-        if !empty && self.cursor + margin + height > CONTENT_HEIGHT {
+        if !empty && self.cursor + margin + height > self.limit {
             self.pages.push(Page::default());
             self.cursor = 0.0;
         } else {
@@ -189,7 +210,7 @@ impl Flow {
                 let bottom = if page == last {
                     self.cursor
                 } else {
-                    CONTENT_HEIGHT
+                    self.limit
                 };
                 let mut items = boxes::paint(
                     g,

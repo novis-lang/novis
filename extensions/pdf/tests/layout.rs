@@ -1165,3 +1165,109 @@ fn an_inline_box_draws_its_border_padding_and_background_around_its_text() {
     let first = render(&document).unwrap();
     assert_eq!(first.data, render(&document).unwrap().data);
 }
+
+#[test]
+fn an_inline_block_is_laid_out_as_a_block_and_placed_in_its_line() {
+    const YELLOW: (u8, u8, u8) = (255, 255, 0);
+    const BOX: &str =
+        "display: inline-block; padding: 4pt; border: 1pt solid #ff0000; background-color: #ffff00";
+    let page = |inside: &str, style: &str| {
+        lay(&format!(
+            "<body style='margin: 0'><p style='margin: 0'>Shop <span style='{BOX}; {style}'>{inside}</span> end</p><p style='margin: 0'>Next</p>"
+        ))
+    };
+    let yellow =
+        |laid: &Laid| -> Vec<Rect> { rects(laid).into_iter().filter(|r| r.4 == YELLOW).collect() };
+
+    // With no width, the box is as wide as its text and its padding and border, and sits
+    // between the words on their baseline.
+    let laid = page("Blog", "");
+    let mut drawn = runs(&laid);
+    let first = drawn.iter().map(|r| r.2).fold(f32::MAX, f32::min);
+    drawn.retain(|r| close(r.2, first));
+    drawn.sort_by(|a, b| a.1.total_cmp(&b.1));
+    let (shop, blog, end) = (drawn[0], drawn[1], drawn[2]);
+    let boxes = yellow(&laid);
+    assert_eq!(boxes.len(), 1, "{boxes:?}");
+    let (x, y, w, h, _) = boxes[0];
+    assert!(close(blog.1, x + 5.0), "{boxes:?} {drawn:?}");
+    assert!(close(blog.3, x + w - 5.0), "{boxes:?} {drawn:?}");
+    assert!(x > shop.3 && end.1 > x + w - 0.05, "{boxes:?} {drawn:?}");
+    assert!(close(blog.2, shop.2) && close(end.2, shop.2), "{drawn:?}");
+    assert!(
+        y < blog.2 - 12.0 && y + h > blog.2 + 3.0,
+        "{boxes:?} {drawn:?}"
+    );
+    assert!(rects(&laid).iter().any(|r| r.4 == (255, 0, 0)));
+
+    // A width of its own is kept, and a taller box makes its line taller.
+    let plain = page("Blog", "");
+    let tall = page("Blog", "width: 80pt; height: 60pt");
+    let boxes = yellow(&tall);
+    assert!(
+        close(boxes[0].2, 90.0) && close(boxes[0].3, 70.0),
+        "{boxes:?}"
+    );
+    let next = |laid: &Laid| lines(laid).len();
+    assert_eq!(next(&tall), next(&plain));
+    let baseline = |laid: &Laid, text: &str| {
+        laid.pages[0]
+            .items
+            .iter()
+            .find_map(|item| match item {
+                Item::Text { y, text: t, .. } if t.starts_with(text) => Some(*y),
+                _ => None,
+            })
+            .unwrap()
+    };
+    let grown = baseline(&tall, "Next") - baseline(&plain, "Next");
+    assert!(grown > 40.0, "{grown}");
+    // The box's one line is at its top and on the line's baseline, so the box reaches down
+    // from it.
+    let shop_line = baseline(&tall, "Shop");
+    assert!(
+        boxes[0].1 < shop_line && boxes[0].1 + boxes[0].3 > shop_line + 40.0,
+        "{boxes:?} {shop_line}"
+    );
+
+    // Of two lines in the box, the last one is on the baseline of the words beside it.
+    let laid = page("Blog<br>Shop", "");
+    let drawn = runs(&laid);
+    let mut words: Vec<f32> = drawn.iter().map(|r| r.2).collect();
+    words.sort_by(f32::total_cmp);
+    // The last baseline is the next paragraph's.
+    words.pop();
+    assert_eq!(words.len(), 4, "{drawn:?}");
+    assert!(words[0] < words[1] - 5.0, "{drawn:?}");
+    assert!(
+        close(words[2], words[1]) && close(words[3], words[1]),
+        "{drawn:?}"
+    );
+
+    // An inline-block inside another is drawn inside it.
+    let laid = page(
+        "Blog <span style='display: inline-block; background-color: #0000ff'>Shop</span>",
+        "",
+    );
+    let outer = yellow(&laid)[0];
+    let inner = rects(&laid)
+        .into_iter()
+        .find(|r| r.4 == (0, 0, 255))
+        .unwrap();
+    assert!(
+        inner.0 > outer.0 && inner.0 + inner.2 < outer.0 + outer.2,
+        "{outer:?} {inner:?}"
+    );
+    assert!(
+        inner.1 >= outer.1 && inner.1 + inner.3 <= outer.1 + outer.3,
+        "{outer:?} {inner:?}"
+    );
+
+    // It renders, and twice to the same bytes.
+    let document = Document {
+        html: format!("<p>Shop <span style='{BOX}'>Blog</span> end</p>"),
+        ..Document::default()
+    };
+    let first = render(&document).unwrap();
+    assert_eq!(first.data, render(&document).unwrap().data);
+}

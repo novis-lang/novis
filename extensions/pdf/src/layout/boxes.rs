@@ -913,15 +913,21 @@ pub fn bounds(path: &[Seg]) -> (f32, f32, f32, f32) {
     b
 }
 
-/// `path` moved down by `by`.
-pub(super) fn lower(path: &mut [Seg], by: f32) {
+/// `path` moved right by `dx` and down by `dy`.
+pub(super) fn shift(path: &mut [Seg], dx: f32, dy: f32) {
     for seg in path {
         match seg {
-            Seg::Move(_, y) | Seg::Line(_, y) => *y += by,
-            Seg::Cubic(_, y1, _, y2, _, y) => {
-                *y1 += by;
-                *y2 += by;
-                *y += by;
+            Seg::Move(x, y) | Seg::Line(x, y) => {
+                *x += dx;
+                *y += dy;
+            }
+            Seg::Cubic(x1, y1, x2, y2, x, y) => {
+                *x1 += dx;
+                *y1 += dy;
+                *x2 += dx;
+                *y2 += dy;
+                *x += dx;
+                *y += dy;
             }
             Seg::Close => {}
         }
