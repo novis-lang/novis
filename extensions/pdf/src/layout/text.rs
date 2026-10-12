@@ -298,12 +298,18 @@ impl Cx<'_> {
                     );
                     carry(&mut self.missing, lost, page_number);
                 }
-                Block::Absolute { atom, x, insets, z } => {
+                Block::Absolute {
+                    atom,
+                    x,
+                    insets,
+                    z,
+                    fixed,
+                } => {
                     let placed = &mut self.placed[atom];
                     let size = (placed.width, placed.height);
                     let items = std::mem::take(&mut placed.items);
                     let lost = std::mem::take(&mut placed.missing);
-                    flow.absolute(items, size, x, insets, z);
+                    flow.absolute(items, size, x, insets, z, fixed);
                     carry(&mut self.missing, lost, flow.pages.len() as u64);
                 }
                 Block::Image {
@@ -322,6 +328,7 @@ impl Cx<'_> {
                         items.push(Item::Begin {
                             opacity: 1.0,
                             clip: Some(boxes::rect(x, y, width, height)),
+                            transform: None,
                         });
                     }
                     items.push(Item::Image {
@@ -932,9 +939,14 @@ pub(super) fn shift(mut item: Item, dx: f32, dy: f32) -> Item {
                 }
             }
         }
-        Item::Begin { clip, .. } => {
+        Item::Begin {
+            clip, transform, ..
+        } => {
             if let Some(clip) = clip {
                 boxes::shift(clip, dx, dy);
+            }
+            if let Some(m) = transform {
+                *m = super::transform::shift(*m, dx, dy);
             }
         }
         Item::End => {}

@@ -27,14 +27,15 @@
 //! the box's. A slice of a box that goes on past a page is open on that side: no border, no
 //! outline edge and square corners.
 //!
-//! `opacity` is not drawn here: [`super::block::Flow`] wraps the box and its content in an
-//! [`Item::Begin`] and an [`Item::End`].
+//! `opacity` and `transform` are not drawn here: [`super::block::Flow`] wraps the box and its
+//! content in an [`Item::Begin`] and an [`Item::End`].
 
 use std::f32::consts::{FRAC_PI_2, PI};
 
 use crate::css::value::{self, Comp};
 use crate::css::{Color, Length, Style, Value};
 
+use super::transform::Transform;
 use super::{BLACK, BoxGeometry, Item, color, keyword, length};
 
 /// One step of a path, in points with `y` down the page.
@@ -243,6 +244,15 @@ pub(super) struct Decor {
     pub radius: [Length; 4],
     pub outline: Option<Outline>,
     pub opacity: f32,
+    pub transform: Option<Transform>,
+}
+
+impl Decor {
+    /// Whether the box and its content are drawn in one group: for its `opacity` or its
+    /// `transform`.
+    pub(super) fn grouped(&self) -> bool {
+        self.opacity < 1.0 || self.transform.is_some()
+    }
 }
 
 fn line_of(word: Option<&str>) -> Option<Line> {
@@ -288,6 +298,7 @@ pub(super) fn decor(style: &Style) -> Decor {
             Some(Value::Number(n)) => n.clamp(0.0, 1.0),
             _ => 1.0,
         },
+        transform: None,
     }
 }
 
@@ -386,7 +397,7 @@ pub(super) fn gradient(style: &Style, rem: f32) -> Option<Layer> {
     }
 }
 
-fn angle(v: f32, unit: &str) -> Option<f32> {
+pub(super) fn angle(v: f32, unit: &str) -> Option<f32> {
     Some(match unit {
         "deg" => v.to_radians(),
         "rad" => v,
@@ -839,6 +850,7 @@ pub(super) fn paint(g: &BoxGeometry, y: f32, h: f32, closed: [bool; 4]) -> Vec<I
                 out.push(Item::Begin {
                     opacity: 1.0,
                     clip: Some(outer.clone()),
+                    transform: None,
                 });
                 out.push(match (repeat_x, repeat_y) {
                     (true, _) => Item::Path {

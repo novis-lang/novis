@@ -528,7 +528,9 @@ fn borders_radius_backgrounds_and_gradients_lay_out() {
     // `opacity` puts the box and its text in one group.
     let laid = lay_box("opacity: 0.5; background-color: #00ff00");
     let items = &laid.pages[0].items;
-    assert!(matches!(items[0], Item::Begin { opacity, clip: None } if opacity == 0.5));
+    assert!(
+        matches!(items[0], Item::Begin { opacity, clip: None, transform: None } if opacity == 0.5)
+    );
     assert!(matches!(items[items.len() - 1], Item::End));
     assert!(items.iter().any(|i| matches!(i, Item::Text { .. })));
 
@@ -1796,6 +1798,190 @@ fn absolute_positions_against_its_containing_block() {
         html: format!(
             "<div style='{BOX}'><div style='{BLUE_BOX}; top: 20pt; right: 30pt'></div>{WORDS}</div>"
         ),
+        ..Document::default()
+    };
+    let first = render(&document).unwrap();
+    assert_eq!(first.data, render(&document).unwrap().data);
+}
+
+/// The corners of each box filled with `colour` on `page`, left, top, right and bottom, and its
+/// place among the page's items.
+fn on_page(laid: &Laid, page: usize, colour: (u8, u8, u8)) -> Vec<(usize, (f32, f32, f32, f32))> {
+    laid.pages[page]
+        .items
+        .iter()
+        .enumerate()
+        .filter_map(|(at, item)| match item {
+            Item::Path {
+                path,
+                paint: Paint::Color(c),
+                stroke: None,
+            } if (c.r, c.g, c.b) == colour => Some((at, layout::bounds(path))),
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn fixed_repeats_on_every_page() {
+    const BLUE_FIXED: &str =
+        "position: fixed; width: 40pt; height: 50pt; background-color: #0000ff";
+    const TALL: &str = "<div style='height: 700pt; background-color: #ff0000'></div>";
+
+    // A `fixed` box is drawn on every page, at the same place against the page's content box,
+    // even inside a positioned box, and takes no room in the flow.
+    let laid = lay(&format!(
+        "<body style='margin: 0'><div style='position: relative; margin-left: 50pt'><div style='{BLUE_FIXED}; top: 100pt; right: 0'></div></div>{TALL}{TALL}{TALL}"
+    ));
+    assert_eq!(laid.pages.len(), 3);
+    for page in 0..3 {
+        let [(at, blue)] = on_page(&laid, page, BLUE)[..] else {
+            panic!("page {page}: {:?}", on_page(&laid, page, BLUE))
+        };
+        assert!(
+            close(blue.2, layout::PAGE_WIDTH - MARGIN)
+                && close(blue.1, MARGIN + 100.0)
+                && close(blue.2 - blue.0, 40.0)
+                && close(blue.3 - blue.1, 50.0),
+            "page {page}: {blue:?}"
+        );
+        // The red boxes start at the top of every page, under the blue one.
+        let reds = on_page(&laid, page, RED);
+        assert!(close(reds[0].1.1, MARGIN), "page {page}: {reds:?}");
+        assert!(reds.iter().all(|r| r.0 < at), "page {page}: {reds:?} {at}");
+    }
+
+    // A watermark with a `z-index` below 0 is drawn under the page's other items.
+    let laid = lay(&format!(
+        "<body style='margin: 0'><div style='{BLUE_FIXED}; bottom: 0; left: 0; z-index: -1'></div>{TALL}{TALL}"
+    ));
+    for page in 0..2 {
+        let [(at, blue)] = on_page(&laid, page, BLUE)[..] else {
+            unreachable!()
+        };
+        assert!(
+            close(blue.0, MARGIN) && close(blue.3, layout::PAGE_HEIGHT - MARGIN),
+            "page {page}: {blue:?}"
+        );
+        let reds = on_page(&laid, page, RED);
+        assert!(
+            !reds.is_empty() && reds.iter().all(|r| at < r.0),
+            "page {page}: {at} {reds:?}"
+        );
+    }
+
+    // It renders, and twice to the same bytes.
+    let document = Document {
+        html: format!("<div style='{BLUE_FIXED}; top: 0; left: 0'></div>{TALL}{TALL}"),
+        ..Document::default()
+    };
+    let first = render(&document).unwrap();
+    assert_eq!(first.data, render(&document).unwrap().data);
+}
+
+/// The matrix of each group on the first page that has one, and the items inside it.
+fn transformed(laid: &Laid) -> Vec<(layout::Matrix, Vec<Item>)> {
+    let items = &laid.pages[0].items;
+    items
+        .iter()
+        .enumerate()
+        .filter_map(|(at, item)| match item {
+            Item::Begin {
+                transform: Some(m), ..
+            } => {
+                let mut depth = 0;
+                let inside = items[at + 1..]
+                    .iter()
+                    .take_while(|i| {
+                        match i {
+                            Item::Begin { .. } => depth += 1,
+                            Item::End if depth == 0 => return false,
+                            Item::End => depth -= 1,
+                            _ => {}
+                        }
+                        true
+                    })
+                    .cloned()
+                    .collect();
+                Some((*m, inside))
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+fn apply(m: layout::Matrix, x: f32, y: f32) -> (f32, f32) {
+    (m[0] * x + m[2] * y + m[4], m[1] * x + m[3] * y + m[5])
+}
+
+#[test]
+fn a_rotated_transform_is_drawn_rotated() {
+    let boxed = |style: &str| {
+        lay(&format!(
+            "<body style='margin: 0'><div style='width: 100pt; height: 50pt; background-color: #00ff00; {style}'>Shop</div><p>Blog</p>"
+        ))
+    };
+
+    // A rotation turns the box and its text about the centre of its border box, and the
+    // paragraph after it is not in the group.
+    let laid = boxed("transform: rotate(90deg)");
+    let [(m, inside)] = &transformed(&laid)[..] else {
+        panic!("{:?}", transformed(&laid))
+    };
+    let (cx, cy) = (MARGIN + 50.0, MARGIN + 25.0);
+    let centre = apply(*m, cx, cy);
+    assert!(close(centre.0, cx) && close(centre.1, cy), "{m:?}");
+    let corner = apply(*m, MARGIN, MARGIN);
+    assert!(
+        close(corner.0, cx + 25.0) && close(corner.1, cy - 50.0),
+        "{m:?} {corner:?}"
+    );
+    assert!(inside.iter().any(|i| matches!(i, Item::Path { .. })));
+    assert!(inside.iter().any(|i| matches!(i, Item::Text { .. })));
+    assert_eq!(drawn(&laid).concat().matches("Blog").count(), 1);
+    let texts = inside
+        .iter()
+        .filter(|i| matches!(i, Item::Text { .. }))
+        .count();
+    assert_eq!(texts, 1, "{inside:?}");
+
+    // The functions apply left to right about `transform-origin`, and a percentage in
+    // `translate` counts against the border box.
+    let laid = boxed("transform-origin: left top; transform: translate(10pt, 50%) scale(2)");
+    let [(m, _)] = &transformed(&laid)[..] else {
+        unreachable!()
+    };
+    let corner = apply(*m, MARGIN + 100.0, MARGIN + 50.0);
+    assert!(
+        close(corner.0, MARGIN + 210.0) && close(corner.1, MARGIN + 125.0),
+        "{m:?} {corner:?}"
+    );
+
+    // An absolute box turns about its own centre where it is placed.
+    let laid = lay(
+        "<body style='margin: 0'><div style='position: absolute; top: 100pt; left: 100pt; width: 40pt; height: 40pt; background-color: #0000ff; transform: rotate(45deg)'></div>",
+    );
+    let [(m, _)] = &transformed(&laid)[..] else {
+        unreachable!()
+    };
+    let (cx, cy) = (MARGIN + 120.0, MARGIN + 120.0);
+    let centre = apply(*m, cx, cy);
+    assert!(close(centre.0, cx) && close(centre.1, cy), "{m:?}");
+    let corner = apply(*m, MARGIN + 100.0, MARGIN + 100.0);
+    assert!(
+        close(corner.0, cx) && close(corner.1, cy - 20.0 * 2.0_f32.sqrt()),
+        "{m:?} {corner:?}"
+    );
+
+    // `none`, and a function with an argument it does not take, draw the box as it is.
+    for style in ["transform: none", "transform: rotate(10pt)"] {
+        assert!(transformed(&boxed(style)).is_empty(), "{style}");
+    }
+
+    // It renders, and twice to the same bytes.
+    let document = Document {
+        html: "<div style='width: 100pt; transform: rotate(-30deg) skewX(10deg)'>Shop</div>"
+            .to_owned(),
         ..Document::default()
     };
     let first = render(&document).unwrap();
