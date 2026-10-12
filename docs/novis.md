@@ -3739,6 +3739,7 @@ command option be declared at that class and arrive as an object:
 | `Stringable` | — |
 | `Parses` | — |
 | `PropertyObserver` | — |
+| `PropertyGuard` | — |
 | `LateInit` | — |
 | `Iterable` | T |
 | `Iterator` | T |
