@@ -652,7 +652,8 @@ fn title_meta_and_lang_become_metadata() {
         assert!(contains(&data, entry), "{}", String::from_utf8_lossy(entry));
     }
     assert!(contains(&data, b"invoice") && !contains(&data, b"Second"));
-    // A document with none of them has no title and no language.
+    // A document with none of them has no title and no language. The tag tree's role map
+    // names a `/Title` role, so the entries are matched with their value.
     let data = rendered("<p>Shop</p>");
-    assert!(!contains(&data, b"/Title") && !contains(&data, b"/Lang"));
+    assert!(!contains(&data, b"/Title(") && !contains(&data, b"/Lang("));
 }

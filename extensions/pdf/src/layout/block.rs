@@ -502,9 +502,15 @@ impl Flow {
         }
     }
 
-    /// Whether nothing is drawn on the last page and nothing has taken space on it.
+    /// Whether nothing is drawn on the last page and nothing has taken space on it. An
+    /// [`Item::Tag`] or [`Item::Untag`] draws nothing, so a page holding only those is empty.
     fn empty(&self) -> bool {
-        self.cursor <= self.start && self.pages.last().is_some_and(|p| p.items.is_empty())
+        self.cursor <= self.start
+            && self.pages.last().is_some_and(|p| {
+                p.items
+                    .iter()
+                    .all(|item| matches!(item, Item::Tag(_) | Item::Untag))
+            })
     }
 
     /// The margin the next box is placed under: the pending one, which the top of a page after
@@ -790,7 +796,12 @@ impl Flow {
                     g,
                     MARGIN + top,
                     bottom - top,
-                    [page == first || g.closed, true, page == last || g.closed, true],
+                    [
+                        page == first || g.closed,
+                        true,
+                        page == last || g.closed,
+                        true,
+                    ],
                 );
                 // A transform turns the slice of the box on this page about its own origin.
                 let grouped = g.decor.grouped();

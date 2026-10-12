@@ -860,7 +860,8 @@ fn object_fit_and_object_position_place_the_picture_in_its_box() {
             &assets,
         );
         let items = &laid.pages[0].items;
-        let clipped = matches!(items.first(), Some(Item::Begin { clip: Some(_), .. }));
+        let drawn = items.iter().find(|item| !matches!(item, Item::Tag(_)));
+        let clipped = matches!(drawn, Some(Item::Begin { clip: Some(_), .. }));
         let image = items.iter().find_map(|item| match item {
             Item::Image {
                 x,
