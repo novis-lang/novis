@@ -2,7 +2,7 @@
 //! font chain, and the elements the subset does not render
 //! (`rule:core-classes/pdf-css-subset`, `rule:core-classes/pdf-default-fonts`).
 
-use nvs_pdf::layout::{self, Item, Laid, MARGIN};
+use nvs_pdf::layout::{self, Item, Laid, MARGIN, Paint, Seg, Stroke};
 use nvs_pdf::{Asset, Document, assets, css, fonts, parse, render};
 
 const SERIF: &[u8] = include_bytes!("../../fonts/LiberationSerif-Regular.ttf");
@@ -67,18 +67,54 @@ fn lines(laid: &Laid) -> Vec<(f32, f32)> {
 /// A rectangle's `x`, `y`, width, height and colour.
 type Rect = (f32, f32, f32, f32, (u8, u8, u8));
 
+/// Each filled path's bounds and its colour, when it is filled with one.
 fn rects(laid: &Laid) -> Vec<Rect> {
+    paths(laid)
+        .into_iter()
+        .filter_map(|(bounds, paint, stroke)| match (paint, stroke) {
+            (Paint::Color(c), None) => {
+                Some((bounds.0, bounds.1, bounds.2, bounds.3, (c.r, c.g, c.b)))
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+/// A path's bounds as `x`, `y`, width and height, its paint and its stroke.
+type Drawn = ((f32, f32, f32, f32), Paint, Option<Stroke>);
+
+fn paths(laid: &Laid) -> Vec<Drawn> {
     laid.pages[0]
         .items
         .iter()
         .filter_map(|item| match item {
-            Item::Rect {
-                x,
-                y,
-                width,
-                height,
-                color,
-            } => Some((*x, *y, *width, *height, (color.r, color.g, color.b))),
+            Item::Path {
+                path,
+                paint,
+                stroke,
+            } => {
+                let (left, top, right, bottom) = layout::bounds(path);
+                Some((
+                    (left, top, right - left, bottom - top),
+                    paint.clone(),
+                    stroke.clone(),
+                ))
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+/// The segments of each path, by kind: moves and cubic curves.
+fn contours_and_curves(laid: &Laid) -> Vec<(usize, usize)> {
+    laid.pages[0]
+        .items
+        .iter()
+        .filter_map(|item| match item {
+            Item::Path { path, .. } => Some((
+                path.iter().filter(|s| matches!(s, Seg::Move(..))).count(),
+                path.iter().filter(|s| matches!(s, Seg::Cubic(..))).count(),
+            )),
             _ => None,
         })
         .collect()
@@ -348,6 +384,198 @@ fn block_boxes_take_margin_padding_border_and_width() {
     assert_eq!(rects.iter().filter(|r| r.4 == (255, 0, 0)).count(), 4);
     let (_, x, ..) = runs(&laid)[0];
     assert!(close(x, MARGIN + 17.0), "{x}");
+}
+
+/// A 2 by 2 PNG, opaque blue.
+fn png() -> Vec<u8> {
+    let mut out = Vec::new();
+    {
+        let mut encoder = png::Encoder::new(&mut out, 2, 2);
+        encoder.set_color(png::ColorType::Rgba);
+        encoder.set_depth(png::BitDepth::Eight);
+        let mut writer = encoder.write_header().unwrap();
+        writer
+            .write_image_data(&[0, 0, 255, 255].repeat(4))
+            .unwrap();
+    }
+    out
+}
+
+#[test]
+fn borders_radius_backgrounds_and_gradients_lay_out() {
+    let boxed = |style: &str| {
+        format!(
+            "<body style='margin: 0'><div style='width: 100pt; height: 50pt; {style}'>Shop</div>"
+        )
+    };
+    let lay_box = |style: &str| lay(&boxed(style));
+
+    // Sides that differ are drawn one by one: a dashed side is a stroke along its middle.
+    let laid = lay_box("border: 2pt dashed #ff0000; border-left-style: solid");
+    let strokes: Vec<Stroke> = paths(&laid).into_iter().filter_map(|p| p.2).collect();
+    assert_eq!(strokes.len(), 3, "{strokes:?}");
+    assert!(
+        strokes
+            .iter()
+            .all(|s| s.dash == [4.0, 4.0] && !s.round && s.width == 2.0)
+    );
+    assert_eq!(rects(&laid).len(), 1);
+
+    // Four dotted sides alike are one stroked rectangle along the border's middle.
+    let laid = lay_box("border: 2pt dotted #ff0000");
+    let all = paths(&laid);
+    assert_eq!(all.len(), 1, "{all:?}");
+    let ((x, y, w, h), _, stroke) = &all[0];
+    let stroke = stroke.as_ref().unwrap();
+    assert!(stroke.round && stroke.dash == [0.0, 4.0], "{stroke:?}");
+    assert!(
+        close(*x, MARGIN + 1.0) && close(*y, MARGIN + 1.0),
+        "{all:?}"
+    );
+    assert!(close(*w, 102.0) && close(*h, 52.0), "{all:?}");
+
+    // A double border is two rings, each a third of its width.
+    let laid = lay_box("border: 3pt double #ff0000");
+    let rings = contours_and_curves(&laid);
+    assert_eq!(rings, [(2, 0), (2, 0)], "{rings:?}");
+    let both = rects(&laid);
+    assert!(
+        close(both[0].2, 106.0) && close(both[1].2, 102.0),
+        "{both:?}"
+    );
+
+    // A radius rounds the background, and a percentage is of the width across and the height
+    // down.
+    let laid = lay_box("border-radius: 10pt; background-color: #00ff00");
+    assert_eq!(contours_and_curves(&laid), [(1, 4)]);
+    let background = rects(&laid)[0];
+    assert!(
+        close(background.0, MARGIN) && close(background.2, 100.0),
+        "{background:?}"
+    );
+    let laid = lay_box("border-radius: 50%; background-color: #00ff00");
+    let Item::Path { path, .. } = &laid.pages[0].items[0] else {
+        panic!("{:?}", laid.pages[0].items[0]);
+    };
+    assert!(matches!(path[0], Seg::Move(x, y) if close(x, MARGIN + 50.0) && close(y, MARGIN)));
+    assert!(
+        path.iter()
+            .any(|s| matches!(s, Seg::Cubic(.., x, y) if close(*x, MARGIN + 100.0) && close(*y, MARGIN + 25.0)))
+    );
+    // A rounded solid border is one ring that follows the corners.
+    let laid = lay_box("border: 2pt solid #ff0000; border-radius: 8pt");
+    assert_eq!(contours_and_curves(&laid), [(2, 8)]);
+
+    // A linear gradient runs along its direction over the padding box.
+    let laid = lay_box("background-image: linear-gradient(to right, red, blue)");
+    let all = paths(&laid);
+    let Paint::Linear {
+        x1,
+        y1,
+        x2,
+        y2,
+        stops,
+    } = &all[0].1
+    else {
+        panic!("{all:?}");
+    };
+    assert!(close(*x1, MARGIN) && close(*x2, MARGIN + 100.0) && close(*y1, *y2));
+    assert_eq!(stops.len(), 2);
+    assert_eq!((stops[0].offset, stops[0].color.r), (0.0, 255));
+    assert_eq!((stops[1].offset, stops[1].color.b), (1.0, 255));
+    let laid = lay_box("background: linear-gradient(red, lime 20%, blue)");
+    let all = paths(&laid);
+    let Paint::Linear {
+        x1, y1, y2, stops, ..
+    } = &all[0].1
+    else {
+        panic!("{all:?}");
+    };
+    assert!(close(*y1, MARGIN) && close(*y2, MARGIN + 50.0) && close(*x1, MARGIN + 50.0));
+    let offsets: Vec<f32> = stops.iter().map(|s| s.offset).collect();
+    assert!(close(offsets[1], 0.2) && offsets[2] == 1.0, "{offsets:?}");
+
+    // A radial gradient is centred, and `circle` reaches the farthest corner.
+    let laid = lay_box("background-image: radial-gradient(circle, white, black)");
+    let all = paths(&laid);
+    let Paint::Radial {
+        cx, cy, r, scale_y, ..
+    } = &all[0].1
+    else {
+        panic!("{all:?}");
+    };
+    assert!(
+        close(*cx, MARGIN + 50.0) && close(*cy, MARGIN + 25.0),
+        "{all:?}"
+    );
+    assert!(
+        close(*r, 50.0_f32.hypot(25.0)) && *scale_y == 1.0,
+        "{all:?}"
+    );
+
+    // An outline is drawn outside the border box, `outline-offset` away from it.
+    let laid = lay_box("outline: 1pt solid #0000ff; outline-offset: 2pt");
+    let top = rects(&laid)
+        .into_iter()
+        .find(|r| r.4 == (0, 0, 255) && r.3 < 2.0)
+        .expect("a top edge");
+    assert!(
+        close(top.0, MARGIN - 3.0) && close(top.1, MARGIN - 3.0),
+        "{top:?}"
+    );
+    assert!(close(top.2, 106.0), "{top:?}");
+
+    // `opacity` puts the box and its text in one group.
+    let laid = lay_box("opacity: 0.5; background-color: #00ff00");
+    let items = &laid.pages[0].items;
+    assert!(matches!(items[0], Item::Begin { opacity, clip: None } if opacity == 0.5));
+    assert!(matches!(items[items.len() - 1], Item::End));
+    assert!(items.iter().any(|i| matches!(i, Item::Text { .. })));
+
+    // An image `url()` is laid in tiles from the padding box, or once under `no-repeat`.
+    let assets = [Asset {
+        name: "tile.png".to_owned(),
+        data: png(),
+    }];
+    let laid = lay_with(
+        &boxed("border: 4pt solid #ff0000; background-image: url(tile.png)"),
+        &assets,
+    );
+    let all = paths(&laid);
+    assert!(
+        matches!(all[0].1, Paint::Tiles { x, y, width, .. } if close(x, MARGIN + 4.0) && close(y, MARGIN + 4.0) && close(width, 1.5)),
+        "{all:?}"
+    );
+    let laid = lay_with(&boxed("background: url(tile.png) no-repeat"), &assets);
+    let items = &laid.pages[0].items;
+    assert!(
+        matches!(items[0], Item::Begin { clip: Some(_), .. }),
+        "{items:?}"
+    );
+    assert!(matches!(items[1], Item::Image { width, .. } if close(width, 1.5)));
+    assert!(matches!(items[2], Item::End));
+
+    // All of them render, and twice to the same bytes.
+    let html: String = [
+        "border: 2pt dashed red; border-left-style: dotted",
+        "border: 3pt double red; border-radius: 6pt",
+        "border-radius: 50%; background: radial-gradient(white, black)",
+        "background-image: linear-gradient(45deg, red, blue 80%)",
+        "outline: 1pt dotted blue; opacity: 0.4",
+        "background: url(tile.png) repeat-x",
+        "background-image: url(tile.png)",
+    ]
+    .iter()
+    .map(|style| boxed(style).replace("<body style='margin: 0'>", ""))
+    .collect();
+    let document = Document {
+        html,
+        assets: assets.to_vec(),
+        ..Document::default()
+    };
+    let first = render(&document).unwrap();
+    assert!(first.data.starts_with(b"%PDF"));
+    assert_eq!(first.data, render(&document).unwrap().data);
 }
 
 #[test]

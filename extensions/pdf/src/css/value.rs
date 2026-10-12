@@ -309,12 +309,9 @@ pub fn expand(property: &str, text: &str) -> Option<Vec<(&'static str, Specified
             })?)
         }
         "border-radius" => {
-            if comps.iter().any(|c| *c == Comp::Slash) {
-                return set(vec![Specified::Text(text.trim().to_owned()); 4]);
-            }
+            // A corner is one radius, so the elliptical syntax with a slash is dropped.
             set(four(&comps, |c| {
                 parse(len(false), std::slice::from_ref(c), text)
-                    .map(|_| Specified::Text(serialize(c)))
             })?)
         }
         "border" | "border-top" | "border-right" | "border-bottom" | "border-left" | "outline" => {
@@ -790,7 +787,7 @@ fn number(c: &Comp) -> Option<f32> {
 }
 
 /// A length, a percentage, a unitless zero, or a `calc()` that evaluates to a length.
-fn length(c: &Comp) -> Option<Sum> {
+pub fn length(c: &Comp) -> Option<Sum> {
     match c {
         Comp::Dimension(v, unit) => unit_sum(*v, unit),
         Comp::Percentage(p) => Some(Sum {
@@ -979,7 +976,8 @@ fn serialize(c: &Comp) -> String {
     }
 }
 
-fn color(c: &Comp) -> Option<Color> {
+/// The colour `c` names: a hex colour, a keyword, `rgb()` or `hsl()`.
+pub fn color(c: &Comp) -> Option<Color> {
     match c {
         Comp::Hash(hex) => hex_color(hex),
         Comp::Ident(name) if name == "transparent" => Some(Color {

@@ -12,7 +12,8 @@
 //! percentage of the containing block's width, and `margin: auto` on both sides centres a box
 //! that has a width. Vertical margins collapse to the larger of two that meet, through a box
 //! with no border or padding on that side, and are dropped at the top of a page after the first.
-//! A box's background colour and its solid borders are drawn under its content; a box that
+//! A box's background, borders and outline are drawn under its content as paths (`boxes`'
+//! module doc), and a box under `opacity` is drawn with its content in one group. A box that
 //! goes on past a page is drawn in a slice on each page, closed at its first and last edge.
 //!
 //! **Text** is the inline content of a block, shaped and broken into lines by `parley` over
@@ -67,6 +68,12 @@ use parley::{
 };
 
 use cssparser::{Parser, Token};
+
+mod boxes;
+
+pub use boxes::{Paint, Seg, Stop, Stroke, bounds};
+
+use boxes::Decor;
 
 use crate::Error;
 use crate::assets::Assets;
@@ -123,14 +130,20 @@ pub enum Item {
         width: f32,
         height: f32,
     },
-    /// A filled rectangle: a background, a border side or a text decoration.
-    Rect {
-        x: f32,
-        y: f32,
-        width: f32,
-        height: f32,
-        color: Color,
+    /// A shape: a background, a border, an outline or a text decoration. It is stroked when it
+    /// has a `stroke`, and filled with the even-odd rule when it has none.
+    Path {
+        path: Vec<Seg>,
+        paint: Paint,
+        stroke: Option<Stroke>,
     },
+    /// Starts a group that ends at the matching [`Item::End`]: its items are drawn at `opacity`,
+    /// and only inside `clip` when it has one.
+    Begin {
+        opacity: f32,
+        clip: Option<Vec<Seg>>,
+    },
+    End,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -200,11 +213,10 @@ struct BoxGeometry {
     width: f32,
     margin: [f32; 4],
     border: [f32; 4],
-    border_color: [Color; 4],
     padding: [f32; 4],
-    background: Option<Color>,
     /// The content box's least height, from `height` and `min-height`.
     min_content: f32,
+    decor: Decor,
 }
 
 enum Block {
@@ -290,9 +302,6 @@ fn geometry(style: &Style, x: f32, containing: f32) -> BoxGeometry {
     let mut margin = side("margin", "");
     let padding = side("padding", "");
     let border = SIDES.map(|s| border_width(style, s));
-    let text_color = color(style, "color").unwrap_or(BLACK);
-    let border_color =
-        SIDES.map(|s| color(style, &format!("border-{s}-color")).unwrap_or(text_color));
     let insets = border[1] + border[3] + padding[1] + padding[3];
     let border_box = keyword(style, "box-sizing") == Some("border-box");
     let to_border = |w: f32| if border_box { w } else { w + insets };
@@ -337,10 +346,9 @@ fn geometry(style: &Style, x: f32, containing: f32) -> BoxGeometry {
         width,
         margin,
         border,
-        border_color,
         padding,
-        background: color(style, "background-color"),
         min_content,
+        decor: boxes::decor(style),
     }
 }
 
@@ -839,6 +847,63 @@ impl Builder<'_, '_> {
             return Ok(());
         };
         self.flush();
+        let (image, name) = self.decode(reference)?;
+        let (w, h) = image.size();
+        let (natural_w, natural_h) = (w as f32 * 0.75, h as f32 * 0.75);
+        let attr = |name: &str| {
+            dom.nodes[at]
+                .attr(name)
+                .and_then(|v| v.trim().trim_end_matches("px").parse::<f32>().ok())
+                .map(|px| px * 0.75)
+        };
+        let css_w = length(style, "width", frame.width).or_else(|| attr("width"));
+        let css_h = match style.get("height") {
+            Some(Value::Length(l)) if l.percent == 0.0 => Some(l.pt),
+            _ => attr("height"),
+        };
+        let (mut width, mut height) = match (css_w, css_h) {
+            (Some(w), Some(h)) => (w, h),
+            (Some(w), None) => (w, w * natural_h / natural_w.max(f32::EPSILON)),
+            (None, Some(h)) => (h * natural_w / natural_h.max(f32::EPSILON), h),
+            (None, None) => (natural_w, natural_h),
+        };
+        let scale = (frame.width / width.max(f32::EPSILON))
+            .min(CONTENT_HEIGHT / height.max(f32::EPSILON))
+            .min(1.0);
+        width *= scale;
+        height *= scale;
+        self.images.push((image, name));
+        self.blocks.push(Block::Image {
+            image: self.images.len() - 1,
+            x: frame.x,
+            width,
+            height,
+        });
+        Ok(())
+    }
+
+    /// The background image of `style`: a gradient, or an image `url()` loaded from the asset map
+    /// at its natural size.
+    fn layer(&mut self, style: &Style, rem: f32) -> Result<Option<boxes::Layer>, Error> {
+        let Some(reference) = boxes::image_reference(style) else {
+            return Ok(boxes::gradient(style, rem));
+        };
+        let (image, name) = self.decode(&reference)?;
+        let (w, h) = image.size();
+        let (repeat_x, repeat_y) = boxes::repeat(style);
+        self.images.push((image, name));
+        Ok(Some(boxes::Layer::Image {
+            image: self.images.len() - 1,
+            width: w as f32 * 0.75,
+            height: h as f32 * 0.75,
+            repeat_x,
+            repeat_y,
+        }))
+    }
+
+    /// The image `reference` names, decoded far enough to know its size, and the name an error
+    /// about it gives.
+    fn decode(&self, reference: &str) -> Result<(Image, String), Error> {
         let bytes = self.assets.resolve(reference)?.into_owned();
         let name = if reference.len() > 64 {
             format!("{}…", reference.chars().take(64).collect::<String>())
@@ -872,38 +937,7 @@ impl Builder<'_, '_> {
         };
         let image = decoded
             .map_err(|why| Error::Parse(format!("`{name}` does not decode as an image: {why}")))?;
-        let (w, h) = image.size();
-        let (natural_w, natural_h) = (w as f32 * 0.75, h as f32 * 0.75);
-        let attr = |name: &str| {
-            dom.nodes[at]
-                .attr(name)
-                .and_then(|v| v.trim().trim_end_matches("px").parse::<f32>().ok())
-                .map(|px| px * 0.75)
-        };
-        let css_w = length(style, "width", frame.width).or_else(|| attr("width"));
-        let css_h = match style.get("height") {
-            Some(Value::Length(l)) if l.percent == 0.0 => Some(l.pt),
-            _ => attr("height"),
-        };
-        let (mut width, mut height) = match (css_w, css_h) {
-            (Some(w), Some(h)) => (w, h),
-            (Some(w), None) => (w, w * natural_h / natural_w.max(f32::EPSILON)),
-            (None, Some(h)) => (h * natural_w / natural_h.max(f32::EPSILON), h),
-            (None, None) => (natural_w, natural_h),
-        };
-        let scale = (frame.width / width.max(f32::EPSILON))
-            .min(CONTENT_HEIGHT / height.max(f32::EPSILON))
-            .min(1.0);
-        width *= scale;
-        height *= scale;
-        self.images.push((image, name));
-        self.blocks.push(Block::Image {
-            image: self.images.len() - 1,
-            x: frame.x,
-            width,
-            height,
-        });
-        Ok(())
+        Ok((image, name))
     }
 }
 
@@ -947,6 +981,13 @@ fn blocks(
         lang: None,
         hyphenate: None,
     };
+    // The root element is the first in document order.
+    let rem = styles
+        .elements
+        .iter()
+        .flatten()
+        .next()
+        .map_or(empty.font_size(), Style::font_size);
     let mut counters = Counters::default();
     // An explicit stack, so a deep tree costs heap and never the call stack.
     let mut frames = vec![root];
@@ -1024,7 +1065,8 @@ fn blocks(
                 let block = display != "inline";
                 if block {
                     builder.flush();
-                    let geometry = geometry(style, frame.x, frame.width);
+                    let mut geometry = geometry(style, frame.x, frame.width);
+                    geometry.decor.layer = builder.layer(style, rem)?;
                     inner.x = geometry.x + geometry.border[3] + geometry.padding[3];
                     inner.width = (geometry.width
                         - geometry.border[1]
@@ -1203,33 +1245,24 @@ impl Flow {
                 } else {
                     CONTENT_HEIGHT
                 };
-                let mut items = Vec::new();
-                let (x, y, w, h) = (g.x, MARGIN + top, g.width, bottom - top);
-                let mut rect = |x: f32, y: f32, width: f32, height: f32, color: Color| {
-                    if width > 0.0 && height > 0.0 {
-                        items.push(Item::Rect {
-                            x,
-                            y,
-                            width,
-                            height,
-                            color,
-                        });
-                    }
-                };
-                if let Some(background) = g.background {
-                    rect(x, y, w, h, background);
+                let mut items =
+                    boxes::paint(g, MARGIN + top, bottom - top, page == first, page == last);
+                let opacity = g.decor.opacity < 1.0;
+                if opacity {
+                    items.insert(
+                        0,
+                        Item::Begin {
+                            opacity: g.decor.opacity,
+                            clip: None,
+                        },
+                    );
                 }
-                if page == first {
-                    rect(x, y, w, g.border[0], g.border_color[0]);
-                }
-                if page == last {
-                    rect(x, y + h - g.border[2], w, g.border[2], g.border_color[2]);
-                }
-                rect(x + w - g.border[1], y, g.border[1], h, g.border_color[1]);
-                rect(x, y, g.border[3], h, g.border_color[3]);
                 let under = if page == first { item } else { 0 };
                 let page = &mut self.pages[page].items;
                 page.splice(under..under, items);
+                if opacity {
+                    page.push(Item::End);
+                }
             }
         }
         self.pending = self.pending.max(open.geometry.margin[2]);
@@ -1352,13 +1385,15 @@ pub fn layout(
                                 ),
                             ] {
                                 if let Some(color) = color {
-                                    items.push(Item::Rect {
-                                        x: start,
-                                        y: baseline - offset - size / 2.0,
-                                        width: advance,
-                                        height: size.max(0.5),
+                                    items.push(boxes::fill(
+                                        boxes::rect(
+                                            start,
+                                            baseline - offset - size / 2.0,
+                                            advance,
+                                            size.max(0.5),
+                                        ),
                                         color,
-                                    });
+                                    ));
                                 }
                             }
                             if !glyphs.is_empty() {
@@ -1622,7 +1657,24 @@ fn break_lines(shaped: &mut Layout<usize>, text: &str, width: f32, hyphen: f32) 
 /// `item` moved down by `by`.
 fn lower(mut item: Item, by: f32) -> Item {
     match &mut item {
-        Item::Text { y, .. } | Item::Image { y, .. } | Item::Rect { y, .. } => *y += by,
+        Item::Text { y, .. } | Item::Image { y, .. } => *y += by,
+        Item::Path { path, paint, .. } => {
+            boxes::lower(path, by);
+            match paint {
+                Paint::Color(_) => {}
+                Paint::Linear { y1, y2, .. } => {
+                    *y1 += by;
+                    *y2 += by;
+                }
+                Paint::Radial { cy: y, .. } | Paint::Tiles { y, .. } => *y += by,
+            }
+        }
+        Item::Begin { clip, .. } => {
+            if let Some(clip) = clip {
+                boxes::lower(clip, by);
+            }
+        }
+        Item::End => {}
     }
     item
 }
