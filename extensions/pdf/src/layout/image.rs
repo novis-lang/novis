@@ -7,7 +7,7 @@ use krilla::Data;
 use krilla::image::Image;
 
 use super::inline::Builder;
-use super::{Block, CONTENT_HEIGHT, Frame, boxes, keyword, length};
+use super::{Block, Frame, boxes, keyword, length};
 use crate::Error;
 use crate::css::value::{self, Comp};
 use crate::css::{Style, Value};
@@ -97,7 +97,7 @@ impl Builder<'_, '_> {
             (None, None) => (natural_w, natural_h),
         };
         let scale = (frame.width / width.max(f32::EPSILON))
-            .min(CONTENT_HEIGHT / height.max(f32::EPSILON))
+            .min(self.page_height / height.max(f32::EPSILON))
             .min(1.0);
         width *= scale;
         height *= scale;

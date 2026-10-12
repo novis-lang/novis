@@ -14,8 +14,7 @@ use parley::{
 use super::block::{Insets, geometry, insets, sides, z_index};
 use super::flex::{self, Flex};
 use super::{
-    Atom, BLACK, Block, CONTENT_WIDTH, Frame, Images, Inline, MARGIN, Para, Spaces, Span, color,
-    keyword, length,
+    Atom, BLACK, Block, Frame, Images, Inline, MARGIN, Para, Spaces, Span, color, keyword, length,
 };
 use crate::Error;
 use crate::assets::Assets;
@@ -23,7 +22,7 @@ use crate::css::{Style, Styles, Value};
 use crate::fonts::Fonts;
 use crate::parse::{Dom, Kind, Space};
 
-fn span_of(style: &Style, fonts: &Fonts, parent: Option<&Span>) -> Span {
+pub(super) fn span_of(style: &Style, fonts: &Fonts, parent: Option<&Span>) -> Span {
     let size = style.font_size();
     let families = match style.get("font-family") {
         Some(Value::Families(f)) => f.clone(),
@@ -103,7 +102,7 @@ fn vertical_align(style: &Style, parent: Option<&Span>) -> VerticalAlign {
 
 /// `style`'s paragraph, in a content box `width` wide, whose own text style is the span at
 /// `span`.
-fn para_of(style: &Style, width: f32, span: usize) -> Para {
+pub(super) fn para_of(style: &Style, width: f32, span: usize) -> Para {
     let size = style.font_size();
     let white = keyword(style, "white-space");
     Para {
@@ -193,7 +192,7 @@ fn marker(kind: &str, n: i64) -> Option<String> {
 
 /// `n` as the counter style `kind` writes it, without a suffix. A style with no form for `n`
 /// writes it in decimal.
-fn counter_text(kind: &str, n: i64) -> Option<String> {
+pub(super) fn counter_text(kind: &str, n: i64) -> Option<String> {
     let roman = |n: i64| {
         let mut n = n;
         let mut out = String::new();
@@ -438,6 +437,8 @@ pub(super) struct Builder<'a, 'd> {
     outside: Vec<Outside>,
     /// Each flex container still open, innermost last.
     containers: Vec<Container>,
+    /// The first page's content height, which an image is scaled down to fit.
+    pub(super) page_height: f32,
 }
 
 /// A flex container whose element has not closed.
@@ -923,7 +924,9 @@ pub(super) fn blocks(
     styles: &Styles,
     fonts: &Fonts,
     assets: &Assets<'_>,
+    content: [f32; 2],
 ) -> Result<Collected, Error> {
+    let [width, height] = content;
     let empty = Style::default();
     // The root element is the first in document order.
     let rem = styles
@@ -949,13 +952,14 @@ pub(super) fn blocks(
         atoms: Vec::new(),
         outside: Vec::new(),
         containers: Vec::new(),
+        page_height: height,
     };
     let root = Frame {
         x: MARGIN,
-        width: CONTENT_WIDTH,
+        width,
         span: 0,
         spaces: Spaces::Collapse,
-        para: para_of(&empty, CONTENT_WIDTH, 0),
+        para: para_of(&empty, width, 0),
         transform: None,
         lang: None,
         hyphenate: None,

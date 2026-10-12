@@ -26,6 +26,7 @@ pub mod assets;
 pub mod css;
 pub mod fonts;
 pub mod layout;
+pub mod paginate;
 pub mod parse;
 pub mod write;
 

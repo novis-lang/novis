@@ -33,6 +33,7 @@ use krilla_svg::{SurfaceExt, SvgSettings};
 
 use crate::css::Color;
 use crate::layout::{self, Item, Laid, Paint, Picture, Seg};
+use crate::paginate::PageBox;
 use crate::{Error, Instant};
 
 /// Draws `picture` with its top-left corner at the surface's origin, stretched to `size`. An
@@ -172,10 +173,14 @@ pub fn write(laid: &Laid, created: Option<Instant>) -> Result<Vec<u8>, Error> {
         document.set_metadata(Metadata::new().creation_date(date(created)?));
     }
     let mut faces: Vec<Option<Font>> = vec![None; laid.faces.len()];
-    let size = PageSettings::from_wh(layout::PAGE_WIDTH, layout::PAGE_HEIGHT)
-        .expect("A4 is a valid page size");
     for laid_page in &laid.pages {
-        let mut page = document.start_page_with(size.clone());
+        let PageBox { width, height, .. } = laid_page.geometry;
+        let size = PageSettings::from_wh(width, height).ok_or_else(|| {
+            Error::Invalid(format!(
+                "a page {width} by {height} points is not a size a PDF page can have"
+            ))
+        })?;
+        let mut page = document.start_page_with(size);
         let mut surface = page.surface();
         // How many states each open group pushed, innermost last.
         let mut groups: Vec<usize> = Vec::new();

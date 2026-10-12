@@ -39,6 +39,8 @@ pub(super) struct BoxGeometry {
     /// Whether its `clear` moves it below the left floats and below the right ones.
     pub(super) clear: [bool; 2],
     pub(super) position: Position,
+    /// Its forced `break-before` and `break-after`.
+    pub(super) breaks: [Option<Break>; 2],
     /// Its `z-index` when it is positioned and the value is not `auto`.
     pub(super) z: Option<i64>,
     pub(super) decor: Decor,
@@ -53,6 +55,24 @@ pub(super) enum Position {
     /// Placed by its insets against its containing block, which for `fixed` is every page's
     /// content box. The box is an [`super::Atom`].
     Absolute,
+}
+
+/// A forced page break: to the next page, or to the next left or right one.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(super) enum Break {
+    Page,
+    Left,
+    Right,
+}
+
+/// The forced break the property `name` gives, if it gives one.
+fn forced(style: &Style, name: &str) -> Option<Break> {
+    match keyword(style, name) {
+        Some("page" | "always" | "all") => Some(Break::Page),
+        Some("left" | "verso") => Some(Break::Left),
+        Some("right" | "recto") => Some(Break::Right),
+        _ => None,
+    }
 }
 
 /// An absolute box's `top`, `right`, `bottom` and `left`, each as points and a percentage of
@@ -176,6 +196,7 @@ pub(super) fn geometry(style: &Style, x: f32, containing: f32) -> BoxGeometry {
         fill,
         clear: sides(style, "clear"),
         position,
+        breaks: [forced(style, "break-before"), forced(style, "break-after")],
         z: (position != Position::Static)
             .then(|| z_index(style))
             .flatten(),
@@ -240,8 +261,13 @@ pub(super) struct Flow {
     pub(super) cursor: f32,
     pub(super) pending: f32,
     pub(super) open: Vec<Open>,
-    /// How tall a page's content is: the page's, or unbounded for an inline-block's one page.
-    limit: f32,
+    /// How tall each page's content is, or unbounded for an inline-block's one page.
+    limits: Vec<f32>,
+    /// The content height of the page at an index, for a flow of the document's pages. A flow
+    /// without it has one page, and reads no forced break.
+    heights: Option<Box<dyn Fn(usize) -> f32>>,
+    /// A `break-after` that has not been taken, because nothing has been placed after it yet.
+    forced: Option<Break>,
     /// The baseline of the last line placed, from the top of its page's content.
     pub(super) baseline: Option<f32>,
     /// The floats on the last page, in the order they were placed.
@@ -273,13 +299,43 @@ impl Flow {
             cursor: 0.0,
             pending: 0.0,
             open: Vec::new(),
-            limit,
+            limits: vec![limit],
+            heights: None,
+            forced: None,
             baseline: None,
             floats: Vec::new(),
             layers: Vec::new(),
             loose: Vec::new(),
             fixed: Vec::new(),
             order: 0,
+        }
+    }
+
+    /// The flow of the document's pages, the page at each index `heights` tall.
+    pub(super) fn paged(heights: Box<dyn Fn(usize) -> f32>) -> Flow {
+        let mut flow = Flow::new(heights(0));
+        flow.heights = Some(heights);
+        flow
+    }
+
+    /// How tall the last page's content is.
+    fn limit(&self) -> f32 {
+        self.limits.last().copied().unwrap_or(f32::INFINITY)
+    }
+
+    /// Takes a forced break: a new page unless nothing is placed on the last one, and an empty
+    /// blank page before it when it is on the wrong side. The first page is a right one.
+    fn force(&mut self, side: Break) {
+        if self.heights.is_none() {
+            return;
+        }
+        if !self.empty() {
+            self.new_page();
+        }
+        let right = self.pages.len() % 2 == 1;
+        if matches!((side, right), (Break::Left, true) | (Break::Right, false)) {
+            self.page().blank = true;
+            self.new_page();
         }
     }
 
@@ -300,6 +356,11 @@ impl Flow {
 
     fn new_page(&mut self) {
         self.pages.push(Page::default());
+        let limit = match &self.heights {
+            Some(heights) => heights(self.pages.len() - 1),
+            None => self.limit(),
+        };
+        self.limits.push(limit);
         self.cursor = 0.0;
         self.floats.clear();
     }
@@ -358,7 +419,7 @@ impl Flow {
             .next_top()
             .max(self.cleared(clear))
             .max(self.floats.last().map_or(0.0, |f| f.top));
-        if !self.empty() && top + height > self.limit {
+        if !self.empty() && top + height > self.limit() {
             self.new_page();
             top = 0.0;
         }
@@ -405,9 +466,12 @@ impl Flow {
     /// nothing is drawn on it and nothing has taken space on it, so a tall box that draws
     /// nothing still moves the next block down.
     pub(super) fn place(&mut self, height: f32) -> f32 {
+        if let Some(side) = self.forced.take() {
+            self.force(side);
+        }
         let empty = self.empty();
         let margin = self.margin();
-        if !empty && self.cursor + margin + height > self.limit {
+        if !empty && self.cursor + margin + height > self.limit() {
             self.new_page();
         } else {
             self.cursor += margin;
@@ -428,6 +492,10 @@ impl Flow {
     }
 
     pub(super) fn open(&mut self, geometry: BoxGeometry) {
+        let after = self.forced.take();
+        if let Some(side) = geometry.breaks[0].or(after) {
+            self.force(side);
+        }
         self.pending = self.pending.max(geometry.margin[0]);
         // A box that clears a float starts with its border edge below it.
         let below = self.cleared(geometry.clear);
@@ -464,6 +532,9 @@ impl Flow {
         else {
             return;
         };
+        // A break after a box inside this one is taken by what follows this box, not by its
+        // bottom edge.
+        let inner = self.forced.take();
         let g = &geometry;
         let inset = g.border[2] + g.padding[2];
         if top.is_none() && (inset > 0.0 || g.min_content > 0.0) {
@@ -496,11 +567,15 @@ impl Flow {
         if let Some((first, item, at)) = top {
             let last = self.pages.len() - 1;
             for page in first..=last {
+                if self.pages[page].blank {
+                    painted.push(0);
+                    continue;
+                }
                 let top = if page == first { at } else { 0.0 };
                 let bottom = if page == last {
                     self.cursor
                 } else {
-                    self.limit
+                    self.limits[page]
                 };
                 let mut items = boxes::paint(
                     g,
@@ -538,6 +613,7 @@ impl Flow {
             self.lift(g, top, stack, &painted);
         }
         self.pending = self.pending.max(geometry.margin[2]);
+        self.forced = geometry.breaks[1].or(inner);
     }
 
     /// Takes a positioned box that has just closed out of its pages into layers: places the
@@ -679,11 +755,12 @@ impl Flow {
     }
 
     /// Places the absolute boxes with no positioned box around them against `area`, the
-    /// content box's left edge, width, top and bottom on the page each one is on, places a copy
-    /// of each `fixed` box against it on every page, and draws every layer onto its page: those
-    /// below 0 under the page's items and the rest over them.
-    pub(super) fn finish(&mut self, area: [f32; 4]) {
-        let [left, width, top, bottom] = area;
+    /// content box's left edge, width and top on the page each one is on, and its `bottom`, or
+    /// else the bottom of that page's content. Places a copy of each `fixed` box against it on
+    /// every page, and draws every layer onto its page: those below 0 under the page's items and
+    /// the rest over them.
+    pub(super) fn finish(&mut self, area: [f32; 3], bottom: Option<f32>) {
+        let [left, width, top] = area;
         let fixed = std::mem::take(&mut self.fixed);
         let copies = (0..self.pages.len())
             .flat_map(|page| fixed.iter().map(move |f| Absolute { page, ..f.clone() }));
@@ -697,7 +774,7 @@ impl Flow {
                 left,
                 width,
                 top: (page, top),
-                bottom: (page, bottom),
+                bottom: (page, bottom.unwrap_or(self.limits[page])),
             };
             self.place_absolute(absolute, &area);
         }
