@@ -85,6 +85,8 @@ nvs-image.workspace = true
 rqrr.workspace = true
 # The 1D and DataMatrix checks of `image_barcode` read each code back to its data.
 rxing.workspace = true
+# The password check of `pdf_standards` opens the encrypted file with its password.
+hayro-syntax.workspace = true
 
 # Times both arms of `image_guest` in a release build and, with `--record`,
 # writes `benches/results/image-guest.json`. Its own loop rather than

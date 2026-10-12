@@ -10,7 +10,7 @@ GENERATED FILE — do not edit by hand. Regenerate with:
     bun nv gen-attribution
 
 
-COMPONENTS (670)
+COMPONENTS (671)
 ------------------------------------------------------------------------------
 
 Where a component offers a choice of licenses, Novis takes the one shown and
@@ -256,6 +256,7 @@ platform Novis builds for, so one may appear that a given build omits.
   httparse                                   1.10.1                         MIT                             (MIT OR Apache-2.0)
   httpdate                                   1.0.3                          MIT                             (MIT OR Apache-2.0)
   hybrid-array                               0.4.14                         MIT                             (MIT OR Apache-2.0)
+  hybrid-array                               0.4.15                         MIT                             (MIT OR Apache-2.0)
   hyper                                      1.11.1                         MIT
   hypher                                     0.1.8                          MIT                             (MIT OR Apache-2.0)
   icu_calendar                               2.3.0                          Unicode-3.0
@@ -2405,6 +2406,7 @@ DEALINGS IN THE SOFTWARE.
 Applies to:
   cmov 0.5.4
   hybrid-array 0.4.14
+  hybrid-array 0.4.15
 
 ------------------------------------------------------------------------------
 

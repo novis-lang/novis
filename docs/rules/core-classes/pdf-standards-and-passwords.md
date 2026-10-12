@@ -17,13 +17,18 @@ read; it is the default because a program that never thought about accessibility
 an accessible file. AES-256 alone is offered because every reader made in the last fifteen years opens
 it and the weaker revisions are broken.
 
-- **Memory:** the structure tree, beside the layout tree inside the request's cap.
+- **Memory:** the structure tree, beside the layout tree inside the request's cap, and with a
+  password one more copy of the finished file while it is encrypted.
+- **Performance:** a password adds four runs of the standard's password hash, each 64 or more rounds
+  of AES and SHA-2, and one AES pass over the file.
 
-**Partly on disk.** `Document::standard` and `Document::password` are in
+**On disk.** `Document::standard` and `Document::password` are in
 `extensions/pdf/nvs/Document.nvs`, and a password beside a PDF/A standard is refused before anything
 is laid out (`extensions/pdf/src/lib.rs`'s `first`). Tagging and the three standards are
-`extensions/pdf/src/write.rs`, pinned by `crates/nvs-ext/tests/pdf_standards.rs`. Nothing is
-encrypted yet: the `pdf` goal's Stage 12 builds it.
+`extensions/pdf/src/write.rs`, and the encryption is `extensions/pdf/src/encrypt.rs`, over the file
+`krilla` writes because `krilla` 0.8 writes no encryption. The password is both the user and the owner
+password. All of it is pinned by `crates/nvs-ext/tests/pdf_standards.rs`, which opens the encrypted
+file with `hayro-syntax`.
 
 **Declined:**
 - **RC4 and AES-128 encryption, and owner permissions.** RC4 is broken, and permission flags are a

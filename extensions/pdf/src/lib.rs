@@ -30,11 +30,11 @@
 //! the two calls, and the request's end drops it.
 //!
 //! Known gaps, each owned by a later stage of the goal that builds this component: `merge`,
-//! `read` and `read-text` return `runtime` until their stages land. The password is checked
-//! against the standard and otherwise not applied (Stage 12).
+//! `read` and `read-text` return `runtime` until their stages land.
 
 pub mod assets;
 pub mod css;
+pub mod encrypt;
 pub mod factur_x;
 pub mod fonts;
 pub mod layout;
@@ -163,8 +163,9 @@ pub enum Error {
 /// An `invoice_xml` without [`Standard::PdfA3b`], or a `password` with either PDF/A standard,
 /// returns `Invalid`, as `wit/pdf.wit` says, and so does a file that breaks its `standard`
 /// (`write`'s module doc). An `invoice_xml` that is not well-formed returns `Parse`
-/// (`factur_x`'s module doc). `password` is accepted and not yet applied (Stage 12). A reference the asset map does not resolve returns `Invalid` naming it, and an
-/// image whose bytes do not decode returns `Parse` naming it.
+/// (`factur_x`'s module doc). A `password` encrypts the file with AES-256 (`encrypt`'s module
+/// doc). A reference the asset map does not resolve returns `Invalid` naming it, and an image
+/// whose bytes do not decode returns `Parse` naming it.
 pub fn render(document: &Document) -> Result<Rendered, Error> {
     let (kept, _) = first(document, &Heights::default())?;
     finish(kept, Vec::new())

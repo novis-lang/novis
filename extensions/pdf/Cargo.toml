@@ -12,6 +12,7 @@ description = "The PDF component built into every `nvs` binary: `nvs:pdf/engine`
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+aes = "0.9"
 base64 = "0.22"
 cssparser = "0.38"
 html5ever = "0.39"
@@ -22,6 +23,7 @@ parley = { version = "0.12", default-features = false, features = ["std"] }
 precomputed-hash = "0.1"
 roxmltree = "0.21"
 selectors = "0.41"
+sha2 = { version = "0.11", default-features = false }
 taffy = { version = "0.14",default-features = false, features = ["std", "flexbox", "grid", "taffy_tree"] }
 usvg = { version = "0.47", default-features = false }
 

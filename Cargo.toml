@@ -87,6 +87,9 @@ rqrr = { version = "0.11", default-features = false }
 # `nvs-ext`'s `image_barcode` test. Only its readers for those codes are on: the test hands it grey
 # pixels, so its `image` feature is off.
 rxing = { version = "0.9", default-features = false, features = ["decoders", "oned", "datamatrix", "encoding_rs"] }
+# Dev-only: opens the PDF component's encrypted output with its password, in `nvs-ext`'s
+# `pdf_standards` test, so the encryption is checked by a reader that is not its writer.
+hayro-syntax = { version = "0.8", default-features = false, features = ["std"] }
 # What an `nvs` process resolved and read, written when `NVS_FOOTPRINT_LOG` names a log.
 nvs-footprint = { path = "crates/nvs-footprint", version = "0.0.1" }
 nvs-lsp = { path = "crates/nvs-lsp", version = "0.0.1" }

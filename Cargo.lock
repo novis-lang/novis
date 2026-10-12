@@ -3326,6 +3326,7 @@ dependencies = [
 name = "nvs-ext"
 version = "0.0.1"
 dependencies = [
+ "hayro-syntax",
  "nvs-config",
  "nvs-image",
  "nvs-repo",

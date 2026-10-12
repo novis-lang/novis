@@ -3,7 +3,8 @@
 //! figures with their `alt`, and the document's language. PDF/A-2b, PDF/A-3b and PDF/UA-1 are
 //! `krilla`'s validators, and a file that breaks its standard throws naming what broke. A
 //! Factur-X invoice XML is embedded under PDF/A-3b alone, with the standard's XMP fields, and an
-//! XML that is not well-formed throws.
+//! XML that is not well-formed throws. A password encrypts the file with AES-256, checked by
+//! opening it with `hayro-syntax`, and a password under PDF/A throws.
 
 use std::future::Future;
 use std::pin::pin;
@@ -62,6 +63,17 @@ fn render_invoice(
     created: Option<i64>,
     invoice: Option<&str>,
 ) -> Result<Vec<u8>, Failure> {
+    render_locked(html, standard, created, invoice, None)
+}
+
+/// The file `Engine::render` returns as [`render_invoice`] does, with `password` as its password.
+fn render_locked(
+    html: &str,
+    standard: Option<&str>,
+    created: Option<i64>,
+    invoice: Option<&str>,
+    password: Option<&str>,
+) -> Result<Vec<u8>, Failure> {
     let host = Host::new(4, |_| Ok(())).expect("the host starts");
     let builtins = Loader::new(host.engine())
         .builtins()
@@ -83,7 +95,10 @@ fn render_invoice(
                     "standard",
                     standard.map_or(Value::Null, |case| Value::Case(case.to_owned())),
                 ),
-                ("password", Value::Null),
+                (
+                    "password",
+                    password.map_or(Value::Null, |text| Value::String(text.to_owned())),
+                ),
                 (
                     "invoiceXml",
                     invoice.map_or(Value::Null, |xml| Value::String(xml.to_owned())),
@@ -330,6 +345,87 @@ fn an_invoice_xml_outside_pdf_a_3b_throws() {
         ));
         assert!(message.contains("PDF/A-3b"), "{standard:?}: {message}");
     }
+}
+
+#[test]
+fn a_password_encrypts_with_aes_256_and_stays_byte_equal() {
+    let html = shop_page();
+    let data =
+        render_locked(&html, None, Some(NEW_YEAR), None, Some("Shop-secret")).expect("it renders");
+    for needle in [
+        "/Filter /Standard",
+        "/V 5",
+        "/R 6",
+        "/CFM /AESV3",
+        "/Encrypt ",
+    ] {
+        assert!(contains(&data, needle), "the file has no `{needle}`");
+    }
+    // No string or stream is readable without the key.
+    let plain = render_under(&html, None, Some(NEW_YEAR)).expect("it renders unlocked");
+    for needle in ["(Shop)", "<x:xmpmeta"] {
+        assert!(
+            contains(&plain, needle),
+            "the unlocked file has no `{needle}`"
+        );
+        assert!(!contains(&data, needle), "`{needle}` is readable");
+    }
+    assert_xref_points_at_objects(&data);
+    assert_eq!(
+        render_locked(&html, None, Some(NEW_YEAR), None, Some("Shop-secret"))
+            .expect("it renders again"),
+        data,
+        "two encrypted renders differ"
+    );
+    assert_ne!(
+        render_locked(&html, None, Some(NEW_YEAR), None, Some("Blog-secret"))
+            .expect("it renders under another password"),
+        data,
+        "two passwords give one file"
+    );
+
+    // A reader that is not the writer opens it with the password and with nothing else.
+    for wrong in ["", "Shop-Secret"] {
+        match hayro_syntax::Pdf::new_with_password(data.clone(), wrong) {
+            Err(hayro_syntax::LoadPdfError::Decryption(
+                hayro_syntax::DecryptionError::PasswordProtected,
+            )) => {}
+            Err(other) => panic!("`{wrong}`: not a password error: {other:?}"),
+            Ok(_) => panic!("`{wrong}` opens the file"),
+        }
+    }
+    let pdf = hayro_syntax::Pdf::new_with_password(data, "Shop-secret").expect("it opens");
+    assert_eq!(pdf.metadata().title.as_deref(), Some(&b"Shop"[..]));
+    let pages = pdf.pages();
+    assert_eq!(pages.len(), 1);
+    let content = pages[0].page_stream().expect("the page has content");
+    assert!(
+        contains(content, " Tf"),
+        "the page's content does not decrypt to text"
+    );
+}
+
+#[test]
+fn a_password_with_a_pdf_a_standard_throws() {
+    for case in ["PdfA2b", "PdfA3b"] {
+        let message = invalid(render_locked(
+            &shop_page(),
+            Some(case),
+            Some(NEW_YEAR),
+            None,
+            Some("Shop-secret"),
+        ));
+        assert!(message.contains("password"), "{case}: {message}");
+    }
+    // PDF/UA allows encryption.
+    render_locked(
+        &shop_page(),
+        Some("PdfUa1"),
+        None,
+        None,
+        Some("Shop-secret"),
+    )
+    .expect("PDF/UA-1 renders with a password");
 }
 
 #[test]

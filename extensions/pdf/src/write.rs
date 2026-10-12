@@ -36,8 +36,8 @@
 //! target as its alternate text, under any standard or none.
 //!
 //! **The invoice XML is the one attachment** (`factur_x`'s module doc): embedded beside the
-//! metadata, and its XMP fields written into the finished file. The password is Stage 12's
-//! (`render`'s doc in the crate root says what it does until then).
+//! metadata, and its XMP fields written into the finished file. **A password encrypts the
+//! finished file** with AES-256 (`encrypt`'s module doc).
 
 use krilla::action::LinkAction;
 use krilla::annotation::{Annotation, LinkAnnotation, Target};
@@ -64,6 +64,7 @@ use krilla_svg::{SurfaceExt, SvgSettings};
 use std::num::NonZeroU16;
 
 use crate::css::Color;
+use crate::encrypt;
 use crate::factur_x::{self, Level};
 use crate::layout::{self, Bookmark, Href, Item, Laid, Paint, Picture, Role, Seg};
 use crate::paginate::PageBox;
@@ -684,9 +685,13 @@ pub fn write(
         }
         other => Error::Runtime(format!("the PDF could not be written: {other}")),
     })?;
-    match invoice {
-        Some(level) if options.invoice_xml.is_some() => factur_x::xmp(file, level),
-        _ => Ok(file),
+    let file = match invoice {
+        Some(level) if options.invoice_xml.is_some() => factur_x::xmp(file, level)?,
+        _ => file,
+    };
+    match &options.password {
+        Some(password) => encrypt::encrypt(&file, password),
+        None => Ok(file),
     }
 }
 
