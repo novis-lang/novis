@@ -791,25 +791,27 @@ One file set: `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/n
 
 ### State
 
-**Stage 7 is under way, and all 10 of its checked names pass.** `cargo test --manifest-path extensions/pdf/Cargo.toml --test layout` passes 18 tests, now with `object_fit_and_object_position_place_the_picture_in_its_box`, `text_indent_moves_the_first_line_of_each_block` and `vertical_align_raises_and_lowers_a_span_from_its_baseline`. The stage stays open for the text properties under Next.
+**Stage 7 is under way, and all 10 of its checked names pass.** `cargo test --manifest-path extensions/pdf/Cargo.toml --test layout` passes 20 tests, now with `text_overflow_ellipsis_ends_a_cut_line_inside_its_box` and `a_right_to_left_list_item_has_its_marker_at_the_right`; `lists_and_counters_number_their_items` covers a block `::before`/`::after`, and `vertical_align_...` pins `text-top` and `text-bottom`. The stage stays open for `inline-block` and the backgrounds under Next.
 
 - The layout is split. `extensions/pdf/src/layout.rs` keeps the public types, `Span`, `Para`, `Block`, `Frame` and the style helpers, and its module doc lists the submodules: `inline.rs` (the walk, `Builder`, counters, hyphenation), `image.rs` (`Picture`, `place`, `decode`, `svg`, `object_position`), `block.rs` (`BoxGeometry`, `geometry`, `Flow`), `text.rs` (`layout` and the line loop) and `boxes.rs`.
 - `object-fit` sets `Block::Image`'s `draw` rectangle in `Builder::place`. A picture past its box is drawn inside an `Item::Begin` clip group, which `write.rs` already handles.
-- `text-indent` and `vertical-align` use `parley` 0.12's own `Layout::set_text_indent` and `StyleProperty::VerticalAlign`. The line loop takes each span's baseline from `line.items()`' glyph runs. The ranged builder is flat, so `vertical_align` (`extensions/pdf/src/layout/inline.rs:63`) adds a parent span's shift itself. `middle`, `text-top` and `text-bottom` measure against `parley`'s root style, which sets no font (the layout module doc says so).
+- `text-indent` and `vertical-align` use `parley` 0.12's own `Layout::set_text_indent` and `StyleProperty::VerticalAlign`. The line loop takes each span's baseline from `line.items()`' glyph runs. The ranged builder is flat, so `vertical_align` (`extensions/pdf/src/layout/inline.rs:63`) adds a parent span's shift itself. The builder's default style is the block's own span (`Para::span`), so `middle`, `text-top` and `text-bottom` measure against the block's font. `parley` aligns a span's line box, half-leading included, as CSS does.
+- The hyphen and the ellipsis are both a `Mark` from `mark` (`extensions/pdf/src/layout/text.rs:431`). A cut line draws the clusters inside its window (`cut`, `extensions/pdf/src/layout/text.rs:162`) and the ellipsis in the first run's style. `Builder::open` (`extensions/pdf/src/layout/inline.rs:503`) opens every block box, an element's or a generated one's.
+- `crates/nvs-ext/tests/image_decode.rs`' deflate bomb ran out of its 2 s deadline before its memory cap under `nv verify`'s load. A bomb that must end at the memory cap now has 60 s.
 - SVG, boxes, hyphenation, bidi, counters and markers are as the layout module doc says (`extensions/pdf/src/layout.rs:1`). SVG `<text>` draws nothing: the `usvg` font database is empty.
 - `cargo clippy --manifest-path extensions/pdf/Cargo.toml` has 5 warnings in `css/value.rs` and `css/mod.rs` that are older than this stage. `bun nv verify` does not run clippy over the extension's own workspace.
 
 ### Next
 
-**Stage 7, the remaining text properties**: the file set is `extensions/pdf/src/layout/text.rs`, `extensions/pdf/src/layout/inline.rs` and `extensions/pdf/tests/layout.rs`.
+**Stage 7, the boxes it still owes**: the file set is `extensions/pdf/src/layout/inline.rs`, `extensions/pdf/src/layout/boxes.rs`, `extensions/pdf/src/layout/text.rs` and `extensions/pdf/tests/layout.rs`.
 
-- [ ] **`text-overflow: ellipsis`** on a line cut under `white-space: nowrap` with `overflow: hidden`, in the line loop at `extensions/pdf/src/layout/text.rs:135`, shaped like the hyphen of `hyphen` (`extensions/pdf/src/layout/text.rs:362`, `rule:core-classes/pdf-css-subset-table`).
-- [ ] **`hyphenate-character`** for the drawn hyphen in `hyphen` (`extensions/pdf/src/layout/text.rs:362`), and a list marker in a right-to-left item drawn at the right edge (`extensions/pdf/src/layout/inline.rs:746`, `rule:core-classes/pdf-css-subset-table`).
-- [ ] **A block `::before`/`::after`** (`display: block` on the generated box) in `Builder::generated` (`extensions/pdf/src/layout/inline.rs:499`), and `middle`, `text-top` and `text-bottom` against the paragraph's font by setting the ranged builder's default style (`extensions/pdf/src/layout/text.rs:92`).
+- [ ] **`inline-block`**: a box laid out as a block and placed in its line as a `parley` inline box (`InlineBox`, skipped at `extensions/pdf/src/layout/text.rs:141`), entered where `display != "inline"` starts a block (`extensions/pdf/src/layout/inline.rs:732`, `rule:core-classes/pdf-css-subset-table`).
+- [ ] **Inline boxes with borders, padding and a background**, drawn around their runs per line (`extensions/pdf/src/layout/inline.rs:428`, `rule:core-classes/pdf-css-subset-table`).
+- [ ] **`background-position` and `background-size`** in `layer_paint` (`extensions/pdf/src/layout/boxes.rs:410`, `rule:core-classes/pdf-css-subset-table`).
 
 ### Backlog
 
-- `background-position`, `background-size`, elliptical radii and repeating gradients are not laid out (`extensions/pdf/src/layout/boxes.rs`). `inline-block` and inline boxes with borders are not laid out yet (`extensions/pdf/src/layout/inline.rs`).
+- Elliptical radii and repeating gradients are not laid out (`extensions/pdf/src/layout/boxes.rs`). `hyphenate-character` is not in the subset table, so the drawn hyphen is always `-`; adding it is a subset change (`extensions/pdf/subset.json`, `rule:core-classes/pdf-css-subset-table`).
 - SVG `<text>` in the PDF and in `Novis\Image`: fill `usvg`'s font database with the Liberation faces (`extensions/pdf/src/layout.rs`, `rule:core-classes/image-format-roster`).
 - Stage 10 reaches `first` through `Pass`'s `First` case, whose shape is `{document, headerHeight, footerHeight}` (`extensions/pdf/manifest.json`, `wit/pdf.wit`).
 - `cssparser` enters at most 75 nested blocks. Past that, the reference scan reads every string as a URL (`extensions/pdf/src/assets.rs:206`), and the cascade reads CSS on its own. One reading for both is still open.
