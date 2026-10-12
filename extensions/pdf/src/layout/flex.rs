@@ -311,27 +311,32 @@ impl Cx<'_> {
 
     /// An item's `blocks` laid out with a margin box `width` wide, and at least `height` tall.
     pub(super) fn item_at(&mut self, blocks: &[Block], width: f32, height: Option<f32>) -> Placed {
-        let mut blocks = blocks.to_vec();
-        let mut by = 0.0;
-        if let Some(Block::Open(g)) = blocks.first_mut() {
-            if let Some(height) = height {
-                let edges = g.margin[0]
-                    + g.margin[2]
-                    + g.border[0]
-                    + g.border[2]
-                    + g.padding[0]
-                    + g.padding[2];
-                g.min_content = g.min_content.max(height - edges);
-            }
-            if g.fill {
-                let inset = g.border[1] + g.border[3] + g.padding[1] + g.padding[3];
-                let least = g.margin[1] + g.margin[3] + inset;
-                by = g.margin[1] + g.width + g.margin[3] - width.max(least);
-            }
-        }
-        if by != 0.0 {
-            narrow(&mut blocks, by);
-        }
-        self.lay(blocks, parley::VerticalAlign::BASELINE)
+        self.lay(fit(blocks, width, height), parley::VerticalAlign::BASELINE)
     }
+}
+
+/// An item's `blocks` with a margin box `width` wide, and at least `height` tall.
+pub(super) fn fit(blocks: &[Block], width: f32, height: Option<f32>) -> Vec<Block> {
+    let mut blocks = blocks.to_vec();
+    let mut by = 0.0;
+    if let Some(Block::Open(g)) = blocks.first_mut() {
+        if let Some(height) = height {
+            let edges = g.margin[0]
+                + g.margin[2]
+                + g.border[0]
+                + g.border[2]
+                + g.padding[0]
+                + g.padding[2];
+            g.min_content = g.min_content.max(height - edges);
+        }
+        if g.fill {
+            let inset = g.border[1] + g.border[3] + g.padding[1] + g.padding[3];
+            let least = g.margin[1] + g.margin[3] + inset;
+            by = g.margin[1] + g.width + g.margin[3] - width.max(least);
+        }
+    }
+    if by != 0.0 {
+        narrow(&mut blocks, by);
+    }
+    blocks
 }

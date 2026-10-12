@@ -259,13 +259,32 @@ impl Cx<'_> {
 
     /// Lays the blocks of one box, from its opening to its close, out on a page of their own
     /// with no height limit, its margin box's top-left corner at 0, 0.
-    pub(super) fn lay(&mut self, mut blocks: Vec<Block>, align: VerticalAlign) -> Placed {
+    pub(super) fn lay(&mut self, blocks: Vec<Block>, align: VerticalAlign) -> Placed {
         let width = match blocks.first() {
             Some(Block::Open(g)) => g.margin[3] + g.width + g.margin[1],
             _ => 0.0,
         };
+        let (flow, missing) = self.down(blocks, Flow::new(f32::INFINITY));
+        Placed {
+            items: flow
+                .pages
+                .into_iter()
+                .flat_map(|page| page.items)
+                .map(|item| shift(item, 0.0, -MARGIN))
+                .collect(),
+            width,
+            height: flow.cursor + flow.pending,
+            baseline: flow.baseline,
+            align,
+            missing,
+        }
+    }
+
+    /// Lays the blocks of one box, from its opening to its close, down `flow`, its margin box's
+    /// top-left corner at the top-left corner of the first page's content. Returns the flow
+    /// and the text no font has.
+    pub(super) fn down(&mut self, mut blocks: Vec<Block>, mut flow: Flow) -> (Flow, Vec<Missing>) {
         let outside = std::mem::take(&mut self.missing);
-        let mut flow = Flow::new(f32::INFINITY);
         // The box's own close is the last block. Its edges are placed before its content and
         // after it, so no margin inside collapses through them.
         blocks.pop();
@@ -292,19 +311,7 @@ impl Cx<'_> {
         let bottom = flow.cursor - bottom;
         flow.finish([left, room, top], Some(bottom));
         let missing = std::mem::replace(&mut self.missing, outside);
-        Placed {
-            items: flow
-                .pages
-                .into_iter()
-                .flat_map(|page| page.items)
-                .map(|item| shift(item, 0.0, -MARGIN))
-                .collect(),
-            width,
-            height: flow.cursor + flow.pending,
-            baseline: flow.baseline,
-            align,
-            missing,
-        }
+        (flow, missing)
     }
 
     /// The width `blocks` need from the content box's left edge `left`: with no line broken but

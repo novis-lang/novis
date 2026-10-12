@@ -384,6 +384,15 @@ impl Flow {
         self.limits.last().copied().unwrap_or(f32::INFINITY)
     }
 
+    /// How tall the next page's content will be, named as the innermost open box's pages are.
+    pub(super) fn next_limit(&self) -> f32 {
+        let name = self.open.last().and_then(|o| o.geometry.page.as_deref());
+        match &self.heights {
+            Some(heights) => heights(self.pages.len(), name),
+            None => self.limit(),
+        }
+    }
+
     /// Takes a forced break: a new page unless nothing is placed on the last one, and an empty
     /// blank page before it when it is on the wrong side. The first page is a right one.
     fn force(&mut self, side: Break) {

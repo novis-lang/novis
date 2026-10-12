@@ -558,6 +558,9 @@ struct Building {
     depths: Vec<(usize, bool)>,
     /// The group the rows now opened are in.
     part: table::Part,
+    /// How many group elements have opened, and the number of the one now open.
+    groups: usize,
+    group: Option<usize>,
     /// Whether a row is open for the cells now opened.
     row: bool,
 }
@@ -898,11 +901,15 @@ impl Builder<'_, '_> {
                 width: inner.width,
                 spacing: table::spacing(style, self.rem),
                 fixed: table::fixed(style),
+                orphans: lines(style, "orphans"),
+                widows: lines(style, "widows"),
                 captions: Vec::new(),
                 rows: Vec::new(),
             },
             depths: vec![(depth, false)],
             part: table::Part::Body,
+            groups: 0,
+            group: None,
             row: false,
         });
     }
@@ -961,12 +968,15 @@ impl Builder<'_, '_> {
         match part {
             TablePart::Group(group) => {
                 t.part = group;
+                t.groups += 1;
+                t.group = Some(t.groups);
                 t.row = false;
                 t.depths.push((depth, false));
             }
             TablePart::Row(repeat) => {
                 t.table.rows.push(Row {
                     part: t.part,
+                    group: t.group,
                     repeat,
                     cells: Vec::new(),
                 });
@@ -985,6 +995,7 @@ impl Builder<'_, '_> {
             t.row = false;
             if !row {
                 t.part = table::Part::Body;
+                t.group = None;
             }
         }
     }
@@ -1005,6 +1016,7 @@ impl Builder<'_, '_> {
             if !t.row || t.table.rows.is_empty() {
                 t.table.rows.push(Row {
                     part: t.part,
+                    group: t.group,
                     repeat: Repeat::Every,
                     cells: Vec::new(),
                 });
