@@ -243,6 +243,7 @@ Conventions the whole file uses:
 | [`Novis\Intl\Segmenter`](#core-novis-intl-segmenter) |  |
 | [`Novis\Intl\Icu`](#core-novis-intl-icu) |  |
 | [`Novis\Pdf\Document`](#core-novis-pdf-document) |  |
+| [`Novis\Pdf\Page`](#core-novis-pdf-page) |  |
 | [`Novis\Pdf\Rendered`](#core-novis-pdf-rendered) |  |
 | [`Novis\Pdf\Engine`](#core-novis-pdf-engine) |  |
 | [`Core` enums](#core-enums) | every enum a member takes, with its cases |
@@ -29526,7 +29527,7 @@ Returns the best of the offered locales for an `Accept-Language` header value. I
 <a id="core-novis-pdf-document"></a>
 ### `Novis\Pdf\Document`
 
-Keywords: fromHtml, asset, standard, invoiceXml, password, created, render
+Keywords: fromHtml, asset, standard, invoiceXml, password, created, header, footer, render
 
 | Member | Signature |
 |---|---|
@@ -29536,6 +29537,8 @@ Keywords: fromHtml, asset, standard, invoiceXml, password, created, render
 | [`Novis\Pdf\Document->invoiceXml`](#core-novis-pdf-document-invoicexml) | `invoiceXml(string $xml): Document` |
 | [`Novis\Pdf\Document->password`](#core-novis-pdf-document-password) | `password(string $password): Document` |
 | [`Novis\Pdf\Document->created`](#core-novis-pdf-document-created) | `created(Core\Time\Instant $at): Document` |
+| [`Novis\Pdf\Document->header`](#core-novis-pdf-document-header) | `header(callable(Page): Core\Html\Markup $fn, ?{height?: string} $options = null): Document` |
+| [`Novis\Pdf\Document->footer`](#core-novis-pdf-document-footer) | `footer(callable(Page): Core\Html\Markup $fn, ?{height?: string} $options = null): Document` |
 | [`Novis\Pdf\Document->render`](#core-novis-pdf-document-render) | `render(): Rendered` |
 
 <a id="core-novis-pdf-document-fromhtml"></a>
@@ -29608,6 +29611,29 @@ $document->created(Core\Time\Instant $at): Document
 
 **Returns** `Document`
 
+<a id="core-novis-pdf-document-header"></a>
+#### `Novis\Pdf\Document->header`
+
+```nvs skip
+$document->header(callable(Page): Core\Html\Markup $fn, ?{height?: string} $options = null): Document
+```
+
+`header` sets a function that returns the header of each page. `render` calls it once for each page.
+The header is drawn in the top margin. `height` sets that margin, such as `"2cm"`. Without it, the margin is the one `@page` gives.
+
+**Returns** `Document`
+
+<a id="core-novis-pdf-document-footer"></a>
+#### `Novis\Pdf\Document->footer`
+
+```nvs skip
+$document->footer(callable(Page): Core\Html\Markup $fn, ?{height?: string} $options = null): Document
+```
+
+`footer` sets a function that returns the footer of each page. It works like `header`, in the bottom margin.
+
+**Returns** `Document`
+
 <a id="core-novis-pdf-document-render"></a>
 #### `Novis\Pdf\Document->render`
 
@@ -29619,6 +29645,88 @@ $document->render(): Rendered
 Two renders of the same document give the same bytes.
 
 **Returns** `Rendered`
+
+<a id="core-novis-pdf-page"></a>
+### `Novis\Pdf\Page`
+
+Keywords: constructor, isFirst, isLast, string, marks, marksUpTo
+
+| Member | Signature |
+|---|---|
+| [`Novis\Pdf\Page::constructor`](#core-novis-pdf-page-constructor) | `constructor(uint $number, uint $count, ?string $name, array<Named> $strings, array<array<Named>> $marks)` |
+| [`Novis\Pdf\Page->isFirst`](#core-novis-pdf-page-isfirst) | `isFirst(): bool` |
+| [`Novis\Pdf\Page->isLast`](#core-novis-pdf-page-islast) | `isLast(): bool` |
+| [`Novis\Pdf\Page->string`](#core-novis-pdf-page-string) | `string(string $name): ?string` |
+| [`Novis\Pdf\Page->marks`](#core-novis-pdf-page-marks) | `marks(string $name): array<string>` |
+| [`Novis\Pdf\Page->marksUpTo`](#core-novis-pdf-page-marksupto) | `marksUpTo(string $name): array<string>` |
+
+<a id="core-novis-pdf-page-constructor"></a>
+#### `Novis\Pdf\Page::constructor`
+
+```nvs skip
+new Novis\Pdf\Page(uint $number, uint $count, ?string $name, array<Named> $strings, array<array<Named>> $marks)
+```
+
+`new Page` makes a page from its values. `Document::render` makes one for you.
+`marks` has the `data-mark` values of every page of the document, one list for each page.
+
+<a id="core-novis-pdf-page-isfirst"></a>
+#### `Novis\Pdf\Page->isFirst`
+
+```nvs skip
+$page->isFirst(): bool
+```
+
+`isFirst` returns `true` on the first page.
+
+**Returns** `bool`
+
+<a id="core-novis-pdf-page-islast"></a>
+#### `Novis\Pdf\Page->isLast`
+
+```nvs skip
+$page->isLast(): bool
+```
+
+`isLast` returns `true` on the last page.
+
+**Returns** `bool`
+
+<a id="core-novis-pdf-page-string"></a>
+#### `Novis\Pdf\Page->string`
+
+```nvs skip
+$page->string(string $name): ?string
+```
+
+`string` returns the value that CSS `string-set` gives `$name` on this page.
+The name is compared without case. If no value is set yet, the result is `null`.
+
+**Returns** `?string`
+
+<a id="core-novis-pdf-page-marks"></a>
+#### `Novis\Pdf\Page->marks`
+
+```nvs skip
+$page->marks(string $name): array<string>
+```
+
+`marks` returns the values of every `data-mark="name:value"` on this page with this name.
+An element may have several marks, separated by `;`.
+
+**Returns** `array<string>`
+
+<a id="core-novis-pdf-page-marksupto"></a>
+#### `Novis\Pdf\Page->marksUpTo`
+
+```nvs skip
+$page->marksUpTo(string $name): array<string>
+```
+
+`marksUpTo` returns the values of the marks with this name on this page and every page before it.
+A carried-forward total adds these values up.
+
+**Returns** `array<string>`
 
 <a id="core-novis-pdf-rendered"></a>
 ### `Novis\Pdf\Rendered`

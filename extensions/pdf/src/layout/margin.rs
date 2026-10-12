@@ -20,6 +20,15 @@
 //! `string()` reads it by `paginate`'s module doc. A `string-set` inside an inline-block, a float
 //! or a flex item counts as on the first page.
 //!
+//! **Page facts.** Each page carries its named strings, each name's value as `string(name)`
+//! reads it there, and the `data-mark` marks set on it in document order. A mark is set on a
+//! page as a named string is, and one inside an inline-block, a float or a flex item counts as
+//! on the first page.
+//!
+//! **Markup over a margin.** [`overlay`] draws a document laid out on its own, such as the markup
+//! of a header function, over one page's margin: clipped to the margin's area, and in place of
+//! the margin boxes along that side. The page's other items do not move.
+//!
 //! Cost: one layout of a short paragraph for each margin box with text on each page, and a copy
 //! of a running element's items for each page that draws it. Memory: its items on its page, one
 //! text style for each, and each running element's items and each named string's value until the
@@ -27,10 +36,13 @@
 
 use parley::VerticalAlign;
 
+use std::ops::Range;
+
 use super::block::geometry;
+use super::boxes::rect;
 use super::inline::{counter_text, para_of, span_of};
 use super::text::{Cx, carry, shift};
-use super::{Block, Item, Missing, Page, Span, keyword};
+use super::{Block, Item, Laid, Missing, Page, Span, keyword};
 use crate::css::{MARGIN_BOXES, Style, Value};
 use crate::fonts::Fonts;
 use crate::paginate::{self, Sheet, Which};
@@ -47,18 +59,26 @@ pub(super) struct Running {
 }
 
 /// A named string an element's `string-set` sets: its lower-cased name, its value, the index of
-/// the page it is set on, and whether it is set at that page's top.
+/// the page it is set on, and whether it is set at that page's top. With `mark` set, it is a
+/// `data-mark` mark instead, its name as written.
 pub(super) struct Set {
     pub(super) name: String,
     pub(super) value: String,
     pub(super) page: usize,
     pub(super) top: bool,
+    pub(super) mark: bool,
 }
 
 /// The value of the named string `name` that `which` takes on the page at `page`.
 fn string(strings: &[Set], name: &str, page: usize, which: Which) -> Option<String> {
-    let mut on = strings.iter().filter(|s| s.name == name && s.page == page);
-    let entry = || strings.iter().rfind(|s| s.name == name && s.page < page);
+    let mut on = strings
+        .iter()
+        .filter(|s| !s.mark && s.name == name && s.page == page);
+    let entry = || {
+        strings
+            .iter()
+            .rfind(|s| !s.mark && s.name == name && s.page < page)
+    };
     let one = match which {
         Which::First => on.next().or_else(entry),
         Which::Last => on.next_back().or_else(entry),
@@ -83,9 +103,10 @@ enum Content {
     },
 }
 
-/// A margin box ready to lay out: its page, its area's left edge, top, width and height, where it
-/// sits in the area's height, and what it draws.
+/// A margin box ready to lay out: its name, its page, its area's left edge, top, width and
+/// height, where it sits in the area's height, and what it draws.
 pub(super) struct MarginBox {
+    name: &'static str,
     page: usize,
     rect: [f32; 4],
     vertical: &'static str,
@@ -120,7 +141,7 @@ pub(super) fn collect(
     for (index, page) in pages.iter().enumerate() {
         let matched = sheet.matched(index, page.blank, page.name.as_deref());
         let named = |name: &str, which| string(strings, name, index, which);
-        let fills: Vec<(&str, Fill)> = MARGIN_BOXES
+        let fills: Vec<(&'static str, Fill)> = MARGIN_BOXES
             .iter()
             .filter_map(|name| {
                 let values = matched.boxes.get(*name)?;
@@ -160,6 +181,7 @@ pub(super) fn collect(
                         _ => horizontal,
                     };
                     out.push(MarginBox {
+                        name,
                         page: index,
                         rect,
                         vertical,
@@ -184,6 +206,7 @@ pub(super) fn collect(
             spans.push(span_of(&style, fonts, None));
             let span = spans.len() - 1;
             out.push(MarginBox {
+                name,
                 page: index,
                 rect,
                 vertical,
@@ -246,8 +269,94 @@ pub(super) fn draw(cx: &mut Cx<'_>, boxes: Vec<MarginBox>, pages: &mut [Page]) {
             _ => (height - size[1]) / 2.0,
         };
         carry(&mut cx.missing, lost, one.page as u64 + 1);
-        pages[one.page]
-            .items
+        let page = &mut pages[one.page];
+        let start = page.items.len();
+        page.items
             .extend(items.into_iter().map(|item| shift(item, x + dx, y + dy)));
+        page.boxes.push((one.name, start..page.items.len()));
+    }
+}
+
+/// Sets each of `pages`' named strings and marks from `strings`, which holds both. A mark set
+/// past the last page is on the last page.
+pub(super) fn facts(pages: &mut [Page], strings: &[Set]) {
+    let mut names: Vec<&str> = Vec::new();
+    for set in strings.iter().filter(|s| !s.mark) {
+        if !names.contains(&set.name.as_str()) {
+            names.push(&set.name);
+        }
+    }
+    let last = pages.len().saturating_sub(1);
+    for (index, page) in pages.iter_mut().enumerate() {
+        page.strings = names
+            .iter()
+            .filter_map(|name| {
+                let value = string(strings, name, index, Which::First)?;
+                Some(((*name).to_owned(), value))
+            })
+            .collect();
+        page.marks = strings
+            .iter()
+            .filter(|s| s.mark && s.page.min(last) == index)
+            .map(|s| (s.name.clone(), s.value.clone()))
+            .collect();
+    }
+}
+
+/// Draws the first page of `markup`, a document laid out on a page the size of `area`, over the
+/// page at `page` of `laid`: at the area's left edge and top, clipped to the area. Every margin
+/// box of that page whose name starts with `side` is taken off first. Returns whether `markup`
+/// went on past its first page, which is markup taller than the area.
+pub fn overlay(laid: &mut Laid, page: usize, side: &str, area: [f32; 4], markup: Laid) -> bool {
+    clear(&mut laid.pages[page], side);
+    let [x, y, width, height] = area;
+    let offset = laid.images.len();
+    laid.images.extend(markup.images);
+    carry(&mut laid.missing, markup.missing, page as u64 + 1);
+    let over = markup.pages.len() > 1;
+    let Some(first) = markup.pages.into_iter().next() else {
+        return over;
+    };
+    let items = &mut laid.pages[page].items;
+    items.push(Item::Begin {
+        opacity: 1.0,
+        clip: Some(rect(x, y, width, height)),
+        transform: None,
+    });
+    items.extend(first.items.into_iter().map(|item| {
+        let mut item = shift(item, x, y);
+        if let Item::Image { image, .. } = &mut item {
+            *image += offset;
+        }
+        item
+    }));
+    items.push(Item::End);
+    over
+}
+
+/// Takes the margin boxes whose name starts with `side` off `page`.
+fn clear(page: &mut Page, side: &str) {
+    let gone: Vec<Range<usize>> = page
+        .boxes
+        .iter()
+        .filter(|(name, _)| name.starts_with(side))
+        .map(|(_, range)| range.clone())
+        .collect();
+    if gone.is_empty() {
+        return;
+    }
+    let mut at = 0;
+    page.items.retain(|_| {
+        at += 1;
+        !gone.iter().any(|range| range.contains(&(at - 1)))
+    });
+    page.boxes.retain(|(name, _)| !name.starts_with(side));
+    for (_, range) in &mut page.boxes {
+        let before: usize = gone
+            .iter()
+            .filter(|g| g.end <= range.start)
+            .map(ExactSizeIterator::len)
+            .sum();
+        *range = range.start - before..range.end - before;
     }
 }

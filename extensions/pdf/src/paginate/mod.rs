@@ -196,6 +196,21 @@ impl Sheet {
     }
 }
 
+/// The `@page` rule a header or footer function's height gives: the margin `side`, such as
+/// `margin-top`, set to `text` on every page. It comes after the document's own rules, so it
+/// wins over each rule without a page name or a pseudo-class and loses to the others. `None`
+/// when `text` is not one length of 0 or more.
+pub fn margin_rule(side: &'static str, text: &str) -> Option<PageRule> {
+    let [one] = components(text)?.try_into().ok()?;
+    let sum = length(&one)?;
+    let computed = sum.compute(DEFAULT_FONT_SIZE, DEFAULT_FONT_SIZE);
+    (computed.pt >= 0.0 && computed.percent >= 0.0).then(|| PageRule {
+        selector: String::new(),
+        values: vec![(side, Value::Length(computed))],
+        boxes: Vec::new(),
+    })
+}
+
 /// Where the margin box `name` is on `page`: its left edge, top, width and height. `present`
 /// says whether another box of the page has content, because a box along a side takes the room
 /// of the boxes beside it that have none.

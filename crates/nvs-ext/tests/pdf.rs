@@ -5,6 +5,10 @@
 //! alone, and a `file:`, `http:` or unknown name throws naming it. Two renders of one document are
 //! byte-equal, the output carries no action a reader runs, and HTML nested past the parser's
 //! element cap flattens as `Core\Html`'s parse does.
+//!
+//! A render with a header or footer function is the `first` and `second` passes
+//! (`rule:core-classes/pdf-header-is-a-page-function`): two crossings, each page's facts and
+//! marks from the first, and the second drawing markup over the margins without moving the body.
 
 use std::future::Future;
 use std::pin::pin;
@@ -90,6 +94,84 @@ fn field(value: &Value, name: &str) -> Value {
         .map(|(_, value)| value.clone())
         .unwrap_or_else(|| panic!("the result has no `{name}`"))
 }
+
+/// The `first` pass of `html`, with the header height `height` when there is one.
+fn first(html: &str, height: Option<&str>) -> Value {
+    shape(vec![
+        ("document", whole(html, &[])),
+        (
+            "headerHeight",
+            height.map_or(Value::Null, |h| Value::String(h.to_owned())),
+        ),
+        ("footerHeight", Value::Null),
+    ])
+}
+
+/// The `second` pass with one header and footer for each page.
+fn second(pages: &[(Option<&str>, Option<&str>)]) -> Value {
+    let text = |part: Option<&str>| part.map_or(Value::Null, |p| Value::String(p.to_owned()));
+    let pages = pages
+        .iter()
+        .enumerate()
+        .map(|(at, (header, footer))| {
+            (
+                Key::Int(i64::try_from(at).unwrap()),
+                shape(vec![
+                    ("header", text(*header)),
+                    ("footer", text(*footer)),
+                    ("slots", Value::Array(Vec::new())),
+                ]),
+            )
+        })
+        .collect();
+    shape(vec![("pages", Value::Array(pages))])
+}
+
+/// The whole result of `Engine::render` for `pass`.
+fn pass(request: &Request, extension: &Extension, pass: Value) -> Result<Value, Failure> {
+    Ok(
+        block_on(request.call_values(extension, "render", vec![pass]))?
+            .expect("`render` returns a value"),
+    )
+}
+
+/// The values of the list `value`, in order.
+fn items(value: &Value) -> Vec<Value> {
+    let Value::Array(pairs) = value else {
+        panic!("a list was expected, not {value:?}");
+    };
+    pairs.iter().map(|(_, value)| value.clone()).collect()
+}
+
+fn text(value: &Value) -> String {
+    let Value::String(text) = value else {
+        panic!("a string was expected, not {value:?}");
+    };
+    text.clone()
+}
+
+/// Each `{name, value}` of the list `value`.
+fn pairs(value: &Value) -> Vec<(String, String)> {
+    items(value)
+        .iter()
+        .map(|pair| (text(&field(pair, "name")), text(&field(pair, "value"))))
+        .collect()
+}
+
+fn bytes(value: &Value) -> Vec<u8> {
+    let Value::Bytes(data) = field(value, "data") else {
+        panic!("`data` is not bytes");
+    };
+    data
+}
+
+/// A document of three pages, each `<h2>` starting a page and setting the `chapter` string,
+/// with the marks `amount` on each row.
+const THREE_PAGES: &str = "<style>h2 { break-before: page; string-set: chapter content() }</style>\
+    <h1>Shop</h1><p data-mark=\"amount:1.50\">Tea</p>\
+    <h2>Books</h2><p data-mark=\"amount:12.00;count:1\">A book</p>\
+    <p data-mark=\"amount:3.25\">A map</p>\
+    <h2>Toys</h2><p data-mark=\"amount:0.75\">A ball</p>";
 
 /// The file and the page count `Engine::render` returns for `html` and `assets`.
 fn render(
@@ -311,6 +393,153 @@ fn html_nested_past_the_element_cap_flattens_as_core_html_does() {
             render(request, extension, &html, &[]).expect("nesting past the cap still renders");
         assert!(data.starts_with(b"%PDF-"));
         assert_eq!(pages, 1, "the flattened document is one paragraph");
+    });
+}
+
+#[test]
+fn a_header_function_runs_once_per_page_with_its_number_and_count() {
+    run(|request, extension| {
+        let facts = pass(request, extension, first(THREE_PAGES, None)).expect("it lays out");
+        assert!(bytes(&facts).is_empty(), "the first pass wrote a file");
+        assert_eq!(field(&facts, "pageCount"), Value::Uint(3));
+        let pages = items(&field(&facts, "pages"));
+        let numbers: Vec<Value> = pages.iter().map(|page| field(page, "number")).collect();
+        assert_eq!(numbers, [Value::Uint(1), Value::Uint(2), Value::Uint(3)]);
+        let chapters: Vec<Vec<(String, String)>> = pages
+            .iter()
+            .map(|page| pairs(&field(page, "strings")))
+            .collect();
+        assert_eq!(chapters[0], []);
+        assert_eq!(chapters[1], [("chapter".to_owned(), "Books".to_owned())]);
+        assert_eq!(chapters[2], [("chapter".to_owned(), "Toys".to_owned())]);
+        let header = |n: u64| format!("<p>Shop, page {n} of 3</p>");
+        let headers: Vec<String> = (1..=3).map(header).collect();
+        let markup: Vec<_> = headers.iter().map(|h| (Some(h.as_str()), None)).collect();
+        let rendered = pass(request, extension, second(&markup)).expect("it renders");
+        assert!(bytes(&rendered).starts_with(b"%PDF-"));
+        assert_eq!(field(&rendered, "pageCount"), Value::Uint(3));
+        assert_eq!(items(&field(&rendered, "overflows")), []);
+    });
+}
+
+#[test]
+fn marks_on_a_page_and_up_to_it_reach_the_function() {
+    run(|request, extension| {
+        let facts = pass(request, extension, first(THREE_PAGES, None)).expect("it lays out");
+        let marks: Vec<Vec<(String, String)>> = items(&field(&facts, "pages"))
+            .iter()
+            .map(|page| pairs(&field(page, "marks")))
+            .collect();
+        let pair = |name: &str, value: &str| (name.to_owned(), value.to_owned());
+        assert_eq!(marks[0], [pair("amount", "1.50")]);
+        assert_eq!(
+            marks[1],
+            [
+                pair("amount", "12.00"),
+                pair("count", "1"),
+                pair("amount", "3.25")
+            ]
+        );
+        assert_eq!(marks[2], [pair("amount", "0.75")]);
+    });
+}
+
+#[test]
+fn a_header_function_costs_two_crossings() {
+    run(|request, extension| {
+        let before = request.crossings();
+        pass(request, extension, first(THREE_PAGES, None)).expect("it lays out");
+        let markup = [(Some("<p>Shop</p>"), Some("<p>Blog</p>")); 3];
+        let rendered = pass(request, extension, second(&markup)).expect("it renders");
+        assert!(bytes(&rendered).starts_with(b"%PDF-"));
+        assert_eq!(request.crossings() - before, 2);
+        let message = match pass(request, extension, second(&markup)) {
+            Err(Failure::Error(Error::Invalid(message))) => message,
+            other => panic!("a second pass with no first was not `invalid`: {other:?}"),
+        };
+        assert!(message.contains("first pass"), "{message}");
+    });
+}
+
+#[test]
+fn a_header_never_moves_the_body() {
+    run(|request, extension| {
+        let html = format!("<p>{}</p>", "Thank you for your order. ".repeat(400));
+        let (whole, count) = render(request, extension, &html, &[]).expect("it renders");
+        let facts = pass(request, extension, first(&html, None)).expect("it lays out");
+        assert_eq!(field(&facts, "pageCount"), Value::Uint(count));
+        let pages = usize::try_from(count).unwrap();
+        let empty =
+            pass(request, extension, second(&vec![(None, None); pages])).expect("it renders");
+        assert!(
+            bytes(&empty) == whole,
+            "a second pass with no markup differs from a whole render"
+        );
+        pass(request, extension, first(&html, None)).expect("it lays out");
+        let markup = vec![(Some("<h1>Shop</h1>"), Some("<p>Blog</p>")); pages];
+        let drawn = pass(request, extension, second(&markup)).expect("it renders");
+        assert_eq!(field(&drawn, "pageCount"), Value::Uint(count));
+        assert!(bytes(&drawn) != whole, "the header was not drawn");
+        let taller = pass(request, extension, first(&html, Some("10cm"))).expect("it lays out");
+        let Value::Uint(more) = field(&taller, "pageCount") else {
+            panic!("`pageCount` is not a uint");
+        };
+        assert!(
+            more > count,
+            "a taller header margin did not shorten each page"
+        );
+        let message = match pass(request, extension, first(&html, Some("tall"))) {
+            Err(Failure::Error(Error::Invalid(message))) => message,
+            other => panic!("a height that is not a length was not `invalid`: {other:?}"),
+        };
+        assert!(message.contains("`tall`"), "{message}");
+    });
+}
+
+#[test]
+fn a_header_taller_than_its_margin_is_reported() {
+    run(|request, extension| {
+        let html = "<style>@page { margin-top: 1cm }</style><p>Shop</p>";
+        pass(request, extension, first(html, None)).expect("it lays out");
+        let tall = "<p>Shop</p><p>Blog</p><p>Shop</p><p>Blog</p>";
+        let rendered = pass(
+            request,
+            extension,
+            second(&[(Some(tall), Some("<p>Blog</p>"))]),
+        )
+        .expect("it renders");
+        let overflows = items(&field(&rendered, "overflows"));
+        assert_eq!(overflows.len(), 1, "{overflows:?}");
+        assert_eq!(field(&overflows[0], "page"), Value::Uint(1));
+        assert_eq!(text(&field(&overflows[0], "area")), "header");
+        assert_eq!(text(&field(&overflows[0], "text")), tall);
+    });
+}
+
+#[test]
+fn a_function_header_wins_over_a_margin_box() {
+    run(|request, extension| {
+        let body = "<p>Shop</p>";
+        let boxed =
+            "<style>@page { @top-center { content: 'Blog Zebra Quilt' } }</style><p>Shop</p>";
+        let (plain, _) = render(request, extension, body, &[]).expect("it renders");
+        let (with_box, _) = render(request, extension, boxed, &[]).expect("it renders");
+        assert!(plain != with_box, "the margin box was not drawn");
+        let header = [(Some("<p>Shop</p>"), None)];
+        pass(request, extension, first(body, None)).expect("it lays out");
+        let over_plain = bytes(&pass(request, extension, second(&header)).expect("it renders"));
+        pass(request, extension, first(boxed, None)).expect("it lays out");
+        let over_box = bytes(&pass(request, extension, second(&header)).expect("it renders"));
+        assert!(
+            over_plain == over_box,
+            "the margin box was drawn beside the function's header"
+        );
+        let footer = [(None, Some("<p>Shop</p>"))];
+        pass(request, extension, first(boxed, None)).expect("it lays out");
+        let kept = bytes(&pass(request, extension, second(&footer)).expect("it renders"));
+        pass(request, extension, first(body, None)).expect("it lays out");
+        let without = bytes(&pass(request, extension, second(&footer)).expect("it renders"));
+        assert!(kept != without, "a footer took off a box in the top margin");
     });
 }
 

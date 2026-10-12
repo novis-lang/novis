@@ -14,12 +14,23 @@
 //! (`rule:core-classes/pdf-render-has-no-io`): every byte it draws is in the document or the
 //! component, so two renders of one document are the same bytes.
 //!
+//! **A render with header or footer functions is two calls**
+//! (`rule:core-classes/pdf-header-is-a-page-function`). [`first`] lays the body out as
+//! [`render`] does, with the top or bottom margin a function's height gives, and returns a
+//! [`Kept`] beside each page's facts. [`second`] lays each page's header and footer markup out
+//! on its own, as a document whose page is the size of the margin's area, and draws it over that
+//! margin with [`layout::overlay`]: the body does not move, a margin box along that side is not
+//! drawn, and markup taller than the area is clipped and listed in [`Rendered::overflows`]. The
+//! area is the page's content width and the whole margin's height, and the markup is set at its
+//! top. The markup is styled by its own `<style>` and not the document's, and it uses the
+//! document's assets and fonts. The guest keeps the [`Kept`] in the instance between the two
+//! calls, and the request's end drops it.
+//!
 //! Known gaps, each owned by a later stage of the goal that builds this component: a table is
-//! laid out as block boxes, and links, bookmarks and the document's title, metadata and
-//! language are not written. The `first` and `second` passes, `merge`, `read` and `read-text` return `runtime` until their stages land,
-//! and so `rendered` lists no overflows, and a page has no name, strings or marks. The output is untagged, and the standards, the password and the
-//! invoice XML are checked against each other and otherwise not applied (Stage 12 and
-//! Stage 10).
+//! laid out as block boxes, and a slot's fill is not drawn (Stage 11). `merge`, `read` and
+//! `read-text` return `runtime` until their stages land. The output is untagged, and the
+//! standards, the password and the invoice XML are checked against each other and otherwise not
+//! applied (Stage 12).
 
 pub mod assets;
 pub mod css;
@@ -69,20 +80,60 @@ pub struct Document {
     pub options: Options,
 }
 
-/// The facts of one page that this stage has: its number, from 1.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// The facts of one page: its number from 1, its page name, its named strings and its
+/// `data-mark` marks (`layout`'s `margin` module doc).
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PageFacts {
     pub number: u64,
+    pub name: Option<String>,
+    pub strings: Vec<(String, String)>,
+    pub marks: Vec<(String, String)>,
 }
 
-/// What [`render`] returns: the file, one [`PageFacts`] per page in order, every declaration,
-/// rule and element the render dropped, and the text no font had.
+/// Markup taller than its area: the page from 1, `header` or `footer`, and the markup.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Overflow {
+    pub page: u64,
+    pub area: String,
+    pub text: String,
+}
+
+/// What a render returns: the file, which is empty after [`first`], one [`PageFacts`] per page
+/// in order, every declaration, rule and element the render dropped, the text no font had, and
+/// the markup taller than its area.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Rendered {
     pub data: Vec<u8>,
     pub pages: Vec<PageFacts>,
     pub dropped: Vec<css::Dropped>,
     pub missing_glyphs: Vec<layout::Missing>,
+    pub overflows: Vec<Overflow>,
+}
+
+/// The WIT `first-pass`'s heights: each a CSS length for the top or bottom margin of every
+/// page, or `None` to keep `@page`'s.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Heights {
+    pub header: Option<String>,
+    pub footer: Option<String>,
+}
+
+/// The WIT `page-markup`: one page's header and footer HTML.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Markup {
+    pub header: Option<String>,
+    pub footer: Option<String>,
+}
+
+/// What [`first`] keeps for [`second`]: the laid-out body, the fonts it was laid out in, the
+/// assets, the metadata, the creation time and the dropped list.
+pub struct Kept {
+    laid: layout::Laid,
+    fonts: fonts::Fonts,
+    assets: Vec<Asset>,
+    info: write::Info,
+    created: Option<Instant>,
+    dropped: Vec<css::Dropped>,
 }
 
 /// The WIT `error`: `Invalid` becomes `LogicError`, `Parse` becomes `ParseError` and `Runtime`
@@ -102,6 +153,16 @@ pub enum Error {
 /// not resolve returns `Invalid` naming it, and an image whose bytes do not decode returns
 /// `Parse` naming it.
 pub fn render(document: &Document) -> Result<Rendered, Error> {
+    let (kept, _) = first(document, &Heights::default())?;
+    finish(kept, Vec::new())
+}
+
+/// The `first` pass: `document` laid out as [`render`] lays it out, each height in `heights`
+/// replacing its margin, and each page's facts with no file.
+///
+/// A height that is not one CSS length of 0 or more returns `Invalid`, and so does everything
+/// [`render`] returns `Invalid` for.
+pub fn first(document: &Document, heights: &Heights) -> Result<(Kept, Rendered), Error> {
     let options = &document.options;
     if options.invoice_xml.is_some() && options.standard != Some(Standard::PdfA3b) {
         return Err(Error::Invalid(
@@ -118,19 +179,136 @@ pub fn render(document: &Document) -> Result<Rendered, Error> {
     let dom = parse::parse(&document.html);
     let assets = assets::Assets::new(&document.assets);
     assets::check(&dom, &assets)?;
-    let styles = css::cascade(&dom, &document.html, &assets);
+    let mut styles = css::cascade(&dom, &document.html, &assets);
+    for (side, height, what) in [
+        ("margin-top", &heights.header, "header"),
+        ("margin-bottom", &heights.footer, "footer"),
+    ] {
+        if let Some(height) = height {
+            let rule = paginate::margin_rule(side, height).ok_or_else(|| {
+                Error::Invalid(format!(
+                    "the {what} height `{height}` is not a CSS length of 0 or more"
+                ))
+            })?;
+            styles.pages.push(rule);
+        }
+    }
     let fonts = fonts::Fonts::new(&styles.font_faces, &assets)?;
-    let laid = layout::layout(&dom, &styles, &assets, fonts)?;
-    let data = write::write(&laid, &write::Info::of(&dom), options.created)?;
-    let pages = (1..=laid.pages.len() as u64)
-        .map(|number| PageFacts { number })
-        .collect();
+    let (laid, fonts) = layout::layout_keeping(&dom, &styles, &assets, fonts)?;
+    let rendered = Rendered {
+        data: Vec::new(),
+        pages: facts(&laid),
+        dropped: styles.dropped.clone(),
+        missing_glyphs: laid.missing.clone(),
+        overflows: Vec::new(),
+    };
+    let kept = Kept {
+        laid,
+        fonts,
+        assets: document.assets.clone(),
+        info: write::Info::of(&dom),
+        created: options.created,
+        dropped: styles.dropped,
+    };
+    Ok((kept, rendered))
+}
+
+/// The `second` pass: each page's markup in `pages` drawn over the margins of the body `kept`
+/// holds, and the file written.
+///
+/// A list whose length is not the page count returns `Invalid`, and so does markup that names
+/// an asset the map does not have.
+pub fn second(kept: Kept, pages: &[Markup]) -> Result<Rendered, Error> {
+    let count = kept.laid.pages.len();
+    if pages.len() != count {
+        return Err(Error::Invalid(format!(
+            "the second pass has markup for {} pages, and the document has {count}",
+            pages.len()
+        )));
+    }
+    let Kept {
+        mut laid,
+        mut fonts,
+        assets: owned,
+        info,
+        created,
+        dropped,
+    } = kept;
+    let assets = assets::Assets::new(&owned);
+    let mut overflows = Vec::new();
+    for (index, markup) in pages.iter().enumerate() {
+        let geometry = laid.pages[index].geometry;
+        let [top, _, bottom, left] = geometry.margin;
+        let width = geometry.content_width();
+        for (side, html, area) in [
+            ("top", &markup.header, [left, 0.0, width, top]),
+            (
+                "bottom",
+                &markup.footer,
+                [left, geometry.height - bottom, width, bottom],
+            ),
+        ] {
+            let Some(html) = html else { continue };
+            let over = if area[2] > 0.0 && area[3] > 0.0 {
+                let page = format!(
+                    "<style>@page {{ size: {}pt {}pt; margin: 0 }}</style>",
+                    area[2], area[3]
+                );
+                let source = page + html;
+                let dom = parse::parse(&source);
+                assets::check(&dom, &assets)?;
+                let styles = css::cascade(&dom, &source, &assets);
+                let (markup, back) = layout::layout_keeping(&dom, &styles, &assets, fonts)?;
+                fonts = back;
+                layout::overlay(&mut laid, index, side, area, markup)
+            } else {
+                !html.trim().is_empty()
+            };
+            if over {
+                overflows.push(Overflow {
+                    page: index as u64 + 1,
+                    area: if side == "top" { "header" } else { "footer" }.to_owned(),
+                    text: html.clone(),
+                });
+            }
+        }
+    }
+    finish(
+        Kept {
+            laid,
+            fonts,
+            assets: Vec::new(),
+            info,
+            created,
+            dropped,
+        },
+        overflows,
+    )
+}
+
+/// The file of `kept`'s pages, with `overflows`.
+fn finish(kept: Kept, overflows: Vec<Overflow>) -> Result<Rendered, Error> {
+    let data = write::write(&kept.laid, &kept.info, kept.created)?;
     Ok(Rendered {
         data,
-        pages,
-        dropped: styles.dropped,
-        missing_glyphs: laid.missing,
+        pages: facts(&kept.laid),
+        dropped: kept.dropped,
+        missing_glyphs: kept.laid.missing,
+        overflows,
     })
+}
+
+fn facts(laid: &layout::Laid) -> Vec<PageFacts> {
+    laid.pages
+        .iter()
+        .zip(1..)
+        .map(|(page, number)| PageFacts {
+            number,
+            name: page.name.clone(),
+            strings: page.strings.clone(),
+            marks: page.marks.clone(),
+        })
+        .collect()
 }
 
 #[cfg(target_family = "wasm")]
@@ -141,12 +319,73 @@ mod guest {
         generate_all,
     });
 
+    use std::cell::RefCell;
+
     use exports::nvs::pdf::engine::{
-        Document, DroppedItem, Error, Guest, MissingGlyph, PageFacts, Part, Pass, PdfInfo,
-        Rendered, Standard,
+        Document, DroppedItem, Error, Guest, MissingGlyph, NamedValue, Overflow, PageFacts, Part,
+        Pass, PdfInfo, Rendered, Standard,
     };
 
     struct Component;
+
+    thread_local! {
+        /// The body a `first` pass laid out, until the `second` pass writes it. Each request has
+        /// an instance of its own, so this is one request's.
+        static KEPT: RefCell<Option<crate::Kept>> = const { RefCell::new(None) };
+    }
+
+    fn named(pairs: Vec<(String, String)>) -> Vec<NamedValue> {
+        pairs
+            .into_iter()
+            .map(|(name, value)| NamedValue { name, value })
+            .collect()
+    }
+
+    fn rendered(rendered: crate::Rendered) -> Rendered {
+        Rendered {
+            page_count: rendered.pages.len() as u64,
+            pages: rendered
+                .pages
+                .into_iter()
+                .map(|page| PageFacts {
+                    number: page.number,
+                    name: page.name,
+                    strings: named(page.strings),
+                    marks: named(page.marks),
+                })
+                .collect(),
+            data: rendered.data,
+            dropped: rendered
+                .dropped
+                .into_iter()
+                .map(|item| DroppedItem {
+                    property: item.property,
+                    value: item.value,
+                    selector: item.selector,
+                    line: item.line,
+                    column: item.column,
+                })
+                .collect(),
+            missing_glyphs: rendered
+                .missing_glyphs
+                .into_iter()
+                .map(|missing| MissingGlyph {
+                    text: missing.text,
+                    fonts: missing.fonts,
+                    page: missing.page,
+                })
+                .collect(),
+            overflows: rendered
+                .overflows
+                .into_iter()
+                .map(|overflow| Overflow {
+                    page: overflow.page,
+                    area: overflow.area,
+                    text: overflow.text,
+                })
+                .collect(),
+        }
+    }
 
     fn error(err: crate::Error) -> Error {
         match err {
@@ -194,47 +433,40 @@ mod guest {
 
     impl Guest for Component {
         fn render(pass: Pass) -> Result<Rendered, Error> {
-            let document = match pass {
-                Pass::Whole(document) => self::document(document),
-                Pass::First(_) => return Err(not_yet("the `first` pass")),
-                Pass::Second(_) => return Err(not_yet("the `second` pass")),
+            // Whatever this call is, the body an earlier `first` kept is used at most once.
+            let body = KEPT.with(|kept| kept.borrow_mut().take());
+            let out = match pass {
+                Pass::Whole(document) => crate::render(&self::document(document)),
+                Pass::First(first) => {
+                    let heights = crate::Heights {
+                        header: first.header_height,
+                        footer: first.footer_height,
+                    };
+                    crate::first(&self::document(first.document), &heights).map(
+                        |(body, rendered)| {
+                            KEPT.with(|kept| *kept.borrow_mut() = Some(body));
+                            rendered
+                        },
+                    )
+                }
+                Pass::Second(margins) => {
+                    let pages: Vec<crate::Markup> = margins
+                        .pages
+                        .into_iter()
+                        .map(|page| crate::Markup {
+                            header: page.header,
+                            footer: page.footer,
+                        })
+                        .collect();
+                    match body {
+                        Some(body) => crate::second(body, &pages),
+                        None => Err(crate::Error::Invalid(
+                            "the second pass needs a first pass in the same request".to_owned(),
+                        )),
+                    }
+                }
             };
-            let rendered = crate::render(&document).map_err(error)?;
-            Ok(Rendered {
-                page_count: rendered.pages.len() as u64,
-                pages: rendered
-                    .pages
-                    .into_iter()
-                    .map(|page| PageFacts {
-                        number: page.number,
-                        name: None,
-                        strings: Vec::new(),
-                        marks: Vec::new(),
-                    })
-                    .collect(),
-                data: rendered.data,
-                dropped: rendered
-                    .dropped
-                    .into_iter()
-                    .map(|item| DroppedItem {
-                        property: item.property,
-                        value: item.value,
-                        selector: item.selector,
-                        line: item.line,
-                        column: item.column,
-                    })
-                    .collect(),
-                missing_glyphs: rendered
-                    .missing_glyphs
-                    .into_iter()
-                    .map(|missing| MissingGlyph {
-                        text: missing.text,
-                        fonts: missing.fonts,
-                        page: missing.page,
-                    })
-                    .collect(),
-                overflows: Vec::new(),
-            })
+            out.map(rendered).map_err(error)
         }
 
         fn merge(_parts: Vec<Part>) -> Result<Vec<u8>, Error> {

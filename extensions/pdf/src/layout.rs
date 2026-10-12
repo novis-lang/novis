@@ -175,7 +175,8 @@ mod transform;
 
 pub use boxes::{Paint, Seg, Stop, Stroke, bounds};
 pub use image::Picture;
-pub use text::layout;
+pub use margin::overlay;
+pub use text::{layout, layout_keeping};
 pub use transform::Matrix;
 
 use block::{BoxGeometry, SIDES};
@@ -307,6 +308,13 @@ pub struct Page {
     pub geometry: PageBox,
     /// Its name, from the `page` of the first block box on it.
     pub name: Option<String>,
+    /// Each named string's value on it by `string(name)`, the names in the order they are
+    /// first set in the document.
+    pub strings: Vec<(String, String)>,
+    /// Each `data-mark` name and value set on it, in document order.
+    pub marks: Vec<(String, String)>,
+    /// Each margin box drawn on it: its name and its items' range in [`Page::items`].
+    pub boxes: Vec<(&'static str, Range<usize>)>,
 }
 
 /// Text no font in its chain has: the characters, the chain by family name, and the page, from 1.
@@ -424,11 +432,12 @@ enum Block {
         atom: usize,
         name: String,
     },
-    /// A named string an element's `string-set` sets, on the page the next box placed starts
-    /// on. It takes no room in the flow.
+    /// A named string an element's `string-set` sets, or a `data-mark` when `mark` is set, on
+    /// the page the next box placed starts on. It takes no room in the flow.
     String {
         name: String,
         value: String,
+        mark: bool,
     },
     Text {
         text: String,

@@ -41,9 +41,8 @@ The request's memory cap and deadline end a render that exceeds them as they end
   `rule:core-classes/pdf-render-has-no-io`'s.
 
 **Partly on disk.** `extensions/pdf/manifest.json` declares `Engine` and `Standard`, and
-`extensions/pdf/nvs/` holds `Document` without `header`, `footer` and `slots`, and `Rendered`. `Page`,
-`Pages` and `Reader` are not written. The `pdf` goal builds `Page`, `header` and `footer` in its
-Stage 10, `slots` in Stage 11, and `Pages` and `Reader` in Stage 13.
+`extensions/pdf/nvs/` holds `Document` without `slots`, `Page` and `Rendered`. `Pages` and `Reader`
+are not written. The `pdf` goal builds `slots` in its Stage 11, and `Pages` and `Reader` in Stage 13.
 
 **Declined:**
 - **A `Pdf` facade with static `render($html, $options)`.** The options a render takes — assets, three

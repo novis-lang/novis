@@ -1306,7 +1306,18 @@ pub(super) fn blocks(
                         node.attr(attr).map(str::to_owned)
                     })
                 {
-                    builder.blocks.push(Block::String { name, value });
+                    builder.blocks.push(Block::String {
+                        name,
+                        value,
+                        mark: false,
+                    });
+                }
+                for (name, value) in node.attr("data-mark").map(marks).unwrap_or_default() {
+                    builder.blocks.push(Block::String {
+                        name,
+                        value,
+                        mark: true,
+                    });
                 }
                 if let Some(id) = node.attr("id") {
                     builder
@@ -1423,6 +1434,18 @@ fn lang_of(tag: &str) -> Option<Lang> {
 }
 
 /// `text` with a soft hyphen at each point `hypher` breaks its words at in `lang`.
+/// The marks of a `data-mark` attribute: `name:value` pairs separated by `;`, each name and
+/// value trimmed. A pair with no `:` or an empty name is left out.
+fn marks(attr: &str) -> Vec<(String, String)> {
+    attr.split(';')
+        .filter_map(|pair| {
+            let (name, value) = pair.split_once(':')?;
+            let name = name.trim();
+            (!name.is_empty()).then(|| (name.to_owned(), value.trim().to_owned()))
+        })
+        .collect()
+}
+
 fn hyphenated(text: &str, lang: Lang) -> String {
     let mut out = String::with_capacity(text.len());
     let mut rest = text;

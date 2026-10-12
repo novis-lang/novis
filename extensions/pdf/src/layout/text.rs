@@ -37,12 +37,23 @@ pub fn layout(
     assets: &Assets<'_>,
     fonts: Fonts,
 ) -> Result<Laid, Error> {
+    layout_keeping(dom, styles, assets, fonts).map(|(laid, _)| laid)
+}
+
+/// [`layout`], which also returns `fonts`, so another document can be laid out with the same
+/// faces at the same indices.
+pub fn layout_keeping(
+    dom: &Dom,
+    styles: &Styles,
+    assets: &Assets<'_>,
+    fonts: Fonts,
+) -> Result<(Laid, Fonts), Error> {
     let mut fonts = fonts;
     let mut targets = Targets::new();
     for _ in 0..PASSES {
         let (laid, rest, landed, targeted) = pass(dom, styles, assets, fonts, &targets)?;
         if !targeted || landed == targets {
-            return Ok(laid);
+            return Ok((laid, rest));
         }
         fonts = rest;
         targets = landed;
@@ -172,6 +183,7 @@ fn pass(
         strings: Vec::new(),
     };
     margin::draw(&mut cx, boxes, &mut flow.pages);
+    margin::facts(&mut flow.pages, &strings);
     let laid = Laid {
         pages: flow.pages,
         images,
@@ -536,11 +548,12 @@ impl Cx<'_> {
                         missing: std::mem::take(&mut placed.missing),
                     });
                 }
-                Block::String { name, value } => self.strings.push(margin::Set {
+                Block::String { name, value, mark } => self.strings.push(margin::Set {
                     name,
                     value,
                     page: flow.landing(),
                     top: flow.at_top(),
+                    mark,
                 }),
                 // An `id` in a box laid out on a page of its own is not on any page yet.
                 Block::Target(anchor) => {

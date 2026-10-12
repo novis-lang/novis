@@ -8,6 +8,7 @@ use LogicError;
 final class Document
 {
     type Asset = {name: string, data: bytes};
+    type Margin = {fn: callable(Page): Core\Html\Markup, height: ?string};
 
     private function constructor(
         private readonly string $html,
@@ -16,6 +17,8 @@ final class Document
         private readonly ?string $invoiceXml,
         private readonly ?string $password,
         private readonly ?Core\Time\Instant $created,
+        private readonly ?Margin $header,
+        private readonly ?Margin $footer,
     ) {}
 
     /// `Document::fromHtml` starts a document from its HTML.
@@ -23,9 +26,9 @@ final class Document
     public static function fromHtml(Core\Html\Markup|string $html): Document
     {
         if ($html is Core\Html\Markup) {
-            return new Document(Core\Html::toSource($html, "the PDF engine parses the document itself"), [], null, null, null, null);
+            return new Document(Core\Html::toSource($html, "the PDF engine parses the document itself"), [], null, null, null, null, null, null);
         }
-        return new Document($html as string, [], null, null, null, null);
+        return new Document($html as string, [], null, null, null, null, null, null);
     }
 
     /// `asset` adds a file the HTML names, such as an image or a stylesheet.
@@ -34,40 +37,55 @@ final class Document
     {
         array<Asset> $assets = $this->assets;
         $assets[] = {name: $name, data: $data};
-        return new Document($this->html, $assets, $this->standard, $this->invoiceXml, $this->password, $this->created);
+        return new Document($this->html, $assets, $this->standard, $this->invoiceXml, $this->password, $this->created, $this->header, $this->footer);
     }
 
     /// `standard` sets the PDF standard the file follows.
     public function standard(Standard $standard): Document
     {
-        return new Document($this->html, $this->assets, $standard, $this->invoiceXml, $this->password, $this->created);
+        return new Document($this->html, $this->assets, $standard, $this->invoiceXml, $this->password, $this->created, $this->header, $this->footer);
     }
 
     /// `invoiceXml` attaches the XML of an electronic invoice to the file.
     /// It needs the standard `Standard::PdfA3b`. With any other standard, `render` throws a `LogicError`.
     public function invoiceXml(string $xml): Document
     {
-        return new Document($this->html, $this->assets, $this->standard, $xml, $this->password, $this->created);
+        return new Document($this->html, $this->assets, $this->standard, $xml, $this->password, $this->created, $this->header, $this->footer);
     }
 
     /// `password` encrypts the file. A reader needs the password to open it.
     /// A PDF/A standard does not allow a password, so `render` then throws a `LogicError`.
     public function password(string $password): Document
     {
-        return new Document($this->html, $this->assets, $this->standard, $this->invoiceXml, $password, $this->created);
+        return new Document($this->html, $this->assets, $this->standard, $this->invoiceXml, $password, $this->created, $this->header, $this->footer);
     }
 
     /// `created` sets the creation time in the file. Without it, the file has no creation time.
     public function created(Core\Time\Instant $at): Document
     {
-        return new Document($this->html, $this->assets, $this->standard, $this->invoiceXml, $this->password, $at);
+        return new Document($this->html, $this->assets, $this->standard, $this->invoiceXml, $this->password, $at, $this->header, $this->footer);
+    }
+
+    /// `header` sets a function that returns the header of each page. `render` calls it once for each page.
+    /// The header is drawn in the top margin. `height` sets that margin, such as `"2cm"`. Without it, the margin is the one `@page` gives.
+    public function header(callable(Page): Core\Html\Markup $fn, ?{height?: string} $options = null): Document
+    {
+        Margin $header = {fn: $fn, height: $options?->height};
+        return new Document($this->html, $this->assets, $this->standard, $this->invoiceXml, $this->password, $this->created, $header, $this->footer);
+    }
+
+    /// `footer` sets a function that returns the footer of each page. It works like `header`, in the bottom margin.
+    public function footer(callable(Page): Core\Html\Markup $fn, ?{height?: string} $options = null): Document
+    {
+        Margin $footer = {fn: $fn, height: $options?->height};
+        return new Document($this->html, $this->assets, $this->standard, $this->invoiceXml, $this->password, $this->created, $this->header, $footer);
     }
 
     /// `render` returns the PDF file and its pages.
     /// Two renders of the same document give the same bytes.
     public function render(): Rendered
     {
-        var $result = Engine::render({
+        var $document = {
             html: $this->html,
             assets: $this->assets,
             options: {
@@ -76,7 +94,35 @@ final class Document
                 invoiceXml: $this->invoiceXml,
                 created: $this->created,
             },
+        };
+        if ($this->header == null && $this->footer == null) {
+            var $whole = Engine::render($document);
+            return new Rendered($whole->data, $whole->pageCount, $whole->dropped, $whole->missingGlyphs, $whole->overflows);
+        }
+        var $facts = Engine::render({
+            document: $document,
+            headerHeight: $this->header?->height,
+            footerHeight: $this->footer?->height,
         });
+        array<array<Page::Named>> $marks = [];
+        foreach ($facts->pages as var $page) {
+            $marks[] = $page->marks;
+        }
+        array<{header: ?string, footer: ?string, slots: array<{name: string, value: string}>}> $pages = [];
+        foreach ($facts->pages as var $page) {
+            var $one = new Page($page->number, $facts->pageCount, $page->name, $page->strings, $marks);
+            $pages[] = {header: self::markup($this->header, $one), footer: self::markup($this->footer, $one), slots: []};
+        }
+        var $result = Engine::render({pages: $pages});
         return new Rendered($result->data, $result->pageCount, $result->dropped, $result->missingGlyphs, $result->overflows);
+    }
+
+    private static function markup(?Margin $margin, Page $page): ?string
+    {
+        if ($margin == null) {
+            return null;
+        }
+        callable(Page): Core\Html\Markup $fn = $margin->fn;
+        return Core\Html::toSource($fn($page), "the PDF engine parses the markup itself");
     }
 }
