@@ -98,7 +98,7 @@ stages:
         shapes: []
   - id: 15
     title: completion and hover in the editor
-    status: open
+    status: done
     extra:
       context:
         rules: [ide/a-template-region-gets-the-editors-services-and-formatter, ide/completion-is-asked-where-a-spelling-ends]
@@ -797,18 +797,19 @@ One file set: `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/n
 
 ### State
 
-**Stage 14 is done: the growth, the render benches, the bundle and the rasterising bench are on disk, and both Stage 14 checks pass.**
+**Stage 15 is done: the editor's PDF custom data is generated, contributed and checked, and `vscode-pdf-custom-data-is-current` passes.**
 
-- The rasterising bench is two more jobs of `crates/nvs-ext/benches/image_guest.rs` (`pdf_text_page`, `pdf_image_page`), built in `crates/nvs-ext/tests/support/image_arms.rs`, and its figures are in `benches/results/image-guest.json` and `rule:core-classes/pdf-page-is-an-image-source`. With only the size crossing back, guest against native is 13 against 9 ms for the text page and 53 against 31 ms for the image page. The raw RGBA8 of an A4 page at 150 dpi adds about 390 ms crossing back, one `Val` per byte.
-- `crates/nvs-ext/tests/image_guest.rs` holds the image page byte-equal across the arms and the text page within one level, because glyph anti-aliasing rounds differently under the host's SIMD.
+- `editors/vscode/scripts/customData.ts` makes both files from the `subset.json` entries marked `"editor": true`; `bun nv pdf-custom-data [--check]` writes them under `editors/vscode/data/`; the contributions suite's *the PDF custom data* block fails when they are stale.
+- `data-repeat` lists `every` too, which `extensions/pdf/src/layout/table.rs:133` reads as the default. What is carried, and why `<slot>` and the value functions are not, is `rule:core-classes/pdf-css-subset-table`.
+- The hovers link no reference page: none exists until Stage 16 writes `docs/reference/novis/` pages for `Novis\Pdf`.
 
 ### Next
 
-**Stage 15, completion and hover in the editor.** The file set is `editors/vscode/package.json`, a new `editors/vscode/data/`, `editors/vscode/test/contributions/` and a new generator under `tools/nv/cmd/`.
+**Stage 16, the feature proofs.** The file set is `docs/examples/novis/Pdf-*/`, `tests/hostile/novis/Pdf-*/`, `benches/members/novis/Pdf-*/`, `docs/reference/novis/` and `data/proofs/policy.json`. Split it across subagents by class (AGENTS.md rule 12).
 
-- [ ] **The generator** (`rule:core-classes/pdf-css-subset`): reads `extensions/pdf/subset.json:219` (its `html` list; `:2`, `:153`, `:171` and `:193` are the CSS lists) and writes VS Code's HTML and CSS custom data under `editors/vscode/data/`, with a `--check` that fails when they are stale.
-- [ ] **The contribution**: `contributes.html.customData` and `contributes.css.customData` at `editors/vscode/package.json:29`, pointing at the two files; `data-repeat` with its values (the subset lists three where the stage's text says four), `data-mark`, and the CSS VS Code's own data lacks, as the stage's text lists.
-- [ ] **The check**: a `describe` block beside `editors/vscode/test/contributions/contributions.test.ts:438` that the data is contributed, current and completes `data-repeat`'s values, so `npm --prefix editors/vscode run test:headless` holds it. Then Stage 16, the feature proofs.
+- [ ] **`Novis\Pdf\Document`** (`rule:testing/feature-proofs`): `bun nv proofs --id 'Novis\Pdf\Document::fromHtml'` and each member beside it prints what is owed: `about.md`, a Rust `covers:` marker, three examples, a bench, an attack. The attacks and examples the stage's text lists start here (`extensions/pdf/nvs/Document.nvs:28`).
+- [ ] **`Page`, `Rendered`, `Pages`, `Reader`** (`extensions/pdf/nvs/Page.nvs:5`), then **`Engine`** under `Novis\Image\Codec`'s skip rule (`data/proofs/policy.json:41`), then **`Novis\Image\Barcode`** and `QrCode`'s `svg` and `giroCode` (`extensions/image/nvs/Barcode.nvs:1`).
+- [ ] **The reference page** under `docs/reference/novis/` beside `Image-Image.md`, and a `references` link in `editors/vscode/scripts/customData.ts:49` to it, regenerated with `bun nv pdf-custom-data`. Every comment and `about.md` goes through `bun nv proofs --comments` before the wrap.
 
 ### Backlog
 
