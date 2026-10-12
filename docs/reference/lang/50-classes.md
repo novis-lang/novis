@@ -1,8 +1,8 @@
 ---
 id: classes
 title: Classes, interfaces and objects
-summary: declaring a class, its properties, methods and constants; inheritance; interfaces, default methods and `by` delegation; hooks, observers, `Stringable`, `Comparable`; what an object is and what `clone` copies
-keywords: class, constructor, __construct, new, public, protected, private, static, self, parent, $this, abstract, final, extends, implements, interface, trait, delegation, by, readonly, lateinit, property hooks, get, set, PropertyObserver, Stringable, __toString, Comparable, compareTo, clone, __clone, is, object, ?->, nullsafe, __get, __set, __call, __callStatic, __invoke, __destruct, anonymous class, const, ::class, class<T>, class reference, new $cls, late static binding
+summary: declaring a class, its properties, methods and constants; inheritance; interfaces, default methods and `by` delegation; hooks, `LateInit`, guards, observers, `Stringable`, `Comparable`; what an object is and what `clone` copies
+keywords: class, constructor, __construct, new, public, protected, private, static, self, parent, $this, abstract, final, extends, implements, interface, trait, delegation, by, readonly, lateinit, isinit, LateInit, initProperty, property hooks, get, set, PropertyGuard, beforePropertySet, beforePropertyUnset, PropertyObserver, Stringable, __toString, Comparable, compareTo, clone, __clone, is, object, ?->, nullsafe, __get, __set, __call, __callStatic, __invoke, __destruct, anonymous class, const, ::class, class<T>, class reference, new $cls, late static binding
 ---
 
 # Declaring a class
@@ -172,7 +172,8 @@ a property default must be a
 `lateinit` on a property exempts it from the constructor rule. The property can have any type. A
 read before the first write throws a `LogicError`. If the compiler can see that a read comes before
 every write, the read is a compile error. `isinit($post->author)` returns `true` once the property
-has a value. It does not read the property, so it never throws.
+has a value. It does not read the property, so it never throws. A class that implements `LateInit`
+gives the property its value on the first read instead.
 <!-- src: `rule:classes/lateinit` -->
 
 ```nvs
@@ -987,14 +988,122 @@ $b->xs[0] = 1;
 cannot be written through the hooked property
 ```
 
+# `LateInit`
+
+A class implementing the global interface `LateInit` declares `initProperty(string $name): void`.
+A read of a `lateinit` property that has no value calls `initProperty` with the property's name,
+and then reads the property again. An element write such as `$post->tags[] = "news"` calls it
+first too. If the property still has no value after the call, the read throws a `LogicError`. In
+such a class a read before every write compiles, because that read is what calls `initProperty`.
+<!-- src: `rule:classes/late-init-initializes-on-the-first-read` -->
+
+- A write inside `initProperty` that gives a `lateinit` property its first value is plain: it runs
+  no `PropertyGuard`, no `set` hook and no `PropertyObserver`. Every other write runs them all.
+- A read of a property inside its own `initProperty` throws a `LogicError`.
+- A second task that reads the property while `initProperty` runs waits until it returns. It does
+  not call `initProperty` again.
+- If `initProperty` throws, the property still has no value, and the next read calls it again.
+
+```nvs
+<?nvs
+class Author {
+    public function constructor(public string $name) {}
+}
+
+class Post implements LateInit {
+    public lateinit Author $author;
+    public lateinit int $views;
+
+    public function initProperty(string $name): void {
+        echo "initProperty ", $name, "\n";
+        if ($name == "author") {
+            $this->author = new Author("Ada");
+        }
+    }
+}
+
+var $p = new Post();
+echo $p->author->name, "\n";
+echo $p->author->name, "\n";
+try {
+    echo $p->views, "\n";
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+```
+```output
+initProperty author
+Ada
+Ada
+initProperty views
+`initProperty` returned, but `$views` is still not initialized.
+```
+
+# `PropertyGuard`
+
+A class implementing the global interface `PropertyGuard` declares
+`beforePropertySet(string $name, mixed $value, array<string> $keys): void` and
+`beforePropertyUnset(string $name, array<string> $keys): void`. `beforePropertySet` runs before
+every write of every property the class declares, in the constructor too. On a property with a
+`set` hook it runs before the hook, with the value the caller wrote. If it throws, nothing is
+stored: the property keeps its old value and no observer runs. A `static` property runs no guard.
+<!-- src: `rule:classes/property-guard-runs-before-the-write` -->
+
+- A write of the whole property gets `[]` in `$keys`.
+- An element write gets the new element in `$value` and its keys in `$keys`, each as a string.
+  `$s->cells[0][1] = $v` gets `["0", "1"]`, and `$s->tags[] = $v` gets the next index.
+- `unset($s->tags["k"])` calls `beforePropertyUnset` with the keys of the element. If it throws,
+  the element stays.
+
+```nvs
+<?nvs
+class Account implements PropertyGuard {
+    public int $balance = 0;
+    public array<string> $tags = [];
+
+    public function beforePropertySet(string $name, mixed $value, array<string> $keys): void {
+        echo "check ", $name, " ", Core\Json::encode($keys), "\n";
+        if ($value is int && $value < 0) {
+            throw new LogicError("the balance cannot be negative");
+        }
+    }
+
+    public function beforePropertyUnset(string $name, array<string> $keys): void {
+        echo "check unset ", $name, " ", Core\Json::encode($keys), "\n";
+    }
+}
+
+var $a = new Account();
+$a->balance = 5;
+try {
+    $a->balance = -1;
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+echo $a->balance, "\n";
+$a->tags[] = "vip";
+unset($a->tags[0]);
+echo Core\Arr::count($a->tags), "\n";
+```
+```output
+check balance []
+check balance []
+the balance cannot be negative
+5
+check tags ["0"]
+check unset tags ["0"]
+0
+```
+
 # `PropertyObserver`
 
 A class implementing the global interface `PropertyObserver` declares
 `onPropertyGet(string $name, mixed $value): void` and `onPropertySet(string $name, mixed $value): void`,
 and is told of every read and write of every property it declares — hooked or not, in the
-constructor or later, in a subclass too — after the value has settled. The observer cannot
-change the value; a throwing `onPropertySet` fails the write. A class that does not implement
-the interface pays nothing.
+constructor or later, in a subclass too — after the value has settled. An element write or an
+element `unset`, such as `$a->rows[] = 1`, calls `onPropertySet` once with the whole array, and
+calls no `onPropertyGet`. The observer cannot change the value; a throwing `onPropertySet` fails
+the write. A class that does not implement the interface pays nothing.
 
 ```nvs
 <?nvs

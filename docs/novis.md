@@ -41,7 +41,7 @@ Conventions the whole file uses:
 - A.2 [Types, declarations and conversions](#lang-types) — every type, how a binding declares one, every value written in the code, the `as` conversion and its table, implicit widening, narrowing, truthiness, and the `tainted`/`secret` qualifiers *(bool, int, uint, float, decimal, string, bytes, array<T>, callable, class<T>, class reference, mixed, object, nullable, ?T, union, single-value type, enum, shape, anonymous object, type alias, void, never, self, static, iterable, intersection, var, declaration, inout, variadic, default parameter, constant, string literal, numeric literal, heredoc, nowdoc, interpolation, duration, html, markup, template, html template, page, escape, xss, as, conversion, cast, (int), (string), (float), (bool), (array), intval, strval, floatval, boolval, settype, gettype, is_int, is_string, is_array, is_null, is_numeric, widening, narrowing, is, truthy, falsy, tainted, secret, resource)*
 - A.3 [Expressions and operators](#lang-expressions) — every operator with its precedence and what it accepts, calls, anonymous functions and method references, `match`, arrays and anonymous objects in expression position, and the operators and forms that do not parse *(operators, precedence, associativity, arithmetic, +, -, *, /, %, **, pow, concatenation, ., .=, ==, !=, ===, !==, <>, <=>, spaceship, comparison, <, <=, >, >=, &&, ||, !, and, or, xor, ??, ??=, ??+=, ??-=, ??.=, defaulting assignment, ?:, elvis, ternary, ?->, nullsafe, match, is, new, clone, throw expression, print, isset, empty, unset, anonymous function, fn, function, use, callable, method reference, named arguments, spread, ..., variadic, inout, array literal, subscript, append, [], destructuring, list(), anonymous object, shape, ++, --, increment, bitwise, &, |, ^, ~, <<, >>, shift, overflow, ArithmeticError, division by zero, @, backticks, eval, extract, compact, settype, variable variables, $$, =&, reference, |>, pipeline, pipe, $_, hole, substitution)*
 - A.4 [Statements and control flow](#lang-statements) — expression statements, blocks and local declarations, `if`, the four loops, `switch`, `break`/`continue` with levels, `return`, `try`/`catch`/`finally`, `throw`, `echo`, `unset`, and the statement forms that do not parse *(statement, block, scope, definite assignment, if, elseif, else if, else, endif, alternative syntax, while, endwhile, do while, for, foreach, endforeach, as, key, value, inout, by reference, Iterator, Iterable, switch, case, default, fallthrough, break, continue, break 2, continue 2, levels, return, try, catch, finally, multi-catch, throw, echo, print, unset, exit, yield, goto, label, declare, strict_types, global, static variable)*
-- A.5 [Classes, interfaces and objects](#lang-classes) — declaring a class, its properties, methods and constants; inheritance; interfaces, default methods and `by` delegation; hooks, observers, `Stringable`, `Comparable`; what an object is and what `clone` copies *(class, constructor, __construct, new, public, protected, private, static, self, parent, $this, abstract, final, extends, implements, interface, trait, delegation, by, readonly, lateinit, property hooks, get, set, PropertyObserver, Stringable, __toString, Comparable, compareTo, clone, __clone, is, object, ?->, nullsafe, __get, __set, __call, __callStatic, __invoke, __destruct, anonymous class, const, ::class, class<T>, class reference, new $cls, late static binding)*
+- A.5 [Classes, interfaces and objects](#lang-classes) — declaring a class, its properties, methods and constants; inheritance; interfaces, default methods and `by` delegation; hooks, `LateInit`, guards, observers, `Stringable`, `Comparable`; what an object is and what `clone` copies *(class, constructor, __construct, new, public, protected, private, static, self, parent, $this, abstract, final, extends, implements, interface, trait, delegation, by, readonly, lateinit, isinit, LateInit, initProperty, property hooks, get, set, PropertyGuard, beforePropertySet, beforePropertyUnset, PropertyObserver, Stringable, __toString, Comparable, compareTo, clone, __clone, is, object, ?->, nullsafe, __get, __set, __call, __callStatic, __invoke, __destruct, anonymous class, const, ::class, class<T>, class reference, new $cls, late static binding)*
 - A.6 [Enums](#lang-enums) — `enum` declares a closed set of named integers — how cases get their values, how a case converts to and from its integer, and what an enum does not have *(enum, case, backed enum, BackedEnum, UnitEnum, int enum, uint enum, string enum, ->name, ->value, cases(), from(), tryFrom(), as int, as E, enum match, enum switch, enum case type, closed set, Core\Arr::Order)*
 - A.7 [Iteration and generators](#lang-iteration) — what `foreach` accepts — arrays, `Iterable<T>`, `Iterator<T>` — how a class becomes iterable, and how a method with `yield` is a lazy `Iterator<T>` *(foreach, Iterable, Iterator, iterate, advance, current, yield, generator, Generator, yield from, IteratorAggregate, Traversable, ArrayAccess, Countable, iterator_to_array, Core\Arr::from, lazy, finally, ObjectMap, ObjectSet, Heap, Channel)*
 - A.8 [Errors, exceptions and limits](#lang-errors) — the throwable tree, `throw`/`try`/`catch`/`finally`, what an uncaught throw does, and the fatal limits no `catch` sees *(Throwable, Exception, Error, LogicError, RuntimeError, IOError, ParseError, TimeoutError, RecursionError, ArithmeticError, throw, try, catch, finally, rethrow, previous, backtrace, location, message, getMessage, getPrevious, getTrace, getCode, set_error_handler, set_exception_handler, trigger_error, error_reporting, fatal, FATAL, memory limit, onLimit, capability, fs.read, script.spawn, Core\Fatal, Core\Debug, var_dump, print_r, assert, Core\Test\Failure)*
@@ -3028,7 +3028,7 @@ while ($n < 3) {
 <a id="lang-classes"></a>
 ## A.5 Classes, interfaces and objects
 
-Keywords: class, constructor, __construct, new, public, protected, private, static, self, parent, $this, abstract, final, extends, implements, interface, trait, delegation, by, readonly, lateinit, property hooks, get, set, PropertyObserver, Stringable, __toString, Comparable, compareTo, clone, __clone, is, object, ?->, nullsafe, __get, __set, __call, __callStatic, __invoke, __destruct, anonymous class, const, ::class, class<T>, class reference, new $cls, late static binding
+Keywords: class, constructor, __construct, new, public, protected, private, static, self, parent, $this, abstract, final, extends, implements, interface, trait, delegation, by, readonly, lateinit, isinit, LateInit, initProperty, property hooks, get, set, PropertyGuard, beforePropertySet, beforePropertyUnset, PropertyObserver, Stringable, __toString, Comparable, compareTo, clone, __clone, is, object, ?->, nullsafe, __get, __set, __call, __callStatic, __invoke, __destruct, anonymous class, const, ::class, class<T>, class reference, new $cls, late static binding
 
 ### Declaring a class
 
@@ -3195,7 +3195,8 @@ a property default must be a
 `lateinit` on a property exempts it from the constructor rule. The property can have any type. A
 read before the first write throws a `LogicError`. If the compiler can see that a read comes before
 every write, the read is a compile error. `isinit($post->author)` returns `true` once the property
-has a value. It does not read the property, so it never throws.
+has a value. It does not read the property, so it never throws. A class that implements `LateInit`
+gives the property its value on the first read instead.
 
 ```nvs
 <?nvs
@@ -4014,14 +4015,120 @@ $b->xs[0] = 1;
 cannot be written through the hooked property
 ```
 
+### `LateInit`
+
+A class implementing the global interface `LateInit` declares `initProperty(string $name): void`.
+A read of a `lateinit` property that has no value calls `initProperty` with the property's name,
+and then reads the property again. An element write such as `$post->tags[] = "news"` calls it
+first too. If the property still has no value after the call, the read throws a `LogicError`. In
+such a class a read before every write compiles, because that read is what calls `initProperty`.
+
+- A write inside `initProperty` that gives a `lateinit` property its first value is plain: it runs
+  no `PropertyGuard`, no `set` hook and no `PropertyObserver`. Every other write runs them all.
+- A read of a property inside its own `initProperty` throws a `LogicError`.
+- A second task that reads the property while `initProperty` runs waits until it returns. It does
+  not call `initProperty` again.
+- If `initProperty` throws, the property still has no value, and the next read calls it again.
+
+```nvs
+<?nvs
+class Author {
+    public function constructor(public string $name) {}
+}
+
+class Post implements LateInit {
+    public lateinit Author $author;
+    public lateinit int $views;
+
+    public function initProperty(string $name): void {
+        echo "initProperty ", $name, "\n";
+        if ($name == "author") {
+            $this->author = new Author("Ada");
+        }
+    }
+}
+
+var $p = new Post();
+echo $p->author->name, "\n";
+echo $p->author->name, "\n";
+try {
+    echo $p->views, "\n";
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+```
+```output
+initProperty author
+Ada
+Ada
+initProperty views
+`initProperty` returned, but `$views` is still not initialized.
+```
+
+### `PropertyGuard`
+
+A class implementing the global interface `PropertyGuard` declares
+`beforePropertySet(string $name, mixed $value, array<string> $keys): void` and
+`beforePropertyUnset(string $name, array<string> $keys): void`. `beforePropertySet` runs before
+every write of every property the class declares, in the constructor too. On a property with a
+`set` hook it runs before the hook, with the value the caller wrote. If it throws, nothing is
+stored: the property keeps its old value and no observer runs. A `static` property runs no guard.
+
+- A write of the whole property gets `[]` in `$keys`.
+- An element write gets the new element in `$value` and its keys in `$keys`, each as a string.
+  `$s->cells[0][1] = $v` gets `["0", "1"]`, and `$s->tags[] = $v` gets the next index.
+- `unset($s->tags["k"])` calls `beforePropertyUnset` with the keys of the element. If it throws,
+  the element stays.
+
+```nvs
+<?nvs
+class Account implements PropertyGuard {
+    public int $balance = 0;
+    public array<string> $tags = [];
+
+    public function beforePropertySet(string $name, mixed $value, array<string> $keys): void {
+        echo "check ", $name, " ", Core\Json::encode($keys), "\n";
+        if ($value is int && $value < 0) {
+            throw new LogicError("the balance cannot be negative");
+        }
+    }
+
+    public function beforePropertyUnset(string $name, array<string> $keys): void {
+        echo "check unset ", $name, " ", Core\Json::encode($keys), "\n";
+    }
+}
+
+var $a = new Account();
+$a->balance = 5;
+try {
+    $a->balance = -1;
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+echo $a->balance, "\n";
+$a->tags[] = "vip";
+unset($a->tags[0]);
+echo Core\Arr::count($a->tags), "\n";
+```
+```output
+check balance []
+check balance []
+the balance cannot be negative
+5
+check tags ["0"]
+check unset tags ["0"]
+0
+```
+
 ### `PropertyObserver`
 
 A class implementing the global interface `PropertyObserver` declares
 `onPropertyGet(string $name, mixed $value): void` and `onPropertySet(string $name, mixed $value): void`,
 and is told of every read and write of every property it declares — hooked or not, in the
-constructor or later, in a subclass too — after the value has settled. The observer cannot
-change the value; a throwing `onPropertySet` fails the write. A class that does not implement
-the interface pays nothing.
+constructor or later, in a subclass too — after the value has settled. An element write or an
+element `unset`, such as `$a->rows[] = 1`, calls `onPropertySet` once with the whole array, and
+calls no `onPropertyGet`. The observer cannot change the value; a throwing `onPropertySet` fails
+the write. A class that does not implement the interface pays nothing.
 
 ```nvs
 <?nvs
