@@ -30,7 +30,8 @@ rounds through a float.
 `first` and `second` in `extensions/pdf/src/lib.rs`, called by `Document::render` in
 `extensions/pdf/nvs/Document.nvs`. A function's `height` is an `@page` rule after the document's
 own, so a `:first`, `:left`, `:right`, `:blank` or named-page rule's margin on that side still wins
-over it. `slots` is not written: the `pdf` goal's Stage 11 builds it with the tables.
+over it. `Document::slots` fills each `<slot name>` through the same second pass, in its cell's
+content box.
 
 **Declined:**
 - **A function called from the guest per page.** The world has no export a guest calls back into

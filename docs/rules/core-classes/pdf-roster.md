@@ -8,7 +8,7 @@ methods are the WIT exports (`wit/pdf.wit`), the way `Novis\Image\Codec` is the 
 | `->asset(string $name, bytes $data): Document` | adds one named asset (`rule:core-classes/pdf-render-has-no-io`) |
 | `->header(callable $fn, ?{height?: string} $options = null): Document` | a function from `Page` to `Core\Html\Markup`, drawn in the top margin of each page (`rule:core-classes/pdf-header-is-a-page-function`) |
 | `->footer(callable $fn, ?{height?: string} $options = null): Document` | the same, in the bottom margin |
-| `->slots(callable $fn): Document` | a function from `Page` to `array<string, Core\Html\Markup>`, filling each `<slot name>` in a repeated table row (`rule:core-classes/pdf-tables-across-pages`) |
+| `->slots(callable $fn): Document` | a function from `Page` to an `array<Core\Html\Markup>` keyed by slot name, filling each `<slot name>` in a repeated table row (`rule:core-classes/pdf-tables-across-pages`) |
 | `->standard(Document::Standard $standard): Document` | `PdfA2b`, `PdfA3b` or `PdfUa1` (`rule:core-classes/pdf-standards-and-passwords`) |
 | `->invoiceXml(string $xml): Document` | the Factur-X XML (`rule:core-classes/pdf-factur-x-is-the-one-attachment`) |
 | `->password(string $password): Document` | encrypts the output with AES-256 |
@@ -41,8 +41,8 @@ The request's memory cap and deadline end a render that exceeds them as they end
   `rule:core-classes/pdf-render-has-no-io`'s.
 
 **Partly on disk.** `extensions/pdf/manifest.json` declares `Engine` and `Standard`, and
-`extensions/pdf/nvs/` holds `Document` without `slots`, `Page` and `Rendered`. `Pages` and `Reader`
-are not written. The `pdf` goal builds `slots` in its Stage 11, and `Pages` and `Reader` in Stage 13.
+`extensions/pdf/nvs/` holds `Document`, `Page` and `Rendered`. `Pages` and `Reader` are not
+written. The `pdf` goal builds them in Stage 13.
 
 **Declined:**
 - **A `Pdf` facade with static `render($html, $options)`.** The options a render takes — assets, three

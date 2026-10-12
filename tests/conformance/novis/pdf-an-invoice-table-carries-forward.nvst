@@ -1,0 +1,38 @@
+--TEST--
+An invoice table over three pages repeats its header, fills a carried-forward slot on each page where the table goes on, and shows its total on the last page: rule:core-classes/pdf-tables-across-pages
+--FILE--
+<?nvs
+// covers: Novis\Pdf\Document::slots
+use Novis\Pdf\Document;
+use Novis\Pdf\Page;
+
+// Each row costs 1.50 and has a `data-mark` with that amount.
+string $rows = "";
+for (int $n = 1; $n <= 50; $n++) {
+    $rows .= "<tr data-mark=\"amount:1.50\"><td>Tea {$n}</td><td>1.50</td></tr>";
+}
+// `data-repeat="continued"` shows a footer row only on pages where the table goes on.
+// `data-repeat="last"` shows it only on the last page.
+var $html = "<style>@page { size: 105mm 148mm; margin: 10mm } body { font-size: 10pt }</style>"
+    . "<table><thead><tr><th>Item</th><th>Price</th></tr></thead><tbody>{$rows}</tbody>"
+    . "<tfoot><tr data-repeat=\"continued\"><td>Carried forward</td><td><slot name=\"carried\"></slot></td></tr>"
+    . "<tr data-repeat=\"last\"><td>Total</td><td><slot name=\"total\"></slot></td></tr></tfoot></table>";
+
+// The function adds up the amounts on this page and every page before it.
+// It returns the same total for both slots. Each page shows only one of them.
+var $slots = fn(Page $page): array<Core\Html\Markup> => {
+    decimal $total = 0.0;
+    foreach ($page->marksUpTo("amount") as string $amount) {
+        $total = $total + (($amount as ?decimal) ?? 0.0 as decimal);
+    }
+    echo "page ", $page->number, " of ", $page->count, ": ", Core\Arr::count($page->marks("amount")), " rows, total ", $total, "\n";
+    return ["carried" => html`{$total}`, "total" => html`<b>{$total}</b>`];
+};
+
+var $rendered = Document::fromHtml($html)->slots($slots)->render();
+echo $rendered->pageCount, " pages, ", Core\Arr::count($rendered->overflows), " overflows\n";
+--EXPECT--
+page 1 of 3: 22 rows, total 33.00
+page 2 of 3: 23 rows, total 67.50
+page 3 of 3: 5 rows, total 75.00
+3 pages, 0 overflows

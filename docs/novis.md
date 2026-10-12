@@ -29527,7 +29527,7 @@ Returns the best of the offered locales for an `Accept-Language` header value. I
 <a id="core-novis-pdf-document"></a>
 ### `Novis\Pdf\Document`
 
-Keywords: fromHtml, asset, standard, invoiceXml, password, created, header, footer, render
+Keywords: fromHtml, asset, standard, invoiceXml, password, created, header, footer, slots, render
 
 | Member | Signature |
 |---|---|
@@ -29539,6 +29539,7 @@ Keywords: fromHtml, asset, standard, invoiceXml, password, created, header, foot
 | [`Novis\Pdf\Document->created`](#core-novis-pdf-document-created) | `created(Core\Time\Instant $at): Document` |
 | [`Novis\Pdf\Document->header`](#core-novis-pdf-document-header) | `header(callable(Page): Core\Html\Markup $fn, ?{height?: string} $options = null): Document` |
 | [`Novis\Pdf\Document->footer`](#core-novis-pdf-document-footer) | `footer(callable(Page): Core\Html\Markup $fn, ?{height?: string} $options = null): Document` |
+| [`Novis\Pdf\Document->slots`](#core-novis-pdf-document-slots) | `slots(callable(Page): array<Core\Html\Markup> $fn): Document` |
 | [`Novis\Pdf\Document->render`](#core-novis-pdf-document-render) | `render(): Rendered` |
 
 <a id="core-novis-pdf-document-fromhtml"></a>
@@ -29631,6 +29632,18 @@ $document->footer(callable(Page): Core\Html\Markup $fn, ?{height?: string} $opti
 ```
 
 `footer` sets a function that returns the footer of each page. It works like `header`, in the bottom margin.
+
+**Returns** `Document`
+
+<a id="core-novis-pdf-document-slots"></a>
+#### `Novis\Pdf\Document->slots`
+
+```nvs skip
+$document->slots(callable(Page): array<Core\Html\Markup> $fn): Document
+```
+
+`slots` sets a function that fills each `<slot name="...">` in a table row. `render` calls it once for each page.
+It returns the HTML for each slot name. Nothing on the page moves, and HTML too tall for its cell is listed in `Rendered::overflows`.
 
 **Returns** `Document`
 
