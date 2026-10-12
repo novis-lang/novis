@@ -24,9 +24,13 @@
 //! `overflow-wrap` and `text-indent`. The indent moves the first line laid out in a block, and
 //! text after a child block in the same block is not indented again. A `vertical-align` shift is
 //! measured from the paragraph's baseline, the shifts of nested spans adding up. `middle`,
-//! `text-top` and `text-bottom` are measured against the root style of `parley`'s flat builder,
-//! which sets no font, and not against the enclosing inline box, so they are not yet where CSS
-//! puts them. A raised or lowered run makes its line taller where it needs to.
+//! `text-top` and `text-bottom` are measured against the block's own font, which is the root
+//! style of `parley`'s flat builder, and not against an enclosing inline box. They align the
+//! span's line box, its half-leading included. A raised or lowered run makes its line taller
+//! where it needs to. Under
+//! `text-overflow: ellipsis` and an `overflow-x` that is not `visible`, a line wider than its box
+//! draws the clusters that fit with a `…` in the first run's style after them, at the right end
+//! of a left-to-right paragraph and at the left end of a right-to-left one.
 //! A line that does not fit under the last on the page starts the next page. A
 //! character no font in its chain has is drawn as the first font's empty box and listed in
 //! [`Laid::missing`] with the chain and the page.
@@ -48,10 +52,12 @@
 //! siblings and every descendant see, and `counter-increment` changes the innermost one of that
 //! name. A `list-item` increments `list-item`, which `<ul>` and `<ol>` reset and `<ol start>`
 //! and `<li value>` set. Its marker is that number in its `list-style-type`, drawn outside the
-//! content box level with the item's first line, or as its first text under
+//! content box level with the item's first line, on the right in a right-to-left item and
+//! in the item's direction, or as its first text under
 //! `list-style-position: inside`. A `::before` or `::after` box is inline text at the start or
-//! end of its element, from the strings, `counter()`, `counters()`, `attr()` and quotes of its
-//! `content`, after its own counter properties apply.
+//! end of its element, or a block box of its own when its `display` is not `inline`, from the
+//! strings, `counter()`, `counters()`, `attr()` and quotes of its `content`, after its own
+//! counter properties apply.
 //!
 //! **Images**: an `<img>` whose bytes are PNG, JPEG, GIF, WebP or an SVG document, and an inline
 //! `<svg>`, is a block at its CSS `width` and `height`, else its `width` and `height` attributes,
@@ -212,6 +218,11 @@ struct Para {
     overflow_wrap: OverflowWrap,
     /// The first line's `text-indent` in points.
     indent: f32,
+    /// Whether a line wider than the box ends in `…`: `text-overflow: ellipsis` under an
+    /// `overflow-x` that is not `visible`.
+    ellipsis: bool,
+    /// The index in [`inline::Builder::spans`] of the block's own text style.
+    span: usize,
 }
 
 /// How a text node's whitespace is kept.

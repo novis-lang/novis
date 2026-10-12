@@ -15,7 +15,7 @@ use super::inline::{blocks, is_bidi_control};
 use super::{Block, Glyph, Item, Laid, MARGIN, Missing, Page, Paint, Span, boxes};
 use crate::Error;
 use crate::assets::Assets;
-use crate::css::Styles;
+use crate::css::{Color, Styles};
 use crate::fonts::Fonts;
 use crate::parse::Dom;
 
@@ -80,21 +80,37 @@ pub fn layout(
                 marker: is_marker,
             } => {
                 // The hyphen of each span a soft hyphen is in, by the span's index.
-                let mut hyphens: Vec<(usize, Hyphen)> = Vec::new();
+                let mut hyphens: Vec<(usize, Mark)> = Vec::new();
                 for (range, index) in &runs {
                     if text[range.clone()].contains(SOFT_HYPHEN)
                         && !hyphens.iter().any(|(at, _)| at == index)
-                        && let Some(hyphen) = hyphen(&mut lcx, &mut fonts, &spans[*index], *index)
+                        && let Some(hyphen) =
+                            mark(&mut lcx, &mut fonts, &spans[*index], *index, "-")
                     {
                         hyphens.push((*index, hyphen));
                     }
                 }
+                // The ellipsis of a cut line, in the first run's style, with that run's index.
+                let ellipsis = runs
+                    .first()
+                    .filter(|_| para.ellipsis && !is_marker)
+                    .and_then(|(_, index)| {
+                        mark(&mut lcx, &mut fonts, &spans[*index], *index, ELLIPSIS)
+                            .map(|e| (e, *index))
+                    });
                 let mut builder = lcx.ranged_builder(&mut fonts.context, &text, 1.0, false);
                 builder.set_base_direction(para.direction);
                 builder.push_default(para.line_height);
                 builder.push_default(StyleProperty::WordBreak(para.word_break));
                 builder.push_default(StyleProperty::OverflowWrap(para.overflow_wrap));
                 builder.push_default(StyleProperty::TextWrapMode(para.wrap));
+                // The root style is the block's own, which `middle`, `text-top` and
+                // `text-bottom` measure against. A block's `vertical-align` moves nothing.
+                for property in properties(&spans[para.span], para.span) {
+                    if !matches!(property, StyleProperty::VerticalAlign(_)) {
+                        builder.push_default(property);
+                    }
+                }
                 for (range, index) in &runs {
                     push_span(&mut builder, &spans[*index], *index, range.clone());
                 }
@@ -103,6 +119,7 @@ pub fn layout(
                 let widest = hyphens.iter().map(|(_, h)| h.advance).fold(0.0, f32::max);
                 break_lines(&mut shaped, &text, width, widest);
                 shaped.align(para.align, AlignmentOptions::default());
+                let rtl = shaped.is_rtl();
                 for line in shaped.lines() {
                     let metrics = line.metrics();
                     let height = metrics.block_max_coord - metrics.block_min_coord;
@@ -132,11 +149,28 @@ pub fn layout(
                     };
                     let line_range = line.text_range();
                     let line_text = &text[line_range.clone()];
-                    let mut x = if is_marker {
-                        left - metrics.advance
-                    } else {
-                        left + metrics.inline_min_coord + metrics.offset
+                    // An outside marker of a right-to-left item starts at the content box's
+                    // right edge.
+                    let mut x = match (is_marker, rtl) {
+                        (true, true) => left + width,
+                        (true, false) => left - metrics.advance,
+                        (false, _) => left + metrics.inline_min_coord + metrics.offset,
                     };
+                    // The window of a line wider than its box, which leaves room for the
+                    // ellipsis at the line's end: the right in a left-to-right paragraph.
+                    let wide = metrics.indent + metrics.advance - metrics.hanging_advance;
+                    let cut = (ellipsis.is_some() && wide > width + 0.01).then(|| {
+                        let room = ellipsis.as_ref().map_or(0.0, |(e, _)| e.advance);
+                        if rtl {
+                            (left + room, left + width)
+                        } else {
+                            (left, left + width - room)
+                        }
+                    });
+                    // The left and right of the clusters a cut line draws, and whether a cluster
+                    // was left out in a left-to-right one.
+                    let mut kept: Option<(f32, f32)> = None;
+                    let mut past = false;
                     let mut items = Vec::new();
                     for run in line.runs() {
                         let face = fonts
@@ -195,10 +229,26 @@ pub fn layout(
                             if current.as_ref().is_some_and(|c| c.0 != index) {
                                 finish(current.take(), &mut items);
                             }
-                            let c = current.get_or_insert_with(|| (index, x, Vec::new(), 0.0));
+                            let start_x = x;
+                            x += cluster.advance();
+                            // A cut line draws the clusters inside its window and no others.
+                            if let Some((lo, hi)) = cut {
+                                let inside = if rtl {
+                                    kept.is_some() || start_x >= lo - 0.01
+                                } else {
+                                    !past && x <= hi + 0.01
+                                };
+                                if !inside {
+                                    past = true;
+                                    finish(current.take(), &mut items);
+                                    continue;
+                                }
+                                kept = Some((kept.map_or(start_x, |k| k.0), x));
+                            }
+                            let c =
+                                current.get_or_insert_with(|| (index, start_x, Vec::new(), 0.0));
                             let range = cluster.text_range();
                             let cluster_text = &text[range.clone()];
-                            x += cluster.advance();
                             if cluster_text
                                 .chars()
                                 .all(|c| c.is_control() || is_bidi_control(c) || c == SOFT_HYPHEN)
@@ -259,25 +309,20 @@ pub fn layout(
                         }
                     }
                     let last = line_range.end.saturating_sub(SOFT_HYPHEN.len_utf8());
-                    if line_text.ends_with(SOFT_HYPHEN)
+                    if cut.is_none()
+                        && line_text.ends_with(SOFT_HYPHEN)
                         && let Some((_, index)) = runs.iter().find(|(r, _)| r.contains(&last))
                         && let Some((_, h)) = hyphens.iter().find(|(at, _)| at == index)
                     {
-                        items.push(Item::Text {
-                            face: h.face,
-                            size: h.size,
-                            x,
-                            y: baseline_of(*index),
-                            color: spans[*index].color,
-                            glyphs: vec![Glyph {
-                                id: h.id,
-                                text: 0..1,
-                                advance: h.advance,
-                                x: 0.0,
-                                y: 0.0,
-                            }],
-                            text: "-".to_owned(),
-                        });
+                        items.push(h.item(x, baseline_of(*index), spans[*index].color));
+                    }
+                    if let (Some((lo, hi)), Some((e, index))) = (cut, &ellipsis) {
+                        let at = if rtl {
+                            kept.map_or(hi, |(start, _)| start) - e.advance
+                        } else {
+                            kept.map_or(lo, |(_, end)| end)
+                        };
+                        items.push(e.item(at, baseline_of(*index), spans[*index].color));
                     }
                     if is_marker {
                         marker = Some(items);
@@ -304,6 +349,39 @@ pub fn layout(
 
 const SOFT_HYPHEN: char = '\u{ad}';
 
+/// `span`'s text style as `parley` properties, with `index` as its brush.
+fn properties(span: &Span, index: usize) -> Vec<StyleProperty<'_, usize>> {
+    let chain: Vec<FontFamilyName<'_>> = span
+        .chain
+        .iter()
+        .map(|name| FontFamilyName::Named(Cow::Borrowed(name.as_str())))
+        .collect();
+    let mut out = vec![
+        StyleProperty::FontFamily(FontFamily::List(Cow::Owned(chain))),
+        StyleProperty::FontSize(span.size),
+        StyleProperty::FontWeight(FontWeight::new(span.weight)),
+    ];
+    if span.italic {
+        out.push(StyleProperty::FontStyle(FontStyle::Italic));
+    }
+    if span.letter_spacing != 0.0 {
+        out.push(StyleProperty::LetterSpacing(span.letter_spacing));
+    }
+    if span.word_spacing != 0.0 {
+        out.push(StyleProperty::WordSpacing(span.word_spacing));
+    }
+    if let Some(features) = &span.features {
+        out.push(StyleProperty::FontFeatures(FontFeatures::Source(
+            Cow::Borrowed(features.as_str()),
+        )));
+    }
+    if span.align != VerticalAlign::BASELINE {
+        out.push(StyleProperty::VerticalAlign(span.align));
+    }
+    out.push(StyleProperty::Brush(index));
+    out
+}
+
 /// Pushes `span`'s text style onto `range` of the text, with `index` as its brush.
 fn push_span(
     builder: &mut RangedBuilder<'_, usize>,
@@ -311,69 +389,62 @@ fn push_span(
     index: usize,
     range: Range<usize>,
 ) {
-    let chain: Vec<FontFamilyName<'_>> = span
-        .chain
-        .iter()
-        .map(|name| FontFamilyName::Named(Cow::Borrowed(name.as_str())))
-        .collect();
-    builder.push(
-        StyleProperty::FontFamily(FontFamily::List(Cow::Owned(chain))),
-        range.clone(),
-    );
-    builder.push(StyleProperty::FontSize(span.size), range.clone());
-    builder.push(
-        StyleProperty::FontWeight(FontWeight::new(span.weight)),
-        range.clone(),
-    );
-    if span.italic {
-        builder.push(StyleProperty::FontStyle(FontStyle::Italic), range.clone());
+    for property in properties(span, index) {
+        builder.push(property, range.clone());
     }
-    if span.letter_spacing != 0.0 {
-        builder.push(
-            StyleProperty::LetterSpacing(span.letter_spacing),
-            range.clone(),
-        );
-    }
-    if span.word_spacing != 0.0 {
-        builder.push(StyleProperty::WordSpacing(span.word_spacing), range.clone());
-    }
-    if let Some(features) = &span.features {
-        builder.push(
-            StyleProperty::FontFeatures(FontFeatures::Source(Cow::Borrowed(features.as_str()))),
-            range.clone(),
-        );
-    }
-    if span.align != VerticalAlign::BASELINE {
-        builder.push(StyleProperty::VerticalAlign(span.align), range.clone());
-    }
-    builder.push(StyleProperty::Brush(index), range);
 }
 
-/// The hyphen drawn at the end of a line broken at a soft hyphen: its face, size, glyph and
-/// advance.
-struct Hyphen {
+const ELLIPSIS: &str = "\u{2026}";
+
+/// One character drawn after a line's text: the hyphen of a line broken at a soft hyphen, or
+/// the ellipsis of a line cut at its box. Its text, face, size, glyph and advance.
+struct Mark {
+    text: &'static str,
     face: usize,
     size: f32,
     id: u32,
     advance: f32,
 }
 
-/// The hyphen of `span`, shaped through its font chain.
-fn hyphen(
+impl Mark {
+    /// The mark drawn with its pen at `x` on the baseline `y`.
+    fn item(&self, x: f32, y: f32, color: Color) -> Item {
+        Item::Text {
+            face: self.face,
+            size: self.size,
+            x,
+            y,
+            color,
+            glyphs: vec![Glyph {
+                id: self.id,
+                text: 0..self.text.len(),
+                advance: self.advance,
+                x: 0.0,
+                y: 0.0,
+            }],
+            text: self.text.to_owned(),
+        }
+    }
+}
+
+/// `text`, one character, in `span` shaped through its font chain.
+fn mark(
     lcx: &mut LayoutContext<usize>,
     fonts: &mut Fonts,
     span: &Span,
     index: usize,
-) -> Option<Hyphen> {
-    let mut builder = lcx.ranged_builder(&mut fonts.context, "-", 1.0, false);
-    push_span(&mut builder, span, index, 0..1);
-    let mut shaped = builder.build("-");
+    text: &'static str,
+) -> Option<Mark> {
+    let mut builder = lcx.ranged_builder(&mut fonts.context, text, 1.0, false);
+    push_span(&mut builder, span, index, 0..text.len());
+    let mut shaped = builder.build(text);
     shaped.break_all_lines(None);
     let line = shaped.lines().next()?;
     let run = line.runs().next()?;
     let face = fonts.face_index(run.font().data.data())?;
     let glyph = run.visual_clusters().next()?.glyphs().next()?;
-    Some(Hyphen {
+    Some(Mark {
+        text,
         face,
         size: run.font_size(),
         id: glyph.id,

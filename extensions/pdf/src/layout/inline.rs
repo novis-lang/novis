@@ -99,8 +99,9 @@ fn vertical_align(style: &Style, parent: Option<&Span>) -> VerticalAlign {
     }
 }
 
-/// `style`'s paragraph, in a content box `width` wide.
-fn para_of(style: &Style, width: f32) -> Para {
+/// `style`'s paragraph, in a content box `width` wide, whose own text style is the span at
+/// `span`.
+fn para_of(style: &Style, width: f32, span: usize) -> Para {
     let size = style.font_size();
     let white = keyword(style, "white-space");
     Para {
@@ -139,6 +140,9 @@ fn para_of(style: &Style, width: f32) -> Para {
             _ => OverflowWrap::Normal,
         },
         indent: length(style, "text-indent", width).unwrap_or(0.0),
+        ellipsis: keyword(style, "text-overflow") == Some("ellipsis")
+            && !matches!(keyword(style, "overflow-x"), None | Some("visible")),
+        span,
     }
 }
 
@@ -494,8 +498,27 @@ impl Builder<'_, '_> {
         }
     }
 
-    /// The inline text of the `::before` or `::after` box of the element at `at`, whose own
-    /// content box is `frame`.
+    /// Opens the block box of `style` inside the content box of `outer`, and gives `inner` the
+    /// box's content box and paragraph.
+    fn open(&mut self, style: &Style, outer: &Frame, inner: &mut Frame) -> Result<(), Error> {
+        self.flush();
+        let mut geometry = geometry(style, outer.x, outer.width);
+        geometry.decor.layer = self.layer(style, self.rem)?;
+        inner.x = geometry.x + geometry.border[3] + geometry.padding[3];
+        inner.width = (geometry.width
+            - geometry.border[1]
+            - geometry.border[3]
+            - geometry.padding[1]
+            - geometry.padding[3])
+            .max(0.0);
+        inner.para = para_of(style, inner.width, inner.span);
+        self.blocks.push(Block::Open(geometry));
+        self.indented = false;
+        Ok(())
+    }
+
+    /// The `::before` or `::after` box of the element at `at`, whose own content box is
+    /// `frame`: inline text, or a block box of its own when its `display` is not `inline`.
     fn generated(
         &mut self,
         style: &Style,
@@ -504,19 +527,29 @@ impl Builder<'_, '_> {
         counters: &Counters,
         frame: &Frame,
         fonts: &Fonts,
-    ) {
-        if keyword(style, "display") == Some("none") {
-            return;
+    ) -> Result<(), Error> {
+        let display = keyword(style, "display").unwrap_or("inline");
+        if display == "none" {
+            return Ok(());
         }
         let Some(text) = content_text(style, dom, at, counters) else {
-            return;
+            return Ok(());
         };
-        let inner = Frame {
+        let mut inner = Frame {
             span: self.span(style, frame.span, fonts),
             spaces: spaces_of(style),
             ..frame.clone()
         };
+        let block = display != "inline";
+        if block {
+            self.open(style, frame, &mut inner)?;
+        }
         self.push_text(&text, &inner);
+        if block {
+            self.flush();
+            self.blocks.push(Block::Close);
+        }
+        Ok(())
     }
 
     /// Adds bidi control characters in `frame`'s text style, leaving the collapsing of spaces as
@@ -609,7 +642,7 @@ pub(super) fn blocks(
         width: CONTENT_WIDTH,
         span: 0,
         spaces: Spaces::Collapse,
-        para: para_of(&empty, CONTENT_WIDTH),
+        para: para_of(&empty, CONTENT_WIDTH, 0),
         transform: None,
         lang: None,
         hyphenate: None,
@@ -626,7 +659,7 @@ pub(super) fn blocks(
                 let depth = frames.len();
                 if let Some(after) = styles.after.get(&at) {
                     counters.apply(after, depth + 1);
-                    builder.generated(after, dom, at, &counters, &frame, fonts);
+                    builder.generated(after, dom, at, &counters, &frame, fonts)?;
                 }
                 if let Some(close) = close {
                     builder.push_control(close, &frame);
@@ -698,19 +731,7 @@ pub(super) fn blocks(
                 };
                 let block = display != "inline";
                 if block {
-                    builder.flush();
-                    let mut geometry = geometry(style, frame.x, frame.width);
-                    geometry.decor.layer = builder.layer(style, rem)?;
-                    inner.x = geometry.x + geometry.border[3] + geometry.padding[3];
-                    inner.width = (geometry.width
-                        - geometry.border[1]
-                        - geometry.border[3]
-                        - geometry.padding[1]
-                        - geometry.padding[3])
-                        .max(0.0);
-                    inner.para = para_of(style, inner.width);
-                    builder.blocks.push(Block::Open(geometry));
-                    builder.indented = false;
+                    builder.open(style, &frame, &mut inner)?;
                 }
                 let depth = frames.len();
                 counters.apply(style, depth);
@@ -747,10 +768,10 @@ pub(super) fn blocks(
                                 spans: vec![(0..text.len(), inner.span)],
                                 text,
                                 para: Para {
-                                    direction: BaseDirection::Ltr,
                                     align: Alignment::Left,
                                     wrap: TextWrapMode::NoWrap,
                                     indent: 0.0,
+                                    ellipsis: false,
                                     ..inner.para
                                 },
                                 x: inner.x,
@@ -766,7 +787,7 @@ pub(super) fn blocks(
                 }
                 if let Some(before) = styles.before.get(&at) {
                     counters.apply(before, depth + 1);
-                    builder.generated(before, dom, at, &counters, &inner, fonts);
+                    builder.generated(before, dom, at, &counters, &inner, fonts)?;
                 }
                 frames.push(inner);
                 work.push(Step::Exit {

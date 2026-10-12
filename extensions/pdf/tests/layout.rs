@@ -642,6 +642,18 @@ fn lists_and_counters_number_their_items() {
          <ol><li>a<ol><li>b</li><li>c</li></ol></li><li>d</li></ol>",
     );
     assert_eq!(line_texts(&laid), ["1 a", "1.1 b", "1.2 c", "2 d"]);
+
+    // A `::before` or `::after` with `display: block` is a box of its own above or below the
+    // element's text, with its own padding.
+    let laid = lay("<style>body { margin: 0 } p { margin: 0 }\
+         p::before { content: 'Shop'; display: block; padding-left: 20pt }\
+         p::after { content: 'Blog'; display: block }</style><p>Text</p>");
+    assert_eq!(line_texts(&laid), ["Shop", "Text", "Blog"]);
+    let starts: Vec<f32> = lines(&laid).iter().map(|(left, _)| left - MARGIN).collect();
+    assert!(
+        close(starts[0], 20.0) && close(starts[1], 0.0) && close(starts[2], 0.0),
+        "{starts:?}"
+    );
 }
 
 #[test]
@@ -918,6 +930,27 @@ fn vertical_align_raises_and_lowers_a_span_from_its_baseline() {
         span("super", &format!("a{}", span("super", "b")))
     ));
     assert!(close(nested[0] - nested[2], 8.0), "{nested:?}");
+    // `text-top` puts the top of a span's line box, half its leading above its letters, at the
+    // top of the paragraph font's letters, and `text-bottom` does the same at the bottom.
+    let small = |css: &str| format!("<span style='vertical-align: {css}; font-size: 6pt'>s</span>");
+    let edges = baselines(&format!(
+        "Shop{}{}{}{}",
+        span("text-top", "a"),
+        span("text-bottom", "b"),
+        small("text-top"),
+        small("text-bottom")
+    ));
+    assert_eq!(edges.len(), 5, "{edges:?}");
+    // Liberation Sans' ascent and descent, as fractions of the font size.
+    let (ascent, descent) = (1854.0 / 2048.0, 434.0 / 2048.0);
+    let half_leading = |size: f32| (20.0 - size * (ascent + descent)) / 2.0;
+    let down = |at: usize| edges[at] - edges[0];
+    assert!(close(down(1), half_leading(12.0)), "{edges:?}");
+    assert!(close(down(2), -half_leading(12.0)), "{edges:?}");
+    let top = 6.0 * ascent + half_leading(6.0) - 12.0 * ascent;
+    let bottom = 6.0 * descent + half_leading(6.0) - 12.0 * descent;
+    assert!(close(down(3), top), "{edges:?}");
+    assert!(close(down(4), -bottom), "{edges:?}");
     // A span raised past the line's own height makes the line taller.
     let plain = lay("<p style='margin: 0'>Shop</p><p style='margin: 0'>Blog</p>");
     let raised = lay(&format!(
@@ -935,4 +968,74 @@ fn vertical_align_raises_and_lowers_a_span_from_its_baseline() {
             .fold(0.0, f32::max)
     };
     assert!(last_baseline(&raised) > last_baseline(&plain) + 10.0);
+}
+
+/// The pen start and right end of each text item drawn as `…`.
+fn ellipses(laid: &Laid) -> Vec<(f32, f32)> {
+    laid.pages[0]
+        .items
+        .iter()
+        .filter_map(|item| match item {
+            Item::Text {
+                x, glyphs, text, ..
+            } if text == "\u{2026}" => Some((*x, x + glyphs[0].advance)),
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn text_overflow_ellipsis_ends_a_cut_line_inside_its_box() {
+    let body = |css: &str, html: &str| {
+        lay(&format!(
+            "<body style='margin: 0'><div style='width: 100pt; white-space: nowrap; {css}'>{html}</div>"
+        ))
+    };
+    let cut = "overflow: hidden; text-overflow: ellipsis";
+    // A line wider than its box keeps the words that fit and ends in `…` at the right edge.
+    let laid = body(cut, WORDS);
+    let line = lines(&laid);
+    assert_eq!(line.len(), 1, "{line:?}");
+    let dots = ellipses(&laid);
+    assert_eq!(dots.len(), 1, "{dots:?}");
+    assert!(close(line[0].1, dots[0].1), "{line:?} {dots:?}");
+    assert!(dots[0].1 <= MARGIN + 100.0 + 0.01, "{dots:?}");
+    // `visible` overflow and `clip` draw the whole line and no ellipsis.
+    for css in [
+        "text-overflow: ellipsis",
+        "overflow: hidden; text-overflow: clip",
+    ] {
+        let laid = body(css, WORDS);
+        assert!(ellipses(&laid).is_empty(), "{css}");
+        assert!(lines(&laid)[0].1 > MARGIN + 100.0, "{css}");
+    }
+    // A line that fits is not cut.
+    assert!(ellipses(&body(cut, "Shop")).is_empty());
+    // In a right-to-left block the text is cut at its left end, and `…` is drawn there.
+    let hebrew = "שלום עולם ".repeat(8);
+    let laid = body(&format!("{cut}; direction: rtl"), &hebrew);
+    let dots = ellipses(&laid);
+    assert_eq!(dots.len(), 1, "{dots:?}");
+    assert!(dots[0].0 >= MARGIN - 0.01, "{dots:?}");
+    let (left, right) = lines(&laid)[0];
+    assert!(
+        close(left, dots[0].0) && right <= MARGIN + 100.0 + 0.01,
+        "{left} {right}"
+    );
+}
+
+#[test]
+fn a_right_to_left_list_item_has_its_marker_at_the_right() {
+    let laid = lay(
+        "<body style='margin: 0'><ol dir='rtl' style='margin: 0; padding: 0 30pt'><li>שלום</li></ol>",
+    );
+    let runs = runs(&laid);
+    assert!(runs.len() >= 2, "{runs:?}");
+    // The marker starts at the content box's right edge, level with the item's first line.
+    let content = runs[0];
+    let right = layout::PAGE_WIDTH - MARGIN - 30.0;
+    assert!(close(content.3, right), "{runs:?}");
+    let marker = runs[1..].iter().map(|r| r.1).fold(f32::MAX, f32::min);
+    assert!(close(marker, right), "{runs:?}");
+    assert!(runs[1..].iter().all(|r| close(r.2, content.2)), "{runs:?}");
 }
