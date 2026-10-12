@@ -2,6 +2,7 @@
 //! its counters and markers, its generated content, and the text of each block with its spans.
 
 use std::borrow::Cow;
+use std::collections::BTreeMap;
 use std::ops::Range;
 
 use cssparser::{Parser, Token};
@@ -359,14 +360,36 @@ fn counter_list(style: &Style, property: &str, default: i64) -> Vec<(String, i64
     out
 }
 
-/// The text of a `::before` or `::after` box's `content`, `None` for `none`, `normal` or no
-/// value: its strings, `counter()`, `counters()`, `attr()` and quotes, in order.
-fn content_text(style: &Style, dom: &Dom, at: usize, counters: &Counters) -> Option<String> {
+/// The page number, counting from 1, of the first element with each `id`, as the last layout
+/// pass placed it.
+pub(super) type Targets = BTreeMap<String, usize>;
+
+/// A `::before` or `::after` box's generated content: its text, each `leader()` in it as its
+/// byte offset in the text and the character it repeats, and whether a `target-counter()` read
+/// a page number.
+struct Content {
+    text: String,
+    leaders: Vec<(usize, String)>,
+    targeted: bool,
+}
+
+/// The generated content of a `::before` or `::after` box, `None` for `none`, `normal` or no
+/// `content`: its strings, `counter()`, `counters()`, `attr()`, `target-counter()`, `leader()`
+/// and quotes, in order. A `target-counter()` whose element is not in `targets` is empty.
+fn content_text(
+    style: &Style,
+    dom: &Dom,
+    at: usize,
+    counters: &Counters,
+    targets: &Targets,
+) -> Option<Content> {
     let Some(Value::Text(text)) = style.get("content") else {
         return None;
     };
     let mut parser = Parser::new(text);
     let mut out = String::new();
+    let mut leaders = Vec::new();
+    let mut targeted = false;
     while let Ok(token) = parser.next() {
         match token.clone() {
             Token::QuotedString(s) => out.push_str(&s),
@@ -381,12 +404,57 @@ fn content_text(style: &Style, dom: &Dom, at: usize, counters: &Counters) -> Opt
                 let _ = parser.parse_nested_block(|p| -> Result<(), cssparser::ParseError<()>> {
                     let mut idents: Vec<String> = Vec::new();
                     let mut separator = String::new();
+                    // The element a `target-counter()` names, from a string, a `url()` or
+                    // an `attr()`.
+                    let mut target: Option<String> = None;
                     while let Ok(token) = p.next() {
-                        match token {
+                        match token.clone() {
                             Token::Ident(i) => idents.push(i.to_string()),
-                            Token::QuotedString(s) => separator = s.to_string(),
+                            Token::QuotedString(s) => {
+                                separator = s.to_string();
+                                target.get_or_insert_with(|| s.to_string());
+                            }
+                            Token::UnquotedUrl(u) => target = Some(u.to_string()),
+                            Token::Function(f) if f.eq_ignore_ascii_case("attr") => {
+                                let attr = p.parse_nested_block(
+                                    |q| -> Result<String, cssparser::ParseError<()>> {
+                                        Ok(q.expect_ident()?.to_string())
+                                    },
+                                );
+                                if let Ok(attr) = attr {
+                                    target = dom.nodes[at].attr(&attr).map(str::to_owned);
+                                }
+                            }
                             _ => {}
                         }
+                    }
+                    match name.as_str() {
+                        "leader" => {
+                            let fill = match idents.first().map(String::as_str) {
+                                Some("solid") => "_",
+                                Some("space") => " ",
+                                Some(_) => ".",
+                                None => separator
+                                    .chars()
+                                    .next()
+                                    .map_or(".", |c| &separator[..c.len_utf8()]),
+                            };
+                            leaders.push((out.len(), fill.to_owned()));
+                            return Ok(());
+                        }
+                        "target-counter" => {
+                            targeted = true;
+                            let id = target.as_deref().unwrap_or_default();
+                            let page = targets.get(id.strip_prefix('#').unwrap_or(id));
+                            if let (Some(&page), Some("page")) =
+                                (page, idents.first().map(String::as_str))
+                            {
+                                let kind = idents.get(1).map_or("decimal", String::as_str);
+                                out.push_str(&counter_text(kind, page as i64).unwrap_or_default());
+                            }
+                            return Ok(());
+                        }
+                        _ => {}
                     }
                     let Some(first) = idents.first() else {
                         return Ok(());
@@ -415,7 +483,11 @@ fn content_text(style: &Style, dom: &Dom, at: usize, counters: &Counters) -> Opt
             _ => {}
         }
     }
-    Some(out)
+    Some(Content {
+        text: out,
+        leaders,
+        targeted,
+    })
 }
 
 /// Collects a document's blocks in order.
@@ -452,6 +524,12 @@ pub(super) struct Builder<'a, 'd> {
     pub(super) page_height: f32,
     /// The page name of the last block box opened.
     page: Option<String>,
+    /// Each `leader()` in the text being collected: its byte offset, its text style and the
+    /// character it repeats.
+    leaders: Vec<(usize, usize, String)>,
+    /// The pages `target-counter()` reads, and whether one was read.
+    targets: &'a Targets,
+    pub(super) targeted: bool,
 }
 
 /// A flex container whose element has not closed.
@@ -477,6 +555,7 @@ struct Outside {
     inline: Vec<Inline>,
     open_inline: Vec<usize>,
     text_atoms: Vec<(usize, usize)>,
+    leaders: Vec<(usize, usize, String)>,
 }
 
 impl Builder<'_, '_> {
@@ -633,6 +712,7 @@ impl Builder<'_, '_> {
             inline: std::mem::take(&mut self.inline),
             open_inline: std::mem::take(&mut self.open_inline),
             text_atoms: std::mem::take(&mut self.text_atoms),
+            leaders: std::mem::take(&mut self.leaders),
         });
     }
 
@@ -650,6 +730,7 @@ impl Builder<'_, '_> {
         self.inline = outside.inline;
         self.open_inline = outside.open_inline;
         self.text_atoms = outside.text_atoms;
+        self.leaders = outside.leaders;
         Some(blocks)
     }
 
@@ -845,9 +926,10 @@ impl Builder<'_, '_> {
         if display == "none" {
             return Ok(());
         }
-        let Some(text) = content_text(style, dom, at, counters) else {
+        let Some(content) = content_text(style, dom, at, counters, self.targets) else {
             return Ok(());
         };
+        self.targeted |= content.targeted;
         let mut inner = Frame {
             span: self.span(style, frame.span, fonts),
             spaces: spaces_of(style),
@@ -857,7 +939,16 @@ impl Builder<'_, '_> {
         if block {
             self.open(style, frame, &mut inner)?;
         }
-        self.push_text(&text, &inner);
+        let mut from = 0;
+        for (at, fill) in content.leaders {
+            self.push_text(&content.text[from..at], &inner);
+            if self.owner.is_none() {
+                self.owner = Some((inner.para, inner.x, inner.width));
+            }
+            self.leaders.push((self.text.len(), inner.span, fill));
+            from = at;
+        }
+        self.push_text(&content.text[from..], &inner);
         if block {
             self.flush();
             self.blocks.push(Block::Close);
@@ -907,6 +998,8 @@ impl Builder<'_, '_> {
             i.range.start < i.range.end
         });
         let atoms = std::mem::take(&mut self.text_atoms);
+        let mut leaders = std::mem::take(&mut self.leaders);
+        leaders.retain(|(at, ..)| *at <= trimmed);
         if let Some((mut para, x, width)) = self.owner.take()
             && (!self.runs.is_empty() || !atoms.is_empty())
         {
@@ -923,6 +1016,7 @@ impl Builder<'_, '_> {
                 marker: false,
                 inline,
                 atoms,
+                leaders,
             });
         }
         self.text.clear();
@@ -957,12 +1051,13 @@ enum Step {
     },
 }
 
-/// What [`blocks`] collects: the blocks, the `inline-block` boxes, the pictures and the text
-/// styles.
-type Collected = (Vec<Block>, Vec<Atom>, Images, Vec<Span>);
+/// What [`blocks`] collects: the blocks, the `inline-block` boxes, the pictures, the text
+/// styles, and whether generated content read a page from `targets`.
+type Collected = (Vec<Block>, Vec<Atom>, Images, Vec<Span>, bool);
 
 /// The blocks of `dom`, in document order, and the text styles they name. `content` is the first
-/// page's content width and height, and `named` gives the content width of a named page.
+/// page's content width and height, `named` gives the content width of a named page, and
+/// `targets` the pages `target-counter()` prints.
 pub(super) fn blocks(
     dom: &Dom,
     styles: &Styles,
@@ -970,6 +1065,7 @@ pub(super) fn blocks(
     assets: &Assets<'_>,
     content: [f32; 2],
     named: &dyn Fn(&str) -> f32,
+    targets: &Targets,
 ) -> Result<Collected, Error> {
     let [width, height] = content;
     let width_of = |page: Option<&str>| page.map_or(width, named);
@@ -1000,6 +1096,9 @@ pub(super) fn blocks(
         containers: Vec::new(),
         page_height: height,
         page: None,
+        leaders: Vec::new(),
+        targets,
+        targeted: false,
     };
     let root = Frame {
         x: MARGIN,
@@ -1202,6 +1301,9 @@ pub(super) fn blocks(
                 {
                     builder.blocks.push(Block::String { name, value });
                 }
+                if let Some(id) = node.attr("id") {
+                    builder.blocks.push(Block::Target(id.to_owned()));
+                }
                 let depth = frames.len();
                 counters.apply(style, depth);
                 if name == "ol"
@@ -1248,6 +1350,7 @@ pub(super) fn blocks(
                                 marker: true,
                                 inline: Vec::new(),
                                 atoms: Vec::new(),
+                                leaders: Vec::new(),
                             });
                         }
                     }
@@ -1282,7 +1385,13 @@ pub(super) fn blocks(
         }
     }
     builder.flush();
-    Ok((builder.blocks, builder.atoms, builder.images, builder.spans))
+    Ok((
+        builder.blocks,
+        builder.atoms,
+        builder.images,
+        builder.spans,
+        builder.targeted,
+    ))
 }
 
 /// The language of a `lang` attribute, by its primary subtag, if `hypher` has its patterns.

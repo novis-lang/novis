@@ -118,6 +118,17 @@
 //! strings, `counter()`, `counters()`, `attr()` and quotes of its `content`, after its own
 //! counter properties apply.
 //!
+//! **A table of contents.** A `target-counter()` in `content` prints the page, counting from 1,
+//! of the first element whose `id` its `url()`, string or `attr()` names, and nothing for an
+//! `id` no element has or a counter other than `page`. An element lands on the page its first
+//! box placed after it starts on, and an `id` inside an `inline-block`, float, flex item or
+//! running element lands on no page. A `leader()` is an empty `parley` inline box that takes
+//! the room left on its line, shared with the other leaders there; the text is shaped and broken
+//! again with it, and its one character (`.` for `dotted`, `_` for `solid`, a space for
+//! `space`, or the first of its string) is drawn across it, lined up from the content box's
+//! left edge. A document that reads a page is laid out again with the pages the last pass gave,
+//! until no page changes, and `text::layout` throws after five passes.
+//!
 //! **Images**: an `<img>` whose bytes are PNG, JPEG, GIF, WebP or an SVG document, and an inline
 //! `<svg>`, is a block at its CSS `width` and `height`, else its `width` and `height` attributes,
 //! else its natural size, a pixel being a CSS pixel, scaled down to fit the content box. The
@@ -369,7 +380,13 @@ enum Block {
         /// Each `inline-block` box in the text: its byte offset there and its index in the list
         /// of [`Atom`]s.
         atoms: Vec<(usize, usize)>,
+        /// Each `leader()` in the text: its byte offset there, the index of its text style and
+        /// the character it repeats. It fills the room left on its line.
+        leaders: Vec<(usize, usize, String)>,
     },
+    /// The element with this `id` starts on the page the next box placed starts on. It takes
+    /// no room in the flow.
+    Target(String),
     Image {
         image: usize,
         x: f32,

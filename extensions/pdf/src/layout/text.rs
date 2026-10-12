@@ -11,7 +11,7 @@ use parley::{
 };
 
 use super::block::Flow;
-use super::inline::{blocks, is_bidi_control};
+use super::inline::{Targets, blocks, is_bidi_control};
 use super::margin;
 use super::{Atom, Block, Glyph, Inline, Item, Laid, MARGIN, Missing, Paint, Para, Span, boxes};
 use crate::Error;
@@ -21,22 +21,59 @@ use crate::fonts::Fonts;
 use crate::paginate::Sheet;
 use crate::parse::Dom;
 
+/// How many times a document whose `target-counter()` reads a page is laid out at most
+/// (`rule:core-classes/pdf-roster`).
+const PASSES: usize = 5;
+
 /// Lays `dom` out in pages with its computed `styles` and `fonts`.
+///
+/// A document whose generated content reads a page with `target-counter()` is laid out again
+/// with the pages each `id` landed on in the pass before, until no page changes. When the pages
+/// still change after [`PASSES`] passes, this returns `Runtime`. Each pass costs one layout of
+/// the whole document, and only one pass is kept.
 pub fn layout(
     dom: &Dom,
     styles: &Styles,
     assets: &Assets<'_>,
     fonts: Fonts,
 ) -> Result<Laid, Error> {
+    let mut fonts = fonts;
+    let mut targets = Targets::new();
+    for _ in 0..PASSES {
+        let (laid, rest, landed, targeted) = pass(dom, styles, assets, fonts, &targets)?;
+        if !targeted || landed == targets {
+            return Ok(laid);
+        }
+        fonts = rest;
+        targets = landed;
+    }
+    Err(Error::Runtime(format!(
+        "the page numbers target-counter() prints still changed after {PASSES} layout passes"
+    )))
+}
+
+/// What one layout pass returns: the pages, the fonts to lay out the next pass with, the page
+/// each `id` landed on, and whether generated content read a page from `targets`.
+type Pass = (Laid, Fonts, Targets, bool);
+
+/// One layout pass of `dom`, whose `target-counter()` prints the pages in `targets`.
+fn pass(
+    dom: &Dom,
+    styles: &Styles,
+    assets: &Assets<'_>,
+    fonts: Fonts,
+    targets: &Targets,
+) -> Result<Pass, Error> {
     let sheet = Sheet::new(&styles.pages);
     let first = sheet.page(0, false, None);
-    let (blocks, atoms, images, spans) = blocks(
+    let (blocks, atoms, images, spans, targeted) = blocks(
         dom,
         styles,
         &fonts,
         assets,
         [first.content_width(), first.content_height()],
         &|name| sheet.page(0, false, Some(name)).content_width(),
+        targets,
     )?;
     let mut cx = Cx {
         lcx: LayoutContext::new(),
@@ -68,6 +105,8 @@ pub fn layout(
     while !flow.open.is_empty() {
         flow.close();
     }
+    flow.land();
+    let landed = std::mem::take(&mut flow.landed);
     flow.finish([MARGIN, first.content_width(), 0.0], None);
     // Each page was laid out with its content box at `MARGIN`, `MARGIN`, and is moved to its own.
     for (index, page) in flow.pages.iter_mut().enumerate() {
@@ -118,12 +157,13 @@ pub fn layout(
         strings: Vec::new(),
     };
     margin::draw(&mut cx, boxes, &mut flow.pages);
-    Ok(Laid {
+    let laid = Laid {
         pages: flow.pages,
         images,
-        faces: cx.fonts.faces,
+        faces: cx.fonts.faces.clone(),
         missing: cx.missing,
-    })
+    };
+    Ok((laid, cx.fonts, landed, targeted))
 }
 
 /// What laying out every block shares: the shaping context, the fonts, the text styles, the
@@ -255,7 +295,7 @@ impl Cx<'_> {
                     atoms,
                     ..
                 } => {
-                    let shaped = self.shape(text, runs, para, inline, atoms);
+                    let shaped = self.shape(text, runs, para, inline, atoms, &[]);
                     let widths = shaped.calculate_content_widths();
                     let content = if max { widths.max } else { widths.min };
                     need = need.max(content + room - width);
@@ -271,7 +311,8 @@ impl Cx<'_> {
 
     /// A text block's text shaped and not yet broken into lines. Each side of an inline box
     /// is an empty `parley` inline box as wide as its margin, border and padding, and each
-    /// `inline-block` box one as big as its margin box.
+    /// `inline-block` box one as big as its margin box. Each `leader()` is one as wide as
+    /// `leaders` gives at its byte offset, after the boxes of the `inline-block`s.
     fn shape(
         &mut self,
         text: &str,
@@ -279,6 +320,7 @@ impl Cx<'_> {
         para: &Para,
         inline: &[Inline],
         atoms: &[(usize, usize)],
+        leaders: &[(usize, f32)],
     ) -> Layout<usize> {
         let spans = self.spans;
         let mut builder = self
@@ -331,6 +373,17 @@ impl Cx<'_> {
                 vertical_align: placed.align,
             });
         }
+        for (k, (index, width)) in leaders.iter().enumerate() {
+            builder.push_inline_box(InlineBox {
+                id: (2 * inline.len() + atoms.len() + k) as u64,
+                kind: InlineBoxKind::InFlow,
+                index: *index,
+                width: *width,
+                height: 0.0,
+                baseline: None,
+                vertical_align: VerticalAlign::BASELINE,
+            });
+        }
         let mut shaped = builder.build(text);
         shaped.set_text_indent(para.indent, IndentOptions::default());
         shaped
@@ -378,7 +431,11 @@ impl Cx<'_> {
                         }
                     }
                 }
-                Block::Open(_) | Block::Close | Block::Image { .. } | Block::String { .. } => {}
+                Block::Open(_)
+                | Block::Close
+                | Block::Image { .. }
+                | Block::String { .. }
+                | Block::Target(_) => {}
             }
         }
     }
@@ -468,6 +525,12 @@ impl Cx<'_> {
                     page: flow.landing(),
                     top: flow.at_top(),
                 }),
+                // An `id` in a box laid out on a page of its own is not on any page yet.
+                Block::Target(id) => {
+                    if flow.paginates() {
+                        flow.target(id);
+                    }
+                }
                 Block::Image {
                     image,
                     x,
@@ -507,8 +570,17 @@ impl Cx<'_> {
                     marker: is_marker,
                     inline,
                     atoms,
+                    leaders,
                 } => {
                     let spans = self.spans;
+                    // The character each leader repeats, with its span's index.
+                    let fills: Vec<Option<(Mark, usize)>> = leaders
+                        .iter()
+                        .map(|(_, index, fill)| {
+                            mark(&mut self.lcx, &mut self.fonts, &spans[*index], *index, fill)
+                                .map(|m| (m, *index))
+                        })
+                        .collect();
                     // The hyphen of each span a soft hyphen is in, by the span's index.
                     let mut hyphens: Vec<(usize, Mark)> = Vec::new();
                     for (range, index) in &runs {
@@ -534,13 +606,9 @@ impl Cx<'_> {
                             )
                             .map(|e| (e, *index))
                         });
-                    let mut shaped = self.shape(&text, &runs, &para, &inline, &atoms);
-                    let Cx {
-                        fonts,
-                        missing,
-                        placed,
-                        ..
-                    } = &mut *self;
+                    let mut room: Vec<(usize, f32)> =
+                        leaders.iter().map(|(at, ..)| (*at, 0.0)).collect();
+                    let mut shaped = self.shape(&text, &runs, &para, &inline, &atoms, &room);
                     let widest = hyphens.iter().map(|(_, h)| h.advance).fold(0.0, f32::max);
                     // The left edge and width of each line beside a float. A line's room
                     // depends on its height and the lines above it, so the text is broken
@@ -567,6 +635,38 @@ impl Cx<'_> {
                         }
                         bands = next;
                     }
+                    // Each leader takes the room left on its line, shared with the other
+                    // leaders there, and the text is shaped and broken again with it.
+                    if !leaders.is_empty() {
+                        let first = 2 * inline.len() + atoms.len();
+                        for (i, line) in shaped.lines().enumerate() {
+                            let ids: Vec<usize> = line
+                                .items()
+                                .filter_map(|item| match item {
+                                    PositionedLayoutItem::InlineBox(b) => {
+                                        (b.id as usize).checked_sub(first)
+                                    }
+                                    PositionedLayoutItem::GlyphRun(_) => None,
+                                })
+                                .collect();
+                            let m = line.metrics();
+                            let line_width = bands.get(i).map_or(width, |b| b.1);
+                            let free = line_width - (m.indent + m.advance - m.hanging_advance);
+                            for k in &ids {
+                                if let Some(r) = room.get_mut(*k) {
+                                    r.1 = (free / ids.len() as f32 - 0.01).max(0.0);
+                                }
+                            }
+                        }
+                        shaped = self.shape(&text, &runs, &para, &inline, &atoms, &room);
+                        break_lines(&mut shaped, &text, width, &bands, widest);
+                    }
+                    let Cx {
+                        fonts,
+                        missing,
+                        placed,
+                        ..
+                    } = &mut *self;
                     shaped.align(para.align, AlignmentOptions::default());
                     let rtl = shaped.is_rtl();
                     let heights: Vec<f32> = shaped
@@ -859,6 +959,26 @@ impl Cx<'_> {
                             let PositionedLayoutItem::InlineBox(b) = item else {
                                 continue;
                             };
+                            // A leader's characters line up from the content box's left edge,
+                            // so the leaders of lines one above the other line up too.
+                            if let Some(Some((fill, index))) = (b.id as usize)
+                                .checked_sub(2 * inline.len() + atoms.len())
+                                .and_then(|k| fills.get(k))
+                                && fill.advance > 0.0
+                            {
+                                let start = left + (b.x / fill.advance).ceil() * fill.advance;
+                                let count =
+                                    ((left + b.x + b.width - start) / fill.advance + 0.001).floor();
+                                if count >= 1.0 {
+                                    items.push(fill.repeated(
+                                        start,
+                                        baseline_of(*index),
+                                        spans[*index].color,
+                                        count as usize,
+                                    ));
+                                }
+                                continue;
+                            }
                             let Some(&(_, atom)) = (b.id as usize)
                                 .checked_sub(2 * inline.len())
                                 .and_then(|k| atoms.get(k))
@@ -1024,10 +1144,11 @@ fn push_span(
 
 const ELLIPSIS: &str = "\u{2026}";
 
-/// One character drawn after a line's text: the hyphen of a line broken at a soft hyphen, or
-/// the ellipsis of a line cut at its box. Its text, face, size, glyph and advance.
+/// One character drawn beside a line's text: the hyphen of a line broken at a soft hyphen, the
+/// ellipsis of a line cut at its box, or the character a `leader()` repeats. Its text, face,
+/// size, glyph and advance.
 struct Mark {
-    text: &'static str,
+    text: String,
     face: usize,
     size: f32,
     id: u32,
@@ -1037,20 +1158,29 @@ struct Mark {
 impl Mark {
     /// The mark drawn with its pen at `x` on the baseline `y`.
     fn item(&self, x: f32, y: f32, color: Color) -> Item {
+        self.repeated(x, y, color, 1)
+    }
+
+    /// The mark drawn `count` times one after another, the first with its pen at `x` on the
+    /// baseline `y`.
+    fn repeated(&self, x: f32, y: f32, color: Color, count: usize) -> Item {
+        let len = self.text.len();
         Item::Text {
             face: self.face,
             size: self.size,
             x,
             y,
             color,
-            glyphs: vec![Glyph {
-                id: self.id,
-                text: 0..self.text.len(),
-                advance: self.advance,
-                x: 0.0,
-                y: 0.0,
-            }],
-            text: self.text.to_owned(),
+            glyphs: (0..count)
+                .map(|i| Glyph {
+                    id: self.id,
+                    text: i * len..(i + 1) * len,
+                    advance: self.advance,
+                    x: 0.0,
+                    y: 0.0,
+                })
+                .collect(),
+            text: self.text.repeat(count),
         }
     }
 }
@@ -1061,7 +1191,7 @@ fn mark(
     fonts: &mut Fonts,
     span: &Span,
     index: usize,
-    text: &'static str,
+    text: &str,
 ) -> Option<Mark> {
     let mut builder = lcx.ranged_builder(&mut fonts.context, text, 1.0, false);
     push_span(&mut builder, span, index, 0..text.len());
@@ -1072,7 +1202,7 @@ fn mark(
     let face = fonts.face_index(run.font().data.data())?;
     let glyph = run.visual_clusters().next()?.glyphs().next()?;
     Some(Mark {
-        text,
+        text: text.to_owned(),
         face,
         size: run.font_size(),
         id: glyph.id,

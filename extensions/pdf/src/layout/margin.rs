@@ -200,6 +200,7 @@ pub(super) fn collect(
                             marker: false,
                             inline: Vec::new(),
                             atoms: Vec::new(),
+                            leaders: Vec::new(),
                         }),
                         Some(Block::Close),
                     ]

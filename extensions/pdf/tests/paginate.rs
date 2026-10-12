@@ -400,3 +400,97 @@ fn named_pages_switch_page_size() {
     assert_eq!(laid.pages.len(), 1);
     assert!(close(laid.pages[0].geometry.width, 600.0));
 }
+
+/// What each text run on `page` with its baseline between `top` and `bottom` draws, and its
+/// left and right end, left to right.
+fn drawn(laid: &Laid, page: usize, top: f32, bottom: f32) -> Vec<(String, f32, f32)> {
+    let mut out: Vec<(String, f32, f32)> = laid.pages[page]
+        .items
+        .iter()
+        .filter_map(|item| match item {
+            Item::Text {
+                text, x, y, glyphs, ..
+            } if *y > top && *y < bottom => {
+                let mut drawn = String::new();
+                for g in glyphs {
+                    drawn.push_str(&text[g.text.clone()]);
+                }
+                let advance: f32 = glyphs.iter().map(|g| g.advance).sum();
+                Some((drawn.trim().to_owned(), *x, x + advance))
+            }
+            _ => None,
+        })
+        .filter(|(text, ..)| !text.is_empty())
+        .collect();
+    out.sort_by(|a, b| a.1.total_cmp(&b.1));
+    out
+}
+
+#[test]
+fn target_counter_and_leader_build_a_table_of_contents() {
+    let laid = lay(&format!(
+        "{TEN_LINES}<style>
+        .toc a::after {{ content: leader('.') target-counter(attr(href), page) }}
+        .toc a.roman::after {{ content: leader(dotted) target-counter(attr(href), page, upper-roman) }}
+        h2 {{ break-before: page; margin: 0; font-size: 12pt }}
+        </style>
+        <p class=toc><a href='#shop'>Shop</a></p>
+        <p class=toc><a href='#blog'>Blog</a></p>
+        <p class=toc><a class=roman href='#news'>News</a></p>
+        <p class=toc><a href='#gone'>Gone</a></p>
+        <h2 id=shop>Shop</h2><h2 id=blog>Blog</h2>{}<h2 id=news>News</h2>",
+        "<p>Line</p>".repeat(12)
+    ));
+    assert_eq!(laid.pages.len(), 5);
+    // Each entry is its title, a run of dots, and the page its heading is on, which ends at
+    // the content box's right edge.
+    for (line, title, page) in [(0, "Shop", "2"), (1, "Blog", "3"), (2, "News", "V")] {
+        let top = 50.0 + 20.0 * line as f32;
+        let runs = drawn(&laid, 0, top, top + 20.0);
+        let [(first, ..), (dots, start, end), (number, after, right)] = &runs[..] else {
+            panic!("{runs:?}");
+        };
+        assert_eq!((first.as_str(), number.as_str()), (title, page));
+        assert!(dots.len() > 20 && dots.chars().all(|c| c == '.'), "{dots}");
+        assert!(*start > 70.0 && *end <= after + 0.01, "{runs:?}");
+        assert!(close(*right, 350.0), "{right}");
+    }
+    // An entry whose heading is not in the document has no number, and its dots fill the line.
+    let runs = drawn(&laid, 0, 110.0, 130.0);
+    let [(first, ..), (dots, _, end)] = &runs[..] else {
+        panic!("{runs:?}");
+    };
+    assert_eq!(first, "Gone");
+    assert!(dots.chars().all(|c| c == '.') && *end > 340.0, "{runs:?}");
+}
+
+#[test]
+fn page_numbers_that_never_settle_throw() {
+    // `III` takes three lines and puts the heading on the fourth page, and `IV` takes two and
+    // puts it on the third, so the page number never stops changing.
+    let html = format!(
+        "{TEN_LINES}<style>
+        .n {{ width: 15pt; font-size: 20pt; font-family: monospace; word-break: break-all }}
+        .n::before {{ content: target-counter('#x', page, upper-roman) }}
+        </style>
+        <p>Shop</p><p style='break-before: page'>Blog</p><p style='break-before: page'>Blog</p>
+        {}<div class=n></div><p id=x>News</p>",
+        "<p>Line</p>".repeat(6)
+    );
+    let error = render(&Document {
+        html,
+        ..Document::default()
+    })
+    .unwrap_err();
+    let nvs_pdf::Error::Runtime(message) = error else {
+        panic!("{error:?}");
+    };
+    assert!(message.contains("5 layout passes"), "{message}");
+
+    // A number that settles on the second pass lays the document out once more and no more.
+    let laid = lay(&format!(
+        "{TEN_LINES}<style>.n::before {{ content: target-counter('#x', page) }}</style>
+        <p class=n></p><p id=x style='break-before: page'>News</p>"
+    ));
+    assert_eq!(drawn(&laid, 0, 50.0, 70.0)[0].0, "2");
+}

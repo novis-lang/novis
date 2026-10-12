@@ -14,10 +14,9 @@
 //! (`rule:core-classes/pdf-render-has-no-io`): every byte it draws is in the document or the
 //! component, so two renders of one document are the same bytes.
 //!
-//! Known gaps, each owned by a later stage of the goal that builds this component: the layout
-//! is the block and inline flow `layout`'s module doc describes, with no tables, floats, flex or
-//! grid, no `@page`, no break control, no hyphenation and no inline SVG drawn. The `first` and
-//! `second` passes, `merge`, `read` and `read-text` return `runtime` until their stages land,
+//! Known gaps, each owned by a later stage of the goal that builds this component: a table is
+//! laid out as block boxes, and links, bookmarks and the document's title, metadata and
+//! language are not written. The `first` and `second` passes, `merge`, `read` and `read-text` return `runtime` until their stages land,
 //! and so `rendered` lists no overflows, and a page has no name, strings or marks. The output is untagged, and the standards, the password and the
 //! invoice XML are checked against each other and otherwise not applied (Stage 12 and
 //! Stage 10).

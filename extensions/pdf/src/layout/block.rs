@@ -18,6 +18,7 @@
 //! flow, and [`Flow::finish`] places a copy of it on every page against that page's content box.
 
 use super::boxes::{self, Decor};
+use super::inline::Targets;
 use super::text::shift;
 use super::{Item, MARGIN, Page, keyword, length};
 use crate::css::{Style, Value};
@@ -290,6 +291,11 @@ pub(super) struct Flow {
     fixed: Vec<Absolute>,
     /// The number of positioned boxes met so far, which orders those of equal `z-index`.
     order: usize,
+    /// The `id`s met since the last box was placed. Each lands on the page the next box is
+    /// placed on.
+    waiting: Vec<String>,
+    /// The page, counting from 1, each `id` landed on, the first of each name.
+    pub(super) landed: Targets,
 }
 
 /// A float's margin box on its page: its left and right edge, its top and bottom from the top
@@ -318,6 +324,22 @@ impl Flow {
             loose: Vec::new(),
             fixed: Vec::new(),
             order: 0,
+            waiting: Vec::new(),
+            landed: Targets::new(),
+        }
+    }
+
+    /// Records that the element with `id` starts at the next box placed.
+    pub(super) fn target(&mut self, id: String) {
+        self.waiting.push(id);
+    }
+
+    /// Lands every `id` still waiting on the page the next box would start on, at the end of
+    /// the document.
+    pub(super) fn land(&mut self) {
+        let page = self.landing() + 1;
+        for id in std::mem::take(&mut self.waiting) {
+            self.landed.entry(id).or_insert(page);
         }
     }
 
@@ -558,6 +580,9 @@ impl Flow {
         let item = self.pages[page].items.len();
         for open in &mut self.open {
             open.top.get_or_insert((page, item, top));
+        }
+        for id in std::mem::take(&mut self.waiting) {
+            self.landed.entry(id).or_insert(page + 1);
         }
         self.cursor += height;
         top
