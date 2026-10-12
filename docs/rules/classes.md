@@ -3,7 +3,7 @@
 
 # Classes
 
-*3 of 45 rules below are **designed** rather than shipped, and are marked where they appear.*
+*3 of 46 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="classes-no-free-functions-or-constants"></a>
 
@@ -516,7 +516,8 @@ started first. Coordinating a batch across *different* objects is the program's 
 
 **Plain writes.** While an `initProperty` call runs in a task, a write in that task that initializes
 an uninitialized `lateinit` property is plain, on any object and through any write form: no
-`onPropertySet` is told ([`classes/property-observer-pipeline`](classes.md#classes-property-observer-pipeline)). One call can therefore load a
+`beforePropertySet` runs and no `onPropertySet` is told
+([`classes/property-observer-pipeline`](classes.md#classes-property-observer-pipeline)). One call can therefore load a
 whole row into several properties, as a data mapper does. Every other write inside `initProperty` —
 to a property that already has a value, or a second write to the same one — is ordinary.
 
@@ -650,47 +651,64 @@ a class that asked for it.
 
 <a id="classes-property-observer-pipeline"></a>
 
-## A property access runs its hook or its storage first and the observer second, and the observer cannot change the answer
+## A property write runs the guard, then its hook or its storage, then the observer, and neither the guard nor the observer can change the value
 
 `rule:classes/property-observer-pipeline`
 
-Every read or write of a property on a class implementing `PropertyObserver` runs two steps in one
-fixed order. First the value is produced or committed exactly as it would be without the interface in
-the picture — by the property's own hook if it declares one, by plain field storage otherwise. Then
-the settled value is passed to `onPropertyGet` or `onPropertySet`. A caller receives what the first
-step produced; a slot holds what the first step committed, which for a transforming `set` hook is not
-the caller's own argument.
+Every read or write of a property runs one fixed pipeline, and each interface a class implements adds
+its own step to it:
+
+```
+Read:   not initialized? → initProperty → get hook or storage → onPropertyGet
+Write:  beforePropertySet → set hook or storage                → onPropertySet
+```
+
+`initProperty` is `LateInit`'s step ([`classes/late-init-initializes-on-the-first-read`](classes.md#classes-late-init-initializes-on-the-first-read)),
+`beforePropertySet` is `PropertyGuard`'s ([`classes/property-guard-runs-before-the-write`](classes.md#classes-property-guard-runs-before-the-write)), and the
+two `on` calls are `PropertyObserver`'s. A class that implements none of them runs only the middle step.
+
+The middle step produces or commits the value exactly as it would with no interface in the picture —
+by the property's own hook if it declares one, by plain field storage otherwise. The guard sees the
+caller's value before it, and may stop the write by throwing: nothing is stored and no observer runs.
+The observer sees the settled value after it. A caller receives what the middle step produced; a slot
+holds what it committed, which for a transforming `set` hook is not the caller's own argument. Every
+access spelling runs the same pipeline: a write through a `mixed` receiver or through
+`Core\Reflect` runs the guard, the hook and the observer the runtime finds on the object's class.
 
 This is a pipeline and not a fallback: a hooked property is not exempt, and a hookless one still
-reaches the observer. An observer that throws still fails the access, propagated like any other call
-([`errors/propagation`](errors.md#errors-propagation)).
+reaches the guard and the observer. A guard or an observer that throws fails the access, propagated
+like any other call ([`errors/propagation`](errors.md#errors-propagation)); an observer's throw arrives after the store.
 
 An element write is a write of the property that holds the array. `$p->tags["a"] = $v`, a compound
-assignment, an increment, `??=` and `unset($p->tags["a"])` each report one `onPropertySet` with the
-whole array after it is stored, at any depth of the path, and no `onPropertyGet`: the read of the
-root that the write makes to separate the array is part of the write, not an access of its own.
-Passing the array copies nothing.
+assignment, an increment, `??=` and `unset($p->tags["a"])` each run the guard once before the store,
+with the key path, and report one `onPropertySet` with the whole array after it, at any depth of the
+path, and no `onPropertyGet`: the read of the root that the write makes to separate the array is part
+of the write, not an access of its own. Passing the array copies nothing.
 
-Three boundaries follow from writing it about a receiver. An access inside the property's own hooks
-is the backing slot and carries no observer, or one write would be reported twice. A `static`
-property has no receiving instance and reaches nothing. An observer that touches a property of its own
-class recurses, exactly as any method calling itself does — there is no re-entry guard, because a
-guard would be a second rule about which write is the real one.
+Four boundaries follow from writing it about a receiver. An access inside the property's own hooks is
+the backing slot and carries no guard and no observer, or one write would be checked and reported
+twice. A write that initializes a `lateinit` property while `initProperty` runs is plain in the same
+way. A `static` property has no receiving instance and reaches nothing. A guard or an observer that
+touches a property of its own class recurses, exactly as any method calling itself does — there is no
+re-entry guard, because a guard would be a second rule about which write is the real one.
 
 An observer that is told the committed value has no declared way to see the caller's raw argument
 when a `set` hook transformed it. Logic that computes or transforms a value belongs in that
-property's own hook ([`classes/property-hooks`](classes.md#classes-property-hooks)); the observer only watches the result.
+property's own hook ([`classes/property-hooks`](classes.md#classes-property-hooks)); the observer only watches the result, and the
+guard only allows or stops it.
 
 **Declined:**
 - **An element write reports an `onPropertyGet` for its root as well.** One write would then reach
   the observer twice, once as a read nobody wrote.
 - **The observer runs only for a property with no hook of its own.** Logging or dirty-tracking every
   write would then be copied into every hook instead of declared once.
-- **The observer may override what a read returns or a write stores.** A second authority over a
-  value a hook already decided raises an ordering question with no answer that is not arbitrary, and
-  a `void` observer removes the question.
+- **The observer or the guard may override what a read returns or a write stores.** A second
+  authority over a value a hook already decided raises an ordering question with no answer that is
+  not arbitrary, and a `void` method removes the question.
+- **The guard runs after the `set` hook, on the committed value.** The hook would then have run, and
+  any effect it had beyond the slot happened, for a write the guard stops.
 
-<sub>See also [`classes/property-observer`](classes.md#classes-property-observer), [`classes/property-hooks`](classes.md#classes-property-hooks), [`classes/clone-is-shallow`](classes.md#classes-clone-is-shallow), [`errors/propagation`](errors.md#errors-propagation).</sub>
+<sub>See also [`classes/property-observer`](classes.md#classes-property-observer), [`classes/property-guard-runs-before-the-write`](classes.md#classes-property-guard-runs-before-the-write), [`classes/late-init-initializes-on-the-first-read`](classes.md#classes-late-init-initializes-on-the-first-read), [`classes/property-hooks`](classes.md#classes-property-hooks), [`classes/clone-is-shallow`](classes.md#classes-clone-is-shallow), [`errors/propagation`](errors.md#errors-propagation).</sub>
 
 <a id="classes-property-observer-costs-nothing-when-unused"></a>
 
@@ -712,6 +730,49 @@ The measurement rather than the assertion is what guards it: three more unhooked
 machine-code call at all, and cost a fraction of the same accesses behind a per-property hook.
 
 <sub>See also [`classes/property-observer-pipeline`](classes.md#classes-property-observer-pipeline), [`programs/memory-priority`](programs.md#programs-memory-priority).</sub>
+
+<a id="classes-property-guard-runs-before-the-write"></a>
+
+## A class implementing `PropertyGuard` is called before every write of its properties, and a throw stops the write
+
+`rule:classes/property-guard-runs-before-the-write`
+
+A class implementing the global interface `PropertyGuard` has
+`beforePropertySet(string $name, mixed $value, array<string> $keys): void` called before every write of
+one of its properties, and `beforePropertyUnset(string $name, array<string> $keys): void` before every
+`unset` of an element of one, and a throw from either stops the change: nothing is stored, and no
+observer runs. The guard runs in the constructor too, and on a hooked property before the `set` hook,
+with the caller's value. Its place in the order is [`classes/property-observer-pipeline`](classes.md#classes-property-observer-pipeline)'s.
+
+The guard gets the change, never the resulting array. `$keys` is `[]` for a whole write, and `$value`
+is the new value. For an element write `$value` is the new element and `$keys` is its path from the
+property, each key as a string: `["0", "1"]` for `$p->cells[0][1] = $v`, and the next index the array
+would give for `$p->tags[] = $v`. An increment or a compound assignment on an element passes the
+element's new value. `unset($p->tags["a"])` calls `beforePropertyUnset` with the path of the entry it
+removes, so `$keys` has at least one key.
+
+Both methods return `void`, so a guard allows or stops a write and never changes its value; a value
+that has to be transformed belongs in the property's `set` hook ([`classes/property-hooks`](classes.md#classes-property-hooks)). The
+class is decided from the object's own class at run time, so a write through `mixed` or
+`Core\Reflect` runs the same guard as a compiled one. A `static` property has no receiving instance and
+reaches no guard, and an access inside the property's own hooks, or a write that initializes a
+`lateinit` property while `initProperty` runs, is plain
+([`classes/late-init-initializes-on-the-first-read`](classes.md#classes-late-init-initializes-on-the-first-read)).
+
+- **Memory:** an element write in a guarded class builds one small `array<string>` of its keys, freed
+  when the guard returns. A class that does not implement `PropertyGuard` pays nothing, at the write or
+  anywhere else.
+
+**Declined:**
+- **The guard receives the array after the write.** It would have to be computed before the store,
+  which copies the array on every element write, and the guard would then have to compare two arrays
+  to find the one change it is asked about.
+- **The guard returns the value to store.** A second authority over the stored value beside the
+  `set` hook raises an ordering question with no answer that is not arbitrary.
+- **One interface for the guard, the observer and `LateInit`.** A class pays only for the contract it
+  implements.
+
+<sub>See also [`classes/property-observer-pipeline`](classes.md#classes-property-observer-pipeline), [`classes/property-hooks`](classes.md#classes-property-hooks), [`classes/late-init-initializes-on-the-first-read`](classes.md#classes-late-init-initializes-on-the-first-read).</sub>
 
 <a id="classes-member-conflict-is-an-error"></a>
 

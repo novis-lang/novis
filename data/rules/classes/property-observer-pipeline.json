@@ -1,13 +1,18 @@
 {
-  "title": "A property access runs its hook or its storage first and the observer second, and the observer cannot change the answer",
+  "title": "A property write runs the guard, then its hook or its storage, then the observer, and neither the guard nor the observer can change the value",
   "status": "shipped",
   "seeAlso": [
     "classes/property-observer",
+    "classes/property-guard-runs-before-the-write",
+    "classes/late-init-initializes-on-the-first-read",
     "classes/property-hooks",
     "classes/clone-is-shallow",
     "errors/propagation"
   ],
   "guardedBy": [
-    "tests/conformance/class/a-property-observer-sees-every-write-its-class-makes.nvst"
+    "tests/conformance/class/a-property-observer-sees-every-write-its-class-makes.nvst",
+    "tests/conformance/class/a-property-observer-is-told-of-an-element-write.nvst",
+    "tests/conformance/class/property-guard-stops-a-write-and-keeps-the-old-value.nvst",
+    "crates/nvs-codegen/tests/late_init.rs"
   ]
 }

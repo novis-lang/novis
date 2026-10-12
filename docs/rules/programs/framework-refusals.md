@@ -1,7 +1,10 @@
 - **No ORM.** Data access is prepared statements plus derived codecs — a data mapper, where a row
-  becomes a declared class and nothing is lazy. Active record is not merely absent, it is
-  unrepresentable: it needs a property-read fallback, properties that are not definitely initialized,
-  and a shape decided at run time, and all three are already refused elsewhere.
+  becomes a declared class, and that is the framework's default. A property loaded later is declared:
+  a `lateinit` property in a class implementing `LateInit`
+  (`rule:classes/late-init-initializes-on-the-first-read`), or a `get` hook. Active record is not
+  merely absent, it is unrepresentable: it needs a property-read fallback for names the class never
+  declared and a shape decided at run time, and both are already refused elsewhere
+  (`rule:classes/no-dynamic-properties`).
 - **No runtime service container, and no facades.** Wiring is constructor injection resolved **while
   compiling**: `rule:programs/implementing` finds the one implementation of an interface, and a missing
   or ambiguous binding is a compile error naming the interface and the constructor parameter, rather

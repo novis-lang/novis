@@ -23,7 +23,8 @@ started first. Coordinating a batch across *different* objects is the program's 
 
 **Plain writes.** While an `initProperty` call runs in a task, a write in that task that initializes
 an uninitialized `lateinit` property is plain, on any object and through any write form: no
-`onPropertySet` is told (`rule:classes/property-observer-pipeline`). One call can therefore load a
+`beforePropertySet` runs and no `onPropertySet` is told
+(`rule:classes/property-observer-pipeline`). One call can therefore load a
 whole row into several properties, as a data mapper does. Every other write inside `initProperty` —
 to a property that already has a value, or a second write to the same one — is ordinary.
 

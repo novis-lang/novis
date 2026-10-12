@@ -25,6 +25,7 @@
     "classes/property-observer",
     "classes/property-observer-pipeline",
     "classes/property-observer-costs-nothing-when-unused",
+    "classes/property-guard-runs-before-the-write",
     "classes/member-conflict-is-an-error",
     "classes/no-traits",
     "classes/interface-default-methods",

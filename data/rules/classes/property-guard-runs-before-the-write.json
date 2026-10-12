@@ -1,0 +1,15 @@
+{
+  "title": "A class implementing `PropertyGuard` is called before every write of its properties, and a throw stops the write",
+  "status": "shipped",
+  "seeAlso": [
+    "classes/property-observer-pipeline",
+    "classes/property-hooks",
+    "classes/late-init-initializes-on-the-first-read"
+  ],
+  "guardedBy": [
+    "tests/conformance/class/property-guard-stops-a-write-and-keeps-the-old-value.nvst",
+    "tests/conformance/class/property-guard-gets-the-key-path-of-an-element-write.nvst",
+    "tests/conformance/class/property-guard-sees-an-unset-before-it-happens.nvst",
+    "crates/nvs-codegen/tests/late_init.rs"
+  ]
+}
