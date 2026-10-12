@@ -21,7 +21,8 @@ editors holds for the Novis bytes of a file; its markup bytes are each editor's 
 client's format pass is its most intricate code, chunks, stand-ins, the base column and refusing an edit
 that reaches a hole, and all of it is over text the server delimited and none of it is language logic.
 
-The VS Code extension (`rule:ide/vscode-is-the-reference-client`) and the PhpStorm plugin
-(`rule:ide/phpstorm-bridges-to-the-same-server`) are the two editor clients, and `nvs code` is the
-third client, in the `nvs` binary. A dependency-allowlist test on the extension is what enforces "holds
-no language logic" for an editor client rather than review.
+The VS Code extension (`rule:ide/vscode-is-the-reference-client`) is the editor client on disk, the
+PhpStorm plugin (`rule:ide/phpstorm-bridges-to-the-same-server`) is the second, and `nvs code` is a
+client in the `nvs` binary. A dependency-allowlist test on the extension
+(`editors/vscode/test/contributions/contributions.test.ts`) is what enforces "holds no language logic"
+for an editor client rather than review.

@@ -926,7 +926,7 @@ against the last release's document and a broken client turns from an incident i
 
 <a id="routing-a-quick-fix-writes-a-derived-path"></a>
 
-## A `#[Route]` missing its `path` gets a quick fix that offers a derived one, and nothing derives a path on its own  *(designed — not yet in the compiler)*
+## A `#[Route]` missing its `path` gets a quick fix that offers a derived one, and nothing derives a path on its own  *(designed — owned by M10)*
 
 `rule:routing/a-quick-fix-writes-a-derived-path`
 
@@ -957,6 +957,10 @@ This is a fix, not a generator. A generator's output has to be *right*
 type-determined by anything; this output is a starting point, read as a diff before it is accepted.
 The fix is backed by a diagnostic the checker already emits, since `path` is a required field of
 `Core\Route` ([`ide/a-quick-fix-is-a-diagnostics-own-suggestion`](ide.md#ide-a-quick-fix-is-a-diagnostics-own-suggestion)).
+
+**Built:** no path is derived, and `E0747` reports a `#[Route]` with no `path`
+(`crates/nvs-types/src/routes.rs`, `crates/nvs-types/tests/routes.rs`). **Missing:** the fix. `E0747`
+carries no suggestion, so the editor offers nothing.
 
 **Declined:**
 - **Convention routing**, a `path` or `name` the compiler derives from the class and method. It makes a

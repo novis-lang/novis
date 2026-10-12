@@ -1,9 +1,12 @@
 {
   "title": "`SyntaxIndex.at(offset)` answers the innermost node and its ancestors, and is rebuilt per analysis",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "ide/one-grammar-one-tree",
     "ide/the-request-set-is-closed"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "crates/nvs-syntax/src/index.rs",
+    "tests/lsp/selection/a-class-body-expands-to-the-declaration.lspt"
+  ]
 }

@@ -3,7 +3,7 @@
   "status": "designed",
   "seeAlso": [
     "ide/the-tree-survives-a-syntax-error",
-    "ide/the-first-server-answers-a-closed-list",
+    "ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows",
     "routing/a-quick-fix-writes-a-derived-path",
     "core-api/identifier-casing",
     "types/no-legacy-cast",
@@ -18,5 +18,6 @@
   ],
   "guardedBy": [
     "crates/nvs-lsp/tests/actions.rs"
-  ]
+  ],
+  "milestone": "M10"
 }

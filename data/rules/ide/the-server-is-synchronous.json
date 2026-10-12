@@ -1,6 +1,6 @@
 {
   "title": "`nvs-lsp` is synchronous on `lsp-server` and `lsp-types` — a reader thread, a writer thread, one analysis thread, and no async runtime",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "concurrency/one-scheduler",
     "ide/an-open-document-is-its-own-entry-point",
@@ -8,6 +8,8 @@
     "ide/one-server-two-thin-clients"
   ],
   "guardedBy": [
-    "crates/nvs-runtime/tests/manifest_policy.rs"
+    "crates/nvs-runtime/tests/manifest_policy.rs",
+    "crates/nvs-lsp/tests/cancel.rs",
+    "crates/nvs-lsp/tests/publish.rs"
   ]
 }

@@ -41,6 +41,9 @@ pub(super) struct BoxGeometry {
     pub(super) position: Position,
     /// Its forced `break-before` and `break-after`.
     pub(super) breaks: [Option<Break>; 2],
+    /// Whether its `break-inside` is `avoid`, so it starts on a new page when it fits on one
+    /// and not under the last block.
+    pub(super) avoid: bool,
     /// Its `z-index` when it is positioned and the value is not `auto`.
     pub(super) z: Option<i64>,
     pub(super) decor: Decor,
@@ -197,6 +200,7 @@ pub(super) fn geometry(style: &Style, x: f32, containing: f32) -> BoxGeometry {
         clear: sides(style, "clear"),
         position,
         breaks: [forced(style, "break-before"), forced(style, "break-after")],
+        avoid: matches!(keyword(style, "break-inside"), Some("avoid" | "avoid-page")),
         z: (position != Position::Static)
             .then(|| z_index(style))
             .flatten(),
@@ -351,6 +355,45 @@ impl Flow {
         match (side, next % 2 == 0) {
             (Break::Left, true) | (Break::Right, false) => next + 1,
             _ => next,
+        }
+    }
+
+    /// Whether the flow breaks into the document's pages.
+    pub(super) fn paginates(&self) -> bool {
+        self.heights.is_some()
+    }
+
+    /// Moves to a new page before a box with `break-inside: avoid`, `margin` below the last
+    /// block and `height` tall from its top border edge to its bottom one, when it does not fit
+    /// on the last page and fits on an empty one.
+    pub(super) fn keep(&mut self, margin: f32, height: f32) {
+        let Some(heights) = &self.heights else {
+            return;
+        };
+        if self.forced.is_some() || self.empty() {
+            return;
+        }
+        let top = self.cursor + self.pending.max(margin);
+        if top + height > self.limit() && height <= heights(self.pages.len()) {
+            self.new_page();
+        }
+    }
+
+    /// Takes a waiting `break-after`, and returns where the next box placed starts, how tall
+    /// the last page's content is and whether that page is empty, or `None` for a flow that
+    /// does not break into pages.
+    pub(super) fn room(&mut self) -> Option<(f32, f32, bool)> {
+        self.heights.as_ref()?;
+        if let Some(side) = self.forced.take() {
+            self.force(side);
+        }
+        Some((self.cursor + self.margin(), self.limit(), self.empty()))
+    }
+
+    /// Moves to a new page unless the last one is empty.
+    pub(super) fn break_page(&mut self) {
+        if !self.empty() {
+            self.new_page();
         }
     }
 

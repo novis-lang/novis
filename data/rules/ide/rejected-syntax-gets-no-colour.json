@@ -1,11 +1,14 @@
 {
   "title": "Nothing Novis rejects is coloured as though it were valid",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "ide/highlighting-is-two-layers",
     "expressions/one-equality-operator",
     "types/no-legacy-cast",
     "expressions/pipeline-substitution"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "editors/vscode/test/grammar/rejected.test.ts",
+    "editors/vscode/test/grammar/openers.test.ts"
+  ]
 }

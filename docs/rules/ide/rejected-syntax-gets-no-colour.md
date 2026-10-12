@@ -4,6 +4,6 @@ not a call of a callable on its right (`rule:expressions/pipeline-substitution`)
 (`if (...): ... endif;`) is not syntax at all.
 
 A grammar that colours these confirms a mistake in the editor before the server contradicts it, which is
-worse than no colour. The grammar snapshot test asserts `===` receives no operator scope, alongside the
-positive cases — a `#[Route]` attribute that is not a comment, a nowdoc that does not interpolate, inline
-HTML outside `<?nvs`.
+worse than no colour. `editors/vscode/test/grammar/rejected.test.ts` asserts each of these receives no
+scope that reads as valid, and the grammar suite beside it holds the positive cases — a `#[Route]`
+attribute that is not a comment, a nowdoc that does not interpolate, inline HTML outside `<?nvs`.

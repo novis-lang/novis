@@ -16,6 +16,9 @@ PhpStorm's `XDebugger` UI wired to a DAP backend stays deferred (`rule:ide/phpst
 The two clients are deliberately asymmetric here; a future PhpStorm-depth pass has to address or
 explicitly accept that.
 
+**Missing:** `nvs dap` and the VS Code wiring. The safepoint flag it stops on, `DEBUG_BREAK`, is built
+and is cleared without acting while no adapter exists.
+
 **Declined:**
 - **The adapter ships together with both editors' debugger UI.** PhpStorm's `XDebugger` wiring is the
   larger job, and it would hold back an adapter that VS Code and a CLI-driven client can already use.

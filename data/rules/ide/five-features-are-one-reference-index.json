@@ -1,6 +1,6 @@
 {
   "title": "Find-references, occurrence highlight, CodeLens, type hierarchy and unused-member dimming are five queries against one workspace index",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "ide/check-scope-defaults-to-the-workspace",
     "classes/no-traits",
@@ -11,6 +11,7 @@
   ],
   "guardedBy": [
     "crates/nvs-lsp/tests/references.rs",
-    "crates/nvs-lsp/tests/index.rs"
+    "crates/nvs-lsp/tests/index.rs",
+    "crates/nvs-lsp/tests/publish.rs"
   ]
 }

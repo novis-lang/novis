@@ -1,9 +1,13 @@
 {
   "title": "Position encoding is negotiated, every offset conversion lives in `nvs-diagnostics`, and a document's bytes are never normalised",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "types/bytes",
     "ide/the-server-is-synchronous"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "crates/nvs-diagnostics/src/source.rs",
+    "crates/nvs-lsp/src/position.rs",
+    "crates/nvs-lsp/tests/handshake.rs"
+  ]
 }

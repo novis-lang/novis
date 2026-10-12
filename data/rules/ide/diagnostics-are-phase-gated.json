@@ -1,6 +1,6 @@
 {
   "title": "A file with a lexer or parser diagnostic publishes those and its declaration diagnostics, and suppresses its own resolution and type diagnostics",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "errors/diagnostic-record",
     "ide/the-request-set-is-closed",
@@ -9,6 +9,7 @@
   "guardedBy": [
     "tests/lsp/diagnostics/a-parse-error-holds-back-the-cascade.lspt",
     "tests/lsp/diagnostics/a-resolution-error-does-not-suppress-a-type-error.lspt",
-    "tests/lsp/diagnostics/phase-all-defeats-the-gate.lspt"
+    "tests/lsp/diagnostics/phase-all-defeats-the-gate.lspt",
+    "crates/nvs-lsp/src/diagnostics.rs"
   ]
 }

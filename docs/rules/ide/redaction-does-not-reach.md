@@ -23,4 +23,5 @@ who believes the editor protects them everywhere is worse off than one who knows
 - **Redacting the "before" side of a diff.** Does not exist: it needs a type answer for a revision of the
   document the server never analysed.
 
-**Not on disk.** The extension's own documentation does not carry this list.
+**Built:** the concealment itself (`rule:ide/redaction-ranges-come-from-the-server`). **Missing:** this
+list in `editors/vscode/README.md`, which describes the concealment and not where it stops.

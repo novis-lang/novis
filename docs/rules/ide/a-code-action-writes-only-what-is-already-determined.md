@@ -23,3 +23,7 @@ inserted `throw`s reachable.
 property hooks mean the pair of methods that action exists to save typing has no reason to be written.
 Code snippets are refused for a neighbouring reason — a snippet body is a second copy of a syntactic shape
 the grammar already owns, silently stale after a grammar change.
+
+**Missing:** all four actions. The code actions on disk are the quick fixes a diagnostic carries and
+the two rewrites `rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows` names
+(`crates/nvs-lsp/src/actions.rs`).

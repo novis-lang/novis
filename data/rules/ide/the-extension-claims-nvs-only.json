@@ -1,9 +1,14 @@
 {
   "title": "The extension activates on `.nvs`, never claims `.php` or TOML, and offers completion in a file named `nvs.toml`",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "ide/contributions-are-frozen-and-only-ever-added",
     "ide/the-extension-runs-where-the-binary-is"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "editors/vscode/test/host/colour.test.ts",
+    "editors/vscode/test/host/surfaces.test.ts",
+    "editors/vscode/test/contributions/contributions.test.ts",
+    "crates/nvs-lsp/tests/directives.rs"
+  ]
 }

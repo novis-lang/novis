@@ -1,4 +1,4 @@
-`SyntaxIndex` is built by one walk over the tree and answers `at(offset) -> NodePath`: the innermost node
+`SyntaxIndex` (`crates/nvs-syntax/src/index.rs`) is built by one walk over the tree and answers `at(offset) -> NodePath`: the innermost node
 containing the offset plus its ancestors. Hover, definition and completion each need a different depth of
 that path, and `selectionRange` is the ancestor list itself, so the request is a projection of the index
 rather than a feature built on top of it.

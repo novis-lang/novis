@@ -8,5 +8,6 @@
     "routing/a-quick-fix-writes-a-derived-path",
     "ide/every-feature-is-staged-behind-its-dependency"
   ],
-  "guardedBy": []
+  "guardedBy": [],
+  "milestone": "M10"
 }

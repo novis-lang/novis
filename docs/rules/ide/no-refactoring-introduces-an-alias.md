@@ -7,3 +7,9 @@ statements; auto-import inserts the correct fully-qualified name and nothing els
 resolved a clash with `use Foo as Bar` would be inventing a spelling the language does not have
 (`rule:statements/nothing-gets-a-second-name`), and a second name introduced by tooling is exactly as
 much a second name as one typed by hand.
+
+**Built:** signature help, inlay hints, and the three places the server writes a `use` line: an
+accepted completion, a pasted type (`rule:ide/a-pasted-type-carries-its-use-line`) and an undeclared
+name's fix. Each writes the fully-qualified name at `nvs_hir::import_site` and never an alias
+(`crates/nvs-lsp/src/imports.rs`). **Missing:** rename, extract to method or variable, organize-imports
+and cross-file symbol search.

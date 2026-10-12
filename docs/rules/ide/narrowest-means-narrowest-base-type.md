@@ -17,6 +17,9 @@ The unit tests are the list: a homogeneous nest at three levels, a heterogeneous
 canonical union, an integer literal widening to `int`, an enum case widening to its enum, `[]` yielding no
 offer, a `mixed` element yielding no offer, and a literal past depth 32 yielding no offer.
 
+**Missing:** the synthesis and its unit tests, with the action they serve
+(`rule:ide/narrow-an-annotation-to-its-literal`).
+
 **Declined:**
 - **The true narrowest type, literals included.** `array<1|3>` is narrower and correct, and it refuses
   the next write the developer makes. An action whose type its user must widen at once is worse than no

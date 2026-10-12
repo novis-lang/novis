@@ -1,6 +1,6 @@
 {
-  "title": "M4B answers nine standard requests and exactly one of Novis's own, M10 adds eight more on the same test, and that test keeps the list from growing",
-  "status": "designed",
+  "title": "The server answers seventeen standard requests and seven of Novis's own, each admitted because a structure already built is its answer, and a test keeps the list from growing",
+  "status": "shipped",
   "seeAlso": [
     "ide/redaction-ranges-come-from-the-server",
     "ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows",
@@ -11,6 +11,7 @@
     "ide/five-features-are-one-reference-index"
   ],
   "guardedBy": [
+    "crates/nvs-lsp/tests/handshake.rs",
     "crates/nvs-lsp/tests/coverage.rs",
     "crates/nvs-lsp/tests/navigation.rs",
     "crates/nvs-lsp/tests/hints.rs",

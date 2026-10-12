@@ -9,5 +9,6 @@
     "tooling/fmt-is-never-a-diagnostic",
     "ide/every-feature-is-staged-behind-its-dependency"
   ],
-  "guardedBy": []
+  "guardedBy": [],
+  "milestone": "M10"
 }

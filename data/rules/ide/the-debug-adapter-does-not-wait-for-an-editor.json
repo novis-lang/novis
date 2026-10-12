@@ -7,5 +7,6 @@
     "testing/debug-probes",
     "ide/the-debugger-ui-is-as-deep-as-the-adapter"
   ],
-  "guardedBy": []
+  "guardedBy": [],
+  "milestone": "M10"
 }

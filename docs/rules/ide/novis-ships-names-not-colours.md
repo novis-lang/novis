@@ -15,3 +15,7 @@ nothing. The extension ships no `configurationDefaults` for `editor.tokenColorCu
 call to make in someone else's editor, which is also what
 `rule:ide/tainted-has-no-default-decoration` applies. A bundled theme is a legitimate future option a
 user may select; it is not a default.
+
+**Built:** the grammar's allowlist test (`editors/vscode/test/grammar/allowlist.test.ts`), the standard
+legend, and no colour defaults in `editors/vscode/package.json`. **Missing:** the `semanticTokenScopes`
+contribution, so a theme with no rule for the two Novis modifiers draws the plain token type.

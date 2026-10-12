@@ -18,3 +18,7 @@ The request path gets faster where the action is used, which is the point: a nar
 generic helper path for the typed one, and its element writes become compile errors instead of runtime
 throws. Nothing is spent per request, and no memory beyond one more interned descriptor where the program
 did not already have that type.
+
+**Missing:** the action and the client test, with
+`rule:ide/narrow-an-annotation-to-its-literal`. The `source.fixAll.nvs` set on disk is the suggestions
+diagnostics carry, less the alternatives (`crates/nvs-lsp/src/actions.rs`).

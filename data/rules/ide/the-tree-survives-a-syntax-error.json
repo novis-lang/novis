@@ -1,14 +1,15 @@
 {
   "title": "The parser always returns a tree, a node it invented says so, and an offset maps to the innermost node even inside a malformed region",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "ide/one-grammar-one-tree",
-    "ide/the-first-server-answers-a-closed-list",
     "ide/a-quick-fix-is-a-diagnostics-own-suggestion",
     "ide/contributions-are-frozen-and-only-ever-added"
   ],
   "guardedBy": [
     "crates/nvs-syntax/tests/prefixes.rs",
-    "fuzz/fuzz_targets/prefix.rs"
+    "fuzz/fuzz_targets/prefix.rs",
+    "crates/nvs-lsp/tests/completion.rs",
+    "tests/lsp/diagnostics/an-unclosed-brace-does-not-swallow-the-rest-of-the-file.lspt"
   ]
 }

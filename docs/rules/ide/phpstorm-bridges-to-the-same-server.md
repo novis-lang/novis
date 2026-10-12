@@ -9,11 +9,18 @@ implementation (`rule:ide/one-server-two-thin-clients`), named up front.
 The plugin registers `.nvs` as its own file type (`rule:ide/nvs-is-its-own-file-type`) and ships a
 TextMate-or-equivalent baseline grammar for the same instant-colour reason VS Code does.
 
+It conceals `secret` literals as VS Code does. The ranges are the answer to `nvs/redactions` from the
+same server (`rule:ide/redaction-ranges-come-from-the-server`), so that half is shared. The drawing is
+not: an editor-side decoration is per-editor work with no common half, and the plugin writes its own.
+
 It explicitly does not build a native PSI tree, PhpStorm-grade refactoring beyond what the LSP `rename`
 request gives, structural search and replace, intention actions backed by its own inspector, or
 PhpStorm's native debugger UI (`rule:ide/the-debug-adapter-does-not-wait-for-an-editor`). Those are the
 real quality gap between an LSP bridge and PhpStorm's PHP support, and a full native plugin is a later,
 explicit decision if usage justifies it — kept open, not silently skipped, and not scheduled.
+
+**Missing:** the plugin. No `editors/phpstorm/` exists, so PhpStorm opens a `.nvs` file with no Novis
+support and conceals nothing.
 
 **Declined:**
 - **A full native PhpStorm plugin from the start**, with its own lexer, parser and PSI mirroring
