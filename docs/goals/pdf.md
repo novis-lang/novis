@@ -797,21 +797,22 @@ One file set: `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/n
 
 ### State
 
-**Stage 12 is done: tagging, PDF/A-2b, PDF/A-3b, PDF/UA-1, Factur-X and the password.** All eight tests of `nvs-ext-standards-factur-x-and-passwords` pass, and `pdf-an-e-invoice-renders` is green.
+**Stage 13's engine half is done: the component places, merges and reads existing PDFs.** All eight tests of `nvs-ext-existing-pdfs` pass (`crates/nvs-ext/tests/pdf_read.rs`), and so does the host suite `extensions/pdf/tests/read.rs`. `pdf-merge-and-read-run` is still red, because its two `.nvst` cases and the classes they call are not written.
 
-- `extensions/pdf/src/encrypt.rs` is the password: AES-256, revision 6, over the file `write` returns. It reads `pdf-writer`'s shape (a cross-reference table, direct stream lengths), encrypts every string and stream, adds the `/Encrypt` object and the trailer's entry, and writes the table again. The file key is a SHA-256 of the password and the file, and the salts and IVs are SHA-256s of the key, so equal input is byte-equal. Its module doc says how.
-- The password is both the user and the owner password, so `hayro-syntax` (the test's independent reader, a dev-dependency of `nvs-ext`) opens it through the owner path. The user path (`/U`, `/UE`) is *not checked* by a reader other than the writer, and neither is `/Perms`, which `hayro-syntax` does not read.
-- The header stays `%PDF-1.7` with no `/Extensions` entry for AES-256: whether a strict reader wants Adobe's extension level 8 there is *not checked*. SASLprep is not applied to the password.
-- `nvs-cli`'s `live_edit` test `a_file_that_changes_during_a_compile_discards_that_compile` failed once beside the other test binaries, passed alone, and passed on the next full `bun nv verify`. That is load, outside this goal's files.
+- `extensions/pdf/src/read.rs` is `read` and `read-text`, over `hayro-interpret` **0.7**, and not 0.8. That is the version `krilla`'s `pdf` feature (`hayro-write` 0.7) pins, so the component carries one `hayro-syntax`. `extensions/pdf/src/merge.rs` is `merge`. Their module docs say what each keeps and refuses. An encrypted source throws `parse` in all three jobs, the same way the image side does.
+- Placing: `Picture::Page` in `extensions/pdf/src/layout/image.rs` is drawn with `krilla`'s `draw_pdf_page`. `assets::page_fragment` reads `#page=N`. `margin::backgrounds` paints an `@page`'s `background-*` under each page. `boxes::paint` now draws a repeated tile that covers its whole area once, as the picture, so a letterhead stays text and is not a pattern.
+- `read-text` writes glyphs in content-stream order, so a list marker, which the writer draws after its item, reads after the item. The rule promises file order, so this is not a bug.
+- `extensions/pdf/tests/render.rs`'s `an_invoice_needs_pdf_a3b_and_pdf_a_has_no_password` was red on `main` since Stage 12 (no `created`, no `<title>`). It is fixed in the engine commit. `THIRD-PARTY-LICENSES.txt` is regenerated for the new crates.
+- **Not run this session**: `looper verify`, `cargo deny` over the component's graph and Clippy. The session stopped at its context budget. Run them first.
 
 ### Next
 
-**Stage 13, existing PDFs**: the file set is `extensions/pdf/src/read.rs` (new), `extensions/pdf/src/merge.rs` (new), `extensions/pdf/src/lib.rs`, `extensions/pdf/nvs/` (`Pages.nvs`, `Reader.nvs`, both new) and `crates/nvs-ext/tests/pdf_read.rs` (new).
+**Stage 13, the Novis half**: the file set is `extensions/pdf/nvs/` (`Pages.nvs`, `Reader.nvs`, both new), `tests/conformance/novis/` and `extensions/pdf/src/layout/image.rs`.
 
-- [ ] **`Reader`** (`rule:core-classes/pdf-roster`): `read` and `read-text` (`wit/pdf.wit:163`), stubbed at `extensions/pdf/src/lib.rs:523`, over `hayro`: the page count, the metadata, the Factur-X attachment and a page's text. An encrypted source throws.
-- [ ] **`merge`** (`wit/pdf.wit:160`, stubbed at `extensions/pdf/src/lib.rs:519`): parts with page lists into one PDF, through `krilla`'s `pdf` feature.
-- [ ] **Placing** a PDF page in an `<img>` and as an `@page` background (`rule:core-classes/pdf-page-is-an-image-source`): a third `Picture` case beside `Vector` (`extensions/pdf/src/layout/image.rs:17`), and SVG `<text>` drawn with the Liberation faces.
-- The tests are the `nvs-ext-existing-pdfs` check's eight names in `crates/nvs-ext/tests/pdf_read.rs`, and the two `.nvst` cases of `pdf-merge-and-read-run`.
+- [ ] **`Pages` and `Reader`** (`rule:core-classes/pdf-roster`, `rule:core-classes/pdf-reader-and-merge`): Novis source over `Engine::merge`, `Engine::read` and `Engine::readText` (`extensions/pdf/manifest.json`), in the shape of `extensions/pdf/nvs/Document.nvs:96`. Then the roster fragment's "Partly on disk" and the reader rule's paragraph change to say they exist. Add `Pages` and `Reader` to `crates/nvs-cli/tests/meta.rs` if it lists classes (playbook).
+- [ ] **The two `.nvst` cases** of `pdf-merge-and-read-run`: `pdf-merge-takes-chosen-pages.nvst` and `pdf-reader-returns-an-invoice-xml-and-text.nvst`, in the shape of `tests/conformance/novis/pdf-an-e-invoice-renders-as-pdf-a-3b.nvst:1`. Their comments follow AGENTS.md § *Text an end user reads*.
+- [ ] **SVG `<text>`** drawn with the Liberation faces, in the PDF (`extensions/pdf/src/layout/image.rs:235`) and in `Novis\Image`. `usvg` is built with `default-features = false` (`extensions/pdf/Cargo.toml:30`), so its `text` feature and a `fontdb` filled from `fonts::FACES` are the work. The growth goes in the commit.
+- First, `looper verify`, `cargo deny --manifest-path extensions/pdf/Cargo.toml --target wasm32-wasip2 --locked check`, and then Stage 13 is set done.
 
 ### Backlog
 
