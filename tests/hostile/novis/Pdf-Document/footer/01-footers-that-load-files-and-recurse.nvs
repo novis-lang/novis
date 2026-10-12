@@ -1,0 +1,61 @@
+<?nvs
+// Attack: the HTML of a footer names files on the server and the cloud metadata address.
+// Another footer renders a document whose own footer renders the next one, 50 levels deep.
+// Each render should throw an error or draw only its assets. The server keeps running.
+use Novis\Pdf\Document;
+use Novis\Pdf\Page;
+
+class Attack
+{
+    // This method renders a one-page invoice whose footer is `$markup`, and prints the page count or the error.
+    public static function attempt(int $step, Core\Html\Markup $markup): void
+    {
+        try {
+            var $rendered = Document::fromHtml("<h1>Invoice 1042</h1>")
+                ->asset("logo.svg", "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"1\" height=\"1\"/>" as bytes)
+                ->footer(fn(Page $page): Core\Html\Markup => $markup, {height: "3cm"})
+                ->render();
+            echo "step ", $step, " ran ", $rendered->pageCount, "\n";
+        } catch (Throwable $e) {
+            echo "step ", $step, " stopped ", $e::class, "\n";
+        }
+    }
+
+    // This method renders a document whose footer renders the next level, `$depth` levels deep.
+    public static function nested(int $depth): uint
+    {
+        if ($depth == 0) {
+            return Document::fromHtml("<p>Blog</p>")->render()->pageCount;
+        }
+        return Document::fromHtml("<p>Shop</p>")
+            ->footer(fn(Page $page): Core\Html\Markup => {
+                uint $inner = self::nested($depth - 1);
+                return html`<p>{$inner}</p>`;
+            })
+            ->render()->pageCount;
+    }
+}
+
+// 1. An image in the footer that names a file on the server, and one that names the metadata address.
+Attack::attempt(1, html`<img src="file:///etc/passwd">`);
+Attack::attempt(1, html`<img src="http://169.254.169.254/latest/meta-data/">`);
+
+// 2. The same two addresses in CSS: `url()`, `@import` and `@font-face`.
+Attack::attempt(2, html`<p style="background-image: url('file:///etc/passwd')">x</p>`);
+Attack::attempt(2, html`<style>@import url(http://169.254.169.254/);</style><p>x</p>`);
+Attack::attempt(2, html`<style>@font-face { font-family: X; src: url(file:///etc/passwd) } p { font-family: X }</style><p>x</p>`);
+
+// 3. The same two addresses in an `href` of an inline SVG image.
+Attack::attempt(3, html`<svg xmlns="http://www.w3.org/2000/svg" width="9" height="9"><image href="file:///etc/passwd" width="9" height="9"/></svg>`);
+Attack::attempt(3, html`<svg xmlns="http://www.w3.org/2000/svg" width="9" height="9"><use href="http://169.254.169.254/#a"/></svg>`);
+
+// 4. The asset `logo.svg` from the document, which the footer may use.
+Attack::attempt(4, html`<img src="logo.svg" alt="Shop">`);
+
+// 5. A footer that renders a document whose footer renders another one, 50 levels deep.
+try {
+    uint $pages = Attack::nested(50);
+    echo "step 5 ran ", $pages, "\n";
+} catch (Throwable $e) {
+    echo "step 5 stopped ", $e::class, "\n";
+}

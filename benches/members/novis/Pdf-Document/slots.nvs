@@ -1,0 +1,28 @@
+<?nvs
+// Sets the slot function of an invoice table, as a shop does for each long invoice before it renders it.
+// bench: iterations 4096
+// bench: complexity constant
+use Novis\Pdf\Document;
+use Novis\Pdf\Page;
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<Document> $invoices = [
+            Document::fromHtml("<table><tr><td><slot name=\"total\"></slot></td></tr></table>"),
+            Document::fromHtml("<table><tr><td><slot name=\"carried\"></slot></td></tr></table>"),
+            Document::fromHtml("<table><tr><td><slot name=\"page\"></slot></td></tr></table>"),
+        ];
+        var $slots = fn(Page $page): array<Core\Html\Markup> => ["total" => html`{$page->number}`];
+        array<Document> $documents = [];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $documents[] = $invoices[($total % 3) as int]->slots($slots);
+            $total = $total + 1;
+            $i = $i + 1;
+        }
+        return $total + Core\Arr::count($documents);
+    }
+}
+
+echo Bench::run(4096), "\n";

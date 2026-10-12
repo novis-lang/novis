@@ -1,0 +1,23 @@
+<?nvs
+// Shows the error for invoice XML in a file that is not PDF/A-3b.
+use Novis\Pdf\Document;
+
+string $xml = "<rsm:CrossIndustryInvoice xmlns:rsm=\"urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100\"/>";
+
+// This document has no standard, so `render` throws a `LogicError`.
+try {
+    Document::fromHtml("<h1>Invoice Shop-1042</h1>")->invoiceXml($xml)->render();
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+
+// PDF/A-2b is not enough either. Only PDF/A-3b allows an attached file.
+try {
+    Document::fromHtml("<html lang=\"en\"><head><title>Invoice</title></head><body><h1>Invoice Shop-1042</h1></body></html>")
+        ->standard(Document::Standard::PdfA2b)
+        ->created(Core\Time::fromIso("2026-03-01T09:00:00Z"))
+        ->invoiceXml($xml)
+        ->render();
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}

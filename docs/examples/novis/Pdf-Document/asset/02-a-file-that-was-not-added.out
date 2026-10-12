@@ -1,0 +1,2 @@
+`logo.png` is not in the asset map: a render reads only its assets and `data:` URIs
+`https://example.com/logo.png` is not in the asset map: a render reads only its assets and `data:` URIs

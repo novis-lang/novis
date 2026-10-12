@@ -1,0 +1,47 @@
+<?nvs
+// Attack: a request gives `header` functions that throw, load files, render another document while
+// the first one is half done, and margins of impossible heights. Each render should finish or throw
+// an error. The server keeps running.
+use Novis\Pdf\Document;
+use Novis\Pdf\Page;
+
+class Attack
+{
+    // This method renders a report of about four pages with `$header`, and prints the page count or the error.
+    public static function attempt(int $step, callable(Page): Core\Html\Markup $header, ?string $height): void
+    {
+        try {
+            var $document = Document::fromHtml(Core\Str::repeat("<p>Order 1042 was sent on time, and the customer paid by card.</p>", 100));
+            var $rendered = $height == null ? $document->header($header)->render() : $document->header($header, {height: $height})->render();
+            echo "step ", $step, " ran ", $rendered->pageCount, " ", Core\Arr::count($rendered->overflows), "\n";
+        } catch (Throwable $e) {
+            echo "step ", $step, " stopped ", $e::class, "\n";
+        }
+    }
+}
+
+// 1. A header function that throws on page 2.
+Attack::attempt(1, fn(Page $page): Core\Html\Markup => $page->number == 2 ? throw new LogicError("no") : html`<p>x</p>`, null);
+
+// 2. A header that names a file on the server, and one that names the cloud metadata address in CSS and in SVG.
+Attack::attempt(2, fn(Page $page): Core\Html\Markup => html`<img src="file:///etc/passwd">`, null);
+Attack::attempt(2, fn(Page $page): Core\Html\Markup => html`<p style="background: url(http://169.254.169.254/)">x</p>`, null);
+Attack::attempt(2, fn(Page $page): Core\Html\Markup => html`<style>@import "http://169.254.169.254/";</style><p>x</p>`, null);
+Attack::attempt(2, fn(Page $page): Core\Html\Markup => html`<svg xmlns="http://www.w3.org/2000/svg"><image href="file:///etc/passwd" width="9" height="9"/></svg>`, null);
+
+// 3. A header that renders another document with its own header, on every page of the first one.
+var $inner = fn(Page $page): Core\Html\Markup => html`<p>inner {$page->number}</p>`;
+Attack::attempt(3, fn(Page $page): Core\Html\Markup => {
+    var $other = Document::fromHtml(Core\Str::repeat("<p>Blog</p>", 200))->header($inner)->render();
+    return html`<p>outer {$page->number}, other has {$other->pageCount} pages</p>`;
+}, null);
+
+// 4. Heights that are not lengths, that are negative, and that are far taller than the page.
+array<string> $heights = ["", "tall", "-5cm", "0", "1e9cm", "100000cm", "calc(100% + 1px)", "NaN", "1cm; } body { display: none", "29.7cm"];
+foreach ($heights as string $height) {
+    Attack::attempt(4, fn(Page $page): Core\Html\Markup => html`<p>Page {$page->number}</p>`, $height);
+}
+
+// 5. A header of 1 MB on each page, far taller than its margin.
+string $huge = Core\Str::repeat("Shop ", 200000);
+Attack::attempt(5, fn(Page $page): Core\Html\Markup => html`<p>{$huge}</p>`, "1cm");

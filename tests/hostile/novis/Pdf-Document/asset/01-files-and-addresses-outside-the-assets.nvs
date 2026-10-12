@@ -1,0 +1,70 @@
+<?nvs
+// Attack: a request names files on the server and a cloud metadata address in the HTML, the CSS
+// and an SVG image. A render reads only its assets, so every step should throw an error.
+use Novis\Pdf\Document;
+
+class Attack
+{
+    // This method renders `$html` with one harmless asset, and prints the page count or the error.
+    public static function attempt(string $step, string $html): void
+    {
+        try {
+            var $rendered = Document::fromHtml($html)
+                ->asset("logo.svg", "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"1\" height=\"1\"/>" as bytes)
+                ->render();
+            echo "step ", $step, " ran ", $rendered->pageCount, "\n";
+        } catch (Throwable $e) {
+            echo "step ", $step, " stopped ", $e::class, "\n";
+        }
+    }
+}
+
+array<string> $targets = [
+    "file:///etc/passwd",
+    "http://169.254.169.254/latest/meta-data/",
+    "/etc/passwd",
+    "C:\\Windows\\win.ini",
+    "\\\\fileserver\\share\\secret.png",
+    "../../../../etc/passwd",
+    "logo.svg/../../etc/passwd",
+    "LOGO.SVG",
+    "logo.svg ",
+    "ftp://example.com/x.png",
+    "javascript:alert(1)",
+];
+
+foreach ($targets as string $target) {
+    // 1. An `<img src>`.
+    Attack::attempt("1", "<img src=\"{$target}\" alt=\"x\">");
+    // 2. A `url()` in a `style` attribute, and one written with an escape so it does not look like `url(`.
+    Attack::attempt("2", "<p style=\"background-image: url('{$target}')\">x</p>");
+    Attack::attempt("2", "<style>p { background-image: u\\72l('{$target}') }</style><p>x</p>");
+    // 3. An `@import` of a stylesheet, and a linked stylesheet.
+    Attack::attempt("3", "<style>@import '{$target}';</style><p>x</p>");
+    Attack::attempt("3", "<link rel=\"stylesheet\" href=\"{$target}\"><p>x</p>");
+    // 4. A font in `@font-face`.
+    Attack::attempt("4", "<style>@font-face { font-family: Evil; src: url('{$target}') } p { font-family: Evil }</style><p>x</p>");
+    // 5. An `href` and an `xlink:href` in an inline SVG.
+    Attack::attempt("5", "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" width=\"10\" height=\"10\">"
+        . "<image href=\"{$target}\" width=\"10\" height=\"10\"/><use xlink:href=\"{$target}#a\"/></svg>");
+}
+
+// 6. A stylesheet asset whose own `@import` and `url()` name the metadata address.
+try {
+    Document::fromHtml("<link rel=\"stylesheet\" href=\"site.css\"><p>x</p>")
+        ->asset("site.css", "@import 'http://169.254.169.254/'; p { background: url(file:///etc/passwd) }" as bytes)
+        ->render();
+    echo "step 6 ran\n";
+} catch (Throwable $e) {
+    echo "step 6 stopped ", $e::class, "\n";
+}
+
+// 7. An SVG asset whose own `<image>` names a file on the server.
+try {
+    Document::fromHtml("<img src=\"chart.svg\" alt=\"x\">")
+        ->asset("chart.svg", "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"9\" height=\"9\"><image href=\"file:///etc/passwd\" width=\"9\" height=\"9\"/></svg>" as bytes)
+        ->render();
+    echo "step 7 ran\n";
+} catch (Throwable $e) {
+    echo "step 7 stopped ", $e::class, "\n";
+}

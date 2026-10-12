@@ -1,0 +1,50 @@
+<?nvs
+// Attack: a request fills slots that are not in the table, and fills them with HTML that loads files.
+// It also puts a slot in every row of a long table.
+// Each render should finish or throw an error. The server keeps running.
+use Novis\Pdf\Document;
+use Novis\Pdf\Page;
+
+class Attack
+{
+    // This method renders `$html` with the slot function `$fill`, and prints the page count and overflows or the error.
+    public static function attempt(int $step, string $html, callable(Page): array<Core\Html\Markup> $fill): void
+    {
+        try {
+            var $rendered = Document::fromHtml($html)->slots($fill)->render();
+            echo "step ", $step, " ran ", $rendered->pageCount, " ", Core\Arr::count($rendered->overflows), "\n";
+        } catch (Throwable $e) {
+            echo "step ", $step, " stopped ", $e::class, "\n";
+        }
+    }
+}
+
+string $one = "<table><tbody><tr><td>Total</td><td><slot name=\"total\"></slot></td></tr></tbody></table>";
+
+// 1. Names that the table does not have: empty, with quotes, with a NUL, and 10000 of them.
+Attack::attempt(1, $one, fn(Page $page): array<Core\Html\Markup> => ["" => html`a`, "\"><script>" => html`b`, "t\u{0}otal" => html`c`]);
+Attack::attempt(1, $one, fn(Page $page): array<Core\Html\Markup> => {
+    array<Core\Html\Markup> $many = [];
+    for (int $n = 0; $n < 10000; $n++) {
+        $many["slot{$n}"] = html`{$n}`;
+    }
+    return $many;
+});
+
+// 2. A slot without a name, a slot outside a table, and a slot inside a slot.
+Attack::attempt(2, "<slot></slot><p><slot name=\"total\"></slot></p><table><tr><td><slot name=\"total\"><slot name=\"total\"></slot></slot></td></tr></table>",
+    fn(Page $page): array<Core\Html\Markup> => ["total" => html`<b>1</b>`]);
+
+// 3. A fill that names a file on the server, and one that names the cloud metadata address in CSS and in SVG.
+Attack::attempt(3, $one, fn(Page $page): array<Core\Html\Markup> => ["total" => html`<img src="file:///etc/passwd">`]);
+Attack::attempt(3, $one, fn(Page $page): array<Core\Html\Markup> => ["total" => html`<style>@import "http://169.254.169.254/";</style>x`]);
+Attack::attempt(3, $one, fn(Page $page): array<Core\Html\Markup> => ["total" => html`<svg xmlns="http://www.w3.org/2000/svg"><image href="http://169.254.169.254/" width="9" height="9"/></svg>`]);
+
+// 4. A slot in every row of a table of 400 rows, each filled with 1000 words.
+string $rows = Core\Str::repeat("<tr><td>Tea</td><td><slot name=\"note\"></slot></td></tr>", 400);
+string $words = Core\Str::repeat("word ", 1000);
+Attack::attempt(4, "<table><tbody>{$rows}</tbody></table>", fn(Page $page): array<Core\Html\Markup> => ["note" => html`{$words}`]);
+
+// 5. A slot function that throws on the last page.
+Attack::attempt(5, "<table><tbody>{$rows}</tbody></table>",
+    fn(Page $page): array<Core\Html\Markup> => $page->isLast() ? throw new LogicError("no") : ["note" => html`x`]);

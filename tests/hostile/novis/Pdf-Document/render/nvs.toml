@@ -1,0 +1,3 @@
+# The attacks here run with a small memory limit, so a render that is too large stops early.
+[limits]
+memory = "64M"

@@ -1,0 +1,46 @@
+<?nvs
+// Attack: a request renders HTML that is nested far too deep, broken, or full of tags that load
+// or run something. Each render should finish or throw an error, and the last one should stop at
+// the memory limit. The server keeps running.
+// hostile: ends-early 8 FATAL
+use Novis\Pdf\Document;
+
+class Attack
+{
+    // This method renders `$html` and prints the page count, or the class of the error.
+    public static function attempt(int $step, string $html): void
+    {
+        try {
+            var $rendered = Document::fromHtml($html)->render();
+            echo "step ", $step, " ran ", $rendered->pageCount, "\n";
+        } catch (Throwable $e) {
+            echo "step ", $step, " stopped ", $e::class, "\n";
+        }
+    }
+}
+
+// 1. 5000 `div` elements, each inside the one before it. HTML allows 512 levels.
+Attack::attempt(1, Core\Str::repeat("<div>", 5000) . "deep" . Core\Str::repeat("</div>", 5000));
+
+// 2. 2000 tables, each inside a cell of the one before it.
+Attack::attempt(2, Core\Str::repeat("<table><tr><td>", 2000) . "deep");
+
+// 3. 50000 start tags that are never closed, of every kind that changes how HTML is read.
+Attack::attempt(3, Core\Str::repeat("<b><i><a><p><li><select><option><template>", 50000));
+
+// 4. A script, an iframe, a form and an object. None of them may run or load anything.
+Attack::attempt(4, "<script>while(true){}</script><iframe src=\"https://example.com/\"></iframe>"
+    . "<form action=\"https://example.com/\"><input value=\"x\"></form><object data=\"x.swf\"></object><p>Shop</p>");
+
+// 5. Text that is not valid: a NUL character, a character reference to a lone surrogate, and broken entities.
+Attack::attempt(5, "<p>a\u{0}b &#xD800; &#0; &#x110000; &bogus; &amp</p>");
+
+// 6. One word of 200000 characters, which no line can hold.
+Attack::attempt(6, "<p>" . Core\Str::repeat("W", 200000) . "</p>");
+
+// 7. An empty document.
+Attack::attempt(7, "");
+
+// 8. 100000 nested `div` elements. The render runs out of memory, so this is the last step.
+echo "step 8\n";
+Attack::attempt(8, Core\Str::repeat("<div>", 100000) . "deep" . Core\Str::repeat("</div>", 100000));

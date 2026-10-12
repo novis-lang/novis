@@ -1,0 +1,10 @@
+<?nvs
+// Attack: a request renders one word of 2 million characters, which no line can hold.
+// The render should stop at the memory limit, and the server keeps running.
+// hostile: ends-early 1 FATAL
+use Novis\Pdf\Document;
+
+// 1. The render has to place every character of the word. It runs out of memory here.
+echo "step 1\n";
+var $rendered = Document::fromHtml("<p>" . Core\Str::repeat("W", 2000000) . "</p>")->render();
+echo $rendered->pageCount, "\n";

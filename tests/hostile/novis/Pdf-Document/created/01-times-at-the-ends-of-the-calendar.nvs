@@ -1,0 +1,49 @@
+<?nvs
+// Attack: a request sets creation times at the ends of what a time can be: the year -9999, the year 9999,
+// and the last nanosecond of a second. Each render should make a file or throw an error. The server keeps running.
+use Novis\Pdf\Document;
+
+class Attack
+{
+    // This method renders a document created at `$at`, and prints whether the file has a creation time.
+    public static function attempt(int $step, Core\Time\Instant $at, ?Document::Standard $standard): void
+    {
+        try {
+            var $document = Document::fromHtml("<html lang=\"en\"><head><title>Shop</title></head><body><p>Shop</p></body></html>")->created($at);
+            if ($standard != null) {
+                $document = $document->standard($standard);
+            }
+            bytes $file = $document->render()->bytes;
+            echo "step ", $step, " ran ", Core\Bytes::contains($file, "/CreationDate" as bytes) ? "dated" : "undated", "\n";
+        } catch (Throwable $e) {
+            echo "step ", $step, " stopped ", $e::class, "\n";
+        }
+    }
+}
+
+array<?Document::Standard> $standards = [null, Document::Standard::PdfA2b, Document::Standard::PdfA3b];
+foreach ($standards as ?Document::Standard $standard) {
+    // 1. The first second there is, in the year -9999.
+    Attack::attempt(1, Core\Time::fromEpoch(-377705023201), $standard);
+
+    // 2. The last second there is, in the year 9999, with 999999999 nanoseconds.
+    Attack::attempt(2, Core\Time::fromEpoch(253402207200, {nanos: 999999999}), $standard);
+
+    // 3. The year 0, which some calendars do not have, and the year 1.
+    Attack::attempt(3, Core\Time::fromIso("0000-01-01T00:00:00Z"), $standard);
+    Attack::attempt(3, Core\Time::fromIso("0001-01-01T00:00:00Z"), $standard);
+
+    // 4. One nanosecond before 1970, and a leap day.
+    Attack::attempt(4, Core\Time::fromEpoch(-1, {nanos: 999999999}), $standard);
+    Attack::attempt(4, Core\Time::fromIso("2024-02-29T23:59:59Z"), $standard);
+}
+
+// 5. 1000 renders of one document, each with a different time. Each one must finish.
+uint $dated = 0;
+var $document = Document::fromHtml("<p>Shop</p>");
+for (int $second = 0; $second < 1000; $second++) {
+    if (Core\Bytes::contains($document->created(Core\Time::fromEpoch($second * 86400))->render()->bytes, "/CreationDate" as bytes)) {
+        $dated = $dated + 1;
+    }
+}
+echo "step 5 ran ", $dated, "\n";

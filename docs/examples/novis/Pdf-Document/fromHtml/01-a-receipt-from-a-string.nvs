@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to make a PDF receipt from a string of HTML.
+use Novis\Pdf\Document;
+use Novis\Pdf\Reader;
+
+string $html = "<h1>Receipt 1042</h1><p>Shop, 1 Example Street</p>"
+    . "<table><tr><td>Tea</td><td>2.50 EUR</td></tr><tr><td>Cake</td><td>3.20 EUR</td></tr></table>";
+
+// `fromHtml` starts the document, and `render` makes the PDF file.
+var $rendered = Document::fromHtml($html)->render();
+echo $rendered->pageCount, " page\n";
+
+// `Reader::open` reads the file back. This prints the text of page 1.
+echo Reader::open($rendered->bytes)->text(1), "\n";
