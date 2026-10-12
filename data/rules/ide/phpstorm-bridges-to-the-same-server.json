@@ -5,7 +5,11 @@
     "ide/one-server-two-thin-clients",
     "ide/nvs-is-its-own-file-type",
     "ide/the-debug-adapter-does-not-wait-for-an-editor",
-    "ide/editor-clients-live-under-editors"
+    "ide/editor-clients-live-under-editors",
+    "ide/redaction-ranges-come-from-the-server",
+    "ide/redaction-covers-bytes-only",
+    "ide/the-request-set-is-closed"
   ],
-  "guardedBy": []
+  "guardedBy": [],
+  "milestone": "M10"
 }

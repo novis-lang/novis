@@ -16,7 +16,6 @@
     "ide/an-autoloaded-file-borrows-its-programs-map",
     "ide/the-stub-tree-is-where-core-is-declared",
     "ide/the-request-set-is-closed",
-    "ide/the-first-server-answers-a-closed-list",
     "ide/every-feature-is-staged-behind-its-dependency",
     "ide/diagnostics-are-phase-gated",
     "ide/check-json-is-the-diagnostic-record-as-a-document",
@@ -82,7 +81,6 @@
     "ide/redaction-covers-bytes-only",
     "ide/reveal-is-explicit-and-window-local",
     "ide/redaction-does-not-reach",
-    "ide/phpstorm-draws-no-redaction-at-m4b",
     "ide/tainted-has-no-default-decoration"
   ]
 }
