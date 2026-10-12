@@ -791,28 +791,26 @@ One file set: `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/n
 
 ### State
 
-**Stage 6 is done.** `cargo test --manifest-path extensions/pdf/Cargo.toml --test css` passes its eight tests, and `--lib` and `--test render` still pass. The three red suite checks were the 54 `ldap-*` cases: `docker compose -f tests/db/compose.yaml up -d --wait samba-ad` started the directory server, and `bun nv suite` on the PDF cases went green after that.
+**Stage 7 is under way.** The layout reads the computed styles. `cargo test --manifest-path extensions/pdf/Cargo.toml --test layout` passes its 11 tests, and `--lib`, `--test css` and `--test render` still pass. Of the stage's 10 checked names, 5 are written: `text_wraps_and_justifies_inside_its_box`, `cjk_breaks_between_ideographs`, `a_missing_glyph_is_drawn_as_the_empty_box_and_reported_with_its_chain`, `a_font_face_from_the_asset_map_is_used_and_subset` and `arial_helvetica_times_and_courier_map_to_liberation`. The other names still do not run: `arabic_and_hebrew_lay_out_right_to_left`, `hyphens_auto_breaks_by_the_language`, `lists_and_counters_number_their_items`, `borders_radius_backgrounds_and_gradients_lay_out` and `an_inline_svg_is_vector_content_in_the_output`.
 
-- `extensions/pdf/src/css/` is the cascade over `cssparser` 0.38 and `selectors` 0.41: `mod.rs` (sheets, `@media`, `@import`, `@page` with its margin boxes, `@font-face`, the sort, inheritance, custom properties), `select.rs` (the `selectors` glue over `Dom`), `value.rs` (grammars, `calc()` as a sum of units, `var()`, shorthand expansion, colours), `properties.rs` (the engine's longhands and shorthands).
-- `extensions/pdf/subset.json` is the list. `tests/css.rs` holds it equal to `properties.rs` in both directions, and parses every listed property from its `example`.
-- `render` returns `dropped` and the guest maps it to `dropped-item` (`extensions/pdf/src/lib.rs`). The layout does not read `Styles` yet: `css::cascade`'s result is only used for `dropped`.
-- `tools/nv/cmd/gen-attribution.ts` listed only the image component, so `THIRD-PARTY-LICENSES.txt` was missing intl's and pdf's crates. It lists all three now.
-- `first`, `second`, `merge`, `read` and `read-text` still return `runtime`. The Novis half is `Document` and `Rendered`.
+- `css::USER_AGENT` (`extensions/pdf/src/css/mod.rs`) is HTML's default sheet. It sorts below every document rule through the `Key`'s second field. `font-weight` computes to a number.
+- `css::UNRENDERED` elements are `display: none` and are reported in `dropped` as `<name>` at their start tag.
+- `fonts::Fonts` registers `@font-face` from the asset map under the rule's family name. `Fonts::chain` gives the fallback list, and `Laid::faces` is what `write.rs` embeds.
+- `layout.rs` is one file still. It does block boxes (margins collapse, padding, solid borders as rectangles, background colour, sizes, `box-sizing`, auto margins), text spans through `parley` with the span index as the brush, inside list markers and `<img>` sizing.
 
 ### Next
 
-**Stage 7, text, blocks, lists and images**: the file set is `extensions/pdf/src/layout/` (new, from `extensions/pdf/src/layout.rs`), `extensions/pdf/src/fonts.rs` and `extensions/pdf/tests/layout.rs` (new).
+**Stage 7, lists, boxes and bidi**: the file set is `extensions/pdf/src/layout.rs` (split into `extensions/pdf/src/layout/` with block, inline and text first), `extensions/pdf/src/write.rs` and `extensions/pdf/tests/layout.rs`.
 
-- [ ] **The layout reads `Styles`**: `extensions/pdf/src/lib.rs:123` passes `css::cascade`'s result to `extensions/pdf/src/layout.rs:427`, and block boxes take margin, padding, borders, sizes and `display: none` from `css::Style` (`extensions/pdf/src/css/mod.rs:96`). A user-agent sheet gives `display` and the default margins (`rule:core-classes/pdf-css-subset`).
-- [ ] **Text and the font chain**: `font-family`, `font-size`, weight, style, alignment and `line-height` reach `parley`. `@font-face` from `Styles::font_faces` comes before the defaults at `extensions/pdf/src/fonts.rs:75`, and a missing glyph is listed in `missingGlyphs` (`rule:core-classes/pdf-default-fonts`).
-- [ ] **Unrendered elements are listed**: `<iframe>`, `<video>`, `<canvas>` and form fields go into `dropped` beside the cascade's own at `extensions/pdf/src/css/mod.rs:539`, and draw nothing (`rule:core-classes/pdf-css-subset`). Pinned by `cargo test --manifest-path extensions/pdf/Cargo.toml --test layout`.
+- [ ] **Lists and counters**: `counter-reset`, `counter-increment` and `::before`/`::after` `content` from `Styles::before` and `Styles::after` (`extensions/pdf/src/css/mod.rs:181`), and markers outside the content box. The marker today is inline text pushed at `extensions/pdf/src/layout.rs:742` (`rule:core-classes/pdf-css-subset-table`). Rename `lists_number_their_items` to `lists_and_counters_number_their_items` when it covers counters.
+- [ ] **Boxes**: dashed, dotted and double borders, `border-radius`, `outline`, `opacity`, gradients and `background-image` as paths in `Flow::close` (`extensions/pdf/src/layout.rs:828`) and `write.rs`. `Item::Rect` becomes a path item there. Pinned by `borders_radius_backgrounds_and_gradients_lay_out`.
+- [ ] **Bidi**: `direction` and `unicode-bidi` reach `parley` through `para_of` (`extensions/pdf/src/layout.rs:350`). Liberation has Hebrew and no Arabic, so the Arabic half of `arabic_and_hebrew_lay_out_right_to_left` needs an `@font-face` fixture (`rule:core-classes/pdf-default-fonts`).
 
 ### Backlog
 
+- Hyphenation: `hypher` is not a dependency yet, and `hyphens: auto` with `lang` is `hyphens_auto_breaks_by_the_language` (stage 7 in `docs/goals/pdf.md`). Run `bun nv gen-attribution` after adding it.
+- Inline `<svg>` and an SVG `<img>` through `krilla-svg` are `an_inline_svg_is_vector_content_in_the_output`. `object-fit`, `text-indent`, `vertical-align`, `text-overflow` and inline boxes with borders are not laid out yet (`extensions/pdf/src/layout.rs`).
 - Stage 10 reaches `first` through `Pass`'s `First` case, whose shape is `{document, headerHeight, footerHeight}` (`extensions/pdf/manifest.json`, `wit/pdf.wit`).
-- `cssparser` enters at most 75 nested blocks. Past that, the reference scan reads every string as a URL (`extensions/pdf/src/assets.rs:206`), and the cascade reads CSS on its own (`extensions/pdf/src/css/mod.rs`). One reading for both is still open.
-- `Grammar::Free` properties (grid templates, `content`, `background-position` and others) are not checked past their tokens, so a bad value there is not reported yet (`extensions/pdf/src/css/properties.rs`).
-- SVG `<text>`: turn on `usvg`'s `text` feature with the Liberation fonts as its only `fontdb` (`rule:core-classes/image-format-roster`).
-- The PDF fixtures still owed by `rule:core-classes/pdf-decode-refusals`, and the guest-against-native benchmark owed by `rule:core-classes/pdf-page-is-an-image-source`.
-- `hayro`'s `embed-cmaps` is not taken, and its size is not measured (`rule:core-classes/pdf-page-is-an-image-source`).
-- veraPDF as an external validator in CI is not in the acceptance, and adding it is the user's call.
+- `cssparser` enters at most 75 nested blocks. Past that, the reference scan reads every string as a URL (`extensions/pdf/src/assets.rs:206`), and the cascade reads CSS on its own. One reading for both is still open.
+- `Grammar::Free` properties are not checked past their tokens (`extensions/pdf/src/css/properties.rs`). SVG `<text>` through `usvg`'s `text` feature (`rule:core-classes/image-format-roster`).
+- The PDF fixtures owed by `rule:core-classes/pdf-decode-refusals`, the guest-against-native benchmark owed by `rule:core-classes/pdf-page-is-an-image-source`, `hayro`'s `embed-cmaps`, and veraPDF in CI, which is the user's call.
