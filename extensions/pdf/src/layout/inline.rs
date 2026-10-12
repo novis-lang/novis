@@ -14,6 +14,7 @@ use parley::{
 
 use super::block::{Break, Insets, geometry, insets, sides, z_index};
 use super::flex::{self, Flex};
+use super::table::{self, Cell, Repeat, Row, Table};
 use super::{
     Anchor, Atom, BLACK, Block, Frame, Href, Images, Inline, MARGIN, Para, Spaces, Span, color,
     keyword, length,
@@ -23,7 +24,7 @@ use crate::assets::Assets;
 use crate::css::{Style, Styles, Value};
 use crate::fonts::Fonts;
 use crate::paginate;
-use crate::parse::{Dom, Kind, Space};
+use crate::parse::{Dom, Kind, Node, Space};
 
 pub(super) fn span_of(style: &Style, fonts: &Fonts, parent: Option<&Span>) -> Span {
     let size = style.font_size();
@@ -522,6 +523,8 @@ pub(super) struct Builder<'a, 'd> {
     outside: Vec<Outside>,
     /// Each flex container still open, innermost last.
     containers: Vec<Container>,
+    /// Each table still open, innermost last.
+    tables: Vec<Building>,
     /// The first page's content height, which an image is scaled down to fit.
     pub(super) page_height: f32,
     /// The page name of the last block box opened.
@@ -545,6 +548,35 @@ struct Container {
     row: bool,
     /// Whether an anonymous item is open for the text between its children.
     anonymous: bool,
+}
+
+/// A table whose element has not closed.
+struct Building {
+    table: Table,
+    /// The stack depth of the children of the table and of each group and row open in it,
+    /// innermost last, and whether it is a row.
+    depths: Vec<(usize, bool)>,
+    /// The group the rows now opened are in.
+    part: table::Part,
+    /// Whether a row is open for the cells now opened.
+    row: bool,
+}
+
+/// What an element in a table is.
+#[derive(Clone, Copy)]
+enum TablePart {
+    /// The table itself.
+    Table,
+    /// A caption, under the rows when `bottom` is set.
+    Caption {
+        bottom: bool,
+    },
+    Group(table::Part),
+    Row(Repeat),
+    Cell {
+        span: usize,
+        rows: usize,
+    },
 }
 
 /// What an `inline-block` box sets aside while its own blocks are collected.
@@ -856,6 +888,152 @@ impl Builder<'_, '_> {
         }
     }
 
+    /// Starts the table of `style`, whose block box is the last opened, with its content box
+    /// `inner` and its children at the stack's `depth`.
+    fn open_table(&mut self, style: &Style, inner: &Frame, depth: usize) {
+        self.flush();
+        self.tables.push(Building {
+            table: Table {
+                x: inner.x,
+                width: inner.width,
+                spacing: table::spacing(style, self.rem),
+                fixed: table::fixed(style),
+                captions: Vec::new(),
+                rows: Vec::new(),
+            },
+            depths: vec![(depth, false)],
+            part: table::Part::Body,
+            row: false,
+        });
+    }
+
+    /// Ends the innermost table: its rows become one [`Block::Table`].
+    fn close_table(&mut self) {
+        if let Some(building) = self.tables.pop() {
+            self.flush();
+            self.blocks.push(Block::Table(building.table));
+        }
+    }
+
+    /// What the element of `node` with `style` is in the innermost table, when it is a child at
+    /// the stack's `depth` of the table, a group or a row. A column is `None` and draws nothing;
+    /// any other element is a cell.
+    fn table_part(&self, style: &Style, node: &Node, depth: usize) -> Option<Option<TablePart>> {
+        if !self.in_table(depth) {
+            return None;
+        }
+        let count = |name: &str, most: usize| {
+            node.attr(name)
+                .and_then(|v| v.trim().parse::<usize>().ok())
+                .filter(|n| *n > 0)
+                .map_or(1, |n| n.min(most))
+        };
+        Some(match keyword(style, "display").unwrap_or("inline") {
+            "table-caption" => Some(TablePart::Caption {
+                bottom: keyword(style, "caption-side") == Some("bottom"),
+            }),
+            "table-header-group" => Some(TablePart::Group(table::Part::Head)),
+            "table-row-group" => Some(TablePart::Group(table::Part::Body)),
+            "table-footer-group" => Some(TablePart::Group(table::Part::Foot)),
+            "table-row" => Some(TablePart::Row(Repeat::of(node.attr("data-repeat")))),
+            "table-column" | "table-column-group" => None,
+            _ => Some(TablePart::Cell {
+                span: count("colspan", 1000),
+                rows: count("rowspan", 65534),
+            }),
+        })
+    }
+
+    /// Whether an element or text at the stack's `depth` is a child of the innermost table or
+    /// of a group or a row in it.
+    fn in_table(&self, depth: usize) -> bool {
+        self.tables
+            .last()
+            .is_some_and(|t| t.depths.last().is_some_and(|(d, _)| *d == depth))
+    }
+
+    /// Opens a group or a row of the innermost table, whose children are at the stack's
+    /// `depth`.
+    fn open_part(&mut self, part: TablePart, depth: usize) {
+        let Some(t) = self.tables.last_mut() else {
+            return;
+        };
+        match part {
+            TablePart::Group(group) => {
+                t.part = group;
+                t.row = false;
+                t.depths.push((depth, false));
+            }
+            TablePart::Row(repeat) => {
+                t.table.rows.push(Row {
+                    part: t.part,
+                    repeat,
+                    cells: Vec::new(),
+                });
+                t.row = true;
+                t.depths.push((depth, true));
+            }
+            _ => {}
+        }
+    }
+
+    /// Closes the innermost group or row of the innermost table.
+    fn close_part(&mut self) {
+        if let Some(t) = self.tables.last_mut()
+            && let Some((_, row)) = t.depths.pop()
+        {
+            t.row = false;
+            if !row {
+                t.part = table::Part::Body;
+            }
+        }
+    }
+
+    /// Closes the innermost open cell, over `span` columns and `rows` rows, into the last row
+    /// of the innermost table, or a row of its own when none is open.
+    fn close_cell(&mut self, span: usize, rows: usize) {
+        let Some(blocks) = self.close_box() else {
+            return;
+        };
+        let atom = self.atoms.len();
+        self.atoms.push(Atom {
+            blocks,
+            align: VerticalAlign::BASELINE,
+            item: true,
+        });
+        if let Some(t) = self.tables.last_mut() {
+            if !t.row || t.table.rows.is_empty() {
+                t.table.rows.push(Row {
+                    part: t.part,
+                    repeat: Repeat::Every,
+                    cells: Vec::new(),
+                });
+                t.row = true;
+            }
+            if let Some(row) = t.table.rows.last_mut() {
+                row.cells.push(Cell { atom, span, rows });
+            }
+        }
+        self.after_space = true;
+    }
+
+    /// Closes the innermost open caption, under the rows when `bottom` is set.
+    fn close_caption(&mut self, bottom: bool) {
+        let Some(blocks) = self.close_box() else {
+            return;
+        };
+        let atom = self.atoms.len();
+        self.atoms.push(Atom {
+            blocks,
+            align: VerticalAlign::BASELINE,
+            item: true,
+        });
+        if let Some(t) = self.tables.last_mut() {
+            t.table.captions.push((atom, bottom));
+        }
+        self.after_space = true;
+    }
+
     /// Whether the innermost flex container's main axis is a row.
     fn row(&self) -> bool {
         self.containers.last().is_none_or(|c| c.row)
@@ -1051,6 +1229,8 @@ enum Step {
         running: Option<String>,
         /// Whether the element is a flex container.
         flex: bool,
+        /// What the element is in a table, or that it is one.
+        table: Option<TablePart>,
         /// Whether the element opened an inline box, which closes after its `::after`.
         inline: bool,
         close: Option<&'static str>,
@@ -1100,6 +1280,7 @@ pub(super) fn blocks(
         atoms: Vec::new(),
         outside: Vec::new(),
         containers: Vec::new(),
+        tables: Vec::new(),
         page_height: height,
         page: None,
         leaders: Vec::new(),
@@ -1133,6 +1314,7 @@ pub(super) fn blocks(
                 absolute,
                 running,
                 flex,
+                table,
                 inline,
                 close,
             } => {
@@ -1151,6 +1333,22 @@ pub(super) fn blocks(
                 counters.leave(depth);
                 if flex {
                     builder.close_container();
+                }
+                match table {
+                    Some(TablePart::Table) => builder.close_table(),
+                    Some(TablePart::Cell { span, rows }) => {
+                        builder.close_cell(span, rows);
+                        continue;
+                    }
+                    Some(TablePart::Caption { bottom }) => {
+                        builder.close_caption(bottom);
+                        continue;
+                    }
+                    Some(TablePart::Group(_) | TablePart::Row(_)) => {
+                        builder.close_part();
+                        continue;
+                    }
+                    None => {}
                 }
                 if let Some((order, style)) = item {
                     builder.close_item(order, style);
@@ -1185,6 +1383,8 @@ pub(super) fn blocks(
                     builder.push_text(text, &inner);
                 }
             }
+            // Text directly in a table, a group or a row is left out.
+            Kind::Text(_) if builder.in_table(frames.len()) => {}
             Kind::Text(text) => builder.push_text(text, &frame),
             Kind::Ignored => {}
             Kind::Element { name, space, .. } => {
@@ -1237,6 +1437,16 @@ pub(super) fn blocks(
                     builder.after_space = true;
                     continue;
                 }
+                let mut part = match builder.table_part(style, node, frames.len()) {
+                    // A column draws nothing.
+                    Some(None) => continue,
+                    Some(part) => part,
+                    None => None,
+                };
+                if part.is_none() && matches!(display, "table" | "inline-table") {
+                    part = Some(TablePart::Table);
+                }
+                let in_part = part.is_some_and(|p| !matches!(p, TablePart::Table));
                 let link = node.attr("href").filter(|_| name == "a").and_then(Href::of);
                 let span = builder.span(style, frame.span, fonts, link);
                 let mut inner = Frame {
@@ -1262,22 +1472,37 @@ pub(super) fn blocks(
                 let flex = matches!(display, "flex" | "inline-flex" | "grid" | "inline-grid");
                 // An absolute, `fixed` or running box is neither a flex item nor a float.
                 let position = keyword(style, "position");
-                let absolute = matches!(position, Some("absolute" | "fixed"))
+                // A part of a table is none of these.
+                let absolute = (!in_part && matches!(position, Some("absolute" | "fixed")))
                     .then(|| (insets(style), z_index(style), position == Some("fixed")));
                 let running = match style.get("position") {
-                    Some(Value::Function(f, name)) if f == "running" => {
+                    Some(Value::Function(f, name)) if f == "running" && !in_part => {
                         Some(name.trim().to_owned())
                     }
                     _ => None,
                 };
                 let out = absolute.is_some() || running.is_some();
-                let item = (item && !out).then(|| flex::item(style, frame.width, builder.row()));
+                let item = (item && !out && !in_part)
+                    .then(|| flex::item(style, frame.width, builder.row()));
                 let side = sides(style, "float");
-                let float = (item.is_none() && !out && side != [false, false])
+                let float = (item.is_none() && !out && !in_part && side != [false, false])
                     .then(|| (side[1], sides(style, "clear")));
-                let atom = (item.is_none() && float.is_none() && !out && display == "inline-block")
+                let atom = (item.is_none()
+                    && float.is_none()
+                    && !out
+                    && !in_part
+                    && display == "inline-block")
                     .then(|| vertical_align(style, None));
-                let inline = if item.is_some() || atom.is_some() || float.is_some() || out {
+                let inline = if matches!(
+                    part,
+                    Some(TablePart::Cell { .. } | TablePart::Caption { .. })
+                ) {
+                    builder.open_atom(style, &frame, &mut inner)?;
+                    false
+                } else if in_part {
+                    // A group's or a row's own box draws nothing.
+                    false
+                } else if item.is_some() || atom.is_some() || float.is_some() || out {
                     builder.open_atom(style, &frame, &mut inner)?;
                     false
                 } else if block {
@@ -1400,6 +1625,16 @@ pub(super) fn blocks(
                     let inner = frames.last().expect("just pushed");
                     builder.open_container(style, inner, frames.len());
                 }
+                match part {
+                    Some(TablePart::Table) => {
+                        let inner = frames.last().expect("just pushed");
+                        builder.open_table(style, inner, frames.len());
+                    }
+                    Some(p @ (TablePart::Group(_) | TablePart::Row(_))) => {
+                        builder.open_part(p, frames.len());
+                    }
+                    _ => {}
+                }
                 work.push(Step::Exit {
                     at,
                     block,
@@ -1409,6 +1644,7 @@ pub(super) fn blocks(
                     absolute,
                     running,
                     flex,
+                    table: part,
                     inline,
                     close: controls.map(|(_, close)| close),
                 });

@@ -76,9 +76,18 @@ pub const UNRENDERED: &[&str] = &[
 pub const USER_AGENT: &str = "
 html, body, div, p, ul, ol, dl, dt, dd, pre, blockquote, figure, figcaption, h1, h2, h3, h4,
 h5, h6, hr, section, article, header, footer, main, nav, aside, address, form, fieldset,
-legend, details, summary, center, table, caption, thead, tbody, tfoot, tr, td, th
+legend, details, summary, center
     { display: block }
 li { display: list-item }
+table { display: table; border-spacing: 2px }
+caption { display: table-caption; text-align: center }
+thead { display: table-header-group }
+tbody { display: table-row-group }
+tfoot { display: table-footer-group }
+tr { display: table-row }
+td, th { display: table-cell; padding: 1px }
+col { display: table-column }
+colgroup { display: table-column-group }
 head, script, style, title, meta, link, base, template, noscript, iframe, video, audio, canvas,
 object, embed, input, select, textarea, button, math, datalist, source, track, area, map
     { display: none }

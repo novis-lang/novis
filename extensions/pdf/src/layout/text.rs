@@ -225,7 +225,7 @@ pub(super) struct Placed {
 
 impl Placed {
     /// The place of a flex item in the list of laid-out `inline-block` boxes.
-    fn empty() -> Placed {
+    pub(super) fn empty() -> Placed {
         Placed {
             items: Vec::new(),
             width: 0.0,
@@ -331,6 +331,7 @@ impl Cx<'_> {
                 }
                 Block::Image { x, width, .. } => need = need.max(x + width - left),
                 Block::Flex(flex) => need = need.max(flex.x + flex.width - left),
+                Block::Table(table) => need = need.max(table.x + table.width - left),
                 Block::Open(g) if !g.fill => need = need.max(g.x + g.width + g.margin[1] - left),
                 _ => {}
             }
@@ -460,6 +461,18 @@ impl Cx<'_> {
                         }
                     }
                 }
+                Block::Table(table) => {
+                    let cells = table
+                        .rows
+                        .iter()
+                        .flat_map(|r| r.cells.iter().map(|c| c.atom));
+                    for atom in cells.chain(table.captions.iter().map(|(a, _)| *a)) {
+                        out.push(atom);
+                        if let Some(inner) = &self.waiting[atom] {
+                            self.atoms_in(inner, out);
+                        }
+                    }
+                }
                 Block::Open(_)
                 | Block::Close
                 | Block::Image { .. }
@@ -504,6 +517,7 @@ impl Cx<'_> {
                 Block::Open(geometry) => flow.open(geometry),
                 Block::Close => flow.close(),
                 Block::Flex(flex) => self.flex(flex, flow),
+                Block::Table(table) => self.table(table, flow),
                 Block::Float {
                     atom,
                     x,
@@ -1121,6 +1135,7 @@ pub(super) fn narrow(blocks: &mut [Block], by: f32) {
                 ..
             } if outer => *width -= by,
             Block::Flex(flex) if outer => flex.width -= by,
+            Block::Table(table) if outer => table.width -= by,
             _ => {}
         }
     }

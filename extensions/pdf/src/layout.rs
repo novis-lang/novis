@@ -3,10 +3,11 @@
 //!
 //! A page's size and margins are its `@page` rules' (`paginate`'s module doc), and every length
 //! here is in PDF points (1/72 inch, three quarters of a CSS pixel). An element's `display` comes from the cascade, whose
-//! user-agent sheet gives HTML's defaults: `none` draws nothing, `block`, `list-item` and the
-//! display type a later stage lays out (`table`) start a block box, `flex` and `inline-flex`
-//! start a flex container (`flex`'s module doc), `grid` and `inline-grid` a grid container
-//! (`grid`'s module doc), `inline-block` is an atomic inline box, and anything else is inline.
+//! user-agent sheet gives HTML's defaults: `none` draws nothing, `block` and `list-item` start a
+//! block box, `flex` and `inline-flex` start a flex container (`flex`'s module doc), `grid` and
+//! `inline-grid` a grid container (`grid`'s module doc), `table` and `inline-table` a table
+//! (`table`'s module doc), `inline-block` is an atomic inline box, and anything else is inline.
+//! A table part outside a table is a block box.
 //! A child of a flex or grid container is an item, whatever its `display`. A `::before` or `::after` box whose `display` is `inline-block` is a
 //! block box.
 //!
@@ -150,7 +151,7 @@
 //! The submodules: `inline` walks the document into [`Block`]s, `image` loads the pictures they
 //! draw, `block` is the vertical flow of boxes, `text` shapes and places each block's lines,
 //! `flex` lays out a flex or grid container's items, `grid` reads a grid's tracks and
-//! placements, `boxes` paints a box, and `margin` lays out each page's margin boxes.
+//! placements, `table` lays out a table's rows across pages, `boxes` paints a box, and `margin` lays out each page's margin boxes.
 //!
 //! Memory: one shaped `parley` layout at a time, and the positioned items of every page until
 //! the writer has drawn them.
@@ -170,6 +171,7 @@ mod grid;
 mod image;
 mod inline;
 mod margin;
+mod table;
 mod text;
 mod transform;
 
@@ -406,6 +408,8 @@ enum Block {
     Close,
     /// A flex container's content.
     Flex(flex::Flex),
+    /// A table's content.
+    Table(table::Table),
     /// A float: its index in the list of [`Atom`]s, laid out as an `inline-block` box is, the
     /// left edge and width of its containing block's content box, whether it floats right, and
     /// the sides its own `clear` names.

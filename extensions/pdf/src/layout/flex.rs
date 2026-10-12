@@ -295,7 +295,7 @@ impl Cx<'_> {
 
     /// The margin-box width of an item's `blocks` with its lines unbroken when `max` is true,
     /// broken at every chance when it is false, or its own `width`.
-    fn content_width(&mut self, blocks: &[Block], max: bool) -> f32 {
+    pub(super) fn content_width(&mut self, blocks: &[Block], max: bool) -> f32 {
         let Some(Block::Open(g)) = blocks.first() else {
             return 0.0;
         };
@@ -310,7 +310,7 @@ impl Cx<'_> {
     }
 
     /// An item's `blocks` laid out with a margin box `width` wide, and at least `height` tall.
-    fn item_at(&mut self, blocks: &[Block], width: f32, height: Option<f32>) -> Placed {
+    pub(super) fn item_at(&mut self, blocks: &[Block], width: f32, height: Option<f32>) -> Placed {
         let mut blocks = blocks.to_vec();
         let mut by = 0.0;
         if let Some(Block::Open(g)) = blocks.first_mut() {
