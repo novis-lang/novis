@@ -27,7 +27,7 @@ stages:
         shapes: ["A `.nvst` test case"]
   - id: 5
     title: the PDF component is built in
-    status: open
+    status: done
     extra:
       context:
         rules: [core-classes/pdf-output-is-inert, core-classes/html-parsing, packaging/a-wasm-module-cache-reuses-the-artifact-cache, packaging/the-first-party-components-are-built-in, packaging/a-prebuilt-wasm-library-is-rebuilt-in-ci]
@@ -171,7 +171,7 @@ checks:
     stage: 5
     name: "nvs-ext (the PDF component is built in, renders with no configuration and no grant, resolves only the asset map and `data:`, writes byte-equal inert output, and holds the HTML element cap)"
     run: [cargo, test, --test, pdf]
-    tests: [the_pdf_component_is_built_in_and_answers_with_no_configuration, a_render_needs_no_capability_grant, a_paragraph_renders_with_the_default_fonts, a_file_or_http_reference_throws_naming_it, a_name_missing_from_the_asset_map_throws, a_data_uri_image_renders, two_renders_of_equal_input_are_byte_equal, the_output_has_no_javascript_launch_or_open_action, html_nested_past_the_element_cap_throws_as_core_html_does]
+    tests: [the_pdf_component_is_built_in_and_answers_with_no_configuration, a_render_needs_no_capability_grant, a_paragraph_renders_with_the_default_fonts, a_file_or_http_reference_throws_naming_it, a_name_missing_from_the_asset_map_throws, a_data_uri_image_renders, two_renders_of_equal_input_are_byte_equal, the_output_has_no_javascript_launch_or_open_action, html_nested_past_the_element_cap_flattens_as_core_html_does]
   - id: pdf-renders-with-no-configuration
     stage: 5
     name: "`Novis\\Pdf` renders from a binary with no `nvs.toml`, and a missing asset throws"
@@ -791,27 +791,28 @@ One file set: `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/n
 
 ### State
 
-**Stage 4 is done: `looper verify` is green and its three checks pass.** Stage 5 has not started.
+**Stage 5 is done.** `cargo test --test pdf` passes its nine tests, and both Stage 5 conformance cases pass. `bun nv verify` is green up to conformance. Conformance fails only on the 54 `ldap-*` cases, because no directory server answers on `localhost:16636` on this host. That also turns the `pdf-renders-with-no-configuration` check red, since `bun nv suite` re-runs the still-red cases. Clippy over all targets is clean when run directly.
 
-- `Image::text` shapes through `harfrust` in `unicode-bidi` runs (`extensions/image/src/text.rs`). `Novis\Image\Barcode` and `QrCode::svg` and `QrCode::giroCode` are on disk, read back by `rxing` in `crates/nvs-ext/tests/image_barcode.rs` and `crates/nvs-cli/tests/image_barcode.rs`.
-- The image component is 14.4 MiB embedded (`extensions/image/src/lib.rs`'s module doc).
-- `bun nv proofs --comments extensions/image/nvs` still names `Image.nvs` and `Font.nvs`, which predate this goal: member docs of three to five lines, and one 26-word sentence at `extensions/image/nvs/Image.nvs:412`. Stage 16's comment gate covers the example trees, not these.
-- `nvs-stdlib`'s lib tests failed once beside the other test binaries and passed alone, with `Core\Process::spawn` exit-hook errors in the log. It passed on the next run and is outside this goal.
-- `looper lint` reports AGENTS.md's managed text as edited by hand. `bun nv plan --check` has six findings for M4, M8 and M10. Both predate this goal.
+- `extensions/pdf/` is the third built-in component (`crates/nvs-ext/build.rs`'s `COMPONENTS`, `nvs_ext::builtin::PDF`). `render`'s `whole` pass works. `first`, `second`, `merge`, `read` and `read-text` return `runtime` (`extensions/pdf/src/lib.rs`'s `not_yet`).
+- The layout is a placeholder: block flow and wrapped lines on A4 pages with 2 cm margins, shaped by `parley` 0.12, written by `krilla` 0.8.2. There is no cascade, so a `<style>` is scanned only for its references (`extensions/pdf/src/assets.rs:160`). The output is not tagged yet (Stage 12).
+- `wit/pdf.wit`'s `first` pass now carries a `first-pass` record (the document, `header-height` and `footer-height`), because the manifest refuses two union cases with one shape. The heights left `render-options`.
+- The element-cap check was named `..._throws_as_core_html_does`. `rule:core-classes/html-parsing` says nesting past the cap flattens and never throws, so the test and the check are now `..._flattens_as_core_html_does`.
+- The Novis half is `Document` (no `header`, `footer` or `slots` yet) and `Rendered`. `Page`, `Pages` and `Reader` are not written.
+- The release wasm is about 8.3 MB before packing. Stage 14 measures the packed growth.
 
 ### Next
 
-**Stage 5, the PDF component is built in**: the file set is `extensions/pdf/` (new), `crates/nvs-ext/build.rs`, `crates/nvs-ext/src/builtin.rs`, `crates/nvs-ext/src/load.rs` and `crates/nvs-ext/tests/pdf.rs` (new).
+**Stage 6, the cascade**: the file set is `extensions/pdf/src/css/` (new), `extensions/pdf/subset.json` (new), `extensions/pdf/tests/css.rs` (new) and `extensions/pdf/Cargo.toml`.
 
-- [ ] **The crate**: `extensions/pdf/` in the shape of `extensions/image/Cargo.toml:1`, with `html5ever` patched to `vendor/html5ever` as the root does at `Cargo.toml:1173`, implementing `wit/pdf.wit` (`rule:core-classes/pdf-one-engine`).
-- [ ] **Built in**: a third entry in `crates/nvs-ext/build.rs:115`'s `COMPONENTS` and a `PDF` beside `crates/nvs-ext/src/builtin.rs:18`, loaded as `crates/nvs-ext/src/load.rs:667` loads the others (`rule:packaging/the-first-party-components-are-built-in`).
-- [ ] **The asset map, the writer and the fonts**: names resolve only against the map and `data:`, `krilla` output is byte-equal with no timestamp, and the Liberation set beside `extensions/image/src/lib.rs:31` is the default (`rule:core-classes/pdf-render-has-no-io`). Pinned by `cargo test --test pdf` and the two Stage 5 conformance cases.
+- [ ] **The subset as data**: `extensions/pdf/subset.json` lists every property, value function, at-rule, selector and PDF attribute the subset admits, with one plain line each, beside the crate's manifest at `extensions/pdf/Cargo.toml:1` (`rule:core-classes/pdf-css-subset-table`, `rule:core-classes/pdf-css-subset`).
+- [ ] **The cascade** over `cssparser` 0.38 (already in `extensions/pdf/Cargo.toml`) and `selectors`: specificity, inheritance, `!important`, `var()`, `calc()` and `@media print`, computed for each node of `extensions/pdf/src/parse.rs:108`'s `Dom` (`rule:core-classes/pdf-css-subset`).
+- [ ] **Dropped and reported**: a declaration outside the subset fills `rendered.dropped` with its selector, line and column. The guest maps it in `extensions/pdf/src/lib.rs:128`. Pinned by `cargo test --manifest-path extensions/pdf/Cargo.toml --test css`.
 
 ### Backlog
 
+- Stage 10 reaches `first` through `Pass`'s `First` case, whose shape is `{document, headerHeight, footerHeight}` (`extensions/pdf/manifest.json`, `wit/pdf.wit`).
+- `cssparser` enters at most 75 nested blocks. Past that, the reference scan reads every string as a URL (`extensions/pdf/src/assets.rs:206`). The cascade in Stage 6 should keep one reading for both.
 - SVG `<text>`: turn on `usvg`'s `text` feature with the Liberation fonts as its only `fontdb` (`rule:core-classes/image-format-roster`).
-- The PDF fixtures still owed by `rule:core-classes/pdf-decode-refusals`: an external reference, a JavaScript action and an embedded file, and one per object that throws. The guest-against-native benchmark is owed by `rule:core-classes/pdf-page-is-an-image-source`.
-- `hayro`'s `embed-cmaps`, which draws CJK text in a predefined CMap, is not taken. Its size is not measured (`rule:core-classes/pdf-page-is-an-image-source`).
-- Stages 6 to 13: the cascade, layout, pagination, header functions, tables, standards and existing PDFs, each in its stage of this file.
-- Stages 14 to 16: growth and benches, the editor's custom data, the feature proofs.
-- veraPDF as an external validator of PDF/A and PDF/UA output in CI is not in the acceptance. `krilla`'s own validation is. Adding it is the user's call.
+- The PDF fixtures still owed by `rule:core-classes/pdf-decode-refusals`, and the guest-against-native benchmark owed by `rule:core-classes/pdf-page-is-an-image-source`.
+- `hayro`'s `embed-cmaps` is not taken, and its size is not measured (`rule:core-classes/pdf-page-is-an-image-source`).
+- veraPDF as an external validator in CI is not in the acceptance, and adding it is the user's call.
