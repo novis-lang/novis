@@ -244,6 +244,8 @@ Conventions the whole file uses:
 | [`Novis\Intl\Icu`](#core-novis-intl-icu) |  |
 | [`Novis\Pdf\Document`](#core-novis-pdf-document) |  |
 | [`Novis\Pdf\Page`](#core-novis-pdf-page) |  |
+| [`Novis\Pdf\Pages`](#core-novis-pdf-pages) |  |
+| [`Novis\Pdf\Reader`](#core-novis-pdf-reader) |  |
 | [`Novis\Pdf\Rendered`](#core-novis-pdf-rendered) |  |
 | [`Novis\Pdf\Engine`](#core-novis-pdf-engine) |  |
 | [`Core` enums](#core-enums) | every enum a member takes, with its cases |
@@ -29740,6 +29742,99 @@ $page->marksUpTo(string $name): array<string>
 A carried-forward total adds these values up.
 
 **Returns** `array<string>`
+
+<a id="core-novis-pdf-pages"></a>
+### `Novis\Pdf\Pages`
+
+Keywords: of, merge
+
+| Member | Signature |
+|---|---|
+| [`Novis\Pdf\Pages::of`](#core-novis-pdf-pages-of) | `of(bytes $pdf, ?array<uint> $pages = null): Pages` |
+| [`Novis\Pdf\Pages::merge`](#core-novis-pdf-pages-merge) | `merge(array<Pages> $parts): bytes` |
+
+<a id="core-novis-pdf-pages-of"></a>
+#### `Novis\Pdf\Pages::of`
+
+```nvs skip
+Novis\Pdf\Pages::of(bytes $pdf, ?array<uint> $pages = null): Pages
+```
+
+`Pages::of` chooses pages of a PDF file, in the order of `$pages`. Pages count from 1.
+Without `$pages`, every page is chosen. A page listed twice is used twice, and a page not listed is left out.
+
+**Returns** `Pages`
+
+<a id="core-novis-pdf-pages-merge"></a>
+#### `Novis\Pdf\Pages::merge`
+
+```nvs skip
+Novis\Pdf\Pages::merge(array<Pages> $parts): bytes
+```
+
+`Pages::merge` returns one PDF file with the chosen pages of each part, in order.
+A page number past the end of its file throws a `LogicError`. A file that is encrypted or does not parse throws a `ParseError`.
+
+**Returns** `bytes`
+
+<a id="core-novis-pdf-reader"></a>
+### `Novis\Pdf\Reader`
+
+Keywords: open, attachments, invoiceXml, text
+
+| Member | Signature |
+|---|---|
+| [`Novis\Pdf\Reader::open`](#core-novis-pdf-reader-open) | `open(bytes $pdf): Reader` |
+| [`Novis\Pdf\Reader->attachments`](#core-novis-pdf-reader-attachments) | `attachments(): array<Attachment>` |
+| [`Novis\Pdf\Reader->invoiceXml`](#core-novis-pdf-reader-invoicexml) | `invoiceXml(): ?string` |
+| [`Novis\Pdf\Reader->text`](#core-novis-pdf-reader-text) | `text(uint $page): string` |
+
+<a id="core-novis-pdf-reader-open"></a>
+#### `Novis\Pdf\Reader::open`
+
+```nvs skip
+Novis\Pdf\Reader::open(bytes $pdf): Reader
+```
+
+`Reader::open` reads the page count, the metadata and the attached files of a PDF file.
+A file that is encrypted or does not parse throws a `ParseError`.
+
+**Returns** `Reader`
+
+<a id="core-novis-pdf-reader-attachments"></a>
+#### `Novis\Pdf\Reader->attachments`
+
+```nvs skip
+$reader->attachments(): array<Attachment>
+```
+
+`attachments` returns the files attached to the PDF file, each with its name and its bytes.
+
+**Returns** `array<Attachment>`
+
+<a id="core-novis-pdf-reader-invoicexml"></a>
+#### `Novis\Pdf\Reader->invoiceXml`
+
+```nvs skip
+$reader->invoiceXml(): ?string
+```
+
+`invoiceXml` returns the XML of an electronic invoice attached to the file.
+If the file is not an electronic invoice, the result is `null`.
+
+**Returns** `?string`
+
+<a id="core-novis-pdf-reader-text"></a>
+#### `Novis\Pdf\Reader->text`
+
+```nvs skip
+$reader->text(uint $page): string
+```
+
+`text` returns the text of one page, in the order the file stores it. Pages count from 1.
+Tables and columns are not rebuilt. A page number past the end throws a `LogicError`.
+
+**Returns** `string`
 
 <a id="core-novis-pdf-rendered"></a>
 ### `Novis\Pdf\Rendered`
