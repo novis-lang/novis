@@ -3,8 +3,8 @@
 //!
 //! [`nvs_hir::interfaces`] is the one home for *which* global interfaces the
 //! compiler declares and what type parameters each takes; this is the one
-//! place all six — `Comparable`, `Stringable`, `Parses`, `PropertyObserver`,
-//! `Iterable<T>` and `Iterator<T>` — become member signatures, in exactly the
+//! place all seven — `Comparable`, `Stringable`, `Parses`, `PropertyObserver`,
+//! `LateInit`, `Iterable<T>` and `Iterator<T>` — become member signatures, in exactly the
 //! [`ClassSignature`](crate::signatures::ClassSignature) shape
 //! [`crate::error_lib`] gives the exception tree and [`crate::core_lib`]
 //! gives `Core`. After this point `resolve_method` finds
@@ -62,13 +62,15 @@
 //! which it always should have.
 
 use nvs_hir::QName;
-use nvs_hir::interfaces::{COMPARABLE, ITERABLE, ITERATOR, PARSES, PROPERTY_OBSERVER, STRINGABLE};
+use nvs_hir::interfaces::{
+    COMPARABLE, ITERABLE, ITERATOR, LATE_INIT, PARSES, PROPERTY_OBSERVER, STRINGABLE,
+};
 use rustc_hash::FxHashMap;
 
 use crate::signatures::{MethodSig, SignatureTable};
 use crate::ty::{TypeId, TypeInterner};
 
-/// Adds `Comparable`, `Stringable`, `Parses`, `PropertyObserver`,
+/// Adds `Comparable`, `Stringable`, `Parses`, `PropertyObserver`, `LateInit`,
 /// `Iterable<T>` and `Iterator<T>` to `table`.
 ///
 /// Called once, alongside [`crate::core_lib::seed`] and
@@ -156,6 +158,19 @@ pub(crate) fn seed(table: &mut SignatureTable, interner: &mut TypeInterner) {
                 bodiless(&["name", "value"], vec![string_ty, mixed_ty], void_ty),
             ),
         ]
+        .into_iter()
+        .collect(),
+    );
+
+    // `rule:classes/late-init-initializes-on-the-first-read`'s one member. It
+    // returns `void`: the read that called it reads the slot again.
+    table.seed_class(
+        QName::parse(LATE_INIT),
+        FxHashMap::default(),
+        [(
+            "initProperty".to_owned(),
+            bodiless(&["name"], vec![string_ty], void_ty),
+        )]
         .into_iter()
         .collect(),
     );

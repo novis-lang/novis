@@ -2183,6 +2183,11 @@ pub enum Helper {
     /// across isolates. `self::NAME` and `Class::NAME` pay nothing: they are
     /// still inlined.
     ClassConstant,
+    /// Whether an `initProperty` call is running in this context, as a
+    /// [`Ty::Bool`] (`rule:classes/late-init-initializes-on-the-first-read`).
+    /// No arguments. Only a write to a `lateinit` property that was unset, in
+    /// a class with an observer, emits it.
+    LateInitRunning,
     /// `int` truthiness: falsy iff `0`.
     IntTruthy,
     /// `uint` truthiness: falsy iff `0`.

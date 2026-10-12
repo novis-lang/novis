@@ -1375,7 +1375,7 @@ impl<'a> Lowering<'a> {
 /// a slot holding nothing reads the *forwarding* class back and the forward
 /// calls itself until the stack is gone. So the read is guarded exactly as a
 /// written `$w->logger` is — `Lowering::emit_never_written_guard` owns the
-/// argument for why the test is the payload — and the throw is the same
+/// argument for why the test is the tag — and the throw is the same
 /// `LogicError`, worded the same way, so that `rule:classes/delegation-by-field`'s forward reports
 /// the failure `rule:classes/an-unwritten-property-read-throws` defines rather than one of its own.
 ///
@@ -1475,7 +1475,7 @@ pub(crate) fn delegation_forward(
             message,
             Ty::Str,
             InstKind::ConstStr(format!(
-                "`{}`'s property `${}` is read before it is written",
+                "`{}`'s property `${}` is read before it is initialized",
                 delegation.class, delegation.field
             )),
         ));

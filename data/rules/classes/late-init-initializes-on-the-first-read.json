@@ -1,0 +1,17 @@
+{
+  "title": "A class implementing `LateInit` initializes a `lateinit` property on its first read, and the writes that initialize it are plain",
+  "status": "shipped",
+  "seeAlso": [
+    "classes/lateinit",
+    "classes/isinit-reads-nothing",
+    "classes/an-unwritten-property-read-throws",
+    "classes/lateinit-read-before-write",
+    "classes/property-observer-pipeline"
+  ],
+  "guardedBy": [
+    "tests/conformance/class/late-init-initializes-on-the-first-read.nvst",
+    "tests/conformance/class/late-init-batch-writes-are-plain.nvst",
+    "tests/conformance/class/late-init-that-initializes-nothing-throws.nvst",
+    "crates/nvs-codegen/tests/late_init.rs"
+  ]
+}

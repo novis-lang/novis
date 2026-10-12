@@ -37,8 +37,9 @@
 /// (`rule:classes/stringable`) and `Parses` take none; `Iterable` and
 /// `Iterator` (`rule:iteration/two-interfaces`) each
 /// take one. `PropertyObserver`
-/// (`rule:classes/property-observer`) takes none
-/// either: it is a contract an ordinary class implements, not a `Core` domain
+/// (`rule:classes/property-observer`) and `LateInit`
+/// (`rule:classes/late-init-initializes-on-the-first-read`) take none
+/// either: each is a contract an ordinary class implements, not a `Core` domain
 /// class, so it belongs on this roster beside `Comparable` rather than under a
 /// namespace.
 pub const RESERVED: &[(&str, &[&str])] = &[
@@ -46,6 +47,7 @@ pub const RESERVED: &[(&str, &[&str])] = &[
     ("Stringable", &[]),
     ("Parses", &[]),
     ("PropertyObserver", &[]),
+    ("LateInit", &[]),
     ("Iterable", &["T"]),
     ("Iterator", &["T"]),
 ];
@@ -82,6 +84,11 @@ pub const PARSES: &str = "Parses";
 /// every read and write of every property it declares, through
 /// `onPropertyGet(string, mixed): void` and its `onPropertySet` twin.
 pub const PROPERTY_OBSERVER: &str = "PropertyObserver";
+
+/// `rule:classes/late-init-initializes-on-the-first-read`'s `LateInit` — what
+/// a class implements so that the first read of an unset `lateinit` property
+/// calls `initProperty(string $name): void` and then reads again.
+pub const LATE_INIT: &str = "LateInit";
 
 /// `rule:iteration/two-interfaces`'s `Iterable<T>` — a thing that can produce a fresh cursor.
 pub const ITERABLE: &str = "Iterable";
@@ -127,6 +134,7 @@ mod tests {
         assert_eq!(type_params("Comparable"), Some(&[][..]));
         assert_eq!(type_params("Stringable"), Some(&[][..]));
         assert_eq!(type_params(PROPERTY_OBSERVER), Some(&[][..]));
+        assert_eq!(type_params(LATE_INIT), Some(&[][..]));
     }
 
     /// `Parses` is asked of a class by name at a binding site and never

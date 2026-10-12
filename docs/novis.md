@@ -3223,7 +3223,7 @@ $w->attach(new Logger());
 echo $w->logger->name(), "\n";
 ```
 ```output
-threw: `Widget`'s property `$logger` is read before it is written
+threw: `Widget`'s property `$logger` is read before it is initialized
 log
 ```
 
@@ -3739,6 +3739,7 @@ command option be declared at that class and arrive as an object:
 | `Stringable` | — |
 | `Parses` | — |
 | `PropertyObserver` | — |
+| `LateInit` | — |
 | `Iterable` | T |
 | `Iterator` | T |
 

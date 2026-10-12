@@ -1,0 +1,58 @@
+--TEST--
+While `initProperty` runs, a write that initializes a `lateinit` property is plain: no `onPropertySet`, on this object or another one, and through `mixed` too. Every other write is told to the observer — `rule:classes/late-init-initializes-on-the-first-read`
+--FILE--
+<?nvs
+// covers: lang:classes/lateinit
+final class Comment implements PropertyObserver {
+    public lateinit string $body;
+
+    public function onPropertyGet(string $name, mixed $value): void {}
+
+    public function onPropertySet(string $name, mixed $value): void {
+        echo "  comment set ", $name, "\n";
+    }
+}
+
+final class Post implements LateInit, PropertyObserver {
+    public lateinit string $title;
+    public lateinit int $views;
+    public lateinit ?Comment $first;
+    public string $state = "new";
+
+    public function onPropertyGet(string $name, mixed $value): void {}
+
+    public function onPropertySet(string $name, mixed $value): void {
+        echo "  set ", $name, "\n";
+    }
+
+    // One call loads the whole row, as a data mapper would.
+    public function initProperty(string $name): void {
+        echo "init ", $name, "\n";
+        $this->title = "Hello";
+        mixed $self = $this;
+        $self->views = 7;
+        // This property already has a value, so the write is ordinary.
+        $this->state = "loaded";
+        Comment $c = new Comment();
+        $c->body = "First";
+        $this->first = $c;
+    }
+}
+
+Post $p = new Post();
+echo $p->title, "\n";
+echo $p->views, " ", $p->state, " ", $p->first?->body ?? "none", "\n";
+
+// After `initProperty` returns, a write is ordinary again.
+$p->title = "Changed";
+Comment $later = new Comment();
+$later->body = "Second";
+echo $p->title, " ", $later->body, "\n";
+--EXPECT--
+init title
+  set state
+Hello
+7 loaded First
+  set title
+  comment set body
+Changed Second

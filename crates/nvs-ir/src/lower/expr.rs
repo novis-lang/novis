@@ -4757,6 +4757,84 @@ impl<'a> Lowering<'a> {
         );
     }
 
+    /// Opens the test that skips `onPropertySet` for a plain write
+    /// (`rule:classes/late-init-initializes-on-the-first-read`): a write that
+    /// initializes a `lateinit` property while an `initProperty` call runs in
+    /// this context. `was_init` is [`InstKind::FieldIsInit`] taken before the
+    /// store. This leaves `cur` on the block the observer call goes in, and
+    /// [`Self::close_unless_plain`] joins it.
+    ///
+    /// Only an observed `lateinit` write carries it, so every other write is
+    /// unchanged. A write to a property that already had a value is not plain
+    /// and pays one branch.
+    pub(crate) fn open_unless_plain(
+        &mut self,
+        was_init: ValueId,
+        span: Span,
+        env: &Env,
+        cur: &mut BlockId,
+    ) -> UnlessPlain {
+        let check = self.new_block();
+        let observe = self.new_block();
+        let done = self.new_block();
+        let observe_edge = self.ids.next_edge(span);
+        let check_edge = self.ids.next_edge(span);
+        self.seal(
+            *cur,
+            Terminator::Branch {
+                cond: was_init,
+                then_block: observe,
+                then_edge: observe_edge,
+                else_block: check,
+                else_edge: check_edge,
+            },
+        );
+        let (running, _) = self.emit_fallible(
+            check,
+            Ty::Bool,
+            InstKind::HelperCall {
+                helper: Helper::LateInitRunning,
+                args: Vec::new(),
+            },
+            env,
+        );
+        let done_edge = self.ids.next_edge(span);
+        let observe_edge = self.ids.next_edge(span);
+        self.seal(
+            check,
+            Terminator::Branch {
+                cond: running,
+                then_block: done,
+                then_edge: done_edge,
+                else_block: observe,
+                else_edge: observe_edge,
+            },
+        );
+        *cur = observe;
+        UnlessPlain {
+            check,
+            done,
+            pre_env: env.clone(),
+        }
+    }
+
+    /// Joins the observer block [`Self::open_unless_plain`] opened with the
+    /// plain write's edge, and leaves `cur` on the joined block.
+    pub(crate) fn close_unless_plain(
+        &mut self,
+        open: UnlessPlain,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) {
+        self.seal(*cur, Terminator::Jump(open.done));
+        *env = self.merge_envs(
+            open.done,
+            &[(open.check, open.pre_env.clone()), (*cur, env.clone())],
+            &open.pre_env,
+        );
+        *cur = open.done;
+    }
+
     fn lower_property_access(
         &mut self,
         object: &Expr,
@@ -4887,6 +4965,17 @@ impl<'a> Lowering<'a> {
                 )
             }
             None => {
+                if never_written {
+                    self.emit_never_written_guard(
+                        object_v,
+                        &class_label,
+                        &observed_name,
+                        field_ty,
+                        expr.span,
+                        env,
+                        cur,
+                    );
+                }
                 let read = self.emit(
                     *cur,
                     field_ty,
@@ -4896,16 +4985,6 @@ impl<'a> Lowering<'a> {
                         field: field_name,
                     },
                 );
-                if never_written {
-                    self.emit_never_written_guard(
-                        object_v,
-                        &class_label,
-                        &observed_name,
-                        expr.span,
-                        env,
-                        cur,
-                    );
-                }
                 match narrowed {
                     Some(to) => self.checked_narrowed_read(
                         read,
@@ -4961,9 +5040,9 @@ impl<'a> Lowering<'a> {
         self.close_nullsafe(guard, v, ty, env, cur)
     }
 
-    /// `rule:classes/an-unwritten-property-read-throws`'s never-written storage state, on the compiled read of
-    /// `object`'s `lateinit` property `$field`: it throws while the slot has
-    /// no value, and leaves `cur` on the block where it has one.
+    /// The test before the compiled read of `object`'s `lateinit` property
+    /// `$field`, emitted before its `FieldGet`. It leaves `cur` on a block
+    /// where the slot has a value.
     ///
     /// **The test is the tag, not the payload** ([`InstKind::FieldIsInit`]).
     /// A `lateinit` property takes every type (`rule:classes/lateinit-restrictions`), so a zero
@@ -4971,22 +5050,25 @@ impl<'a> Lowering<'a> {
     /// unset state apart, at one load and one compare. Only a `lateinit` read
     /// carries the test, so every other property read stays one load.
     ///
-    /// **It borrows.** `InstKind::FieldGet` took no reference and this takes
-    /// none either: the throw edge abandons nothing the slot still owns, and
-    /// the caller's own accounting for the read is unchanged by the guard
-    /// standing between the two.
-    ///
-    /// The class is `LogicError` — spec § 10's entry for "a bug in the
-    /// program", the same one [`Self::lower_match`]'s unmatched subject
-    /// raises — and not `rule:errors/escalation-ladder`'s fatal ladder, § 3 being explicit that this
-    /// is a catchable, recoverable condition. The wording is
-    /// `nvs_runtime::nvs_object_slot_get`'s, so the erased read and this one
-    /// report one failure one way.
+    /// **The unset branch is the erased read** ([`InstKind::SlotGet`]), so
+    /// the compiled and the erased read share one runtime path.
+    /// `nvs_runtime`'s `initialize_late` calls `initProperty` where the
+    /// object's class implements `LateInit`
+    /// (`rule:classes/late-init-initializes-on-the-first-read`), and throws
+    /// the `LogicError` of `rule:classes/an-unwritten-property-read-throws`
+    /// where it does not. The value it returns is borrowed and not used: the
+    /// caller's `FieldGet` reads the slot again on the joined block.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the receiver, the two names the slot is found by, the field's \
+                  representation, and the span, env and block every guard threads"
+    )]
     fn emit_never_written_guard(
         &mut self,
         object: ValueId,
         class: &str,
         field: &str,
+        ty: Ty,
         span: Span,
         env: &mut Env,
         cur: &mut BlockId,
@@ -5000,8 +5082,41 @@ impl<'a> Lowering<'a> {
                 field: field.to_owned(),
             },
         );
-        let message = format!("`{class}`'s property `${field}` is read before it is written");
-        self.emit_logic_error_when(is_init, false, message, span, env, cur);
+        let unset = self.new_block();
+        let written = self.new_block();
+        let set = self.new_block();
+        let written_edge = self.ids.next_edge(span);
+        let unset_edge = self.ids.next_edge(span);
+        self.seal(
+            *cur,
+            Terminator::Branch {
+                cond: is_init,
+                then_block: written,
+                then_edge: written_edge,
+                else_block: unset,
+                else_edge: unset_edge,
+            },
+        );
+        self.emit_fallible(
+            unset,
+            ty,
+            InstKind::SlotGet {
+                object,
+                field: field.to_owned(),
+                slot: 0,
+                absent: AbsentKey::Throws,
+            },
+            env,
+        );
+        self.seal(unset, Terminator::Jump(set));
+        self.seal(written, Terminator::Jump(set));
+        let pre_env = env.clone();
+        *env = self.merge_envs(
+            set,
+            &[(written, pre_env.clone()), (unset, pre_env.clone())],
+            &pre_env,
+        );
+        *cur = set;
     }
 
     /// `isinit($obj->prop)` (`rule:classes/isinit-reads-nothing`): the receiver is evaluated,
@@ -7075,6 +7190,18 @@ fn payload_repr(repr: Ty) -> Ty {
         Ty::Enum(EnumRepr::Uint) => Ty::Uint,
         other => other,
     }
+}
+
+/// What [`Lowering::open_unless_plain`] opened and
+/// [`Lowering::close_unless_plain`] joins.
+pub(crate) struct UnlessPlain {
+    /// The block that asks whether an `initProperty` call is running, and
+    /// jumps past the observer when one is.
+    check: BlockId,
+    /// Where the observed and the plain write rejoin.
+    done: BlockId,
+    /// The bindings at the test. Nothing on the plain edge changes them.
+    pre_env: Env,
 }
 
 pub(crate) struct NullsafeGuard {

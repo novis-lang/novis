@@ -1,0 +1,60 @@
+--TEST--
+An `initProperty` that leaves the property uninitialized makes the read throw a `LogicError`, and a class without `LateInit` throws on the first read — `rule:classes/late-init-initializes-on-the-first-read`, `rule:classes/an-unwritten-property-read-throws`
+--FILE--
+<?nvs
+// covers: lang:classes/lateinit
+final class Post implements LateInit {
+    public lateinit string $author;
+    public lateinit string $title;
+
+    public function initProperty(string $name): void {
+        echo "init ", $name, "\n";
+        if ($name == "title") {
+            $this->title = "Hello";
+        }
+    }
+}
+
+final class Draft {
+    public lateinit string $author;
+}
+
+Post $p = new Post();
+try {
+    echo $p->author, "\n";
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+
+// The property is still uninitialized, so the next read calls `initProperty` again.
+try {
+    echo $p->author, "\n";
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+echo $p->title, "\n";
+
+// The same through `mixed`.
+mixed $m = $p;
+try {
+    echo $m->author, "\n";
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+
+Draft $d = new Draft();
+try {
+    echo $d->author, "\n";
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+--EXPECT--
+init author
+`initProperty` returned, but `$author` is still not initialized.
+init author
+`initProperty` returned, but `$author` is still not initialized.
+init title
+Hello
+init author
+`initProperty` returned, but `$author` is still not initialized.
+`Draft`'s property `$author` is read before it is initialized

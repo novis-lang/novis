@@ -46,8 +46,8 @@ $p->tags[] = "news";
 $p->views = $p->views + 3;
 echo "author=", $p->author?->name ?? "none", " tags=", Core\Json::encode($p->tags), " views=", $p->views, "\n";
 --EXPECT--
-`Post`'s property `$views` is read before it is written
-`Post`'s property `$author` is read before it is written
+`Post`'s property `$views` is read before it is initialized
+`Post`'s property `$author` is read before it is initialized
 throws=6
 views=0 draft=n score=0
 title=[] tags=[]

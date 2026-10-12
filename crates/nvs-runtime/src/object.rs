@@ -4957,10 +4957,12 @@ fn read_erased_property_hinted(
             ))),
         },
         // `rule:classes/an-unwritten-property-read-throws`: a slot that was
-        // never written reads as a throw, never as a value standing in for one.
-        // A `lateinit` property (`rule:classes/lateinit`) and an absent optional
-        // field of a shape are the two declarations that reach the state; the
-        // compiled read makes the same refusal from the payload alone,
+        // never written reads as a throw, never as a value standing in for one,
+        // unless its class implements `LateInit`, and then [`initialize_late`]
+        // runs `initProperty` and the slot is read again. A `lateinit` property
+        // (`rule:classes/lateinit`) and an absent optional field of a shape are
+        // the two declarations that reach the state. The compiled read tests
+        // the tag inline and comes here only when the slot is unset,
         // `nvs_ir::lower`'s `emit_never_written_guard` owning that half.
         //
         // On a shape class the state means something the `lateinit` one does
@@ -4974,12 +4976,86 @@ fn read_erased_property_hinted(
             if matches!(absent, AbsentField::Null) && desc.is_shape() {
                 return Ok(Value::null());
             }
-            Err(Fault::thrown(format!(
-                "`{}`'s property `${name}` is read before it is written",
-                desc.name()
-            )))
+            initialize_late(ctx, receiver, desc, ptr, name, hint)?;
+            #[expect(
+                unsafe_code,
+                reason = "the receiver is still live, since this frame borrows it, \
+                          and `desc` is still its own descriptor"
+            )]
+            match unsafe { slot_state(desc, ptr, name, hint) } {
+                SlotState::Present(held) => Ok(held),
+                SlotState::Absent | SlotState::Unwritten => Err(Fault::thrown_as(
+                    crate::ThrownClass::Logic,
+                    format!("`initProperty` returned, but `${name}` is still not initialized."),
+                )),
+            }
         }
     }
+}
+
+/// `rule:classes/late-init-initializes-on-the-first-read`'s call: a read found
+/// `object`'s `lateinit` property `$name` unset, so this runs `initProperty`
+/// once and returns. The caller reads the slot again.
+///
+/// **The in-flight table is [`Ctx::begin_late_init`]'s**, keyed by the object's
+/// address and the slot. An entry lives only while its `initProperty` runs, so
+/// the table costs O(in-flight initializations) and nothing per slot. An entry
+/// already present means the read is inside its own `initProperty`.
+///
+/// # Errors
+///
+/// A `LogicError` when the class does not implement `LateInit`, or when the
+/// read is inside the same property's `initProperty`. [`Fault::Pending`] when
+/// `initProperty` throws, which leaves the property unset for the next read.
+fn initialize_late(
+    ctx: &mut Ctx,
+    receiver: Value,
+    desc: &ClassDesc,
+    object: *mut ObjHeader,
+    name: &str,
+    hint: usize,
+) -> Result<(), Fault> {
+    // `LateInit` is spelled as a literal because its one home,
+    // `nvs_hir::interfaces::LATE_INIT`, is above this crate.
+    if !desc.conforms_to_name("LateInit") {
+        return Err(Fault::thrown_as(
+            crate::ThrownClass::Logic,
+            format!(
+                "`{}`'s property `${name}` is read before it is initialized",
+                desc.name()
+            ),
+        ));
+    }
+    let key = (
+        object as usize,
+        desc.field_slot(name, hint).unwrap_or(usize::MAX),
+    );
+    if !ctx.begin_late_init(key) {
+        return Err(Fault::thrown_as(
+            crate::ThrownClass::Logic,
+            format!("`${name}` is read while `initProperty` initializes it."),
+        ));
+    }
+    let told = Value::str(crate::NvsStr::new(name.as_bytes()));
+    let answered = crate::dispatch::call_erased_method(ctx, receiver, "initProperty", &[told]);
+    ctx.end_late_init(key);
+    #[expect(
+        unsafe_code,
+        reason = "this frame made that string and still owns it, as \
+                  `write_erased_property`'s observer call does"
+    )]
+    unsafe {
+        told.release();
+    }
+    #[expect(
+        unsafe_code,
+        reason = "`initProperty`'s return is a fresh reference this frame owns, \
+                  and it returns `void`"
+    )]
+    unsafe {
+        answered?.release();
+    }
+    Ok(())
 }
 
 /// What the name a reader is keyed on currently is on the receiver's
@@ -5161,13 +5237,18 @@ pub fn write_erased_property(
                   inside the allocation and was initialized by `new`; the \
                   retain pairs with the reference the slot now owns"
     )]
-    unsafe {
+    let was_unset = unsafe {
         value.retain();
         let slot = field_ptr(ptr, slot);
+        let was_unset = (*slot).tag() == Some(Tag::Unset);
         (*slot).release();
         slot.write(value);
-    }
-    if !observed {
+        was_unset
+    };
+    // `rule:classes/late-init-initializes-on-the-first-read`'s plain write: it
+    // initializes a `lateinit` property while an `initProperty` call runs in
+    // this context, so no observer is told.
+    if !observed || (was_unset && ctx.late_init_running()) {
         return Ok(Value::null());
     }
     let told = Value::str(crate::NvsStr::new(name.as_bytes()));

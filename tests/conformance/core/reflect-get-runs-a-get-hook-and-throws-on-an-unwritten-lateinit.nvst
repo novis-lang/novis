@@ -37,7 +37,7 @@ var $ringInfo = Core\Reflect::forObject($ring);
 try {
     var $next = $ringInfo->get($ring, "next");
     echo "unwritten read", "\n";
-} catch (RuntimeError $unwritten) {
+} catch (LogicError $unwritten) {
     echo $unwritten->message, "\n";
 }
 // Once written, the same read answers the value.
@@ -47,5 +47,5 @@ echo ($ringInfo->get($ring, "next") as Ring)->name, "\n";
 10
 10
 2
-`Ring`'s property `$next` is read before it is written
+`Ring`'s property `$next` is read before it is initialized
 b

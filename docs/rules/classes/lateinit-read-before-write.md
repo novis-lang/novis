@@ -1,6 +1,8 @@
 The definite-assignment pass runs inside every method, not only constructors, with a `lateinit`
-property entering in the "not yet proven written" state. A read reachable from the method's entry with
-no intervening write to that property *and no intervening call at all* is a compile error.
+property entering in the "not yet proven written" state, and a read reachable from the method's entry
+with no intervening write to that property *and no intervening call at all* is a compile error
+(`E0428`). A class implementing `LateInit` is not checked, because there a read before the first write
+is what calls `initProperty` (`rule:classes/late-init-initializes-on-the-first-read`).
 
 A call is opaque and immediately moves the property to "assumed written". The analysis cannot know
 whether the callee wrote it, and staying silent is the sound direction: a check that cries wolf on
@@ -17,3 +19,4 @@ triggers it: it is a bonus, not a safety net to rely on.
 - **Interprocedural or whole-program checking**, tracing which methods can write a `lateinit` property
   before which read it. The cases it would add are cross-method by nature, and the runtime throw
   already catches every one of them, so a second analysis would buy no safety.
+- **Checking a `LateInit` class too.** Every read the check could name is one `initProperty` answers.

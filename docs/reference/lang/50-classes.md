@@ -201,7 +201,7 @@ $w->attach(new Logger());
 echo $w->logger->name(), "\n";
 ```
 ```output
-threw: `Widget`'s property `$logger` is read before it is written
+threw: `Widget`'s property `$logger` is read before it is initialized
 log
 ```
 

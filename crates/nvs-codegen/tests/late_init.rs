@@ -87,7 +87,129 @@ echo $throws;
 ";
     assert_eq!(
         output_of(source),
-        "`Post`'s property `$views` is read before it is written/6"
+        "`Post`'s property `$views` is read before it is initialized/6"
+    );
+}
+
+/// `rule:classes/late-init-initializes-on-the-first-read`: `initProperty` runs
+/// once for each property, on its first read, and never for a property that
+/// was written first. The compiled read calls it from the unset branch alone,
+/// so the script frame holds one `SlotGet` per guarded read and no direct call.
+#[test]
+fn init_property_runs_once_per_property() {
+    let source = "<?nvs
+final class Post implements LateInit {
+    public lateinit int $views;
+    public lateinit string $title;
+    public lateinit bool $draft;
+    public string $log = \"\";
+    public function initProperty(string $name): void {
+        $this->log = $this->log . $name . \",\";
+        if ($name == \"views\") { $this->views = 0; } else { $this->title = \"T\"; }
+    }
+}
+Post $p = new Post();
+$p->draft = false;
+int $total = 0;
+for (int $i = 0; $i < 3; $i++) { $total = $total + $p->views; }
+echo $p->title, $p->title, $p->draft ? \"y\" : \"n\", \"/\", $total, \"/\", $p->log;
+";
+    assert_eq!(output_of(source), "TTn/0/views,title,");
+    let program = lower(source);
+    let insts = script_insts(&program);
+    assert!(
+        insts
+            .iter()
+            .any(|kind| matches!(kind, InstKind::SlotGet { .. })),
+        "{insts:?}"
+    );
+    assert!(
+        !insts.iter().any(|kind| matches!(
+            kind,
+            InstKind::Call { target, .. } if target.contains("initProperty")
+        )),
+        "{insts:?}"
+    );
+}
+
+/// A read of the property inside its own `initProperty` throws a
+/// `LogicError`, and the property stays uninitialized for the next read.
+#[test]
+fn a_read_inside_its_own_init_property_throws() {
+    let source = "<?nvs
+final class Post implements LateInit {
+    public lateinit string $title;
+    public bool $ready = false;
+    public function initProperty(string $name): void {
+        if (!$this->ready) {
+            echo $this->title;
+        }
+        $this->title = \"T\";
+    }
+}
+Post $p = new Post();
+try { echo $p->title; } catch (LogicError $e) { echo $e->message, \"/\"; }
+echo isinit($p->title) ? \"y\" : \"n\", \"/\";
+$p->ready = true;
+echo $p->title;
+";
+    assert_eq!(
+        output_of(source),
+        "`$title` is read while `initProperty` initializes it./n/T"
+    );
+}
+
+/// An element write — an append, a keyed write and a compound assignment —
+/// on an uninitialized `lateinit` array calls `initProperty` first, and then
+/// writes into the array it stored.
+#[test]
+fn an_element_write_on_an_uninitialized_property_initializes_it_first() {
+    let source = "<?nvs
+final class Post implements LateInit {
+    public lateinit array<string> $tags;
+    public lateinit array<int> $counts;
+    public function initProperty(string $name): void {
+        echo \"init \", $name, \"/\";
+        if ($name == \"tags\") { $this->tags = [\"a\"]; } else { $this->counts = [\"x\" => 1]; }
+    }
+}
+Post $p = new Post();
+$p->tags[] = \"b\";
+$p->tags[\"k\"] = \"c\";
+$p->counts[\"x\"] += 2;
+echo Core\\Json::encode($p->tags), Core\\Json::encode($p->counts);
+";
+    assert_eq!(
+        output_of(source),
+        "init tags/init counts/{\"0\":\"a\",\"1\":\"b\",\"k\":\"c\"}{\"x\":3}"
+    );
+}
+
+/// Inside `initProperty`, only a write that initializes an uninitialized
+/// `lateinit` property is plain. A second write to the same property, and a
+/// write to an ordinary property, still reach `onPropertySet`.
+#[test]
+fn an_ordinary_write_inside_init_property_runs_guard_and_observer() {
+    let source = "<?nvs
+final class Post implements LateInit, PropertyObserver {
+    public lateinit string $title;
+    public int $loads = 0;
+    public function onPropertyGet(string $name, mixed $value): void {}
+    public function onPropertySet(string $name, mixed $value): void { echo \"set \", $name, \"/\"; }
+    public function initProperty(string $name): void {
+        $this->title = \"first\";
+        $this->title = \"second\";
+        $this->loads = $this->loads + 1;
+    }
+}
+Post $p = new Post();
+echo $p->title, \"/\";
+$p->title = \"third\";
+echo $p->title;
+";
+    assert_eq!(
+        output_of(source),
+        "set title/set loads/second/set title/third"
     );
 }
 
@@ -114,7 +236,9 @@ echo $before ? \"y\" : \"n\", $after ? \"y\" : \"n\";
         .iter()
         .filter(|kind| matches!(kind, InstKind::FieldIsInit { .. }))
         .count();
-    assert_eq!(tests, 2, "{insts:?}");
+    // Two `isinit` tests, and the observed write's test of the slot before it
+    // stores, which tells a plain write apart.
+    assert_eq!(tests, 3, "{insts:?}");
     assert!(
         !insts
             .iter()

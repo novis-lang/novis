@@ -78,10 +78,10 @@ echo "subclass written=", $p->logger->name(), " title=", $p->title, "\n";
 // reaching the guard fails here instead of looking plausible on its own line.
 echo "throws=", $throws as string, "\n";
 --EXPECT--
-unwritten: `Widget`'s property `$logger` is read before it is written
+unwritten: `Widget`'s property `$logger` is read before it is initialized
 label=w
 written=log
 again=log
-subclass: `Panel`'s property `$logger` is read before it is written
+subclass: `Panel`'s property `$logger` is read before it is initialized
 subclass written=log title=p
 throws=4

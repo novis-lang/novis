@@ -76,8 +76,14 @@ use crate::{Env, span_text, strip_sigil};
 
 /// Runs `rule:classes/lateinit-read-before-write`'s check over every method `decl` declares with a body,
 /// for each of `qname`'s own `lateinit` properties. A class with none of its
-/// own does nothing — there is nothing to track.
+/// own does nothing — there is nothing to track. A class implementing
+/// `LateInit` does nothing either: there a read before the first write is what
+/// calls `initProperty` (`rule:classes/late-init-initializes-on-the-first-read`).
 pub(crate) fn check_class_lateinit_reads(decl: &ClassDecl, qname: &QName, env: &mut Env<'_>) {
+    let late_init = QName::parse(nvs_hir::interfaces::LATE_INIT);
+    if nvs_hir::hierarchy::implements_interface(qname, &late_init, env.graph) {
+        return;
+    }
     let tracked = own_lateinit_properties(qname, env.signatures);
     if tracked.is_empty() {
         return;

@@ -3,7 +3,7 @@
 
 # Classes
 
-*3 of 44 rules below are **designed** rather than shipped, and are marked where they appear.*
+*3 of 45 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="classes-no-free-functions-or-constants"></a>
 
@@ -300,16 +300,19 @@ remains for the case static analysis cannot reach is a throw, never a value
 
 `rule:classes/an-unwritten-property-read-throws`
 
-Reading a property that has never been written throws an ordinary, catchable `Throwable`, propagated
-by checked return ([`errors/propagation`](errors.md#errors-propagation)) rather than routed through
-[`errors/escalation-ladder`](errors.md#errors-escalation-ladder)'s fatal ladder — it is a recoverable condition a caller can handle.
-The read never succeeds, so nothing is handed back that a caller could inspect or compare against.
-Writing first makes every later read ordinary.
+Reading a property that has never been written throws a catchable `LogicError` — "`Post`'s property
+`$author` is read before it is initialized." — propagated by checked return ([`errors/propagation`](errors.md#errors-propagation))
+rather than routed through [`errors/escalation-ladder`](errors.md#errors-escalation-ladder)'s fatal ladder, because it is a recoverable
+condition a caller can handle. The read never succeeds, so nothing is handed back that a caller could
+inspect or compare against. Writing first makes every later read ordinary. A class implementing
+`LateInit` calls `initProperty` before it throws, and throws only if that leaves the property
+uninitialized ([`classes/late-init-initializes-on-the-first-read`](classes.md#classes-late-init-initializes-on-the-first-read)).
 
 A `lateinit` property is the one declaration that can reach the state. Every other non-nullable
 property is discharged at its constructor ([`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization)), and
 reflection builds no object without running its constructor
-([`security/reflection-enforces-visibility`](security.md#security-reflection-enforces-visibility)).
+([`security/reflection-enforces-visibility`](security.md#security-reflection-enforces-visibility)). The message names the object's own class, so a
+compiled read, a read through `mixed` and `Core\Reflect\ClassInfo::get` throw the same error.
 
 Internally the slot carries the tag `Unset`, distinct from every legal value including `null`. It is
 not an entry in the type system and no expression produces one. The compiled read of a `lateinit`
@@ -458,8 +461,10 @@ write-once promise to be true, which is why both halves are enforced rather than
 `rule:classes/lateinit-read-before-write`
 
 The definite-assignment pass runs inside every method, not only constructors, with a `lateinit`
-property entering in the "not yet proven written" state. A read reachable from the method's entry with
-no intervening write to that property *and no intervening call at all* is a compile error.
+property entering in the "not yet proven written" state, and a read reachable from the method's entry
+with no intervening write to that property *and no intervening call at all* is a compile error
+(`E0428`). A class implementing `LateInit` is not checked, because there a read before the first write
+is what calls `initProperty` ([`classes/late-init-initializes-on-the-first-read`](classes.md#classes-late-init-initializes-on-the-first-read)).
 
 A call is opaque and immediately moves the property to "assumed written". The analysis cannot know
 whether the callee wrote it, and staying silent is the sound direction: a check that cries wolf on
@@ -476,8 +481,52 @@ triggers it: it is a bonus, not a safety net to rely on.
 - **Interprocedural or whole-program checking**, tracing which methods can write a `lateinit` property
   before which read it. The cases it would add are cross-method by nature, and the runtime throw
   already catches every one of them, so a second analysis would buy no safety.
+- **Checking a `LateInit` class too.** Every read the check could name is one `initProperty` answers.
 
 <sub>See also [`classes/lateinit`](classes.md#classes-lateinit), [`classes/an-unwritten-property-read-throws`](classes.md#classes-an-unwritten-property-read-throws).</sub>
+
+<a id="classes-late-init-initializes-on-the-first-read"></a>
+
+## A class implementing `LateInit` initializes a `lateinit` property on its first read, and the writes that initialize it are plain
+
+`rule:classes/late-init-initializes-on-the-first-read`
+
+A read or an element write that finds a `lateinit` property uninitialized, on an object whose class
+implements `LateInit`, calls `initProperty(string $name): void` with the property's name and then
+reads the slot again. If the property is still uninitialized, the read throws a `LogicError`:
+"`initProperty` returned, but `$author` is still not initialized." Without `LateInit` the read throws
+[`classes/an-unwritten-property-read-throws`](classes.md#classes-an-unwritten-property-read-throws)'s error. A property already initialized, by a write
+or by an earlier call, calls nothing, and `isinit` never calls it
+([`classes/isinit-reads-nothing`](classes.md#classes-isinit-reads-nothing)).
+
+`initProperty` runs once per property per object while it succeeds. A throw out of it leaves the
+property uninitialized and propagates from the read, so the next read calls it again. A read of the
+same property of the same object while its own `initProperty` runs throws a `LogicError`: "`$author`
+is read while `initProperty` initializes it." The class is decided at run time from the object's own
+class, so a compiled read and a read through `mixed` or `Core\Reflect` behave the same.
+
+**Plain writes.** While an `initProperty` call runs in a task, a write in that task that initializes
+an uninitialized `lateinit` property is plain, on any object and through any write form: no
+`onPropertySet` is told ([`classes/property-observer-pipeline`](classes.md#classes-property-observer-pipeline)). One call can therefore load a
+whole row into several properties, as a data mapper does. Every other write inside `initProperty` —
+to a property that already has a value, or a second write to the same one — is ordinary.
+
+The compiled read keeps the one tag compare of [`classes/an-unwritten-property-read-throws`](classes.md#classes-an-unwritten-property-read-throws), and
+only its uninitialized branch reaches the runtime. An observed `lateinit` write tests the tag before it
+stores, and asks whether an `initProperty` call is running only when the slot was uninitialized.
+
+- **Memory:** one entry, two words, per `initProperty` call while it runs, in a request-local table
+  keyed by object and slot. Nothing per property or per object.
+
+**Declined:**
+- **Every write inside `initProperty` is plain.** Any validation an observer makes could then be
+  skipped by writing inside an `initProperty`, and security ranks first.
+- **A method per property** (`initAuthor`). One method keeps a batch load in one place, and the name
+  argument already says which property was read.
+- **One interface for `LateInit`, `PropertyObserver` and a guard.** A class pays only for the contract
+  it implements.
+
+<sub>See also [`classes/lateinit`](classes.md#classes-lateinit), [`classes/isinit-reads-nothing`](classes.md#classes-isinit-reads-nothing), [`classes/an-unwritten-property-read-throws`](classes.md#classes-an-unwritten-property-read-throws), [`classes/lateinit-read-before-write`](classes.md#classes-lateinit-read-before-write), [`classes/property-observer-pipeline`](classes.md#classes-property-observer-pipeline).</sub>
 
 <a id="classes-no-dynamic-properties"></a>
 

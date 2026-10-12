@@ -1,0 +1,73 @@
+--TEST--
+A class that implements `LateInit` runs `initProperty` on the first read of an uninitialized `lateinit` property, once per property, and a read through `mixed` does the same — `rule:classes/late-init-initializes-on-the-first-read`
+--FILE--
+<?nvs
+// covers: lang:classes/lateinit
+class Author {
+    public function constructor(public string $name) {}
+}
+
+final class Post implements LateInit {
+    public lateinit Author $author;
+    public lateinit int $views;
+    public lateinit array<string> $tags;
+    public int $calls = 0;
+
+    public function initProperty(string $name): void {
+        $this->calls = $this->calls + 1;
+        echo "init ", $name, "\n";
+        if ($name == "author") {
+            $this->author = new Author("Ada");
+        } elseif ($name == "views") {
+            $this->views = 0;
+        } else {
+            $this->tags = ["news"];
+        }
+    }
+
+    // A read inside the class before any write is allowed here.
+    public function byline(): string {
+        return "by " . $this->author->name;
+    }
+}
+
+Post $p = new Post();
+echo isinit($p->author) ? "y" : "n", "\n";
+echo $p->byline(), "\n";
+echo $p->author->name, "\n";
+echo isinit($p->author) ? "y" : "n", "\n";
+
+// A zero is a value, so the second read calls nothing.
+echo $p->views, "\n";
+echo $p->views, "\n";
+
+// An element write initializes the array first, and then appends to it.
+$p->tags[] = "tech";
+echo Core\Json::encode($p->tags), "\n";
+
+// A read through `mixed` calls `initProperty` the same way.
+Post $q = new Post();
+mixed $m = $q;
+echo $m->views, "\n";
+
+// A property written before its first read is never initialized by the call.
+Post $r = new Post();
+$r->author = new Author("Grace");
+echo $r->author->name, " calls=", $r->calls, "\n";
+
+echo "calls=", $p->calls, "/", $q->calls, "\n";
+--EXPECT--
+n
+init author
+by Ada
+Ada
+y
+init views
+0
+0
+init tags
+["news","tech"]
+init views
+0
+Grace calls=0
+calls=3/1

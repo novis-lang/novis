@@ -7,6 +7,7 @@
   ],
   "guardedBy": [
     "tests/conformance/class/lateinit-refuses-a-read-before-any-write.nvst",
+    "tests/conformance/class/late-init-initializes-on-the-first-read.nvst",
     "crates/nvs-types/src/lateinit.rs"
   ]
 }

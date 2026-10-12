@@ -68,7 +68,7 @@ echo $o->shout("!"), "\n";
 echo "direct=", $o->inner->greet(), "\n";
 echo "throws=", $throws as string, "\n";
 --EXPECT--
-unwritten: `Outer`'s property `$inner` is read before it is written
+unwritten: `Outer`'s property `$inner` is read before it is initialized
 hello
 hello
 HELLO!

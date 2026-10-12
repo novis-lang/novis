@@ -3717,7 +3717,7 @@ mod tests {
             ordinary_said,
             "the same sentence, because it is the same read"
         );
-        assert!(ordinary_said.is_some_and(|said| said.contains("read before it is written")));
+        assert!(ordinary_said.is_some_and(|said| said.contains("read before it is initialized")));
 
         #[expect(
             unsafe_code,

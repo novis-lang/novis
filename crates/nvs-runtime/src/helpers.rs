@@ -171,6 +171,15 @@ crate::nvs_helper! {
 }
 
 crate::nvs_helper! {
+    /// `nvs_ir::Helper::LateInitRunning`: whether an `initProperty` call is
+    /// running in this context, as a `bool`.
+    fn nvs_late_init_running(ctx, args: [0]) {
+        let _ = args;
+        Ok(Value::bool(ctx.late_init_running()))
+    }
+}
+
+crate::nvs_helper! {
     /// `nvs_ir::Helper::IntTruthy`.
     fn nvs_int_truthy(_ctx, args: [1]) {
         let value = expect_tag!("nvs_int_truthy", args[0], as_int, Tag::Int);
@@ -3076,6 +3085,7 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         ("nvs_bool_to_string", address(nvs_bool_to_string)),
         ("nvs_class_desc_name", address(nvs_class_desc_name)),
         ("nvs_class_constant", address(nvs_class_constant)),
+        ("nvs_late_init_running", address(nvs_late_init_running)),
         ("nvs_int_truthy", address(nvs_int_truthy)),
         ("nvs_uint_truthy", address(nvs_uint_truthy)),
         ("nvs_float_truthy", address(nvs_float_truthy)),

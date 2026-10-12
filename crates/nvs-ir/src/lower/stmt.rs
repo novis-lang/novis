@@ -1366,11 +1366,31 @@ impl<'a> Lowering<'a> {
                         );
                         self.emit_release(*cur, old_v);
                     }
+                    // `rule:classes/late-init-initializes-on-the-first-read`'s
+                    // plain write is told apart by the slot's state before the
+                    // store, so only an observed `lateinit` write takes it.
+                    let was_init = (observer.is_some()
+                        && self.exprs.is_lateinit_property(&class_label, &field_name))
+                    .then(|| {
+                        self.emit(
+                            *cur,
+                            Ty::Bool,
+                            InstKind::FieldIsInit {
+                                object: object_v,
+                                class: class_label.clone(),
+                                field: field_name.clone(),
+                            },
+                        )
+                        .0
+                    });
                     self.emit_field_set(*cur, object_v, class_label, field_name, v);
                     // `rule:classes/property-observer-pipeline`'s second step. With no `set` hook the slot
                     // store *is* the commit, so `v` is exactly the committed
                     // value and no read-back is owed.
                     if let Some(calls) = observer {
+                        let unless_plain = was_init.map(|was_init| {
+                            self.open_unless_plain(was_init, target.span, env, cur)
+                        });
                         self.emit_observer_call(
                             *cur,
                             object_v,
@@ -1382,6 +1402,9 @@ impl<'a> Lowering<'a> {
                             calls.set,
                             env,
                         );
+                        if let Some(open) = unless_plain {
+                            self.close_unless_plain(open, env, cur);
+                        }
                     }
                     (v, field_ty)
                 }

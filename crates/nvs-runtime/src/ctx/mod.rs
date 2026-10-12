@@ -1491,6 +1491,13 @@ pub struct Ctx {
     /// first time something asks, which is a subscribe or a delivery and
     /// therefore a connection.
     deliveries: Option<std::rc::Rc<crate::peer::Inbox>>,
+    /// The `initProperty` calls running in this context
+    /// (`rule:classes/late-init-initializes-on-the-first-read`), each keyed by
+    /// the object's address and the slot it initializes. An entry lives only
+    /// while its call runs, so the table is O(in-flight initializations) and
+    /// costs nothing per slot or per object. Empty, and unallocated, in a
+    /// request that never reaches `initProperty`.
+    late_inits: Vec<(usize, usize)>,
     /// Every object this context has allocated and not yet dismantled — the
     /// live list of `rule:security/isolate-teardown-is-a-drain-then-a-sweep`,
     /// whose sweep in [`Drop`] reclaims the cyclic graph
