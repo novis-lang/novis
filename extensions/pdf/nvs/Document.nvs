@@ -49,7 +49,7 @@ final class Document
     }
 
     /// `invoiceXml` attaches the XML of an electronic invoice to the file.
-    /// It needs the standard `Standard::PdfA3b`. With any other standard, `render` throws a `LogicError`.
+    /// It needs the standard `Document::Standard::PdfA3b`. With any other standard, `render` throws a `LogicError`.
     public function invoiceXml(string $xml): Document
     {
         return new Document($this->html, $this->assets, $this->standard, $xml, $this->password, $this->created, $this->header, $this->footer, $this->slots);
