@@ -1306,6 +1306,27 @@ impl<'a> Lowering<'a> {
                     // into a `mixed` field arrives as its own `Int`/`Float`/
                     // `Bool` until this widens it.
                     let v = self.coerce(*cur, v, vty, field_ty, env);
+                    // `rule:classes/late-init-initializes-on-the-first-read`'s
+                    // plain write stores into the backing slot and calls no
+                    // guard, no hook and no observer. Only a `lateinit`
+                    // property takes the split, and everything up to the
+                    // join below is the ordinary write.
+                    let plain = self
+                        .exprs
+                        .is_lateinit_property(&class_label, &field_name)
+                        .then(|| {
+                            let (was_init, _) = self.emit(
+                                *cur,
+                                Ty::Bool,
+                                InstKind::FieldIsInit {
+                                    object: object_v,
+                                    class: class_label.clone(),
+                                    field: field_name.clone(),
+                                },
+                            );
+                            let split = self.open_plain_split(was_init, target.span, env, cur);
+                            (split, class_label.clone(), field_name.clone())
+                        });
                     // `PropertyGuard` runs before the `set` hook, with the
                     // caller's value.
                     if let Some(calls) = guard {
@@ -1369,6 +1390,23 @@ impl<'a> Lowering<'a> {
                             calls.set,
                             env,
                         );
+                    }
+                    // The plain write takes the value as the hook call would,
+                    // and releases the receiver reference the hook would have
+                    // taken over. The slot had no value, so nothing old is
+                    // released.
+                    if let Some((split, class, field)) = plain {
+                        if field_ty.is_refcounted() && aliasing {
+                            self.emit_retain(split.plain, v);
+                        }
+                        if field_ty.is_refcounted() && extra_owner {
+                            self.emit_retain(split.plain, v);
+                        }
+                        self.emit_field_set(split.plain, object_v, class, field, v);
+                        if receiver_ty.is_refcounted() {
+                            self.emit_release(split.plain, object_v);
+                        }
+                        self.close_plain_split(split, env, cur);
                     }
                     (v, field_ty)
                 } else {

@@ -4916,6 +4916,82 @@ impl<'a> Lowering<'a> {
         *cur = open.done;
     }
 
+    /// The same test as [`Self::open_unless_plain`], for a write whose plain
+    /// form does work of its own: a `set` hook on a `lateinit` property, which
+    /// a plain write skips for a store into the backing slot. This leaves
+    /// `cur` on the ordinary write's block and returns the plain write's
+    /// block, which nothing has sealed. The caller emits into both and joins
+    /// them with [`Self::close_plain_split`].
+    pub(crate) fn open_plain_split(
+        &mut self,
+        was_init: ValueId,
+        span: Span,
+        env: &Env,
+        cur: &mut BlockId,
+    ) -> PlainSplit {
+        let check = self.new_block();
+        let ordinary = self.new_block();
+        let plain = self.new_block();
+        let ordinary_edge = self.ids.next_edge(span);
+        let check_edge = self.ids.next_edge(span);
+        self.seal(
+            *cur,
+            Terminator::Branch {
+                cond: was_init,
+                then_block: ordinary,
+                then_edge: ordinary_edge,
+                else_block: check,
+                else_edge: check_edge,
+            },
+        );
+        let (running, _) = self.emit_fallible(
+            check,
+            Ty::Bool,
+            InstKind::HelperCall {
+                helper: Helper::LateInitRunning,
+                args: Vec::new(),
+            },
+            env,
+        );
+        let plain_edge = self.ids.next_edge(span);
+        let ordinary_edge = self.ids.next_edge(span);
+        self.seal(
+            check,
+            Terminator::Branch {
+                cond: running,
+                then_block: plain,
+                then_edge: plain_edge,
+                else_block: ordinary,
+                else_edge: ordinary_edge,
+            },
+        );
+        *cur = ordinary;
+        PlainSplit {
+            plain,
+            pre_env: env.clone(),
+        }
+    }
+
+    /// Joins the ordinary write's block, `cur`, with the plain write's block
+    /// [`Self::open_plain_split`] returned, and leaves `cur` on the joined
+    /// block. Nothing in the plain block may change a binding.
+    pub(crate) fn close_plain_split(
+        &mut self,
+        split: PlainSplit,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) {
+        let done = self.new_block();
+        self.seal(*cur, Terminator::Jump(done));
+        self.seal(split.plain, Terminator::Jump(done));
+        *env = self.merge_envs(
+            done,
+            &[(split.plain, split.pre_env.clone()), (*cur, env.clone())],
+            &split.pre_env,
+        );
+        *cur = done;
+    }
+
     fn lower_property_access(
         &mut self,
         object: &Expr,
@@ -7287,6 +7363,16 @@ pub(crate) struct UnlessPlain {
     /// Where the observed and the plain write rejoin.
     done: BlockId,
     /// The bindings at the test. Nothing on the plain edge changes them.
+    pre_env: Env,
+}
+
+/// What [`Lowering::open_plain_split`] opened and
+/// [`Lowering::close_plain_split`] joins.
+pub(crate) struct PlainSplit {
+    /// The plain write's block, reached when an `initProperty` call is
+    /// running and the property had no value.
+    pub(crate) plain: BlockId,
+    /// The bindings at the test. Nothing on the plain write changes them.
     pre_env: Env,
 }
 

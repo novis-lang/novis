@@ -1,0 +1,46 @@
+--TEST--
+While `initProperty` runs, a write that initializes a hooked `lateinit` property stores into its backing slot and calls no `set` hook, no guard and no observer. A later write calls all three — `rule:classes/late-init-initializes-on-the-first-read`
+--FILE--
+<?nvs
+// covers: lang:classes/lateinit
+final class Post implements LateInit, PropertyGuard, PropertyObserver {
+    public lateinit string $title {
+        set (string $v) {
+            echo "  hook set ", $v, "\n";
+            $this->title = Core\Str::upper($v);
+        }
+    }
+
+    public function beforePropertySet(string $name, mixed $value, array<string> $keys): void {
+        echo "  guard ", $name, "\n";
+    }
+
+    public function beforePropertyUnset(string $name, array<string> $keys): void {}
+
+    public function onPropertyGet(string $name, mixed $value): void {}
+
+    public function onPropertySet(string $name, mixed $value): void {
+        echo "  observer ", $name, "\n";
+    }
+
+    public function initProperty(string $name): void {
+        echo "init ", $name, "\n";
+        string $loaded = "hello";
+        $this->title = $loaded;
+    }
+}
+
+Post $p = new Post();
+echo $p->title, "\n";
+string $next = "changed";
+$p->title = $next;
+echo $p->title, "\n";
+echo $next, "\n";
+--EXPECT--
+init title
+hello
+  guard title
+  hook set changed
+  observer title
+CHANGED
+changed
