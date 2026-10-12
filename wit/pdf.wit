@@ -27,23 +27,29 @@ interface engine {
         data: list<u8>,
     }
 
-    /// `header-height` and `footer-height` are CSS lengths that fix a
-    /// margin a header or footer function fills. An absent one is `@page`'s
-    /// margin. An `invoice-xml` without `pdf-a3b`, or a `password` with a
-    /// PDF/A standard, returns `invalid`.
+    /// An `invoice-xml` without `pdf-a3b`, or a `password` with a PDF/A
+    /// standard, returns `invalid`.
     record render-options {
         standard: option<standard>,
         password: option<string>,
         invoice-xml: option<string>,
         created: option<instant>,
-        header-height: option<string>,
-        footer-height: option<string>,
     }
 
     record document {
         html: string,
         assets: list<asset>,
         options: render-options,
+    }
+
+    /// The document of a `first` pass, and the margins its header and
+    /// footer functions fill. `header-height` and `footer-height` are CSS
+    /// lengths, and an absent one is `@page`'s margin. Its keys are not
+    /// `document`'s, so a Novis value picks `whole` or `first` by its shape.
+    record first-pass {
+        document: document,
+        header-height: option<string>,
+        footer-height: option<string>,
     }
 
     record named-value {
@@ -81,7 +87,7 @@ interface engine {
     /// file; with nothing kept it returns `invalid`.
     variant pass {
         whole(document),
-        first(document),
+        first(first-pass),
         second(margins),
     }
 

@@ -60,8 +60,6 @@ pub struct Options {
     pub password: Option<String>,
     pub invoice_xml: Option<String>,
     pub created: Option<Instant>,
-    pub header_height: Option<String>,
-    pub footer_height: Option<String>,
 }
 
 /// The WIT `document`.
@@ -98,10 +96,9 @@ pub enum Error {
 ///
 /// An `invoice_xml` without [`Standard::PdfA3b`], or a `password` with either PDF/A standard,
 /// returns `Invalid`, as `wit/pdf.wit` says. Otherwise `standard`, `password` and
-/// `invoice_xml` are accepted and not yet applied (Stage 12 and Stage 10), and so are
-/// `header_height` and `footer_height`, which have no header or footer to size until the
-/// `first` and `second` passes exist. A reference the asset map does not resolve returns
-/// `Invalid` naming it, and an image whose bytes do not decode returns `Parse` naming it.
+/// `invoice_xml` are accepted and not yet applied (Stage 12). A reference the asset map does
+/// not resolve returns `Invalid` naming it, and an image whose bytes do not decode returns
+/// `Parse` naming it.
 pub fn render(document: &Document) -> Result<Rendered, Error> {
     let options = &document.options;
     if options.invoice_xml.is_some() && options.standard != Some(Standard::PdfA3b) {
@@ -181,8 +178,6 @@ mod guest {
                     seconds: created.seconds,
                     nanos: created.nanos,
                 }),
-                header_height: options.header_height,
-                footer_height: options.footer_height,
             },
         }
     }

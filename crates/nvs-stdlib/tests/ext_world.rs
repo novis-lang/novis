@@ -1150,12 +1150,20 @@ fn the_pdf_render_export_carries_a_second_pass_for_page_markup() {
             .map(|(name, _)| name)
             .collect()
     };
+    assert_eq!(field_names(payload("whole")), ["html", "assets", "options"]);
+    let first = record_fields(&resolve, payload("first"));
+    let names: Vec<&str> = first.iter().map(|(name, _)| name.as_str()).collect();
     assert_eq!(
+        names,
+        ["document", "header-height", "footer-height"],
+        "the `first` pass carries the document and the margins its functions fill, under keys a \
+         Novis value tells apart from `whole`'s"
+    );
+    assert_eq!(
+        first[0].1,
         payload("whole"),
-        payload("first"),
         "both first passes carry the document"
     );
-    assert_eq!(field_names(payload("whole")), ["html", "assets", "options"]);
 
     let second = record_fields(&resolve, payload("second"));
     let [(name, pages)] = second.as_slice() else {
