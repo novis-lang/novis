@@ -7,24 +7,26 @@
 //!
 //! A render is one call that takes the whole document and returns the whole file: [`render`]
 //! parses the HTML (`parse`'s module doc), resolves every resource it references against the
-//! asset map before anything is laid out (`assets`'s module doc), lays the body out in pages
+//! asset map before anything is laid out (`assets`'s module doc), computes every element's
+//! style and the list of dropped CSS (`css`'s module doc), lays the body out in pages
 //! in the twelve default faces (`layout`'s and `fonts`' module docs), and writes the file
 //! (`write`'s module doc). The component performs no I/O and reads no clock
 //! (`rule:core-classes/pdf-render-has-no-io`): every byte it draws is in the document or the
 //! component, so two renders of one document are the same bytes.
 //!
-//! Known gaps, each owned by a later stage of the goal that builds this component: there is no
-//! cascade, so `<style>`, `<link>` stylesheets and `style` attributes are checked for the
-//! resources they reference and otherwise not applied, and the layout is the element-name
-//! layout `layout`'s module doc describes, with no tables, floats, flex or grid, no `@page`,
-//! no break control, no fonts from the asset map and no inline SVG drawn. The `first` and
+//! Known gaps, each owned by a later stage of the goal that builds this component: the layout
+//! does not read the computed styles yet. It is the element-name layout `layout`'s module doc
+//! describes, with no tables, floats, flex or grid, no `@page`, no break control, no fonts from
+//! the asset map and no inline SVG drawn. An element the subset does not render, such as
+//! `<iframe>`, is not reported yet. The `first` and
 //! `second` passes, `merge`, `read` and `read-text` return `runtime` until their stages land,
-//! and so `rendered` lists no dropped items, missing glyphs or overflows, and a page has no
+//! and so `rendered` lists no missing glyphs or overflows, and a page has no
 //! name, strings or marks. The output is untagged, and the standards, the password and the
 //! invoice XML are checked against each other and otherwise not applied (Stage 12 and
 //! Stage 10).
 
 pub mod assets;
+pub mod css;
 pub mod fonts;
 pub mod layout;
 pub mod parse;
@@ -76,11 +78,13 @@ pub struct PageFacts {
     pub number: u64,
 }
 
-/// What [`render`] returns: the file, and one [`PageFacts`] per page in order.
+/// What [`render`] returns: the file, one [`PageFacts`] per page in order, and every declaration
+/// and rule the cascade dropped.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Rendered {
     pub data: Vec<u8>,
     pub pages: Vec<PageFacts>,
+    pub dropped: Vec<css::Dropped>,
 }
 
 /// The WIT `error`: `Invalid` becomes `LogicError`, `Parse` becomes `ParseError` and `Runtime`
@@ -116,12 +120,17 @@ pub fn render(document: &Document) -> Result<Rendered, Error> {
     let dom = parse::parse(&document.html);
     let assets = assets::Assets::new(&document.assets);
     assets::check(&dom, &assets)?;
+    let styles = css::cascade(&dom, &document.html, &assets);
     let laid = layout::layout(&dom, &assets)?;
     let data = write::write(&laid, options.created)?;
     let pages = (1..=laid.pages.len() as u64)
         .map(|number| PageFacts { number })
         .collect();
-    Ok(Rendered { data, pages })
+    Ok(Rendered {
+        data,
+        pages,
+        dropped: styles.dropped,
+    })
 }
 
 #[cfg(target_family = "wasm")]
@@ -133,7 +142,7 @@ mod guest {
     });
 
     use exports::nvs::pdf::engine::{
-        Document, Error, Guest, PageFacts, Part, Pass, PdfInfo, Rendered, Standard,
+        Document, DroppedItem, Error, Guest, PageFacts, Part, Pass, PdfInfo, Rendered, Standard,
     };
 
     struct Component;
@@ -203,7 +212,17 @@ mod guest {
                     })
                     .collect(),
                 data: rendered.data,
-                dropped: Vec::new(),
+                dropped: rendered
+                    .dropped
+                    .into_iter()
+                    .map(|item| DroppedItem {
+                        property: item.property,
+                        value: item.value,
+                        selector: item.selector,
+                        line: item.line,
+                        column: item.column,
+                    })
+                    .collect(),
                 missing_glyphs: Vec::new(),
                 overflows: Vec::new(),
             })
