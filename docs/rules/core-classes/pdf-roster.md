@@ -40,9 +40,8 @@ The request's memory cap and deadline end a render that exceeds them as they end
 - **Memory:** a `Document` holds its HTML and its assets until it is freed; the render's own memory is
   `rule:core-classes/pdf-render-has-no-io`'s.
 
-**Partly on disk.** `extensions/pdf/manifest.json` declares `Engine` and `Standard`, and
-`extensions/pdf/nvs/` holds `Document`, `Page` and `Rendered`. `Pages` and `Reader` are not
-written. The `pdf` goal builds them in Stage 13.
+**On disk.** `extensions/pdf/manifest.json` declares `Engine` and `Standard`, and
+`extensions/pdf/nvs/` holds `Document`, `Page`, `Rendered`, `Pages` and `Reader`.
 
 **Declined:**
 - **A `Pdf` facade with static `render($html, $options)`.** The options a render takes — assets, three

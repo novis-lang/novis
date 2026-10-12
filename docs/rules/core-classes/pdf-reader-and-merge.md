@@ -25,10 +25,12 @@ tool. They live beside the writer because they return text and bytes, never pixe
 - **Memory:** per call, the source bytes and what the call returns, inside the request's cap; a merge
   holds its sources and the merged file at once.
 
-**Partly on disk.** The component places, merges and reads (`extensions/pdf/src/read.rs`,
+**On disk.** The component places, merges and reads (`extensions/pdf/src/read.rs`,
 `extensions/pdf/src/merge.rs`, `extensions/pdf/src/layout/image.rs`), pinned by
-`crates/nvs-ext/tests/pdf_read.rs`. `Pages` and `Reader` are not written, so a program reaches the
-three jobs only through `Engine`. The `pdf` goal's Stage 13 writes them.
+`crates/nvs-ext/tests/pdf_read.rs`, and `extensions/pdf/nvs/Pages.nvs` and `Reader.nvs` are the
+classes a program calls, pinned by `tests/conformance/novis/pdf-merge-takes-chosen-pages.nvst` and
+`pdf-reader-returns-an-invoice-xml-and-text.nvst`. A written page list such as `[3, 1]` crosses
+because the crossing takes a non-negative `int` as a `uint` (`crates/nvs-ext/src/convert.rs`).
 
 **Declined:**
 - **Rebuilding tables and columns from extracted text.** That is a layout guess, right for some files
