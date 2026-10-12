@@ -6,7 +6,7 @@ context: [crates/nvs-runtime/src/value.rs, crates/nvs-hir/src/interfaces.rs]
 stages:
   - id: 1
     title: The observer is told of element writes
-    status: open
+    status: done
     context: [crates/nvs-ir/src/lower/stmt.rs, crates/nvs-ir/src/lower/mod.rs]
     extra:
       context:
@@ -45,7 +45,7 @@ stages:
         rules: [classes/property-observer-pipeline, classes/unset-is-refused-on-a-property, types/arrays]
         shapes: ["A `.nvst` test case"]
   - id: 6
-    title: the rules, the reference and the feature proofs
+    title: "the rules, the reference and the feature proofs"
     status: open
     context: [docs/reference/lang/50-classes.md, website/src/content/docs/syntax/classes/properties.mdx, website/src/content/docs/syntax/classes/property-hooks.mdx]
     extra:
@@ -107,17 +107,17 @@ checks:
     stage: 6
     name: "`LateInit` owes no feature proof"
     run: [bun, nv, proofs, --id, "lang:classes/lateinit"]
-    stdout_contains: ["complete."]
+    stdout_contains: [complete.]
   - id: proofs-property-guard
     stage: 6
     name: "`PropertyGuard` owes no feature proof"
     run: [bun, nv, proofs, --id, "lang:classes/propertyguard"]
-    stdout_contains: ["complete."]
+    stdout_contains: [complete.]
   - id: proofs-property-observer
     stage: 6
     name: "`PropertyObserver` still owes no feature proof"
     run: [bun, nv, proofs, --id, "lang:classes/propertyobserver"]
-    stdout_contains: ["complete."]
+    stdout_contains: [complete.]
 ---
 
 # A base class initializes `lateinit` properties and guards writes
@@ -248,9 +248,9 @@ by stages 1 and 5, `lateinit-read-before-write` by stage 3.
 
 **Does:** an element write on an observed property reports `onPropertySet` with the whole array.
 
-- [ ] The element write's read of the root property goes without `onPropertyGet`, and the write-back emits `onPropertySet`, for `=`, compound assignment, increment and string append. `crates/nvs-ir/src/lower/mod.rs:3056`
-- [ ] The same for `unset` of an element. `crates/nvs-ir/src/lower/stmt.rs:1700`
-- [ ] The conformance case, and the pipeline fragment rewritten. `tests/conformance/class/a-property-observer-is-told-of-an-element-write.nvst:1`
+- [x] The element write's read of the root property goes without `onPropertyGet`, and the write-back emits `onPropertySet`, for `=`, compound assignment, increment and string append. `crates/nvs-ir/src/lower/mod.rs:3056`
+- [x] The same for `unset` of an element. `crates/nvs-ir/src/lower/stmt.rs:1700`
+- [x] The conformance case, and the pipeline fragment rewritten. `tests/conformance/class/a-property-observer-is-told-of-an-element-write.nvst:1`
 
 ### 2. `lateinit` takes every type, and `isinit`
 
@@ -301,18 +301,20 @@ by stages 1 and 5, `lateinit-read-before-write` by stage 3.
 
 ### State
 
-The goal is written; nothing is implemented. The design was settled with the user in one session,
-and § *Standing decisions* holds all of it. Measured while designing: a `get` hook and
-`onPropertyGet` can suspend on I/O and run concurrently across tasks, and child tasks share the
-parent's objects.
+Stage 1 is done. An element write or element `unset` on an observed property reports one
+`onPropertySet` with the whole array from `write_back_array`'s property arm, and the root read is
+silenced through `Lowering::silenced_gets` (`crates/nvs-ir/src/lower/mod.rs:1712`), pushed by
+`silence_root_get` in the three element-write paths. The pipeline fragment says so. Stage 5's guard
+call before an element write belongs at the same three paths.
 
 ### Next
 
-**Stage 1: The observer is told of element writes**, one file set: `crates/nvs-ir/src/lower/mod.rs`, `crates/nvs-ir/src/lower/stmt.rs`.
+**Stage 2: `lateinit` takes every type, and `isinit`**, one file set: `crates/nvs-types/src/signatures.rs`, `crates/nvs-ir/src/lower/expr.rs`, `crates/nvs-syntax/src/parser/expr.rs`.
 
-- [ ] The write-back emits `onPropertySet`, and the root read emits no `onPropertyGet` (`rule:classes/property-observer-pipeline`). `crates/nvs-ir/src/lower/mod.rs:3056`
-- [ ] The same for an element `unset`. `crates/nvs-ir/src/lower/stmt.rs:1700`
-- [ ] The conformance case. `tests/conformance/class/a-property-observer-is-told-of-an-element-write.nvst:1`
+- [ ] Drop `E0424` and `E0425`, retired as conventions.md § *A diagnostic* says (`rule:classes/lateinit-restrictions`). `crates/nvs-types/src/signatures.rs:1444`
+- [ ] The compiled read checks the tag byte of `Tag::Unset` on every `lateinit` type (`rule:classes/an-unwritten-property-read-throws`). `crates/nvs-ir/src/lower/expr.rs:4990`
+- [ ] `isinit` in the lexer, parser and AST beside `isset` (§ *Standing decisions*, `isinit`). `crates/nvs-syntax/src/parser/expr.rs:1496`
+- [ ] Rewrite `lateinit-restrictions` and `an-unwritten-property-read-throws` whole. `docs/rules/classes/lateinit-restrictions.md:1`
 
 ### Backlog
 
