@@ -43,9 +43,14 @@ have few of their glyphs. No predefined CMap is carried, so CJK text in an encod
 not drawn; carrying them is `hayro`'s `embed-cmaps` feature. The decoder is
 `extensions/image/src/pdf.rs`, and its fixtures are `crates/nvs-ext/tests/image_decode.rs`.
 
-**Partly on disk.** Everything above is built, except the benchmark of a text page and an
-image-heavy page, guest against native. The `pdf` goal's Stage 14 commits it beside the render
-benchmarks.
+The benchmark is two jobs of `crates/nvs-ext/benches/image_guest.rs`: an A4 page of text in two
+unembedded standard fonts, and an A4 page drawing an 800x600 JPEG six times, each rasterised at
+150 dpi. Its figures are in `benches/results/image-guest.json`. Measured on x86_64 Windows, with only
+the 16-byte size crossing back, the text page is 13 ms in the guest against 9 ms native, and the
+image page 53 ms against 31 ms. Returning the page's raw RGBA8 adds about 390 ms to either, because
+a `list<u8>` crosses as one value per byte (`rule:packaging/a-guest-runs-under-the-requests-budget`).
+The text page's pixels agree with native to within one level per channel, at the anti-aliased
+edges of its glyphs, and the image page's byte for byte (`crates/nvs-ext/tests/image_guest.rs`).
 
 **Declined:**
 - **A `rasterize` member in `Novis\Pdf`.** Every raster would recross the boundary as bytes to reach

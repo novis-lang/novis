@@ -52,7 +52,7 @@ fn main() {
         )]
         let ms = |ns: u64| ns as f64 / 1e6;
         println!(
-            "{:<12} guest {:>9.3} ms  guest, size only {:>9.3} ms  native {:>9.3} ms  guest/native {ratio:.2}",
+            "{:<14} guest {:>9.3} ms  guest, size only {:>9.3} ms  native {:>9.3} ms  guest/native {ratio:.2}",
             job.key(),
             ms(guest_ns),
             ms(guest_size_ns),

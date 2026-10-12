@@ -3196,7 +3196,8 @@ Only the first frame of an animated input is decoded, so `Image::info`'s `frames
 frame of APNG and the other animated formats and reports the real count (`docs/plan/m17.md`). SVG
 decodes through `resvg` with an image
 resolver that reads only `data:` URIs and throws `RuntimeError` naming any other `href`
-(`extensions/image/src/svg.rs`); its `<text>` is not drawn, because `usvg`'s text feature is off. A
+(`extensions/image/src/svg.rs`); its `<text>` is drawn with the twelve Liberation faces and never a
+system font, in `Novis\Image` and in a `Novis\Pdf` render (`extensions/pdf/src/fonts.rs`). A
 PDF page rasterises through `hayro` (`extensions/image/src/pdf.rs`).
 
 <sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source), [`core-classes/image-pixel-cap`](core-classes.md#core-classes-image-pixel-cap).</sub>
@@ -3645,9 +3646,8 @@ The request's memory cap and deadline end a render that exceeds them as they end
 - **Memory:** a `Document` holds its HTML and its assets until it is freed; the render's own memory is
   [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io)'s.
 
-**Partly on disk.** `extensions/pdf/manifest.json` declares `Engine` and `Standard`, and
-`extensions/pdf/nvs/` holds `Document`, `Page` and `Rendered`. `Pages` and `Reader` are not
-written. The `pdf` goal builds them in Stage 13.
+**On disk.** `extensions/pdf/manifest.json` declares `Engine` and `Standard`, and
+`extensions/pdf/nvs/` holds `Document`, `Page`, `Rendered`, `Pages` and `Reader`.
 
 **Declined:**
 - **A `Pdf` facade with static `render($html, $options)`.** The options a render takes — assets, three
@@ -4071,10 +4071,12 @@ tool. They live beside the writer because they return text and bytes, never pixe
 - **Memory:** per call, the source bytes and what the call returns, inside the request's cap; a merge
   holds its sources and the merged file at once.
 
-**Partly on disk.** The component places, merges and reads (`extensions/pdf/src/read.rs`,
+**On disk.** The component places, merges and reads (`extensions/pdf/src/read.rs`,
 `extensions/pdf/src/merge.rs`, `extensions/pdf/src/layout/image.rs`), pinned by
-`crates/nvs-ext/tests/pdf_read.rs`. `Pages` and `Reader` are not written, so a program reaches the
-three jobs only through `Engine`. The `pdf` goal's Stage 13 writes them.
+`crates/nvs-ext/tests/pdf_read.rs`, and `extensions/pdf/nvs/Pages.nvs` and `Reader.nvs` are the
+classes a program calls, pinned by `tests/conformance/novis/pdf-merge-takes-chosen-pages.nvst` and
+`pdf-reader-returns-an-invoice-xml-and-text.nvst`. A written page list such as `[3, 1]` crosses
+because the crossing takes a non-negative `int` as a `uint` (`crates/nvs-ext/src/convert.rs`).
 
 **Declined:**
 - **Rebuilding tables and columns from extracted text.** That is a layout guess, right for some files
@@ -4181,9 +4183,14 @@ have few of their glyphs. No predefined CMap is carried, so CJK text in an encod
 not drawn; carrying them is `hayro`'s `embed-cmaps` feature. The decoder is
 `extensions/image/src/pdf.rs`, and its fixtures are `crates/nvs-ext/tests/image_decode.rs`.
 
-**Partly on disk.** Everything above is built, except the benchmark of a text page and an
-image-heavy page, guest against native. The `pdf` goal's Stage 14 commits it beside the render
-benchmarks.
+The benchmark is two jobs of `crates/nvs-ext/benches/image_guest.rs`: an A4 page of text in two
+unembedded standard fonts, and an A4 page drawing an 800x600 JPEG six times, each rasterised at
+150 dpi. Its figures are in `benches/results/image-guest.json`. Measured on x86_64 Windows, with only
+the 16-byte size crossing back, the text page is 13 ms in the guest against 9 ms native, and the
+image page 53 ms against 31 ms. Returning the page's raw RGBA8 adds about 390 ms to either, because
+a `list<u8>` crosses as one value per byte ([`packaging/a-guest-runs-under-the-requests-budget`](packaging.md#packaging-a-guest-runs-under-the-requests-budget)).
+The text page's pixels agree with native to within one level per channel, at the anti-aliased
+edges of its glyphs, and the image page's byte for byte (`crates/nvs-ext/tests/image_guest.rs`).
 
 **Declined:**
 - **A `rasterize` member in `Novis\Pdf`.** Every raster would recross the boundary as bytes to reach

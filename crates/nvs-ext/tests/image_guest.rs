@@ -1,7 +1,11 @@
 //! The image component in the guest against the same codec core built for the host
-//! (`rule:packaging/the-boundary-is-the-cost`): a resize and a JPEG decode give the same bytes on
-//! both arms, so the bench in `benches/image_guest.rs` times the same work, and the figures it
+//! (`rule:packaging/the-boundary-is-the-cost`): a resize, a JPEG decode and the rasterising of a
+//! PDF's image page give the same bytes on both arms, and its text page the same bytes to within
+//! one level, so the bench in `benches/image_guest.rs` times the same work, and the figures it
 //! committed to `benches/results/image-guest.json` name both arms of every job.
+//!
+//! The text page's level is the anti-aliased edges of its glyphs: the rasteriser's coverage
+//! rounds differently under the host's SIMD than under the guest's.
 
 #[path = "support/image_arms.rs"]
 #[allow(
@@ -12,8 +16,8 @@ mod arms;
 
 use arms::{Guest, Inputs, JOBS, Job};
 
-/// `job`'s output on each arm, which are the same bytes.
-fn agree(job: Job) {
+/// `job`'s output on each arm: the same length, and no byte more than `within` apart.
+fn agree(job: Job, within: u8) {
     let inputs = Inputs::new();
     let guest = Guest::new();
     let from_guest = guest.run(job, &inputs);
@@ -23,21 +27,31 @@ fn agree(job: Job) {
     let first = from_guest
         .iter()
         .zip(&from_native)
-        .position(|(a, b)| a != b);
+        .position(|(a, b)| a.abs_diff(*b) > within);
     assert_eq!(
         first, None,
-        "{job:?}: the arms first differ at byte {first:?}"
+        "{job:?}: the arms first differ by more than {within} at byte {first:?}"
     );
 }
 
 #[test]
 fn the_guest_and_native_resize_agree_byte_for_byte() {
-    agree(Job::Resize);
+    agree(Job::Resize, 0);
 }
 
 #[test]
 fn the_guest_and_native_jpeg_decode_agree_byte_for_byte() {
-    agree(Job::JpegDecode);
+    agree(Job::JpegDecode, 0);
+}
+
+#[test]
+fn the_guest_and_native_pdf_text_page_agree_within_one_level() {
+    agree(Job::PdfTextPage, 1);
+}
+
+#[test]
+fn the_guest_and_native_pdf_image_page_agree_byte_for_byte() {
+    agree(Job::PdfImagePage, 0);
 }
 
 #[test]

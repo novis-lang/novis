@@ -5,7 +5,8 @@
 //!
 //! The input is a generated photo-like frame, a gradient with a seeded noise over it, so it carries
 //! no personal data and a JPEG of it has detail for the decoder to work on. The JPEG is written by
-//! the native arm once and decoded by both.
+//! the native arm once and decoded by both. The two PDF pages are written here object by object:
+//! one of text in unembedded standard fonts, and one placing that JPEG several times.
 
 use std::future::Future;
 use std::pin::pin;
@@ -27,15 +28,32 @@ pub(crate) const HEIGHT: u32 = 600;
 /// The width the resize job scales the frame to. The height follows the aspect ratio.
 pub(crate) const RESIZED_WIDTH: u64 = 200;
 
-/// A job both arms run: one resize of decoded pixels, and one JPEG decode to RGBA8.
+/// The page both PDF jobs rasterise: A4, in points.
+pub(crate) const PAGE_WIDTH: u32 = 595;
+pub(crate) const PAGE_HEIGHT: u32 = 842;
+/// The lines of text the text page carries.
+const TEXT_LINES: usize = 64;
+/// How many times the image page draws the frame's JPEG, in two columns.
+const IMAGE_DRAWS: usize = 6;
+
+/// A job both arms run: one resize of decoded pixels, one JPEG decode to RGBA8, and one PDF page
+/// rasterised at the default dpi, either a page of text or a page of images
+/// (`rule:core-classes/pdf-page-is-an-image-source`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Job {
     Resize,
     JpegDecode,
+    PdfTextPage,
+    PdfImagePage,
 }
 
 /// Every job, in the order the figures file lists them.
-pub(crate) const JOBS: [Job; 2] = [Job::Resize, Job::JpegDecode];
+pub(crate) const JOBS: [Job; 4] = [
+    Job::Resize,
+    Job::JpegDecode,
+    Job::PdfTextPage,
+    Job::PdfImagePage,
+];
 
 impl Job {
     /// The job's key in `benches/results/image-guest.json`.
@@ -43,6 +61,8 @@ impl Job {
         match self {
             Job::Resize => "resize",
             Job::JpegDecode => "jpeg_decode",
+            Job::PdfTextPage => "pdf_text_page",
+            Job::PdfImagePage => "pdf_image_page",
         }
     }
 
@@ -55,15 +75,25 @@ impl Job {
             Job::JpegDecode => format!(
                 "one {WIDTH}x{HEIGHT} JPEG at the default quality decoded to RGBA8, returned as raw pixels"
             ),
+            Job::PdfTextPage => format!(
+                "one A4 page of {TEXT_LINES} lines of text in two unembedded standard fonts, rasterised at {} dpi and returned as raw pixels",
+                nvs_image::DEFAULT_DPI
+            ),
+            Job::PdfImagePage => format!(
+                "one A4 page drawing the {WIDTH}x{HEIGHT} JPEG {IMAGE_DRAWS} times, rasterised at {} dpi and returned as raw pixels",
+                nvs_image::DEFAULT_DPI
+            ),
         }
     }
 }
 
-/// The inputs every job reads: the frame's RGBA8 rows and a JPEG of them.
+/// The inputs every job reads: the frame's RGBA8 rows, a JPEG of them, and the two one-page PDFs.
 #[derive(Debug)]
 pub(crate) struct Inputs {
     pub(crate) rgba: Vec<u8>,
     pub(crate) jpeg: Vec<u8>,
+    pub(crate) text_pdf: Vec<u8>,
+    pub(crate) image_pdf: Vec<u8>,
 }
 
 impl Inputs {
@@ -77,8 +107,115 @@ impl Inputs {
         };
         let jpeg = nvs_image::encode(pixels, Format::Jpeg, Encoding::default())
             .unwrap_or_else(|err| panic!("the frame does not encode: {err:?}"));
-        Inputs { rgba, jpeg }
+        let text_pdf = text_page();
+        let image_pdf = image_page(&jpeg);
+        Inputs {
+            rgba,
+            jpeg,
+            text_pdf,
+            image_pdf,
+        }
     }
+
+    /// The PDF `job` rasterises, if it rasterises one.
+    fn pdf(&self, job: Job) -> Option<&[u8]> {
+        match job {
+            Job::PdfTextPage => Some(&self.text_pdf),
+            Job::PdfImagePage => Some(&self.image_pdf),
+            Job::Resize | Job::JpegDecode => None,
+        }
+    }
+}
+
+/// A PDF of `objects`, numbered from 1 with the catalog first, and a cross-reference table whose
+/// offsets are the objects' own.
+fn pdf_of(objects: &[Vec<u8>]) -> Vec<u8> {
+    let mut out = b"%PDF-1.7\n".to_vec();
+    let mut offsets = Vec::new();
+    for (at, body) in objects.iter().enumerate() {
+        offsets.push(out.len());
+        out.extend(format!("{} 0 obj\n", at + 1).bytes());
+        out.extend(body);
+        out.extend(b"\nendobj\n");
+    }
+    let xref = out.len();
+    out.extend(format!("xref\n0 {}\n0000000000 65535 f \n", objects.len() + 1).bytes());
+    for offset in offsets {
+        out.extend(format!("{offset:010} 00000 n \n").bytes());
+    }
+    out.extend(
+        format!(
+            "trailer\n<< /Size {} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n",
+            objects.len() + 1
+        )
+        .bytes(),
+    );
+    out
+}
+
+fn stream(dict: &str, content: &[u8]) -> Vec<u8> {
+    let mut out = format!("<< {dict} /Length {} >>\nstream\n", content.len()).into_bytes();
+    out.extend(content);
+    out.extend(b"\nendstream");
+    out
+}
+
+/// A one-page A4 document drawn by `content`, with `resources` and `extra` objects numbered
+/// from 5.
+fn one_page(content: &[u8], resources: &str, extra: Vec<Vec<u8>>) -> Vec<u8> {
+    let mut objects = vec![
+        b"<< /Type /Catalog /Pages 2 0 R >>".to_vec(),
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_vec(),
+        format!(
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {PAGE_WIDTH} {PAGE_HEIGHT}] /Resources << {resources} >> /Contents 4 0 R >>"
+        )
+        .into_bytes(),
+        stream("", content),
+    ];
+    objects.extend(extra);
+    pdf_of(&objects)
+}
+
+/// A page of text: a bold heading and `TEXT_LINES` lines of body text, in Helvetica and
+/// Times-Roman, neither embedded, so both are drawn with their Liberation substitutes.
+fn text_page() -> Vec<u8> {
+    let font =
+        |name: &str| format!("<< /Type /Font /Subtype /Type1 /BaseFont /{name} >>").into_bytes();
+    let mut content = String::from("BT /Head 16 Tf 50 800 Td (Shop order summary) Tj ET\n");
+    content.push_str("BT /Body 10 Tf 12 TL 50 776 Td\n");
+    for line in 0..TEXT_LINES {
+        content.push_str(&format!(
+            "(Line {line}: a widget, a gadget and a sprocket were shipped to example.com in one parcel.) '\n"
+        ));
+    }
+    content.push_str("ET");
+    one_page(
+        content.as_bytes(),
+        "/Font << /Head 5 0 R /Body 6 0 R >>",
+        vec![font("Helvetica-Bold"), font("Times-Roman")],
+    )
+}
+
+/// A page of images: `jpeg` placed `IMAGE_DRAWS` times in two columns, each copy scaled to
+/// 270 by 202 points.
+fn image_page(jpeg: &[u8]) -> Vec<u8> {
+    let image = stream(
+        &format!(
+            "/Type /XObject /Subtype /Image /Width {WIDTH} /Height {HEIGHT} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode"
+        ),
+        jpeg,
+    );
+    let mut content = String::new();
+    for at in 0..IMAGE_DRAWS {
+        let x = 20 + (at % 2) * 285;
+        let y = 620 - (at / 2) * 210;
+        content.push_str(&format!("q 270 0 0 202 {x} {y} cm /Photo Do Q\n"));
+    }
+    one_page(
+        content.as_bytes(),
+        "/XObject << /Photo 5 0 R >>",
+        vec![image],
+    )
 }
 
 /// A gradient in each channel with a seeded noise added, opaque.
@@ -125,6 +262,16 @@ pub(crate) fn native(job: Job, inputs: &Inputs) -> Vec<u8> {
         Job::JpegDecode => (
             Input::Encoded {
                 data: &inputs.jpeg,
+                auto_orient: true,
+                to_srgb: true,
+                page: 1,
+                dpi: nvs_image::DEFAULT_DPI,
+            },
+            raw(Vec::new()),
+        ),
+        Job::PdfTextPage | Job::PdfImagePage => (
+            Input::Encoded {
+                data: inputs.pdf(job).expect("a PDF job has a PDF"),
                 auto_orient: true,
                 to_srgb: true,
                 page: 1,
@@ -195,6 +342,19 @@ impl Guest {
                     ("data", Value::Bytes(inputs.jpeg.clone())),
                     ("autoOrient", Value::Bool(true)),
                     ("toSrgb", Value::Bool(true)),
+                ]),
+                Vec::new(),
+            ),
+            Job::PdfTextPage | Job::PdfImagePage => (
+                shape(vec![
+                    (
+                        "data",
+                        Value::Bytes(inputs.pdf(job).expect("a PDF job has a PDF").to_vec()),
+                    ),
+                    ("autoOrient", Value::Bool(true)),
+                    ("toSrgb", Value::Bool(true)),
+                    ("page", Value::Uint(1)),
+                    ("dpi", Value::Float(nvs_image::DEFAULT_DPI)),
                 ]),
                 Vec::new(),
             ),

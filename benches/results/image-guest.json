@@ -3,17 +3,31 @@
   "how": "`cargo bench -p nvs-ext --bench image_guest -- --record`: the median of 21 runs of each arm after 3 untimed ones, in a release build. The guest arm is one host-to-guest call through nvs-ext's call bridge, so it includes copying the input in and the output out, and a list of bytes crosses as one wasmtime `Val` per byte. `guest_size_only_median_ns` is the same call returning the size header alone, so no pixel crosses back. The native arm is the same crate built for the host, with the SIMD the host's compiler picks.",
   "jobs": {
     "jpeg_decode": {
-      "guest_median_ns": 178625200,
-      "guest_size_only_median_ns": 21446100,
-      "native_median_ns": 7318700,
-      "ratio": 24.41,
+      "guest_median_ns": 84218900,
+      "guest_size_only_median_ns": 8292400,
+      "native_median_ns": 3092100,
+      "ratio": 27.24,
       "what": "one 800x600 JPEG at the default quality decoded to RGBA8, returned as raw pixels"
     },
+    "pdf_image_page": {
+      "guest_median_ns": 443138500,
+      "guest_size_only_median_ns": 53176500,
+      "native_median_ns": 31388600,
+      "ratio": 14.12,
+      "what": "one A4 page drawing the 800x600 JPEG 6 times, rasterised at 150 dpi and returned as raw pixels"
+    },
+    "pdf_text_page": {
+      "guest_median_ns": 404581000,
+      "guest_size_only_median_ns": 13343600,
+      "native_median_ns": 9068700,
+      "ratio": 44.61,
+      "what": "one A4 page of 64 lines of text in two unembedded standard fonts, rasterised at 150 dpi and returned as raw pixels"
+    },
     "resize": {
-      "guest_median_ns": 53831800,
-      "guest_size_only_median_ns": 45217500,
-      "native_median_ns": 2364800,
-      "ratio": 22.76,
+      "guest_median_ns": 34108100,
+      "guest_size_only_median_ns": 29683400,
+      "native_median_ns": 1097200,
+      "ratio": 31.09,
       "what": "800x600 RGBA8 pixels resized to 200 wide with Lanczos3, returned as raw pixels"
     }
   }
