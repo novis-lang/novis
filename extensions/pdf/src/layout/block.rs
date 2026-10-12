@@ -339,6 +339,21 @@ impl Flow {
         }
     }
 
+    /// The index of the page the next box placed starts on: the last page, or a later one when
+    /// a `break-after` is waiting to be taken.
+    pub(super) fn landing(&self) -> usize {
+        let last = self.pages.len() - 1;
+        let Some(side) = self.forced.filter(|_| self.heights.is_some()) else {
+            return last;
+        };
+        let next = if self.empty() { last } else { last + 1 };
+        // The page at an even index is a right one.
+        match (side, next % 2 == 0) {
+            (Break::Left, true) | (Break::Right, false) => next + 1,
+            _ => next,
+        }
+    }
+
     /// Whether nothing is drawn on the last page and nothing has taken space on it.
     fn empty(&self) -> bool {
         self.cursor <= 0.0 && self.pages.last().is_some_and(|p| p.items.is_empty())
