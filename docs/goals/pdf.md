@@ -722,6 +722,12 @@ One file set: `extensions/pdf/src/read.rs` (new), `extensions/pdf/src/merge.rs` 
   invoice) and the text of a page in the order the file stores it, through a text output over
   `hayro`'s interpreter and the fonts' Unicode maps. It does not rebuild tables or columns.
 - **An encrypted source throws** in all three, as on the image side.
+- **Hostile sources stay inert**: the fixtures `rule:core-classes/pdf-decode-refusals` owes (a PDF
+  with an external reference, one with a JavaScript action, one with an embedded file, and one per
+  object the decoder cannot read) open through `Image::open`, placing, `merge` and `Reader`, and none
+  of them reaches the disk, the network or a script.
+- **SVG `<text>` is drawn**, in the PDF and in `Novis\Image`: `usvg`'s font database is filled with
+  the Liberation faces (`extensions/pdf/src/layout.rs`, `rule:core-classes/image-format-roster`).
 - **Pinned by** the Stage 13 checks.
 
 ### 14. the growth, the benches and a bundle
@@ -814,4 +820,4 @@ One file set: `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/n
 - Floats: an `<img>` with `float` stays a block, a float in the middle of a paragraph is placed at the paragraph's top, a line with no room beside a float is not moved below it, and a float does not go on to the next page (`extensions/pdf/src/layout.rs`, `extensions/pdf/src/layout/block.rs`).
 - Grid: a track with a length and a percentage in one `calc()` is not read, and `grid-template` and `grid` shorthands are not in the subset table (`extensions/pdf/src/layout/grid.rs`). A flex or grid container's `::before` and `::after` and a `<br>` in it are not items, `align-items: baseline` has no baseline from an item, and an item's `margin: auto` does nothing (`extensions/pdf/src/layout/flex.rs`).
 - Elliptical radii and repeating gradients are not laid out (`extensions/pdf/src/layout/boxes.rs`). `hyphenate-character` is not in the subset table, so the drawn hyphen is always `-` (`extensions/pdf/subset.json`). An inline box draws its sides left to right in a right-to-left line, its `opacity` is not drawn, and it does not draw around an inline-block in it (`extensions/pdf/src/layout.rs`). Clippy's `large_enum_variant` on `layout::Block` and `inline::Step` (`cargo clippy --manifest-path extensions/pdf/Cargo.toml --all-targets`).
-- SVG `<text>` in the PDF and in `Novis\Image`: fill `usvg`'s font database with the Liberation faces (`extensions/pdf/src/layout.rs`, `rule:core-classes/image-format-roster`). Stage 10 reaches `first` through `Pass`'s `First` case (`extensions/pdf/manifest.json`, `wit/pdf.wit`). `Grammar::Free` properties are not checked past their tokens (`extensions/pdf/src/css/properties.rs`). The PDF fixtures owed by `rule:core-classes/pdf-decode-refusals`, the guest-against-native benchmark owed by `rule:core-classes/pdf-page-is-an-image-source`, `hayro`'s `embed-cmaps`, veraPDF in CI (the user's call), and Stage 14's growth with `hypher` and `krilla-svg`.
+- Stage 10 reaches `first` through `Pass`'s `First` case (`extensions/pdf/manifest.json`, `wit/pdf.wit`). `Grammar::Free` properties are not checked past their tokens (`extensions/pdf/src/css/properties.rs`). The guest-against-native benchmark owed by `rule:core-classes/pdf-page-is-an-image-source`, `hayro`'s `embed-cmaps`, veraPDF in CI (the user's call), and Stage 14's growth with `hypher` and `krilla-svg`.
