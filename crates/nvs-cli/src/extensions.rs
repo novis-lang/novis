@@ -500,6 +500,10 @@ impl Budget for Spent {
         self.meter.charge(bytes)
     }
 
+    fn left(&self) -> Option<u64> {
+        self.meter.left()
+    }
+
     fn log(&self, level: Level, channel: &str, message: &str) {
         self.lines
             .lock()

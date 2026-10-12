@@ -17,7 +17,7 @@ use std::task::{Context, Poll, Waker};
 use std::time::Duration;
 
 use nvs_ext::builtin::{PDF, PDF_CLASS, PDF_SHA256};
-use nvs_ext::call::{Error, Failure, Host, Meter, Request};
+use nvs_ext::call::{Error, Failure, Host, Limit, Meter, Request};
 use nvs_ext::convert::{Key, Value};
 use nvs_ext::load::{Builtin, Extension, Loader};
 
@@ -541,6 +541,47 @@ fn a_function_header_wins_over_a_margin_box() {
         let without = bytes(&pass(request, extension, second(&footer)).expect("it renders"));
         assert!(kept != without, "a footer took off a box in the top margin");
     });
+}
+
+/// A report with one table of `rows` orders, as `benches/members/novis/Pdf-Document` renders it.
+fn report(rows: usize) -> String {
+    let rows: String = (0..rows)
+        .map(|at| format!("<tr><td>Order {at}</td><td>Shop</td><td>12.50 EUR</td></tr>"))
+        .collect();
+    format!(
+        "<h1>Orders</h1><table><thead><tr><th>Order</th><th>Customer</th><th>Total</th></tr>\
+         </thead><tbody>{rows}</tbody></table>"
+    )
+}
+
+/// The render of `report(8400)` in a request of `memory` bytes. Its PDF is about 4 MiB, and its
+/// guest grows to about 150 MiB.
+fn render_report(memory: u64) -> Result<(Vec<u8>, u64), Failure> {
+    let host = Host::new(4, |_| Ok(())).expect("the host starts");
+    let builtins = Loader::new(host.engine())
+        .builtins()
+        .expect("the built-in components load");
+    let extension = pdf(&builtins)
+        .extension()
+        .expect("the PDF component compiles and checks");
+    let request = host.request(Arc::new(Meter::new(Duration::from_secs(120), Some(memory))));
+    render(&request, extension, &report(8400), &[])
+}
+
+#[test]
+fn a_200_page_report_crosses_under_the_requests_memory() {
+    let (data, pages) = render_report(1 << 30).expect("it renders");
+    assert!(pages >= 200, "the report has {pages} pages");
+    assert!(data.len() > 3 << 20, "the PDF is {} bytes", data.len());
+}
+
+#[test]
+fn a_result_the_request_cannot_afford_reaches_the_memory_limit() {
+    // The guest fits in 192 MiB, and lifting its 4 MiB result does not.
+    match render_report(192 << 20) {
+        Err(Failure::Limit(Limit::Memory)) => {}
+        other => panic!("the render did not reach the memory limit: {other:?}"),
+    }
 }
 
 /// `text` decoded as standard base64.

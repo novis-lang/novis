@@ -28,6 +28,13 @@
 //! of the three. Reaching any of them is the same limit, because the store has one: the request
 //! ends, whichever of the three was smallest.
 //!
+//! **What crosses is the request's memory too.** wasmtime lifts a value from the guest into
+//! [`Val`]s, one per element of a list, and bounds each crossing by the store's hostcall fuel.
+//! The fuel is [`Budget::left`] when the call starts and at every tick, so a crossing allocates
+//! no more on the host than the request can still afford, and running out is [`Limit::Memory`].
+//! A call's lifted results are charged to the request while they are converted, and given back
+//! after. A request with no memory limit has no bound here either.
+//!
 //! **Failures** (`rule:packaging/a-guest-crash-throws`). Every export the loader accepts returns
 //! `result<T, error>`, and [`Request::call`] returns the `ok` side's value or a [`Failure`]:
 //! [`Failure::Error`] for an `err`, which keeps the instance, and [`Failure::Trap`] or
@@ -104,6 +111,12 @@ pub trait Budget: Send + Sync {
     /// Charges `bytes` of guest linear memory to the request, or gives them back when negative.
     /// Returns `false`, and charges nothing, when the request cannot afford them.
     fn charge(&self, bytes: i64) -> bool;
+
+    /// The bytes the request may still charge, or `None` for a request with no memory limit. The
+    /// default is `None`.
+    fn left(&self) -> Option<u64> {
+        None
+    }
 
     /// Writes `message` to the request's log at `level`, with `channel` as its channel.
     fn log(&self, level: Level, channel: &str, message: &str);
@@ -318,6 +331,11 @@ impl Budget for Meter {
                 (!over).then_some(next)
             })
             .is_ok()
+    }
+
+    fn left(&self) -> Option<u64> {
+        self.memory
+            .map(|limit| limit.saturating_sub(self.charged()))
     }
 
     /// A meter has no request log, so it keeps nothing a guest writes.
@@ -842,7 +860,17 @@ impl Request {
         }
         let outcome = match args {
             Ok(args) => match live.call(at, &declared.name, &args).await {
-                Ok(out) => results(&mut live.store, out, at),
+                Ok(out) => {
+                    let held =
+                        i64::try_from(out.iter().map(lifted).sum::<u64>()).unwrap_or(i64::MAX);
+                    if self.budget.charge(held) {
+                        let read = results(&mut live.store, out, at);
+                        self.budget.charge(-held);
+                        read
+                    } else {
+                        Err(Failure::Limit(Limit::Memory))
+                    }
+                }
                 Err(failure) => Err(failure),
             },
             Err(failure) => Err(failure),
@@ -957,6 +985,7 @@ impl Request {
             },
         );
         store.limiter(|guest| guest);
+        store.set_hostcall_fuel(fuel(&*self.budget));
         store.set_epoch_deadline(1);
         store.epoch_deadline_callback(|mut cx| {
             let guest = cx.data_mut();
@@ -964,6 +993,8 @@ impl Request {
                 guest.reached = Some(Limit::Cpu);
                 return Ok(UpdateDeadline::Interrupt);
             }
+            let fuel = fuel(&*guest.budget);
+            cx.set_hostcall_fuel(fuel);
             Ok(UpdateDeadline::Yield(1))
         });
         let instance = match self
@@ -1024,6 +1055,8 @@ impl Live {
             .and_then(|index| self.instance.get_func(&mut self.store, index))
             .ok_or_else(|| Failure::NoMethod(method.to_owned()))?;
         let mut results = vec![Val::Bool(false); func.ty(&self.store).results().len()];
+        let fuel = fuel(&*self.store.data().budget);
+        self.store.set_hostcall_fuel(fuel);
         func.call_async(&mut self.store, args, &mut results)
             .await
             .map_err(|err| failure(&self.store, &err, at))?;
@@ -1104,12 +1137,50 @@ fn failure(store: &Store<Guest>, err: &wasmtime::Error, at: At<'_>) -> Failure {
     if let Some(limit) = store.data().reached {
         return Failure::Limit(limit);
     }
+    if err
+        .chain()
+        .any(|cause| cause.to_string().ends_with(FUEL_EXHAUSTED))
+    {
+        return Failure::Limit(Limit::Memory);
+    }
     match err.downcast_ref::<Trap>() {
         Some(Trap::Interrupt) => Failure::Limit(Limit::Cpu),
         // The trap or the host function's error alone: the error's context is a backtrace of
         // offsets into the guest.
         Some(trap) => at.crash(trap.to_string()),
         None => at.crash(err.root_cause().to_string()),
+    }
+}
+
+/// The end of the message wasmtime fails a crossing with when it has used up the store's hostcall
+/// fuel. Its error type is private, so the message is the only thing to match.
+const FUEL_EXHAUSTED: &str = "fuel allocated for hostcalls has been exhausted";
+
+/// The hostcall fuel a crossing starts with: the bytes `budget` has left, or no bound for a
+/// request with no memory limit. wasmtime counts a lifted value at its host size, so what one
+/// crossing allocates on the host is at most what the request can still afford.
+fn fuel(budget: &dyn Budget) -> usize {
+    budget.left().map_or(usize::MAX, |left| {
+        usize::try_from(left).unwrap_or(usize::MAX)
+    })
+}
+
+/// The host bytes lifting `val` put on the heap: one [`Val`] for each value inside it, and the
+/// text of each string and name. A scalar puts nothing there.
+fn lifted(val: &Val) -> u64 {
+    let text = |text: &str| text.len() as u64;
+    let inside = |val: &Val| size_of::<Val>() as u64 + lifted(val);
+    match val {
+        Val::String(s) | Val::Enum(s) => text(s),
+        Val::List(items) | Val::Tuple(items) => items.iter().map(inside).sum(),
+        Val::Map(pairs) => pairs.iter().map(|(k, v)| inside(k) + inside(v)).sum(),
+        Val::Record(fields) => fields.iter().map(|(k, v)| text(k) + inside(v)).sum(),
+        Val::Variant(case, payload) => text(case) + payload.as_deref().map_or(0, inside),
+        Val::Option(payload) | Val::Result(Ok(payload) | Err(payload)) => {
+            payload.as_deref().map_or(0, inside)
+        }
+        Val::Flags(names) => names.iter().map(|name| text(name)).sum(),
+        _ => 0,
     }
 }
 

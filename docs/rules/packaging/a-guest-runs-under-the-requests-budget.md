@@ -3,7 +3,10 @@ epoch tick the guest checks the request's CPU deadline and traps past it, so a d
 guest loop stops rather than hanging a core (`rule:packaging/a-guest-call-yields-on-its-core`). Its
 linear memory is the request's: each growth is charged to the request's memory accounting, and the
 store's limit is the least of what the request has left, the entry's optional `memory` ceiling and
-the manifest's declared maximum. An extension therefore cannot starve its neighbours — a stronger
+the manifest's declared maximum. What crosses from the guest is the request's memory as well: the
+host's copy of a value the guest passes or returns is bounded by what the request has left and charged
+to it while the host holds it, so a result is as large as the request can afford and no larger. An
+extension therefore cannot starve its neighbours — a stronger
 guarantee than a built-in native function currently has, because it is enforced by the sandbox rather
 than by discipline.
 
@@ -16,6 +19,11 @@ in flight.
 
 What it spends: the guest's linear memory, charged to the calling request and freed when the request
 ends — O(in-flight). The pooling allocator reserves address space per slot, not committed memory.
+A result crosses as one host value per element before it is converted, tens of bytes for each byte
+of a `list<u8>`, so a PDF of a few megabytes briefly holds over a hundred megabytes of the request's
+memory. That is the
+dynamic crossing's cost on the request path, paid once per call; a typed crossing for `bytes` is what
+would lower it, at the price of a second conversion path.
 
 **Partly on disk.** `nvs_ext::call` charges every growth to a `Budget` and traps a guest past its
 CPU deadline or the least of the three memory limits (`crates/nvs-ext/tests/call.rs`). A limit's
