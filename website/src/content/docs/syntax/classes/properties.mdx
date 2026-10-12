@@ -1,7 +1,7 @@
 ---
 title: Properties and constants
-covers: ['lang:classes/properties', 'lang:types/properties-and-constants']
-description: How to declare a property with a type and a default, the readonly, lateinit and static properties, and class constants.
+covers: ['lang:classes/properties', 'lang:types/properties-and-constants', 'lang:classes/lateinit', 'LateInit']
+description: How to declare a property with a type and a default, the readonly, lateinit and static properties, LateInit, and class constants.
 ---
 import Snippet from '@components/Snippet.astro'
 
@@ -23,9 +23,23 @@ A property is written as `visibility type $name`, with an optional default:
 
 - A `readonly` property is set once, in the constructor. Any other write does not compile.
 - A `readonly` property has no default. A value that is known when you write the class is a `const`.
-- `lateinit` is for a property that is set after the constructor runs. Its type must be a class
-  or an interface.
+- `lateinit` is for a property that is set after the constructor runs. It can have any type.
 - Reading a `lateinit` property before it is set throws an error.
+- `isinit($post->tags)` returns `true` when the property is set. It does not read the property,
+  so it never throws an error.
+
+## LateInit
+
+A class that implements `LateInit` sets a `lateinit` property the first time a program reads it.
+
+<Snippet src="syntax/class-properties/04-late-init.nvs" />
+
+- The class has one method, `initProperty`. It gets the name of the property that has no value.
+- After `initProperty` returns, the read runs again. A later read does not call `initProperty`.
+- If the property still has no value after `initProperty`, the read throws a `LogicError`.
+- If `initProperty` throws an error, the next read calls it again.
+- The first write inside `initProperty` does not run a `set` hook, `PropertyGuard` or
+  `PropertyObserver`.
 
 ## static properties
 

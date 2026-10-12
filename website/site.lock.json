@@ -59,12 +59,16 @@
     "lang:types/callable-classes-object-shapes": "1e05f17eee622431"
   },
   "syntax/classes/properties.mdx": {
-    "lang:classes/properties": "824b8e6295f0dc65",
-    "lang:types/properties-and-constants": "606d2c7f24b2382f"
+    "lang:classes/lateinit": "0b1740d8c1f78a87",
+    "lang:classes/properties": "0274f4b8979b9752",
+    "lang:types/properties-and-constants": "606d2c7f24b2382f",
+    "LateInit": "54659944b7e3ba58"
   },
   "syntax/classes/property-hooks.mdx": {
     "lang:classes/property-hooks": "8c5217027713ba4e",
-    "lang:classes/propertyobserver": "4e8f9bfde3c2b73b",
+    "lang:classes/propertyguard": "f9758731e40d599b",
+    "lang:classes/propertyobserver": "fab5f147011f9908",
+    "PropertyGuard": "87b4f428b87d30db",
     "PropertyObserver": "80600e979a7d8483"
   },
   "syntax/classes/standard-interfaces.mdx": {

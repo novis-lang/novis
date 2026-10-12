@@ -1,7 +1,7 @@
 ---
 title: Property hooks
-covers: ['lang:classes/property-hooks', 'lang:classes/propertyobserver', 'PropertyObserver']
-description: How get and set hooks run code on every read and write of a property, and how PropertyObserver reports every change.
+covers: ['lang:classes/property-hooks', 'lang:classes/propertyobserver', 'PropertyObserver', 'lang:classes/propertyguard', 'PropertyGuard']
+description: How get and set hooks run code on every read and write of a property, how PropertyGuard checks a write, and how PropertyObserver reports every change.
 ---
 import Snippet from '@components/Snippet.astro'
 
@@ -19,6 +19,20 @@ property. The `set` hook runs on every write.
 - You cannot write one array element through a hooked property. Copy the array to a variable,
   change it, and assign it back.
 
+## PropertyGuard
+
+A class that implements `PropertyGuard` has two methods: `beforePropertySet` and
+`beforePropertyUnset`. Novis calls them before every write of a property of the class.
+
+<Snippet src="syntax/property-hooks/03-guard.nvs" />
+
+- `beforePropertySet` gets the name of the property, the new value and a list of keys.
+- The keys are `[]` for a write of the whole property. For a write to one element, they are the
+  keys of that element, as strings.
+- `beforePropertyUnset` runs before `unset` removes one element of an array property.
+- If the guard throws an error, the property keeps its old value.
+- On a property with a `set` hook, the guard runs first. It gets the value the program wrote.
+
 ## PropertyObserver
 
 A class that implements `PropertyObserver` has two methods: `onPropertyGet` and `onPropertySet`.
@@ -27,6 +41,7 @@ Novis calls them after every read and every write of a property of the class.
 <Snippet src="syntax/property-hooks/02-observer.nvs" />
 
 - Each method gets the name of the property and its value.
+- A write to one element calls `onPropertySet` once. It gets the whole array.
 - The value has the type `mixed`. Text you build from it with `as string` or `.` is a
   `tainted string`.
 - The observer cannot change the value. If `onPropertySet` throws an error, the write fails.
