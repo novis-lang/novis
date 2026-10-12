@@ -32,6 +32,15 @@ pub const INTL_SHA256: [u8; 32] = *include_bytes!(concat!(env!("OUT_DIR"), "/int
 /// The class the intl component declares.
 pub const INTL_CLASS: &str = "Novis\\Intl\\Icu";
 
+/// The PDF component, `Novis\Pdf\Engine`, as a packed `.nvsx`.
+pub static PDF: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/pdf.nvsx"));
+
+/// The SHA-256 of [`PDF`], taken when the binary was built.
+pub const PDF_SHA256: [u8; 32] = *include_bytes!(concat!(env!("OUT_DIR"), "/pdf.sha256"));
+
+/// The class the PDF component declares.
+pub const PDF_CLASS: &str = "Novis\\Pdf\\Engine";
+
 /// `rule:core-classes/image-pixel-cap` on the host's side of a call: every encoded source in the
 /// arguments of a `Novis\Image\Codec::run` or `::variants` call — the source itself and each
 /// overlay's — gets `maxPixels` set to the smaller of its own and `in_force`, the `[image]
@@ -105,5 +114,5 @@ fn cap_overlays(plan: &mut Value, in_force: u64) {
 /// Records every built-in component's digest with [`nvs_config::cache::set_built_in`], so each
 /// `env_hash` this process computes afterwards folds them in. The binary calls it once, first.
 pub fn fold_into_env_hash() -> bool {
-    nvs_config::cache::set_built_in(&[IMAGE_SHA256, INTL_SHA256])
+    nvs_config::cache::set_built_in(&[IMAGE_SHA256, INTL_SHA256, PDF_SHA256])
 }

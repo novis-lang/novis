@@ -1,0 +1,27 @@
+--TEST--
+A render reads only its assets and `data:` URIs: a name the asset map lacks, a `file:` URL and an `http:` URL each throw `LogicError` naming the reference, and an added asset renders: rule:core-classes/pdf-render-has-no-io
+--FILE--
+<?nvs
+// covers: Novis\Pdf\Document::asset
+use Novis\Image\Image;
+use Novis\Pdf\Document;
+
+// Each of these images is not in the asset map, so each render throws an error.
+array<string> $sources = ["logo.png", "file:///etc/passwd", "http://example.com/logo.png"];
+foreach ($sources as string $src) {
+    try {
+        Document::fromHtml("<img src=\"" . $src . "\">")->render();
+    } catch (LogicError $error) {
+        echo "LogicError: ", $error->message, "\n";
+    }
+}
+
+// With `logo.png` added as an asset, the same HTML renders.
+bytes $logo = Image::create(4, 4, Novis\Image\Color::rgba(0, 0, 255))->encode();
+var $rendered = Document::fromHtml("<img src=\"logo.png\">")->asset("logo.png", $logo)->render();
+echo $rendered->pageCount, " page\n";
+--EXPECT--
+LogicError: `logo.png` is not in the asset map: a render reads only its assets and `data:` URIs
+LogicError: `file:///etc/passwd` is not in the asset map: a render reads only its assets and `data:` URIs
+LogicError: `http://example.com/logo.png` is not in the asset map: a render reads only its assets and `data:` URIs
+1 page

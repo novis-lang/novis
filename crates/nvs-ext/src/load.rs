@@ -665,13 +665,14 @@ impl Builtin {
 }
 
 /// Every built-in component: its name, the bytes the binary carries and the digest the build took.
-const BUILTINS: [(&str, &[u8], &[u8; 32]); 2] = [
+const BUILTINS: [(&str, &[u8], &[u8; 32]); 3] = [
     (
         "image",
         crate::builtin::IMAGE,
         &crate::builtin::IMAGE_SHA256,
     ),
     ("intl", crate::builtin::INTL, &crate::builtin::INTL_SHA256),
+    ("pdf", crate::builtin::PDF, &crate::builtin::PDF_SHA256),
 ];
 
 /// The manifests of the built-in components, read without an engine and without compiling: what

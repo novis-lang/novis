@@ -1,0 +1,82 @@
+<?nvs
+namespace Novis\Pdf;
+
+use LogicError;
+
+/// An HTML document to render as a PDF file, with the images, stylesheets and fonts it uses.
+/// Each method returns a new `Document` and leaves this one as it was.
+final class Document
+{
+    type Asset = {name: string, data: bytes};
+
+    private function constructor(
+        private readonly string $html,
+        private readonly array<Asset> $assets,
+        private readonly ?Standard $standard,
+        private readonly ?string $invoiceXml,
+        private readonly ?string $password,
+        private readonly ?Core\Time\Instant $created,
+    ) {}
+
+    /// `Document::fromHtml` starts a document from its HTML.
+    /// The HTML may name assets, such as `<img src="logo.png">`. Add each one with `asset`.
+    public static function fromHtml(Core\Html\Markup|string $html): Document
+    {
+        if ($html is Core\Html\Markup) {
+            return new Document(Core\Html::toSource($html, "the PDF engine parses the document itself"), [], null, null, null, null);
+        }
+        return new Document($html as string, [], null, null, null, null);
+    }
+
+    /// `asset` adds a file the HTML names, such as an image or a stylesheet.
+    /// A render reads only these files and `data:` URIs. Any other name throws a `LogicError`.
+    public function asset(string $name, bytes $data): Document
+    {
+        array<Asset> $assets = $this->assets;
+        $assets[] = {name: $name, data: $data};
+        return new Document($this->html, $assets, $this->standard, $this->invoiceXml, $this->password, $this->created);
+    }
+
+    /// `standard` sets the PDF standard the file follows.
+    public function standard(Standard $standard): Document
+    {
+        return new Document($this->html, $this->assets, $standard, $this->invoiceXml, $this->password, $this->created);
+    }
+
+    /// `invoiceXml` attaches the XML of an electronic invoice to the file.
+    /// It needs the standard `Standard::PdfA3b`. With any other standard, `render` throws a `LogicError`.
+    public function invoiceXml(string $xml): Document
+    {
+        return new Document($this->html, $this->assets, $this->standard, $xml, $this->password, $this->created);
+    }
+
+    /// `password` encrypts the file. A reader needs the password to open it.
+    /// A PDF/A standard does not allow a password, so `render` then throws a `LogicError`.
+    public function password(string $password): Document
+    {
+        return new Document($this->html, $this->assets, $this->standard, $this->invoiceXml, $password, $this->created);
+    }
+
+    /// `created` sets the creation time in the file. Without it, the file has no creation time.
+    public function created(Core\Time\Instant $at): Document
+    {
+        return new Document($this->html, $this->assets, $this->standard, $this->invoiceXml, $this->password, $at);
+    }
+
+    /// `render` returns the PDF file and its pages.
+    /// Two renders of the same document give the same bytes.
+    public function render(): Rendered
+    {
+        var $result = Engine::render({
+            html: $this->html,
+            assets: $this->assets,
+            options: {
+                standard: $this->standard,
+                password: $this->password,
+                invoiceXml: $this->invoiceXml,
+                created: $this->created,
+            },
+        });
+        return new Rendered($result->data, $result->pageCount, $result->dropped, $result->missingGlyphs, $result->overflows);
+    }
+}
