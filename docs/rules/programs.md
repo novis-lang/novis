@@ -3,7 +3,7 @@
 
 # Programs
 
-*6 of 22 rules below are **designed** rather than shipped, and are marked where they appear.*
+*5 of 22 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="programs-audience"></a>
 
@@ -389,7 +389,7 @@ scan the other enumeration members do.
 
 <a id="programs-compile-target"></a>
 
-## A compile target changes the host context, never the language  *(designed — not yet in the compiler)*
+## A compile target changes the host context, never the language
 
 `rule:programs/compile-target`
 
@@ -806,7 +806,7 @@ itself a bundle.
 
 <a id="programs-first-party-framework"></a>
 
-## Novis ships the framework, split by the standard-library placement tests  *(designed — not yet in the compiler)*
+## Novis ships the framework, split by the standard-library placement tests  *(designed — owned by M16)*
 
 `rule:programs/first-party-framework`
 
@@ -840,6 +840,9 @@ giving up the guarantees it exists for. That answer belongs on the documentation
 
 If the boundary between the halves is crossed repeatedly, by a package member that keeps needing a
 privileged escape hatch, the tier tests are applied to that member again; no escape hatch is added.
+
+**Partly on disk.** The `Core` half is built ([`programs/framework-core-half`](programs.md#programs-framework-core-half)). There is no
+`nvs/web` package.
 
 **Declined:**
 - **Primitives only: router, session and validation in `Core`, the rest left to the ecosystem.** It
@@ -891,7 +894,7 @@ arriving with no test is a bug in the roster.
 
 <a id="programs-framework-web-package"></a>
 
-## The opinionated half is `nvs/web`, a first-party package providing the `Web` namespace  *(designed — not yet in the compiler)*
+## The opinionated half is `nvs/web`, a first-party package providing the `Web` namespace  *(designed — owned by M16)*
 
 `rule:programs/framework-web-package`
 
@@ -914,11 +917,13 @@ and form binding over `Core\Validate` — the ergonomics, never the laundering; 
 the template engine and the HTML sink already auto-escapes by default, so a second templating language
 would be a second spelling of one job. `Web\Response::view` renders a `.nvs` file and nothing more.
 
+**Not on disk.** There is no `nvs/web` package and no `Web` namespace.
+
 <sub>See also [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`programs/framework-core-half`](programs.md#programs-framework-core-half), [`programs/no-migration-runner`](programs.md#programs-no-migration-runner).</sub>
 
 <a id="programs-framework-refusals"></a>
 
-## The framework has no ORM, no runtime container, and no second way to do anything  *(designed — not yet in the compiler)*
+## The framework has no ORM, no runtime container, and no second way to do anything  *(designed — owned by M16)*
 
 `rule:programs/framework-refusals`
 
@@ -939,11 +944,13 @@ would be a second spelling of one job. `Web\Response::view` renders a `.nvs` fil
 - **No second way to do anything the language does.** The framework ships no collections of its own, no
   date type, no string helpers and no error hierarchy.
 
+**Not on disk.** There is no `nvs/web` package for these refusals to hold.
+
 <sub>See also [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`programs/implementing`](programs.md#programs-implementing).</sub>
 
 <a id="programs-no-migration-runner"></a>
 
-## No migration runner ships until migration semantics are decided  *(designed — not yet in the compiler)*
+## No migration runner ships until migration semantics are decided  *(designed — owned by M16)*
 
 `rule:programs/no-migration-runner`
 
@@ -960,11 +967,13 @@ root-owned configuration, and none of them is obvious.
 `nvs/web` may ship a migration runner, and one appearing in the package without that decision is a
 review failure.
 
+**Not on disk.** There is no `nvs/web` package, so there is no `Web\Migration` either.
+
 <sub>See also [`programs/framework-web-package`](programs.md#programs-framework-web-package), [`programs/first-party-framework`](programs.md#programs-first-party-framework).</sub>
 
 <a id="programs-nvs-new"></a>
 
-## `nvs new` writes an application that runs before it is edited  *(designed — not yet in the compiler)*
+## `nvs new` writes an application that runs before it is edited  *(designed — owned by M16)*
 
 `rule:programs/nvs-new`
 
@@ -987,5 +996,7 @@ Two constraints bind the template:
 The scaffold is a load-bearing artifact. It is the first experience, so it is held to the compiler's
 own standard: tested on Windows, Linux and macOS as a first-class CI job, and a change that breaks it
 is a regression.
+
+**Not on disk.** `nvs` has no `new` command.
 
 <sub>See also [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`programs/framework-web-package`](programs.md#programs-framework-web-package), [`programs/audience`](programs.md#programs-audience).</sub>

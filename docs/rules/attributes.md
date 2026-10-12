@@ -3,8 +3,6 @@
 
 # Attributes
 
-*1 of 11 rules below are **designed** rather than shipped, and are marked where they appear.*
-
 <a id="attributes-inert-metadata"></a>
 
 ## An attribute is an anonymous object on a declaration, and nothing is ever declared or instantiated for it
@@ -371,7 +369,7 @@ of them.
 
 <a id="attributes-a-deprecation-names-its-replacement-as-code"></a>
 
-## `#[Core\Deprecated]` names its replacement as a Novis expression checked where it is declared, and every use is warning `W1003` carrying that replacement as its fix  *(designed — not yet in the compiler)*
+## `#[Core\Deprecated]` names its replacement as a Novis expression checked where it is declared, and every use is warning `W1003` carrying that replacement as its fix
 
 `rule:attributes/a-deprecation-names-its-replacement-as-code`
 
