@@ -417,6 +417,10 @@ The record, `data/rules/core-classes/schema-plan.json`:
 - **`status` is `shipped` or `designed`**, and `designed` is the honest answer for a rule the tree does
   not hold yet. `docs/novis.md` filters to `shipped` so every line in it runs; the rulebook carries both,
   and the pack marks a designed rule where it prints one.
+- **A `designed` rule names the one owner that ships it**, as a gap does: `goal`, the slug of any goal
+  file under `docs/goals/`, or `milestone`, a milestone at M9 or later that is not done. Never both,
+  and a `shipped` rule names neither. The chapter prints the owner beside the title, and
+  `bun nv owners` lists every designed rule by its owner.
 - **`guardedBy` is what holds the rule** — a test path, not a description. It is how a reader gets from
   the rule to the thing that fails when it is broken, and the pack samples it rather than printing it all.
 
