@@ -48,7 +48,7 @@ stages:
         shapes: []
   - id: 8
     title: "flex, grid, floats and positioning"
-    status: open
+    status: done
     extra:
       context:
         rules: []
@@ -791,28 +791,24 @@ One file set: `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/n
 
 ### State
 
-**Stage 8: flex, grid, floats, `relative` and `absolute` with `z-index` are in.** `cargo test --manifest-path extensions/pdf/Cargo.toml --test layout` passes 27 tests, now with `absolute_positions_against_its_containing_block`. `position: fixed` and transforms are still owed: 2 of the stage's 7 checked names do not run yet.
+**Stage 8 is done: flex, grid, floats, `relative`, `absolute` and `fixed` positioning with `z-index`, and 2D transforms are in.** `looper check --name pdf-flex-grid-floats-and-positioning` passes, and `cargo test --manifest-path extensions/pdf/Cargo.toml --test layout` runs 29 tests.
 
-- Positioning is as `extensions/pdf/src/layout.rs`'s § *Positioning* and `extensions/pdf/src/layout/block.rs`'s module doc say. An absolute element is an `Atom` closed by `close_absolute` into a `Block::Absolute`. `Flow::absolute` (`extensions/pdf/src/layout/block.rs:603`) hands it to the innermost positioned `Open`'s `Stack`, or to the flow's `loose` list. `Flow::lift` (`extensions/pdf/src/layout/block.rs:534`) places those absolute boxes when their containing block closes, applies a relative offset, and drains the box out of its pages into `Layer`s. `Flow::finish` (`extensions/pdf/src/layout/block.rs:666`) places the loose ones against the page's content box and draws every layer back by `(z, order)`. `lay` calls `finish` with the atom's own padding box.
-- `looper verify` was red only in `nvs-stdlib`'s `ldap`, `nvs-ldap`'s `samba` and `nvs-server`'s lib (`a_fleet_lease_is_renewed_while_its_run_is_in_flight`), each of which verify reran alone and saw pass: timing under load. This change touches `extensions/pdf/` alone.
-- `cargo deny --manifest-path extensions/pdf/Cargo.toml --target wasm32-wasip2 --locked check` fails on advisories alone: `rustybuzz` is unmaintained, through `krilla`. No check runs it.
-- `cargo clippy --manifest-path extensions/pdf/Cargo.toml --all-targets` has the same 7 warnings as before: 5 in `css/value.rs` and `css/mod.rs`, and 2 `large_enum_variant` for `Block` and `Step`. `bun nv verify` does not run clippy over the extension's own workspace.
+- `fixed` and transforms are as `extensions/pdf/src/layout.rs`'s § *Positioning* and § *Transforms* say. A `fixed` box is a `Block::Absolute` with `fixed: true`; `Flow::absolute` keeps it out of every `Stack`, and `Flow::finish` (`extensions/pdf/src/layout/block.rs`) places one copy per page against the page's content box. A transform is `Decor::transform`, read by `transform::read` (`extensions/pdf/src/layout/transform.rs`) when a block opens, turned into a matrix in `Flow::close` per page slice, and carried on `Item::Begin`, which `text::shift` moves and `write.rs` pushes as a krilla transform.
+- The transform test asserts the group's matrix against the box's corners and centre. No page was rasterised, because the crate's dev-dependencies have no PDF rasteriser.
+- `looper verify` was red only in `nvs-server`'s lib (`a_fleet_lease_is_renewed_while_its_run_is_in_flight`) and `nvs-cli`'s `live_edit`, both of which verify reran alone and saw pass: timing under load. This change touches `extensions/pdf/` alone.
+- `cargo clippy --manifest-path extensions/pdf/Cargo.toml --all-targets` has the same 7 warnings as before, in `css/` and the 2 `large_enum_variant`. `cargo deny` over the extension still fails on `rustybuzz` being unmaintained, through `krilla`; no check runs it.
 
 ### Next
 
-**Stage 8, `fixed` and transforms next**: the file set is `extensions/pdf/src/layout/block.rs`, `extensions/pdf/src/layout/inline.rs`, `extensions/pdf/src/layout.rs`, `extensions/pdf/src/write.rs` and `extensions/pdf/tests/layout.rs`.
+**Stage 9, `@page` and margin boxes first**: the file set is `extensions/pdf/src/css/mod.rs`, `extensions/pdf/src/layout/text.rs`, `extensions/pdf/src/layout.rs`, `extensions/pdf/src/paginate/` (new) and `extensions/pdf/tests/paginate.rs` (new).
 
-- [x] **Flex rows and columns through `taffy`** (`flex_lays_out_rows_and_columns`).
-- [x] **Grid through `taffy`** (`grid_places_items_in_tracks`).
-- [x] **Flex and grid break only between items and rows** (`flex_and_grid_break_only_between_items_and_rows`).
-- [x] **Floats and `clear`** (`a_float_right_wraps_the_text_beside_it`).
-- [x] **`position: relative` and `absolute`, with `z-index`** (`absolute_positions_against_its_containing_block`).
-- [ ] **`position: fixed` on every page** (`fixed_repeats_on_every_page`, `rule:core-classes/pdf-css-subset-table`). Read `fixed` beside `absolute` (`extensions/pdf/src/layout/inline.rs:1101`, `extensions/pdf/src/layout/block.rs:164`), keep it out of any `Stack`, and have `Flow::finish` (`extensions/pdf/src/layout/block.rs:666`) push a copy of its layer onto every page against the page's content box.
-- [ ] **2D transforms** (`a_rotated_transform_is_drawn_rotated`). `transform` is `Grammar::Transform` text (`extensions/pdf/src/css/properties.rs:418`). A transform needs a matrix on `Item::Begin` (`extensions/pdf/src/layout.rs:207`) that the writer applies (`extensions/pdf/src/write.rs:260`), wrapped around a box's items when it closes, as opacity is in `Flow::close`.
+- [ ] **`@page` size and margins, with `:first`, `:left`, `:right` and `:blank`** (`page_size_margins_and_first_left_right_blank`, `rule:core-classes/pdf-css-subset-table`). The cascade already keeps `@page` rules (`extensions/pdf/src/css/mod.rs:189`); `layout` lays every page at `PAGE_WIDTH`, `PAGE_HEIGHT` and `MARGIN` (`extensions/pdf/src/layout.rs:161`, `extensions/pdf/src/layout/text.rs:53`), and the flow needs a limit and an area per page.
+- [ ] **Margin boxes with `counter(page)` and `counter(pages)`** (`margin_boxes_print_page_x_of_y`). The 16 boxes are named at `extensions/pdf/src/css/mod.rs:114`.
+- [ ] **Running elements** (`a_running_element_repeats_on_every_page`): `position: running(name)` is read beside `fixed` (`extensions/pdf/src/layout/inline.rs:1101`) and drawn by `element()`.
 
 ### Backlog
 
-- Positioning: an absolute box without a `width` narrows against its parent's content box and is not stretched by `left` with `right`, a percentage `top` or `bottom` of a relative box is 0, an inline element's `position` does nothing, and a non-positioned ancestor's `opacity` group does not take in a positioned child (`extensions/pdf/src/layout.rs`, `extensions/pdf/src/layout/block.rs`).
+- Positioning: an absolute box without a `width` narrows against its parent's content box and is not stretched by `left` with `right`, a percentage `top` or `bottom` of a relative box is 0, an inline element's `position` and `transform` do nothing, a transformed box is not a containing block, a `fixed` box inside an inline-block, float or flex item is placed once against it, and a non-positioned ancestor's `opacity` group does not take in a positioned child (`extensions/pdf/src/layout.rs`, `extensions/pdf/src/layout/block.rs`).
 - Floats: an `<img>` with `float` stays a block, a float in the middle of a paragraph is placed at the paragraph's top, a line with no room beside a float is not moved below it, and a float does not go on to the next page (`extensions/pdf/src/layout.rs`, `extensions/pdf/src/layout/block.rs`).
 - Grid: a track with a length and a percentage in one `calc()` is not read, and `grid-template` and `grid` shorthands are not in the subset table (`extensions/pdf/src/layout/grid.rs`). A flex or grid container's `::before` and `::after` and a `<br>` in it are not items, `align-items: baseline` has no baseline from an item, and an item's `margin: auto` does nothing (`extensions/pdf/src/layout/flex.rs`).
 - Elliptical radii and repeating gradients are not laid out (`extensions/pdf/src/layout/boxes.rs`). `hyphenate-character` is not in the subset table, so the drawn hyphen is always `-` (`extensions/pdf/subset.json`). An inline box draws its sides left to right in a right-to-left line, its `opacity` is not drawn, and it does not draw around an inline-block in it (`extensions/pdf/src/layout.rs`).
