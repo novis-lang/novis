@@ -7,5 +7,6 @@
     "packaging/a-fresh-instance-per-request",
     "core-classes/html-template"
   ],
-  "guardedBy": []
+  "guardedBy": [],
+  "goal": "pdf"
 }

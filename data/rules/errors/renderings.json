@@ -8,5 +8,6 @@
   ],
   "guardedBy": [
     "tests/conformance/core/log-format-text-selects-the-plaintext-rendering.nvst"
-  ]
+  ],
+  "goal": "language-rule-debts"
 }

@@ -10,5 +10,8 @@
     "security/no-eval",
     "types/one-type-test"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "crates/nvs-syntax/src/parser/tests/expr.rs"
+  ],
+  "goal": "language-rule-debts"
 }

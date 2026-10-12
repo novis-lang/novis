@@ -31,5 +31,8 @@ An encrypted document is opened with a password nobody sets, so one whose user p
 refused too. A font in an encoding `hayro` cannot draw, and an image that does not decode, throw
 `RuntimeError` naming the page.
 
-**Not shipped.** The fixture carrying an external reference, a JavaScript action and an embedded
-file, and a fixture for each object that throws.
+**Partly on disk.** `extensions/image/src/pdf.rs` throws `ParseError` for an encrypted document, and
+the bomb corpus ends in a throw, a contained trap or a whole page
+(`crates/nvs-ext/tests/image_decode.rs`). Two fixtures are not written: one carrying an external
+reference, a JavaScript action and an embedded file, and one for each object that throws. The `pdf`
+goal owes both.

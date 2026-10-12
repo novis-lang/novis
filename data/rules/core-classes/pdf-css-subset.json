@@ -6,5 +6,9 @@
     "core-classes/pdf-one-engine",
     "core-classes/spreadsheet-evaluation-and-roster"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "extensions/pdf/tests/css.rs",
+    "extensions/pdf/tests/layout.rs"
+  ],
+  "goal": "pdf"
 }

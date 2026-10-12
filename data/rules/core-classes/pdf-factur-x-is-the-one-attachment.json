@@ -6,5 +6,6 @@
     "core-classes/pdf-standards-and-passwords",
     "core-classes/pdf-reader-and-merge"
   ],
-  "guardedBy": []
+  "guardedBy": [],
+  "goal": "pdf"
 }

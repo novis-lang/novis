@@ -47,7 +47,7 @@ plan's option shapes that the builder fills in for the caller — `format`'s, `r
 `composite`'s — declare `x: ?T` rather than `x?: T` in `extensions/image/manifest.json`, because a
 Novis shape has no way to leave a key out conditionally; both cross as the same WIT `option`.
 
-**Not shipped.** The interface is written: `wit/image.wit` holds package `nvs:image@1.0.0`, its
+**Partly on disk.** The interface is written: `wit/image.wit` holds package `nvs:image@1.0.0`, its
 `codec` interface and the `image` world, and `crates/nvs-stdlib/tests/ext_world.rs` places every
 builder member. A plan's `step` is a WIT record with one optional field per operation, exactly one
 of them set, because the manifest tells a union's cases apart by their required keys and most steps
@@ -64,6 +64,11 @@ builder is Novis source in `extensions/image/nvs/`, packed into the component's 
 `Image` with every member `IMAGE_MEMBERS` in `crates/nvs-stdlib/tests/ext_world.rs` places, and
 `Color` with `rgba` and `hex` and no named constants yet (`tests/conformance/novis/`). A canvas or
 pixel source is held to the default pixel cap, not the `[image]` one.
+
+What is missing is `raw()` on a large image. A list of bytes crosses the boundary as one wasmtime
+value per byte, so a `raw()` of an image over about one megapixel runs out of wasmtime's hostcall
+fuel and throws `ExtensionError` (`crates/nvs-ext/src/convert.rs`). The bulk path that copies the
+bytes once each way is M9's gap `data/gaps/nvs-ext/bytes-cross-one-val-per-byte.json`.
 
 **Declined:**
 - **A gd-shaped handle with a call per operation.** It materialises every intermediate, prevents

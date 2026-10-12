@@ -7,5 +7,6 @@
   ],
   "guardedBy": [
     "crates/nvs-ext/tests/image_pipeline.rs"
-  ]
+  ],
+  "milestone": "M17"
 }

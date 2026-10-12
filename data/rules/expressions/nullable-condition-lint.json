@@ -6,5 +6,6 @@
     "expressions/truthy-table",
     "expressions/bare-throwable-arm-warns"
   ],
-  "guardedBy": []
+  "guardedBy": [],
+  "goal": "language-rule-debts"
 }

@@ -26,7 +26,11 @@ rounds through a float.
   request's cap, and drops it with the instance. Novis holds one `Page` per page and the markup the
   functions return.
 
-**Not shipped.** There is no PDF component in the tree.
+**Partly on disk.** The CSS half is built: the margin boxes, `counter(page)`, `counter(pages)`,
+`string-set` and running elements (`extensions/pdf/src/layout/margin.rs`). The function half is
+not. `Document` has no `header` or `footer`, `Page` is not written, and the component's `first` and
+`second` passes return `runtime` (`extensions/pdf/src/lib.rs:20`). The `pdf` goal's Stage 10
+builds them.
 
 **Declined:**
 - **A function called from the guest per page.** The world has no export a guest calls back into

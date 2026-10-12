@@ -15,7 +15,9 @@ delivery channel `pdf-output-is-inert` closes.
 
 - **Memory:** the XML once, inside the request's cap, and the bytes it adds to the output.
 
-**Not shipped.** There is no PDF component in the tree.
+**Partly on disk.** `Document::invoiceXml` is in `extensions/pdf/nvs/Document.nvs`, and an invoice
+XML without PDF/A-3b is refused before anything is laid out (`extensions/pdf/src/lib.rs:107`). The
+XML is not checked for well-formedness and not embedded: the `pdf` goal's Stage 12 does both.
 
 **Declined:**
 - **General attachments.** A file a reader opens from inside a PDF is a delivery channel for anything,

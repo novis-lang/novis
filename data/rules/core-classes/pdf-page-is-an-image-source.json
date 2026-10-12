@@ -7,5 +7,9 @@
     "core-classes/pdf-decode-refusals",
     "core-classes/pdf-default-fonts"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "crates/nvs-ext/tests/image_decode.rs",
+    "tests/conformance/novis/image-a-pdf-page-opens-as-an-image.nvst"
+  ],
+  "goal": "pdf"
 }

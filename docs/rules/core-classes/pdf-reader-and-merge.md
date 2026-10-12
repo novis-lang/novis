@@ -25,7 +25,10 @@ tool. They live beside the writer because they return text and bytes, never pixe
 - **Memory:** per call, the source bytes and what the call returns, inside the request's cap; a merge
   holds its sources and the merged file at once.
 
-**Not shipped.** There is no PDF component in the tree.
+**Not on disk.** `wit/pdf.wit` and `extensions/pdf/manifest.json` declare `merge`, `read` and
+`read-text`, and the component returns `runtime` for each (`extensions/pdf/src/lib.rs:20`). `Pages`
+and `Reader` are not written, and `<img>` does not place a PDF page. The `pdf` goal's Stage 13 builds
+all three jobs.
 
 **Declined:**
 - **Rebuilding tables and columns from extracted text.** That is a layout guess, right for some files

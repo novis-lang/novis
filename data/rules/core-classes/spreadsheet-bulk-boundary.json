@@ -6,5 +6,6 @@
     "core-classes/image-pixel-cap",
     "core-classes/spreadsheet-has-no-io"
   ],
-  "guardedBy": []
+  "guardedBy": [],
+  "goal": "spreadsheet"
 }

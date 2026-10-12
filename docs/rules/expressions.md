@@ -3,7 +3,7 @@
 
 # Expressions
 
-*4 of 33 rules below are **designed** rather than shipped, and are marked where they appear.*
+*1 of 33 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="expressions-truthy-positions"></a>
 
@@ -119,7 +119,7 @@ way PHP lets it be written.
 
 <a id="expressions-nullable-condition-lint"></a>
 
-## A `?T` used directly as a condition is warned about, not refused  *(designed — not yet in the compiler)*
+## A `?T` used directly as a condition is warned about, not refused  *(designed — owned by goal language-rule-debts)*
 
 `rule:expressions/nullable-condition-lint`
 
@@ -133,7 +133,8 @@ operator**: any `?int` in an `if` has always had it. Refusing it would narrow
 [`expressions/truthy-positions`](expressions.md#expressions-truthy-positions) for every nullable value in the language, which is a larger change
 than this one.
 
-No warning code is allocated yet, and `nvs check` does not emit this today.
+**Not on disk.** No warning code is allocated, and `check_condition`
+(`crates/nvs-types/src/expr/mod.rs:199`) reports nothing for a `?T` condition.
 
 **Declined:**
 - **Refusing a `?T` condition outright.** It is the strongest guard against the trap, but it changes
@@ -784,7 +785,7 @@ normally, and the enclosing statement's probe is unaffected either way.
 
 <a id="expressions-pipeline-substitution"></a>
 
-## `|>` substitutes one hole at parse time, and has no run-time representation  *(designed — not yet in the compiler)*
+## `|>` substitutes one hole at parse time, and has no run-time representation
 
 `rule:expressions/pipeline-substitution`
 
@@ -840,7 +841,7 @@ one composition.
 
 <a id="expressions-pipeline-precedence"></a>
 
-## `|>` binds tighter than every binary operator and looser than unary  *(designed — not yet in the compiler)*
+## `|>` binds tighter than every binary operator and looser than unary
 
 `rule:expressions/pipeline-precedence`
 
@@ -862,7 +863,7 @@ arise.
 
 <a id="expressions-pipeline-hole-once"></a>
 
-## The hole is `$_`, it appears exactly once on a right side, and nowhere else at all  *(designed — not yet in the compiler)*
+## The hole is `$_`, it appears exactly once on a right side, and nowhere else at all
 
 `rule:expressions/pipeline-hole-once`
 

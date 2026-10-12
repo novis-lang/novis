@@ -18,6 +18,12 @@ The diagnostics name the living spellings: `var` declares an inferred local
 (`rule:expressions/nullable-conversion`). Like every reserved word, both match in lower case only
 (`rule:classes/reserved-spellings-are-lower-case`).
 
+**Partly on disk.** Where an expression starts, either word is `E0247`
+(`crates/nvs-syntax/src/parser/expr.rs:1501`, `crates/nvs-syntax/src/parser/mod.rs:781`). A
+declaration's name is not checked: `parse_decl_name` accepts both
+(`crates/nvs-syntax/src/parser/decl.rs:366`), so a method named `is` or `let` compiles, and
+`tests/conformance/lang/mutual-recursion-across-two-classes.nvst:6` declares one.
+
 **Declined:**
 - **Reserving `is` alone and leaving `let` free.** Reserving the second word costs the same as the
   first, and freeing it again stays possible where taking it back is not.

@@ -3,7 +3,7 @@
 
 # The Core classes
 
-*33 of 108 rules below are **designed** rather than shipped, and are marked where they appear.*
+*21 of 108 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="core-classes-cli-arguments"></a>
 
@@ -2433,7 +2433,7 @@ returns `bool` and throws on an error.
 
 <a id="core-classes-ldap-filter-is-a-value"></a>
 
-## An LDAP filter is an immutable value encoded straight to BER, whose values accept `tainted` and whose attribute names are a sink  *(designed — not yet in the compiler)*
+## An LDAP filter is an immutable value encoded straight to BER, whose values accept `tainted` and whose attribute names are a sink
 
 `rule:core-classes/ldap-filter-is-a-value`
 
@@ -2474,7 +2474,7 @@ take every request on the core down with it. The builder that would pass the lim
 
 <a id="core-classes-ldap-dn-is-the-launderer"></a>
 
-## `Ldap\Dn` is the one launderer for the DN sink, and every DN parameter takes a `Dn` or a string that refuses `tainted`  *(designed — not yet in the compiler)*
+## `Ldap\Dn` is the one launderer for the DN sink, and every DN parameter takes a `Dn` or a string that refuses `tainted`
 
 `rule:core-classes/ldap-dn-is-the-launderer`
 
@@ -2494,7 +2494,7 @@ escaper for filter text either ([`core-classes/ldap-filter-is-a-value`](core-cla
 
 <a id="core-classes-ldap-value-types"></a>
 
-## Each LDAP attribute has one natural type from the schema and a fixed table of Active Directory names, and a typed reader converts only where nothing is lost  *(designed — not yet in the compiler)*
+## Each LDAP attribute has one natural type from the schema and a fixed table of Active Directory names, and a typed reader converts only where nothing is lost
 
 `rule:core-classes/ldap-value-types`
 
@@ -3023,7 +3023,7 @@ chosen for the deployment that has not thought about it.
 
 <a id="core-classes-image-pipeline"></a>
 
-## An image is an immutable value carrying a plan, and nothing decodes until a terminal runs it  *(designed — not yet in the compiler)*
+## An image is an immutable value carrying a plan, and nothing decodes until a terminal runs it  *(designed — owned by M9)*
 
 `rule:core-classes/image-pipeline`
 
@@ -3076,7 +3076,7 @@ plan's option shapes that the builder fills in for the caller — `format`'s, `r
 `composite`'s — declare `x: ?T` rather than `x?: T` in `extensions/image/manifest.json`, because a
 Novis shape has no way to leave a key out conditionally; both cross as the same WIT `option`.
 
-**Not shipped.** The interface is written: `wit/image.wit` holds package `nvs:image@1.0.0`, its
+**Partly on disk.** The interface is written: `wit/image.wit` holds package `nvs:image@1.0.0`, its
 `codec` interface and the `image` world, and `crates/nvs-stdlib/tests/ext_world.rs` places every
 builder member. A plan's `step` is a WIT record with one optional field per operation, exactly one
 of them set, because the manifest tells a union's cases apart by their required keys and most steps
@@ -3093,6 +3093,11 @@ builder is Novis source in `extensions/image/nvs/`, packed into the component's 
 `Image` with every member `IMAGE_MEMBERS` in `crates/nvs-stdlib/tests/ext_world.rs` places, and
 `Color` with `rgba` and `hex` and no named constants yet (`tests/conformance/novis/`). A canvas or
 pixel source is held to the default pixel cap, not the `[image]` one.
+
+What is missing is `raw()` on a large image. A list of bytes crosses the boundary as one wasmtime
+value per byte, so a `raw()` of an image over about one megapixel runs out of wasmtime's hostcall
+fuel and throws `ExtensionError` (`crates/nvs-ext/src/convert.rs`). The bulk path that copies the
+bytes once each way is M9's gap `data/gaps/nvs-ext/bytes-cross-one-val-per-byte.json`.
 
 **Declined:**
 - **A gd-shaped handle with a call per operation.** It materialises every intermediate, prevents
@@ -3116,7 +3121,7 @@ pixel source is held to the default pixel cap, not the `[image]` one.
 
 <a id="core-classes-image-pixel-model"></a>
 
-## Pixels are RGBA8 and nothing else, which retires gd's palettes, mode flags and drawing primitives  *(designed — not yet in the compiler)*
+## Pixels are RGBA8 and nothing else, which retires gd's palettes, mode flags and drawing primitives  *(designed — owned by M17)*
 
 `rule:core-classes/image-pixel-model`
 
@@ -3151,21 +3156,23 @@ What a gd program becomes, one row per concept:
 | `imagesetpixel`, `imagecolorat` | `raw()` and `fromRaw()`, once, the whole buffer |
 | palettes, mode flags, drawing primitives, affine matrices, screen capture, gd's own formats | dropped, with the replacement above where one exists |
 
-**Not shipped.** The component works on RGBA8 frames throughout, and a pixel source and the `raw`
-output are RGBA8 rows (`extensions/image/src/lib.rs`).
+**Partly on disk.** The component works on RGBA8 frames throughout, and a pixel source and the `raw`
+output are RGBA8 rows (`extensions/image/src/lib.rs`). `Image::info` returns `exif` as `null`,
+because the component has no EXIF reader (`extensions/image/src/info.rs:5`); M17's image second
+wave fills it (`docs/plan/m17.md`).
 
 <sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/image-format-roster`](core-classes.md#core-classes-image-format-roster).</sub>
 
 <a id="core-classes-image-format-roster"></a>
 
-## The format roster is a closed table of decoders and encoders, each naming what implements it  *(designed — not yet in the compiler)*
+## The format roster is a closed table of decoders and encoders, each naming what implements it  *(designed — owned by M17)*
 
 `rule:core-classes/image-format-roster`
 
 The roster is a closed table, each row naming what decodes it, what encodes it, and what implements
 both. JPEG, PNG with APNG, WebP, GIF and AVIF decode and encode. JPEG XL decodes only, because no
-Rust encoder exists and the C library is not admitted. SVG and PDF decode only, by rasterisation, in
-a second wave. TIFF, BMP, TGA, ICO, PNM, HEIC and gd's own formats do neither.
+Rust encoder exists and the C library is not admitted. SVG and PDF decode only, by rasterisation.
+TIFF, BMP, TGA, ICO, PNM, HEIC and gd's own formats do neither.
 
 Each absence is a decision rather than an omission. HEIC is out because the codec is
 patent-encumbered and has no Rust decoder, and iOS browsers upload JPEG by default. TIFF is a large
@@ -3179,12 +3186,15 @@ feature, and it is dropped once a pure-Rust lossy WebP encoder exists. Resamplin
 (`extensions/image/.cargo/config.toml`). AVIF encoding costs seconds of CPU per image and is
 documented as queue work rather than a request-path call.
 
-**Not shipped.** The image component's `run` decodes JPEG, PNG, WebP, GIF, AVIF and JPEG XL inside
+**Partly on disk.** The image component's `run` decodes JPEG, PNG, WebP, GIF, AVIF and JPEG XL inside
 the guest and refuses to encode JPEG XL (`crates/nvs-ext/tests/image_decode.rs`). AVIF decodes
 through `rav1d` on one thread (`extensions/image/src/avif.rs`). JPEG, PNG, WebP, GIF and AVIF
 encode (`extensions/image/src/encode.rs`, `crates/nvs-ext/tests/image_pipeline.rs`): lossy WebP
 through the libwebp that `extensions/image/build.rs` links, and AVIF through `ravif` on one thread.
-APNG is neither decoded as an animation nor encoded. SVG decodes through `resvg` with an image
+Only the first frame of an animated input is decoded, so `Image::info`'s `frames` is always `1`
+(`extensions/image/src/decode.rs:16`), and APNG is not encoded. M17's image second wave decodes every
+frame of APNG and the other animated formats and reports the real count (`docs/plan/m17.md`). SVG
+decodes through `resvg` with an image
 resolver that reads only `data:` URIs and throws `RuntimeError` naming any other `href`
 (`extensions/image/src/svg.rs`); its `<text>` is not drawn, because `usvg`'s text feature is off. A
 PDF page rasterises through `hayro` (`extensions/image/src/pdf.rs`).
@@ -3193,15 +3203,16 @@ PDF page rasterises through `hayro` (`extensions/image/src/pdf.rs`).
 
 <a id="core-classes-image-pixel-cap"></a>
 
-## The pixel cap is read off the header before a buffer is allocated, and a call may only lower it  *(designed — not yet in the compiler)*
+## The pixel cap is read off the header before a buffer is allocated, and a call may only lower it
 
 `rule:core-classes/image-pixel-cap`
 
 Before any pixel buffer is allocated, the component reads the **declared** dimensions — width times
-height times frames for an animated input, the declared canvas for an SVG, the selected page's box at
-the requested resolution for a PDF — and refuses an image over `[image] max_pixels` with a throw
-naming the cap and the declared size. A decompression bomb is refused from what the file claims,
-never discovered by exhausting memory.
+height, the declared canvas for an SVG, the selected page's box at the requested resolution for a
+PDF — and refuses an image over `[image] max_pixels` with a throw naming the cap and the declared
+size. A decompression bomb is refused from what the file claims, never discovered by exhausting
+memory. An animated input decodes its first frame only, so the cap prices one frame; decoding every
+frame is [`core-classes/image-format-roster`](core-classes.md#core-classes-image-format-roster)'s.
 
 It is a throw rather than a resource-limit fatal, because a rejected upload is an ordinary outcome
 the application answers with a status code. A call may pass its own cap **only to lower** it, the
@@ -3220,19 +3231,18 @@ The cap is `[image] max_pixels`, the block's only key. It is `System` and reload
 written it is `"24M"`, read in the size grammar every other key of the file uses, so `M` is 2²⁰
 pixels. `false` and zero are refused where they are written, because neither is a cap.
 
-**Not shipped.** The key is on disk (`nvs_config::image`, `crates/nvs-config/tests/directives.rs`),
-and the image component's `run` checks a header against a cap before it decodes
-(`crates/nvs-ext/tests/image_decode.rs`). The host sets every encoded source's `maxPixels` to the
-smaller of the call's and the key's value in the request's snapshot before the call crosses
-(`nvs_ext::builtin::cap_pixels`), so a call lowers the cap and never raises it
-(`tests/conformance/novis/image-a-bomb-is-refused-before-it-is-decoded.nvst`). The
-`Novis\Image` builder that would pass a program's own `{maxPixels}` is not written.
+The key is `nvs_config::image` (`crates/nvs-config/tests/directives.rs`), and the image component's
+`run` checks a header against a cap before it decodes (`crates/nvs-ext/tests/image_decode.rs`). The
+host sets every encoded source's `maxPixels` to the smaller of the call's and the key's value in the
+request's snapshot before the call crosses (`nvs_ext::builtin::cap_pixels`), so the `{maxPixels}`
+option of `Image::open` lowers the cap and never raises it
+(`tests/conformance/novis/image-a-bomb-is-refused-before-it-is-decoded.nvst`).
 
 <sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source), [`core-classes/spreadsheet-bulk-boundary`](core-classes.md#core-classes-spreadsheet-bulk-boundary).</sub>
 
 <a id="core-classes-image-correct-by-default"></a>
 
-## `open` orients and converts to sRGB, and `encode` strips metadata unless the plan kept it  *(designed — not yet in the compiler)*
+## `open` orients and converts to sRGB, and `encode` strips metadata unless the plan kept it  *(designed — owned by M17)*
 
 `rule:core-classes/image-correct-by-default`
 
@@ -3253,12 +3263,13 @@ A profile that does not parse, or that is neither RGB nor CMYK, is ignored, as a
 the pixels are kept as decoded. A CMYK JPEG is read as Adobe stores it, inverted, whether its scan
 is CMYK or YCCK.
 
-**Not shipped.** The component's `run` applies the orientation of a JPEG, PNG or WebP input,
+**Partly on disk.** The component's `run` applies the orientation of a JPEG, PNG or WebP input,
 converts its RGB or CMYK profile to sRGB, and re-encodes JPEG, PNG, WebP, GIF and AVIF with no
 metadata unless a `metadata` step keeps the EXIF block, which an AVIF never carries
 (`extensions/image/src/decode.rs`, `extensions/image/src/encode.rs`,
-`crates/nvs-ext/tests/image_pipeline.rs`). AVIF and JPEG XL inputs are neither oriented nor
-converted. The `Novis\Image` builder's `open` turns both on unless its options say `false`.
+`crates/nvs-ext/tests/image_pipeline.rs`). The `Novis\Image` builder's `open` turns both on unless
+its options say `false`. AVIF and JPEG XL inputs are neither oriented nor converted
+(`extensions/image/src/decode.rs:21`); M17's image second wave builds both (`docs/plan/m17.md`).
 
 **Declined:**
 - **Keep metadata by default, strip on request.** It is the least surprising default to someone who
@@ -3270,7 +3281,7 @@ converted. The `Novis\Image` builder's `open` turns both on unless its options s
 
 <a id="core-classes-image-one-entry-point-per-job"></a>
 
-## Comparison, hashing, placeholders, text, QR codes and SVG are one entry point each, because each is one job  *(designed — not yet in the compiler)*
+## Comparison, hashing, placeholders, text, QR codes and SVG are one entry point each, because each is one job
 
 `rule:core-classes/image-one-entry-point-per-job`
 
@@ -3287,37 +3298,40 @@ detection. **Placeholders** and **palette extraction** serve the front end.
 filesystem. It is shaped by `harfrust` in runs the Unicode bidirectional algorithm orders, so
 ligatures, Arabic joining, Indic conjuncts and right-to-left lines are drawn as the font defines
 them. **QR codes** are one entry point, because a QR code is an image a web application
-produces daily. **SVG** is an input format whose declared canvas counts against the pixel cap, whose
-scripts and foreign objects are ignored, and where **no external reference is ever resolved** —
-there is nothing in the guest to resolve it with. Rasterising is how an uploaded SVG is displayed
-safely; sanitising one would be the repair that is refused everywhere else.
+produces daily. **SVG** is an input format whose declared canvas counts against the pixel cap and
+whose scripts and foreign objects are ignored. An image inside it is read only from a `data:` URI,
+and **an external reference throws** `RuntimeError` naming it, because there is nothing in the guest
+to resolve one with. Rasterising is how an uploaded SVG is displayed safely; sanitising one would be
+the repair that is refused everywhere else.
 
-**Not shipped.** Comparison is on disk: the component's `compare` export, whose module doc
+Comparison is the component's `compare` export, whose module doc
 `extensions/image/src/compare.rs` says what a delta is and how the SSIM and the rendered diff are
 made, and `Image::compare` returning a `Diff` in `extensions/image/nvs/`, which compares an `Image`
 with no `format` step as PNG so no lossy re-encode moves a pixel (`crates/nvs-ext/tests/image_analysis.rs`,
-`tests/conformance/novis/`). Hashing is on disk too: the component's `hash` export, whose module
+`tests/conformance/novis/`). Hashing is the component's `hash` export, whose module
 doc `extensions/image/src/hash.rs` defines the three kinds, each its own fixed length so two kinds
 never compare, and is written in the component with no hashing crate linked; `Image::hash` and
-`HashKind`; and `Image::hashDistance` as Novis source, counting differing bits and throwing a
-`LogicError` for two lengths. Placeholders and the palette are on disk: the component's
+`Image::HashKind`; and `Image::hashDistance` as Novis source, counting differing bits and throwing a
+`LogicError` for two lengths. Placeholders and the palette are the component's
 `placeholder` and `palette` exports, whose module doc `extensions/image/src/summary.rs` defines
 both placeholder formats and how the palette clusters `color_quant`'s colours, and
-`Image::placeholder`, `PlaceholderKind` and `Image::palette`. QR codes are on disk: the
+`Image::placeholder`, `Image::PlaceholderKind` and `Image::palette`. QR codes are the
 component's `qr` export over the `qrcode` crate, whose module doc `extensions/image/src/qr.rs`
 says how `size`, `margin` and the level make the image and what each default is, and
-`QrCode::render` and `QrLevel`; the host checks read each code back with `rqrr`. Text is on
-disk: the `text` step and the `text` source, shaped by `harfrust` and drawn by `ab_glyph`, whose
+`QrCode::render` and `QrCode::Level`; the host checks read each code back with `rqrr`. Text is
+the `text` step and the `text` source, shaped by `harfrust` and drawn by `ab_glyph`, whose
 module doc `extensions/image/src/text.rs` says how a size, a line, shaping, `maxWidth` and `align` set the
 text and what the box is, and `Image::text`, `Image::measureText` and `Font::fromBytes`, which
-checks only the file's first four bytes and calls no export. SVG is not, and its fixtures owe an SVG
-that references an external file and rasterises with the reference unresolved.
+checks only the file's first four bytes and calls no export. SVG decodes through `resvg` with an
+image resolver that reads only `data:` URIs (`extensions/image/src/svg.rs`), and
+`crates/nvs-ext/tests/image_decode.rs` and
+`tests/conformance/novis/image-an-svg-opens-as-an-image.nvst` throw for a path and an address.
 
 <sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/image-pixel-cap`](core-classes.md#core-classes-image-pixel-cap), [`testing/assertions-are-typed`](testing.md#testing-assertions-are-typed).</sub>
 
 <a id="core-classes-image-barcode-roster"></a>
 
-## `Novis\Image\Barcode` renders eight 1D and DataMatrix symbologies, and a code and a QR code render as SVG  *(designed — not yet in the compiler)*
+## `Novis\Image\Barcode` renders eight 1D and DataMatrix symbologies, and a code and a QR code render as SVG
 
 `rule:core-classes/image-barcode-roster`
 
@@ -3343,7 +3357,7 @@ sandbox. Every code a test writes is read back by a reader that is a dev-depende
 
 - **Memory:** a code is at most a few thousand modules, so a render is far under the pixel cap.
 
-**Shipped.** The `barcode` export draws every symbology, `qr` writes `svg`, and `Barcode`,
+The `barcode` export draws every symbology, `qr` writes `svg`, and `Barcode`,
 `QrCode::svg` and `QrCode::giroCode` are in the binary. `extensions/image/src/barcode.rs` says what
 each symbology takes and what each option's default is. `crates/nvs-ext/tests/image_barcode.rs`
 reads every code back with `rxing`, and `crates/nvs-cli/tests/image_barcode.rs` pins the GiroCode
@@ -3360,7 +3374,7 @@ layout.
 
 <a id="core-classes-intl-roster"></a>
 
-## `Novis\Intl` is eight classes, one per job, over one manifest class, and message formatting is not in it  *(designed — not yet in the compiler)*
+## `Novis\Intl` is eight classes, one per job, over one manifest class, and message formatting is not in it
 
 `rule:core-classes/intl-roster`
 
@@ -3375,7 +3389,7 @@ source over one manifest class, `Novis\Intl\Icu`, whose static methods are the e
 | `NumberFormat` | `decimal`, `percent`, `currency`, `compact` |
 | `PluralRules` | `cardinal`, `ordinal` — each returns `Core\Cldr::PluralCategory` |
 | `DateFormat` | `dateTimes`, `dates`, `times` — over `Core\Time\DateTime`, `Date` and `TimeOfDay` |
-| `RelativeTime` | `format` — a count and a `TimeUnit`, negative in the past |
+| `RelativeTime` | `format` — a count and a `RelativeTime::Unit`, negative in the past |
 | `ListFormat` | `join` — "and", "or" and unit lists |
 | `Segmenter` | `words`, `sentences` |
 | `Locale` | `negotiate`, `resolve` |
@@ -3411,8 +3425,8 @@ locale.
   binary, and the component's module doc states its size. If that size is too large, the answer is a
   slimmer locale set, never an optional component.
 
-**Not on disk.** The component crate `extensions/intl/` and its Novis half do not exist; `wit/intl.wit`
-is the interface they will export.
+The component crate is `extensions/intl/`, its Novis half is `extensions/intl/nvs/`, and `wit/intl.wit`
+is the interface it exports.
 
 **Declined:**
 
@@ -3425,7 +3439,7 @@ is the interface they will export.
 
 <a id="core-classes-intl-batch-shape"></a>
 
-## Every `Novis\Intl` member but `Locale::negotiate` takes a list and returns a list, in one locale and one crossing  *(designed — not yet in the compiler)*
+## Every `Novis\Intl` member but `Locale::negotiate` takes a list and returns a list, in one locale and one crossing
 
 `rule:core-classes/intl-batch-shape`
 
@@ -3459,7 +3473,7 @@ the Novis half reorders the list it already has; equal strings keep their input 
 
 <a id="core-classes-intl-locale-is-an-argument"></a>
 
-## A `Novis\Intl` locale is always an argument: a malformed tag throws, and an unknown one falls back along CLDR's chain  *(designed — not yet in the compiler)*
+## A `Novis\Intl` locale is always an argument: a malformed tag throws, and an unknown one falls back along CLDR's chain
 
 `rule:core-classes/intl-locale-is-an-argument`
 
@@ -3471,7 +3485,7 @@ setting that holds one and no `[intl]` configuration block ([`core-api/no-ambien
 - **A well-formed tag with no data** falls back along CLDR's chain — `de-AT` to `de`, and at last to
   the root locale — and formats. It never throws: a tag a program got from a user or a header is
   well-formed and unknown far more often than it is wrong.
-- **`Locale::resolve`** returns, for each tag and a `Service`, the locale whose data answers: `de` for
+- **`Locale::resolve`** returns, for each tag and a `Locale::Service`, the locale whose data answers: `de` for
   `de-XX`, `und` where only the root does. Coverage differs between services, so the service is an
   argument. It is how a program learns which locale answered.
 - **A `-u-` keyword that an option also names** — `ks`, `kf` or `kn` beside `strength`, `caseFirst`
@@ -3496,7 +3510,7 @@ those are the program's.
 
 <a id="core-classes-intl-host-converts-time"></a>
 
-## A `Core\Time\DateTime` reaches the intl guest as local fields, an offset and a zone id, and the guest has no time-zone database  *(designed — not yet in the compiler)*
+## A `Core\Time\DateTime` reaches the intl guest as local fields, an offset and a zone id, and the guest has no time-zone database
 
 `rule:core-classes/intl-host-converts-time`
 
@@ -3511,7 +3525,8 @@ instant and a zone name, and turning it into fields is the time-zone database's 
 placed in its zone with `Core\Time` first; a member that took an `Instant` and a `Zone` would be a
 second way to write `dateTimes`.
 
-The guest names a zone from its id and offset: `ZoneStyle::Offset`, `Location` or `Generic`. A zone's
+The guest names a zone from its id and offset: `DateFormat::ZoneStyle::Offset`, `Location` or
+`Generic`. A zone's
 specific daylight-time name is not offered, because it needs to know whether the offset is daylight
 time. The calendar is the locale's, selected by a tag's `-u-ca-` keyword; the fields cross as ISO
 fields and the guest converts them.
@@ -3525,7 +3540,7 @@ fields and the guest converts them.
 
 <a id="core-classes-pdf-render-has-no-io"></a>
 
-## `Novis\Pdf` is a built-in component that performs no I/O, and an asset it cannot resolve throws  *(designed — not yet in the compiler)*
+## `Novis\Pdf` is a built-in component that performs no I/O, and an asset it cannot resolve throws
 
 `rule:core-classes/pdf-render-has-no-io`
 
@@ -3552,21 +3567,20 @@ request's memory cap and deadline contain them, the HTML is held to the parser's
 ([`core-classes/html-parsing`](core-classes.md#core-classes-html-parsing)), and the component adds **no limit of its own**: a bulk or slow
 render belongs in `Core\Queue`.
 
-The component's fixtures owe: a render with **no capability grants** that succeeds, so the no-I/O claim
-is demonstrated rather than asserted; a `file:///…` reference, an `http:` URL and a name absent from
-the asset map, each in HTML, CSS and SVG and each throwing, with no network or filesystem access
+The component's fixtures hold it: a render with **no capability grants** that succeeds, so the no-I/O
+claim is demonstrated rather than asserted; a `file:///…` reference, an `http:` URL and a name absent
+from the asset map, each in HTML, CSS and SVG and each throwing, with no network or filesystem access
 observable from the guest; and a `data:` image that renders.
 
 - **Memory:** per rendering request, the HTML, the asset map, the layout tree and the output document,
   all inside the request's memory cap and freed when the request ends. A program that never renders
   pays nothing.
 
-**Partly on disk.** `extensions/pdf/src/assets.rs` resolves every reference in HTML, CSS and inline
-SVG against the map and `data:`, and throws for the rest. `crates/nvs-ext/tests/pdf.rs` renders with
-no grant, and a `file:`, `http:` and unknown name each throw there and in
-`tests/conformance/novis/pdf-a-missing-asset-throws.nvst`. The asset map does not yet reach a
-stylesheet's rules, an `@font-face` or an inline SVG's drawing, because the cascade and those
-renderers are not written.
+`extensions/pdf/src/assets.rs` resolves every reference in HTML, CSS and inline SVG against the map
+and `data:` before anything is laid out, and throws for the rest. `crates/nvs-ext/tests/pdf.rs`
+renders with no grant, and a `file:`, `http:` and unknown name each throw there and in
+`tests/conformance/novis/pdf-a-missing-asset-throws.nvst`. `extensions/pdf/tests/render.rs` throws
+for each in a linked stylesheet, its `url()`s and an SVG `<image>` or `<use>`.
 
 **Declined:**
 - **`Core`.** A layout engine, a font parser and image decoders would sit unsandboxed in every binary
@@ -3585,7 +3599,7 @@ renderers are not written.
 
 <a id="core-classes-pdf-roster"></a>
 
-## `Novis\Pdf` is `Document`, `Page`, `Rendered`, `Pages` and `Reader`, with `Engine` the manifest class  *(designed — not yet in the compiler)*
+## `Novis\Pdf` is `Document`, `Page`, `Rendered`, `Pages` and `Reader`, with `Engine` the manifest class  *(designed — owned by goal pdf)*
 
 `rule:core-classes/pdf-roster`
 
@@ -3633,7 +3647,8 @@ The request's memory cap and deadline end a render that exceeds them as they end
 
 **Partly on disk.** `extensions/pdf/manifest.json` declares `Engine` and `Standard`, and
 `extensions/pdf/nvs/` holds `Document` without `header`, `footer` and `slots`, and `Rendered`. `Page`,
-`Pages` and `Reader` are not written.
+`Pages` and `Reader` are not written. The `pdf` goal builds `Page`, `header` and `footer` in its
+Stage 10, `slots` in Stage 11, and `Pages` and `Reader` in Stage 13.
 
 **Declined:**
 - **A `Pdf` facade with static `render($html, $options)`.** The options a render takes — assets, three
@@ -3646,7 +3661,7 @@ The request's memory cap and deadline end a render that exceeds them as they end
 
 <a id="core-classes-pdf-one-engine"></a>
 
-## The only input language is HTML plus a CSS subset, and one engine of our own over Rust crates renders it  *(designed — not yet in the compiler)*
+## The only input language is HTML plus a CSS subset, and one engine of our own over Rust crates renders it  *(designed — owned by goal pdf)*
 
 `rule:core-classes/pdf-one-engine`
 
@@ -3681,9 +3696,11 @@ wholesale and must still meet them.
   queue.
 
 **Partly on disk.** `extensions/pdf/` parses with the patched `html5ever` under the same cap,
-computes styles with its cascade over `cssparser` and `selectors`, shapes with `parley` and writes
-with `krilla`. Its layout is block flow and wrapped lines on A4 pages, and it does not read the
-computed styles yet. `taffy`, `hypher`, `usvg` and `hayro` are not in it yet.
+computes styles with its cascade over `cssparser` and `selectors`, shapes with `parley`, hyphenates
+with `hypher`, lays out flex and grid with `taffy`, draws inline SVG with `usvg` and `krilla-svg`,
+and writes with `krilla` (`extensions/pdf/Cargo.toml`). Its pagination is the `pdf` goal's Stage 9,
+under way in `extensions/pdf/src/paginate/mod.rs`. `hayro` is not in it: placing an existing PDF's
+page is the goal's Stage 13.
 
 **Declined:**
 - **A Novis-side document builder** that appends headings, tables and page breaks and emits HTML. It
@@ -3704,7 +3721,7 @@ computed styles yet. `taffy`, `hypher`, `usvg` and `hayro` are not in it yet.
 
 <a id="core-classes-pdf-css-subset"></a>
 
-## The render result lists every declaration and element it dropped, every missing glyph and every overflow  *(designed — not yet in the compiler)*
+## The render result lists every declaration and element it dropped, every missing glyph and every overflow  *(designed — owned by goal pdf)*
 
 `rule:core-classes/pdf-css-subset`
 
@@ -3735,8 +3752,11 @@ in the dropped list, and a clean fixture whose three lists are empty.
 
 **Partly on disk.** `extensions/pdf/src/css/` is the cascade, and `Rendered::dropped` lists what it
 drops with its selector and position, and each element the subset does not render as `<name>` at its
-start tag. `extensions/pdf/src/layout.rs` lays out block boxes and text from the computed styles,
-with no flex, grid, floats, positioning or tables yet, and the overflow list is empty.
+start tag, and `Rendered::missingGlyphs` lists each character no font has
+(`extensions/pdf/tests/layout.rs`). `extensions/pdf/src/layout.rs` lays out block, inline, flex,
+grid, floated and positioned boxes from the computed styles. Tables are the `pdf` goal's Stage 11,
+and `Rendered::overflows` is always empty until its Stage 10 writes the header and footer functions
+(`extensions/pdf/src/lib.rs:237`).
 
 **Declined:**
 - **A strict mode that throws on the first dropped declaration.** A test asserting `dropped` is empty
@@ -3746,7 +3766,7 @@ with no flex, grid, floats, positioning or tables yet, and the overflow list is 
 
 <a id="core-classes-pdf-css-subset-table"></a>
 
-## The CSS subset is `extensions/pdf/subset.json`, a table a test reads and the editor's data is generated from  *(designed — not yet in the compiler)*
+## The CSS subset is `extensions/pdf/subset.json`, a table a test reads and the editor's data is generated from  *(designed — owned by goal pdf)*
 
 `rule:core-classes/pdf-css-subset-table`
 
@@ -3787,7 +3807,7 @@ vector file draws badly (shadows, filters, masks, blend modes).
 
 **Partly on disk.** `extensions/pdf/subset.json` is the list, and `extensions/pdf/tests/css.rs`
 holds it equal to the properties `extensions/pdf/src/css/properties.rs` parses. The editor's data is
-not generated from it yet.
+not generated from it yet: the `pdf` goal's Stage 15 generates it.
 
 **Declined:**
 - **The subset as prose only.** A list nothing reads drifts from what the engine parses, and the
@@ -3797,7 +3817,7 @@ not generated from it yet.
 
 <a id="core-classes-pdf-tables-across-pages"></a>
 
-## A table across pages keeps its columns, repeats its header and footer, never cuts a line and closes its borders  *(designed — not yet in the compiler)*
+## A table across pages keeps its columns, repeats its header and footer, never cuts a line and closes its borders  *(designed — owned by goal pdf)*
 
 `rule:core-classes/pdf-tables-across-pages`
 
@@ -3827,7 +3847,8 @@ tool. Each rule is the reading a person expects, so none needs a setting.
 
 - **Memory:** the table's column widths and each row's height, once, as part of the layout tree.
 
-**Not shipped.** There is no PDF component in the tree.
+**Not on disk.** `extensions/pdf/src/layout.rs` lays a `display: table` box out as a block box, so
+none of the eight rules holds yet. The `pdf` goal's Stage 11 builds them.
 
 **Declined:**
 - **A setting per rule.** Each default is the one a document wants; `data-repeat`,
@@ -3839,7 +3860,7 @@ tool. Each rule is the reading a person expects, so none needs a setting.
 
 <a id="core-classes-pdf-header-is-a-page-function"></a>
 
-## A header, a footer or a slot is a Novis function called once per page, placed by a second call that never moves the body  *(designed — not yet in the compiler)*
+## A header, a footer or a slot is a Novis function called once per page, placed by a second call that never moves the body  *(designed — owned by goal pdf)*
 
 `rule:core-classes/pdf-header-is-a-page-function`
 
@@ -3871,7 +3892,11 @@ rounds through a float.
   request's cap, and drops it with the instance. Novis holds one `Page` per page and the markup the
   functions return.
 
-**Not shipped.** There is no PDF component in the tree.
+**Partly on disk.** The CSS half is built: the margin boxes, `counter(page)`, `counter(pages)`,
+`string-set` and running elements (`extensions/pdf/src/layout/margin.rs`). The function half is
+not. `Document` has no `header` or `footer`, `Page` is not written, and the component's `first` and
+`second` passes return `runtime` (`extensions/pdf/src/lib.rs:20`). The `pdf` goal's Stage 10
+builds them.
 
 **Declined:**
 - **A function called from the guest per page.** The world has no export a guest calls back into
@@ -3885,7 +3910,7 @@ rounds through a float.
 
 <a id="core-classes-pdf-output-is-inert"></a>
 
-## The writer emits nothing a reader would execute, the invoice XML is its one attachment, and equal input gives byte-equal output  *(designed — not yet in the compiler)*
+## The writer emits nothing a reader would execute, the invoice XML is its one attachment, and equal input gives byte-equal output  *(designed — owned by goal pdf)*
 
 `rule:core-classes/pdf-output-is-inert`
 
@@ -3913,8 +3938,8 @@ and the same input rendered twice and compared byte for byte, encrypted output a
 
 **Partly on disk.** `extensions/pdf/src/write.rs` writes through `krilla` with no creation time
 unless one is passed, and `krilla`'s document id hashes the content. `crates/nvs-ext/tests/pdf.rs`
-compares two renders byte for byte and scans the output for the names above. Links, encryption and
-the Factur-X attachment are not written yet.
+compares two renders byte for byte and scans the output for the names above. Links are not written
+yet, and are the `pdf` goal's Stage 9. Encryption and the Factur-X attachment are its Stage 12.
 
 **Declined:**
 - **Any attachment besides the invoice XML.** A program that needs to send several files sends them
@@ -3926,7 +3951,7 @@ the Factur-X attachment are not written yet.
 
 <a id="core-classes-pdf-standards-and-passwords"></a>
 
-## Every PDF is tagged, a chosen PDF/A or PDF/UA standard is validated, and a password encrypts with AES-256 alone  *(designed — not yet in the compiler)*
+## Every PDF is tagged, a chosen PDF/A or PDF/UA standard is validated, and a password encrypts with AES-256 alone  *(designed — owned by goal pdf)*
 
 `rule:core-classes/pdf-standards-and-passwords`
 
@@ -3949,7 +3974,10 @@ it and the weaker revisions are broken.
 
 - **Memory:** the structure tree, beside the layout tree inside the request's cap.
 
-**Not shipped.** There is no PDF component in the tree.
+**Partly on disk.** `Document::standard` and `Document::password` are in
+`extensions/pdf/nvs/Document.nvs`, and a password beside a PDF/A standard is refused before anything
+is laid out (`extensions/pdf/src/lib.rs:112`). The output is not tagged, no standard is validated
+and nothing is encrypted: the `pdf` goal's Stage 12 builds all three.
 
 **Declined:**
 - **RC4 and AES-128 encryption, and owner permissions.** RC4 is broken, and permission flags are a
@@ -3963,7 +3991,7 @@ it and the weaker revisions are broken.
 
 <a id="core-classes-pdf-factur-x-is-the-one-attachment"></a>
 
-## A Factur-X XML under PDF/A-3b is the one attachment a rendered PDF carries  *(designed — not yet in the compiler)*
+## A Factur-X XML under PDF/A-3b is the one attachment a rendered PDF carries  *(designed — owned by goal pdf)*
 
 `rule:core-classes/pdf-factur-x-is-the-one-attachment`
 
@@ -3984,7 +4012,9 @@ delivery channel `pdf-output-is-inert` closes.
 
 - **Memory:** the XML once, inside the request's cap, and the bytes it adds to the output.
 
-**Not shipped.** There is no PDF component in the tree.
+**Partly on disk.** `Document::invoiceXml` is in `extensions/pdf/nvs/Document.nvs`, and an invoice
+XML without PDF/A-3b is refused before anything is laid out (`extensions/pdf/src/lib.rs:107`). The
+XML is not checked for well-formedness and not embedded: the `pdf` goal's Stage 12 does both.
 
 **Declined:**
 - **General attachments.** A file a reader opens from inside a PDF is a delivery channel for anything,
@@ -3996,7 +4026,7 @@ delivery channel `pdf-output-is-inert` closes.
 
 <a id="core-classes-pdf-reader-and-merge"></a>
 
-## Existing PDFs are placed, merged and read in `Novis\Pdf`, and an encrypted source throws  *(designed — not yet in the compiler)*
+## Existing PDFs are placed, merged and read in `Novis\Pdf`, and an encrypted source throws  *(designed — owned by goal pdf)*
 
 `rule:core-classes/pdf-reader-and-merge`
 
@@ -4027,7 +4057,10 @@ tool. They live beside the writer because they return text and bytes, never pixe
 - **Memory:** per call, the source bytes and what the call returns, inside the request's cap; a merge
   holds its sources and the merged file at once.
 
-**Not shipped.** There is no PDF component in the tree.
+**Not on disk.** `wit/pdf.wit` and `extensions/pdf/manifest.json` declare `merge`, `read` and
+`read-text`, and the component returns `runtime` for each (`extensions/pdf/src/lib.rs:20`). `Pages`
+and `Reader` are not written, and `<img>` does not place a PDF page. The `pdf` goal's Stage 13 builds
+all three jobs.
 
 **Declined:**
 - **Rebuilding tables and columns from extracted text.** That is a layout guess, right for some files
@@ -4041,7 +4074,7 @@ tool. They live beside the writer because they return text and bytes, never pixe
 
 <a id="core-classes-pdf-default-fonts"></a>
 
-## The Liberation fonts render a document with no font of its own, and a missing glyph is reported, never thrown  *(designed — not yet in the compiler)*
+## The Liberation fonts render a document with no font of its own, and a missing glyph is reported, never thrown
 
 `rule:core-classes/pdf-default-fonts`
 
@@ -4068,10 +4101,11 @@ and no code under OFL-1.1 is admitted by it.
 - **Memory:** the twelve fonts are part of each component's bytes, a few megabytes of the binary. A
   render holds the faces it uses inside its request's cap.
 
-**Partly on disk.** The twelve files are under `extensions/fonts/` with their release recorded in
-`SOURCE.json`, and the image and PDF components embed them. `extensions/pdf/src/fonts.rs` maps the
-family names above to them, registers each `@font-face` font from the asset map, and builds the
-chain; `extensions/pdf/src/layout.rs` lists the missing glyphs.
+The twelve files are under `extensions/fonts/` with their release recorded in `SOURCE.json`, and the
+image and PDF components embed them. `extensions/pdf/src/fonts.rs` maps the family names above to
+them, registers each `@font-face` font from the asset map, and builds the chain;
+`extensions/pdf/src/layout.rs` lists the missing glyphs, and `extensions/pdf/tests/layout.rs` holds
+the chain, the subsetting and the missing-glyph list.
 
 **Declined:**
 - **Noto or another font with wide script coverage as a default.** Its size grows the binary by tens of
@@ -4084,7 +4118,7 @@ chain; `extensions/pdf/src/layout.rs` lists the missing glyphs.
 
 <a id="core-classes-pdf-page-is-an-image-source"></a>
 
-## A PDF page is a decode-only format of the image component: one page per `open`, priced by the pixel cap  *(designed — not yet in the compiler)*
+## A PDF page is a decode-only format of the image component: one page per `open`, priced by the pixel cap  *(designed — owned by goal pdf)*
 
 `rule:core-classes/pdf-page-is-an-image-source`
 
@@ -4133,7 +4167,9 @@ have few of their glyphs. No predefined CMap is carried, so CJK text in an encod
 not drawn; carrying them is `hayro`'s `embed-cmaps` feature. The decoder is
 `extensions/image/src/pdf.rs`, and its fixtures are `crates/nvs-ext/tests/image_decode.rs`.
 
-**Not shipped.** The benchmark of a text page and an image-heavy page, guest against native.
+**Partly on disk.** Everything above is built, except the benchmark of a text page and an
+image-heavy page, guest against native. The `pdf` goal's Stage 14 commits it beside the render
+benchmarks.
 
 **Declined:**
 - **A `rasterize` member in `Novis\Pdf`.** Every raster would recross the boundary as bytes to reach
@@ -4146,7 +4182,7 @@ not drawn; carrying them is `hayro`'s `embed-cmaps` feature. The decoder is
 
 <a id="core-classes-pdf-decode-refusals"></a>
 
-## An encrypted document and a detectable omission both throw, and reading and merging are `Novis\Pdf`'s  *(designed — not yet in the compiler)*
+## An encrypted document and a detectable omission both throw, and reading and merging are `Novis\Pdf`'s  *(designed — owned by goal pdf)*
 
 `rule:core-classes/pdf-decode-refusals`
 
@@ -4183,14 +4219,17 @@ An encrypted document is opened with a password nobody sets, so one whose user p
 refused too. A font in an encoding `hayro` cannot draw, and an image that does not decode, throw
 `RuntimeError` naming the page.
 
-**Not shipped.** The fixture carrying an external reference, a JavaScript action and an embedded
-file, and a fixture for each object that throws.
+**Partly on disk.** `extensions/image/src/pdf.rs` throws `ParseError` for an encrypted document, and
+the bomb corpus ends in a throw, a contained trap or a whole page
+(`crates/nvs-ext/tests/image_decode.rs`). Two fixtures are not written: one carrying an external
+reference, a JavaScript action and an embedded file, and one for each object that throws. The `pdf`
+goal owes both.
 
 <sub>See also [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source), [`core-classes/pdf-reader-and-merge`](core-classes.md#core-classes-pdf-reader-and-merge), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused).</sub>
 
 <a id="core-classes-spreadsheet-has-no-io"></a>
 
-## The spreadsheet component is a first-party extension that fetches nothing and executes nothing it reads  *(designed — not yet in the compiler)*
+## The spreadsheet component is a first-party extension that fetches nothing and executes nothing it reads  *(designed — owned by goal spreadsheet)*
 
 `rule:core-classes/spreadsheet-has-no-io`
 
@@ -4240,7 +4279,7 @@ surfaced as data and nothing resolved.
 
 <a id="core-classes-spreadsheet-formula-is-a-value"></a>
 
-## Only an explicit `Formula` value writes a formula cell, so an export built from user data is inert  *(designed — not yet in the compiler)*
+## Only an explicit `Formula` value writes a formula cell, so an export built from user data is inert  *(designed — owned by goal spreadsheet)*
 
 `rule:core-classes/spreadsheet-formula-is-a-value`
 
@@ -4267,7 +4306,7 @@ rather than the builder's state.
 
 <a id="core-classes-spreadsheet-bulk-boundary"></a>
 
-## A workbook crosses the boundary in whole blocks, and a bomb is refused before a sheet buffer exists  *(designed — not yet in the compiler)*
+## A workbook crosses the boundary in whole blocks, and a bomb is refused before a sheet buffer exists  *(designed — owned by goal spreadsheet)*
 
 `rule:core-classes/spreadsheet-bulk-boundary`
 
@@ -4296,7 +4335,7 @@ bytes passing when the cap is raised.
 
 <a id="core-classes-spreadsheet-evaluation-and-roster"></a>
 
-## The roster is read-wide and write-narrow, a macro is never written, and evaluation is an explicit call  *(designed — not yet in the compiler)*
+## The roster is read-wide and write-narrow, a macro is never written, and evaluation is an explicit call  *(designed — owned by goal spreadsheet)*
 
 `rule:core-classes/spreadsheet-evaluation-and-roster`
 
@@ -4331,7 +4370,7 @@ API tells the two apart, so the gap is visible.
 
 <a id="core-classes-spreadsheet-output-is-inert"></a>
 
-## The writer embeds no executable content and no entropy, so equal input gives byte-equal output  *(designed — not yet in the compiler)*
+## The writer embeds no executable content and no entropy, so equal input gives byte-equal output  *(designed — owned by goal spreadsheet)*
 
 `rule:core-classes/spreadsheet-output-is-inert`
 

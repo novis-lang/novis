@@ -6,5 +6,8 @@
     "core-classes/pdf-tables-across-pages",
     "ide/a-template-region-gets-the-editors-services-and-formatter"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "extensions/pdf/tests/css.rs"
+  ],
+  "goal": "pdf"
 }

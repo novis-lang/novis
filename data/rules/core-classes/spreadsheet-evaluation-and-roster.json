@@ -6,5 +6,6 @@
     "core-classes/spreadsheet-output-is-inert",
     "core-classes/pdf-css-subset"
   ],
-  "guardedBy": []
+  "guardedBy": [],
+  "goal": "spreadsheet"
 }

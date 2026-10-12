@@ -3,7 +3,7 @@
 
 # Classes
 
-*3 of 46 rules below are **designed** rather than shipped, and are marked where they appear.*
+*1 of 46 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="classes-no-free-functions-or-constants"></a>
 
@@ -777,7 +777,7 @@ reaches no guard, and an access inside the property's own hooks, or a write that
 
 <a id="classes-member-conflict-is-an-error"></a>
 
-## A member reachable from two default or delegated sources with no override is a compile error  *(designed — not yet in the compiler)*
+## A member reachable from two default or delegated sources with no override is a compile error  *(designed — owned by goal language-rule-debts)*
 
 `rule:classes/member-conflict-is-an-error`
 
@@ -789,7 +789,7 @@ There is no `insteadof`. The fix is the ordinary override a reader already knows
 specific source explicitly — `InterfaceName::method()` for a default, or plain property access
 `$this->field->method()` for a delegate, since a delegate is a real object.
 
-**Not implemented.** `E_INTERFACE_MEMBER_CONFLICT` has no code allocated and nothing reports it:
+**Not on disk.** `E_INTERFACE_MEMBER_CONFLICT` has no code allocated and nothing reports it:
 `crates/nvs-types/src/conformance.rs` checks that every required member is answered, one member at a
 time, but not that two sources answer the same one. A class reaching two defaults for one name
 currently resolves to whichever the member walk finds first rather than being refused.
@@ -1378,7 +1378,7 @@ code written against one name can be repointed to a different class by a later c
 
 <a id="classes-a-constructor-return-carries-no-value"></a>
 
-## A constructor's `return` carries no value; a bare `return;` may still leave early  *(designed — not yet in the compiler)*
+## A constructor's `return` carries no value; a bare `return;` may still leave early
 
 `rule:classes/a-constructor-return-carries-no-value`
 
@@ -1393,7 +1393,7 @@ checking it, unchanged. The fix is to drop the value.
 
 <a id="classes-a-readonly-property-declares-no-default"></a>
 
-## A `readonly` property declares no default; a value known at the declaration is a `const`  *(designed — not yet in the compiler)*
+## A `readonly` property declares no default; a value known at the declaration is a `const`
 
 `rule:classes/a-readonly-property-declares-no-default`
 

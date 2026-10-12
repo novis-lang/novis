@@ -6,5 +6,6 @@
     "core-classes/pdf-decode-refusals",
     "core-classes/pdf-factur-x-is-the-one-attachment"
   ],
-  "guardedBy": []
+  "guardedBy": [],
+  "goal": "pdf"
 }

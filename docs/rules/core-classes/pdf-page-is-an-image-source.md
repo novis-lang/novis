@@ -43,7 +43,9 @@ have few of their glyphs. No predefined CMap is carried, so CJK text in an encod
 not drawn; carrying them is `hayro`'s `embed-cmaps` feature. The decoder is
 `extensions/image/src/pdf.rs`, and its fixtures are `crates/nvs-ext/tests/image_decode.rs`.
 
-**Not shipped.** The benchmark of a text page and an image-heavy page, guest against native.
+**Partly on disk.** Everything above is built, except the benchmark of a text page and an
+image-heavy page, guest against native. The `pdf` goal's Stage 14 commits it beside the render
+benchmarks.
 
 **Declined:**
 - **A `rasterize` member in `Novis\Pdf`.** Every raster would recross the boundary as bytes to reach

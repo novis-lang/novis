@@ -5,5 +5,6 @@
     "core-classes/image-pipeline",
     "core-classes/image-format-roster"
   ],
-  "guardedBy": []
+  "guardedBy": [],
+  "milestone": "M17"
 }

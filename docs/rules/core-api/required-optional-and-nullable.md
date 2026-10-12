@@ -12,8 +12,10 @@ Nullability is a property of the **type** and optionality is a property of the c
 **default**; neither borrows the other's meaning. Encoding is the plain inverse: every field is always
 emitted, including a `null` one.
 
-**One row is designed, not shipped.** `?T $x = null` needs a written `= null` parameter default, which
-the checker still refuses — `crates/nvs-types/src/defaults.rs`'s own gap, not this table's. The other
+**One row is not on disk.** The checker accepts a written `= null`
+(`crates/nvs-types/src/defaults.rs:52`), but a codec field has no constant for it: `ConstArg::Null`
+gives no `FieldDefault` (`crates/nvs-ir/src/lower/mod.rs:358`), so a decoder refuses an absent key
+for `?T $x = null` as a missing optional field (`crates/nvs-stdlib/src/json.rs:2797`). The other
 three are answered at every door that reads a derived codec, a row's columns included: the default is
 evaluated while compiling into a constant that rides on the field itself
 (`nvs_runtime::CodecField::default`), so a decoder fills an absent optional key without being the call

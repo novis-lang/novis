@@ -35,7 +35,7 @@ vector file draws badly (shadows, filters, masks, blend modes).
 
 **Partly on disk.** `extensions/pdf/subset.json` is the list, and `extensions/pdf/tests/css.rs`
 holds it equal to the properties `extensions/pdf/src/css/properties.rs` parses. The editor's data is
-not generated from it yet.
+not generated from it yet: the `pdf` goal's Stage 15 generates it.
 
 **Declined:**
 - **The subset as prose only.** A list nothing reads drifts from what the engine parses, and the

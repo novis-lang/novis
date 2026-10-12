@@ -125,7 +125,7 @@ runtime's packaging is a reason to place a candidate.
 
 <a id="core-api-tier-roster"></a>
 
-## Every subsystem's tier is recorded once in the roster, including the ones no milestone has built  *(designed — not yet in the compiler)*
+## Every subsystem's tier is recorded once in the roster, including the ones no milestone has built  *(designed — owned by M17)*
 
 `rule:core-api/tier-roster`
 
@@ -164,12 +164,14 @@ The placements the tests produce, outside the `Core` classes the spec lists:
   `pdo_firebird`) stay Tier 2, built from source by the operator who needs one, and `Core\Db`'s driver
   interface keeps that possible.
 
-**Designed, not shipped.** Every class the roster places at Tier 0 is registered in
+**Partly on disk.** Every class the roster places at Tier 0 is registered in
 `crates/nvs-stdlib/src/registry.rs`: the four `spec-*-outstanding.txt` ratchets under
-`crates/nvs-stdlib/tests/` are the gates that say so, each holds no keys, and each only shrinks. What
-the roster places at Tier 0 and nothing provides is the four first-party sandboxed components. The
+`crates/nvs-stdlib/tests/` are the gates that say so, each holds no keys, and each only shrinks. The
 tier-boundary guard in `crates/nvs-stdlib/tests/tier_boundary.rs` holds the rule for what is
-registered.
+registered. Three of the four first-party components are on disk: `extensions/image/`,
+`extensions/intl/` and `extensions/pdf/`, which the `pdf` goal is still building. The spreadsheet
+component is not written ([`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io)), and the image component has no
+EXIF reader yet ([`core-classes/image-pixel-model`](core-classes.md#core-classes-image-pixel-model)); both are M17's (`docs/plan/m17.md`).
 
 **Declined**, each named so it is not re-proposed:
 - **The procedural `mysqli`, `pgsql` and `sqlite3` APIs.** One database API ([`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api)).
@@ -933,7 +935,7 @@ query-parameter pair rather than one member doing both.
 
 <a id="core-api-required-optional-and-nullable"></a>
 
-## Required, optional and nullable are three separate questions: nullability belongs to the type and optionality to the default  *(designed — not yet in the compiler)*
+## Required, optional and nullable are three separate questions: nullability belongs to the type and optionality to the default  *(designed — owned by goal language-rule-debts)*
 
 `rule:core-api/required-optional-and-nullable`
 
@@ -951,8 +953,10 @@ Nullability is a property of the **type** and optionality is a property of the c
 **default**; neither borrows the other's meaning. Encoding is the plain inverse: every field is always
 emitted, including a `null` one.
 
-**One row is designed, not shipped.** `?T $x = null` needs a written `= null` parameter default, which
-the checker still refuses — `crates/nvs-types/src/defaults.rs`'s own gap, not this table's. The other
+**One row is not on disk.** The checker accepts a written `= null`
+(`crates/nvs-types/src/defaults.rs:52`), but a codec field has no constant for it: `ConstArg::Null`
+gives no `FieldDefault` (`crates/nvs-ir/src/lower/mod.rs:358`), so a decoder refuses an absent key
+for `?T $x = null` as a missing optional field (`crates/nvs-stdlib/src/json.rs:2797`). The other
 three are answered at every door that reads a derived codec, a row's columns included: the default is
 evaluated while compiling into a constant that rides on the field itself
 (`nvs_runtime::CodecField::default`), so a decoder fills an absent optional key without being the call

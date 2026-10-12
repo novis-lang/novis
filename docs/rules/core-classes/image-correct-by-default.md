@@ -15,12 +15,13 @@ A profile that does not parse, or that is neither RGB nor CMYK, is ignored, as a
 the pixels are kept as decoded. A CMYK JPEG is read as Adobe stores it, inverted, whether its scan
 is CMYK or YCCK.
 
-**Not shipped.** The component's `run` applies the orientation of a JPEG, PNG or WebP input,
+**Partly on disk.** The component's `run` applies the orientation of a JPEG, PNG or WebP input,
 converts its RGB or CMYK profile to sRGB, and re-encodes JPEG, PNG, WebP, GIF and AVIF with no
 metadata unless a `metadata` step keeps the EXIF block, which an AVIF never carries
 (`extensions/image/src/decode.rs`, `extensions/image/src/encode.rs`,
-`crates/nvs-ext/tests/image_pipeline.rs`). AVIF and JPEG XL inputs are neither oriented nor
-converted. The `Novis\Image` builder's `open` turns both on unless its options say `false`.
+`crates/nvs-ext/tests/image_pipeline.rs`). The `Novis\Image` builder's `open` turns both on unless
+its options say `false`. AVIF and JPEG XL inputs are neither oriented nor converted
+(`extensions/image/src/decode.rs:21`); M17's image second wave builds both (`docs/plan/m17.md`).
 
 **Declined:**
 - **Keep metadata by default, strip on request.** It is the least surprising default to someone who

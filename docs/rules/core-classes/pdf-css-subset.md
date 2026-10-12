@@ -25,8 +25,11 @@ in the dropped list, and a clean fixture whose three lists are empty.
 
 **Partly on disk.** `extensions/pdf/src/css/` is the cascade, and `Rendered::dropped` lists what it
 drops with its selector and position, and each element the subset does not render as `<name>` at its
-start tag. `extensions/pdf/src/layout.rs` lays out block boxes and text from the computed styles,
-with no flex, grid, floats, positioning or tables yet, and the overflow list is empty.
+start tag, and `Rendered::missingGlyphs` lists each character no font has
+(`extensions/pdf/tests/layout.rs`). `extensions/pdf/src/layout.rs` lays out block, inline, flex,
+grid, floated and positioned boxes from the computed styles. Tables are the `pdf` goal's Stage 11,
+and `Rendered::overflows` is always empty until its Stage 10 writes the header and footer functions
+(`extensions/pdf/src/lib.rs:237`).
 
 **Declined:**
 - **A strict mode that throws on the first dropped declaration.** A test asserting `dropped` is empty

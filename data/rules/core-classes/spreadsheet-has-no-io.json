@@ -6,5 +6,6 @@
     "core-classes/spreadsheet-bulk-boundary",
     "core-classes/pdf-render-has-no-io"
   ],
-  "guardedBy": []
+  "guardedBy": [],
+  "goal": "spreadsheet"
 }

@@ -6,5 +6,8 @@
     "core-classes/pdf-reader-and-merge",
     "errors/ambiguous-input-refused"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "crates/nvs-ext/tests/image_decode.rs"
+  ],
+  "goal": "pdf"
 }

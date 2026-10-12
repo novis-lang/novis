@@ -22,8 +22,8 @@ and the same input rendered twice and compared byte for byte, encrypted output a
 
 **Partly on disk.** `extensions/pdf/src/write.rs` writes through `krilla` with no creation time
 unless one is passed, and `krilla`'s document id hashes the content. `crates/nvs-ext/tests/pdf.rs`
-compares two renders byte for byte and scans the output for the names above. Links, encryption and
-the Factur-X attachment are not written yet.
+compares two renders byte for byte and scans the output for the names above. Links are not written
+yet, and are the `pdf` goal's Stage 9. Encryption and the Factur-X attachment are its Stage 12.
 
 **Declined:**
 - **Any attachment besides the invoice XML.** A program that needs to send several files sends them

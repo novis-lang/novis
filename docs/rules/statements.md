@@ -3,7 +3,7 @@
 
 # Statements
 
-*2 of 30 rules below are **designed** rather than shipped, and are marked where they appear.*
+*1 of 30 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="statements-nvs-is-the-only-open-tag"></a>
 
@@ -940,7 +940,7 @@ Both are parse-time refusals in the rejected-PHP band, and each diagnostic names
 
 <a id="statements-no-return-leaves-a-finally"></a>
 
-## A `return` never leaves a `finally` block, and neither does a `break` or `continue` whose target lies outside it  *(designed — not yet in the compiler)*
+## A `return` never leaves a `finally` block, and neither does a `break` or `continue` whose target lies outside it
 
 `rule:statements/no-return-leaves-a-finally`
 
@@ -966,7 +966,7 @@ rewrites and picks neither.
 
 <a id="statements-let-and-is-are-reserved"></a>
 
-## `let` and `is` cannot name anything; `var` declares, `as` converts, and `is` is the type test  *(designed — not yet in the compiler)*
+## `let` and `is` cannot name anything; `var` declares, `as` converts, and `is` is the type test  *(designed — owned by goal language-rule-debts)*
 
 `rule:statements/let-and-is-are-reserved`
 
@@ -989,6 +989,12 @@ The diagnostics name the living spellings: `var` declares an inferred local
 ([`types/var-inference`](types.md#types-var-inference)), `is` tests ([`types/narrowing`](types.md#types-narrowing)) and `as` converts
 ([`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion)). Like every reserved word, both match in lower case only
 ([`classes/reserved-spellings-are-lower-case`](classes.md#classes-reserved-spellings-are-lower-case)).
+
+**Partly on disk.** Where an expression starts, either word is `E0247`
+(`crates/nvs-syntax/src/parser/expr.rs:1501`, `crates/nvs-syntax/src/parser/mod.rs:781`). A
+declaration's name is not checked: `parse_decl_name` accepts both
+(`crates/nvs-syntax/src/parser/decl.rs:366`), so a method named `is` or `let` compiles, and
+`tests/conformance/lang/mutual-recursion-across-two-classes.nvst:6` declares one.
 
 **Declined:**
 - **Reserving `is` alone and leaving `let` free.** Reserving the second word costs the same as the

@@ -17,7 +17,10 @@ it and the weaker revisions are broken.
 
 - **Memory:** the structure tree, beside the layout tree inside the request's cap.
 
-**Not shipped.** There is no PDF component in the tree.
+**Partly on disk.** `Document::standard` and `Document::password` are in
+`extensions/pdf/nvs/Document.nvs`, and a password beside a PDF/A standard is refused before anything
+is laid out (`extensions/pdf/src/lib.rs:112`). The output is not tagged, no standard is validated
+and nothing is encrypted: the `pdf` goal's Stage 12 builds all three.
 
 **Declined:**
 - **RC4 and AES-128 encryption, and owner permissions.** RC4 is broken, and permission flags are a

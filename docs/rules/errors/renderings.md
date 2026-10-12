@@ -10,8 +10,11 @@ renderings from becoming fifteen.
 | an HTTP request writing a JSON body | JSON | `mixed` |
 | the log target | `[log] format`: `"json"` or `"text"` | bytes |
 
-**Zero new carrier types.** Every one already existed, which is what lets a capture around a dump
-return something that re-emits correctly instead of being escaped twice.
+**Zero new carrier types.** Every one already existed. The carrier is what the sink writes, not what
+a member returns: `Core\Debug::render` returns the plaintext rendering as `Core\Cli\Text` under
+every sink (`rule:errors/debug-dump`), so a program that echoes a rendered dump does not escape it
+twice. A dump reaches an HTML body only through `[debug] inline`'s block, and a JSON body is never
+modified, so in a request writing JSON the dump is in the log record alone.
 
 Colour is the only thing that varies with a tty, and the plaintext rendering reads it from the one
 resolved terminal profile (`rule:tooling/the-terminal-profile-resolves-once`); structure,
@@ -27,6 +30,11 @@ from rendering would be no use.
 A rendering is not a grammar. A grammar is a string the program writes that something parses
 (`rule:security/every-grammar-is-a-sink`); a rendering is output the runtime produces, so the count
 of four is unchanged.
+
+**Partly on disk.** The three renderings are `crates/nvs-render/src/plain.rs`, `html.rs` and
+`json.rs`, and `Core\Debug::render` is `crates/nvs-stdlib/src/debug.rs:69`. Two parts are missing:
+the plaintext rendering is never coloured (`crates/nvs-render/src/plain.rs:15`), and the
+`[debug] inline` block is appended with no style of its own (`crates/nvs-runtime/src/ctx/output.rs:602`).
 
 **Declined:**
 - **A format argument on each producer**, such as `dump($x, "html")`. The call site is the one place

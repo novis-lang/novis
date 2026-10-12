@@ -25,6 +25,13 @@ builds the trace as the throw unwinds — so those three parts are the whole of 
 object a record of a throw carries is the throw itself, whose declared properties are walked like
 any other value and redact like any other value.
 
+**Partly on disk.** `Core\Log::write`, `Core\Debug::dump` and an uncaught `Throwable` build the
+record (`crates/nvs-stdlib/src/log.rs`, `crates/nvs-stdlib/src/debug.rs`,
+`crates/nvs-runtime/src/floor.rs`), and a frame is `nvs_render::Node::Frame`. A test result and a
+compiler diagnostic do not, and are M10's gaps
+`data/gaps/nvs-render/test-result-is-not-a-producer.json` and
+`data/gaps/nvs-render/compiler-diagnostic-is-not-a-producer.json`.
+
 **Declined:**
 - **Logs and dumps only, with throws, test results and diagnostics outside.** It is the smallest
   scope, and it would duplicate redaction and substitution in each producer left out rather than

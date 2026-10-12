@@ -475,7 +475,7 @@ a kind.
 
 <a id="errors-record-producers"></a>
 
-## Five producers build the one record  *(designed — not yet in the compiler)*
+## Five producers build the one record  *(designed — owned by M10)*
 
 `rule:errors/record-producers`
 
@@ -505,6 +505,13 @@ line a person greps. Novis's frames carry a label and nothing else — [`errors/
 builds the trace as the throw unwinds — so those three parts are the whole of one, and the only
 object a record of a throw carries is the throw itself, whose declared properties are walked like
 any other value and redact like any other value.
+
+**Partly on disk.** `Core\Log::write`, `Core\Debug::dump` and an uncaught `Throwable` build the
+record (`crates/nvs-stdlib/src/log.rs`, `crates/nvs-stdlib/src/debug.rs`,
+`crates/nvs-runtime/src/floor.rs`), and a frame is `nvs_render::Node::Frame`. A test result and a
+compiler diagnostic do not, and are M10's gaps
+`data/gaps/nvs-render/test-result-is-not-a-producer.json` and
+`data/gaps/nvs-render/compiler-diagnostic-is-not-a-producer.json`.
 
 **Declined:**
 - **Logs and dumps only, with throws, test results and diagnostics outside.** It is the smallest
@@ -583,7 +590,7 @@ makes it safe**. There is no raw escape hatch, and no rendering may be selected 
 
 <a id="errors-renderings"></a>
 
-## The sink in force picks the rendering, and no call site may name one  *(designed — not yet in the compiler)*
+## The sink in force picks the rendering, and no call site may name one  *(designed — owned by goal language-rule-debts)*
 
 `rule:errors/renderings`
 
@@ -599,8 +606,11 @@ renderings from becoming fifteen.
 | an HTTP request writing a JSON body | JSON | `mixed` |
 | the log target | `[log] format`: `"json"` or `"text"` | bytes |
 
-**Zero new carrier types.** Every one already existed, which is what lets a capture around a dump
-return something that re-emits correctly instead of being escaped twice.
+**Zero new carrier types.** Every one already existed. The carrier is what the sink writes, not what
+a member returns: `Core\Debug::render` returns the plaintext rendering as `Core\Cli\Text` under
+every sink ([`errors/debug-dump`](errors.md#errors-debug-dump)), so a program that echoes a rendered dump does not escape it
+twice. A dump reaches an HTML body only through `[debug] inline`'s block, and a JSON body is never
+modified, so in a request writing JSON the dump is in the log record alone.
 
 Colour is the only thing that varies with a tty, and the plaintext rendering reads it from the one
 resolved terminal profile ([`tooling/the-terminal-profile-resolves-once`](tooling.md#tooling-the-terminal-profile-resolves-once)); structure,
@@ -616,6 +626,11 @@ from rendering would be no use.
 A rendering is not a grammar. A grammar is a string the program writes that something parses
 ([`security/every-grammar-is-a-sink`](security.md#security-every-grammar-is-a-sink)); a rendering is output the runtime produces, so the count
 of four is unchanged.
+
+**Partly on disk.** The three renderings are `crates/nvs-render/src/plain.rs`, `html.rs` and
+`json.rs`, and `Core\Debug::render` is `crates/nvs-stdlib/src/debug.rs:69`. Two parts are missing:
+the plaintext rendering is never coloured (`crates/nvs-render/src/plain.rs:15`), and the
+`[debug] inline` block is appended with no style of its own (`crates/nvs-runtime/src/ctx/output.rs:602`).
 
 **Declined:**
 - **A format argument on each producer**, such as `dump($x, "html")`. The call site is the one place

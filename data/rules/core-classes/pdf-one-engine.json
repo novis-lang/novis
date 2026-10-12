@@ -7,5 +7,8 @@
     "core-classes/html-parsing",
     "core-classes/html-template"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "crates/nvs-ext/tests/pdf.rs"
+  ],
+  "goal": "pdf"
 }

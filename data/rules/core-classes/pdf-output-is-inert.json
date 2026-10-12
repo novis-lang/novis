@@ -8,5 +8,9 @@
     "core-classes/spreadsheet-output-is-inert",
     "core-classes/pdf-page-is-an-image-source"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "crates/nvs-ext/tests/pdf.rs",
+    "extensions/pdf/tests/render.rs"
+  ],
+  "goal": "pdf"
 }

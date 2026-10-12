@@ -8,7 +8,8 @@ operator**: any `?int` in an `if` has always had it. Refusing it would narrow
 `rule:expressions/truthy-positions` for every nullable value in the language, which is a larger change
 than this one.
 
-No warning code is allocated yet, and `nvs check` does not emit this today.
+**Not on disk.** No warning code is allocated, and `check_condition`
+(`crates/nvs-types/src/expr/mod.rs:199`) reports nothing for a `?T` condition.
 
 **Declined:**
 - **Refusing a `?T` condition outright.** It is the strongest guard against the trap, but it changes

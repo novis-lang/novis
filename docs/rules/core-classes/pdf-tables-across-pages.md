@@ -24,7 +24,8 @@ tool. Each rule is the reading a person expects, so none needs a setting.
 
 - **Memory:** the table's column widths and each row's height, once, as part of the layout tree.
 
-**Not shipped.** There is no PDF component in the tree.
+**Not on disk.** `extensions/pdf/src/layout.rs` lays a `display: table` box out as a block box, so
+none of the eight rules holds yet. The `pdf` goal's Stage 11 builds them.
 
 **Declined:**
 - **A setting per rule.** Each default is the one a document wants; `data-repeat`,

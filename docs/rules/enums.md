@@ -3,8 +3,6 @@
 
 # Enums
 
-*2 of 10 rules below are **designed** rather than shipped, and are marked where they appear.*
-
 <a id="enums-declaration"></a>
 
 ## A case with no written value counts on from the one before it, starting at zero
@@ -51,7 +49,7 @@ only its spelling is wrong.
 
 <a id="enums-class-scoped-enum"></a>
 
-## An `enum` is also a member of a class or interface body, reached as `Owner::Name` and `Owner::Name::Case`, and as a bare `Name` inside its owner  *(designed — not yet in the compiler)*
+## An `enum` is also a member of a class or interface body, reached as `Owner::Name` and `Owner::Name::Case`, and as a bare `Name` inside its owner
 
 `rule:enums/class-scoped-enum`
 
@@ -144,7 +142,7 @@ both resolved by the checker.
 
 <a id="enums-an-enum-lives-in-the-class-that-uses-it"></a>
 
-## An enum one class uses is declared in that class, and an enum several classes share is declared in their namespace  *(designed — not yet in the compiler)*
+## An enum one class uses is declared in that class, and an enum several classes share is declared in their namespace
 
 `rule:enums/an-enum-lives-in-the-class-that-uses-it`
 

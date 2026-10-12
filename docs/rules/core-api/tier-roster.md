@@ -33,12 +33,14 @@ The placements the tests produce, outside the `Core` classes the spec lists:
   `pdo_firebird`) stay Tier 2, built from source by the operator who needs one, and `Core\Db`'s driver
   interface keeps that possible.
 
-**Designed, not shipped.** Every class the roster places at Tier 0 is registered in
+**Partly on disk.** Every class the roster places at Tier 0 is registered in
 `crates/nvs-stdlib/src/registry.rs`: the four `spec-*-outstanding.txt` ratchets under
-`crates/nvs-stdlib/tests/` are the gates that say so, each holds no keys, and each only shrinks. What
-the roster places at Tier 0 and nothing provides is the four first-party sandboxed components. The
+`crates/nvs-stdlib/tests/` are the gates that say so, each holds no keys, and each only shrinks. The
 tier-boundary guard in `crates/nvs-stdlib/tests/tier_boundary.rs` holds the rule for what is
-registered.
+registered. Three of the four first-party components are on disk: `extensions/image/`,
+`extensions/intl/` and `extensions/pdf/`, which the `pdf` goal is still building. The spreadsheet
+component is not written (`rule:core-classes/spreadsheet-has-no-io`), and the image component has no
+EXIF reader yet (`rule:core-classes/image-pixel-model`); both are M17's (`docs/plan/m17.md`).
 
 **Declined**, each named so it is not re-proposed:
 - **The procedural `mysqli`, `pgsql` and `sqlite3` APIs.** One database API (`rule:core-classes/db-one-api`).

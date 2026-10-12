@@ -4,5 +4,8 @@
   "seeAlso": [
     "iteration/generators"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "tests/conformance/core/cache-an-entry-is-a-copy-that-shares-nothing-with-the-request.nvst"
+  ],
+  "goal": "language-rule-debts"
 }
