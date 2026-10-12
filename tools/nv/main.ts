@@ -51,6 +51,7 @@ const COMMANDS: Record<string, () => Promise<Command>> = {
   machine: () => import("./cmd/machine.ts"),
   origin: () => import("./cmd/origin.ts"),
   owners: () => import("./cmd/owners.ts"),
+  "pdf-custom-data": () => import("./cmd/pdf-custom-data.ts"),
   peek: () => import("./cmd/peek.ts"),
   plan: () => import("./cmd/plan.ts"),
   pack: () => import("./cmd/pack.ts"),

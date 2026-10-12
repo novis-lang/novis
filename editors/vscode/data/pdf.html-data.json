@@ -1,0 +1,33 @@
+{
+  "version": 1.1,
+  "globalAttributes": [
+    {
+      "name": "data-repeat",
+      "description": {
+        "kind": "markdown",
+        "value": "On a header or footer row of a table, says on which pages the row is shown. `every` is the default. `first` and `last` show it only on the first or the last page of the table. `continued` shows it only where the table goes on from the page before or to the next page."
+      },
+      "values": [
+        {
+          "name": "every"
+        },
+        {
+          "name": "first"
+        },
+        {
+          "name": "last"
+        },
+        {
+          "name": "continued"
+        }
+      ]
+    },
+    {
+      "name": "data-mark",
+      "description": {
+        "kind": "markdown",
+        "value": "Gives the page a mark as `name:value`. A header or footer function reads the marks of its page."
+      }
+    }
+  ]
+}

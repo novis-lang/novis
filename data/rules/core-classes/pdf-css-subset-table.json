@@ -7,7 +7,8 @@
     "ide/a-template-region-gets-the-editors-services-and-formatter"
   ],
   "guardedBy": [
-    "extensions/pdf/tests/css.rs"
+    "extensions/pdf/tests/css.rs",
+    "editors/vscode/test/contributions/contributions.test.ts"
   ],
   "goal": "pdf"
 }

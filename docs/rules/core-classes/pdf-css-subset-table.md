@@ -33,9 +33,21 @@ vector file draws badly (shadows, filters, masks, blend modes).
 
 - **Memory:** none at run time beyond the cascade's computed styles, which are part of the layout tree.
 
-**Partly on disk.** `extensions/pdf/subset.json` is the list, and `extensions/pdf/tests/css.rs`
-holds it equal to the properties `extensions/pdf/src/css/properties.rs` parses. The editor's data is
-not generated from it yet: the `pdf` goal's Stage 15 generates it.
+**The editor carries only what its own data lacks**, the entries `subset.json` marks `"editor":
+true`: `data-repeat` with its four values and `data-mark` as global HTML attributes, shown in every
+HTML region because the editor cannot know which markup becomes a PDF, and `string-set` with the 16
+margin-box at-rules. VS Code's CSS service keeps its own entry for a name another provider repeats,
+and its HTML service lists a repeated tag twice and hovers only its own, so a second `content` or
+`<slot>` would change nothing. The value functions `running()`, `element()`, `string()`,
+`target-counter()` and `leader()` are carried by neither file: the custom-data format has no place
+for a function, and VS Code's CSS linter does not mark an unknown one.
+
+**On disk.** `extensions/pdf/subset.json` is the list, and `extensions/pdf/tests/css.rs` holds it
+equal to the properties `extensions/pdf/src/css/properties.rs` parses.
+`editors/vscode/scripts/customData.ts` makes the editor's two files from it, `bun nv
+pdf-custom-data` writes them under `editors/vscode/data/`, `editors/vscode/package.json` contributes
+them, and the contributions suite fails when either differs from what the generator makes. The
+hovers link no reference page yet.
 
 **Declined:**
 - **The subset as prose only.** A list nothing reads drifts from what the engine parses, and the

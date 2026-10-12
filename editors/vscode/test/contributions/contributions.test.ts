@@ -22,6 +22,7 @@
 import * as assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { customData, type Subset } from "../../scripts/customData";
 
 const ROOT = resolve(__dirname, "..", "..", "..");
 
@@ -63,6 +64,8 @@ interface Manifest {
     }>;
     configurationDefaults?: Record<string, unknown>;
     themes?: unknown[];
+    html?: { customData: string[] };
+    css?: { customData: string[] };
   };
 }
 
@@ -447,6 +450,49 @@ describe("the colour the extension does not contribute", () => {
     for (const key of ["tokenColorCustomizations", "semanticTokenColorCustomizations", "colors"]) {
       assert.equal(manifestText.includes(key), false, `the manifest contributes ${key}`);
     }
+  });
+});
+
+describe("the PDF custom data", () => {
+  // `Novis\Pdf`'s attributes and CSS complete in every HTML region from two files the editor's own
+  // HTML and CSS services read. `scripts/customData.ts` makes them from the subset table, and `bun
+  // nv pdf-custom-data` writes them, so a stale file fails here (`rule:core-classes/pdf-css-subset-table`).
+  const subset = JSON.parse(
+    readFileSync(join(ROOT, "..", "..", "extensions", "pdf", "subset.json"), "utf8"),
+  ) as Subset;
+  const html = "./data/pdf.html-data.json";
+  const css = "./data/pdf.css-data.json";
+
+  it("contributes one HTML and one CSS custom data file", () => {
+    assert.deepEqual(manifest.contributes.html?.customData, [html]);
+    assert.deepEqual(manifest.contributes.css?.customData, [css]);
+  });
+
+  it("the PDF custom data is what the generator writes from the subset table", () => {
+    const want = customData(subset);
+    assert.equal(readFileSync(join(ROOT, html), "utf8"), want.html,
+                 `${html} is stale: run bun nv pdf-custom-data`);
+    assert.equal(readFileSync(join(ROOT, css), "utf8"), want.css,
+                 `${css} is stale: run bun nv pdf-custom-data`);
+  });
+
+  it("data-repeat completes every, first, last and continued", () => {
+    const data = JSON.parse(readFileSync(join(ROOT, html), "utf8")) as {
+      globalAttributes: { name: string; values?: { name: string }[] }[];
+    };
+    const repeat = data.globalAttributes.find((a) => a.name === "data-repeat");
+    assert.deepEqual(repeat?.values?.map((v) => v.name), ["every", "first", "last", "continued"]);
+    assert.ok(data.globalAttributes.some((a) => a.name === "data-mark"));
+  });
+
+  it("carries the CSS the editor's own data lacks", () => {
+    const data = JSON.parse(readFileSync(join(ROOT, css), "utf8")) as {
+      properties: { name: string }[];
+      atDirectives: { name: string }[];
+    };
+    assert.deepEqual(data.properties.map((p) => p.name), ["string-set"]);
+    assert.equal(data.atDirectives.length, 16);
+    assert.ok(data.atDirectives.every((a) => /^@(top|bottom|left|right)-/.test(a.name)));
   });
 });
 

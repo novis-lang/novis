@@ -27,6 +27,16 @@
   ],
   "main": "./out/extension.js",
   "contributes": {
+    "html": {
+      "customData": [
+        "./data/pdf.html-data.json"
+      ]
+    },
+    "css": {
+      "customData": [
+        "./data/pdf.css-data.json"
+      ]
+    },
     "configurationDefaults": {
       "[nvs]": {
         "editor.pasteAs.preferences": [
