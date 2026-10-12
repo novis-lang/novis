@@ -16,10 +16,9 @@
 > what it is walking through instead. Dependencies: `regex` + `fancy-regex` and `jiff` are named by
 > the user; the rest the loop picks under `rule:packaging/a-c-dependency-answers-two-questions`.
 >
-> **Done:** **M0 through M8 are complete but M4** — everything from project setup to the stdlib and
-> the five SQL drivers, which is the whole program ahead of the extension system. Goal
-> `class-scoped-enums` reopens M4 for one language member, and M9 is the first later milestone with
-> work still in front of it. `bun nv plan --past` is what says so, and it derives the
+> **Done:** **M0 through M8 are complete** — everything from project setup to the stdlib and the
+> five SQL drivers, which is the whole program ahead of the extension system, and M9 is the first
+> milestone with work still in front of it. `bun nv plan --past` is what says so, and it derives the
 > answer rather than reading it: no goal on the chain carries a milestone, and no register still
 > tags an item to it. Each milestone file under [docs/plan/](plan/) states its own acceptance.
 >
@@ -85,15 +84,15 @@ somebody has already followed.
 | done | [M1](plan/m1.md) | Front end (~3 weeks) | 0.7 |
 | done | [M2](plan/m2.md) | HIR, types, IR (~4 weeks) | 1.5 |
 | done | [M3](plan/m3.md) | Baseline Cranelift backend → **Hello World** (~3 weeks) | 0.5 |
-| goal `class-scoped-enums` | [M4](plan/m4.md) | Language completeness — a usable CLI language (~10 weeks) | ~3 |
+| done | [M4](plan/m4.md) | Language completeness — a usable CLI language (~10 weeks) | ~3 |
 | done | [M4S](plan/m4s.md) | The `Core` API contract and its pure half (~5 weeks) | ~1.5 |
 | done | [M4B](plan/m4b.md) | Minimal `nvs-lsp`, syntax highlighting and the VS Code extension (~3 weeks) | ~1.5 |
 | done | [M5](plan/m5.md) | Concurrency and script isolates (~5 weeks) | ~3.5 |
 | done | [M6](plan/m6.md) | Config, limits, capabilities, disk cache (~3 weeks) | ~1 |
 | done | [M7](plan/m7.md) | Built-in HTTP server (~4 weeks) | ~2 |
-| goal `env-context` | [M8](plan/m8.md) | Stdlib and databases (~16 weeks) | ~6.5 |
+| done | [M8](plan/m8.md) | Stdlib and databases (~16 weeks) | ~6.5 |
 | ongoing | [M9](plan/m9.md) | Extension system, and the `nvs:ext@1.0.0` world it freezes (not yet sized) | not estimated |
-| goals `decision-records-retired`, `nvs-code` | [M10](plan/m10.md) | Developer tooling and IDE integration (~14 weeks; scope shifted by `rule:ide/every-feature-is-staged-behind-its-dependency`, net change undetermined) | ~8 |
+| backlog 2 | [M10](plan/m10.md) | Developer tooling and IDE integration (~14 weeks; scope shifted by `rule:ide/every-feature-is-staged-behind-its-dependency`, net change undetermined) | ~8 |
 | ongoing | [M12](plan/m12.md) | Optimising JIT tier (ongoing) | measurement-bound |
 | backlog 4 | [M15](plan/m15.md) | Packages, the registry and the supply chain (~8 weeks) | ~3 + a calendar floor |
 | backlog 5 | [M16](plan/m16.md) | `nvs/web`, `nvs new`, and the framework (~12 weeks) | ~4 |
