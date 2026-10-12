@@ -31,6 +31,12 @@
 //!
 //! `merge` is [`merge::merge`], and `read` and `read-text` are [`read::read`] and [`read::text`].
 //! Each opens existing PDFs and renders nothing (`merge`'s and `read`'s module docs).
+//!
+//! Packed as a `.nvsx` and embedded in every `nvs` binary, the component is 14.3 MiB, built for
+//! release as `crates/nvs-ext/build.rs` always builds it. That is the binary's growth for PDF,
+//! and `crates/nvs-ext/tests/builtin.rs` fails when this figure drifts past 5% of the bytes the
+//! binary carries. The 12 Liberation fonts under `extensions/fonts/` are 4.3 MiB of it, a copy
+//! of their own beside the image component's.
 
 pub mod assets;
 pub mod css;
