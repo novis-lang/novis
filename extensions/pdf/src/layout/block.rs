@@ -14,7 +14,8 @@
 //! `z-index` draws the layers inside it as part of its own, so it stacks them only among
 //! themselves. An absolute box waits in the innermost positioned box open, its containing
 //! block, until that box closes and its padding box is known, or in the flow when there is none,
-//! where the page's content box is its containing block.
+//! where the page's content box is its containing block. A `fixed` box always waits in the
+//! flow, and [`Flow::finish`] places a copy of it on every page against that page's content box.
 
 use super::boxes::{self, Decor};
 use super::text::shift;
@@ -49,7 +50,8 @@ pub(super) enum Position {
     Static,
     /// Moved right and down by these offsets after it is laid out. The flow keeps its place.
     Relative([f32; 2]),
-    /// Placed by its insets against its containing block. The box is an [`super::Atom`].
+    /// Placed by its insets against its containing block, which for `fixed` is every page's
+    /// content box. The box is an [`super::Atom`].
     Absolute,
 }
 
@@ -161,7 +163,7 @@ pub(super) fn geometry(style: &Style, x: f32, containing: f32) -> BoxGeometry {
             offset("left", "right", containing),
             offset("top", "bottom", 0.0),
         ]),
-        Some("absolute") => Position::Absolute,
+        Some("absolute" | "fixed") => Position::Absolute,
         _ => Position::Static,
     };
     BoxGeometry {
@@ -203,6 +205,7 @@ struct Stack {
 /// An absolute box waiting for its containing block to close: its items with its margin box's
 /// top-left corner at 0, 0, its margin box's size, its insets, the page, left edge and top it
 /// would have in the flow, its `z-index` and its place in the document.
+#[derive(Clone)]
 struct Absolute {
     items: Vec<Item>,
     size: (f32, f32),
@@ -247,6 +250,8 @@ pub(super) struct Flow {
     layers: Vec<Layer>,
     /// The absolute boxes with no positioned box around them.
     loose: Vec<Absolute>,
+    /// The `fixed` boxes, which [`Flow::finish`] places on every page.
+    fixed: Vec<Absolute>,
     /// The number of positioned boxes met so far, which orders those of equal `z-index`.
     order: usize,
 }
@@ -273,6 +278,7 @@ impl Flow {
             floats: Vec::new(),
             layers: Vec::new(),
             loose: Vec::new(),
+            fixed: Vec::new(),
             order: 0,
         }
     }
@@ -502,13 +508,20 @@ impl Flow {
                     bottom - top,
                     [page == first, true, page == last, true],
                 );
-                let opacity = g.decor.opacity < 1.0;
-                if opacity {
+                // A transform turns the slice of the box on this page about its own origin.
+                let grouped = g.decor.grouped();
+                if grouped {
+                    let transform = g
+                        .decor
+                        .transform
+                        .as_ref()
+                        .map(|t| t.matrix(g.x, MARGIN + top, g.width, bottom - top));
                     items.insert(
                         0,
                         Item::Begin {
                             opacity: g.decor.opacity,
                             clip: None,
+                            transform,
                         },
                     );
                 }
@@ -516,7 +529,7 @@ impl Flow {
                 painted.push(items.len());
                 let page = &mut self.pages[page].items;
                 page.splice(under..under, items);
-                if opacity {
+                if grouped {
                     page.push(Item::End);
                 }
             }
@@ -561,7 +574,7 @@ impl Flow {
                 .collect();
         }
         inner.sort_by_key(|l| (l.z, l.order));
-        let opacity = g.decor.opacity < 1.0;
+        let grouped = g.decor.grouped();
         for page in first..=last {
             let from = if page == first { under } else { 0 };
             let mut items: Vec<Item> = self.pages[page]
@@ -578,7 +591,7 @@ impl Flow {
                         .collect::<Vec<Item>>()
                 };
                 let above = layers(false);
-                let end = items.len() - usize::from(opacity && top.is_some());
+                let end = items.len() - usize::from(grouped && top.is_some());
                 items.splice(end..end, above);
                 let paint = painted.get(page - first).copied().unwrap_or(0);
                 let below = layers(true);
@@ -599,7 +612,7 @@ impl Flow {
 
     /// Places an absolute box `size` big, whose items have its margin box's top-left corner at
     /// 0, 0, at the static place this flow has reached, to wait for its containing block: the
-    /// innermost positioned box open, or the page.
+    /// innermost positioned box open, or the page. A `fixed` one waits for every page.
     pub(super) fn absolute(
         &mut self,
         items: Vec<Item>,
@@ -607,6 +620,7 @@ impl Flow {
         x: f32,
         insets: Insets,
         z: Option<i64>,
+        fixed: bool,
     ) {
         self.order += 1;
         let absolute = Absolute {
@@ -619,6 +633,10 @@ impl Flow {
             z: z.unwrap_or(0),
             order: self.order,
         };
+        if fixed {
+            self.fixed.push(absolute);
+            return;
+        }
         match self.open.iter_mut().rev().find_map(|o| o.stack.as_mut()) {
             Some(stack) => stack.absolute.push(absolute),
             None => self.loose.push(absolute),
@@ -661,11 +679,19 @@ impl Flow {
     }
 
     /// Places the absolute boxes with no positioned box around them against `area`, the
-    /// content box's left edge, width, top and bottom on the page each one is on, and draws
-    /// every layer onto its page: those below 0 under the page's items and the rest over them.
+    /// content box's left edge, width, top and bottom on the page each one is on, places a copy
+    /// of each `fixed` box against it on every page, and draws every layer onto its page: those
+    /// below 0 under the page's items and the rest over them.
     pub(super) fn finish(&mut self, area: [f32; 4]) {
         let [left, width, top, bottom] = area;
-        for absolute in std::mem::take(&mut self.loose) {
+        let fixed = std::mem::take(&mut self.fixed);
+        let copies = (0..self.pages.len())
+            .flat_map(|page| fixed.iter().map(move |f| Absolute { page, ..f.clone() }));
+        let loose: Vec<Absolute> = std::mem::take(&mut self.loose)
+            .into_iter()
+            .chain(copies)
+            .collect();
+        for absolute in loose {
             let page = absolute.page;
             let area = Area {
                 left,

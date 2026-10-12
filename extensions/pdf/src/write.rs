@@ -257,8 +257,16 @@ pub fn write(laid: &Laid, created: Option<Instant>) -> Result<Vec<u8>, Error> {
                     surface.draw_path(&path);
                     surface.set_stroke(None);
                 }
-                Item::Begin { opacity, clip } => {
+                Item::Begin {
+                    opacity,
+                    clip,
+                    transform,
+                } => {
                     let mut pushed = 0;
+                    if let Some([a, b, c, d, e, f]) = *transform {
+                        surface.push_transform(&Transform::from_row(a, b, c, d, e, f));
+                        pushed += 1;
+                    }
                     if let Some(clip) = clip.as_deref().and_then(shape) {
                         surface.push_clip_path(&clip, &FillRule::EvenOdd);
                         pushed += 1;

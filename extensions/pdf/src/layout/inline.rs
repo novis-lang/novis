@@ -545,6 +545,7 @@ impl Builder<'_, '_> {
         self.flush();
         let mut geometry = geometry(style, outer.x, outer.width);
         geometry.decor.layer = self.layer(style, self.rem)?;
+        geometry.decor.transform = super::transform::read(style, self.rem);
         inner.x = geometry.x + geometry.border[3] + geometry.padding[3];
         inner.width = (geometry.width
             - geometry.border[1]
@@ -666,9 +667,9 @@ impl Builder<'_, '_> {
         });
     }
 
-    /// Closes the innermost open absolute box, with its `insets` and `z-index`, inside the
-    /// content box of `frame`. It is placed before the text collected around it.
-    fn close_absolute(&mut self, insets: Insets, z: Option<i64>, frame: &Frame) {
+    /// Closes the innermost open absolute or `fixed` box, with its `insets` and `z-index`,
+    /// inside the content box of `frame`. It is placed before the text collected around it.
+    fn close_absolute(&mut self, insets: Insets, z: Option<i64>, fixed: bool, frame: &Frame) {
         let Some(blocks) = self.close_box() else {
             return;
         };
@@ -677,6 +678,7 @@ impl Builder<'_, '_> {
             x: frame.x,
             insets,
             z,
+            fixed,
         });
         self.atoms.push(Atom {
             blocks,
@@ -901,8 +903,8 @@ enum Step {
         item: Option<(i64, taffy::Style)>,
         /// Whether a float floats right, and the sides its `clear` names.
         float: Option<(bool, [bool; 2])>,
-        /// An absolute box's insets and `z-index`.
-        absolute: Option<(Insets, Option<i64>)>,
+        /// An absolute box's insets, its `z-index`, and whether it is `fixed`.
+        absolute: Option<(Insets, Option<i64>, bool)>,
         /// Whether the element is a flex container.
         flex: bool,
         /// Whether the element opened an inline box, which closes after its `::after`.
@@ -994,9 +996,9 @@ pub(super) fn blocks(
                 }
                 if let Some((order, style)) = item {
                     builder.close_item(order, style);
-                } else if let Some((insets, z)) = absolute {
+                } else if let Some((insets, z, fixed)) = absolute {
                     let outer = frames.last().expect("the root frame stays");
-                    builder.close_absolute(insets, z, outer);
+                    builder.close_absolute(insets, z, fixed, outer);
                 } else if let Some((right, clear)) = float {
                     let outer = frames.last().expect("the root frame stays");
                     builder.close_float(right, clear, outer);
@@ -1097,9 +1099,10 @@ pub(super) fn blocks(
                 };
                 let block = display != "inline";
                 let flex = matches!(display, "flex" | "inline-flex" | "grid" | "inline-grid");
-                // An absolute box is neither a flex item nor a float.
-                let absolute = (keyword(style, "position") == Some("absolute"))
-                    .then(|| (insets(style), z_index(style)));
+                // An absolute or `fixed` box is neither a flex item nor a float.
+                let position = keyword(style, "position");
+                let absolute = matches!(position, Some("absolute" | "fixed"))
+                    .then(|| (insets(style), z_index(style), position == Some("fixed")));
                 let item = (item && absolute.is_none())
                     .then(|| flex::item(style, frame.width, builder.row()));
                 let side = sides(style, "float");

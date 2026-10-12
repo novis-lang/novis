@@ -57,8 +57,17 @@
 //! with neither keeps the place the box would have in the flow. Without a `width`, it is as wide
 //! as its content, up to its parent's content box, and `left` and `right` together do not
 //! stretch it. Inside an inline-block, a float or a flex item, the item's own box is its
-//! containing block when no box between them is positioned. Positioned boxes are drawn over the
-//! others by `z-index` (`block`'s module doc).
+//! containing block when no box between them is positioned. An element under `position: fixed`
+//! is laid out as an absolute one is, and its containing block is the page's content box whatever
+//! is around it: a copy of it is drawn on every page, which is how a watermark is written. Inside
+//! an inline-block, a float or a flex item it is placed once, against that item's box. Positioned
+//! boxes are drawn over the others by `z-index` (`block`'s module doc).
+//!
+//! **Transforms.** A block box under `transform` is laid out in its place and drawn with its
+//! content in one group under the transform's matrix (`transform`'s module doc), so it takes the
+//! room it would take untransformed. A box that goes on past a page turns each slice about the
+//! slice's own origin. A `transform` on an inline element does nothing, and a transformed box is
+//! not the containing block of an absolute or `fixed` box inside it.
 //!
 //! **Text** is the inline content of a block, shaped and broken into lines by `parley` over
 //! `harfrust` and `skrifa`. Each run takes its font chain (`fonts`' module doc), `font-size`,
@@ -136,10 +145,12 @@ mod grid;
 mod image;
 mod inline;
 mod text;
+mod transform;
 
 pub use boxes::{Paint, Seg, Stop, Stroke, bounds};
 pub use image::Picture;
 pub use text::layout;
+pub use transform::Matrix;
 
 use block::{BoxGeometry, SIDES};
 
@@ -203,10 +214,11 @@ pub enum Item {
         stroke: Option<Stroke>,
     },
     /// Starts a group that ends at the matching [`Item::End`]: its items are drawn at `opacity`,
-    /// and only inside `clip` when it has one.
+    /// under `transform` when it has one, and only inside `clip` when it has one.
     Begin {
         opacity: f32,
         clip: Option<Vec<Seg>>,
+        transform: Option<Matrix>,
     },
     End,
 }
@@ -306,12 +318,14 @@ enum Block {
         clear: [bool; 2],
     },
     /// An absolute box: its index in the list of [`Atom`]s, laid out as an `inline-block` box
-    /// is, the left edge of the content box it would be in, its insets and its `z-index`.
+    /// is, the left edge of the content box it would be in, its insets, its `z-index`, and
+    /// whether it is `fixed` and drawn on every page.
     Absolute {
         atom: usize,
         x: f32,
         insets: block::Insets,
         z: Option<i64>,
+        fixed: bool,
     },
     Text {
         text: String,
