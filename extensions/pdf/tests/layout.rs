@@ -1271,3 +1271,138 @@ fn an_inline_block_is_laid_out_as_a_block_and_placed_in_its_line() {
     let first = render(&document).unwrap();
     assert_eq!(first.data, render(&document).unwrap().data);
 }
+
+const RED: (u8, u8, u8) = (255, 0, 0);
+const GREEN: (u8, u8, u8) = (0, 255, 0);
+const BLUE: (u8, u8, u8) = (0, 0, 255);
+
+/// The filled rectangle of each colour, in the order given.
+fn boxes_of(laid: &Laid, colours: &[(u8, u8, u8)]) -> Vec<Rect> {
+    colours
+        .iter()
+        .map(|c| {
+            rects(laid)
+                .into_iter()
+                .find(|r| r.4 == *c)
+                .unwrap_or_else(|| panic!("no box of {c:?}: {:?}", rects(laid)))
+        })
+        .collect()
+}
+
+/// A flex container with `style` around three items, red, green and blue, with their own
+/// styles and texts.
+fn flex(style: &str, items: [(&str, &str); 3]) -> Laid {
+    let colours = ["#ff0000", "#00ff00", "#0000ff"];
+    let inner: String = items
+        .iter()
+        .zip(colours)
+        .map(|((s, text), c)| format!("<div style='background-color: {c}; {s}'>{text}</div>"))
+        .collect();
+    lay(&format!(
+        "<body style='margin: 0'><div style='display: flex; {style}'>{inner}</div><p style='margin: 0'>Next</p>"
+    ))
+}
+
+#[test]
+fn flex_lays_out_rows_and_columns() {
+    let width = 595.275_6 - 2.0 * MARGIN;
+    let all = [RED, GREEN, BLUE];
+
+    // In a row, an item with no width is as wide as its text, a growing item takes the free
+    // space, and an item with a width keeps it. Every item is as tall as the line.
+    let laid = flex(
+        "",
+        [
+            ("padding: 4pt", "Shop"),
+            ("flex-grow: 1", "Blog"),
+            ("width: 60pt", "End"),
+        ],
+    );
+    let [red, green, blue] = boxes_of(&laid, &all)[..] else {
+        unreachable!()
+    };
+    assert!(close(red.0, MARGIN), "{red:?}");
+    assert!(red.2 > 20.0 && red.2 < 60.0, "{red:?}");
+    assert!(close(green.0, red.0 + red.2), "{red:?} {green:?}");
+    assert!(close(blue.0, green.0 + green.2), "{green:?} {blue:?}");
+    assert!(close(blue.2, 60.0), "{blue:?}");
+    assert!(close(blue.0 + blue.2, MARGIN + width), "{blue:?}");
+    for b in [green, blue] {
+        assert!(close(b.1, red.1) && close(b.3, red.3), "{red:?} {b:?}");
+    }
+    // The padding moves the first text down, the other two share a baseline, and the next
+    // paragraph is under the row.
+    let lines_drawn = lines(&laid);
+    assert_eq!(lines_drawn.len(), 3, "{lines_drawn:?}");
+    assert!(
+        close(lines_drawn[0].0, green.0) && lines_drawn[0].1 > blue.0,
+        "{lines_drawn:?}"
+    );
+    let next = runs(&laid).last().unwrap().2;
+    assert!(next > red.1 + red.3, "{next} {red:?}");
+
+    // In a column with a gap, each item is as wide as the container and under the one before.
+    let laid = flex(
+        "flex-direction: column; row-gap: 10pt",
+        [("", "Shop"), ("", "Blog"), ("", "End")],
+    );
+    let [red, green, blue] = boxes_of(&laid, &all)[..] else {
+        unreachable!()
+    };
+    for b in [red, green, blue] {
+        assert!(close(b.0, MARGIN) && close(b.2, width), "{b:?}");
+    }
+    assert!(close(green.1, red.1 + red.3 + 10.0), "{red:?} {green:?}");
+    assert!(close(blue.1, green.1 + green.3 + 10.0), "{green:?} {blue:?}");
+
+    // `justify-content: center` shares the free space on both sides, `align-items: center`
+    // centres a short item against a tall one, and `order` moves an item first.
+    let laid = flex(
+        "justify-content: center; align-items: center",
+        [
+            ("width: 100pt; height: 40pt", "Shop"),
+            ("width: 100pt; height: 20pt", "Blog"),
+            ("width: 100pt; height: 40pt; order: -1", "End"),
+        ],
+    );
+    let [red, green, blue] = boxes_of(&laid, &all)[..] else {
+        unreachable!()
+    };
+    assert!(close(blue.0, MARGIN + (width - 300.0) / 2.0), "{blue:?}");
+    assert!(close(red.0, blue.0 + 100.0) && close(green.0, red.0 + 100.0));
+    assert!(close(green.3, 20.0) && close(green.1, red.1 + 10.0), "{red:?} {green:?}");
+
+    // Under `flex-wrap: wrap`, an item that does not fit starts a new line.
+    let laid = flex(
+        "flex-wrap: wrap",
+        [
+            ("width: 200pt", "Shop"),
+            ("width: 200pt", "Blog"),
+            ("width: 200pt", "End"),
+        ],
+    );
+    let [red, green, blue] = boxes_of(&laid, &all)[..] else {
+        unreachable!()
+    };
+    assert!(close(green.1, red.1) && close(green.0, red.0 + 200.0), "{green:?}");
+    assert!(close(blue.0, MARGIN) && close(blue.1, red.1 + red.3), "{blue:?}");
+
+    // Text directly in the container is an item of its own.
+    let laid = lay(
+        "<body style='margin: 0'><div style='display: flex'>Shop <span style='background-color: #ff0000'>Blog</span></div>",
+    );
+    let drawn = runs(&laid);
+    assert_eq!(drawn.len(), 2, "{drawn:?}");
+    let red = boxes_of(&laid, &[RED])[0];
+    assert!(close(red.0, drawn[0].3) || red.0 > drawn[0].3, "{red:?} {drawn:?}");
+    assert!(close(drawn[0].2, drawn[1].2), "{drawn:?}");
+
+    // It renders, and twice to the same bytes.
+    let document = Document {
+        html: "<div style='display: flex; gap: 8pt'><p style='flex: 1'>Shop</p><p>Blog</p></div>"
+            .into(),
+        ..Document::default()
+    };
+    let first = render(&document).unwrap();
+    assert_eq!(first.data, render(&document).unwrap().data);
+}

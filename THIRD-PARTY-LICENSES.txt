@@ -10,7 +10,7 @@ GENERATED FILE — do not edit by hand. Regenerate with:
     bun nv gen-attribution
 
 
-COMPONENTS (669)
+COMPONENTS (670)
 ------------------------------------------------------------------------------
 
 Where a component offers a choice of licenses, Novis takes the one shown and
@@ -536,6 +536,7 @@ platform Novis builds for, so one may appear that a given build omits.
   syn                                        3.0.8                          MIT                             (MIT OR Apache-2.0)
   synstructure                               0.13.2                         MIT
   synstructure                               0.14.0                         MIT
+  taffy                                      0.14.0                         MIT
   target-lexicon                             0.13.5                         Apache-2.0 WITH LLVM-exception
   tempfile                                   3.27.0                         MIT                             (MIT OR Apache-2.0)
   tendril                                    0.5.1                          MIT                             (MIT OR Apache-2.0)
@@ -723,6 +724,7 @@ Applies to:
   rsqlite-vfs 0.1.1
   simd_helpers 0.1.0
   siphasher 1.0.3
+  taffy 0.14.0
   winapi-i686-pc-windows-gnu 0.4.0
   winapi-x86_64-pc-windows-gnu 0.4.0
 

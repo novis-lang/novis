@@ -12,6 +12,7 @@ use parley::{
 };
 
 use super::block::geometry;
+use super::flex::{self, Flex};
 use super::{
     Atom, BLACK, Block, CONTENT_WIDTH, Frame, Images, Inline, MARGIN, Para, Spaces, Span, color,
     keyword, length,
@@ -432,8 +433,24 @@ pub(super) struct Builder<'a, 'd> {
     text_atoms: Vec<(usize, usize)>,
     /// Every `inline-block` box closed so far, so an inner one comes before the one around it.
     pub(super) atoms: Vec<Atom>,
-    /// The text and blocks around each `inline-block` box still open, innermost last.
+    /// The text and blocks around each `inline-block` box or flex item still open, innermost
+    /// last.
     outside: Vec<Outside>,
+    /// Each flex container still open, innermost last.
+    containers: Vec<Container>,
+}
+
+/// A flex container whose element has not closed.
+struct Container {
+    /// The number of frames on the stack inside it, which its own children see.
+    depth: usize,
+    flex: Flex,
+    /// Each item's `order`, beside `flex.items`.
+    order: Vec<i64>,
+    /// Whether its main axis is a row.
+    row: bool,
+    /// Whether an anonymous item is open for the text between its children.
+    anonymous: bool,
 }
 
 /// What an `inline-block` box sets aside while its own blocks are collected.
@@ -570,6 +587,16 @@ impl Builder<'_, '_> {
     /// Opens the `inline-block` box of `style` inside the content box of `outer`: sets the
     /// text around it aside and opens its box against a containing block at `x` 0.
     fn open_atom(&mut self, style: &Style, outer: &Frame, inner: &mut Frame) -> Result<(), Error> {
+        self.set_aside();
+        let origin = Frame {
+            x: 0.0,
+            ..outer.clone()
+        };
+        self.open(style, &origin, inner)
+    }
+
+    /// Sets the blocks and the text collected so far aside, until [`Builder::close_box`].
+    fn set_aside(&mut self) {
         self.outside.push(Outside {
             blocks: std::mem::take(&mut self.blocks),
             text: std::mem::take(&mut self.text),
@@ -580,21 +607,14 @@ impl Builder<'_, '_> {
             open_inline: std::mem::take(&mut self.open_inline),
             text_atoms: std::mem::take(&mut self.text_atoms),
         });
-        let origin = Frame {
-            x: 0.0,
-            ..outer.clone()
-        };
-        self.open(style, &origin, inner)
     }
 
-    /// Closes the innermost open `inline-block` box, whose `vertical-align` is `align`, and
-    /// adds it to the text around it at the end of that text, in `frame`'s paragraph.
-    fn close_atom(&mut self, align: VerticalAlign, frame: &Frame) {
+    /// Closes the innermost box opened after [`Builder::set_aside`], puts back what it set
+    /// aside, and returns the box's blocks.
+    fn close_box(&mut self) -> Option<Vec<Block>> {
         self.flush();
         self.blocks.push(Block::Close);
-        let Some(outside) = self.outside.pop() else {
-            return;
-        };
+        let outside = self.outside.pop()?;
         let blocks = std::mem::replace(&mut self.blocks, outside.blocks);
         self.text = outside.text;
         self.runs = outside.runs;
@@ -603,13 +623,120 @@ impl Builder<'_, '_> {
         self.inline = outside.inline;
         self.open_inline = outside.open_inline;
         self.text_atoms = outside.text_atoms;
+        Some(blocks)
+    }
+
+    /// Closes the innermost open `inline-block` box, whose `vertical-align` is `align`, and
+    /// adds it to the text around it at the end of that text, in `frame`'s paragraph.
+    fn close_atom(&mut self, align: VerticalAlign, frame: &Frame) {
+        let Some(blocks) = self.close_box() else {
+            return;
+        };
         if self.owner.is_none() {
             self.owner = Some((frame.para, frame.x, frame.width));
         }
         self.text_atoms.push((self.text.len(), self.atoms.len()));
-        self.atoms.push(Atom { blocks, align });
+        self.atoms.push(Atom {
+            blocks,
+            align,
+            item: false,
+        });
         // Spaces after an inline-block are kept, as after a word.
         self.after_space = false;
+    }
+
+    /// Whether an element or text at the stack's `depth` is a child of the innermost open flex
+    /// container.
+    fn in_container(&self, depth: usize) -> bool {
+        self.containers.last().is_some_and(|c| c.depth == depth)
+    }
+
+    /// Starts the flex container of `style`, whose block box is the last opened, with its
+    /// content box `inner` and its children at the stack's `depth`.
+    fn open_container(&mut self, style: &Style, inner: &Frame, depth: usize) {
+        let height = match self.blocks.last() {
+            Some(Block::Open(g)) => g.min_content,
+            _ => 0.0,
+        };
+        let row = !matches!(
+            keyword(style, "flex-direction"),
+            Some("column" | "column-reverse")
+        );
+        self.containers.push(Container {
+            depth,
+            flex: Flex {
+                x: inner.x,
+                width: inner.width,
+                style: flex::container(style, inner.width, height),
+                items: Vec::new(),
+            },
+            order: Vec::new(),
+            row,
+            anonymous: false,
+        });
+    }
+
+    /// Ends the innermost flex container: its items become one [`Block::Flex`].
+    fn close_container(&mut self) {
+        self.close_anonymous();
+        if let Some(container) = self.containers.pop() {
+            self.flush();
+            self.blocks.push(Block::Flex(container.flex));
+        }
+    }
+
+    /// Whether the innermost flex container's main axis is a row.
+    fn row(&self) -> bool {
+        self.containers.last().is_none_or(|c| c.row)
+    }
+
+    /// Closes the innermost open flex item, with its `order` and `taffy` style, and adds it to
+    /// its container after every item of a lower or equal `order`.
+    fn close_item(&mut self, order: i64, style: taffy::Style) {
+        let Some(blocks) = self.close_box() else {
+            return;
+        };
+        let at = self.atoms.len();
+        self.atoms.push(Atom {
+            blocks,
+            align: VerticalAlign::BASELINE,
+            item: true,
+        });
+        if let Some(c) = self.containers.last_mut() {
+            let place = c.order.partition_point(|o| *o <= order);
+            c.order.insert(place, order);
+            c.flex.items.insert(place, (at, style));
+        }
+        self.after_space = true;
+    }
+
+    /// Opens an anonymous flex item in the innermost container, whose content box is `frame`,
+    /// unless one is open, and returns the frame its content is collected in.
+    fn open_anonymous(&mut self, frame: &Frame) -> Frame {
+        if let Some(c) = self.containers.last_mut()
+            && !c.anonymous
+        {
+            c.anonymous = true;
+            self.set_aside();
+            self.blocks
+                .push(Block::Open(geometry(&Style::default(), 0.0, frame.width)));
+            self.indented = false;
+            self.after_space = true;
+        }
+        Frame {
+            x: 0.0,
+            ..frame.clone()
+        }
+    }
+
+    /// Closes the innermost container's anonymous item, if one is open.
+    fn close_anonymous(&mut self) {
+        if let Some(c) = self.containers.last_mut()
+            && c.anonymous
+        {
+            c.anonymous = false;
+            self.close_item(0, flex::anonymous());
+        }
     }
 
     /// Closes the innermost open inline box at the end of the text so far.
@@ -730,6 +857,10 @@ enum Step {
         block: bool,
         /// The `vertical-align` of an `inline-block` box, which closes into the text around it.
         atom: Option<VerticalAlign>,
+        /// The `order` and `taffy` style of a flex item, which closes into its container.
+        item: Option<(i64, taffy::Style)>,
+        /// Whether the element is a flex container.
+        flex: bool,
         /// Whether the element opened an inline box, which closes after its `::after`.
         inline: bool,
         close: Option<&'static str>,
@@ -771,6 +902,7 @@ pub(super) fn blocks(
         text_atoms: Vec::new(),
         atoms: Vec::new(),
         outside: Vec::new(),
+        containers: Vec::new(),
     };
     let root = Frame {
         x: MARGIN,
@@ -793,6 +925,8 @@ pub(super) fn blocks(
                 at,
                 block,
                 atom,
+                item,
+                flex,
                 inline,
                 close,
             } => {
@@ -809,7 +943,12 @@ pub(super) fn blocks(
                     builder.close_inline();
                 }
                 counters.leave(depth);
-                if let Some(align) = atom {
+                if flex {
+                    builder.close_container();
+                }
+                if let Some((order, style)) = item {
+                    builder.close_item(order, style);
+                } else if let Some(align) = atom {
                     let outer = frames.last().expect("the root frame stays");
                     builder.close_atom(align, outer);
                 } else if block {
@@ -825,14 +964,34 @@ pub(super) fn blocks(
             Kind::Document => {
                 work.extend(node.children.iter().rev().map(|&c| Step::Enter(c)));
             }
+            // Text directly in a flex container is an anonymous item, unless it is only spaces.
+            Kind::Text(text) if builder.in_container(frames.len()) => {
+                if !text.trim().is_empty() {
+                    let inner = builder.open_anonymous(&frame);
+                    builder.push_text(text, &inner);
+                }
+            }
             Kind::Text(text) => builder.push_text(text, &frame),
             Kind::Ignored => {}
             Kind::Element { name, space, .. } => {
+                let item = builder.in_container(frames.len());
+                if item {
+                    builder.close_anonymous();
+                }
                 if *space == Space::Svg && name == "svg" {
                     if let Some(style) = styles.of(at)
                         && keyword(style, "display") != Some("none")
                     {
-                        builder.inline_svg(dom, at, style, &frame)?;
+                        // A picture in a flex container is an anonymous item of its own.
+                        let inner = if item {
+                            builder.open_anonymous(&frame)
+                        } else {
+                            frame.clone()
+                        };
+                        builder.inline_svg(dom, at, style, &inner)?;
+                        if item {
+                            builder.close_anonymous();
+                        }
                     }
                     continue;
                 }
@@ -848,7 +1007,15 @@ pub(super) fn blocks(
                 }
                 let name = name.as_str();
                 if name == "img" {
-                    builder.image(dom, at, style, &frame)?;
+                    let inner = if item {
+                        builder.open_anonymous(&frame)
+                    } else {
+                        frame.clone()
+                    };
+                    builder.image(dom, at, style, &inner)?;
+                    if item {
+                        builder.close_anonymous();
+                    }
                     continue;
                 }
                 if name == "br" {
@@ -877,8 +1044,11 @@ pub(super) fn blocks(
                     None
                 };
                 let block = display != "inline";
-                let atom = (display == "inline-block").then(|| vertical_align(style, None));
-                let inline = if atom.is_some() {
+                let flex = matches!(display, "flex" | "inline-flex");
+                let item = item.then(|| flex::item(style, frame.width, builder.row()));
+                let atom = (item.is_none() && display == "inline-block")
+                    .then(|| vertical_align(style, None));
+                let inline = if item.is_some() || atom.is_some() {
                     builder.open_atom(style, &frame, &mut inner)?;
                     false
                 } else if block {
@@ -946,10 +1116,16 @@ pub(super) fn blocks(
                     builder.generated(before, dom, at, &counters, &inner, fonts)?;
                 }
                 frames.push(inner);
+                if flex {
+                    let inner = frames.last().expect("just pushed");
+                    builder.open_container(style, inner, frames.len());
+                }
                 work.push(Step::Exit {
                     at,
                     block,
                     atom,
+                    item,
+                    flex,
                     inline,
                     close: controls.map(|(_, close)| close),
                 });

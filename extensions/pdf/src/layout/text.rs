@@ -36,12 +36,19 @@ pub fn layout(
         spans: &spans,
         missing: Vec::new(),
         placed: Vec::with_capacity(atoms.len()),
+        waiting: Vec::with_capacity(atoms.len()),
     };
     // An inner inline-block comes before the one around it, so each one's inner boxes are
-    // placed before it is laid out.
+    // placed before it is laid out. A flex item waits for its container, which sizes it.
     for atom in atoms {
-        let placed = cx.atom(atom);
-        cx.placed.push(placed);
+        if atom.item {
+            cx.placed.push(Placed::empty());
+            cx.waiting.push(Some(atom.blocks));
+        } else {
+            let placed = cx.atom(atom);
+            cx.placed.push(placed);
+            cx.waiting.push(None);
+        }
     }
     let mut flow = Flow::new(CONTENT_HEIGHT);
     cx.run(blocks, &mut flow);
@@ -57,42 +64,66 @@ pub fn layout(
 }
 
 /// What laying out every block shares: the shaping context, the fonts, the text styles, the
-/// text no font has, and each `inline-block` box laid out so far.
-struct Cx<'s> {
+/// text no font has, each `inline-block` box laid out so far, and the blocks of each flex item
+/// whose container is not laid out yet, both by their index in the list of atoms.
+pub(super) struct Cx<'s> {
     lcx: LayoutContext<usize>,
     fonts: Fonts,
     spans: &'s [Span],
-    missing: Vec<Missing>,
+    pub(super) missing: Vec<Missing>,
     placed: Vec<Placed>,
+    pub(super) waiting: Vec<Option<Vec<Block>>>,
 }
 
 /// An `inline-block` box laid out: its items with its margin box's top-left corner at 0, 0, the
 /// margin box's width and height, its baseline from its top, `None` when it has no line, its
 /// `vertical-align`, and the text no font has, whose page is set when the box is drawn.
-struct Placed {
-    items: Vec<Item>,
+pub(super) struct Placed {
+    pub(super) items: Vec<Item>,
     width: f32,
-    height: f32,
+    pub(super) height: f32,
     baseline: Option<f32>,
     align: VerticalAlign,
-    missing: Vec<Missing>,
+    pub(super) missing: Vec<Missing>,
+}
+
+impl Placed {
+    /// The place of a flex item in the list of laid-out `inline-block` boxes.
+    fn empty() -> Placed {
+        Placed {
+            items: Vec::new(),
+            width: 0.0,
+            height: 0.0,
+            baseline: None,
+            align: VerticalAlign::BASELINE,
+            missing: Vec::new(),
+        }
+    }
 }
 
 impl Cx<'_> {
     /// Lays `atom`'s blocks out on a page of their own with no height limit. A box with no
     /// `width` first narrows to its widest line laid out unbroken.
     fn atom(&mut self, atom: Atom) -> Placed {
-        let Atom { mut blocks, align } = atom;
+        let Atom {
+            mut blocks, align, ..
+        } = atom;
         if let Some(Block::Open(g)) = blocks.first()
             && g.fill
         {
             let left = g.x + g.border[3] + g.padding[3];
             let room = g.width - g.border[1] - g.border[3] - g.padding[1] - g.padding[3];
-            let by = room - self.widest(&blocks, left, room).min(room);
+            let by = room - self.widest(&blocks, left, room, true).min(room);
             if by > 0.0 {
                 narrow(&mut blocks, by);
             }
         }
+        self.lay(blocks, align)
+    }
+
+    /// Lays the blocks of one box, from its opening to its close, out on a page of their own
+    /// with no height limit, its margin box's top-left corner at 0, 0.
+    pub(super) fn lay(&mut self, mut blocks: Vec<Block>, align: VerticalAlign) -> Placed {
         let width = match blocks.first() {
             Some(Block::Open(g)) => g.margin[3] + g.width + g.margin[1],
             _ => 0.0,
@@ -128,9 +159,10 @@ impl Cx<'_> {
         }
     }
 
-    /// The width `blocks` need with no line broken but at a forced break, from the content
-    /// box's left edge `left`. A text block `room` wide is as wide as that content box.
-    fn widest(&mut self, blocks: &[Block], left: f32, room: f32) -> f32 {
+    /// The width `blocks` need from the content box's left edge `left`: with no line broken but
+    /// at a forced break when `max` is true, and with every line broken where it can be when it
+    /// is false. A text block `room` wide is as wide as that content box.
+    pub(super) fn widest(&mut self, blocks: &[Block], left: f32, room: f32, max: bool) -> f32 {
         let mut need: f32 = 0.0;
         for block in blocks {
             match block {
@@ -145,9 +177,12 @@ impl Cx<'_> {
                     ..
                 } => {
                     let shaped = self.shape(text, runs, para, inline, atoms);
-                    need = need.max(shaped.calculate_content_widths().max + room - width);
+                    let widths = shaped.calculate_content_widths();
+                    let content = if max { widths.max } else { widths.min };
+                    need = need.max(content + room - width);
                 }
                 Block::Image { x, width, .. } => need = need.max(x + width - left),
+                Block::Flex(flex) => need = need.max(flex.x + flex.width - left),
                 Block::Open(g) if !g.fill => need = need.max(g.x + g.width + g.margin[1] - left),
                 _ => {}
             }
@@ -230,6 +265,7 @@ impl Cx<'_> {
             match block {
                 Block::Open(geometry) => flow.open(geometry),
                 Block::Close => flow.close(),
+                Block::Flex(flex) => self.flex(flex, flow),
                 Block::Image {
                     image,
                     x,
@@ -588,15 +624,7 @@ impl Cx<'_> {
                                     .into_iter()
                                     .map(|item| shift(item, dx, dy)),
                             );
-                            for lost in std::mem::take(&mut atom.missing) {
-                                let entry = Missing {
-                                    page: page_number,
-                                    ..lost
-                                };
-                                if !missing.contains(&entry) {
-                                    missing.push(entry);
-                                }
-                            }
+                            carry(missing, std::mem::take(&mut atom.missing), page_number);
                         }
                         let last = line_range.end.saturating_sub(SOFT_HYPHEN.len_utf8());
                         if cut.is_none()
@@ -632,7 +660,7 @@ impl Cx<'_> {
 /// Narrows by `by` an `inline-block` box's own box and each block in it whose width fills its
 /// containing block, from the outside in, so a box with a `width` of its own keeps it and
 /// everything in it.
-fn narrow(blocks: &mut [Block], by: f32) {
+pub(super) fn narrow(blocks: &mut [Block], by: f32) {
     // Whether each open box narrowed, innermost last.
     let mut narrowed: Vec<bool> = Vec::new();
     for block in blocks {
@@ -653,7 +681,18 @@ fn narrow(blocks: &mut [Block], by: f32) {
                 marker: false,
                 ..
             } if outer => *width -= by,
+            Block::Flex(flex) if outer => flex.width -= by,
             _ => {}
+        }
+    }
+}
+
+/// Adds each of `lost` to `missing` on `page`, once.
+pub(super) fn carry(missing: &mut Vec<Missing>, lost: Vec<Missing>, page: u64) {
+    for lost in lost {
+        let entry = Missing { page, ..lost };
+        if !missing.contains(&entry) {
+            missing.push(entry);
         }
     }
 }
@@ -798,7 +837,7 @@ fn break_lines(shaped: &mut Layout<usize>, text: &str, width: f32, hyphen: f32) 
 }
 
 /// `item` moved right by `dx` and down by `dy`.
-fn shift(mut item: Item, dx: f32, dy: f32) -> Item {
+pub(super) fn shift(mut item: Item, dx: f32, dy: f32) -> Item {
     match &mut item {
         Item::Text { x, y, .. } | Item::Image { x, y, .. } => {
             *x += dx;
