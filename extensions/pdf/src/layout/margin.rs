@@ -39,10 +39,12 @@ use parley::VerticalAlign;
 use std::ops::Range;
 
 use super::block::geometry;
-use super::boxes::rect;
+use super::boxes::{self, Layer, rect};
 use super::inline::{counter_text, para_of, span_of};
 use super::text::{Cx, carry, shift};
-use super::{Block, Item, Laid, Missing, Page, Span, keyword};
+use super::{Block, Images, Item, Laid, Missing, Page, Span, image, keyword};
+use crate::Error;
+use crate::assets::Assets;
 use crate::css::{MARGIN_BOXES, Style, Value};
 use crate::fonts::Fonts;
 use crate::paginate::{self, Sheet, Which};
@@ -275,6 +277,45 @@ pub(super) fn draw(cx: &mut Cx<'_>, boxes: Vec<MarginBox>, pages: &mut [Page]) {
             .extend(items.into_iter().map(|item| shift(item, x + dx, y + dy)));
         page.boxes.push((one.name, start..page.items.len()));
     }
+}
+
+/// Paints each of `pages`' `@page` background, its `background-*` values, across the whole page
+/// and under everything on it. A background image is loaded into `images` once, for every page
+/// whose background values are the same, so a PDF letterhead is one form XObject in the file.
+pub(super) fn backgrounds(
+    pages: &mut [Page],
+    sheet: &Sheet,
+    assets: &Assets<'_>,
+    images: &mut Images,
+    rem: f32,
+) -> Result<(), Error> {
+    let mut loaded: Vec<(String, Option<Layer>)> = Vec::new();
+    for (index, page) in pages.iter_mut().enumerate() {
+        let matched = sheet.matched(index, page.blank, page.name.as_deref());
+        let mut style = Style::default();
+        for (property, value) in &matched.values {
+            if property.starts_with("background") {
+                style.values.insert(property, (*value).clone());
+            }
+        }
+        if style.values.is_empty() {
+            continue;
+        }
+        let key = format!("{:?}", style.values);
+        let layer = match loaded.iter().find(|(each, _)| *each == key) {
+            Some((_, layer)) => layer.clone(),
+            None => {
+                let layer = image::layer(assets, images, &style, rem)?;
+                loaded.push((key, layer.clone()));
+                layer
+            }
+        };
+        let mut g = geometry(&style, 0.0, page.geometry.width);
+        g.decor.layer = layer;
+        let painted = boxes::paint(&g, 0.0, page.geometry.height, [true; 4]);
+        page.items.splice(0..0, painted);
+    }
+    Ok(())
 }
 
 /// Sets each of `pages`' named strings and marks from `strings`, which holds both. A mark set

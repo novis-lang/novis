@@ -29,8 +29,8 @@
 //! [`second`], before the file is written. The guest keeps the [`Kept`] in the instance between
 //! the two calls, and the request's end drops it.
 //!
-//! Known gaps, each owned by a later stage of the goal that builds this component: `merge`,
-//! `read` and `read-text` return `runtime` until their stages land.
+//! `merge` is [`merge::merge`], and `read` and `read-text` are [`read::read`] and [`read::text`].
+//! Each opens existing PDFs and renders nothing (`merge`'s and `read`'s module docs).
 
 pub mod assets;
 pub mod css;
@@ -38,8 +38,10 @@ pub mod encrypt;
 pub mod factur_x;
 pub mod fonts;
 pub mod layout;
+pub mod merge;
 pub mod paginate;
 pub mod parse;
+pub mod read;
 pub mod write;
 
 /// The WIT `standard`.
@@ -364,8 +366,8 @@ mod guest {
     use std::cell::RefCell;
 
     use exports::nvs::pdf::engine::{
-        Document, DroppedItem, Error, Guest, MissingGlyph, NamedValue, Overflow, PageFacts, Part,
-        Pass, PdfInfo, Rendered, Standard,
+        Attachment, Document, DroppedItem, Error, Guest, Metadata, MissingGlyph, NamedValue,
+        Overflow, PageFacts, Part, Pass, PdfInfo, Rendered, Standard,
     };
 
     struct Component;
@@ -435,14 +437,6 @@ mod guest {
             crate::Error::Parse(message) => Error::Parse(message),
             crate::Error::Runtime(message) => Error::Runtime(message),
         }
-    }
-
-    /// What an export this stage does not have yet returns. `runtime` is the case for it: the
-    /// program's call is well formed, and `invalid` would call it a bug in the program.
-    fn not_yet(what: &str) -> Error {
-        Error::Runtime(format!(
-            "{what} is not available in this version of the PDF engine"
-        ))
     }
 
     fn document(document: Document) -> crate::Document {
@@ -516,16 +510,41 @@ mod guest {
             out.map(rendered).map_err(error)
         }
 
-        fn merge(_parts: Vec<Part>) -> Result<Vec<u8>, Error> {
-            Err(not_yet("`merge`"))
+        fn merge(parts: Vec<Part>) -> Result<Vec<u8>, Error> {
+            let parts = parts
+                .into_iter()
+                .map(|part| crate::merge::Part {
+                    data: part.data,
+                    pages: part.pages,
+                })
+                .collect();
+            crate::merge::merge(parts).map_err(error)
         }
 
-        fn read(_data: Vec<u8>) -> Result<PdfInfo, Error> {
-            Err(not_yet("`read`"))
+        fn read(data: Vec<u8>) -> Result<PdfInfo, Error> {
+            let info = crate::read::read(data).map_err(error)?;
+            let meta = info.metadata;
+            Ok(PdfInfo {
+                page_count: info.page_count,
+                metadata: Metadata {
+                    title: meta.title,
+                    author: meta.author,
+                    subject: meta.subject,
+                    keywords: meta.keywords,
+                    creator: meta.creator,
+                    producer: meta.producer,
+                },
+                attachments: info
+                    .attachments
+                    .into_iter()
+                    .map(|(name, data)| Attachment { name, data })
+                    .collect(),
+                invoice_xml: info.invoice_xml,
+            })
         }
 
-        fn read_text(_data: Vec<u8>, _pages: Vec<u64>) -> Result<Vec<String>, Error> {
-            Err(not_yet("`read-text`"))
+        fn read_text(data: Vec<u8>, pages: Vec<u64>) -> Result<Vec<String>, Error> {
+            crate::read::text(data, &pages).map_err(error)
         }
     }
 

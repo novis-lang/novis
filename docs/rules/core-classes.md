@@ -3613,7 +3613,7 @@ methods are the WIT exports (`wit/pdf.wit`), the way `Novis\Image\Codec` is the 
 | `->asset(string $name, bytes $data): Document` | adds one named asset ([`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io)) |
 | `->header(callable $fn, ?{height?: string} $options = null): Document` | a function from `Page` to `Core\Html\Markup`, drawn in the top margin of each page ([`core-classes/pdf-header-is-a-page-function`](core-classes.md#core-classes-pdf-header-is-a-page-function)) |
 | `->footer(callable $fn, ?{height?: string} $options = null): Document` | the same, in the bottom margin |
-| `->slots(callable $fn): Document` | a function from `Page` to `array<string, Core\Html\Markup>`, filling each `<slot name>` in a repeated table row ([`core-classes/pdf-tables-across-pages`](core-classes.md#core-classes-pdf-tables-across-pages)) |
+| `->slots(callable $fn): Document` | a function from `Page` to an `array<Core\Html\Markup>` keyed by slot name, filling each `<slot name>` in a repeated table row ([`core-classes/pdf-tables-across-pages`](core-classes.md#core-classes-pdf-tables-across-pages)) |
 | `->standard(Document::Standard $standard): Document` | `PdfA2b`, `PdfA3b` or `PdfUa1` ([`core-classes/pdf-standards-and-passwords`](core-classes.md#core-classes-pdf-standards-and-passwords)) |
 | `->invoiceXml(string $xml): Document` | the Factur-X XML ([`core-classes/pdf-factur-x-is-the-one-attachment`](core-classes.md#core-classes-pdf-factur-x-is-the-one-attachment)) |
 | `->password(string $password): Document` | encrypts the output with AES-256 |
@@ -3646,9 +3646,8 @@ The request's memory cap and deadline end a render that exceeds them as they end
   [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io)'s.
 
 **Partly on disk.** `extensions/pdf/manifest.json` declares `Engine` and `Standard`, and
-`extensions/pdf/nvs/` holds `Document` without `header`, `footer` and `slots`, and `Rendered`. `Page`,
-`Pages` and `Reader` are not written. The `pdf` goal builds `Page`, `header` and `footer` in its
-Stage 10, `slots` in Stage 11, and `Pages` and `Reader` in Stage 13.
+`extensions/pdf/nvs/` holds `Document`, `Page` and `Rendered`. `Pages` and `Reader` are not
+written. The `pdf` goal builds them in Stage 13.
 
 **Declined:**
 - **A `Pdf` facade with static `render($html, $options)`.** The options a render takes — assets, three
@@ -3845,10 +3844,12 @@ half of the second: a table cut through a line of text, a lone header at a page 
 and a carried-forward total that cannot be written are each a reason a program reaches for a second
 tool. Each rule is the reading a person expects, so none needs a setting.
 
-- **Memory:** the table's column widths and each row's height, once, as part of the layout tree.
+- **Memory:** the table's column widths and each row's height, once, as part of the layout tree,
+  and each slot's box once on each page its row is drawn on.
 
-**Not on disk.** `extensions/pdf/src/layout.rs` lays a `display: table` box out as a block box, so
-none of the eight rules holds yet. The `pdf` goal's Stage 11 builds them.
+**On disk.** `extensions/pdf/src/layout/table.rs` lays a table out by the eight rules, and its
+module doc names what it does not do yet. A closed edge takes its border and padding from each
+page it is drawn on.
 
 **Declined:**
 - **A setting per rule.** Each default is the one a document wants; `data-repeat`,
@@ -3892,11 +3893,12 @@ rounds through a float.
   request's cap, and drops it with the instance. Novis holds one `Page` per page and the markup the
   functions return.
 
-**Partly on disk.** The CSS half is built: the margin boxes, `counter(page)`, `counter(pages)`,
-`string-set` and running elements (`extensions/pdf/src/layout/margin.rs`). The function half is
-not. `Document` has no `header` or `footer`, `Page` is not written, and the component's `first` and
-`second` passes return `runtime` (`extensions/pdf/src/lib.rs:20`). The `pdf` goal's Stage 10
-builds them.
+**Partly on disk.** The CSS half is `extensions/pdf/src/layout/margin.rs`, and the two passes are
+`first` and `second` in `extensions/pdf/src/lib.rs`, called by `Document::render` in
+`extensions/pdf/nvs/Document.nvs`. A function's `height` is an `@page` rule after the document's
+own, so a `:first`, `:left`, `:right`, `:blank` or named-page rule's margin on that side still wins
+over it. `Document::slots` fills each `<slot name>` through the same second pass, in its cell's
+content box.
 
 **Declined:**
 - **A function called from the guest per page.** The world has no export a guest calls back into
@@ -3960,7 +3962,9 @@ with their `alt` text and the document's language come from the HTML, with no op
 `Document::standard` adds one of **PDF/A-2b, PDF/A-3b or PDF/UA-1**, and a document that breaks the
 standard it chose throws `LogicError` naming what broke — an image with no `alt` under PDF/UA-1, a
 font that cannot be embedded under PDF/A — through `krilla`'s own validation. One standard per
-document, because `krilla` validates against one.
+document, because `krilla` validates against one. PDF/A needs `Document::created`, because the
+component reads no clock, and PDF/UA-1 needs a `<title>`. A missing glyph, reported and never thrown
+otherwise, throws under any of the three, because each forbids the empty box drawn for it.
 
 **`Document::password`** encrypts with **AES-256, revision 6**, and nothing weaker. Its salts and its
 file key are derived from a hash of the document and the password, so equal input stays byte-equal
@@ -3972,12 +3976,18 @@ read; it is the default because a program that never thought about accessibility
 an accessible file. AES-256 alone is offered because every reader made in the last fifteen years opens
 it and the weaker revisions are broken.
 
-- **Memory:** the structure tree, beside the layout tree inside the request's cap.
+- **Memory:** the structure tree, beside the layout tree inside the request's cap, and with a
+  password one more copy of the finished file while it is encrypted.
+- **Performance:** a password adds four runs of the standard's password hash, each 64 or more rounds
+  of AES and SHA-2, and one AES pass over the file.
 
-**Partly on disk.** `Document::standard` and `Document::password` are in
+**On disk.** `Document::standard` and `Document::password` are in
 `extensions/pdf/nvs/Document.nvs`, and a password beside a PDF/A standard is refused before anything
-is laid out (`extensions/pdf/src/lib.rs:112`). The output is not tagged, no standard is validated
-and nothing is encrypted: the `pdf` goal's Stage 12 builds all three.
+is laid out (`extensions/pdf/src/lib.rs`'s `first`). Tagging and the three standards are
+`extensions/pdf/src/write.rs`, and the encryption is `extensions/pdf/src/encrypt.rs`, over the file
+`krilla` writes because `krilla` 0.8 writes no encryption. The password is both the user and the owner
+password. All of it is pinned by `crates/nvs-ext/tests/pdf_standards.rs`, which opens the encrypted
+file with `hayro-syntax`.
 
 **Declined:**
 - **RC4 and AES-128 encryption, and owner permissions.** RC4 is broken, and permission flags are a
@@ -3999,8 +4009,11 @@ and nothing is encrypted: the `pdf` goal's Stage 12 builds all three.
 is the only attachment the writer ever emits ([`core-classes/pdf-output-is-inert`](core-classes.md#core-classes-pdf-output-is-inert)). The file name,
 the `AFRelationship` and the XMP fields are the ones the standard fixes, so the program passes the XML
 and nothing else. The XML is checked well-formed, inside the request's memory cap and with no entity
-expansion, and is otherwise the program's to build: the component does not read the invoice it
-carries.
+expansion, and is otherwise the program's to build. The component reads one thing from it: the
+guideline id of its `GuidelineSpecifiedDocumentContextParameter`, which gives the profile
+`fx:ConformanceLevel` names, `EN 16931` when the id is not one the standard lists. `MINIMUM` and
+`BASIC WL` are attached as `Data`, because neither is a whole invoice, and every other profile as
+`Alternative`.
 
 An invoice XML without `Document::Standard::PdfA3b` throws `LogicError`, because Factur-X is defined
 only on PDF/A-3. An XML that is not well-formed throws `ParseError`. `Reader::invoiceXml` returns the
@@ -4012,9 +4025,10 @@ delivery channel `pdf-output-is-inert` closes.
 
 - **Memory:** the XML once, inside the request's cap, and the bytes it adds to the output.
 
-**Partly on disk.** `Document::invoiceXml` is in `extensions/pdf/nvs/Document.nvs`, and an invoice
-XML without PDF/A-3b is refused before anything is laid out (`extensions/pdf/src/lib.rs:107`). The
-XML is not checked for well-formedness and not embedded: the `pdf` goal's Stage 12 does both.
+**On disk.** `Document::invoiceXml` is in `extensions/pdf/nvs/Document.nvs`. An invoice XML without
+PDF/A-3b, and one that is not well-formed, is refused before anything is laid out
+(`extensions/pdf/src/lib.rs`'s `first`). `extensions/pdf/src/factur_x.rs` checks, embeds and writes
+the XMP fields, and its module doc says how.
 
 **Declined:**
 - **General attachments.** A file a reader opens from inside a PDF is a delivery channel for anything,
@@ -4057,10 +4071,10 @@ tool. They live beside the writer because they return text and bytes, never pixe
 - **Memory:** per call, the source bytes and what the call returns, inside the request's cap; a merge
   holds its sources and the merged file at once.
 
-**Not on disk.** `wit/pdf.wit` and `extensions/pdf/manifest.json` declare `merge`, `read` and
-`read-text`, and the component returns `runtime` for each (`extensions/pdf/src/lib.rs:20`). `Pages`
-and `Reader` are not written, and `<img>` does not place a PDF page. The `pdf` goal's Stage 13 builds
-all three jobs.
+**Partly on disk.** The component places, merges and reads (`extensions/pdf/src/read.rs`,
+`extensions/pdf/src/merge.rs`, `extensions/pdf/src/layout/image.rs`), pinned by
+`crates/nvs-ext/tests/pdf_read.rs`. `Pages` and `Reader` are not written, so a program reaches the
+three jobs only through `Engine`. The `pdf` goal's Stage 13 writes them.
 
 **Declined:**
 - **Rebuilding tables and columns from extracted text.** That is a layout guess, right for some files

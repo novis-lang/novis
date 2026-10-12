@@ -1,7 +1,8 @@
 //! The asset map: the only place a render's bytes come from (`rule:core-classes/pdf-render-has-no-io`).
 //!
 //! Every reference that loads a resource resolves here: against the map's names, by exact
-//! string equality, or as a `data:` URI decoded in place, base64 or percent-encoded. Anything
+//! string equality, or as a `data:` URI decoded in place, base64 or percent-encoded. A name may
+//! end in `#page=N`, which chooses a page of a PDF asset and is not part of the name. Anything
 //! else is refused with [`Error::Invalid`] naming the reference as it was written: a `file:` or
 //! `http(s):` URL or any other scheme, an absolute path (`/x`, `\x`, `C:\x`, `\\host\x`), and a
 //! name the map lacks. Nothing in this crate fetches, so a refused reference is refused before
@@ -52,6 +53,7 @@ impl<'a> Assets<'a> {
                 ))
             });
         }
+        let (trimmed, _) = page_fragment(trimmed);
         if !has_scheme(trimmed)
             && !is_absolute(trimmed)
             && let Some(&data) = self.by_name.get(trimmed)
@@ -60,6 +62,15 @@ impl<'a> Assets<'a> {
         }
         Err(refused(reference))
     }
+}
+
+/// `reference` without a trailing `#page=N`, and `N`. A reference without one is whole, and its
+/// page is `None`.
+pub fn page_fragment(reference: &str) -> (&str, Option<u64>) {
+    reference
+        .rsplit_once("#page=")
+        .and_then(|(name, page)| Some((name, page.parse::<u64>().ok()?)))
+        .map_or((reference, None), |(name, page)| (name, Some(page)))
 }
 
 /// The error for a reference that is not an asset's name or a `data:` URI.

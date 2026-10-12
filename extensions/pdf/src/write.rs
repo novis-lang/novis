@@ -72,13 +72,14 @@ use crate::parse::{Dom, Space};
 use crate::{Error, Instant, Options, Standard};
 
 /// Draws `picture` with its top-left corner at the surface's origin, stretched to `size`. An
-/// SVG is drawn as vector paths.
+/// SVG is drawn as vector paths, and a PDF page as a form XObject of its content.
 fn draw_picture(surface: &mut Surface<'_>, picture: &Picture, size: Size) {
     match picture {
         Picture::Raster(image) => surface.draw_image(image.clone(), size),
         Picture::Vector(tree) => {
             surface.draw_svg(tree, size, SvgSettings::default());
         }
+        Picture::Page(page) => surface.draw_pdf_page(&page.document, size, page.index),
     }
 }
 

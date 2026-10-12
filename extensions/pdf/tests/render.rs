@@ -259,6 +259,10 @@ fn an_invoice_needs_pdf_a3b_and_pdf_a_has_no_password() {
     let mut document = html("<p>x</p>");
     document.options = Options {
         invoice_xml: Some("<x/>".to_owned()),
+        created: Some(Instant {
+            seconds: 1_767_225_600,
+            nanos: 0,
+        }),
         ..Options::default()
     };
     assert!(matches!(render(&document), Err(Error::Invalid(_))));
@@ -266,6 +270,7 @@ fn an_invoice_needs_pdf_a3b_and_pdf_a_has_no_password() {
     render(&document).unwrap();
     document.options.password = Some("secret".to_owned());
     assert!(matches!(render(&document), Err(Error::Invalid(_))));
+    document.html = "<html lang=\"en\"><head><title>Shop</title></head><p>x</p></html>".to_owned();
     document.options = Options {
         standard: Some(Standard::PdfUa1),
         password: Some("secret".to_owned()),

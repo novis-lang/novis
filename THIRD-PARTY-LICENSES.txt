@@ -10,7 +10,7 @@ GENERATED FILE — do not edit by hand. Regenerate with:
     bun nv gen-attribution
 
 
-COMPONENTS (671)
+COMPONENTS (677)
 ------------------------------------------------------------------------------
 
 Where a component offers a choice of licenses, Novis takes the one shown and
@@ -196,6 +196,7 @@ platform Novis builds for, so one may appear that a given build omits.
   fast_image_resize                          6.1.0                          MIT                             (MIT OR Apache-2.0)
   fastrand                                   2.5.0                          MIT                             (Apache-2.0 OR MIT)
   fdeflate                                   0.3.7                          MIT                             (MIT OR Apache-2.0)
+  fearless_simd                              0.4.1                          MIT                             (Apache-2.0 OR MIT)
   fearless_simd                              0.7.0                          MIT                             (Apache-2.0 OR MIT)
   fearless_simd                              1.1.0                          MIT                             (Apache-2.0 OR MIT)
   ff                                         0.14.0                         MIT                             (MIT/Apache-2.0)
@@ -237,13 +238,18 @@ platform Novis builds for, so one may appear that a given build omits.
   hashbrown                                  0.17.1                         MIT                             (MIT OR Apache-2.0)
   hashlink                                   0.12.1                         MIT                             (MIT OR Apache-2.0)
   hayro                                      0.8.0                          MIT                             (Apache-2.0 OR MIT)
+  hayro-ccitt                                0.3.0                          MIT                             (Apache-2.0 OR MIT)
   hayro-ccitt                                0.4.0                          MIT                             (Apache-2.0 OR MIT)
   hayro-cmap                                 0.1.0                          MIT                             (Apache-2.0 OR MIT)
+  hayro-interpret                            0.7.0                          MIT                             (Apache-2.0 OR MIT)
   hayro-interpret                            0.8.0                          MIT                             (Apache-2.0 OR MIT)
   hayro-jbig2                                0.3.1                          MIT                             (Apache-2.0 OR MIT)
+  hayro-jpeg2000                             0.3.5                          MIT                             (Apache-2.0 OR MIT)
   hayro-jpeg2000                             0.4.1                          MIT                             (Apache-2.0 OR MIT)
   hayro-postscript                           0.1.0                          MIT                             (Apache-2.0 OR MIT)
+  hayro-syntax                               0.7.2                          MIT                             (Apache-2.0 OR MIT)
   hayro-syntax                               0.8.0                          MIT                             (Apache-2.0 OR MIT)
+  hayro-write                                0.7.0                          MIT                             (Apache-2.0 OR MIT)
   heck                                       0.5.0                          MIT                             (MIT OR Apache-2.0)
   hermit-abi                                 0.5.2                          MIT                             (MIT OR Apache-2.0)
   hex                                        0.4.3                          MIT                             (MIT OR Apache-2.0)
@@ -3871,6 +3877,7 @@ DEALINGS IN THE SOFTWARE.
 ==============================================================================
 
 Applies to:
+  fearless_simd 0.4.1
   fearless_simd 0.7.0
   fearless_simd 1.1.0
   kurbo 0.13.1
@@ -4683,13 +4690,18 @@ DEALINGS IN THE SOFTWARE.
 
 Applies to:
   hayro 0.8.0
+  hayro-ccitt 0.3.0
   hayro-ccitt 0.4.0
   hayro-cmap 0.1.0
+  hayro-interpret 0.7.0
   hayro-interpret 0.8.0
   hayro-jbig2 0.3.1
+  hayro-jpeg2000 0.3.5
   hayro-jpeg2000 0.4.1
   hayro-postscript 0.1.0
+  hayro-syntax 0.7.2
   hayro-syntax 0.8.0
+  hayro-write 0.7.0
 
 ------------------------------------------------------------------------------
 

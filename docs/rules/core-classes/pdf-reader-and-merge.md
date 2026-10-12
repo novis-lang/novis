@@ -25,10 +25,10 @@ tool. They live beside the writer because they return text and bytes, never pixe
 - **Memory:** per call, the source bytes and what the call returns, inside the request's cap; a merge
   holds its sources and the merged file at once.
 
-**Not on disk.** `wit/pdf.wit` and `extensions/pdf/manifest.json` declare `merge`, `read` and
-`read-text`, and the component returns `runtime` for each (`extensions/pdf/src/lib.rs:20`). `Pages`
-and `Reader` are not written, and `<img>` does not place a PDF page. The `pdf` goal's Stage 13 builds
-all three jobs.
+**Partly on disk.** The component places, merges and reads (`extensions/pdf/src/read.rs`,
+`extensions/pdf/src/merge.rs`, `extensions/pdf/src/layout/image.rs`), pinned by
+`crates/nvs-ext/tests/pdf_read.rs`. `Pages` and `Reader` are not written, so a program reaches the
+three jobs only through `Engine`. The `pdf` goal's Stage 13 writes them.
 
 **Declined:**
 - **Rebuilding tables and columns from extracted text.** That is a layout guess, right for some files

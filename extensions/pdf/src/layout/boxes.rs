@@ -829,6 +829,15 @@ pub(super) fn paint(g: &BoxGeometry, y: f32, h: f32, closed: [bool; 4]) -> Vec<I
         let (px, py) = (x + width[3], y + width[0]);
         let (pw, ph) = (w - width[1] - width[3], h - width[0] - width[2]);
         let paint = layer_paint(layer, px, py, pw, ph);
+        // A repeated tile that covers the whole area is drawn once, as the picture itself, so a
+        // page-sized letterhead stays content and is not a pattern.
+        let covers = |tx: f32, ty: f32, tw: f32, th: f32| {
+            const SLACK: f32 = 0.01;
+            tx <= px + SLACK
+                && ty <= py + SLACK
+                && tx + tw >= px + pw - SLACK
+                && ty + th >= py + ph - SLACK
+        };
         match (layer, &paint) {
             // A tile with no area draws nothing.
             (_, Paint::Tiles { width, height, .. }) if *width <= 0.0 || *height <= 0.0 => {}
@@ -846,13 +855,14 @@ pub(super) fn paint(g: &BoxGeometry, y: f32, h: f32, closed: [bool; 4]) -> Vec<I
                     height: th,
                     ..
                 },
-            ) if !(*repeat_x && *repeat_y) => {
+            ) if !(*repeat_x && *repeat_y) || covers(tx, ty, tw, th) => {
+                let once = covers(tx, ty, tw, th);
                 out.push(Item::Begin {
                     opacity: 1.0,
                     clip: Some(outer.clone()),
                     transform: None,
                 });
-                out.push(match (repeat_x, repeat_y) {
+                out.push(match (*repeat_x && !once, *repeat_y && !once) {
                     (true, _) => Item::Path {
                         path: rect(x, ty, w, th),
                         paint,

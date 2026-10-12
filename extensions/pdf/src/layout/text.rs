@@ -77,7 +77,7 @@ fn pass(
 ) -> Result<Pass, Error> {
     let sheet = Sheet::new(&styles.pages);
     let first = sheet.page(0, false, None);
-    let (blocks, atoms, images, spans, targeted) = blocks(
+    let (blocks, atoms, mut images, spans, targeted) = blocks(
         dom,
         styles,
         &fonts,
@@ -159,6 +159,13 @@ fn pass(
         .next()
         .cloned()
         .unwrap_or_default();
+    margin::backgrounds(
+        &mut flow.pages,
+        &sheet,
+        assets,
+        &mut images,
+        root.font_size(),
+    )?;
     let Cx {
         lcx,
         fonts,

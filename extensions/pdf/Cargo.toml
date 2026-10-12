@@ -15,10 +15,12 @@ crate-type = ["cdylib", "rlib"]
 aes = "0.9"
 base64 = "0.22"
 cssparser = "0.38"
+hayro-interpret = { version = "0.7", default-features = false }
 html5ever = "0.39"
 hypher = "0.1.8"
-krilla = { version = "0.8", default-features = false, features = ["raster-images"] }
+krilla = { version = "0.8", default-features = false, features = ["pdf", "raster-images"] }
 krilla-svg = "0.8.1"
+kurbo = "0.13"
 parley = { version = "0.12", default-features = false, features = ["std"] }
 precomputed-hash = "0.1"
 roxmltree = "0.21"

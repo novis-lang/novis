@@ -1,14 +1,21 @@
 //! The pictures a document draws: an `<img>`, an inline `<svg>` and a background image, each
 //! decoded far enough to know its size and placed as a block or a box's background layer.
+//!
+//! A PDF asset is one of its pages, the first unless the reference ends in `#page=N`, drawn as
+//! the page's own vector content at the page's size in points. Only its appearance is drawn: its
+//! links, form fields and bookmarks are not. It opens as `read`'s module doc says, so an
+//! encrypted PDF returns `Parse`.
 
 use std::sync::{Arc, Mutex};
 
 use krilla::Data;
 use krilla::image::Image;
+use krilla::pdf::PdfDocument;
 
 use super::inline::Builder;
-use super::{Block, Frame, boxes, keyword, length};
+use super::{Block, Frame, Images, boxes, keyword, length};
 use crate::Error;
+use crate::assets::Assets;
 use crate::css::value::{self, Comp};
 use crate::css::{Style, Value};
 use crate::parse::{Dom, Kind, Space};
@@ -19,10 +26,21 @@ pub enum Picture {
     Raster(Image),
     /// A parsed SVG document, drawn as vector paths.
     Vector(Box<usvg::Tree>),
+    /// One page of an existing PDF, drawn as its own vector content.
+    Page(Box<PdfPage>),
+}
+
+/// A page of an existing PDF: the document, the page's index from 0, and its size in points
+/// with its rotation applied.
+pub struct PdfPage {
+    pub document: PdfDocument,
+    pub index: usize,
+    pub size: (f32, f32),
 }
 
 impl Picture {
-    /// The natural size in points: a pixel, or an SVG user unit, is three quarters of a point.
+    /// The natural size in points: a pixel, or an SVG user unit, is three quarters of a point,
+    /// and a PDF page is its own size.
     pub fn size(&self) -> (f32, f32) {
         match self {
             Picture::Raster(image) => {
@@ -30,6 +48,7 @@ impl Picture {
                 (w as f32 * 0.75, h as f32 * 0.75)
             }
             Picture::Vector(tree) => (tree.size().width() * 0.75, tree.size().height() * 0.75),
+            Picture::Page(page) => page.size,
         }
     }
 }
@@ -47,7 +66,7 @@ impl Builder<'_, '_> {
             return Ok(());
         };
         self.flush();
-        let (picture, name) = self.decode(reference)?;
+        let (picture, name) = decode(self.assets, reference)?;
         self.place(picture, name, dom, at, style, frame);
         Ok(())
     }
@@ -62,7 +81,7 @@ impl Builder<'_, '_> {
     ) -> Result<(), Error> {
         self.flush();
         let name = "<svg>";
-        let picture = self.svg(svg_markup(dom, at).as_bytes(), name)?;
+        let picture = svg(self.assets, svg_markup(dom, at).as_bytes(), name)?;
         self.place(picture, name.to_owned(), dom, at, style, frame);
         Ok(())
     }
@@ -136,98 +155,111 @@ impl Builder<'_, '_> {
     /// The background image of `style`: a gradient, or an image `url()` loaded from the asset map
     /// with its natural size, its `background-size` and its `background-position`.
     pub(super) fn layer(&mut self, style: &Style, rem: f32) -> Result<Option<boxes::Layer>, Error> {
-        let Some(reference) = boxes::image_reference(style) else {
-            return Ok(boxes::gradient(style, rem));
-        };
-        let (picture, name) = self.decode(&reference)?;
-        let (width, height) = picture.size();
-        let (repeat_x, repeat_y) = boxes::repeat(style);
-        self.images.push((picture, name));
-        Ok(Some(boxes::Layer::Image {
-            image: self.images.len() - 1,
-            width,
-            height,
-            repeat_x,
-            repeat_y,
-            size: boxes::background_size(style, rem),
-            position: position(style, "background-position", rem).unwrap_or([(0.0, 0.0); 2]),
-        }))
+        layer(self.assets, &mut self.images, style, rem)
     }
+}
 
-    /// The picture `reference` names, decoded far enough to know its size, and the name an error
-    /// about it gives. A raster image asks no viewer to smooth it, because PDF/A forbids that
-    /// flag and a viewer smooths by its own setting either way.
-    fn decode(&self, reference: &str) -> Result<(Picture, String), Error> {
-        let bytes = self.assets.resolve(reference)?.into_owned();
-        let name = if reference.len() > 64 {
-            format!("{}…", reference.chars().take(64).collect::<String>())
-        } else {
-            reference.to_owned()
-        };
-        let decoded = match bytes.as_slice() {
-            [0x89, b'P', b'N', b'G', ..] => Image::from_png(Data::from(bytes), false),
-            [0xff, 0xd8, 0xff, ..] => Image::from_jpeg(Data::from(bytes), false),
-            [b'G', b'I', b'F', b'8', ..] => Image::from_gif(Data::from(bytes), false),
-            [
-                b'R',
-                b'I',
-                b'F',
-                b'F',
-                _,
-                _,
-                _,
-                _,
-                b'W',
-                b'E',
-                b'B',
-                b'P',
-                ..,
-            ] => Image::from_webp(Data::from(bytes), false),
-            _ if is_svg(&bytes) => return Ok((self.svg(&bytes, &name)?, name)),
-            _ => {
-                return Err(Error::Parse(format!(
-                    "`{name}` is not a PNG, JPEG, GIF, WebP or SVG image"
-                )));
-            }
-        };
-        let image = decoded
-            .map_err(|why| Error::Parse(format!("`{name}` does not decode as an image: {why}")))?;
-        Ok((Picture::Raster(image), name))
-    }
+/// The background image of `style`, as [`Builder::layer`] says, its picture added to `images`.
+pub(super) fn layer(
+    assets: &Assets<'_>,
+    images: &mut Images,
+    style: &Style,
+    rem: f32,
+) -> Result<Option<boxes::Layer>, Error> {
+    let Some(reference) = boxes::image_reference(style) else {
+        return Ok(boxes::gradient(style, rem));
+    };
+    let (picture, name) = decode(assets, &reference)?;
+    let (width, height) = picture.size();
+    let (repeat_x, repeat_y) = boxes::repeat(style);
+    images.push((picture, name));
+    Ok(Some(boxes::Layer::Image {
+        image: images.len() - 1,
+        width,
+        height,
+        repeat_x,
+        repeat_y,
+        size: boxes::background_size(style, rem),
+        position: position(style, "background-position", rem).unwrap_or([(0.0, 0.0); 2]),
+    }))
+}
 
-    /// The SVG document `data` parsed. An `<image>` in it loads through the asset map, and one
-    /// the map does not have returns the error the map gives. A document that does not parse
-    /// returns `Parse` naming `name`.
-    fn svg(&self, data: &[u8], name: &str) -> Result<Picture, Error> {
-        let refused: Mutex<Option<Error>> = Mutex::new(None);
-        let assets = self.assets;
-        let options = usvg::Options {
-            resources_dir: None,
-            image_href_resolver: usvg::ImageHrefResolver {
-                resolve_data: usvg::ImageHrefResolver::default_data_resolver(),
-                resolve_string: Box::new(|href, options| match assets.resolve(href) {
-                    Ok(bytes) => (usvg::ImageHrefResolver::default_data_resolver())(
-                        "text/plain",
-                        Arc::new(bytes.into_owned()),
-                        options,
-                    ),
-                    Err(err) => {
-                        let mut first = refused.lock().unwrap_or_else(|p| p.into_inner());
-                        first.get_or_insert(err);
-                        None
-                    }
-                }),
-            },
-            ..usvg::Options::default()
-        };
-        let tree = usvg::Tree::from_data(data, &options)
-            .map_err(|why| Error::Parse(format!("`{name}` does not parse as SVG: {why}")))?;
-        drop(options);
-        if let Some(err) = refused.into_inner().unwrap_or_else(|p| p.into_inner()) {
-            return Err(err);
+/// The picture `reference` names, decoded far enough to know its size, and the name an error
+/// about it gives. A raster image asks no viewer to smooth it, because PDF/A forbids that
+/// flag and a viewer smooths by its own setting either way.
+fn decode(assets: &Assets<'_>, reference: &str) -> Result<(Picture, String), Error> {
+    let bytes = assets.resolve(reference)?.into_owned();
+    let name = if reference.len() > 64 {
+        format!("{}…", reference.chars().take(64).collect::<String>())
+    } else {
+        reference.to_owned()
+    };
+    let decoded = match bytes.as_slice() {
+        [0x89, b'P', b'N', b'G', ..] => Image::from_png(Data::from(bytes), false),
+        [0xff, 0xd8, 0xff, ..] => Image::from_jpeg(Data::from(bytes), false),
+        [b'G', b'I', b'F', b'8', ..] => Image::from_gif(Data::from(bytes), false),
+        [
+            b'R',
+            b'I',
+            b'F',
+            b'F',
+            _,
+            _,
+            _,
+            _,
+            b'W',
+            b'E',
+            b'B',
+            b'P',
+            ..,
+        ] => Image::from_webp(Data::from(bytes), false),
+        _ if is_svg(&bytes) => return Ok((svg(assets, &bytes, &name)?, name)),
+        _ if is_pdf(&bytes) => {
+            let page = crate::assets::page_fragment(reference.trim()).1;
+            return Ok((pdf_page(bytes, page.unwrap_or(1), &name)?, name));
         }
-        Ok(Picture::Vector(Box::new(tree)))
+        _ => {
+            return Err(Error::Parse(format!(
+                "`{name}` is not a PNG, JPEG, GIF, WebP, SVG or PDF file"
+            )));
+        }
+    };
+    let image = decoded
+        .map_err(|why| Error::Parse(format!("`{name}` does not decode as an image: {why}")))?;
+    Ok((Picture::Raster(image), name))
+}
+
+/// The SVG document `data` parsed. An `<image>` in it loads through the asset map, and one
+/// the map does not have returns the error the map gives. A document that does not parse
+/// returns `Parse` naming `name`.
+fn svg(assets: &Assets<'_>, data: &[u8], name: &str) -> Result<Picture, Error> {
+    let refused: Mutex<Option<Error>> = Mutex::new(None);
+    let options = usvg::Options {
+        resources_dir: None,
+        image_href_resolver: usvg::ImageHrefResolver {
+            resolve_data: usvg::ImageHrefResolver::default_data_resolver(),
+            resolve_string: Box::new(|href, options| match assets.resolve(href) {
+                Ok(bytes) => (usvg::ImageHrefResolver::default_data_resolver())(
+                    "text/plain",
+                    Arc::new(bytes.into_owned()),
+                    options,
+                ),
+                Err(err) => {
+                    let mut first = refused.lock().unwrap_or_else(|p| p.into_inner());
+                    first.get_or_insert(err);
+                    None
+                }
+            }),
+        },
+        ..usvg::Options::default()
+    };
+    let tree = usvg::Tree::from_data(data, &options)
+        .map_err(|why| Error::Parse(format!("`{name}` does not parse as SVG: {why}")))?;
+    drop(options);
+    if let Some(err) = refused.into_inner().unwrap_or_else(|p| p.into_inner()) {
+        return Err(err);
     }
+    Ok(Picture::Vector(Box::new(tree)))
 }
 
 /// The centre of a position's axis: half the room, and no length added.
@@ -271,6 +303,32 @@ fn position(style: &Style, name: &str, rem: f32) -> Option<[(f32, f32); 2]> {
         },
         _ => None,
     }
+}
+
+/// Whether `data` reads as a PDF document: `%PDF-` in its first 1024 bytes, where readers look.
+fn is_pdf(data: &[u8]) -> bool {
+    data[..data.len().min(1024)]
+        .windows(5)
+        .any(|window| window == b"%PDF-")
+}
+
+/// Page `page`, counted from 1, of the PDF `data`, which `name` names. An encrypted document
+/// and one that does not parse return `Parse`, and a page outside it returns `Invalid` naming
+/// the count, each naming `name` (`read`'s module doc).
+fn pdf_page(data: Vec<u8>, page: u64, name: &str) -> Result<Picture, Error> {
+    let named = |err| match err {
+        Error::Parse(why) => Error::Parse(format!("`{name}`: {why}")),
+        Error::Invalid(why) => Error::Invalid(format!("`{name}`: {why}")),
+        other => other,
+    };
+    let pdf = crate::read::open(data).map_err(named)?;
+    let index = crate::read::index(page, pdf.pages().len()).map_err(named)?;
+    let size = pdf.pages()[index].render_dimensions();
+    Ok(Picture::Page(Box::new(PdfPage {
+        document: PdfDocument::new(Arc::new(pdf)),
+        index,
+        size,
+    })))
 }
 
 /// Whether `data` reads as an SVG document: an optional byte-order mark and whitespace, then an
