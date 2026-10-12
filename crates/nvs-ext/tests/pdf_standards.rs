@@ -195,6 +195,8 @@ fn shop_page() -> String {
 /// 2026-01-01 at midnight, UTC.
 const NEW_YEAR: i64 = 1_767_225_600;
 
+// covers: Novis\Pdf\Document::standard
+// covers: Novis\Pdf\Document::created
 #[test]
 fn pdf_a_2b_and_3b_validate() {
     let html = shop_page();
@@ -288,6 +290,7 @@ fn assert_xref_points_at_objects(file: &[u8]) {
     }
 }
 
+// covers: Novis\Pdf\Document::invoiceXml
 #[test]
 fn factur_x_embeds_one_xml_under_pdf_a_3b() {
     let html = shop_page();
@@ -347,6 +350,7 @@ fn an_invoice_xml_outside_pdf_a_3b_throws() {
     }
 }
 
+// covers: Novis\Pdf\Document::password
 #[test]
 fn a_password_encrypts_with_aes_256_and_stays_byte_equal() {
     let html = shop_page();

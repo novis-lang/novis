@@ -2,6 +2,7 @@
 A header function's `Page` carries its number, the count, whether it is first or last and its `string-set` values compared without case, and a page made by hand keeps its values: rule:core-classes/pdf-header-is-a-page-function
 --FILE--
 <?nvs
+// covers: Novis\Pdf\Document::header
 // covers: Novis\Pdf\Page::constructor
 // covers: Novis\Pdf\Page::isFirst
 // covers: Novis\Pdf\Page::isLast

@@ -255,6 +255,7 @@ fn a_render_needs_no_capability_grant() {
 }
 
 // covers: Novis\Pdf\Engine::render
+// covers: Novis\Pdf\Document::fromHtml
 #[test]
 fn a_paragraph_renders_with_the_default_fonts() {
     run(|request, extension| {
@@ -300,6 +301,7 @@ fn a_file_or_http_reference_throws_naming_it() {
     });
 }
 
+// covers: Novis\Pdf\Document::asset
 #[test]
 fn a_name_missing_from_the_asset_map_throws() {
     run(|request, extension| {
@@ -334,6 +336,7 @@ fn a_data_uri_image_renders() {
     });
 }
 
+// covers: Novis\Pdf\Document::render
 #[test]
 fn two_renders_of_equal_input_are_byte_equal() {
     run(|request, extension| {
@@ -468,6 +471,7 @@ fn a_header_function_costs_two_crossings() {
     });
 }
 
+// covers: Novis\Pdf\Document::header
 #[test]
 fn a_header_never_moves_the_body() {
     run(|request, extension| {
@@ -524,6 +528,7 @@ fn a_header_taller_than_its_margin_is_reported() {
     });
 }
 
+// covers: Novis\Pdf\Document::footer
 #[test]
 fn a_function_header_wins_over_a_margin_box() {
     run(|request, extension| {
@@ -548,6 +553,64 @@ fn a_function_header_wins_over_a_margin_box() {
         pass(request, extension, first(body, None)).expect("it lays out");
         let without = bytes(&pass(request, extension, second(&footer)).expect("it renders"));
         assert!(kept != without, "a footer took off a box in the top margin");
+    });
+}
+
+/// The `second` pass of a one-page document with no header or footer, and `fills` as its slots.
+fn slotted(fills: &[(&str, &str)]) -> Value {
+    let slots = fills
+        .iter()
+        .enumerate()
+        .map(|(at, (name, value))| {
+            (
+                Key::Int(i64::try_from(at).unwrap()),
+                shape(vec![
+                    ("name", Value::String((*name).to_owned())),
+                    ("value", Value::String((*value).to_owned())),
+                ]),
+            )
+        })
+        .collect();
+    let page = shape(vec![
+        ("header", Value::Null),
+        ("footer", Value::Null),
+        ("slots", Value::Array(slots)),
+    ]);
+    shape(vec![("pages", Value::Array(vec![(Key::Int(0), page)]))])
+}
+
+// covers: Novis\Pdf\Document::slots
+#[test]
+fn a_slot_fill_is_drawn_in_its_cell_and_a_tall_one_is_reported() {
+    run(|request, extension| {
+        let html = "<table><tbody><tr><td>Total</td><td><slot name=\"total\"></slot></td></tr></tbody></table>";
+        let (whole, count) = render(request, extension, html, &[]).expect("it renders");
+        assert_eq!(count, 1);
+        pass(request, extension, first(html, None)).expect("it lays out");
+        let empty = bytes(&pass(request, extension, slotted(&[])).expect("it renders"));
+        assert!(
+            empty == whole,
+            "a second pass with no fill differs from a whole render"
+        );
+        pass(request, extension, first(html, None)).expect("it lays out");
+        let drawn =
+            pass(request, extension, slotted(&[("total", "<b>12.50</b>")])).expect("it renders");
+        assert_eq!(field(&drawn, "pageCount"), Value::Uint(1));
+        assert!(bytes(&drawn) != whole, "the slot was not filled");
+        assert!(items(&field(&drawn, "overflows")).is_empty());
+        pass(request, extension, first(html, None)).expect("it lays out");
+        let tall = "<p>Shop</p><p>Blog</p><p>Shop</p><p>Blog</p>";
+        let over = pass(
+            request,
+            extension,
+            slotted(&[("total", tall), ("missing", "<p>Blog</p>")]),
+        )
+        .expect("it renders");
+        let overflows = items(&field(&over, "overflows"));
+        assert_eq!(overflows.len(), 1, "{overflows:?}");
+        assert_eq!(field(&overflows[0], "page"), Value::Uint(1));
+        assert_eq!(text(&field(&overflows[0], "area")), "total");
+        assert_eq!(text(&field(&overflows[0], "text")), tall);
     });
 }
 
