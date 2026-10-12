@@ -791,30 +791,28 @@ One file set: `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/n
 
 ### State
 
-**Stage 7 is under way.** `cargo test --manifest-path extensions/pdf/Cargo.toml --test layout` passes its 14 tests. Of the stage's 10 checked names, 9 are written, now including `borders_radius_backgrounds_and_gradients_lay_out`. One still does not run: `an_inline_svg_is_vector_content_in_the_output`.
+**Stage 7 is under way, and all 10 of its checked names pass.** `cargo test --manifest-path extensions/pdf/Cargo.toml --test layout` passes its 15 tests, now including `an_inline_svg_is_vector_content_in_the_output`. The stage stays open for the split and the properties the Backlog names.
 
-- Boxes: `Item::Rect` is gone. A shape is `Item::Path` (`Seg`s, a `Paint` and an optional `Stroke`), and `Item::Begin`/`Item::End` wrap a group with an opacity or a clip. `extensions/pdf/src/layout/boxes.rs` is the box painting: `decor` reads the style, `gradient` parses `linear-gradient` and `radial-gradient`, and `paint` gives a slice's items, called from `Flow::close` (`extensions/pdf/src/layout.rs:1208`). Its module doc says what is drawn and what is not. `write.rs` draws paths with `krilla`'s gradients, a `Pattern` for image tiles, and `push_clip_path`/`push_opacity` for groups.
-- The four `border-*-radius` longhands are now `Grammar::Length`. `border-radius` with a slash (elliptical radii) is dropped and reported.
-
-- Hyphenation: `Frame::lang` is the nearest `lang` attribute that `hypher` has patterns for (`lang_of`), and `Frame::hyphenate` is that language under `hyphens: auto`. `push_text` writes a soft hyphen at each break point (`hyphenated`, `extensions/pdf/src/layout.rs:1498`), not in a right-to-left paragraph. `break_lines` (`extensions/pdf/src/layout.rs:1591`) breaks a line ending at a soft hyphen again, narrower by the hyphen, and the line loop draws a `-` item at its end. All of `hypher`'s languages are in; `THIRD-PARTY-LICENSES.txt` is regenerated.
-- Bidi: `Para::direction` is `parley`'s base direction (`para_of`, `extensions/pdf/src/layout.rs:381`). An inline `unicode-bidi` is written into the text as bidi control characters (`bidi_controls`, `extensions/pdf/src/layout.rs:424`), and a cluster of them or of soft hyphens draws nothing.
-- Counters: `Counters` (`extensions/pdf/src/layout.rs:533`) is scoped by frame depth. An outside marker is a `Block::Text` with `marker: true`, laid at baseline 0 and moved down onto the next line placed. `::before`/`::after` are inline text from `content_text` (`extensions/pdf/src/layout.rs:625`).
+- SVG: `layout::Picture` (`extensions/pdf/src/layout.rs:180`) is `Raster(Image)` or `Vector(Box<usvg::Tree>)`, and `Laid::images` holds pictures. `Builder::decode` sniffs an SVG (`is_svg`) and `Builder::svg` parses it with `usvg`, its `<image>` hrefs resolved through the asset map; a missing one returns the map's error. An inline `<svg>` is written out again by `svg_markup` and placed by `Builder::place`, which `<img>` shares. `write.rs`'s `draw_picture` draws a vector picture with `krilla-svg`'s `draw_svg`, and a background `url()` of an SVG is drawn the same way. SVG `<text>` draws nothing: the `usvg` font database is empty.
+- `krilla-svg` 0.8.1 pulls `usvg`/`resvg` 0.47 with their default features (`fontdb`'s `fs` and `memmap` among them). Nothing calls `load_system_fonts`, and the component has no filesystem. `THIRD-PARTY-LICENSES.txt` is regenerated.
+- Boxes: a shape is `Item::Path`, and `Item::Begin`/`Item::End` wrap a group with an opacity or a clip. `extensions/pdf/src/layout/boxes.rs` is the box painting, called from `Flow::close`; its module doc says what is drawn and what is not.
+- Hyphenation, bidi, counters and markers are as the layout module doc says (`extensions/pdf/src/layout.rs:1`).
 - `cargo clippy --manifest-path extensions/pdf/Cargo.toml` has 5 warnings in `css/value.rs` and `css/mod.rs` that are older than this stage. `bun nv verify` does not run clippy over the extension's own workspace.
-- `css::USER_AGENT` (`extensions/pdf/src/css/mod.rs`) is HTML's default sheet, below every document rule. `css::UNRENDERED` elements are `display: none` and reported in `dropped`. `fonts::Fonts` registers `@font-face` from the asset map; `Laid::faces` is what `write.rs` embeds.
-- `layout.rs` is one file of about 1690 lines: block boxes, text through `parley` with the span index as the brush, bidi, hyphenation, counters and markers, and `<img>` sizing. `layout/boxes.rs` is its first submodule.
+- `layout.rs` is one file of about 1850 lines. `layout/boxes.rs` is its first submodule.
 
 ### Next
 
-**Stage 7, the split and inline SVG**: the file set is `extensions/pdf/src/layout.rs`, `extensions/pdf/src/layout/`, `extensions/pdf/src/write.rs` and `extensions/pdf/tests/layout.rs`.
+**Stage 7, the split and the remaining properties**: the file set is `extensions/pdf/src/layout.rs`, `extensions/pdf/src/layout/` and `extensions/pdf/tests/layout.rs`.
 
-- [ ] **Split the layout**: the rest of `extensions/pdf/src/layout.rs` moves beside `boxes.rs` into `block.rs` (`Flow`, `BoxGeometry`, `geometry` at `extensions/pdf/src/layout.rs:298`), `inline.rs` (`Builder`, `Counters`, `blocks`, `hyphenated`) and `text.rs` (the line loop in `layout`, `push_span`, `hyphen`, `break_lines` at `extensions/pdf/src/layout.rs:1626`). Behaviour stays the same and the 14 tests pass unchanged (`rule:core-classes/pdf-css-subset`).
-- [ ] **Inline SVG**: an inline `<svg>` and an SVG `<img>` drawn as vector content through `krilla-svg`: `Builder::image` (`extensions/pdf/src/layout.rs:845`) takes an SVG, and a new `Item` kind is drawn beside `Item::Image` (`extensions/pdf/src/write.rs:265`). Pinned by `an_inline_svg_is_vector_content_in_the_output` (`rule:core-classes/pdf-css-subset-table`).
+- [ ] **Split the layout**: the rest of `extensions/pdf/src/layout.rs` moves beside `boxes.rs` into `block.rs` (`Flow`, `BoxGeometry`, `geometry` at `extensions/pdf/src/layout.rs:324`), `inline.rs` (`Builder`, `Counters`, `blocks`, `hyphenated`) and `text.rs` (the line loop in `layout`, `push_span`, `hyphen`, `break_lines`). The SVG half (`Picture`, `is_svg`, `svg_markup`, `Builder::svg`) goes to `image.rs`. Behaviour stays the same and the 15 tests pass unchanged (`rule:core-classes/pdf-css-subset`).
+- [ ] **`object-fit`** for `<img>` and inline `<svg>` in `Builder::place` (`extensions/pdf/src/layout.rs:898`), drawn through a clip group in `write.rs` (`rule:core-classes/pdf-css-subset-table`).
+- [ ] **`text-indent` and `vertical-align`** in the line loop of `layout` (`extensions/pdf/src/layout.rs:1460`, `rule:core-classes/pdf-css-subset-table`).
 
 ### Backlog
 
-- `background-position`, `background-size`, elliptical radii and repeating gradients are not laid out (`extensions/pdf/src/layout/boxes.rs`). `object-fit`, `text-indent`, `vertical-align`, `text-overflow`, inline boxes with borders, a block `::before`/`::after`, a marker in a right-to-left item and `hyphenate-character` are not laid out yet (`extensions/pdf/src/layout.rs`).
+- `background-position`, `background-size`, elliptical radii and repeating gradients are not laid out (`extensions/pdf/src/layout/boxes.rs`). `text-overflow`, inline boxes with borders, a block `::before`/`::after`, a marker in a right-to-left item and `hyphenate-character` are not laid out yet (`extensions/pdf/src/layout.rs`).
+- SVG `<text>` in the PDF and in `Novis\Image`: fill `usvg`'s font database with the Liberation faces (`extensions/pdf/src/layout.rs`, `rule:core-classes/image-format-roster`).
 - Stage 10 reaches `first` through `Pass`'s `First` case, whose shape is `{document, headerHeight, footerHeight}` (`extensions/pdf/manifest.json`, `wit/pdf.wit`).
 - `cssparser` enters at most 75 nested blocks. Past that, the reference scan reads every string as a URL (`extensions/pdf/src/assets.rs:206`), and the cascade reads CSS on its own. One reading for both is still open.
-- `Grammar::Free` properties are not checked past their tokens (`extensions/pdf/src/css/properties.rs`). SVG `<text>` through `usvg`'s `text` feature (`rule:core-classes/image-format-roster`).
-- The PDF fixtures owed by `rule:core-classes/pdf-decode-refusals`, the guest-against-native benchmark owed by `rule:core-classes/pdf-page-is-an-image-source`, `hayro`'s `embed-cmaps`, and veraPDF in CI, which is the user's call.
-- Stage 14 measures the component's growth, which now carries `hypher`'s patterns for every language.
+- `Grammar::Free` properties are not checked past their tokens (`extensions/pdf/src/css/properties.rs`). The PDF fixtures owed by `rule:core-classes/pdf-decode-refusals`, the guest-against-native benchmark owed by `rule:core-classes/pdf-page-is-an-image-source`, `hayro`'s `embed-cmaps`, and veraPDF in CI, which is the user's call.
+- Stage 14 measures the component's growth, which now carries `hypher`'s patterns for every language and `krilla-svg` with `resvg`.
