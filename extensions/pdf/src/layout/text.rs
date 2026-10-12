@@ -132,6 +132,7 @@ pub(super) struct Cx<'s> {
 /// An `inline-block` box laid out: its items with its margin box's top-left corner at 0, 0, the
 /// margin box's width and height, its baseline from its top, `None` when it has no line, its
 /// `vertical-align`, and the text no font has, whose page is set when the box is drawn.
+#[derive(Clone)]
 pub(super) struct Placed {
     pub(super) items: Vec<Item>,
     width: f32,
@@ -323,12 +324,83 @@ impl Cx<'_> {
         shaped
     }
 
+    /// How tall the box whose blocks are `blocks`, from its opening to its close, is from its
+    /// top border edge to its bottom one, laid out on a page of its own. Every `inline-block`
+    /// box and running element it takes is put back, so laying it out again draws them.
+    fn measure(&mut self, blocks: Vec<Block>) -> f32 {
+        let mut atoms = Vec::new();
+        self.atoms_in(&blocks, &mut atoms);
+        let saved: Vec<(usize, Placed, Option<Vec<Block>>)> = atoms
+            .into_iter()
+            .map(|a| (a, self.placed[a].clone(), self.waiting[a].clone()))
+            .collect();
+        let running = self.running.len();
+        let margin = match blocks.first() {
+            Some(Block::Open(g)) => g.margin[0] + g.margin[2],
+            _ => 0.0,
+        };
+        let height = self.lay(blocks, VerticalAlign::BASELINE).height;
+        self.running.truncate(running);
+        for (a, placed, waiting) in saved {
+            self.placed[a] = placed;
+            self.waiting[a] = waiting;
+        }
+        height - margin
+    }
+
+    /// Pushes onto `out` the index of every atom `blocks` lay out, a flex item's own included.
+    fn atoms_in(&self, blocks: &[Block], out: &mut Vec<usize>) {
+        for block in blocks {
+            match block {
+                Block::Float { atom, .. }
+                | Block::Absolute { atom, .. }
+                | Block::Running { atom, .. } => out.push(*atom),
+                Block::Text { atoms, .. } => out.extend(atoms.iter().map(|(_, a)| *a)),
+                Block::Flex(flex) => {
+                    for (atom, _) in &flex.items {
+                        out.push(*atom);
+                        if let Some(inner) = &self.waiting[*atom] {
+                            self.atoms_in(inner, out);
+                        }
+                    }
+                }
+                Block::Open(_) | Block::Close | Block::Image { .. } => {}
+            }
+        }
+    }
+
     /// Lays `blocks` out down `flow`.
     fn run(&mut self, blocks: impl IntoIterator<Item = Block>, flow: &mut Flow) {
         // The items of a list marker waiting for the line it is drawn beside.
         let mut marker: Option<Vec<Item>> = None;
-        for block in blocks {
+        let mut blocks = blocks.into_iter();
+        // The blocks of a box with `break-inside: avoid`, measured and waiting to be laid out,
+        // last first.
+        let mut ahead: Vec<Block> = Vec::new();
+        while let Some(block) = ahead.pop().or_else(|| blocks.next()) {
             match block {
+                Block::Open(geometry)
+                    if geometry.avoid && geometry.breaks[0].is_none() && flow.paginates() =>
+                {
+                    let mut inner = vec![Block::Open(geometry.clone())];
+                    let mut depth = 0;
+                    while let Some(block) = ahead.pop().or_else(|| blocks.next()) {
+                        let end = matches!(block, Block::Close) && depth == 0;
+                        match block {
+                            Block::Open(_) => depth += 1,
+                            Block::Close => depth -= 1,
+                            _ => {}
+                        }
+                        inner.push(block);
+                        if end {
+                            break;
+                        }
+                    }
+                    let height = self.measure(inner.clone());
+                    flow.keep(geometry.margin[0], height);
+                    flow.open(geometry);
+                    ahead.extend(inner.into_iter().skip(1).rev());
+                }
                 Block::Open(geometry) => flow.open(geometry),
                 Block::Close => flow.close(),
                 Block::Flex(flex) => self.flex(flex, flow),
@@ -477,10 +549,31 @@ impl Cx<'_> {
                     }
                     shaped.align(para.align, AlignmentOptions::default());
                     let rtl = shaped.is_rtl();
+                    let heights: Vec<f32> = shaped
+                        .lines()
+                        .map(|line| {
+                            let m = line.metrics();
+                            m.block_max_coord - m.block_min_coord
+                        })
+                        .collect();
+                    // The line the next page starts with, chosen at the paragraph's first line
+                    // and again at each break.
+                    let mut next_break = None;
+                    let mut plan = !is_marker;
                     for (i, line) in shaped.lines().enumerate() {
+                        while plan || next_break == Some(i) {
+                            if next_break == Some(i) {
+                                flow.break_page();
+                            }
+                            next_break = flow
+                                .room()
+                                .and_then(|room| kept(&heights[i..], room, &para))
+                                .map(|at| i + at);
+                            plan = false;
+                        }
                         let (left, width) = bands.get(i).copied().unwrap_or((left, width));
                         let metrics = line.metrics();
-                        let height = metrics.block_max_coord - metrics.block_min_coord;
+                        let height = heights[i];
                         // A marker is drawn on baseline 0 and moved down to the next line's.
                         let top = if is_marker { 0.0 } else { flow.place(height) };
                         let page_number = flow.pages.len() as u64;
@@ -791,6 +884,35 @@ impl Cx<'_> {
             }
         }
     }
+}
+
+/// How many of the lines `heights` tall go on the last page before a break, or `None` when
+/// they all fit. `room` is where the first line starts, how tall the page's content is and
+/// whether the page is empty. A break leaves at least `orphans` lines before it and `widows`
+/// after it. When it cannot, a paragraph on a page that is not empty starts on the next one,
+/// and one at the top of a page breaks where the page ends.
+fn kept(heights: &[f32], room: (f32, f32, bool), para: &Para) -> Option<usize> {
+    let (mut y, limit, empty) = room;
+    let mut fit = 0;
+    // The same test as `Flow::place`, so the break falls where placing the lines puts it.
+    while let Some(&height) = heights.get(fit) {
+        if !(fit == 0 && empty) && y + height > limit {
+            break;
+        }
+        y += height;
+        fit += 1;
+    }
+    if fit == heights.len() {
+        return None;
+    }
+    let at = fit.min(heights.len().saturating_sub(para.widows));
+    Some(if at >= para.orphans.max(1) {
+        at
+    } else if empty {
+        fit.max(1)
+    } else {
+        0
+    })
 }
 
 /// Narrows by `by` an `inline-block` box's own box and each block in it whose width fills its

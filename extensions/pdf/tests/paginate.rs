@@ -218,3 +218,88 @@ fn a_running_element_repeats_on_every_page() {
     assert_eq!(footer, "Team");
     assert!(close(left, 50.0), "{left}");
 }
+
+/// The text of each page, one entry per line.
+fn lines(laid: &Laid) -> Vec<Vec<String>> {
+    (0..laid.pages.len())
+        .map(|page| texts(laid, page).into_iter().map(|(t, ..)| t).collect())
+        .collect()
+}
+
+/// A page 200pt tall inside its margins, with lines 20pt tall, so ten lines fill it.
+const TEN_LINES: &str = "<style>
+    @page { size: 400pt 300pt; margin: 50pt }
+    body, p, div { margin: 0; line-height: 20pt }
+    </style>";
+
+#[test]
+fn break_before_after_and_inside_avoid_are_kept() {
+    let filler = "<p>Line</p>".repeat(8);
+    let tall = "Tall<br>".repeat(12);
+    let laid = lay(&format!(
+        "{TEN_LINES}{filler}
+        <div style='break-inside: avoid'>Shop<br>Blog<br>News</div>
+        <p style='page-break-before: always'>Team</p>
+        <div style='page-break-inside: avoid'>{tall}</div>
+        <p style='page-break-after: always'>Last</p><p>After</p>"
+    ));
+    let pages = lines(&laid);
+    // Three lines do not fit under eight, so the box starts on the next page whole.
+    assert_eq!(pages[0], vec!["Line"; 8], "{pages:?}");
+    assert_eq!(pages[1], ["Shop", "Blog", "News"], "{pages:?}");
+    let shop = texts(&laid, 1)[0].2;
+    assert!(shop > 50.0 && shop < 70.0, "{shop}");
+    // `page-break-before` starts a page, and a box taller than a page is split where it is.
+    assert_eq!(pages[2][0], "Team", "{pages:?}");
+    assert_eq!(pages[2][1..], vec!["Tall"; 9], "{pages:?}");
+    assert_eq!(pages[3], [vec!["Tall"; 3], vec!["Last"]].concat(), "{pages:?}");
+    // `page-break-after` puts what follows on the next page.
+    assert_eq!(pages[4], ["After"], "{pages:?}");
+    assert_eq!(pages.len(), 5);
+
+    // A box that fits under the last block stays there.
+    let laid = lay(&format!(
+        "{TEN_LINES}{}<div style='break-inside: avoid'>Shop<br>Blog</div>",
+        "<p>Line</p>".repeat(8)
+    ));
+    assert_eq!(lines(&laid).len(), 1);
+}
+
+#[test]
+fn orphans_and_widows_hold_lines_together() {
+    let paragraph = "<br>Shop".repeat(3);
+    // Two of four lines would go to the next page, under `widows: 3`, so only one stays.
+    let laid = lay(&format!(
+        "{TEN_LINES}{}<p style='orphans: 1; widows: 3'>Shop{paragraph}</p>",
+        "<p>Line</p>".repeat(8)
+    ));
+    let pages = lines(&laid);
+    assert_eq!(pages[0].len(), 9, "{pages:?}");
+    assert_eq!(pages[1], ["Shop"; 3], "{pages:?}");
+
+    // One line would stay at the bottom under `orphans: 2`, so the paragraph moves whole.
+    let laid = lay(&format!(
+        "{TEN_LINES}{}<p>Blog<br>Blog<br>Blog</p>",
+        "<p>Line</p>".repeat(9)
+    ));
+    let pages = lines(&laid);
+    assert_eq!(pages[0], vec!["Line"; 9], "{pages:?}");
+    assert_eq!(pages[1], ["Blog"; 3], "{pages:?}");
+
+    // The default of two lines each way moves one line down with its neighbour.
+    let laid = lay(&format!(
+        "{TEN_LINES}{}<p>News<br>News<br>News<br>News</p>",
+        "<p>Line</p>".repeat(7)
+    ));
+    let pages = lines(&laid);
+    assert_eq!(pages[0].len(), 9, "{pages:?}");
+    assert_eq!(pages[1], ["News"; 2], "{pages:?}");
+
+    // A paragraph that cannot keep both fills its page and breaks where the page ends.
+    let laid = lay(&format!(
+        "{TEN_LINES}<p style='orphans: 9; widows: 9'>{}Team</p>",
+        "Team<br>".repeat(11)
+    ));
+    let pages = lines(&laid);
+    assert_eq!((pages[0].len(), pages[1].len()), (10, 2), "{pages:?}");
+}

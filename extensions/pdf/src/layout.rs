@@ -290,6 +290,10 @@ struct Para {
     /// Whether a line wider than the box ends in `…`: `text-overflow: ellipsis` under an
     /// `overflow-x` that is not `visible`.
     ellipsis: bool,
+    /// The fewest lines left at the bottom of a page and carried to the top of the next one:
+    /// its `orphans` and `widows`.
+    orphans: usize,
+    widows: usize,
     /// The index in [`inline::Builder::spans`] of the block's own text style.
     span: usize,
 }

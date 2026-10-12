@@ -143,7 +143,17 @@ pub(super) fn para_of(style: &Style, width: f32, span: usize) -> Para {
         indent: length(style, "text-indent", width).unwrap_or(0.0),
         ellipsis: keyword(style, "text-overflow") == Some("ellipsis")
             && !matches!(keyword(style, "overflow-x"), None | Some("visible")),
+        orphans: lines(style, "orphans"),
+        widows: lines(style, "widows"),
         span,
+    }
+}
+
+/// A count of lines from `orphans` or `widows`, which is 2 when it is not set.
+fn lines(style: &Style, name: &str) -> usize {
+    match style.get(name) {
+        Some(Value::Integer(n)) => usize::try_from(*n).unwrap_or(1).max(1),
+        _ => 2,
     }
 }
 
