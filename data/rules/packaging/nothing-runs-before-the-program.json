@@ -7,5 +7,6 @@
     "security/closed-doors",
     "security/package-authority-is-granted-one-line-at-a-time"
   ],
-  "guardedBy": []
+  "guardedBy": [],
+  "milestone": "M15"
 }

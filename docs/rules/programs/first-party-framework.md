@@ -29,6 +29,9 @@ giving up the guarantees it exists for. That answer belongs on the documentation
 If the boundary between the halves is crossed repeatedly, by a package member that keeps needing a
 privileged escape hatch, the tier tests are applied to that member again; no escape hatch is added.
 
+**Partly on disk.** The `Core` half is built (`rule:programs/framework-core-half`). There is no
+`nvs/web` package.
+
 **Declined:**
 - **Primitives only: router, session and validation in `Core`, the rest left to the ecosystem.** It
   keeps the API surface minimal, and it is precisely the position that leaves a good language beside an

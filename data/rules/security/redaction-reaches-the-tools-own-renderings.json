@@ -6,5 +6,6 @@
     "errors/record-transformations",
     "ide/redaction-ranges-come-from-the-server"
   ],
-  "guardedBy": []
+  "guardedBy": [],
+  "milestone": "M10"
 }

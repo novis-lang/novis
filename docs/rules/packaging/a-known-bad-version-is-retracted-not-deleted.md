@@ -10,3 +10,5 @@ range expresses that a minimum cannot: "not 2.3.1, it is broken".
 
 If audit proves insufficient in practice and users sit on known-vulnerable versions, the thing to
 argue is a narrowly scoped automatic patch floor, not a general range system.
+
+**Not on disk.** The tree has no package system.

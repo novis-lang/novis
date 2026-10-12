@@ -9,3 +9,5 @@ rule here: `nvs/web` resolves, locks, is logged and is granted like anyone else'
 registry whose maintainers do not depend on it does not stay good.
 
 Names are first-come, and the squatting policy is the registry operator's own operational document.
+
+**Not on disk.** The tree has no package system.

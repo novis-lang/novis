@@ -17,8 +17,12 @@ in flight.
 What it spends: the guest's linear memory, charged to the calling request and freed when the request
 ends — O(in-flight). The pooling allocator reserves address space per slot, not committed memory.
 
-**Not on disk.** `nvs_ext::call` charges every growth to a `Budget` and traps a guest past its CPU
-deadline or the least of the three memory limits (`crates/nvs-ext/tests/call.rs`), but nothing
-implements that budget over a request's own deadline and memory accounting yet. A limit's outcome
-is a `FATAL` naming the limit as `onLimit` receives it (`crates/nvs-ext/tests/failure.rs`), and no
-host raises it on a request yet.
+**Partly on disk.** `nvs_ext::call` charges every growth to a `Budget` and traps a guest past its
+CPU deadline or the least of the three memory limits (`crates/nvs-ext/tests/call.rs`). A limit's
+outcome is a `FATAL` naming the limit as `onLimit` receives it (`crates/nvs-ext/tests/failure.rs`),
+and `nvs run` runs the request's limit handler before it
+(`tests/conformance/ext/an-extension-that-reaches-the-memory-limit-runs-the-limit-handler.nvst`).
+The budget `nvs run` and `nvs serve` hand a guest is not the request's own:
+`nvs_cli::extensions::Spent` is made at the request's first call from its `[limits]`, so its CPU
+deadline starts there rather than at the request's start, and its memory is a second allowance beside
+the count the runtime keeps for the request.

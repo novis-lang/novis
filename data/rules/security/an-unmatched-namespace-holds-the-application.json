@@ -5,5 +5,6 @@
     "security/grants-are-keyed-on-a-namespace",
     "security/package-authority-is-granted-one-line-at-a-time"
   ],
-  "guardedBy": []
+  "guardedBy": [],
+  "milestone": "M15"
 }

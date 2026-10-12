@@ -7,5 +7,6 @@
     "packaging/resolution-takes-the-highest-minimum",
     "packaging/an-artifact-is-one-immutable-content-addressed-file"
   ],
-  "guardedBy": []
+  "guardedBy": [],
+  "milestone": "M15"
 }

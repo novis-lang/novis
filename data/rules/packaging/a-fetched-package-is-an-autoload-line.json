@@ -8,5 +8,6 @@
     "packaging/package-toml-is-a-tool-input",
     "packaging/autoload-probes-fold-into-the-cache-key"
   ],
-  "guardedBy": []
+  "guardedBy": [],
+  "milestone": "M15"
 }

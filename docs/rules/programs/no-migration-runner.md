@@ -10,3 +10,5 @@ root-owned configuration, and none of them is obvious.
 **This is a known gap, not an oversight.** Until it is closed by a decision of its own, nothing in
 `nvs/web` may ship a migration runner, and one appearing in the package without that decision is a
 review failure.
+
+**Not on disk.** There is no `nvs/web` package, so there is no `Web\Migration` either.

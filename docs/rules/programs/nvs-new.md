@@ -17,3 +17,5 @@ Two constraints bind the template:
 The scaffold is a load-bearing artifact. It is the first experience, so it is held to the compiler's
 own standard: tested on Windows, Linux and macOS as a first-class CI job, and a change that breaks it
 is a regression.
+
+**Not on disk.** `nvs` has no `new` command.

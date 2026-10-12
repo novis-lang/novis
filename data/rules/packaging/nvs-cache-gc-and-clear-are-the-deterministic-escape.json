@@ -4,5 +4,6 @@
   "seeAlso": [
     "packaging/eviction-rides-the-cold-miss-at-a-probability"
   ],
-  "guardedBy": []
+  "guardedBy": [],
+  "milestone": "M10"
 }

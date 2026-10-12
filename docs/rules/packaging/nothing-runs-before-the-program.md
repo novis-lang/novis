@@ -17,3 +17,5 @@ A package containing a top-level statement with an observable effect produces no
 language with no FFI and no native compilation step available to userland, an allowance for
 "packages that genuinely need it" would exist only to be abused, and if such a need ever appears
 the rule is re-argued from scratch rather than amended.
+
+**Not on disk.** The tree has no package system.

@@ -6,5 +6,6 @@
     "security/capability-roster-is-closed",
     "security/longest-prefix-wins"
   ],
-  "guardedBy": []
+  "guardedBy": [],
+  "milestone": "M15"
 }

@@ -14,3 +14,5 @@ verified account with a second factor, and then:
 Operating the registry — index, artifact store, log, advisory feed, accounts, moderation, uptime —
 is a real and permanent responsibility; the protocol is static signed files so that the serving side
 is cheap and mirrorable, but the responsibility is the main cost of having a package system at all.
+
+**Not on disk.** The tree has no package system and no `nvs publish`.

@@ -7,5 +7,6 @@
     "packaging/a-package-cannot-reach-its-host",
     "security/package-authority-is-granted-one-line-at-a-time"
   ],
-  "guardedBy": []
+  "guardedBy": [],
+  "milestone": "M15"
 }

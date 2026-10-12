@@ -6,3 +6,5 @@ otherwise does nothing. `nvs cache clear` empties the store.
 Neither is ever needed for correctness. A content-addressed entry cannot be stale — a changed source, a
 changed toolchain or a changed extension set is a different key — so the only thing either command
 changes is disk usage, and the next run of anything they removed pays one cold compile.
+
+**Not on disk.** The eviction walk runs on a cold miss, and `nvs` has no `cache` command.

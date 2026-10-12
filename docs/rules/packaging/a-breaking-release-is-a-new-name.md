@@ -12,3 +12,5 @@ dependencies — is what makes a rename rare enough to live with.
 
 The rule is watched rather than enforced: if library authors route around it by shipping breaks
 under the same name, either an API-diff check at publish or a ceiling mechanism becomes necessary.
+
+**Not on disk.** The tree has no package system.

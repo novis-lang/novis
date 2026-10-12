@@ -13,3 +13,5 @@ vendoring a convenience rather than a second trust root.
 The lock is for integrity, not for determinism: `rule:packaging/resolution-takes-the-highest-minimum`
 is deterministic on its own, and `nvs build --locked` on a clean machine with an empty cache produces
 byte-identical compiled units to the machine that wrote the lock, on all three platforms.
+
+**Not on disk.** The tree has no package system and no `package.lock`.

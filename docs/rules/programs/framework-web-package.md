@@ -16,3 +16,5 @@ and form binding over `Core\Validate` — the ergonomics, never the laundering; 
 **There is no view layer, because the language is one.** Inline HTML with `<?nvs` and `<?=` is already
 the template engine and the HTML sink already auto-escapes by default, so a second templating language
 would be a second spelling of one job. `Web\Response::view` renders a `.nvs` file and nothing more.
+
+**Not on disk.** There is no `nvs/web` package and no `Web` namespace.
