@@ -86,7 +86,7 @@ body { margin: 8px }
 p, pre, blockquote, figure, ul, ol, dl { margin-top: 1em; margin-bottom: 1em }
 blockquote, figure { margin-left: 40px; margin-right: 40px }
 dd { margin-left: 40px }
-ul, ol { padding-left: 40px }
+ul, ol { padding-left: 40px; counter-reset: list-item }
 ul { list-style-type: disc }
 ol { list-style-type: decimal }
 h1 { font-size: 2em; margin-top: 0.67em; margin-bottom: 0.67em }

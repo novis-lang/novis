@@ -30,8 +30,16 @@
 //! characters that open and close it, and a block's override is written around its text; a
 //! cluster of control characters draws nothing.
 //!
-//! A `list-item` starts with its marker, from `list-style-type` and its number among the list's
-//! items, `<ol start>` and `<li value>` included. An `<img>` whose bytes are PNG, JPEG, GIF or
+//! **Counters** follow CSS: `counter-reset` makes a counter that the element's following
+//! siblings and every descendant see, and `counter-increment` changes the innermost one of that
+//! name. A `list-item` increments `list-item`, which `<ul>` and `<ol>` reset and `<ol start>`
+//! and `<li value>` set. Its marker is that number in its `list-style-type`, drawn outside the
+//! content box level with the item's first line, or as its first text under
+//! `list-style-position: inside`. A `::before` or `::after` box is inline text at the start or
+//! end of its element, from the strings, `counter()`, `counters()`, `attr()` and quotes of its
+//! `content`, after its own counter properties apply.
+//!
+//! An `<img>` whose bytes are PNG, JPEG, GIF or
 //! WebP is a block at its CSS `width` and `height`, else its `width` and `height` attributes,
 //! else its natural size, a pixel being a CSS pixel, scaled down to fit the content box. Nothing
 //! outside the HTML namespace is drawn yet.
@@ -48,6 +56,8 @@ use parley::{
     Alignment, AlignmentOptions, BaseDirection, FontFamily, FontFamilyName, FontFeatures, FontStyle, FontWeight,
     LayoutContext, LineHeight, OverflowWrap, StyleProperty, TextWrapMode, WordBreak,
 };
+
+use cssparser::{Parser, Token};
 
 use crate::Error;
 use crate::assets::Assets;
@@ -197,6 +207,9 @@ enum Block {
         para: Para,
         x: f32,
         width: f32,
+        /// A list item's marker, drawn on one line that ends at `x` and level with the first
+        /// line laid out after it.
+        marker: bool,
     },
     Image {
         image: usize,
@@ -217,8 +230,6 @@ struct Frame {
     spaces: Spaces,
     para: Para,
     transform: Option<&'static str>,
-    /// The last list item number among this element's children.
-    items: i64,
 }
 
 fn keyword<'s>(style: &'s Style, name: &str) -> Option<&'s str> {
@@ -428,8 +439,19 @@ fn spaces_of(style: &Style) -> Spaces {
     }
 }
 
-/// `n` as `list-style-type` writes it, without the suffix.
+/// A list item's marker: `n` as `list-style-type` writes it, a number followed by a full stop.
 fn marker(kind: &str, n: i64) -> Option<String> {
+    let text = counter_text(kind, n)?;
+    Some(if matches!(kind, "disc" | "circle" | "square") {
+        text
+    } else {
+        format!("{text}.")
+    })
+}
+
+/// `n` as the counter style `kind` writes it, without a suffix. A style with no form for `n`
+/// writes it in decimal.
+fn counter_text(kind: &str, n: i64) -> Option<String> {
     let roman = |n: i64| {
         let mut n = n;
         let mut out = String::new();
@@ -471,19 +493,161 @@ fn marker(kind: &str, n: i64) -> Option<String> {
         "disc" => "\u{2022}".to_owned(),
         "circle" => "\u{25e6}".to_owned(),
         "square" => "\u{25aa}".to_owned(),
-        "decimal-leading-zero" => format!("{n:02}."),
-        "lower-roman" if (1..4000).contains(&n) => format!("{}.", roman(n)),
-        "upper-roman" if (1..4000).contains(&n) => format!("{}.", roman(n).to_uppercase()),
-        "lower-alpha" | "lower-latin" if n > 0 => format!("{}.", alpha(n, b'a', 26)),
-        "upper-alpha" | "upper-latin" if n > 0 => format!("{}.", alpha(n, b'A', 26)),
-        "lower-greek" if (1..=24).contains(&n) => {
-            format!(
-                "{}.",
-                char::from_u32(0x3b0 + n as u32 + u32::from(n > 17)).unwrap_or('?')
-            )
-        }
-        _ => format!("{n}."),
+        "decimal-leading-zero" => format!("{n:02}"),
+        "lower-roman" if (1..4000).contains(&n) => roman(n),
+        "upper-roman" if (1..4000).contains(&n) => roman(n).to_uppercase(),
+        "lower-alpha" | "lower-latin" if n > 0 => alpha(n, b'a', 26),
+        "upper-alpha" | "upper-latin" if n > 0 => alpha(n, b'A', 26),
+        "lower-greek" if (1..=24).contains(&n) => char::from_u32(0x3b0 + n as u32 + u32::from(n > 17))
+            .unwrap_or('?')
+            .to_string(),
+        _ => n.to_string(),
     })
+}
+
+/// A counter of CSS's `counter-reset` and `counter-increment`. `scope` is the depth of the
+/// frame whose element's children see it: the parent of the element that created it.
+struct Counter {
+    name: String,
+    value: i64,
+    scope: usize,
+}
+
+/// The counters in scope, outermost first.
+#[derive(Default)]
+struct Counters(Vec<Counter>);
+
+impl Counters {
+    /// `counter-reset`: a new counter, in place of one a sibling made.
+    fn reset(&mut self, name: &str, value: i64, scope: usize) {
+        match self.0.iter_mut().rfind(|c| c.name == name && c.scope == scope) {
+            Some(c) => c.value = value,
+            None => self.0.push(Counter {
+                name: name.to_owned(),
+                value,
+                scope,
+            }),
+        }
+    }
+
+    /// `counter-increment` by `by`, or `counter-set` to `value` when `set`. A name no counter has
+    /// starts one at 0 first.
+    fn change(&mut self, name: &str, by: i64, set: bool, scope: usize) {
+        match self.0.iter_mut().rfind(|c| c.name == name) {
+            Some(c) if set => c.value = by,
+            Some(c) => c.value = c.value.saturating_add(by),
+            None => self.reset(name, by, scope),
+        }
+    }
+
+    /// The innermost counter's value, and every counter's from the outermost.
+    fn get(&self, name: &str) -> i64 {
+        self.0.iter().rfind(|c| c.name == name).map_or(0, |c| c.value)
+    }
+
+    fn all(&self, name: &str) -> Vec<i64> {
+        let all: Vec<i64> = self.0.iter().filter(|c| c.name == name).map(|c| c.value).collect();
+        if all.is_empty() { vec![0] } else { all }
+    }
+
+    /// Ends the counters of a frame deeper than `depth`.
+    fn leave(&mut self, depth: usize) {
+        self.0.retain(|c| c.scope <= depth);
+    }
+
+    /// Applies `style`'s `counter-reset` and `counter-increment` for an element whose parent is
+    /// the frame at `scope`.
+    fn apply(&mut self, style: &Style, scope: usize) {
+        for (name, value) in counter_list(style, "counter-reset", 0) {
+            self.reset(&name, value, scope);
+        }
+        for (name, by) in counter_list(style, "counter-increment", 1) {
+            self.change(&name, by, false, scope);
+        }
+    }
+}
+
+/// The names and numbers of `counter-reset` or `counter-increment`, `default` where a name has
+/// no number.
+fn counter_list(style: &Style, property: &str, default: i64) -> Vec<(String, i64)> {
+    let Some(Value::Text(text)) = style.get(property) else {
+        return Vec::new();
+    };
+    let mut parser = Parser::new(text);
+    let mut out: Vec<(String, i64)> = Vec::new();
+    while let Ok(token) = parser.next() {
+        match token {
+            Token::Ident(name) if !name.eq_ignore_ascii_case("none") => {
+                out.push((name.to_string(), default));
+            }
+            Token::Number {
+                int_value: Some(n), ..
+            } => {
+                if let Some(last) = out.last_mut() {
+                    last.1 = i64::from(*n);
+                }
+            }
+            _ => {}
+        }
+    }
+    out
+}
+
+/// The text of a `::before` or `::after` box's `content`, `None` for `none`, `normal` or no
+/// value: its strings, `counter()`, `counters()`, `attr()` and quotes, in order.
+fn content_text(style: &Style, dom: &Dom, at: usize, counters: &Counters) -> Option<String> {
+    let Some(Value::Text(text)) = style.get("content") else {
+        return None;
+    };
+    let mut parser = Parser::new(text);
+    let mut out = String::new();
+    while let Ok(token) = parser.next() {
+        match token.clone() {
+            Token::QuotedString(s) => out.push_str(&s),
+            Token::Ident(name) => match &*name.to_ascii_lowercase() {
+                "none" | "normal" => return None,
+                "open-quote" => out.push('\u{201c}'),
+                "close-quote" => out.push('\u{201d}'),
+                _ => {}
+            },
+            Token::Function(name) => {
+                let name = name.to_ascii_lowercase();
+                let _ = parser.parse_nested_block(|p| -> Result<(), cssparser::ParseError<()>> {
+                    let mut idents: Vec<String> = Vec::new();
+                    let mut separator = String::new();
+                    while let Ok(token) = p.next() {
+                        match token {
+                            Token::Ident(i) => idents.push(i.to_string()),
+                            Token::QuotedString(s) => separator = s.to_string(),
+                            _ => {}
+                        }
+                    }
+                    let Some(first) = idents.first() else {
+                        return Ok(());
+                    };
+                    let kind = idents.get(1).map_or("decimal", String::as_str);
+                    match name.as_str() {
+                        "counter" => {
+                            out.push_str(&counter_text(kind, counters.get(first)).unwrap_or_default());
+                        }
+                        "counters" => {
+                            let parts: Vec<String> = counters
+                                .all(first)
+                                .into_iter()
+                                .filter_map(|n| counter_text(kind, n))
+                                .collect();
+                            out.push_str(&parts.join(&separator));
+                        }
+                        "attr" => out.push_str(dom.nodes[at].attr(first).unwrap_or_default()),
+                        _ => {}
+                    }
+                    Ok(())
+                });
+            }
+            _ => {}
+        }
+    }
+    Some(out)
 }
 
 /// Collects a document's blocks in order.
@@ -557,6 +721,42 @@ impl Builder<'_, '_> {
         }
     }
 
+    /// The index in [`Builder::spans`] of `style`'s text style inside the one at `parent`.
+    fn span(&mut self, style: &Style, parent: usize, fonts: &Fonts) -> usize {
+        let span = span_of(style, fonts, Some(&self.spans[parent]));
+        if span == self.spans[parent] {
+            parent
+        } else {
+            self.spans.push(span);
+            self.spans.len() - 1
+        }
+    }
+
+    /// The inline text of the `::before` or `::after` box of the element at `at`, whose own
+    /// content box is `frame`.
+    fn generated(
+        &mut self,
+        style: &Style,
+        dom: &Dom,
+        at: usize,
+        counters: &Counters,
+        frame: &Frame,
+        fonts: &Fonts,
+    ) {
+        if keyword(style, "display") == Some("none") {
+            return;
+        }
+        let Some(text) = content_text(style, dom, at, counters) else {
+            return;
+        };
+        let inner = Frame {
+            span: self.span(style, frame.span, fonts),
+            spaces: spaces_of(style),
+            ..frame.clone()
+        };
+        self.push_text(&text, &inner);
+    }
+
     /// Adds bidi control characters in `frame`'s text style, leaving the collapsing of spaces as
     /// it was.
     fn push_control(&mut self, controls: &str, frame: &Frame) {
@@ -590,6 +790,7 @@ impl Builder<'_, '_> {
                 para,
                 x,
                 width,
+                marker: false,
             });
         }
         self.text.clear();
@@ -677,6 +878,7 @@ enum Step {
     /// Leaves the element whose frame is on top, writing the bidi controls that close it and
     /// closing its box when it is a block.
     Exit {
+        at: usize,
         block: bool,
         close: Option<&'static str>,
     },
@@ -707,19 +909,25 @@ fn blocks(
         spaces: Spaces::Collapse,
         para: para_of(&empty),
         transform: None,
-        items: 0,
     };
+    let mut counters = Counters::default();
     // An explicit stack, so a deep tree costs heap and never the call stack.
     let mut frames = vec![root];
     let mut work = vec![Step::Enter(0)];
     while let Some(step) = work.pop() {
         let at = match step {
             Step::Enter(at) => at,
-            Step::Exit { block, close } => {
+            Step::Exit { at, block, close } => {
                 let frame = frames.pop().expect("an exit follows its enter");
+                let depth = frames.len();
+                if let Some(after) = styles.after.get(&at) {
+                    counters.apply(after, depth + 1);
+                    builder.generated(after, dom, at, &counters, &frame, fonts);
+                }
                 if let Some(close) = close {
                     builder.push_control(close, &frame);
                 }
+                counters.leave(depth);
                 if block {
                     builder.flush();
                     builder.blocks.push(Block::Close);
@@ -756,14 +964,7 @@ fn blocks(
                     builder.after_space = true;
                     continue;
                 }
-                let parent_span = &builder.spans[frame.span];
-                let span = span_of(style, fonts, Some(parent_span));
-                let span = if span == *parent_span {
-                    frame.span
-                } else {
-                    builder.spans.push(span);
-                    builder.spans.len() - 1
-                };
+                let span = builder.span(style, frame.span, fonts);
                 let mut inner = Frame {
                     span,
                     spaces: spaces_of(style),
@@ -772,14 +973,6 @@ fn blocks(
                         Some("lowercase") => Some("lowercase"),
                         Some("capitalize") => Some("capitalize"),
                         _ => None,
-                    },
-                    items: if name == "ol" {
-                        node.attr("start")
-                            .and_then(|s| s.trim().parse::<i64>().ok())
-                            .unwrap_or(1)
-                            - 1
-                    } else {
-                        0
                     },
                     ..frame.clone()
                 };
@@ -797,29 +990,62 @@ fn blocks(
                     inner.para = para_of(style);
                     builder.blocks.push(Block::Open(geometry));
                 }
+                let depth = frames.len();
+                counters.apply(style, depth);
+                if name == "ol"
+                    && let Some(start) = node.attr("start").and_then(|s| s.trim().parse::<i64>().ok())
+                {
+                    counters.reset("list-item", start.saturating_sub(1), depth);
+                }
                 if display == "list-item" {
-                    let parent = frames.last_mut().expect("the root frame stays");
-                    parent.items = node
-                        .attr("value")
-                        .and_then(|v| v.trim().parse().ok())
-                        .unwrap_or(parent.items + 1);
+                    if !counter_list(style, "counter-increment", 1)
+                        .iter()
+                        .any(|(name, _)| name == "list-item")
+                    {
+                        counters.change("list-item", 1, false, depth);
+                    }
+                    if let Some(value) = node.attr("value").and_then(|v| v.trim().parse().ok()) {
+                        counters.change("list-item", value, true, depth);
+                    }
                     let kind = keyword(style, "list-style-type").unwrap_or("disc");
-                    if let Some(text) = marker(kind, parent.items) {
-                        let marked = Frame {
-                            spaces: Spaces::Keep,
-                            transform: None,
-                            ..inner.clone()
-                        };
-                        builder.push_text(&format!("{text} "), &marked);
-                        builder.after_space = true;
+                    if let Some(text) = marker(kind, counters.get("list-item")) {
+                        let text = format!("{text} ");
+                        if keyword(style, "list-style-position") == Some("inside") {
+                            let marked = Frame {
+                                spaces: Spaces::Keep,
+                                transform: None,
+                                ..inner.clone()
+                            };
+                            builder.push_text(&text, &marked);
+                            builder.after_space = true;
+                        } else {
+                            builder.blocks.push(Block::Text {
+                                spans: vec![(0..text.len(), inner.span)],
+                                text,
+                                para: Para {
+                                    direction: BaseDirection::Ltr,
+                                    align: Alignment::Left,
+                                    wrap: TextWrapMode::NoWrap,
+                                    ..inner.para
+                                },
+                                x: inner.x,
+                                width: inner.width,
+                                marker: true,
+                            });
+                        }
                     }
                 }
                 let controls = bidi_controls(style, block);
                 if let Some((open, _)) = controls {
                     builder.push_control(open, &inner);
                 }
+                if let Some(before) = styles.before.get(&at) {
+                    counters.apply(before, depth + 1);
+                    builder.generated(before, dom, at, &counters, &inner, fonts);
+                }
                 frames.push(inner);
                 work.push(Step::Exit {
+                    at,
                     block,
                     close: controls.map(|(_, close)| close),
                 });
@@ -979,6 +1205,8 @@ pub fn layout(
         open: Vec::new(),
     };
     let mut missing: Vec<Missing> = Vec::new();
+    // The items of a list marker waiting for the line it is drawn beside.
+    let mut marker: Option<Vec<Item>> = None;
 
     for block in blocks {
         match block {
@@ -1005,6 +1233,7 @@ pub fn layout(
                 para,
                 x: left,
                 width,
+                marker: is_marker,
             } => {
                 let mut builder = lcx.ranged_builder(&mut fonts.context, &text, 1.0, false);
                 builder.set_base_direction(para.direction);
@@ -1057,12 +1286,21 @@ pub fn layout(
                 for line in shaped.lines() {
                     let metrics = line.metrics();
                     let height = metrics.block_max_coord - metrics.block_min_coord;
-                    let top = flow.place(height);
+                    // A marker is drawn on baseline 0 and moved down to the next line's.
+                    let top = if is_marker { 0.0 } else { flow.place(height) };
                     let page_number = flow.pages.len() as u64;
-                    let baseline = MARGIN + top + (metrics.baseline - metrics.block_min_coord);
+                    let baseline = if is_marker {
+                        0.0
+                    } else {
+                        MARGIN + top + (metrics.baseline - metrics.block_min_coord)
+                    };
                     let line_range = line.text_range();
                     let line_text = &text[line_range.clone()];
-                    let mut x = left + metrics.inline_min_coord + metrics.offset;
+                    let mut x = if is_marker {
+                        left - metrics.advance
+                    } else {
+                        left + metrics.inline_min_coord + metrics.offset
+                    };
                     let mut items = Vec::new();
                     for run in line.runs() {
                         let face = fonts
@@ -1181,6 +1419,13 @@ pub fn layout(
                             report(&mut missing, missed, &spans[at], page_number);
                         }
                     }
+                    if is_marker {
+                        marker = Some(items);
+                        break;
+                    }
+                    if let Some(drawn) = marker.take() {
+                        items.extend(drawn.into_iter().map(|item| lower(item, baseline)));
+                    }
                     flow.page().items.extend(items);
                 }
             }
@@ -1195,6 +1440,14 @@ pub fn layout(
         faces: fonts.faces,
         missing,
     })
+}
+
+/// `item` moved down by `by`.
+fn lower(mut item: Item, by: f32) -> Item {
+    match &mut item {
+        Item::Text { y, .. } | Item::Image { y, .. } | Item::Rect { y, .. } => *y += by,
+    }
+    item
 }
 
 /// Adds `text` to the missing list, once per chain and page.

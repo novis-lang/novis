@@ -302,20 +302,60 @@ fn display_none_draws_nothing_and_a_user_agent_margin_applies() {
     assert!(runs[1].2 - runs[0].2 > 12.0 + 11.0, "{runs:?}");
 }
 
-#[test]
-fn lists_number_their_items() {
-    let laid = lay(
-        "<ol start='3'><li>a</li><li>b</li></ol><ol style='list-style-type: upper-roman'><li>c</li><li value='9'>d</li></ol>",
-    );
-    let texts: Vec<String> = laid.pages[0]
+/// Each line's text items from left to right, joined by a space, top to bottom.
+fn line_texts(laid: &Laid) -> Vec<String> {
+    let mut items: Vec<(f32, f32, String)> = laid.pages[0]
         .items
         .iter()
         .filter_map(|item| match item {
-            Item::Text { text, .. } => Some(text.clone()),
+            Item::Text { x, y, text, .. } => Some((*y, *x, text.trim().to_owned())),
             _ => None,
         })
         .collect();
-    assert_eq!(texts, ["3. a", "4. b", "I. c", "IX. d"]);
+    items.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.total_cmp(&b.1)));
+    let mut out: Vec<(f32, Vec<String>)> = Vec::new();
+    for (y, _, text) in items {
+        match out.last_mut() {
+            Some((at, texts)) if (*at - y).abs() < 0.01 => {
+                if texts.last() != Some(&text) {
+                    texts.push(text);
+                }
+            }
+            _ => out.push((y, vec![text])),
+        }
+    }
+    out.into_iter().map(|(_, t)| t.join(" ")).collect()
+}
+
+#[test]
+fn lists_and_counters_number_their_items() {
+    let laid = lay(
+        "<ol start='3'><li>a</li><li>b</li></ol><ol style='list-style-type: upper-roman'><li>c</li><li value='9'>d</li></ol>",
+    );
+    assert_eq!(line_texts(&laid), ["3. a", "4. b", "I. c", "IX. d"]);
+    // The marker is outside the content box: it ends where the item's text starts.
+    let runs = runs(&laid);
+    let (content, marker) = (runs[0], runs[1]);
+    assert!(marker.3 <= content.1 + 0.01, "{runs:?}");
+    assert!(close(marker.2, content.2), "{runs:?}");
+
+    let laid = lay("<ul style='list-style-position: inside'><li>x</li></ul>");
+    assert_eq!(line_texts(&laid), ["\u{2022} x"]);
+
+    let laid = lay(
+        "<style>body { counter-reset: section } h2 { counter-increment: section }\
+         h2::before { content: counter(section, upper-alpha) '. ' }\
+         h2::after { content: ' (' attr(data-id) ')' }</style>\
+         <h2 data-id='x'>Shop</h2><h2 data-id='y'>Blog</h2>",
+    );
+    assert_eq!(line_texts(&laid), ["A. Shop (x)", "B. Blog (y)"]);
+
+    let laid = lay(
+        "<style>ol { counter-reset: item; list-style-type: none } li { counter-increment: item }\
+         li::before { content: counters(item, '.') ' ' }</style>\
+         <ol><li>a<ol><li>b</li><li>c</li></ol></li><li>d</li></ol>",
+    );
+    assert_eq!(line_texts(&laid), ["1 a", "1.1 b", "1.2 c", "2 d"]);
 }
 
 #[test]
