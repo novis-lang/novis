@@ -1,6 +1,6 @@
 {
   "title": "`|>` binds tighter than every binary operator and looser than unary",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "expressions/pipeline-substitution",
     "expressions/pipeline-hole-once",

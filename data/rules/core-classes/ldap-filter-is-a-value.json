@@ -1,6 +1,6 @@
 {
   "title": "An LDAP filter is an immutable value encoded straight to BER, whose values accept `tainted` and whose attribute names are a sink",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "core-classes/ldap-dn-is-the-launderer",
     "core-classes/ldap-value-types",

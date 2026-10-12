@@ -1,6 +1,6 @@
 {
   "title": "An `enum` is also a member of a class or interface body, reached as `Owner::Name` and `Owner::Name::Case`, and as a bare `Name` inside its owner",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "types/class-scoped-alias",
     "enums/an-enum-lives-in-the-class-that-uses-it",

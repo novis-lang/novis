@@ -1,6 +1,6 @@
 {
   "title": "Every `Novis\\Intl` member but `Locale::negotiate` takes a list and returns a list, in one locale and one crossing",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "core-classes/intl-roster",
     "packaging/the-boundary-is-the-cost",

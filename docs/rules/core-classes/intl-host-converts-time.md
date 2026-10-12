@@ -9,7 +9,8 @@ instant and a zone name, and turning it into fields is the time-zone database's 
 placed in its zone with `Core\Time` first; a member that took an `Instant` and a `Zone` would be a
 second way to write `dateTimes`.
 
-The guest names a zone from its id and offset: `ZoneStyle::Offset`, `Location` or `Generic`. A zone's
+The guest names a zone from its id and offset: `DateFormat::ZoneStyle::Offset`, `Location` or
+`Generic`. A zone's
 specific daylight-time name is not offered, because it needs to know whether the offset is daylight
 time. The calendar is the locale's, selected by a tag's `-u-ca-` keyword; the fields cross as ISO
 fields and the guest converts them.

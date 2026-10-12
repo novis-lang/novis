@@ -1,10 +1,13 @@
 {
   "title": "An enum one class uses is declared in that class, and an enum several classes share is declared in their namespace",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "enums/class-scoped-enum",
     "core-api/no-mode-strings",
     "statements/nothing-gets-a-second-name"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "crates/nvs-stdlib/tests/enum_owners.rs",
+    "crates/nvs-ext/tests/manifest.rs"
+  ]
 }

@@ -6,7 +6,7 @@ setting that holds one and no `[intl]` configuration block (`rule:core-api/no-am
 - **A well-formed tag with no data** falls back along CLDR's chain — `de-AT` to `de`, and at last to
   the root locale — and formats. It never throws: a tag a program got from a user or a header is
   well-formed and unknown far more often than it is wrong.
-- **`Locale::resolve`** returns, for each tag and a `Service`, the locale whose data answers: `de` for
+- **`Locale::resolve`** returns, for each tag and a `Locale::Service`, the locale whose data answers: `de` for
   `de-XX`, `und` where only the root does. Coverage differs between services, so the service is an
   argument. It is how a program learns which locale answered.
 - **A `-u-` keyword that an option also names** — `ks`, `kf` or `kn` beside `strength`, `caseFirst`

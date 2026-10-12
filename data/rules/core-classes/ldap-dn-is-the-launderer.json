@@ -1,6 +1,6 @@
 {
   "title": "`Ldap\\Dn` is the one launderer for the DN sink, and every DN parameter takes a `Dn` or a string that refuses `tainted`",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "core-classes/ldap-filter-is-a-value",
     "security/launderers-are-sink-named",

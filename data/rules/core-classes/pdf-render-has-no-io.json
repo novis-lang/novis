@@ -1,11 +1,15 @@
 {
   "title": "`Novis\\Pdf` is a built-in component that performs no I/O, and an asset it cannot resolve throws",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "core-classes/pdf-roster",
     "core-classes/pdf-one-engine",
     "core-classes/pdf-output-is-inert",
     "core-classes/spreadsheet-has-no-io"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "crates/nvs-ext/tests/pdf.rs",
+    "extensions/pdf/tests/render.rs",
+    "tests/conformance/novis/pdf-a-missing-asset-throws.nvst"
+  ]
 }

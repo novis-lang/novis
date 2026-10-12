@@ -1,10 +1,14 @@
 {
   "title": "`Novis\\Image\\Barcode` renders eight 1D and DataMatrix symbologies, and a code and a QR code render as SVG",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "core-classes/image-one-entry-point-per-job",
     "core-classes/image-format-roster",
     "core-classes/pdf-one-engine"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "crates/nvs-ext/tests/image_barcode.rs",
+    "crates/nvs-cli/tests/image_barcode.rs",
+    "tests/conformance/novis/image-a-barcode-renders-as-svg.nvst"
+  ]
 }

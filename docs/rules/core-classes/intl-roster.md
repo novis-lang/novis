@@ -9,7 +9,7 @@ source over one manifest class, `Novis\Intl\Icu`, whose static methods are the e
 | `NumberFormat` | `decimal`, `percent`, `currency`, `compact` |
 | `PluralRules` | `cardinal`, `ordinal` — each returns `Core\Cldr::PluralCategory` |
 | `DateFormat` | `dateTimes`, `dates`, `times` — over `Core\Time\DateTime`, `Date` and `TimeOfDay` |
-| `RelativeTime` | `format` — a count and a `TimeUnit`, negative in the past |
+| `RelativeTime` | `format` — a count and a `RelativeTime::Unit`, negative in the past |
 | `ListFormat` | `join` — "and", "or" and unit lists |
 | `Segmenter` | `words`, `sentences` |
 | `Locale` | `negotiate`, `resolve` |
@@ -45,8 +45,8 @@ locale.
   binary, and the component's module doc states its size. If that size is too large, the answer is a
   slimmer locale set, never an optional component.
 
-**Not on disk.** The component crate `extensions/intl/` and its Novis half do not exist; `wit/intl.wit`
-is the interface they will export.
+The component crate is `extensions/intl/`, its Novis half is `extensions/intl/nvs/`, and `wit/intl.wit`
+is the interface it exports.
 
 **Declined:**
 

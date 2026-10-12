@@ -1,6 +1,6 @@
 {
   "title": "The hole is `$_`, it appears exactly once on a right side, and nowhere else at all",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "expressions/pipeline-substitution",
     "expressions/pipeline-precedence"

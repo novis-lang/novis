@@ -1,12 +1,18 @@
 {
   "title": "Comparison, hashing, placeholders, text, QR codes and SVG are one entry point each, because each is one job",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "core-classes/image-pipeline",
     "core-classes/image-pixel-cap",
     "testing/assertions-are-typed"
   ],
   "guardedBy": [
-    "crates/nvs-ext/tests/image_analysis.rs"
+    "crates/nvs-ext/tests/image_analysis.rs",
+    "crates/nvs-ext/tests/image_decode.rs",
+    "tests/conformance/novis/image-an-svg-opens-as-an-image.nvst",
+    "tests/conformance/novis/image-compare-counts-the-pixels-that-differ.nvst",
+    "tests/conformance/novis/image-hash-distance-finds-a-near-duplicate.nvst",
+    "tests/conformance/novis/image-placeholder-and-palette-of-a-plain-image.nvst",
+    "tests/conformance/novis/image-a-qr-code-is-a-square-png.nvst"
   ]
 }

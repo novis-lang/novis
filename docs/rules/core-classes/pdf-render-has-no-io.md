@@ -21,21 +21,20 @@ request's memory cap and deadline contain them, the HTML is held to the parser's
 (`rule:core-classes/html-parsing`), and the component adds **no limit of its own**: a bulk or slow
 render belongs in `Core\Queue`.
 
-The component's fixtures owe: a render with **no capability grants** that succeeds, so the no-I/O claim
-is demonstrated rather than asserted; a `file:///…` reference, an `http:` URL and a name absent from
-the asset map, each in HTML, CSS and SVG and each throwing, with no network or filesystem access
+The component's fixtures hold it: a render with **no capability grants** that succeeds, so the no-I/O
+claim is demonstrated rather than asserted; a `file:///…` reference, an `http:` URL and a name absent
+from the asset map, each in HTML, CSS and SVG and each throwing, with no network or filesystem access
 observable from the guest; and a `data:` image that renders.
 
 - **Memory:** per rendering request, the HTML, the asset map, the layout tree and the output document,
   all inside the request's memory cap and freed when the request ends. A program that never renders
   pays nothing.
 
-**Partly on disk.** `extensions/pdf/src/assets.rs` resolves every reference in HTML, CSS and inline
-SVG against the map and `data:`, and throws for the rest. `crates/nvs-ext/tests/pdf.rs` renders with
-no grant, and a `file:`, `http:` and unknown name each throw there and in
-`tests/conformance/novis/pdf-a-missing-asset-throws.nvst`. The asset map does not yet reach a
-stylesheet's rules, an `@font-face` or an inline SVG's drawing, because the cascade and those
-renderers are not written.
+`extensions/pdf/src/assets.rs` resolves every reference in HTML, CSS and inline SVG against the map
+and `data:` before anything is laid out, and throws for the rest. `crates/nvs-ext/tests/pdf.rs`
+renders with no grant, and a `file:`, `http:` and unknown name each throw there and in
+`tests/conformance/novis/pdf-a-missing-asset-throws.nvst`. `extensions/pdf/tests/render.rs` throws
+for each in a linked stylesheet, its `url()`s and an SVG `<image>` or `<use>`.
 
 **Declined:**
 - **`Core`.** A layout engine, a font parser and image decoders would sit unsandboxed in every binary

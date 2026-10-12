@@ -21,10 +21,11 @@ and no code under OFL-1.1 is admitted by it.
 - **Memory:** the twelve fonts are part of each component's bytes, a few megabytes of the binary. A
   render holds the faces it uses inside its request's cap.
 
-**Partly on disk.** The twelve files are under `extensions/fonts/` with their release recorded in
-`SOURCE.json`, and the image and PDF components embed them. `extensions/pdf/src/fonts.rs` maps the
-family names above to them, registers each `@font-face` font from the asset map, and builds the
-chain; `extensions/pdf/src/layout.rs` lists the missing glyphs.
+The twelve files are under `extensions/fonts/` with their release recorded in `SOURCE.json`, and the
+image and PDF components embed them. `extensions/pdf/src/fonts.rs` maps the family names above to
+them, registers each `@font-face` font from the asset map, and builds the chain;
+`extensions/pdf/src/layout.rs` lists the missing glyphs, and `extensions/pdf/tests/layout.rs` holds
+the chain, the subsetting and the missing-glyph list.
 
 **Declined:**
 - **Noto or another font with wide script coverage as a default.** Its size grows the binary by tens of

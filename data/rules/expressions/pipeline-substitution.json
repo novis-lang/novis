@@ -1,6 +1,6 @@
 {
   "title": "`|>` substitutes one hole at parse time, and has no run-time representation",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "expressions/pipeline-hole-once",
     "expressions/pipeline-precedence",

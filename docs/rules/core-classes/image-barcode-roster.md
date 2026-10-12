@@ -20,7 +20,7 @@ sandbox. Every code a test writes is read back by a reader that is a dev-depende
 
 - **Memory:** a code is at most a few thousand modules, so a render is far under the pixel cap.
 
-**Shipped.** The `barcode` export draws every symbology, `qr` writes `svg`, and `Barcode`,
+The `barcode` export draws every symbology, `qr` writes `svg`, and `Barcode`,
 `QrCode::svg` and `QrCode::giroCode` are in the binary. `extensions/image/src/barcode.rs` says what
 each symbology takes and what each option's default is. `crates/nvs-ext/tests/image_barcode.rs`
 reads every code back with `rxing`, and `crates/nvs-cli/tests/image_barcode.rs` pins the GiroCode
