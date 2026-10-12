@@ -15,17 +15,25 @@ final class Settings implements PropertyGuard {
             throw new LogicError("lang is required");
         }
     }
+
+    public function self(): Settings {
+        echo "  self()\n";
+        return $this;
+    }
 }
 
 Settings $s = new Settings();
 $s->values = ["mode" => "dark", "lang" => "en"];
-$s->groups["mail"] = ["host" => "example.com"];
+$s->groups["mail"] = ["host" => "example.com", "port" => "25"];
 
 echo "an allowed unset:\n";
 unset($s->values["mode"]);
 
 echo "a nested unset:\n";
 unset($s->groups["mail"]["host"]);
+
+echo "an unset through a call, which runs once:\n";
+unset($s->self()->groups["mail"]["port"]);
 
 echo "a refused unset:\n";
 try {
@@ -40,6 +48,9 @@ an allowed unset:
   guard unset values keys ["mode"] count 2
 a nested unset:
   guard unset groups keys ["mail","host"] count 1
+an unset through a call, which runs once:
+  self()
+  guard unset groups keys ["mail","port"] count 1
 a refused unset:
   guard unset values keys ["lang"] count 1
   refused: lang is required

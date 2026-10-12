@@ -53,6 +53,11 @@ echo $b->rows["0"], "\n";
 $b->self()->grid["r"]["k"] .= "b";
 echo $b->grid["r"]["k"], "\n";
 
+// `unset` of an element writes the separated array back the same way, and
+// `nvs_ir::lower::Lowering::lower_unset` stages the receiver as well.
+unset($b->self()->grid["r"]["k"]);
+echo Core\Json::encode($b->grid), "\n";
+
 // A `new` receiver: constructed once, written into, and discarded — `$b` is
 // untouched, so the line before it is what the last `echo` still prints.
 (new Box())->rows["k"] .= "b";
@@ -67,5 +72,7 @@ self()
 q
 self()
 ab
+self()
+{"r":[]}
 construct
 z!

@@ -1902,6 +1902,12 @@ impl<'a> Lowering<'a> {
             root = inner.unparenthesized();
         }
         levels.reverse();
+        // The root's receiver is staged, as [`Self::lower_store`]'s `Index`
+        // arm stages it: the guard and [`Self::write_back_array`] each lower
+        // it again, and `unset($b->self()->rows["k"])` calls `self()` once.
+        let temporaries = self.temporaries_mark();
+        let addresses = self.staged_mark();
+        self.stage_target_address(root, env, cur);
         let silenced = self.silence_root_get(target);
         let (root_v, root_ty) = self.lower_expr(root, None, env, cur);
         self.silenced_gets.truncate(silenced);
@@ -2006,6 +2012,8 @@ impl<'a> Lowering<'a> {
             written = self.emit_array_set(*cur, arrays[i], *level_key, written);
         }
         self.write_back_array(root, written, env, cur);
+        self.unstage_to(addresses);
+        self.release_temporaries_since(temporaries, *cur);
     }
     /// `rule:types/grammar`.3's `[int $a, string $b] = $pair;` — a run of element
     /// reads off one subject, and nothing else at all.
