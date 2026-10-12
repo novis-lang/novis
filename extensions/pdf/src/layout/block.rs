@@ -131,9 +131,11 @@ impl Flow {
     }
 
     /// Moves to a new page when `height` does not fit under the last block, unless the page is
-    /// empty, and returns the top of the box `height` is placed in.
+    /// empty, and returns the top of the box `height` is placed in. A page is empty while
+    /// nothing is drawn on it and nothing has taken space on it, so a tall box that draws
+    /// nothing still moves the next block down.
     pub(super) fn place(&mut self, height: f32) -> f32 {
-        let empty = self.pages.last().is_some_and(|p| p.items.is_empty());
+        let empty = self.cursor <= 0.0 && self.pages.last().is_some_and(|p| p.items.is_empty());
         let margin = if empty && self.pages.len() > 1 {
             0.0
         } else {
