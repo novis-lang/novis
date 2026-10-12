@@ -302,20 +302,18 @@ by stages 1 and 5, `lateinit-read-before-write` by stage 3.
 
 ### State
 
-Every stage's items are done, and both goal-end gates are green: `bun nv verify --doc` finds no
-broken link, and `bun nv owners --closes lateinit-and-guards` finds no gap. Every standing decision
-already has its home in a fragment under `docs/rules/classes/` or in
-`docs/rules/programs/framework-refusals.md`, so the goal file holds nothing left to move. A
-delegation forward over a `lateinit` field now takes the erased read, so it calls `initProperty` in
-a `LateInit` class. `isinit` on a hooked `lateinit` property tests the backing slot. Each has a
-conformance case. Two code items in `stmt.rs` stay before the branch lands.
+Every stage's items are done, and both goal-end gates were green last session. The two `stmt.rs`
+items are fixed. An element `unset` stages its root's receiver, so `unset($b->self()->rows["k"])`
+calls `self()` once, guarded or not. While `initProperty` runs, a write that initializes a hooked
+`lateinit` property stores into the backing slot and calls no guard, no `set` hook and no observer.
+Each fix has a conformance case, and valgrind finds no leak on either path. `bun nv verify` is green.
 
 ### Next
 
-**The last two `stmt.rs` items, then landing.** The file set is `crates/nvs-ir/src/lower/stmt.rs`.
+**Landing, by hand.** The file set is `docs/goals/lateinit-and-guards.md`.
 
-- [ ] Probe whether an element `unset` through a call receiver, `$b->self()->rows["k"]`, calls `self()` twice for the guard, and fix it if it does (`rule:classes/property-guard-runs-before-the-write`). `crates/nvs-ir/src/lower/stmt.rs:1722`
-- [ ] Make a `set` hook on a `lateinit` property plain while `initProperty` initializes it, as the slot write already is (`rule:classes/late-init-initializes-on-the-first-read`). `crates/nvs-ir/src/lower/stmt.rs:1402`
+- [x] Probe whether an element `unset` through a call receiver calls `self()` twice for the guard, and fix it (`rule:classes/property-guard-runs-before-the-write`). `crates/nvs-ir/src/lower/stmt.rs:1905`
+- [x] Make a `set` hook on a `lateinit` property plain while `initProperty` initializes it (`rule:classes/late-init-initializes-on-the-first-read`). `crates/nvs-ir/src/lower/stmt.rs:1309`
 - [ ] Land the branch on `main` and delete this goal file, with the user's answer on the default bodies below. `docs/goals/lateinit-and-guards.md:1`
 
 ### Backlog
