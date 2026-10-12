@@ -322,6 +322,21 @@ pub struct ObserverCalls {
     pub set: Option<String>,
 }
 
+/// The two labels a `PropertyGuard` check dispatches through, recorded on a
+/// property access whose receiver's class implements `PropertyGuard`.
+///
+/// The guard runs *before* the write, where [`ObserverCalls`] runs after it,
+/// and it is recorded and dispatched the same way: each label is the
+/// statically resolved `"Owner::beforePropertySet"`, present only when that
+/// resolution has a body, and it is `InstKind::CallVirtual`'s fallback.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct GuardCalls {
+    /// `beforePropertySet`'s fallback label, for a whole or an element write.
+    pub set: Option<String>,
+    /// `beforePropertyUnset`'s fallback label, for an element `unset`.
+    pub unset: Option<String>,
+}
+
 /// One piece of `rule:routing/link-name-and-params-are-checked`'s resolved link, in path order and each carrying
 /// its own leading `/`: concatenating them left to right rebuilds the route's
 /// declared path with every capture substituted.
@@ -615,6 +630,9 @@ pub enum ExprInfo {
         /// `rule:classes/property-observer-pipeline`'s second step, or `None` when the receiver's class
         /// implements no `PropertyObserver` — see [`ObserverCalls`].
         observer: Option<ObserverCalls>,
+        /// The check that runs before a write, or `None` when the receiver's
+        /// class implements no `PropertyGuard` — see [`GuardCalls`].
+        guard: Option<GuardCalls>,
         /// What a dominating test proved about this read of a `readonly`
         /// path, or `None` where nothing narrowed it — see
         /// `crate::locals`' narrowing section.
@@ -684,6 +702,9 @@ pub enum ExprInfo {
         /// implements no `PropertyObserver`. A hooked property is **not**
         /// exempt from it — see [`ObserverCalls`].
         observer: Option<ObserverCalls>,
+        /// The check that runs before the `set` hook, or `None` when the
+        /// receiver's class implements no `PropertyGuard` — see [`GuardCalls`].
+        guard: Option<GuardCalls>,
     },
     /// A resolved property access whose receiver is an `rule:types/erased-member-access` **shape**
     /// that names the field — recorded *instead of* [`ExprInfo::Property`],

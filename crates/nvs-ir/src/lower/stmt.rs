@@ -1248,22 +1248,31 @@ impl<'a> Lowering<'a> {
                         cur,
                     );
                 }
-                let (class, name, ty, set, observer) = match self.exprs.lookup(target.span) {
+                let (class, name, ty, set, observer, guard) = match self.exprs.lookup(target.span) {
                     Some(ExprInfo::Property {
                         class,
                         name,
                         ty,
                         observer,
+                        guard,
                         ..
-                    }) => (class, name, *ty, None, observer.clone()),
+                    }) => (class, name, *ty, None, observer.clone(), guard.clone()),
                     Some(ExprInfo::HookedProperty {
                         class,
                         name,
                         ty,
                         set,
                         observer,
+                        guard,
                         ..
-                    }) => (class, name, *ty, set.clone(), observer.clone()),
+                    }) => (
+                        class,
+                        name,
+                        *ty,
+                        set.clone(),
+                        observer.clone(),
+                        guard.clone(),
+                    ),
                     _ => panic!(
                         "nvs-ir: a property assignment target at {:?} has no entry in the \
                           typed-expression table, so it was not checked with the same table — \
@@ -1283,8 +1292,13 @@ impl<'a> Lowering<'a> {
                     // `Lowering::untag_receiver`, which the read side reaches
                     // through `open_nullsafe`.
                     let (object_v, receiver_ty) = self.untag_receiver(object_v, receiver_ty, *cur);
+                    // The hook takes over the receiver's reference, so one
+                    // retained here belongs to this frame until the hook is
+                    // called, and a throw before that releases it.
+                    let receiver_mark = self.temporaries_mark();
                     if receiver_ty.is_refcounted() && self.aliasing_read(object) {
                         self.emit_retain(*cur, object_v);
+                        self.own_temporary(object_v);
                     }
                     let (v, vty, aliasing) = self.lower_stored(stored, Some(field_ty), env, cur);
                     // Coerce first, retain second: the retain has to land on
@@ -1292,6 +1306,21 @@ impl<'a> Lowering<'a> {
                     // into a `mixed` field arrives as its own `Int`/`Float`/
                     // `Bool` until this widens it.
                     let v = self.coerce(*cur, v, vty, field_ty, env);
+                    // `PropertyGuard` runs before the `set` hook, with the
+                    // caller's value.
+                    if let Some(calls) = guard {
+                        self.emit_guard_call(
+                            *cur,
+                            object_v,
+                            receiver_ty,
+                            &observed_name,
+                            Some((v, field_ty, !aliasing)),
+                            None,
+                            calls.set,
+                            env,
+                        );
+                    }
+                    self.forget_temporaries_since(receiver_mark);
                     if field_ty.is_refcounted() && aliasing {
                         self.emit_retain(*cur, v);
                     }
@@ -1348,6 +1377,44 @@ impl<'a> Lowering<'a> {
                     let (v, vty, aliasing) = self.lower_stored(stored, Some(field_ty), env, cur);
                     // Coerce first, retain second — the arm above says why.
                     let v = self.coerce(*cur, v, vty, field_ty, env);
+                    // `rule:classes/late-init-initializes-on-the-first-read`'s
+                    // plain write is told apart by the slot's state before the
+                    // store, so only a guarded or observed `lateinit` write
+                    // takes it.
+                    let was_init = ((observer.is_some() || guard.is_some())
+                        && self.exprs.is_lateinit_property(&class_label, &field_name))
+                    .then(|| {
+                        self.emit(
+                            *cur,
+                            Ty::Bool,
+                            InstKind::FieldIsInit {
+                                object: object_v,
+                                class: class_label.clone(),
+                                field: field_name.clone(),
+                            },
+                        )
+                        .0
+                    });
+                    // `PropertyGuard` runs before anything is stored, so a
+                    // throw leaves the old value in the slot.
+                    if let Some(calls) = guard {
+                        let unless_plain = was_init.map(|was_init| {
+                            self.open_unless_plain(was_init, target.span, env, cur)
+                        });
+                        self.emit_guard_call(
+                            *cur,
+                            object_v,
+                            receiver_ty,
+                            &observed_name,
+                            Some((v, field_ty, !aliasing)),
+                            None,
+                            calls.set,
+                            env,
+                        );
+                        if let Some(open) = unless_plain {
+                            self.close_unless_plain(open, env, cur);
+                        }
+                    }
                     if field_ty.is_refcounted() && aliasing {
                         self.emit_retain(*cur, v);
                     }
@@ -1366,23 +1433,6 @@ impl<'a> Lowering<'a> {
                         );
                         self.emit_release(*cur, old_v);
                     }
-                    // `rule:classes/late-init-initializes-on-the-first-read`'s
-                    // plain write is told apart by the slot's state before the
-                    // store, so only an observed `lateinit` write takes it.
-                    let was_init = (observer.is_some()
-                        && self.exprs.is_lateinit_property(&class_label, &field_name))
-                    .then(|| {
-                        self.emit(
-                            *cur,
-                            Ty::Bool,
-                            InstKind::FieldIsInit {
-                                object: object_v,
-                                class: class_label.clone(),
-                                field: field_name.clone(),
-                            },
-                        )
-                        .0
-                    });
                     self.emit_field_set(*cur, object_v, class_label, field_name, v);
                     // `rule:classes/property-observer-pipeline`'s second step. With no `set` hook the slot
                     // store *is* the commit, so `v` is exactly the committed
@@ -1531,6 +1581,10 @@ impl<'a> Lowering<'a> {
                 // the `None`s below are that level, and the descent and the
                 // climb each have one arm for it.
                 let mut inner_keys: Vec<Option<(ValueId, bool)>> = Vec::with_capacity(levels.len());
+                // Each key with its representation, `None` for an append, in
+                // path order: the `$keys` a `PropertyGuard` is given.
+                let mut guard_keys: Vec<Option<(ValueId, Ty)>> =
+                    Vec::with_capacity(levels.len() + 1);
                 for level in &levels {
                     let ExprKind::Index { index, .. } = &level.kind else {
                         unreachable!("only an `Index` is pushed onto `levels`")
@@ -1538,25 +1592,42 @@ impl<'a> Lowering<'a> {
                     let key = match index {
                         None => None,
                         Some(key) => {
-                            let (key_v, _key_ty, key_aliasing) =
-                                self.lower_array_key(key, env, cur);
+                            let (key_v, key_ty, key_aliasing) = self.lower_array_key(key, env, cur);
+                            guard_keys.push(Some((key_v, key_ty)));
                             Some((key_v, key_aliasing))
                         }
                     };
+                    if key.is_none() {
+                        guard_keys.push(None);
+                    }
                     inner_keys.push(key);
                 }
                 let outer_key = match index {
                     None => None,
                     Some(index) => {
-                        let (key_v, _key_ty, key_aliasing) = self.lower_array_key(index, env, cur);
+                        let (key_v, key_ty, key_aliasing) = self.lower_array_key(index, env, cur);
+                        guard_keys.push(Some((key_v, key_ty)));
                         Some((key_v, key_aliasing))
                     }
                 };
+                if outer_key.is_none() {
+                    guard_keys.push(None);
+                }
                 let (v, vty, aliasing) = self.lower_stored(stored, Some(elem_ty), env, cur);
                 // Into the element's representation before any retain, for
                 // the reason the `inout` arm above states: `$mixed[] = $n`
                 // with `int $n` is otherwise a refcount on a plain integer.
                 let v = self.coerce(*cur, v, vty, elem_ty, env);
+                // `PropertyGuard` runs before any row is touched, with the
+                // new element and its key path.
+                self.emit_element_guard(
+                    root,
+                    root_v,
+                    &guard_keys,
+                    Some((v, elem_ty, !aliasing)),
+                    env,
+                    cur,
+                );
                 for key in &inner_keys {
                     if let Some((key_v, true)) = *key {
                         self.emit_retain(*cur, key_v);
@@ -1637,6 +1708,83 @@ impl<'a> Lowering<'a> {
                  lowered"
             ),
         }
+    }
+    /// The `PropertyGuard` check before an element write or an element
+    /// `unset`, when `root` is a property of a class that implements
+    /// `PropertyGuard`. Every other root emits nothing.
+    ///
+    /// `keys` is the path in order, each key with its representation and
+    /// `None` for an append. [`Helper::GuardKeyPath`] turns it into the
+    /// `array<string>` the guard gets, an append becoming the index it will
+    /// write. The receiver is lowered again here, as
+    /// [`Self::write_back_array`] lowers it, so a staged one is not evaluated
+    /// twice.
+    fn emit_element_guard(
+        &mut self,
+        root: &Expr,
+        root_v: ValueId,
+        keys: &[Option<(ValueId, Ty)>],
+        value: Option<(ValueId, Ty, bool)>,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) {
+        let ExprKind::PropertyAccess { object, .. } = &root.kind else {
+            return;
+        };
+        let Some(ExprInfo::Property {
+            name,
+            guard: Some(calls),
+            ..
+        }) = self.exprs.lookup(root.span)
+        else {
+            return;
+        };
+        let name = name.clone();
+        let fallback = if value.is_some() {
+            calls.set.clone()
+        } else {
+            calls.unset.clone()
+        };
+        let (object_v, receiver_ty) = self.lower_expr(object, None, env, cur);
+        let (object_v, receiver_ty) = self.untag_receiver(object_v, receiver_ty, *cur);
+        // `ArrayNew` takes over one reference per entry, and each key is
+        // still needed by the write itself.
+        let mut entries = Vec::with_capacity(keys.len());
+        for (i, key) in keys.iter().enumerate() {
+            let entry = match *key {
+                Some((key_v, key_ty)) => {
+                    if key_ty.is_refcounted() {
+                        self.emit_retain(*cur, key_v);
+                    }
+                    key_v
+                }
+                None => self.emit(*cur, Ty::Null, InstKind::ConstNull).0,
+            };
+            entries.push((i.to_string(), entry));
+        }
+        let (raw, _) = self.emit(*cur, Ty::Array, InstKind::ArrayNew { entries });
+        // A runtime helper always carries an error edge, though this one never
+        // fails: every argument it cannot read is an empty path.
+        let (path, _) = self.emit_fallible(
+            *cur,
+            Ty::Array,
+            InstKind::HelperCall {
+                helper: Helper::GuardKeyPath,
+                args: vec![root_v, raw],
+            },
+            env,
+        );
+        self.emit_release(*cur, raw);
+        self.emit_guard_call(
+            *cur,
+            object_v,
+            receiver_ty,
+            &name,
+            value,
+            Some(path),
+            fallback,
+            env,
+        );
     }
     /// The representation of one intermediate level of a nested
     /// array-element write target — `$grid[0]` in `$grid[0][1] = v` — read
@@ -1771,6 +1919,7 @@ impl<'a> Lowering<'a> {
         // can throw over it.
         let keys_mark = self.temporaries_mark();
         let mut inner_keys: Vec<(ValueId, bool)> = Vec::with_capacity(levels.len());
+        let mut guard_keys: Vec<Option<(ValueId, Ty)>> = Vec::with_capacity(levels.len() + 1);
         for level in &levels {
             let ExprKind::Index {
                 index: Some(key), ..
@@ -1787,12 +1936,17 @@ impl<'a> Lowering<'a> {
             if key_ty.is_refcounted() && !key_aliasing {
                 self.own_temporary(key_v);
             }
+            guard_keys.push(Some((key_v, key_ty)));
             inner_keys.push((key_v, key_aliasing));
         }
         let (key_v, key_aliasing) = self.lower_rendered_array_key(index, env, cur);
         if !key_aliasing {
             self.own_temporary(key_v);
         }
+        guard_keys.push(Some((key_v, Ty::Str)));
+        // `PropertyGuard` sees the removal before the descent, while every
+        // key is still on the stack a throw releases.
+        self.emit_element_guard(root, root_v, &guard_keys, None, env, cur);
         // Down the chain, borrowing each row. A level is an ordinary element
         // *read* — [`AbsentKey::Throws`], so `unset($g["nope"]["1"])` throws
         // exactly as `$g["nope"]["1"]` would (`rule:types/absent-storage-is-never-a-zero-value`, PHP being

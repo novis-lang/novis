@@ -2246,6 +2246,14 @@ pub enum Helper {
     /// on the way back up stores it, which is the same instruction that
     /// re-points an existing row.
     ArrayRowForWrite,
+    /// The `$keys` a `PropertyGuard` is given for an element write or an
+    /// element `unset`. `args[0]` is the root array and `args[1]` the key
+    /// path as written: a `string` or an `int` per level, `null` for an
+    /// append. The result is a fresh `array<string>`: an `int` key is
+    /// rendered, and an append becomes the index it will write in the row
+    /// the path has reached, `"0"` where that row does not exist yet. Both
+    /// arguments are borrowed, and nothing is written.
+    GuardKeyPath,
     /// `decimal` truthiness: falsy iff zero, at any scale.
     DecimalTruthy,
     /// `a + b` over [`crate::ty::Ty::Decimal`] —

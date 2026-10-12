@@ -37,7 +37,7 @@
 /// (`rule:classes/stringable`) and `Parses` take none; `Iterable` and
 /// `Iterator` (`rule:iteration/two-interfaces`) each
 /// take one. `PropertyObserver`
-/// (`rule:classes/property-observer`) and `LateInit`
+/// (`rule:classes/property-observer`), `PropertyGuard` and `LateInit`
 /// (`rule:classes/late-init-initializes-on-the-first-read`) take none
 /// either: each is a contract an ordinary class implements, not a `Core` domain
 /// class, so it belongs on this roster beside `Comparable` rather than under a
@@ -47,6 +47,7 @@ pub const RESERVED: &[(&str, &[&str])] = &[
     ("Stringable", &[]),
     ("Parses", &[]),
     ("PropertyObserver", &[]),
+    ("PropertyGuard", &[]),
     ("LateInit", &[]),
     ("Iterable", &["T"]),
     ("Iterator", &["T"]),
@@ -84,6 +85,12 @@ pub const PARSES: &str = "Parses";
 /// every read and write of every property it declares, through
 /// `onPropertyGet(string, mixed): void` and its `onPropertySet` twin.
 pub const PROPERTY_OBSERVER: &str = "PropertyObserver";
+
+/// `PropertyGuard` — what a class implements to check every write of every
+/// property it declares before the write happens, through
+/// `beforePropertySet(string, mixed, array<string>): void` and
+/// `beforePropertyUnset(string, array<string>): void`. A throw stops the write.
+pub const PROPERTY_GUARD: &str = "PropertyGuard";
 
 /// `rule:classes/late-init-initializes-on-the-first-read`'s `LateInit` — what
 /// a class implements so that the first read of an unset `lateinit` property
@@ -134,6 +141,7 @@ mod tests {
         assert_eq!(type_params("Comparable"), Some(&[][..]));
         assert_eq!(type_params("Stringable"), Some(&[][..]));
         assert_eq!(type_params(PROPERTY_OBSERVER), Some(&[][..]));
+        assert_eq!(type_params(PROPERTY_GUARD), Some(&[][..]));
         assert_eq!(type_params(LATE_INIT), Some(&[][..]));
     }
 

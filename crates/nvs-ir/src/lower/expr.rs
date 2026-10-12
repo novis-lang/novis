@@ -4757,6 +4757,87 @@ impl<'a> Lowering<'a> {
         );
     }
 
+    /// The `PropertyGuard` check before a write:
+    /// `$receiver->beforePropertySet($name, $value, $keys)`, or
+    /// `beforePropertyUnset($name, $keys)` when `value` is `None`. It
+    /// dispatches on the receiver's runtime class, as
+    /// [`Self::emit_observer_call`] does, and carries an error edge: a throw
+    /// stops the write, because nothing has been stored yet.
+    ///
+    /// `keys` is a fresh array the call takes over, or `None` for a whole
+    /// write, which passes `[]`. `value` is `(value, representation, fresh)`.
+    /// A fresh value is this frame's own reference and nothing else can find
+    /// it, so it sits on [`Self::owned_temporaries`] while the guard runs: a
+    /// throw releases it on the landing edge. The receiver and the value are
+    /// retained for the call, which takes over both.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the receiver and its representation, the property's name, the \
+                  value with its representation, the key path, and the fallback \
+                  label all differ between a whole write, an element write and \
+                  an unset"
+    )]
+    pub(crate) fn emit_guard_call(
+        &mut self,
+        cur: BlockId,
+        object_v: ValueId,
+        receiver_ty: Ty,
+        name: &str,
+        value: Option<(ValueId, Ty, bool)>,
+        keys: Option<ValueId>,
+        fallback: Option<String>,
+        env: &mut Env,
+    ) {
+        let mark = self.temporaries_mark();
+        if receiver_ty.is_refcounted() {
+            self.emit_retain(cur, object_v);
+        }
+        let (name_v, _) = self.emit(cur, Ty::Str, InstKind::ConstStr(name.to_owned()));
+        let mut args = vec![name_v];
+        let method = match value {
+            Some((v, ty, fresh)) => {
+                if ty.is_refcounted() {
+                    if fresh {
+                        self.own_temporary(v);
+                    }
+                    self.emit_retain(cur, v);
+                }
+                args.push(self.coerce(cur, v, ty, Ty::Tagged, env));
+                "beforePropertySet"
+            }
+            None => "beforePropertyUnset",
+        };
+        let keys = keys.unwrap_or_else(|| {
+            self.emit(
+                cur,
+                Ty::Array,
+                InstKind::ArrayNew {
+                    entries: Vec::new(),
+                },
+            )
+            .0
+        });
+        args.push(keys);
+        let (desc, _) = self.emit(
+            cur,
+            Ty::ClassDesc,
+            InstKind::ClassDescOf { object: object_v },
+        );
+        self.emit_fallible(
+            cur,
+            Ty::Void,
+            InstKind::CallVirtual {
+                lsb: desc,
+                method: method.to_owned(),
+                fallback,
+                receiver: Some(object_v),
+                args,
+            },
+            env,
+        );
+        self.forget_temporaries_since(mark);
+    }
+
     /// Opens the test that skips `onPropertySet` for a plain write
     /// (`rule:classes/late-init-initializes-on-the-first-read`): a write that
     /// initializes a `lateinit` property while an `initProperty` call runs in
@@ -4897,6 +4978,7 @@ impl<'a> Lowering<'a> {
                 ty,
                 observer,
                 narrowed,
+                ..
             }) => (class, name, *ty, None, observer.clone(), *narrowed),
             Some(ExprInfo::HookedProperty {
                 class,

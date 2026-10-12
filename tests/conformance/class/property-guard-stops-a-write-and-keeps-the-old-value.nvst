@@ -1,0 +1,71 @@
+--TEST--
+`beforePropertySet` runs before every whole write, in the constructor too and before a `set` hook with the caller's value, with `$keys` `[]`; a throw stops the write, so the old value stays and no observer runs
+--FILE--
+<?nvs
+// covers: lang:classes/propertyguard
+final class Account implements PropertyGuard, PropertyObserver {
+    public int $balance;
+    public string $owner {
+        set(string $value) {
+            echo "  set hook ", $value, "\n";
+            $this->owner = Core\Str::upper($value);
+        }
+    }
+
+    public function constructor(int $balance, string $owner) {
+        $this->balance = $balance;
+        $this->owner = $owner;
+    }
+
+    public function beforePropertySet(string $name, mixed $value, array<string> $keys): void {
+        echo "  guard ", $name, " = ", Core\Json::encode($value), " keys ", Core\Json::encode($keys), "\n";
+        if ($name == "balance" && $value is int && $value < 0) {
+            throw new LogicError("negative");
+        }
+    }
+
+    public function beforePropertyUnset(string $name, array<string> $keys): void {}
+
+    public function onPropertyGet(string $name, mixed $value): void {}
+
+    public function onPropertySet(string $name, mixed $value): void {
+        echo "  observed ", $name, "\n";
+    }
+}
+
+echo "the constructor:\n";
+Account $a = new Account(10, "ann");
+
+echo "an allowed write:\n";
+$a->balance = 20;
+
+echo "a refused write:\n";
+try {
+    $a->balance = -5;
+} catch (LogicError $e) {
+    echo "  refused: ", $e->message, "\n";
+}
+echo "balance: ", $a->balance, "\n";
+
+echo "a hooked property:\n";
+$a->owner = "bob";
+echo "owner: ", $a->owner, "\n";
+--EXPECT--
+the constructor:
+  guard balance = 10 keys []
+  observed balance
+  guard owner = "ann" keys []
+  set hook ann
+  observed owner
+an allowed write:
+  guard balance = 20 keys []
+  observed balance
+a refused write:
+  guard balance = -5 keys []
+  refused: negative
+balance: 20
+a hooked property:
+  guard owner = "bob" keys []
+  set hook bob
+  observed owner
+owner: BOB

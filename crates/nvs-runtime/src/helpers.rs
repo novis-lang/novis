@@ -326,6 +326,36 @@ crate::nvs_helper! {
     }
 }
 
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::GuardKeyPath` — the `$keys` a `PropertyGuard` is given
+    /// for an element write. Reads the root array along the path and writes
+    /// nothing, so a row the write would create is simply absent here.
+    fn nvs_guard_key_path(_ctx, args: [2]) {
+        let mut path = crate::array::NvsArray::new();
+        let mut row = Some(args[0]);
+        if let Some(raw) = args[1].as_array() {
+            let mut slot = raw.next_slot(0);
+            while let Some(at) = slot {
+                let key = raw.value_at(at).unwrap_or_default();
+                let text = if let Some(bytes) = key.as_str_bytes() {
+                    bytes.to_vec()
+                } else if let Some(index) = key.as_int() {
+                    index.to_string().into_bytes()
+                } else {
+                    row.and_then(|r| r.as_array().map(|a| a.next_append_index()))
+                        .unwrap_or(0)
+                        .to_string()
+                        .into_bytes()
+                };
+                row = row.and_then(|r| r.as_array().and_then(|a| a.get(&text)));
+                path.append(Value::str(NvsStr::new(&text)));
+                slot = raw.next_slot(at + 1);
+            }
+        }
+        Ok(Value::array(path))
+    }
+}
+
 /// The message an absent key is reported with, built only on the throwing
 /// edge — a read that finds its entry never renders its key at all.
 fn undefined_key(key: Value) -> Fault {
@@ -3094,6 +3124,7 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         ("nvs_array_truthy", address(nvs_array_truthy)),
         ("nvs_value_truthy", address(nvs_value_truthy)),
         ("nvs_array_row_for_write", address(nvs_array_row_for_write)),
+        ("nvs_guard_key_path", address(nvs_guard_key_path)),
         ("nvs_array_required_get", address(nvs_array_required_get)),
         ("nvs_array_optional_get", address(nvs_array_optional_get)),
         ("nvs_value_to_array_key", address(nvs_value_to_array_key)),

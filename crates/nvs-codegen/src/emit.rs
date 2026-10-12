@@ -4262,6 +4262,7 @@ fn helper_symbol(helper: Helper) -> Result<&'static str, CodegenError> {
         Helper::ArrayTruthy => "nvs_array_truthy",
         Helper::ValueTruthy => "nvs_value_truthy",
         Helper::ArrayRowForWrite => "nvs_array_row_for_write",
+        Helper::GuardKeyPath => "nvs_guard_key_path",
         Helper::IntToUint => "nvs_int_to_uint",
         Helper::UintToInt => "nvs_uint_to_int",
         Helper::IntToFloat => "nvs_int_to_float",

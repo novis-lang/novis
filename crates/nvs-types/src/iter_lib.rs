@@ -3,8 +3,9 @@
 //!
 //! [`nvs_hir::interfaces`] is the one home for *which* global interfaces the
 //! compiler declares and what type parameters each takes; this is the one
-//! place all seven — `Comparable`, `Stringable`, `Parses`, `PropertyObserver`,
-//! `LateInit`, `Iterable<T>` and `Iterator<T>` — become member signatures, in exactly the
+//! place all eight — `Comparable`, `Stringable`, `Parses`, `PropertyObserver`,
+//! `PropertyGuard`, `LateInit`, `Iterable<T>` and `Iterator<T>` — become member
+//! signatures, in exactly the
 //! [`ClassSignature`](crate::signatures::ClassSignature) shape
 //! [`crate::error_lib`] gives the exception tree and [`crate::core_lib`]
 //! gives `Core`. After this point `resolve_method` finds
@@ -63,15 +64,16 @@
 
 use nvs_hir::QName;
 use nvs_hir::interfaces::{
-    COMPARABLE, ITERABLE, ITERATOR, LATE_INIT, PARSES, PROPERTY_OBSERVER, STRINGABLE,
+    COMPARABLE, ITERABLE, ITERATOR, LATE_INIT, PARSES, PROPERTY_GUARD, PROPERTY_OBSERVER,
+    STRINGABLE,
 };
 use rustc_hash::FxHashMap;
 
 use crate::signatures::{MethodSig, SignatureTable};
 use crate::ty::{TypeId, TypeInterner};
 
-/// Adds `Comparable`, `Stringable`, `Parses`, `PropertyObserver`, `LateInit`,
-/// `Iterable<T>` and `Iterator<T>` to `table`.
+/// Adds `Comparable`, `Stringable`, `Parses`, `PropertyObserver`,
+/// `PropertyGuard`, `LateInit`, `Iterable<T>` and `Iterator<T>` to `table`.
 ///
 /// Called once, alongside [`crate::core_lib::seed`] and
 /// [`crate::error_lib::seed`], at the head of
@@ -156,6 +158,31 @@ pub(crate) fn seed(table: &mut SignatureTable, interner: &mut TypeInterner) {
             (
                 "onPropertySet".to_owned(),
                 bodiless(&["name", "value"], vec![string_ty, mixed_ty], void_ty),
+            ),
+        ]
+        .into_iter()
+        .collect(),
+    );
+
+    // `PropertyGuard`'s pair. `$keys` is the key path of an element write and
+    // `[]` for a whole write; both return `void`, because a guard stops a write
+    // by throwing and never changes the value.
+    let string_array_ty = interner.array(string_ty);
+    table.seed_class(
+        QName::parse(PROPERTY_GUARD),
+        FxHashMap::default(),
+        [
+            (
+                "beforePropertySet".to_owned(),
+                bodiless(
+                    &["name", "value", "keys"],
+                    vec![string_ty, mixed_ty, string_array_ty],
+                    void_ty,
+                ),
+            ),
+            (
+                "beforePropertyUnset".to_owned(),
+                bodiless(&["name", "keys"], vec![string_ty, string_array_ty], void_ty),
             ),
         ]
         .into_iter()

@@ -187,13 +187,16 @@ echo Core\\Json::encode($p->tags), Core\\Json::encode($p->counts);
 
 /// Inside `initProperty`, only a write that initializes an uninitialized
 /// `lateinit` property is plain. A second write to the same property, and a
-/// write to an ordinary property, still reach `onPropertySet`.
+/// write to an ordinary property, still reach `beforePropertySet` and then
+/// `onPropertySet`.
 #[test]
 fn an_ordinary_write_inside_init_property_runs_guard_and_observer() {
     let source = "<?nvs
-final class Post implements LateInit, PropertyObserver {
+final class Post implements LateInit, PropertyGuard, PropertyObserver {
     public lateinit string $title;
     public int $loads = 0;
+    public function beforePropertySet(string $name, mixed $value, array<string> $keys): void { echo \"guard \", $name, \"/\"; }
+    public function beforePropertyUnset(string $name, array<string> $keys): void {}
     public function onPropertyGet(string $name, mixed $value): void {}
     public function onPropertySet(string $name, mixed $value): void { echo \"set \", $name, \"/\"; }
     public function initProperty(string $name): void {
@@ -209,7 +212,7 @@ echo $p->title;
 ";
     assert_eq!(
         output_of(source),
-        "set title/set loads/second/set title/third"
+        "guard title/set title/guard loads/set loads/second/guard title/set title/third"
     );
 }
 

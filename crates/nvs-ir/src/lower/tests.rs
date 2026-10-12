@@ -3289,6 +3289,7 @@ fn a_file_with_no_class_still_carries_every_compiler_declared_class() {
             "LogicError",
             "ParseError",
             "Parses",
+            "PropertyGuard",
             "PropertyObserver",
             "RecursionError",
             "RuntimeError",

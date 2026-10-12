@@ -1141,6 +1141,12 @@ impl NvsArray {
         self.header().table.borrow().slot_end()
     }
 
+    /// The integer key the next append writes, without appending.
+    #[must_use]
+    pub fn next_append_index(&self) -> i64 {
+        self.header().table.borrow().next_index.unwrap_or(0)
+    }
+
     /// The position of the first live entry at or after `from` — the cursor
     /// `foreach` advances.
     #[must_use]

@@ -52,7 +52,7 @@
 //! modules, which is the reach it had when `expr` was a single file.
 
 use super::*;
-use crate::expr_table::ObserverCalls;
+use crate::expr_table::{GuardCalls, ObserverCalls};
 
 /// `Class::CONST` — [`super::infer`]'s `ExprKind::ClassConstAccess` arm.
 ///
@@ -1342,6 +1342,25 @@ fn observer_calls(qname: &QName, env: &Env<'_>) -> Option<ObserverCalls> {
     })
 }
 
+/// The `PropertyGuard` check for a property access on `qname`, or `None` when
+/// that class implements no `PropertyGuard`. Resolved exactly as
+/// [`observer_calls`] resolves its pair, and for the same reasons.
+fn guard_calls(qname: &QName, env: &Env<'_>) -> Option<GuardCalls> {
+    let guard = QName::parse(nvs_hir::interfaces::PROPERTY_GUARD);
+    if !nvs_hir::hierarchy::implements_interface(qname, &guard, env.graph) {
+        return None;
+    }
+    let label = |member: &str| {
+        crate::signatures::resolve_method(qname, member, env.signatures, env.graph)
+            .filter(|(_, sig)| sig.has_body)
+            .map(|(owner, _)| format!("{owner}::{member}"))
+    };
+    Some(GuardCalls {
+        set: label("beforePropertySet"),
+        unset: label("beforePropertyUnset"),
+    })
+}
+
 /// [`check_property_access`]'s member half: everything after the receiver's
 /// own type is known, so that `?->` and `->` reach it identically.
 ///
@@ -1541,9 +1560,13 @@ pub(crate) fn check_property_member(
                 // access that called this hook is already running the second
                 // step for. Observing it here would report one write twice,
                 // so this is the one property access on an observing class
-                // that carries no observer.
+                // that carries no observer. The guard is skipped there for the
+                // same reason: it already ran before the hook was called.
                 let observer = (!inside_own_hook)
                     .then(|| observer_calls(&qname, env))
+                    .flatten();
+                let guard = (!inside_own_hook)
+                    .then(|| guard_calls(&qname, env))
                     .flatten();
                 if hooks != crate::signatures::PropertyHooks::default() && !inside_own_hook {
                     env.exprs.record(
@@ -1567,6 +1590,7 @@ pub(crate) fn check_property_member(
                                 )
                             }),
                             observer,
+                            guard,
                         },
                     );
                     return ty;
@@ -1592,6 +1616,7 @@ pub(crate) fn check_property_member(
                         name: name.clone(),
                         ty,
                         observer,
+                        guard,
                         narrowed,
                     },
                 );

@@ -5161,12 +5161,16 @@ unsafe fn slot_state(desc: &ClassDesc, ptr: *mut ObjHeader, name: &str, hint: us
 /// class. Where no hook is declared the value written is exactly the value
 /// committed, and it is the one the observer is told about.
 ///
+/// **`PropertyGuard` runs first**, before the `set` hook or the store, with the
+/// caller's value and `$keys` `[]`, exactly as a compiled write calls it. A
+/// plain write during `initProperty` skips it, as it skips the observer.
+///
 /// # Errors
 ///
 /// [`nvs_object_slot_set`]'s throws, which are its own documentation's, plus
-/// [`Fault::Pending`] when the observer itself throws: § 3's "a throwing
-/// `onPropertySet` still fails the overall write", even though the store has
-/// already happened.
+/// [`Fault::Pending`] when the guard throws, which stops the write, or when
+/// the observer throws: § 3's "a throwing `onPropertySet` still fails the
+/// overall write", even though the store has already happened.
 pub fn write_erased_property(
     ctx: &mut Ctx,
     receiver: Value,
@@ -5195,6 +5199,7 @@ pub fn write_erased_property(
     // to write: this door is the access spelling that had no class to lower
     // against, not a second way of storing.
     if let Some(row) = desc.hook_row(name, true) {
+        guard_erased_write(ctx, desc, receiver, name, value)?;
         let callee = format!("`{}::${name}::set`", desc.name());
         // The check converts as well as refuses — a widened `int` has to reach
         // the hook as the `float` it declares — so it runs over this frame's
@@ -5246,6 +5251,15 @@ pub fn write_erased_property(
     if let Some(admitted) = desc.field_classes(slot) {
         check_admitted_class(desc, slot, name, admitted, value)?;
     }
+    #[expect(
+        unsafe_code,
+        reason = "the slot came out of this object's own descriptor, so it is \
+                  inside the allocation and was initialized by `new`"
+    )]
+    let unset_before = unsafe { (*field_ptr(ptr, slot)).tag() == Some(Tag::Unset) };
+    if !(unset_before && ctx.late_init_running()) {
+        guard_erased_write(ctx, desc, receiver, name, value)?;
+    }
     // Read before the store, so nothing borrows the descriptor across the call
     // below. `PropertyObserver` is spelled as a literal because its one home,
     // `nvs_hir::interfaces::PROPERTY_OBSERVER`, is above this crate.
@@ -5291,6 +5305,43 @@ pub fn write_erased_property(
         answered?.release();
     }
     Ok(Value::null())
+}
+
+/// Calls `beforePropertySet($name, $value, [])` on `receiver` when its class
+/// implements `PropertyGuard`, and does nothing otherwise. A throw from the
+/// guard is returned, so the caller stores nothing.
+fn guard_erased_write(
+    ctx: &mut Ctx,
+    desc: &ClassDesc,
+    receiver: Value,
+    name: &str,
+    value: Value,
+) -> Result<(), Fault> {
+    // Spelled as a literal for the reason `PropertyObserver` is below: its
+    // home, `nvs_hir::interfaces::PROPERTY_GUARD`, is above this crate.
+    if !desc.conforms_to_name("PropertyGuard") {
+        return Ok(());
+    }
+    let told = Value::str(crate::NvsStr::new(name.as_bytes()));
+    let keys = Value::array(crate::array::NvsArray::new());
+    let answered = crate::dispatch::call_erased_method(
+        ctx,
+        receiver,
+        "beforePropertySet",
+        &[told, value, keys],
+    );
+    #[expect(
+        unsafe_code,
+        reason = "this frame made both values and still owns them — the call \
+                  retained what it passed on — and the guard's return is a \
+                  fresh `void` reference this frame owns"
+    )]
+    unsafe {
+        told.release();
+        keys.release();
+        answered?.release();
+    }
+    Ok(())
 }
 
 /// Refuses `value` for field `name`, at `slot` of `desc`, unless it is `null` or an object

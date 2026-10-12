@@ -1,0 +1,47 @@
+--TEST--
+`unset` of an element calls `beforePropertyUnset` with its key path before the entry is removed; a throw stops the removal and the entry stays
+--FILE--
+<?nvs
+// covers: lang:classes/propertyguard
+final class Settings implements PropertyGuard {
+    public array<string> $values = [];
+    public array<array<string>> $groups = [];
+
+    public function beforePropertySet(string $name, mixed $value, array<string> $keys): void {}
+
+    public function beforePropertyUnset(string $name, array<string> $keys): void {
+        echo "  guard unset ", $name, " keys ", Core\Json::encode($keys), " count ", Core\Arr::count($this->values), "\n";
+        if ($keys[0] == "lang") {
+            throw new LogicError("lang is required");
+        }
+    }
+}
+
+Settings $s = new Settings();
+$s->values = ["mode" => "dark", "lang" => "en"];
+$s->groups["mail"] = ["host" => "example.com"];
+
+echo "an allowed unset:\n";
+unset($s->values["mode"]);
+
+echo "a nested unset:\n";
+unset($s->groups["mail"]["host"]);
+
+echo "a refused unset:\n";
+try {
+    unset($s->values["lang"]);
+} catch (LogicError $e) {
+    echo "  refused: ", $e->message, "\n";
+}
+echo Core\Json::encode($s->values), "\n";
+echo Core\Json::encode($s->groups), "\n";
+--EXPECT--
+an allowed unset:
+  guard unset values keys ["mode"] count 2
+a nested unset:
+  guard unset groups keys ["mail","host"] count 1
+a refused unset:
+  guard unset values keys ["lang"] count 1
+  refused: lang is required
+{"lang":"en"}
+{"mail":[]}
