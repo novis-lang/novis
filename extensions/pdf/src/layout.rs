@@ -49,7 +49,9 @@
 //!
 //! **Images**: an `<img>` whose bytes are PNG, JPEG, GIF, WebP or an SVG document, and an inline
 //! `<svg>`, is a block at its CSS `width` and `height`, else its `width` and `height` attributes,
-//! else its natural size, a pixel being a CSS pixel, scaled down to fit the content box. An SVG
+//! else its natural size, a pixel being a CSS pixel, scaled down to fit the content box. The
+//! picture fills that box, or under `object-fit` is fitted inside it, covers it or keeps its own
+//! size, at the place `object-position` gives, and the box clips what is outside it. An SVG
 //! is a [`Picture::Vector`]: `usvg` parses it, and the writer draws it as PDF paths through
 //! `krilla-svg`. An inline `<svg>` is its subtree written out again as an SVG document
 //! ([`image::svg_markup`]), with every element outside the SVG namespace left out. An `<image>`
@@ -225,6 +227,9 @@ enum Block {
         x: f32,
         width: f32,
         height: f32,
+        /// Where the picture is drawn in the box by its `object-fit` and `object-position`: its
+        /// left and top from the box's, and its width and height. The box clips it.
+        draw: [f32; 4],
     },
 }
 

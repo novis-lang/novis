@@ -767,3 +767,83 @@ fn an_inline_svg_is_vector_content_in_the_output() {
     );
     assert_eq!(first.data, render(&document).unwrap().data);
 }
+
+#[test]
+fn object_fit_and_object_position_place_the_picture_in_its_box() {
+    // The PNG is 1.5pt square, and each `<img>` box is 30pt by 15pt at the page margin.
+    let assets = [Asset {
+        name: "tile.png".to_owned(),
+        data: png(),
+    }];
+    // Each image's left and top from the box's, its width and height, and whether it is clipped.
+    let placed = |css: &str| {
+        let laid = lay_with(
+            &format!(
+                "<body style='margin: 0'><img src='tile.png' \
+                 style='width: 30pt; height: 15pt; {css}'></body>"
+            ),
+            &assets,
+        );
+        let items = &laid.pages[0].items;
+        let clipped = matches!(items.first(), Some(Item::Begin { clip: Some(_), .. }));
+        let image = items.iter().find_map(|item| match item {
+            Item::Image {
+                x,
+                y,
+                width,
+                height,
+                ..
+            } => Some([*x - MARGIN, *y - MARGIN, *width, *height]),
+            _ => None,
+        });
+        (image.unwrap(), clipped)
+    };
+    let near = |(got, clipped): ([f32; 4], bool), want: [f32; 4], clip: bool| {
+        assert!(
+            got.iter().zip(want).all(|(g, w)| close(*g, w)) && clipped == clip,
+            "{got:?} {clipped} against {want:?} {clip}"
+        );
+    };
+    near(placed(""), [0.0, 0.0, 30.0, 15.0], false);
+    near(placed("object-fit: fill"), [0.0, 0.0, 30.0, 15.0], false);
+    near(placed("object-fit: contain"), [7.5, 0.0, 15.0, 15.0], false);
+    near(placed("object-fit: cover"), [0.0, -7.5, 30.0, 30.0], true);
+    near(placed("object-fit: none"), [14.25, 6.75, 1.5, 1.5], false);
+    near(
+        placed("object-fit: scale-down"),
+        [14.25, 6.75, 1.5, 1.5],
+        false,
+    );
+    near(
+        placed("object-fit: contain; object-position: right"),
+        [15.0, 0.0, 15.0, 15.0],
+        false,
+    );
+    near(
+        placed("object-fit: contain; object-position: bottom right"),
+        [15.0, 0.0, 15.0, 15.0],
+        false,
+    );
+    near(
+        placed("object-fit: cover; object-position: 0 100%"),
+        [0.0, -15.0, 30.0, 30.0],
+        true,
+    );
+    near(
+        placed("object-fit: none; object-position: 10pt 50%"),
+        [10.0, 6.75, 1.5, 1.5],
+        false,
+    );
+
+    // A clipped picture renders, and the same input gives the same bytes.
+    let document = Document {
+        html: "<img src='tile.png' style='width: 30pt; height: 15pt; object-fit: cover'>"
+            .to_owned(),
+        assets: assets.to_vec(),
+        ..Document::default()
+    };
+    assert_eq!(
+        render(&document).unwrap().data,
+        render(&document).unwrap().data
+    );
+}

@@ -365,6 +365,8 @@ pub(super) struct Builder<'a, 'd> {
     owner: Option<(Para, f32, f32)>,
     /// Whether the text so far ends in a collapsible space, or is empty.
     after_space: bool,
+    /// The root element's font size, which `rem` is relative to.
+    pub(super) rem: f32,
 }
 
 impl Builder<'_, '_> {
@@ -528,6 +530,13 @@ pub(super) fn blocks(
     assets: &Assets<'_>,
 ) -> Result<(Vec<Block>, Images, Vec<Span>), Error> {
     let empty = Style::default();
+    // The root element is the first in document order.
+    let rem = styles
+        .elements
+        .iter()
+        .flatten()
+        .next()
+        .map_or(empty.font_size(), Style::font_size);
     let mut builder = Builder {
         assets,
         blocks: Vec::new(),
@@ -537,6 +546,7 @@ pub(super) fn blocks(
         runs: Vec::new(),
         owner: None,
         after_space: true,
+        rem,
     };
     let root = Frame {
         x: MARGIN,
@@ -548,13 +558,6 @@ pub(super) fn blocks(
         lang: None,
         hyphenate: None,
     };
-    // The root element is the first in document order.
-    let rem = styles
-        .elements
-        .iter()
-        .flatten()
-        .next()
-        .map_or(empty.font_size(), Style::font_size);
     let mut counters = Counters::default();
     // An explicit stack, so a deep tree costs heap and never the call stack.
     let mut frames = vec![root];

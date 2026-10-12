@@ -7,8 +7,9 @@ use krilla::Data;
 use krilla::image::Image;
 
 use super::inline::Builder;
-use super::{Block, CONTENT_HEIGHT, Frame, boxes, length};
+use super::{Block, CONTENT_HEIGHT, Frame, boxes, keyword, length};
 use crate::Error;
+use crate::css::value::{self, Comp};
 use crate::css::{Style, Value};
 use crate::parse::{Dom, Kind, Space};
 
@@ -100,12 +101,35 @@ impl Builder<'_, '_> {
             .min(1.0);
         width *= scale;
         height *= scale;
+        let (natural_w, natural_h) = (natural_w * scale, natural_h * scale);
+        let ratio = |pick: fn(f32, f32) -> f32| {
+            pick(
+                width / natural_w.max(f32::EPSILON),
+                height / natural_h.max(f32::EPSILON),
+            )
+        };
+        let by = match keyword(style, "object-fit") {
+            Some("contain") => Some(ratio(f32::min)),
+            Some("cover") => Some(ratio(f32::max)),
+            Some("none") => Some(1.0),
+            Some("scale-down") => Some(ratio(f32::min).min(1.0)),
+            _ => None,
+        };
+        let draw = match by {
+            Some(by) => {
+                let (w, h) = (natural_w * by, natural_h * by);
+                let [x, y] = object_position(style, self.rem);
+                [x.0 * (width - w) + x.1, y.0 * (height - h) + y.1, w, h]
+            }
+            None => [0.0, 0.0, width, height],
+        };
         self.images.push((picture, name));
         self.blocks.push(Block::Image {
             image: self.images.len() - 1,
             x: frame.x,
             width,
             height,
+            draw,
         });
     }
 
@@ -200,6 +224,45 @@ impl Builder<'_, '_> {
             return Err(err);
         }
         Ok(Picture::Vector(Box::new(tree)))
+    }
+}
+
+/// `style`'s `object-position` across and down, each as a fraction of the room the box has
+/// beside the picture and a length in points added to it. Each side is centred when the value
+/// does not give it, and a value that does not read centres both.
+fn object_position(style: &Style, rem: f32) -> [(f32, f32); 2] {
+    const CENTRE: (f32, f32) = (0.5, 0.0);
+    let comps = match style.get("object-position") {
+        Some(Value::Text(text)) => value::components(text).unwrap_or_default(),
+        _ => Vec::new(),
+    };
+    let em = style.font_size();
+    let side = |c: &Comp| match c {
+        Comp::Ident(word) => match word.as_str() {
+            "left" | "top" => Some((0.0, 0.0)),
+            "center" => Some(CENTRE),
+            "right" | "bottom" => Some((1.0, 0.0)),
+            _ => None,
+        },
+        c => value::length(c).map(|sum| {
+            let l = sum.compute(em, rem);
+            (l.percent / 100.0, l.pt)
+        }),
+    };
+    let down = |c: &Comp| matches!(c, Comp::Ident(w) if w == "top" || w == "bottom");
+    let across = |c: &Comp| matches!(c, Comp::Ident(w) if w == "left" || w == "right");
+    match comps.as_slice() {
+        [one] => match side(one) {
+            Some(at) if down(one) => [CENTRE, at],
+            Some(at) => [at, CENTRE],
+            None => [CENTRE; 2],
+        },
+        [a, b] => match (side(a), side(b)) {
+            (Some(x), Some(y)) if down(a) || across(b) => [y, x],
+            (Some(x), Some(y)) => [x, y],
+            _ => [CENTRE; 2],
+        },
+        _ => [CENTRE; 2],
     }
 }
 

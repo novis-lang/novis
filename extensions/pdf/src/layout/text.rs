@@ -46,15 +46,29 @@ pub fn layout(
                 x,
                 width,
                 height,
+                draw: [dx, dy, w, h],
             } => {
-                let top = flow.place(height);
-                flow.page().items.push(Item::Image {
+                let y = MARGIN + flow.place(height);
+                // A picture past any edge of its box is drawn in a group clipped to the box.
+                let outside =
+                    dx < -0.01 || dy < -0.01 || dx + w > width + 0.01 || dy + h > height + 0.01;
+                let items = &mut flow.page().items;
+                if outside {
+                    items.push(Item::Begin {
+                        opacity: 1.0,
+                        clip: Some(boxes::rect(x, y, width, height)),
+                    });
+                }
+                items.push(Item::Image {
                     image,
-                    x,
-                    y: MARGIN + top,
-                    width,
-                    height,
+                    x: x + dx,
+                    y: y + dy,
+                    width: w,
+                    height: h,
                 });
+                if outside {
+                    items.push(Item::End);
+                }
             }
             Block::Text {
                 text,
