@@ -1,6 +1,8 @@
-//! Flex containers, laid out by `taffy`.
+//! Flex and grid containers, laid out by `taffy`.
 //!
-//! A flex container is a block box whose content is one [`Flex`] block. Each child element is an
+//! A flex or grid container is a block box whose content is one [`Flex`] block, and everything
+//! here holds for both: only the `taffy` style differs, and `grid`'s module doc says how a
+//! grid's is read. Each child element is an
 //! item, whatever its `display`, and each run of text between them that is not only spaces is an
 //! anonymous item. An item's blocks are collected the way an `inline-block`'s are, against a
 //! containing block at `x` 0 as wide as the container's content box.
@@ -14,7 +16,8 @@
 //!
 //! **Breaks.** The items are placed in bands: each band is the items whose boxes overlap
 //! vertically, so a flex line in a row is one band and each item of a column is its own. A band
-//! goes on the page as one height with the space above it, so a page breaks only between bands.
+//! goes on the page as one height, so a page breaks only between bands. The space above a band
+//! after the first, a gap, is placed as a margin, and is dropped at the top of a page.
 //!
 //! Cost: each item is laid out once per width `taffy` measures it at, and once more at its final
 //! size. The heights measured are kept for the container's layout, and freed with it.
@@ -25,6 +28,7 @@ use taffy::{
 };
 
 use super::block::{Flow, geometry};
+use super::grid;
 use super::text::{Cx, Placed, carry, narrow, shift};
 use super::{Block, MARGIN, keyword, length};
 use crate::css::{Style, Value};
@@ -40,12 +44,17 @@ pub(super) struct Flex {
     pub(super) items: Vec<(usize, taffy::Style)>,
 }
 
-/// The `taffy` style of a flex container with `style`, whose content box is `width` wide and at
-/// least `height` tall.
-pub(super) fn container(style: &Style, width: f32, height: f32) -> taffy::Style {
+/// The `taffy` style of a flex or grid container with `style`, whose content box is `width` wide
+/// and at least `height` tall, with `rem` for a grid's track lengths.
+pub(super) fn container(style: &Style, width: f32, height: f32, rem: f32) -> taffy::Style {
     let gap = |name: &str| LengthPercentage::length(length(style, name, width).unwrap_or(0.0));
-    taffy::Style {
-        display: taffy::Display::Flex,
+    let grid = matches!(keyword(style, "display"), Some("grid" | "inline-grid"));
+    let mut out = taffy::Style {
+        display: if grid {
+            taffy::Display::Grid
+        } else {
+            taffy::Display::Flex
+        },
         flex_direction: match keyword(style, "flex-direction") {
             Some("row-reverse") => FlexDirection::RowReverse,
             Some("column") => FlexDirection::Column,
@@ -60,6 +69,7 @@ pub(super) fn container(style: &Style, width: f32, height: f32) -> taffy::Style 
         justify_content: keyword(style, "justify-content").and_then(distribute),
         align_content: keyword(style, "align-content").and_then(distribute),
         align_items: keyword(style, "align-items").and_then(align),
+        justify_items: keyword(style, "justify-items").and_then(align),
         gap: Size {
             width: gap("column-gap"),
             height: gap("row-gap"),
@@ -73,7 +83,11 @@ pub(super) fn container(style: &Style, width: f32, height: f32) -> taffy::Style 
             height: taffy::LengthPercentageAuto::length(height),
         },
         ..taffy::Style::default()
+    };
+    if grid {
+        grid::container(style, rem, &mut out);
     }
+    out
 }
 
 /// The `order` and the `taffy` style of an item with `style` in a container whose content box
@@ -101,11 +115,12 @@ pub(super) fn item(style: &Style, width: f32, row: bool) -> (i64, taffy::Style) 
         _ => 0,
     };
     let fixed_height = matches!(style.get("height"), Some(Value::Length(l)) if l.percent == 0.0);
-    let taffy_style = taffy::Style {
+    let mut taffy_style = taffy::Style {
         flex_grow: number("flex-grow", 0.0),
         flex_shrink: number("flex-shrink", 1.0),
         flex_basis: basis,
         align_self: keyword(style, "align-self").and_then(align),
+        justify_self: keyword(style, "justify-self").and_then(align),
         size: Size {
             width: if g.fill {
                 Dimension::auto()
@@ -120,6 +135,7 @@ pub(super) fn item(style: &Style, width: f32, row: bool) -> (i64, taffy::Style) 
         },
         ..taffy::Style::default()
     };
+    grid::item(style, &mut taffy_style);
     (order, taffy_style)
 }
 
@@ -227,7 +243,11 @@ impl Cx<'_> {
             let laid = self.item_at(item, at.size.width, Some(at.size.height));
             placed.push((at.location.x, at.location.y, laid));
         }
-        let total = tree.layout(root).expect("the root is in the tree").size.height;
+        let total = tree
+            .layout(root)
+            .expect("the root is in the tree")
+            .size
+            .height;
         // Bands of items whose boxes overlap vertically, top to bottom.
         let mut order: Vec<usize> = (0..placed.len()).collect();
         order.sort_by(|a, b| placed[*a].1.total_cmp(&placed[*b].1));
@@ -244,12 +264,21 @@ impl Cx<'_> {
             }
         }
         let mut above = 0.0;
-        for (bottom, members) in bands {
-            let top = flow.place(bottom - above);
+        for (k, (bottom, members)) in bands.into_iter().enumerate() {
+            // The space between two bands is a gap, and is dropped at the top of a page as a
+            // margin is.
+            let from = if k == 0 {
+                above
+            } else {
+                let lead = (placed[members[0]].1 - above).max(0.0);
+                flow.pending = flow.pending.max(lead);
+                above + lead
+            };
+            let top = flow.place(bottom - from);
             let page = flow.pages.len() as u64;
             for i in members {
                 let (x, y, laid) = &mut placed[i];
-                let (dx, dy) = (flex.x + *x, MARGIN + top + *y - above);
+                let (dx, dy) = (flex.x + *x, MARGIN + top + *y - from);
                 let items: Vec<_> = std::mem::take(&mut laid.items)
                     .into_iter()
                     .map(|item| shift(item, dx, dy))

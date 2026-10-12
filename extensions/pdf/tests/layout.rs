@@ -1353,7 +1353,10 @@ fn flex_lays_out_rows_and_columns() {
         assert!(close(b.0, MARGIN) && close(b.2, width), "{b:?}");
     }
     assert!(close(green.1, red.1 + red.3 + 10.0), "{red:?} {green:?}");
-    assert!(close(blue.1, green.1 + green.3 + 10.0), "{green:?} {blue:?}");
+    assert!(
+        close(blue.1, green.1 + green.3 + 10.0),
+        "{green:?} {blue:?}"
+    );
 
     // `justify-content: center` shares the free space on both sides, `align-items: center`
     // centres a short item against a tall one, and `order` moves an item first.
@@ -1370,7 +1373,10 @@ fn flex_lays_out_rows_and_columns() {
     };
     assert!(close(blue.0, MARGIN + (width - 300.0) / 2.0), "{blue:?}");
     assert!(close(red.0, blue.0 + 100.0) && close(green.0, red.0 + 100.0));
-    assert!(close(green.3, 20.0) && close(green.1, red.1 + 10.0), "{red:?} {green:?}");
+    assert!(
+        close(green.3, 20.0) && close(green.1, red.1 + 10.0),
+        "{red:?} {green:?}"
+    );
 
     // Under `flex-wrap: wrap`, an item that does not fit starts a new line.
     let laid = flex(
@@ -1384,8 +1390,14 @@ fn flex_lays_out_rows_and_columns() {
     let [red, green, blue] = boxes_of(&laid, &all)[..] else {
         unreachable!()
     };
-    assert!(close(green.1, red.1) && close(green.0, red.0 + 200.0), "{green:?}");
-    assert!(close(blue.0, MARGIN) && close(blue.1, red.1 + red.3), "{blue:?}");
+    assert!(
+        close(green.1, red.1) && close(green.0, red.0 + 200.0),
+        "{green:?}"
+    );
+    assert!(
+        close(blue.0, MARGIN) && close(blue.1, red.1 + red.3),
+        "{blue:?}"
+    );
 
     // Text directly in the container is an item of its own.
     let laid = lay(
@@ -1394,12 +1406,174 @@ fn flex_lays_out_rows_and_columns() {
     let drawn = runs(&laid);
     assert_eq!(drawn.len(), 2, "{drawn:?}");
     let red = boxes_of(&laid, &[RED])[0];
-    assert!(close(red.0, drawn[0].3) || red.0 > drawn[0].3, "{red:?} {drawn:?}");
+    assert!(
+        close(red.0, drawn[0].3) || red.0 > drawn[0].3,
+        "{red:?} {drawn:?}"
+    );
     assert!(close(drawn[0].2, drawn[1].2), "{drawn:?}");
 
     // It renders, and twice to the same bytes.
     let document = Document {
         html: "<div style='display: flex; gap: 8pt'><p style='flex: 1'>Shop</p><p>Blog</p></div>"
+            .into(),
+        ..Document::default()
+    };
+    let first = render(&document).unwrap();
+    assert_eq!(first.data, render(&document).unwrap().data);
+}
+
+/// The top of each box on page `page` that is filled with one of `colours`, with its colour.
+fn tops_on(laid: &Laid, page: usize, colours: &[(u8, u8, u8)]) -> Vec<((u8, u8, u8), f32)> {
+    laid.pages[page]
+        .items
+        .iter()
+        .filter_map(|item| match item {
+            Item::Path {
+                path,
+                paint: Paint::Color(c),
+                stroke: None,
+            } if colours.contains(&(c.r, c.g, c.b)) => {
+                Some(((c.r, c.g, c.b), layout::bounds(path).1))
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn flex_and_grid_break_only_between_items_and_rows() {
+    let all = [RED, GREEN, BLUE];
+    let item = |c: &str| format!("<div style='background-color: {c}; height: 60pt'>Shop</div>");
+    let items: String = ["#ff0000", "#00ff00", "#0000ff"].map(item).concat();
+
+    // A flex line that does not fit under the block above it goes to the next page whole.
+    let laid = lay(&format!(
+        "<div style='height: 700pt'></div><div style='display: flex'>{items}</div>"
+    ));
+    assert_eq!(laid.pages.len(), 2, "{:?}", rects(&laid));
+    assert!(
+        tops_on(&laid, 0, &all).is_empty(),
+        "{:?}",
+        tops_on(&laid, 0, &all)
+    );
+    let moved = tops_on(&laid, 1, &all);
+    assert_eq!(moved.len(), 3, "{moved:?}");
+    assert!(
+        moved.iter().all(|(_, top)| close(*top, MARGIN)),
+        "{moved:?}"
+    );
+
+    // A grid breaks between its rows: the first row stays and the second starts the next page.
+    let laid = lay(&format!(
+        "<div style='height: 620pt'></div>\
+         <div style='display: grid; grid-template-columns: 1fr 1fr; row-gap: 10pt'>{items}</div>"
+    ));
+    assert_eq!(laid.pages.len(), 2);
+    let stayed = tops_on(&laid, 0, &all);
+    assert_eq!(stayed.len(), 2, "{stayed:?}");
+    assert!(close(stayed[0].1, stayed[1].1), "{stayed:?}");
+    assert_eq!(tops_on(&laid, 1, &all), vec![(BLUE, MARGIN)]);
+}
+
+#[test]
+fn grid_places_items_in_tracks() {
+    let width = 595.275_6 - 2.0 * MARGIN;
+    let all = [RED, GREEN, BLUE];
+
+    // A fixed column, then two `fr` columns that share what is left after the gaps.
+    let laid = flex(
+        "display: grid; grid-template-columns: 100pt 1fr 2fr; column-gap: 10pt",
+        [("", "Shop"), ("", "Blog"), ("", "End")],
+    );
+    let [red, green, blue] = boxes_of(&laid, &all)[..] else {
+        unreachable!()
+    };
+    let share = (width - 120.0) / 3.0;
+    assert!(close(red.0, MARGIN) && close(red.2, 100.0), "{red:?}");
+    assert!(
+        close(green.0, MARGIN + 110.0) && close(green.2, share),
+        "{green:?}"
+    );
+    assert!(
+        close(blue.0, green.0 + share + 10.0) && close(blue.2, 2.0 * share),
+        "{blue:?}"
+    );
+    for b in [green, blue] {
+        assert!(close(b.1, red.1) && close(b.3, red.3), "{red:?} {b:?}");
+    }
+    let next = runs(&laid).last().unwrap().2;
+    assert!(next > red.1 + red.3, "{next} {red:?}");
+
+    // Lines and rows: the first item spans both columns, the second is placed in the second
+    // row's second column, and the third fills the first free cell.
+    let laid = flex(
+        "display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 30pt 50pt",
+        [
+            ("grid-column: 1 / 3", "Shop"),
+            ("grid-row: 2; grid-column: 2", "Blog"),
+            ("", "End"),
+        ],
+    );
+    let [red, green, blue] = boxes_of(&laid, &all)[..] else {
+        unreachable!()
+    };
+    assert!(
+        close(red.0, MARGIN) && close(red.2, width) && close(red.3, 30.0),
+        "{red:?}"
+    );
+    assert!(
+        close(green.0, MARGIN + width / 2.0) && close(green.1, red.1 + 30.0),
+        "{green:?}"
+    );
+    assert!(close(green.3, 50.0), "{green:?}");
+    assert!(close(blue.0, MARGIN) && close(blue.1, green.1), "{blue:?}");
+
+    // Named areas.
+    let laid = flex(
+        "display: grid; grid-template-columns: 80pt 1fr; grid-template-areas: \"head head\" \"side main\"",
+        [
+            ("grid-area: main", "Shop"),
+            ("grid-area: head", "Blog"),
+            ("grid-area: side", "End"),
+        ],
+    );
+    let [red, green, blue] = boxes_of(&laid, &all)[..] else {
+        unreachable!()
+    };
+    assert!(close(green.0, MARGIN) && close(green.2, width), "{green:?}");
+    assert!(close(blue.0, MARGIN) && close(blue.2, 80.0), "{blue:?}");
+    assert!(close(blue.1, green.1 + green.3), "{green:?} {blue:?}");
+    assert!(
+        close(red.0, MARGIN + 80.0) && close(red.1, blue.1),
+        "{red:?} {blue:?}"
+    );
+
+    // `repeat()` and `span`: an item two columns wide, then the next row once the first is
+    // full. Under `justify-items: start`, an item is as wide as its text.
+    let laid = flex(
+        "display: grid; grid-template-columns: repeat(3, 50pt); justify-items: start",
+        [
+            ("grid-column: span 2; justify-self: stretch", "Shop"),
+            ("", "Blog"),
+            ("grid-column: span 2", "End"),
+        ],
+    );
+    let [red, green, blue] = boxes_of(&laid, &all)[..] else {
+        unreachable!()
+    };
+    assert!(close(red.0, MARGIN) && close(red.2, 100.0), "{red:?}");
+    assert!(
+        close(green.0, MARGIN + 100.0) && green.2 < 50.0,
+        "{green:?}"
+    );
+    assert!(
+        close(blue.0, MARGIN) && close(blue.1, red.1 + red.3),
+        "{blue:?}"
+    );
+
+    // It renders, and twice to the same bytes.
+    let document = Document {
+        html: "<div style='display: grid; grid-template-columns: 1fr 1fr'><p>Shop</p><p>Blog</p></div>"
             .into(),
         ..Document::default()
     };

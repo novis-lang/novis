@@ -667,7 +667,7 @@ impl Builder<'_, '_> {
             flex: Flex {
                 x: inner.x,
                 width: inner.width,
-                style: flex::container(style, inner.width, height),
+                style: flex::container(style, inner.width, height, self.rem),
                 items: Vec::new(),
             },
             order: Vec::new(),
@@ -1044,7 +1044,7 @@ pub(super) fn blocks(
                     None
                 };
                 let block = display != "inline";
-                let flex = matches!(display, "flex" | "inline-flex");
+                let flex = matches!(display, "flex" | "inline-flex" | "grid" | "inline-grid");
                 let item = item.then(|| flex::item(style, frame.width, builder.row()));
                 let atom = (item.is_none() && display == "inline-block")
                     .then(|| vertical_align(style, None));

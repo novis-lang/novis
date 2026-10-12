@@ -4,10 +4,10 @@
 //! A page is A4 with a 2 cm margin on every side, and every length here is in PDF points (1/72
 //! inch, three quarters of a CSS pixel). An element's `display` comes from the cascade, whose
 //! user-agent sheet gives HTML's defaults: `none` draws nothing, `block`, `list-item` and the
-//! display types later stages lay out (`grid` and `table`) start a block box, `flex` and
-//! `inline-flex` start a flex container (`flex`'s module doc), `inline-block` is an atomic
-//! inline box, and anything else is inline. A child of a flex container is a flex item,
-//! whatever its `display`. A `::before` or `::after` box whose `display` is `inline-block` is a
+//! display type a later stage lays out (`table`) start a block box, `flex` and `inline-flex`
+//! start a flex container (`flex`'s module doc), `grid` and `inline-grid` a grid container
+//! (`grid`'s module doc), `inline-block` is an atomic inline box, and anything else is inline.
+//! A child of a flex or grid container is an item, whatever its `display`. A `::before` or `::after` box whose `display` is `inline-block` is a
 //! block box.
 //!
 //! **Blocks** are laid top to bottom. A block box takes its margins, borders, padding, `width`,
@@ -95,7 +95,8 @@
 //!
 //! The submodules: `inline` walks the document into [`Block`]s, `image` loads the pictures they
 //! draw, `block` is the vertical flow of boxes, `text` shapes and places each block's lines,
-//! `flex` lays out a flex container's items, and `boxes` paints a box.
+//! `flex` lays out a flex or grid container's items, `grid` reads a grid's tracks and
+//! placements, and `boxes` paints a box.
 //!
 //! Memory: one shaped `parley` layout at a time, and the positioned items of every page until
 //! the writer has drawn them.
@@ -110,6 +111,7 @@ use parley::{
 mod block;
 mod boxes;
 mod flex;
+mod grid;
 mod image;
 mod inline;
 mod text;
