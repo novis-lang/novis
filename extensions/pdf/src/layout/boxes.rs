@@ -25,7 +25,7 @@
 //! the box's. A slice of a box that goes on past a page is open on that side: no border, no
 //! outline edge and square corners.
 //!
-//! `opacity` is not drawn here: [`super::Flow`] wraps the box and its content in an
+//! `opacity` is not drawn here: [`super::block::Flow`] wraps the box and its content in an
 //! [`Item::Begin`] and an [`Item::End`].
 
 use std::f32::consts::{FRAC_PI_2, PI};
@@ -175,7 +175,7 @@ fn line_of(word: Option<&str>) -> Option<Line> {
     }
 }
 
-/// `style`'s paint, all but its background image, which [`super::Builder`] loads.
+/// `style`'s paint, all but its background image, which [`super::inline::Builder`] loads.
 pub(super) fn decor(style: &Style) -> Decor {
     let text_color = color(style, "color").unwrap_or(BLACK);
     let sides = super::SIDES;
