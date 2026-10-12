@@ -257,7 +257,11 @@ const C_DEPENDENCIES: Record<string, Entry> = {
 // The built-in components: Rust crates outside the workspace, compiled for `wasm32-wasip2` and
 // embedded in the binary (`rule:packaging/the-first-party-components-are-built-in`). Their crates ship
 // with the binary, so the notice carries them.
-const BUILT_IN_COMPONENTS = [{ name: "image", manifest: "extensions/image/Cargo.toml" }];
+const BUILT_IN_COMPONENTS = [
+  { name: "image", manifest: "extensions/image/Cargo.toml" },
+  { name: "intl", manifest: "extensions/intl/Cargo.toml" },
+  { name: "pdf", manifest: "extensions/pdf/Cargo.toml" },
+];
 
 // The target every component is built for. Its graph is resolved for this target alone, because a
 // dependency behind another platform's `cfg`, or behind `cfg(fuzzing)`, is never linked.

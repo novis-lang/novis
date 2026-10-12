@@ -10,7 +10,7 @@ GENERATED FILE — do not edit by hand. Regenerate with:
     bun nv gen-attribution
 
 
-COMPONENTS (577)
+COMPONENTS (656)
 ------------------------------------------------------------------------------
 
 Where a component offers a choice of licenses, Novis takes the one shown and
@@ -90,6 +90,7 @@ platform Novis builds for, so one may appear that a given build omits.
   byteorder                                  1.5.0                          MIT                             (Unlicense OR MIT)
   byteorder-lite                             0.1.0                          MIT                             (Unlicense OR MIT)
   bytes                                      1.12.1                         MIT
+  calendrical_calculations                   0.2.4                          Apache-2.0
   caseless                                   0.2.2                          MIT
   cc                                         1.4.3                          MIT                             (MIT OR Apache-2.0)
   cc                                         1.6.0                          MIT                             (MIT OR Apache-2.0)
@@ -110,6 +111,7 @@ platform Novis builds for, so one may appear that a given build omits.
   const-oid                                  0.10.2                         MIT                             (Apache-2.0 OR MIT)
   constant_time_eq                           0.4.2                          MIT-0                           (CC0-1.0 OR MIT-0 OR Apache-2.0)
   core_affinity                              0.8.3                          MIT                             (MIT/Apache-2.0)
+  core_maths                                 0.1.1                          MIT
   corosensei                                 0.2.2                          MIT                             (MIT OR Apache-2.0)
   cpp_demangle                               0.5.1                          MIT                             (MIT OR Apache-2.0)
   cpubits                                    0.1.1                          MIT                             (MIT OR Apache-2.0)
@@ -145,6 +147,8 @@ platform Novis builds for, so one may appear that a given build omits.
   crypto-bigint                              0.7.5                          MIT                             (Apache-2.0 OR MIT)
   crypto-common                              0.1.7                          MIT                             (MIT OR Apache-2.0)
   crypto-common                              0.2.2                          MIT                             (MIT OR Apache-2.0)
+  cssparser                                  0.38.0                         MPL-2.0
+  cssparser-macros                           0.7.1                          MPL-2.0
   csv-core                                   0.1.13                         MIT                             (Unlicense/MIT)
   ctr                                        0.10.1                         MIT                             (MIT OR Apache-2.0)
   ctutils                                    0.4.2                          MIT                             (Apache-2.0 OR MIT)
@@ -160,12 +164,16 @@ platform Novis builds for, so one may appear that a given build omits.
   der                                        0.8.2                          MIT                             (Apache-2.0 OR MIT)
   der-parser                                 10.0.0                         MIT                             (MIT OR Apache-2.0)
   deranged                                   0.5.8                          MIT                             (MIT OR Apache-2.0)
+  derive_more                                2.1.1                          MIT
+  derive_more-impl                           2.1.1                          MIT
   digest                                     0.10.7                         MIT                             (MIT OR Apache-2.0)
   digest                                     0.11.3                         MIT                             (MIT OR Apache-2.0)
   directories-next                           2.0.0                          MIT                             (MIT OR Apache-2.0)
   dirs-sys-next                              0.1.2                          MIT                             (MIT OR Apache-2.0)
   displaydoc                                 0.2.7                          MIT                             (MIT OR Apache-2.0)
   document-features                          0.2.12                         MIT                             (MIT OR Apache-2.0)
+  dtoa                                       1.0.11                         MIT                             (MIT OR Apache-2.0)
+  dtoa-short                                 0.3.5                          MPL-2.0
   ecdsa                                      0.17.0                         MIT                             (Apache-2.0 OR MIT)
   ed25519                                    3.0.0                          MIT                             (Apache-2.0 OR MIT)
   ed25519-dalek                              3.0.0                          BSD-3-Clause
@@ -194,6 +202,7 @@ platform Novis builds for, so one may appear that a given build omits.
   fiat-crypto                                0.3.0                          MIT                             (MIT OR Apache-2.0 OR BSD-1-Clause)
   find-msvc-tools                            0.1.11                         MIT                             (MIT OR Apache-2.0)
   find-msvc-tools                            0.1.14                         MIT                             (MIT OR Apache-2.0)
+  fixed_decimal                              0.7.2                          Unicode-3.0
   fixedbitset                                0.4.2                          MIT                             (MIT/Apache-2.0)
   flagset                                    0.4.7                          Apache-2.0
   flate2                                     1.1.10                         MIT                             (MIT OR Apache-2.0)
@@ -202,7 +211,9 @@ platform Novis builds for, so one may appear that a given build omits.
   fluent-uri                                 0.4.1                          MIT
   fnv                                        1.0.7                          MIT                             (Apache-2.0 / MIT)
   foldhash                                   0.2.0                          Zlib
+  font-types                                 0.11.3                         MIT                             (MIT OR Apache-2.0)
   font-types                                 0.12.6                         MIT                             (MIT OR Apache-2.0)
+  fontique                                   0.12.0                         MIT                             (Apache-2.0 OR MIT)
   futures                                    0.3.34                         MIT                             (MIT OR Apache-2.0)
   futures-channel                            0.3.34                         MIT                             (MIT OR Apache-2.0)
   futures-core                               0.3.34                         MIT                             (MIT OR Apache-2.0)
@@ -245,9 +256,42 @@ platform Novis builds for, so one may appear that a given build omits.
   httpdate                                   1.0.3                          MIT                             (MIT OR Apache-2.0)
   hybrid-array                               0.4.14                         MIT                             (MIT OR Apache-2.0)
   hyper                                      1.11.1                         MIT
+  icu_calendar                               2.3.0                          Unicode-3.0
+  icu_calendar_data                          2.3.0                          Unicode-3.0
+  icu_casemap                                2.3.0                          Unicode-3.0
+  icu_casemap_data                           2.3.0                          Unicode-3.0
+  icu_collator                               2.3.1                          Unicode-3.0
+  icu_collator_data                          2.3.0                          Unicode-3.0
+  icu_collections                            2.3.0                          Unicode-3.0
+  icu_datetime                               2.3.0                          Unicode-3.0
+  icu_datetime_data                          2.3.0                          Unicode-3.0
+  icu_decimal                                2.3.0                          Unicode-3.0
+  icu_decimal_data                           2.3.0                          Unicode-3.0
+  icu_experimental                           0.6.0                          Unicode-3.0
+  icu_experimental_data                      0.6.0                          Unicode-3.0
+  icu_list                                   2.3.0                          Unicode-3.0
+  icu_list_data                              2.3.0                          Unicode-3.0
+  icu_locale                                 2.3.1                          Unicode-3.0
+  icu_locale_core                            2.3.0                          Unicode-3.0
+  icu_locale_data                            2.3.0                          Unicode-3.0
+  icu_locale_fallback                        2.3.0                          Unicode-3.0
+  icu_locale_fallback_data                   2.3.0                          Unicode-3.0
+  icu_normalizer                             2.3.0                          Unicode-3.0
+  icu_normalizer_data                        2.3.0                          Unicode-3.0
+  icu_pattern                                0.5.0                          Unicode-3.0
+  icu_plurals                                2.3.0                          Unicode-3.0
+  icu_plurals_data                           2.3.0                          Unicode-3.0
+  icu_properties                             2.3.0                          Unicode-3.0
+  icu_properties_data                        2.3.0                          Unicode-3.0
+  icu_provider                               2.3.1                          Unicode-3.0
+  icu_segmenter                              2.3.0                          Unicode-3.0
+  icu_segmenter_data                         2.3.0                          Unicode-3.0
+  icu_time                                   2.3.0                          Unicode-3.0
+  icu_time_data                              2.3.1                          Unicode-3.0
   id-arena                                   2.3.0                          MIT                             (MIT/Apache-2.0)
   image                                      0.25.10                        MIT                             (MIT OR Apache-2.0)
   image-webp                                 0.2.4                          MIT                             (MIT OR Apache-2.0)
+  imagesize                                  0.14.0                         MIT
   imagesize                                  0.15.0                         MIT
   imgref                                     1.12.3                         Apache-2.0                      (CC0-1.0 OR Apache-2.0)
   indexmap                                   2.14.0                         MIT                             (Apache-2.0 OR MIT)
@@ -258,6 +302,7 @@ platform Novis builds for, so one may appear that a given build omits.
   itoa                                       1.0.18                         MIT                             (MIT OR Apache-2.0)
   ittapi                                     0.4.0                          BSD-3-Clause                    (GPL-2.0-only OR BSD-3-Clause)
   ittapi-sys                                 0.4.0                          BSD-3-Clause                    (GPL-2.0-only OR BSD-3-Clause)
+  ixdtf                                      0.6.6                          Unicode-3.0
   jiff                                       0.2.35                         MIT                             (Unlicense OR MIT)
   jiff-core                                  0.1.0                          MIT                             (Unlicense OR MIT)
   jiff-static                                0.2.35                         MIT                             (Unlicense OR MIT)
@@ -280,6 +325,7 @@ platform Novis builds for, so one may appear that a given build omits.
   jxl-vardct                                 0.11.1                         MIT                             (MIT OR Apache-2.0)
   kamadak-exif                               0.6.1                          BSD-2-Clause
   keccak                                     0.1.6                          MIT                             (Apache-2.0 OR MIT)
+  krilla                                     0.8.2                          MIT                             (MIT OR Apache-2.0)
   kurbo                                      0.13.1                         MIT                             (Apache-2.0 OR MIT)
   lazy_static                                1.5.0                          MIT                             (MIT OR Apache-2.0)
   leb128                                     0.2.7                          MIT                             (MIT OR Apache-2.0)
@@ -293,6 +339,7 @@ platform Novis builds for, so one may appear that a given build omits.
   libwebp                                    1.6.0                          BSD-3-Clause
   linebender_resource_handle                 0.1.1                          MIT                             (Apache-2.0 OR MIT)
   linux-raw-sys                              0.12.1                         MIT                             (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT)
+  litemap                                    0.8.3                          Unicode-3.0
   litrs                                      1.0.0                          MIT                             (MIT OR Apache-2.0)
   lock_api                                   0.4.14                         MIT                             (MIT OR Apache-2.0)
   log                                        0.4.33                         MIT                             (MIT OR Apache-2.0)
@@ -332,6 +379,8 @@ platform Novis builds for, so one may appear that a given build omits.
   num-traits                                 0.2.19                         MIT                             (MIT OR Apache-2.0)
   num_cpus                                   1.17.0                         MIT                             (MIT OR Apache-2.0)
   nvs-image                                  0.1.0                          MIT
+  nvs-intl                                   0.1.0                          MIT
+  nvs-pdf                                    0.1.0                          MIT
   object                                     0.39.1                         MIT                             (Apache-2.0 OR MIT)
   oid-registry                               0.8.1                          MIT                             (MIT OR Apache-2.0)
   once_cell                                  1.21.4                         MIT                             (MIT OR Apache-2.0)
@@ -340,19 +389,29 @@ platform Novis builds for, so one may appear that a given build omits.
   p256                                       0.14.0                         MIT                             (Apache-2.0 OR MIT)
   parking_lot                                0.12.5                         MIT                             (MIT OR Apache-2.0)
   parking_lot_core                           0.9.12                         MIT                             (MIT OR Apache-2.0)
+  parlance                                   0.1.1                          MIT                             (Apache-2.0 OR MIT)
+  parley                                     0.12.0                         MIT                             (Apache-2.0 OR MIT)
+  parley_data                                0.12.0                         MIT                             (Apache-2.0 OR MIT)
+  parley_emoji                               0.12.0                         MIT
+  parley_engine                              0.12.0                         MIT                             (Apache-2.0 OR MIT)
   password-hash                              0.6.1                          MIT                             (MIT OR Apache-2.0)
   paste                                      1.0.15                         MIT                             (MIT OR Apache-2.0)
   pastey                                     0.1.1                          MIT                             (MIT OR Apache-2.0)
   pbkdf2                                     0.13.0                         MIT                             (MIT OR Apache-2.0)
+  pdf-writer                                 0.15.0                         MIT                             (MIT OR Apache-2.0)
   pem                                        4.0.0                          MIT
   peniko                                     0.6.1                          MIT                             (Apache-2.0 OR MIT)
   petgraph                                   0.6.5                          MIT                             (MIT OR Apache-2.0)
   phc                                        0.6.1                          MIT                             (Apache-2.0 OR MIT)
   phf                                        0.13.1                         MIT
+  phf                                        0.14.0                         MIT
   phf_codegen                                0.13.1                         MIT
   phf_generator                              0.13.1                         MIT
+  phf_generator                              0.14.0                         MIT
   phf_macros                                 0.13.1                         MIT
+  phf_macros                                 0.14.0                         MIT
   phf_shared                                 0.13.1                         MIT
+  phf_shared                                 0.14.0                         MIT
   pic-scale                                  0.7.12                         Apache-2.0                      (BSD-3-Clause OR Apache-2.0)
   pico-args                                  0.5.0                          MIT
   pin-project-lite                           0.2.17                         MIT                             (Apache-2.0 OR MIT)
@@ -366,6 +425,7 @@ platform Novis builds for, so one may appear that a given build omits.
   portable-atomic-util                       0.2.7                          MIT                             (Apache-2.0 OR MIT)
   postcard                                   1.1.3                          MIT                             (MIT OR Apache-2.0)
   postgres-protocol                          0.6.12                         MIT                             (MIT OR Apache-2.0)
+  potential_utf                              0.1.6                          Unicode-3.0
   powerfmt                                   0.2.0                          MIT                             (MIT OR Apache-2.0)
   precomputed-hash                           0.1.1                          MIT
   prettyplease                               0.3.0                          MIT                             (MIT OR Apache-2.0)
@@ -390,6 +450,7 @@ platform Novis builds for, so one may appear that a given build omits.
   rayon                                      1.12.0                         MIT                             (MIT OR Apache-2.0)
   rayon-core                                 1.13.0                         MIT                             (MIT OR Apache-2.0)
   rcgen                                      0.14.10                        MIT                             (MIT OR Apache-2.0)
+  read-fonts                                 0.39.2                         MIT                             (MIT OR Apache-2.0)
   read-fonts                                 0.41.0                         MIT                             (MIT OR Apache-2.0)
   read-fonts                                 0.43.3                         MIT                             (MIT OR Apache-2.0)
   redox_syscall                              0.5.18                         MIT
@@ -417,17 +478,21 @@ platform Novis builds for, so one may appear that a given build omits.
   rustls-webpki                              0.103.15                       ISC
   rustversion                                1.0.23                         MIT                             (MIT OR Apache-2.0)
   ruzstd                                     0.9.0                          MIT
+  ryu                                        1.0.23                         Apache-2.0                      (Apache-2.0 OR BSL-1.0)
   saturating                                 0.1.0                          MIT
   scopeguard                                 1.2.0                          MIT                             (MIT OR Apache-2.0)
   sec1                                       0.8.1                          MIT                             (Apache-2.0 OR MIT)
+  selectors                                  0.41.0                         MPL-2.0
   semver                                     1.0.28                         MIT                             (MIT OR Apache-2.0)
   serde                                      1.0.229                        MIT                             (MIT OR Apache-2.0)
   serde_core                                 1.0.229                        MIT                             (MIT OR Apache-2.0)
   serde_derive                               1.0.229                        MIT                             (MIT OR Apache-2.0)
   serde_json                                 1.0.151                        MIT                             (MIT OR Apache-2.0)
+  serde_json                                 1.0.154                        MIT                             (MIT OR Apache-2.0)
   serde_repr                                 0.1.21                         MIT                             (MIT OR Apache-2.0)
   serde_spanned                              1.1.1                          MIT                             (MIT OR Apache-2.0)
   serdect                                    0.4.3                          MIT                             (Apache-2.0 OR MIT)
+  servo_arc                                  0.5.0                          MIT                             (MIT OR Apache-2.0)
   sha1                                       0.10.7                         MIT                             (MIT OR Apache-2.0)
   sha1                                       0.11.0                         MIT                             (MIT OR Apache-2.0)
   sha2                                       0.10.9                         MIT                             (MIT OR Apache-2.0)
@@ -440,11 +505,13 @@ platform Novis builds for, so one may appear that a given build omits.
   simplecss                                  0.2.2                          MIT                             (Apache-2.0 OR MIT)
   siphasher                                  1.0.3                          MIT                             (MIT/Apache-2.0)
   siphasher                                  1.0.4                          MIT                             (MIT OR Apache-2.0)
+  skrifa                                     0.42.1                         MIT                             (MIT OR Apache-2.0)
   skrifa                                     0.44.0                         MIT                             (MIT OR Apache-2.0)
   skrifa                                     0.46.2                         MIT                             (MIT OR Apache-2.0)
   slab                                       0.4.12                         MIT
   smallvec                                   1.15.2                         MIT                             (MIT OR Apache-2.0)
   smallvec                                   1.16.2                         MIT                             (MIT OR Apache-2.0)
+  smallvec                                   1.16.3                         MIT                             (MIT OR Apache-2.0)
   spki                                       0.8.0                          MIT                             (Apache-2.0 OR MIT)
   sqlite-wasm-rs                             0.5.5                          MIT
   stable_deref_trait                         1.2.1                          MIT                             (MIT OR Apache-2.0)
@@ -455,10 +522,12 @@ platform Novis builds for, so one may appear that a given build omits.
   strsim                                     0.11.1                         MIT
   strum                                      0.26.3                         MIT
   strum_macros                               0.26.4                         MIT
+  subsetter                                  0.2.6                          MIT                             (MIT OR Apache-2.0)
   subtle                                     2.6.1                          BSD-3-Clause
   svgtypes                                   0.16.1                         MIT                             (Apache-2.0 OR MIT)
   syn                                        2.0.119                        MIT                             (MIT OR Apache-2.0)
   syn                                        3.0.6                          MIT                             (MIT OR Apache-2.0)
+  syn                                        3.0.8                          MIT                             (MIT OR Apache-2.0)
   synstructure                               0.13.2                         MIT
   synstructure                               0.14.0                         MIT
   target-lexicon                             0.13.5                         Apache-2.0 WITH LLVM-exception
@@ -477,6 +546,7 @@ platform Novis builds for, so one may appear that a given build omits.
   time-macros                                0.2.32                         MIT                             (MIT OR Apache-2.0)
   tiny-skia                                  0.12.0                         BSD-3-Clause
   tiny-skia-path                             0.12.0                         BSD-3-Clause
+  tinystr                                    0.8.4                          Unicode-3.0
   tinyvec                                    1.12.0                         MIT                             (Zlib OR Apache-2.0 OR MIT)
   tinyvec_macros                             0.1.1                          MIT                             (MIT OR Apache-2.0 OR Zlib)
   to_method                                  1.1.0                          CC0-1.0
@@ -502,6 +572,8 @@ platform Novis builds for, so one may appear that a given build omits.
   universal-hash                             0.6.1                          MIT                             (MIT OR Apache-2.0)
   untrusted                                  0.9.0                          ISC
   usvg                                       0.48.1                         MIT                             (Apache-2.0 OR MIT)
+  utf16_iter                                 1.0.5                          MIT                             (Apache-2.0 OR MIT)
+  utf8_iter                                  1.0.4                          MIT                             (Apache-2.0 OR MIT)
   utf8parse                                  0.2.2                          MIT                             (Apache-2.0 OR MIT)
   uuid                                       1.24.1                         MIT                             (Apache-2.0 OR MIT)
   v_frame                                    0.3.9                          BSD-2-Clause
@@ -576,8 +648,12 @@ platform Novis builds for, so one may appear that a given build omits.
   wit-parser                                 0.254.2                        MIT                             (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT)
   wit-parser                                 0.259.0                        MIT                             (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT)
   wnaf                                       0.14.1                         MIT                             (Apache-2.0 OR MIT)
+  write-fonts                                0.48.1                         MIT                             (MIT OR Apache-2.0)
+  write16                                    1.0.0                          MIT                             (Apache-2.0 OR MIT)
+  writeable                                  0.6.4                          Unicode-3.0
   x25519-dalek                               3.0.0                          BSD-3-Clause
   x509-parser                                0.18.1                         MIT                             (MIT OR Apache-2.0)
+  xmp-writer                                 0.3.3                          MIT                             (MIT OR Apache-2.0)
   y4m                                        0.8.0                          MIT
   yasna                                      0.6.0                          MIT                             (MIT OR Apache-2.0)
   yoke                                       0.8.3                          Unicode-3.0
@@ -587,6 +663,9 @@ platform Novis builds for, so one may appear that a given build omits.
   zerofrom                                   0.1.8                          Unicode-3.0
   zerofrom-derive                            0.1.8                          Unicode-3.0
   zeroize                                    1.9.0                          MIT                             (Apache-2.0 OR MIT)
+  zerotrie                                   0.2.5                          Unicode-3.0
+  zerovec                                    0.11.8                         Unicode-3.0
+  zerovec-derive                             0.11.6                         Unicode-3.0
   zlib-rs                                    0.6.8                          Zlib
   zmij                                       1.0.23                         MIT
   zstd                                       0.13.3                         MIT
@@ -596,7 +675,7 @@ platform Novis builds for, so one may appear that a given build omits.
   zune-jpeg                                  0.5.15                         MIT                             (MIT OR Apache-2.0 OR Zlib)
 
 
-LICENSE TEXTS (250)
+LICENSE TEXTS (259)
 ------------------------------------------------------------------------------
 
 Each text below is reproduced verbatim as its component ships it. Components
@@ -606,7 +685,7 @@ than once.
 
 
 ==============================================================================
-[1/250]  MIT
+[1/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -618,8 +697,11 @@ Applies to:
   crc32c 0.6.8
   defmt-parser 1.0.0
   fxprof-processed-profile 0.8.1
+  krilla 0.8.2
   libm 0.2.16
   nvs-image 0.1.0
+  nvs-intl 0.1.0
+  nvs-pdf 0.1.0
   profiling 1.0.18
   profiling-procmacros 1.0.18
   r-efi 6.0.0
@@ -660,7 +742,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[2/250]  MIT
+[2/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -672,6 +754,7 @@ Applies to:
   corosensei 0.2.2
   curve25519-dalek-derive 0.1.1
   displaydoc 0.2.7
+  dtoa 1.0.11
   fastrand 2.5.0
   group 0.14.0
   hermit-abi 0.5.2
@@ -713,9 +796,12 @@ Applies to:
   serde_core 1.0.229
   serde_derive 1.0.229
   serde_json 1.0.151
+  serde_json 1.0.154
   serde_repr 0.1.21
+  servo_arc 0.5.0
   syn 2.0.119
   syn 3.0.6
+  syn 3.0.8
   thiserror 1.0.69
   thiserror 2.0.20
   thiserror 2.0.21
@@ -775,7 +861,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[3/250]  MIT
+[3/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -812,7 +898,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[4/250]  MIT
+[4/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -849,7 +935,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[5/250]  MIT
+[5/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -889,7 +975,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[6/250]  MIT
+[6/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -925,7 +1011,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[7/250]  MIT
+[7/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -967,7 +1053,7 @@ THE SOFTWARE.
 
 
 ==============================================================================
-[8/250]  MIT
+[8/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -1003,7 +1089,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[9/250]  MIT
+[9/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -1035,7 +1121,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[10/250]  MIT
+[10/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -1081,7 +1167,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[11/250]  MIT
+[11/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -1119,7 +1205,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[12/250]  MIT
+[12/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -1151,7 +1237,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[13/250]  MIT
+[13/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -1191,7 +1277,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[14/250]  MIT
+[14/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -1227,7 +1313,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[15/250]  MIT
+[15/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -1263,7 +1349,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[16/250]  MIT
+[16/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -1304,7 +1390,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[17/250]  MIT
+[17/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -1340,7 +1426,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[18/250]  MIT
+[18/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -1376,7 +1462,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[19/250]  MIT
+[19/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -1412,7 +1498,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[20/250]  MIT
+[20/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -1444,7 +1530,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[21/250]  MIT
+[21/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -1474,7 +1560,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[22/250]  MIT
+[22/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -1511,7 +1597,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[23/250]  MIT
+[23/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -1543,7 +1629,7 @@ THE SOFTWARE.
 
 
 ==============================================================================
-[24/250]  MIT
+[24/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -1575,7 +1661,7 @@ THE SOFTWARE.
 
 
 ==============================================================================
-[25/250]  MIT
+[25/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -1612,7 +1698,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[26/250]  MIT
+[26/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -1644,7 +1730,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[27/250]  MIT
+[27/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -1682,7 +1768,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[28/250]  MIT
+[28/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -1732,7 +1818,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[29/250]  MIT
+[29/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -1768,7 +1854,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[30/250]  MIT
+[30/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -1804,7 +1890,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[31/250]  MIT
+[31/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -1842,7 +1928,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[32/250]  MIT
+[32/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -1878,7 +1964,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[33/250]  MIT
+[33/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -1914,7 +2000,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[34/250]  MIT
+[34/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -1950,7 +2036,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[35/250]  MIT
+[35/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -1982,7 +2068,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[36/250]  MIT
+[36/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -2012,7 +2098,7 @@ THE SOFTWARE.
 
 
 ==============================================================================
-[37/250]  MIT
+[37/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -2048,7 +2134,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[38/250]  MIT
+[38/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -2080,7 +2166,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[39/250]  MIT
+[39/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -2116,7 +2202,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[40/250]  MIT
+[40/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -2137,7 +2223,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 
 ==============================================================================
-[41/250]  MIT
+[41/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -2173,7 +2259,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[42/250]  MIT
+[42/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -2206,7 +2292,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[43/250]  MIT
+[43/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -2260,7 +2346,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[44/250]  MIT
+[44/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -2296,7 +2382,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[45/250]  MIT
+[45/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -2333,7 +2419,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[46/250]  MIT
+[46/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -2363,12 +2449,15 @@ SOFTWARE.
 
 
 ==============================================================================
-[47/250]  MIT
+[47/259]  MIT
 ==============================================================================
 
 Applies to:
   color 0.3.3
   linebender_resource_handle 0.1.1
+  pdf-writer 0.15.0
+  subsetter 0.2.6
+  xmp-writer 0.3.3
 
 ------------------------------------------------------------------------------
 
@@ -2394,7 +2483,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[48/250]  MIT
+[48/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -2426,7 +2515,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[49/250]  MIT
+[49/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -2464,7 +2553,39 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[50/250]  MIT
+[50/259]  MIT
+==============================================================================
+
+Applies to:
+  core_maths 0.1.1
+
+------------------------------------------------------------------------------
+
+MIT License
+
+Copyright (c) 2024 Robert Bastian
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+
+==============================================================================
+[51/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -2508,7 +2629,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[51/250]  MIT
+[52/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -2544,7 +2665,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[52/250]  MIT
+[53/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -2581,7 +2702,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[53/250]  MIT
+[54/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -2614,7 +2735,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[54/250]  MIT
+[55/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -2658,7 +2779,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[55/250]  MIT
+[56/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -2694,7 +2815,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[56/250]  MIT
+[57/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -2730,7 +2851,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[57/250]  MIT
+[58/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -2767,7 +2888,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[58/250]  MIT
+[59/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -2803,7 +2924,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[59/250]  MIT
+[60/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -2836,7 +2957,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[60/250]  MIT
+[61/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -2872,7 +2993,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[61/250]  MIT
+[62/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -2890,7 +3011,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 
 ==============================================================================
-[62/250]  MIT
+[63/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -2927,7 +3048,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[63/250]  MIT
+[64/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -2957,7 +3078,40 @@ SOFTWARE.
 
 
 ==============================================================================
-[64/250]  MIT
+[65/259]  MIT
+==============================================================================
+
+Applies to:
+  derive_more 2.1.1
+  derive_more-impl 2.1.1
+
+------------------------------------------------------------------------------
+
+The MIT License (MIT)
+
+Copyright (c) 2016 Jelte Fennema
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+
+==============================================================================
+[66/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -2995,7 +3149,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[65/250]  MIT
+[67/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -3032,7 +3186,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[66/250]  MIT
+[68/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -3062,7 +3216,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[67/250]  MIT
+[69/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -3092,7 +3246,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[68/250]  MIT
+[70/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -3122,7 +3276,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[69/250]  MIT
+[71/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -3160,7 +3314,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[70/250]  MIT
+[72/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -3199,7 +3353,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[71/250]  MIT
+[73/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -3237,7 +3391,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[72/250]  MIT
+[74/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -3273,7 +3427,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[73/250]  MIT
+[75/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -3309,11 +3463,14 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[74/250]  MIT
+[76/259]  MIT
 ==============================================================================
 
 Applies to:
   encoding_rs 0.8.35
+  utf16_iter 1.0.5
+  utf8_iter 1.0.4
+  write16 1.0.0
 
 ------------------------------------------------------------------------------
 
@@ -3345,7 +3502,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[75/250]  MIT
+[77/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -3378,7 +3535,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[76/250]  MIT
+[78/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -3414,7 +3571,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[77/250]  MIT
+[79/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -3450,7 +3607,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[78/250]  MIT
+[80/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -3488,7 +3645,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[79/250]  MIT
+[81/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -3519,7 +3676,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[80/250]  MIT
+[82/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -3549,7 +3706,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[81/250]  MIT
+[83/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -3588,7 +3745,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[82/250]  MIT
+[84/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -3620,7 +3777,7 @@ THE SOFTWARE.
 
 
 ==============================================================================
-[83/250]  MIT
+[85/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -3652,7 +3809,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[84/250]  MIT
+[86/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -3690,7 +3847,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[85/250]  MIT
+[87/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -3730,7 +3887,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[86/250]  MIT
+[88/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -3762,7 +3919,7 @@ THE SOFTWARE.
 
 
 ==============================================================================
-[87/250]  MIT
+[89/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -3794,7 +3951,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[88/250]  MIT
+[90/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -3830,7 +3987,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[89/250]  MIT
+[91/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -3866,7 +4023,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[90/250]  MIT
+[92/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -3896,7 +4053,7 @@ IN THE SOFTWARE.
 
 
 ==============================================================================
-[91/250]  MIT
+[93/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -3928,7 +4085,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[92/250]  MIT
+[94/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -3960,7 +4117,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[93/250]  MIT
+[95/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -3996,7 +4153,46 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[94/250]  MIT
+[96/259]  MIT
+==============================================================================
+
+Applies to:
+  font-types 0.11.3
+  read-fonts 0.39.2
+  skrifa 0.42.1
+  write-fonts 0.48.1
+
+------------------------------------------------------------------------------
+
+Copyright (c) 2019 Colin Rothfels
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
+
+==============================================================================
+[97/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -4036,7 +4232,43 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[95/250]  MIT
+[98/259]  MIT
+==============================================================================
+
+Applies to:
+  fontique 0.12.0
+
+------------------------------------------------------------------------------
+
+Copyright 2024 the Parley Authors
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
+
+==============================================================================
+[99/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -4079,7 +4311,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[96/250]  MIT
+[100/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -4111,7 +4343,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[97/250]  MIT
+[101/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -4148,7 +4380,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[98/250]  MIT
+[102/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -4185,7 +4417,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[99/250]  MIT
+[103/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -4217,7 +4449,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[100/250]  MIT
+[104/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -4253,7 +4485,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[101/250]  MIT
+[105/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -4284,7 +4516,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[102/250]  MIT
+[106/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -4317,7 +4549,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[103/250]  MIT
+[107/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -4354,7 +4586,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[104/250]  MIT
+[108/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -4391,7 +4623,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[105/250]  MIT
+[109/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -4416,7 +4648,7 @@ THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR I
 
 
 ==============================================================================
-[106/250]  MIT
+[110/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -4447,7 +4679,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[107/250]  MIT
+[111/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -4484,7 +4716,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[108/250]  MIT
+[112/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -4522,7 +4754,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[109/250]  MIT
+[113/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -4558,7 +4790,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[110/250]  MIT
+[114/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -4594,7 +4826,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[111/250]  MIT
+[115/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -4625,7 +4857,7 @@ THE SOFTWARE.
 
 
 ==============================================================================
-[112/250]  MIT
+[116/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -4655,7 +4887,7 @@ THE SOFTWARE.
 
 
 ==============================================================================
-[113/250]  MIT
+[117/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -4685,10 +4917,11 @@ THE SOFTWARE.
 
 
 ==============================================================================
-[114/250]  MIT
+[118/259]  MIT
 ==============================================================================
 
 Applies to:
+  imagesize 0.14.0
   imagesize 0.15.0
 
 ------------------------------------------------------------------------------
@@ -4717,7 +4950,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[115/250]  MIT
+[119/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -4754,7 +4987,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[116/250]  MIT
+[120/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -4791,7 +5024,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[117/250]  MIT
+[121/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -4827,7 +5060,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[118/250]  MIT
+[122/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -4864,7 +5097,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[119/250]  MIT
+[123/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -4896,7 +5129,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[120/250]  MIT
+[124/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -4927,7 +5160,7 @@ THE SOFTWARE.
 
 
 ==============================================================================
-[121/250]  MIT
+[125/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -4963,7 +5196,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[122/250]  MIT
+[126/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -5003,7 +5236,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[123/250]  MIT
+[127/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -5021,7 +5254,7 @@ THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR I
 
 
 ==============================================================================
-[124/250]  MIT
+[128/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -5053,7 +5286,7 @@ THE SOFTWARE.
 
 
 ==============================================================================
-[125/250]  MIT
+[129/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -5090,7 +5323,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[126/250]  MIT
+[130/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -5122,7 +5355,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[127/250]  MIT
+[131/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -5162,7 +5395,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[128/250]  MIT
+[132/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -5203,7 +5436,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[129/250]  MIT
+[133/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -5230,7 +5463,7 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 
 
 ==============================================================================
-[130/250]  MIT
+[134/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -5267,7 +5500,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[131/250]  MIT
+[135/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -5304,7 +5537,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[132/250]  MIT
+[136/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -5334,7 +5567,7 @@ THE SOFTWARE.
 
 
 ==============================================================================
-[133/250]  MIT
+[137/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -5370,7 +5603,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[134/250]  MIT
+[138/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -5406,7 +5639,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[135/250]  MIT
+[139/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -5436,7 +5669,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[136/250]  MIT
+[140/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -5468,7 +5701,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[137/250]  MIT
+[141/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -5500,7 +5733,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[138/250]  MIT
+[142/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -5530,7 +5763,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[139/250]  MIT
+[143/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -5566,7 +5799,119 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[140/250]  MIT
+[144/259]  MIT
+==============================================================================
+
+Applies to:
+  parlance 0.1.1
+  parley 0.12.0
+  parley_data 0.12.0
+
+------------------------------------------------------------------------------
+
+Copyright 2020 the Parley Authors
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
+
+==============================================================================
+[145/259]  MIT
+==============================================================================
+
+Applies to:
+  parley_emoji 0.12.0
+
+------------------------------------------------------------------------------
+
+Copyright 2020 the Parley Authors
+Copyright (c) 2026 Christian Hansen <chansen@cpan.org>
+<https://github.com/chansen/c-emoji>
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
+
+==============================================================================
+[146/259]  MIT
+==============================================================================
+
+Applies to:
+  parley_engine 0.12.0
+
+------------------------------------------------------------------------------
+
+Copyright 2025 the Parley Authors
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
+
+==============================================================================
+[147/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -5603,7 +5948,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[141/250]  MIT
+[148/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -5635,15 +5980,19 @@ SOFTWARE.
 
 
 ==============================================================================
-[142/250]  MIT
+[149/259]  MIT
 ==============================================================================
 
 Applies to:
   phf 0.13.1
+  phf 0.14.0
   phf_codegen 0.13.1
   phf_generator 0.13.1
+  phf_generator 0.14.0
   phf_macros 0.13.1
+  phf_macros 0.14.0
   phf_shared 0.13.1
+  phf_shared 0.14.0
 
 ------------------------------------------------------------------------------
 
@@ -5670,7 +6019,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[143/250]  MIT
+[150/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -5700,7 +6049,7 @@ THE SOFTWARE.
 
 
 ==============================================================================
-[144/250]  MIT
+[151/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -5736,7 +6085,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[145/250]  MIT
+[152/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -5772,7 +6121,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[146/250]  MIT
+[153/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -5808,7 +6157,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[147/250]  MIT
+[154/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -5840,7 +6189,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[148/250]  MIT
+[155/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -5870,7 +6219,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[149/250]  MIT
+[156/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -5902,7 +6251,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[150/250]  MIT
+[157/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -5938,7 +6287,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[151/250]  MIT
+[158/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -5974,7 +6323,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[152/250]  MIT
+[159/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -6003,7 +6352,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[153/250]  MIT
+[160/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -6033,7 +6382,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[154/250]  MIT
+[161/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -6070,7 +6419,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[155/250]  MIT
+[162/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -6106,7 +6455,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[156/250]  MIT
+[163/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -6138,7 +6487,7 @@ THE SOFTWARE.
 
 
 ==============================================================================
-[157/250]  MIT
+[164/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -6171,7 +6520,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[158/250]  MIT
+[165/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -6203,7 +6552,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[159/250]  MIT
+[166/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -6239,7 +6588,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[160/250]  MIT
+[167/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -6276,7 +6625,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[161/250]  MIT
+[168/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -6308,7 +6657,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[162/250]  MIT
+[169/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -6340,7 +6689,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[163/250]  MIT
+[170/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -6376,7 +6725,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[164/250]  MIT
+[171/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -6412,7 +6761,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[165/250]  MIT
+[172/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -6444,7 +6793,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[166/250]  MIT
+[173/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -6476,7 +6825,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[167/250]  MIT
+[174/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -6512,7 +6861,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[168/250]  MIT
+[175/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -6544,7 +6893,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[169/250]  MIT
+[176/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -6583,7 +6932,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[170/250]  MIT
+[177/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -6615,7 +6964,7 @@ THE SOFTWARE.
 
 
 ==============================================================================
-[171/250]  MIT
+[178/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -6647,7 +6996,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[172/250]  MIT
+[179/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -6679,7 +7028,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[173/250]  MIT
+[180/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -6707,7 +7056,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[174/250]  MIT
+[181/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -6743,12 +7092,13 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[175/250]  MIT
+[182/259]  MIT
 ==============================================================================
 
 Applies to:
   smallvec 1.15.2
   smallvec 1.16.2
+  smallvec 1.16.3
 
 ------------------------------------------------------------------------------
 
@@ -6780,7 +7130,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[176/250]  MIT
+[183/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -6812,7 +7162,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[177/250]  MIT
+[184/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -6848,7 +7198,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[178/250]  MIT
+[185/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -6878,7 +7228,7 @@ THE SOFTWARE.
 
 
 ==============================================================================
-[179/250]  MIT
+[186/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -6908,7 +7258,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[180/250]  MIT
+[187/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -6942,7 +7292,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[181/250]  MIT
+[188/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -6975,7 +7325,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[182/250]  MIT
+[189/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -7006,7 +7356,7 @@ THE SOFTWARE.
 
 
 ==============================================================================
-[183/250]  MIT
+[190/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -7025,7 +7375,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 
 ==============================================================================
-[184/250]  MIT
+[191/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -7061,7 +7411,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[185/250]  MIT
+[192/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -7097,7 +7447,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[186/250]  MIT
+[193/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -7127,7 +7477,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[187/250]  MIT
+[194/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -7159,7 +7509,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[188/250]  MIT
+[195/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -7175,7 +7525,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 
 ==============================================================================
-[189/250]  MIT
+[196/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -7207,7 +7557,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[190/250]  MIT
+[197/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -7239,7 +7589,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[191/250]  MIT
+[198/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -7276,7 +7626,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[192/250]  MIT
+[199/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -7307,7 +7657,7 @@ THE SOFTWARE.
 
 
 ==============================================================================
-[193/250]  MIT
+[200/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -7338,7 +7688,7 @@ THE SOFTWARE.
 
 
 ==============================================================================
-[194/250]  MIT
+[201/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -7370,7 +7720,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[195/250]  MIT
+[202/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -7402,7 +7752,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[196/250]  MIT
+[203/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -7438,7 +7788,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[197/250]  MIT
+[204/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -7474,7 +7824,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[198/250]  MIT
+[205/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -7511,7 +7861,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[199/250]  MIT
+[206/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -7547,7 +7897,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[200/250]  MIT
+[207/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -7584,7 +7934,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[201/250]  MIT
+[208/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -7614,7 +7964,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[202/250]  MIT
+[209/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -7644,7 +7994,7 @@ THE SOFTWARE.
 
 
 ==============================================================================
-[203/250]  MIT
+[210/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -7676,7 +8026,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[204/250]  MIT
+[211/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -7706,7 +8056,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[205/250]  MIT
+[212/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -7738,7 +8088,7 @@ THE SOFTWARE.
 
 
 ==============================================================================
-[206/250]  MIT
+[213/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -7782,7 +8132,7 @@ MIT License
 
 
 ==============================================================================
-[207/250]  MIT
+[214/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -7812,7 +8162,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[208/250]  MIT
+[215/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -7849,7 +8199,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[209/250]  MIT
+[216/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -7882,7 +8232,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[210/250]  MIT
+[217/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -7900,7 +8250,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 
 ==============================================================================
-[211/250]  MIT
+[218/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -7937,7 +8287,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[212/250]  MIT
+[219/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -7973,7 +8323,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[213/250]  MIT
+[220/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -7994,7 +8344,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 
 ==============================================================================
-[214/250]  MIT
+[221/259]  MIT
 ==============================================================================
 
 Applies to:
@@ -8027,7 +8377,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[215/250]  MIT-0
+[222/259]  MIT-0
 ==============================================================================
 
 Applies to:
@@ -8057,7 +8407,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[216/250]  Apache-2.0 WITH LLVM-exception
+[223/259]  Apache-2.0 WITH LLVM-exception
 ==============================================================================
 
 Applies to:
@@ -8301,7 +8651,7 @@ Software.
 
 
 ==============================================================================
-[217/250]  Apache-2.0 WITH LLVM-exception
+[224/259]  Apache-2.0 WITH LLVM-exception
 ==============================================================================
 
 Applies to:
@@ -8549,7 +8899,7 @@ Software.
 
 
 ==============================================================================
-[218/250]  Apache-2.0
+[225/259]  Apache-2.0
 ==============================================================================
 
 Applies to:
@@ -8738,7 +9088,219 @@ Apache License
 
 
 ==============================================================================
-[219/250]  Apache-2.0
+[226/259]  Apache-2.0
+==============================================================================
+
+Applies to:
+  calendrical_calculations 0.2.4
+
+------------------------------------------------------------------------------
+
+Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
+
+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+   1. Definitions.
+
+      "License" shall mean the terms and conditions for use, reproduction,
+      and distribution as defined by Sections 1 through 9 of this document.
+
+      "Licensor" shall mean the copyright owner or entity authorized by
+      the copyright owner that is granting the License.
+
+      "Legal Entity" shall mean the union of the acting entity and all
+      other entities that control, are controlled by, or are under common
+      control with that entity. For the purposes of this definition,
+      "control" means (i) the power, direct or indirect, to cause the
+      direction or management of such entity, whether by contract or
+      otherwise, or (ii) ownership of fifty percent (50%) or more of the
+      outstanding shares, or (iii) beneficial ownership of such entity.
+
+      "You" (or "Your") shall mean an individual or Legal Entity
+      exercising permissions granted by this License.
+
+      "Source" form shall mean the preferred form for making modifications,
+      including but not limited to software source code, documentation
+      source, and configuration files.
+
+      "Object" form shall mean any form resulting from mechanical
+      transformation or translation of a Source form, including but
+      not limited to compiled object code, generated documentation,
+      and conversions to other media types.
+
+      "Work" shall mean the work of authorship, whether in Source or
+      Object form, made available under the License, as indicated by a
+      copyright notice that is included in or attached to the work
+      (an example is provided in the Appendix below).
+
+      "Derivative Works" shall mean any work, whether in Source or Object
+      form, that is based on (or derived from) the Work and for which the
+      editorial revisions, annotations, elaborations, or other modifications
+      represent, as a whole, an original work of authorship. For the purposes
+      of this License, Derivative Works shall not include works that remain
+      separable from, or merely link (or bind by name) to the interfaces of,
+      the Work and Derivative Works thereof.
+
+      "Contribution" shall mean any work of authorship, including
+      the original version of the Work and any modifications or additions
+      to that Work or Derivative Works thereof, that is intentionally
+      submitted to Licensor for inclusion in the Work by the copyright owner
+      or by an individual or Legal Entity authorized to submit on behalf of
+      the copyright owner. For the purposes of this definition, "submitted"
+      means any form of electronic, verbal, or written communication sent
+      to the Licensor or its representatives, including but not limited to
+      communication on electronic mailing lists, source code control systems,
+      and issue tracking systems that are managed by, or on behalf of, the
+      Licensor for the purpose of discussing and improving the Work, but
+      excluding communication that is conspicuously marked or otherwise
+      designated in writing by the copyright owner as "Not a Contribution."
+
+      "Contributor" shall mean Licensor and any individual or Legal Entity
+      on behalf of whom a Contribution has been received by Licensor and
+      subsequently incorporated within the Work.
+
+   2. Grant of Copyright License. Subject to the terms and conditions of
+      this License, each Contributor hereby grants to You a perpetual,
+      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+      copyright license to reproduce, prepare Derivative Works of,
+      publicly display, publicly perform, sublicense, and distribute the
+      Work and such Derivative Works in Source or Object form.
+
+   3. Grant of Patent License. Subject to the terms and conditions of
+      this License, each Contributor hereby grants to You a perpetual,
+      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+      (except as stated in this section) patent license to make, have made,
+      use, offer to sell, sell, import, and otherwise transfer the Work,
+      where such license applies only to those patent claims licensable
+      by such Contributor that are necessarily infringed by their
+      Contribution(s) alone or by combination of their Contribution(s)
+      with the Work to which such Contribution(s) was submitted. If You
+      institute patent litigation against any entity (including a
+      cross-claim or counterclaim in a lawsuit) alleging that the Work
+      or a Contribution incorporated within the Work constitutes direct
+      or contributory patent infringement, then any patent licenses
+      granted to You under this License for that Work shall terminate
+      as of the date such litigation is filed.
+
+   4. Redistribution. You may reproduce and distribute copies of the
+      Work or Derivative Works thereof in any medium, with or without
+      modifications, and in Source or Object form, provided that You
+      meet the following conditions:
+
+      (a) You must give any other recipients of the Work or
+          Derivative Works a copy of this License; and
+
+      (b) You must cause any modified files to carry prominent notices
+          stating that You changed the files; and
+
+      (c) You must retain, in the Source form of any Derivative Works
+          that You distribute, all copyright, patent, trademark, and
+          attribution notices from the Source form of the Work,
+          excluding those notices that do not pertain to any part of
+          the Derivative Works; and
+
+      (d) If the Work includes a "NOTICE" text file as part of its
+          distribution, then any Derivative Works that You distribute must
+          include a readable copy of the attribution notices contained
+          within such NOTICE file, excluding those notices that do not
+          pertain to any part of the Derivative Works, in at least one
+          of the following places: within a NOTICE text file distributed
+          as part of the Derivative Works; within the Source form or
+          documentation, if provided along with the Derivative Works; or,
+          within a display generated by the Derivative Works, if and
+          wherever such third-party notices normally appear. The contents
+          of the NOTICE file are for informational purposes only and
+          do not modify the License. You may add Your own attribution
+          notices within Derivative Works that You distribute, alongside
+          or as an addendum to the NOTICE text from the Work, provided
+          that such additional attribution notices cannot be construed
+          as modifying the License.
+
+      You may add Your own copyright statement to Your modifications and
+      may provide additional or different license terms and conditions
+      for use, reproduction, or distribution of Your modifications, or
+      for any such Derivative Works as a whole, provided Your use,
+      reproduction, and distribution of the Work otherwise complies with
+      the conditions stated in this License.
+
+   5. Submission of Contributions. Unless You explicitly state otherwise,
+      any Contribution intentionally submitted for inclusion in the Work
+      by You to the Licensor shall be under the terms and conditions of
+      this License, without any additional terms or conditions.
+      Notwithstanding the above, nothing herein shall supersede or modify
+      the terms of any separate license agreement you may have executed
+      with Licensor regarding such Contributions.
+
+   6. Trademarks. This License does not grant permission to use the trade
+      names, trademarks, service marks, or product names of the Licensor,
+      except as required for reasonable and customary use in describing the
+      origin of the Work and reproducing the content of the NOTICE file.
+
+   7. Disclaimer of Warranty. Unless required by applicable law or
+      agreed to in writing, Licensor provides the Work (and each
+      Contributor provides its Contributions) on an "AS IS" BASIS,
+      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+      implied, including, without limitation, any warranties or conditions
+      of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A
+      PARTICULAR PURPOSE. You are solely responsible for determining the
+      appropriateness of using or redistributing the Work and assume any
+      risks associated with Your exercise of permissions under this License.
+
+   8. Limitation of Liability. In no event and under no legal theory,
+      whether in tort (including negligence), contract, or otherwise,
+      unless required by applicable law (such as deliberate and grossly
+      negligent acts) or agreed to in writing, shall any Contributor be
+      liable to You for damages, including any direct, indirect, special,
+      incidental, or consequential damages of any character arising as a
+      result of this License or out of the use or inability to use the
+      Work (including but not limited to damages for loss of goodwill,
+      work stoppage, computer failure or malfunction, or any and all
+      other commercial damages or losses), even if such Contributor
+      has been advised of the possibility of such damages.
+
+   9. Accepting Warranty or Additional Liability. While redistributing
+      the Work or Derivative Works thereof, You may choose to offer,
+      and charge a fee for, acceptance of support, warranty, indemnity,
+      or other liability obligations and/or rights consistent with this
+      License. However, in accepting such obligations, You may act only
+      on Your own behalf and on Your sole responsibility, not on behalf
+      of any other Contributor, and only if You agree to indemnify,
+      defend, and hold each Contributor harmless for any liability
+      incurred by, or claims asserted against, such Contributor by reason
+      of your accepting any such warranty or additional liability.
+
+   END OF TERMS AND CONDITIONS
+
+   APPENDIX: How to apply the Apache License to your work.
+
+      To apply the Apache License to your work, attach the following
+      boilerplate notice, with the fields enclosed by brackets "[]"
+      replaced with your own identifying information. (Don't include
+      the brackets!)  The text should be enclosed in the appropriate
+      comment syntax for the file format. We also recommend that a
+      file or class name and description of purpose be included on the
+      same "printed page" as the copyright notice for easier
+      identification within third-party archives.
+
+   Copyright 2023 The Unicode Consortium
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+
+
+==============================================================================
+[227/259]  Apache-2.0
 ==============================================================================
 
 Applies to:
@@ -8950,7 +9512,7 @@ limitations under the License.
 
 
 ==============================================================================
-[220/250]  Apache-2.0
+[228/259]  Apache-2.0
 ==============================================================================
 
 Applies to:
@@ -9163,7 +9725,7 @@ Apache License
 
 
 ==============================================================================
-[221/250]  Apache-2.0
+[229/259]  Apache-2.0
 ==============================================================================
 
 Applies to:
@@ -9377,7 +9939,7 @@ Apache License
 
 
 ==============================================================================
-[222/250]  Apache-2.0
+[230/259]  Apache-2.0
 ==============================================================================
 
 Applies to:
@@ -9659,7 +10221,194 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 ==============================================================================
-[223/250]  BSD-3-Clause
+[231/259]  Apache-2.0
+==============================================================================
+
+Applies to:
+  ryu 1.0.23
+
+------------------------------------------------------------------------------
+
+Apache License
+                        Version 2.0, January 2004
+                     http://www.apache.org/licenses/
+
+TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+1. Definitions.
+
+   "License" shall mean the terms and conditions for use, reproduction,
+   and distribution as defined by Sections 1 through 9 of this document.
+
+   "Licensor" shall mean the copyright owner or entity authorized by
+   the copyright owner that is granting the License.
+
+   "Legal Entity" shall mean the union of the acting entity and all
+   other entities that control, are controlled by, or are under common
+   control with that entity. For the purposes of this definition,
+   "control" means (i) the power, direct or indirect, to cause the
+   direction or management of such entity, whether by contract or
+   otherwise, or (ii) ownership of fifty percent (50%) or more of the
+   outstanding shares, or (iii) beneficial ownership of such entity.
+
+   "You" (or "Your") shall mean an individual or Legal Entity
+   exercising permissions granted by this License.
+
+   "Source" form shall mean the preferred form for making modifications,
+   including but not limited to software source code, documentation
+   source, and configuration files.
+
+   "Object" form shall mean any form resulting from mechanical
+   transformation or translation of a Source form, including but
+   not limited to compiled object code, generated documentation,
+   and conversions to other media types.
+
+   "Work" shall mean the work of authorship, whether in Source or
+   Object form, made available under the License, as indicated by a
+   copyright notice that is included in or attached to the work
+   (an example is provided in the Appendix below).
+
+   "Derivative Works" shall mean any work, whether in Source or Object
+   form, that is based on (or derived from) the Work and for which the
+   editorial revisions, annotations, elaborations, or other modifications
+   represent, as a whole, an original work of authorship. For the purposes
+   of this License, Derivative Works shall not include works that remain
+   separable from, or merely link (or bind by name) to the interfaces of,
+   the Work and Derivative Works thereof.
+
+   "Contribution" shall mean any work of authorship, including
+   the original version of the Work and any modifications or additions
+   to that Work or Derivative Works thereof, that is intentionally
+   submitted to Licensor for inclusion in the Work by the copyright owner
+   or by an individual or Legal Entity authorized to submit on behalf of
+   the copyright owner. For the purposes of this definition, "submitted"
+   means any form of electronic, verbal, or written communication sent
+   to the Licensor or its representatives, including but not limited to
+   communication on electronic mailing lists, source code control systems,
+   and issue tracking systems that are managed by, or on behalf of, the
+   Licensor for the purpose of discussing and improving the Work, but
+   excluding communication that is conspicuously marked or otherwise
+   designated in writing by the copyright owner as "Not a Contribution."
+
+   "Contributor" shall mean Licensor and any individual or Legal Entity
+   on behalf of whom a Contribution has been received by Licensor and
+   subsequently incorporated within the Work.
+
+2. Grant of Copyright License. Subject to the terms and conditions of
+   this License, each Contributor hereby grants to You a perpetual,
+   worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+   copyright license to reproduce, prepare Derivative Works of,
+   publicly display, publicly perform, sublicense, and distribute the
+   Work and such Derivative Works in Source or Object form.
+
+3. Grant of Patent License. Subject to the terms and conditions of
+   this License, each Contributor hereby grants to You a perpetual,
+   worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+   (except as stated in this section) patent license to make, have made,
+   use, offer to sell, sell, import, and otherwise transfer the Work,
+   where such license applies only to those patent claims licensable
+   by such Contributor that are necessarily infringed by their
+   Contribution(s) alone or by combination of their Contribution(s)
+   with the Work to which such Contribution(s) was submitted. If You
+   institute patent litigation against any entity (including a
+   cross-claim or counterclaim in a lawsuit) alleging that the Work
+   or a Contribution incorporated within the Work constitutes direct
+   or contributory patent infringement, then any patent licenses
+   granted to You under this License for that Work shall terminate
+   as of the date such litigation is filed.
+
+4. Redistribution. You may reproduce and distribute copies of the
+   Work or Derivative Works thereof in any medium, with or without
+   modifications, and in Source or Object form, provided that You
+   meet the following conditions:
+
+   (a) You must give any other recipients of the Work or
+       Derivative Works a copy of this License; and
+
+   (b) You must cause any modified files to carry prominent notices
+       stating that You changed the files; and
+
+   (c) You must retain, in the Source form of any Derivative Works
+       that You distribute, all copyright, patent, trademark, and
+       attribution notices from the Source form of the Work,
+       excluding those notices that do not pertain to any part of
+       the Derivative Works; and
+
+   (d) If the Work includes a "NOTICE" text file as part of its
+       distribution, then any Derivative Works that You distribute must
+       include a readable copy of the attribution notices contained
+       within such NOTICE file, excluding those notices that do not
+       pertain to any part of the Derivative Works, in at least one
+       of the following places: within a NOTICE text file distributed
+       as part of the Derivative Works; within the Source form or
+       documentation, if provided along with the Derivative Works; or,
+       within a display generated by the Derivative Works, if and
+       wherever such third-party notices normally appear. The contents
+       of the NOTICE file are for informational purposes only and
+       do not modify the License. You may add Your own attribution
+       notices within Derivative Works that You distribute, alongside
+       or as an addendum to the NOTICE text from the Work, provided
+       that such additional attribution notices cannot be construed
+       as modifying the License.
+
+   You may add Your own copyright statement to Your modifications and
+   may provide additional or different license terms and conditions
+   for use, reproduction, or distribution of Your modifications, or
+   for any such Derivative Works as a whole, provided Your use,
+   reproduction, and distribution of the Work otherwise complies with
+   the conditions stated in this License.
+
+5. Submission of Contributions. Unless You explicitly state otherwise,
+   any Contribution intentionally submitted for inclusion in the Work
+   by You to the Licensor shall be under the terms and conditions of
+   this License, without any additional terms or conditions.
+   Notwithstanding the above, nothing herein shall supersede or modify
+   the terms of any separate license agreement you may have executed
+   with Licensor regarding such Contributions.
+
+6. Trademarks. This License does not grant permission to use the trade
+   names, trademarks, service marks, or product names of the Licensor,
+   except as required for reasonable and customary use in describing the
+   origin of the Work and reproducing the content of the NOTICE file.
+
+7. Disclaimer of Warranty. Unless required by applicable law or
+   agreed to in writing, Licensor provides the Work (and each
+   Contributor provides its Contributions) on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+   implied, including, without limitation, any warranties or conditions
+   of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A
+   PARTICULAR PURPOSE. You are solely responsible for determining the
+   appropriateness of using or redistributing the Work and assume any
+   risks associated with Your exercise of permissions under this License.
+
+8. Limitation of Liability. In no event and under no legal theory,
+   whether in tort (including negligence), contract, or otherwise,
+   unless required by applicable law (such as deliberate and grossly
+   negligent acts) or agreed to in writing, shall any Contributor be
+   liable to You for damages, including any direct, indirect, special,
+   incidental, or consequential damages of any character arising as a
+   result of this License or out of the use or inability to use the
+   Work (including but not limited to damages for loss of goodwill,
+   work stoppage, computer failure or malfunction, or any and all
+   other commercial damages or losses), even if such Contributor
+   has been advised of the possibility of such damages.
+
+9. Accepting Warranty or Additional Liability. While redistributing
+   the Work or Derivative Works thereof, You may choose to offer,
+   and charge a fee for, acceptance of support, warranty, indemnity,
+   or other liability obligations and/or rights consistent with this
+   License. However, in accepting such obligations, You may act only
+   on Your own behalf and on Your sole responsibility, not on behalf
+   of any other Contributor, and only if You agree to indemnify,
+   defend, and hold each Contributor harmless for any liability
+   incurred by, or claims asserted against, such Contributor by reason
+   of your accepting any such warranty or additional liability.
+
+END OF TERMS AND CONDITIONS
+
+
+==============================================================================
+[232/259]  BSD-3-Clause
 ==============================================================================
 
 Applies to:
@@ -9688,7 +10437,7 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 
 
 ==============================================================================
-[224/250]  BSD-3-Clause
+[233/259]  BSD-3-Clause
 ==============================================================================
 
 Applies to:
@@ -9728,7 +10477,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 ==============================================================================
-[225/250]  BSD-3-Clause
+[234/259]  BSD-3-Clause
 ==============================================================================
 
 Applies to:
@@ -9768,7 +10517,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 ==============================================================================
-[226/250]  BSD-3-Clause
+[235/259]  BSD-3-Clause
 ==============================================================================
 
 Applies to:
@@ -9807,7 +10556,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 ==============================================================================
-[227/250]  BSD-3-Clause
+[236/259]  BSD-3-Clause
 ==============================================================================
 
 Applies to:
@@ -9844,7 +10593,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 ==============================================================================
-[228/250]  BSD-3-Clause
+[237/259]  BSD-3-Clause
 ==============================================================================
 
 Applies to:
@@ -9908,7 +10657,7 @@ litigation is filed.
 
 
 ==============================================================================
-[229/250]  BSD-3-Clause
+[238/259]  BSD-3-Clause
 ==============================================================================
 
 Applies to:
@@ -9948,7 +10697,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 ==============================================================================
-[230/250]  BSD-3-Clause
+[239/259]  BSD-3-Clause
 ==============================================================================
 
 Applies to:
@@ -9988,7 +10737,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 ==============================================================================
-[231/250]  BSD-3-Clause
+[240/259]  BSD-3-Clause
 ==============================================================================
 
 Applies to:
@@ -10030,7 +10779,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 ==============================================================================
-[232/250]  BSD-3-Clause
+[241/259]  BSD-3-Clause
 ==============================================================================
 
 Applies to:
@@ -10070,7 +10819,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 ==============================================================================
-[233/250]  BSD-2-Clause
+[242/259]  BSD-2-Clause
 ==============================================================================
 
 Applies to:
@@ -10107,7 +10856,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 ==============================================================================
-[234/250]  BSD-2-Clause
+[243/259]  BSD-2-Clause
 ==============================================================================
 
 Applies to:
@@ -10143,7 +10892,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 ==============================================================================
-[235/250]  BSD-2-Clause
+[244/259]  BSD-2-Clause
 ==============================================================================
 
 Applies to:
@@ -10177,7 +10926,7 @@ SUCH DAMAGE.
 
 
 ==============================================================================
-[236/250]  BSD-2-Clause
+[245/259]  BSD-2-Clause
 ==============================================================================
 
 Applies to:
@@ -10211,7 +10960,7 @@ SUCH DAMAGE.
 
 
 ==============================================================================
-[237/250]  BSD-2-Clause
+[246/259]  BSD-2-Clause
 ==============================================================================
 
 Applies to:
@@ -10246,7 +10995,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 ==============================================================================
-[238/250]  BSD-2-Clause
+[247/259]  BSD-2-Clause
 ==============================================================================
 
 Applies to:
@@ -10282,7 +11031,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 ==============================================================================
-[239/250]  BSD-2-Clause
+[248/259]  BSD-2-Clause
 ==============================================================================
 
 Applies to:
@@ -10318,7 +11067,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 ==============================================================================
-[240/250]  ISC
+[249/259]  ISC
 ==============================================================================
 
 Applies to:
@@ -10342,7 +11091,7 @@ CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 
 ==============================================================================
-[241/250]  ISC
+[250/259]  ISC
 ==============================================================================
 
 Applies to:
@@ -10372,7 +11121,7 @@ third-party/chromium/LICENSE.
 
 
 ==============================================================================
-[242/250]  ISC
+[251/259]  ISC
 ==============================================================================
 
 Applies to:
@@ -10396,7 +11145,7 @@ Applies to:
 
 
 ==============================================================================
-[243/250]  Zlib
+[252/259]  Zlib
 ==============================================================================
 
 Applies to:
@@ -10426,7 +11175,7 @@ the following restrictions:
 
 
 ==============================================================================
-[244/250]  Zlib
+[253/259]  Zlib
 ==============================================================================
 
 Applies to:
@@ -10456,65 +11205,55 @@ freely, subject to the following restrictions:
 
 
 ==============================================================================
-[245/250]  Unicode-3.0
+[254/259]  Unicode-3.0
 ==============================================================================
 
 Applies to:
-  unicode-ident 1.0.24
-  unicode-ident 1.0.26
-
-------------------------------------------------------------------------------
-
-UNICODE LICENSE V3
-
-COPYRIGHT AND PERMISSION NOTICE
-
-Copyright © 1991-2023 Unicode, Inc.
-
-NOTICE TO USER: Carefully read the following legal agreement. BY
-DOWNLOADING, INSTALLING, COPYING OR OTHERWISE USING DATA FILES, AND/OR
-SOFTWARE, YOU UNEQUIVOCALLY ACCEPT, AND AGREE TO BE BOUND BY, ALL OF THE
-TERMS AND CONDITIONS OF THIS AGREEMENT. IF YOU DO NOT AGREE, DO NOT
-DOWNLOAD, INSTALL, COPY, DISTRIBUTE OR USE THE DATA FILES OR SOFTWARE.
-
-Permission is hereby granted, free of charge, to any person obtaining a
-copy of data files and any associated documentation (the "Data Files") or
-software and any associated documentation (the "Software") to deal in the
-Data Files or Software without restriction, including without limitation
-the rights to use, copy, modify, merge, publish, distribute, and/or sell
-copies of the Data Files or Software, and to permit persons to whom the
-Data Files or Software are furnished to do so, provided that either (a)
-this copyright and permission notice appear with all copies of the Data
-Files or Software, or (b) this copyright and permission notice appear in
-associated Documentation.
-
-THE DATA FILES AND SOFTWARE ARE PROVIDED "AS IS", WITHOUT WARRANTY OF ANY
-KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT OF
-THIRD PARTY RIGHTS.
-
-IN NO EVENT SHALL THE COPYRIGHT HOLDER OR HOLDERS INCLUDED IN THIS NOTICE
-BE LIABLE FOR ANY CLAIM, OR ANY SPECIAL INDIRECT OR CONSEQUENTIAL DAMAGES,
-OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS,
-WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION,
-ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THE DATA
-FILES OR SOFTWARE.
-
-Except as contained in this notice, the name of a copyright holder shall
-not be used in advertising or otherwise to promote the sale, use or other
-dealings in these Data Files or Software without prior written
-authorization of the copyright holder.
-
-
-==============================================================================
-[246/250]  Unicode-3.0
-==============================================================================
-
-Applies to:
+  fixed_decimal 0.7.2
+  icu_calendar 2.3.0
+  icu_calendar_data 2.3.0
+  icu_casemap 2.3.0
+  icu_casemap_data 2.3.0
+  icu_collator 2.3.1
+  icu_collator_data 2.3.0
+  icu_collections 2.3.0
+  icu_datetime 2.3.0
+  icu_datetime_data 2.3.0
+  icu_decimal 2.3.0
+  icu_decimal_data 2.3.0
+  icu_experimental 0.6.0
+  icu_experimental_data 0.6.0
+  icu_list 2.3.0
+  icu_list_data 2.3.0
+  icu_locale 2.3.1
+  icu_locale_core 2.3.0
+  icu_locale_data 2.3.0
+  icu_locale_fallback 2.3.0
+  icu_locale_fallback_data 2.3.0
+  icu_normalizer 2.3.0
+  icu_normalizer_data 2.3.0
+  icu_pattern 0.5.0
+  icu_plurals 2.3.0
+  icu_plurals_data 2.3.0
+  icu_properties 2.3.0
+  icu_properties_data 2.3.0
+  icu_provider 2.3.1
+  icu_segmenter 2.3.0
+  icu_segmenter_data 2.3.0
+  icu_time 2.3.0
+  icu_time_data 2.3.1
+  ixdtf 0.6.6
+  litemap 0.8.3
+  potential_utf 0.1.6
+  tinystr 0.8.4
+  writeable 0.6.4
   yoke 0.8.3
   yoke-derive 0.8.4
   zerofrom 0.1.8
   zerofrom-derive 0.1.8
+  zerotrie 0.2.5
+  zerovec 0.11.8
+  zerovec-derive 0.11.6
 
 ------------------------------------------------------------------------------
 
@@ -10567,7 +11306,58 @@ ICU 1.8.1 to ICU 57.1 © 1995-2016 International Business Machines Corporation a
 
 
 ==============================================================================
-[247/250]  CC0-1.0
+[255/259]  Unicode-3.0
+==============================================================================
+
+Applies to:
+  unicode-ident 1.0.24
+  unicode-ident 1.0.26
+
+------------------------------------------------------------------------------
+
+UNICODE LICENSE V3
+
+COPYRIGHT AND PERMISSION NOTICE
+
+Copyright © 1991-2023 Unicode, Inc.
+
+NOTICE TO USER: Carefully read the following legal agreement. BY
+DOWNLOADING, INSTALLING, COPYING OR OTHERWISE USING DATA FILES, AND/OR
+SOFTWARE, YOU UNEQUIVOCALLY ACCEPT, AND AGREE TO BE BOUND BY, ALL OF THE
+TERMS AND CONDITIONS OF THIS AGREEMENT. IF YOU DO NOT AGREE, DO NOT
+DOWNLOAD, INSTALL, COPY, DISTRIBUTE OR USE THE DATA FILES OR SOFTWARE.
+
+Permission is hereby granted, free of charge, to any person obtaining a
+copy of data files and any associated documentation (the "Data Files") or
+software and any associated documentation (the "Software") to deal in the
+Data Files or Software without restriction, including without limitation
+the rights to use, copy, modify, merge, publish, distribute, and/or sell
+copies of the Data Files or Software, and to permit persons to whom the
+Data Files or Software are furnished to do so, provided that either (a)
+this copyright and permission notice appear with all copies of the Data
+Files or Software, or (b) this copyright and permission notice appear in
+associated Documentation.
+
+THE DATA FILES AND SOFTWARE ARE PROVIDED "AS IS", WITHOUT WARRANTY OF ANY
+KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT OF
+THIRD PARTY RIGHTS.
+
+IN NO EVENT SHALL THE COPYRIGHT HOLDER OR HOLDERS INCLUDED IN THIS NOTICE
+BE LIABLE FOR ANY CLAIM, OR ANY SPECIAL INDIRECT OR CONSEQUENTIAL DAMAGES,
+OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS,
+WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION,
+ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THE DATA
+FILES OR SOFTWARE.
+
+Except as contained in this notice, the name of a copyright holder shall
+not be used in advertising or otherwise to promote the sale, use or other
+dealings in these Data Files or Software without prior written
+authorization of the copyright holder.
+
+
+==============================================================================
+[256/259]  CC0-1.0
 ==============================================================================
 
 Applies to:
@@ -10699,7 +11489,7 @@ express Statement of Purpose.
 
 
 ==============================================================================
-[248/250]  CDLA-Permissive-2.0
+[257/259]  CDLA-Permissive-2.0
 ==============================================================================
 
 Applies to:
@@ -10771,11 +11561,15 @@ insights.
 
 
 ==============================================================================
-[249/250]  MPL-2.0
+[258/259]  MPL-2.0
 ==============================================================================
 
 Applies to:
   avif-parse 2.1.0
+  cssparser 0.38.0
+  cssparser-macros 0.7.1
+  dtoa-short 0.3.5
+  selectors 0.41.0
 
 ------------------------------------------------------------------------------
 
@@ -11155,7 +11949,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 
 
 ==============================================================================
-[250/250]  OFL-1.1
+[259/259]  OFL-1.1
 ==============================================================================
 
 Applies to:
@@ -11264,3 +12058,546 @@ INCLUDING ANY GENERAL, SPECIAL, INDIRECT, INCIDENTAL, OR CONSEQUENTIAL
 DAMAGES, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF THE USE OR INABILITY TO USE THE FONT SOFTWARE OR FROM OTHER
 DEALINGS IN THE FONT SOFTWARE.
+
+
+NOTICE FILES (1)
+------------------------------------------------------------------------------
+
+Reproduced as required by Apache License 2.0 § 4(d).
+
+==============================================================================
+subsetter 0.2.6 — NOTICE
+==============================================================================
+
+# Code
+
+ttf-parser
+Code from ttf-parser was used/adapted for the following parts:
+- Reader, Writer, LazyArray16 and LazyArray16Iter
+- `name` table parsing.
+- `hmtx` table parsing.
+- Most of the `cff` parsing logic as well auxiliary structs and functions
+such as `calc_subroutine_bias`, `SIDMetadata`, `CIDMetadata` `RealNumber`,
+`Index`, `IndexSize`, `OffsetSize`, `FDSelect`, `ArgumentStack`, `Top Dict` and `FONT Dict`,
+`DictionaryParser`.
+
+The MIT license applies:
+
+Copyright (c) 2018 Yevhenii Reizner
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
+==============================================================================
+
+fonttools
+Code from fonttools was used/adapted for the following parts:
+- The `Decompiler` for charstrings.
+
+The MIT license applies:
+MIT License
+
+Copyright (c) 2017 Just van Rossum
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+# Fonts
+
+The SIL OPEN FONT LICENSE Version 1.1 applies to the following fonts:
+- fonts/ClickerScript-Regular.ttf
+- fonts/MPLUS1p-Regular.ttf
+- fonts/Cantarell-VF.otf
+- fonts/NotoSans-Regular.ttf
+- fonts/NotoSans-Regular_var.ttf
+- fonts/NotoSansCJKsc-Bold-subset1.otf
+- fonts/NotoSansCJKsc-Regular.otf
+- fonts/Syne-Regular_subset.oft (Copyright 2017 The Syne Project Authors (https://gitlab.com/bonjour-monde/fonderie/syne-typeface))
+
+-----------------------------------------------------------
+SIL OPEN FONT LICENSE Version 1.1 - 26 February 2007
+-----------------------------------------------------------
+
+PREAMBLE
+The goals of the Open Font License (OFL) are to stimulate worldwide
+development of collaborative font projects, to support the font creation
+efforts of academic and linguistic communities, and to provide a free and
+open framework in which fonts may be shared and improved in partnership
+with others.
+
+The OFL allows the licensed fonts to be used, studied, modified and
+redistributed freely as long as they are not sold by themselves. The
+fonts, including any derivative works, can be bundled, embedded,
+redistributed and/or sold with any software provided that any reserved
+names are not used by derivative works. The fonts and derivatives,
+however, cannot be released under any other type of license. The
+requirement for fonts to remain under this license does not apply
+to any document created using the fonts or their derivatives.
+
+DEFINITIONS
+"Font Software" refers to the set of files released by the Copyright
+Holder(s) under this license and clearly marked as such. This may
+include source files, build scripts and documentation.
+
+"Reserved Font Name" refers to any names specified as such after the
+copyright statement(s).
+
+"Original Version" refers to the collection of Font Software components as
+distributed by the Copyright Holder(s).
+
+"Modified Version" refers to any derivative made by adding to, deleting,
+or substituting -- in part or in whole -- any of the components of the
+Original Version, by changing formats or by porting the Font Software to a
+new environment.
+
+"Author" refers to any designer, engineer, programmer, technical
+writer or other person who contributed to the Font Software.
+
+PERMISSION & CONDITIONS
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of the Font Software, to use, study, copy, merge, embed, modify,
+redistribute, and sell modified and unmodified copies of the Font
+Software, subject to the following conditions:
+
+1) Neither the Font Software nor any of its individual components,
+in Original or Modified Versions, may be sold by itself.
+
+2) Original or Modified Versions of the Font Software may be bundled,
+redistributed and/or sold with any software, provided that each copy
+contains the above copyright notice and this license. These can be
+included either as stand-alone text files, human-readable headers or
+in the appropriate machine-readable metadata fields within text or
+binary files as long as those fields can be easily viewed by the user.
+
+3) No Modified Version of the Font Software may use the Reserved Font
+Name(s) unless explicit written permission is granted by the corresponding
+Copyright Holder. This restriction only applies to the primary font name as
+presented to the users.
+
+4) The name(s) of the Copyright Holder(s) or the Author(s) of the Font
+Software shall not be used to promote, endorse or advertise any
+Modified Version, except to acknowledge the contribution(s) of the
+Copyright Holder(s) and the Author(s) or with their explicit written
+permission.
+
+5) The Font Software, modified or unmodified, in part or in whole,
+must be distributed entirely under this license, and must not be
+distributed under any other license. The requirement for fonts to
+remain under this license does not apply to any document created
+using the Font Software.
+
+TERMINATION
+This license becomes null and void if any of the above conditions are
+not met.
+
+DISCLAIMER
+THE FONT SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO ANY WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT
+OF COPYRIGHT, PATENT, TRADEMARK, OR OTHER RIGHT. IN NO EVENT SHALL THE
+COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+INCLUDING ANY GENERAL, SPECIAL, INDIRECT, INCIDENTAL, OR CONSEQUENTIAL
+DAMAGES, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+FROM, OUT OF THE USE OR INABILITY TO USE THE FONT SOFTWARE OR FROM
+OTHER DEALINGS IN THE FONT SOFTWARE.
+
+==============================================================================
+
+The Bitstream Vera Fonts license applies to the following fonts:
+- fonts/DejaVuSansMono.ttf
+
+Bitstream Vera Fonts Copyright
+———————————————
+
+Copyright (c) 2003 by Bitstream, Inc. All Rights Reserved. Bitstream Vera is
+a trademark of Bitstream, Inc.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of the fonts accompanying this license (“Fonts”) and associated
+documentation files (the “Font Software”), to reproduce and distribute the
+Font Software, including without limitation the rights to use, copy, merge,
+publish, distribute, and/or sell copies of the Font Software, and to permit
+persons to whom the Font Software is furnished to do so, subject to the
+following conditions:
+
+The above copyright and trademark notices and this permission notice shall
+be included in all copies of one or more of the Font Software typefaces.
+
+The Font Software may be modified, altered, or added to, and in particular
+the designs of glyphs or characters in the Fonts may be modified and
+additional glyphs or characters may be added to the Fonts, only if the fonts
+are renamed to names not containing either the words “Bitstream” or the word
+“Vera”.
+
+This License becomes null and void to the extent applicable to Fonts or Font
+Software that has been modified and is distributed under the “Bitstream
+Vera” names.
+
+The Font Software may be sold as part of a larger software package but no
+copy of one or more of the Font Software typefaces may be sold by itself.
+
+THE FONT SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS
+OR IMPLIED, INCLUDING BUT NOT LIMITED TO ANY WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT OF COPYRIGHT, PATENT,
+TRADEMARK, OR OTHER RIGHT. IN NO EVENT SHALL BITSTREAM OR THE GNOME
+FOUNDATION BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, INCLUDING
+ANY GENERAL, SPECIAL, INDIRECT, INCIDENTAL, OR CONSEQUENTIAL DAMAGES,
+WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF
+THE USE OR INABILITY TO USE THE FONT SOFTWARE OR FROM OTHER DEALINGS IN THE
+FONT SOFTWARE.
+
+Except as contained in this notice, the names of Gnome, the Gnome
+Foundation, and Bitstream Inc., shall not be used in advertising or
+otherwise to promote the sale, use or other dealings in this Font Software
+without prior written authorization from the Gnome Foundation or Bitstream
+Inc., respectively. For further information, contact: fonts at gnome dot
+org.
+
+Arev Fonts Copyright
+———————————————
+
+Copyright (c) 2006 by Tavmjong Bah. All Rights Reserved.
+
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of the fonts accompanying this license (“Fonts”) and
+associated documentation files (the “Font Software”), to reproduce
+and distribute the modifications to the Bitstream Vera Font Software,
+including without limitation the rights to use, copy, merge, publish,
+distribute, and/or sell copies of the Font Software, and to permit
+persons to whom the Font Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright and trademark notices and this permission notice
+shall be included in all copies of one or more of the Font Software
+typefaces.
+
+The Font Software may be modified, altered, or added to, and in
+particular the designs of glyphs or characters in the Fonts may be
+modified and additional glyphs or characters may be added to the
+Fonts, only if the fonts are renamed to names not containing either
+the words “Tavmjong Bah” or the word “Arev”.
+
+This License becomes null and void to the extent applicable to Fonts
+or Font Software that has been modified and is distributed under the
+“Tavmjong Bah Arev” names.
+
+The Font Software may be sold as part of a larger software package but
+no copy of one or more of the Font Software typefaces may be sold by
+itself.
+
+THE FONT SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO ANY WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT
+OF COPYRIGHT, PATENT, TRADEMARK, OR OTHER RIGHT. IN NO EVENT SHALL
+TAVMJONG BAH BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+INCLUDING ANY GENERAL, SPECIAL, INDIRECT, INCIDENTAL, OR CONSEQUENTIAL
+DAMAGES, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+FROM, OUT OF THE USE OR INABILITY TO USE THE FONT SOFTWARE OR FROM
+OTHER DEALINGS IN THE FONT SOFTWARE.
+
+Except as contained in this notice, the name of Tavmjong Bah shall not
+be used in advertising or otherwise to promote the sale, use or other
+dealings in this Font Software without prior written authorization
+from Tavmjong Bah. For further information, contact: tavmjong @ free
+. fr.
+
+==============================================================================
+
+The GUST font license applies to the following fonts:
+- fonts/LatinModernRoman-Regular.otf
+- fonts/EndcharInSubroutine_1.otf (derived from LatinModernRoman-Regular.otf)
+- fonts/NewCMMath-Regular.otf
+
+% This is version 1.0, dated 22 June 2009, of the GUST Font License.
+% (GUST is the Polish TeX Users Group, http://www.gust.org.pl)
+%
+% For the most recent version of this license see
+% http://www.gust.org.pl/fonts/licenses/GUST-FONT-LICENSE.txt
+% or
+% http://tug.org/fonts/licenses/GUST-FONT-LICENSE.txt
+%
+% This work may be distributed and/or modified under the conditions
+% of the LaTeX Project Public License, either version 1.3c of this
+% license or (at your option) any later version.
+%
+% Please also observe the following clause:
+% 1) it is requested, but not legally required, that derived works be
+%    distributed only after changing the names of the fonts comprising this
+%    work and given in an accompanying "manifest", and that the
+%    files comprising the Work, as listed in the manifest, also be given
+%    new names. Any exceptions to this request are also given in the
+%    manifest.
+%
+%    We recommend the manifest be given in a separate file named
+%    MANIFEST-<fontid>.txt, where <fontid> is some unique identification
+%    of the font family. If a separate "readme" file accompanies the Work,
+%    we recommend a name of the form README-<fontid>.txt.
+%
+% The latest version of the LaTeX Project Public License is in
+% http://www.latex-project.org/lppl.txt and version 1.3c or later
+% is part of all distributions of LaTeX version 2006/05/20 or later.
+
+==============================================================================
+
+The Apache 2.0 license applies to the following fonts:
+- fonts/Roboto-Regular.ttf
+
+
+                                 Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
+
+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+   1. Definitions.
+
+      "License" shall mean the terms and conditions for use, reproduction,
+      and distribution as defined by Sections 1 through 9 of this document.
+
+      "Licensor" shall mean the copyright owner or entity authorized by
+      the copyright owner that is granting the License.
+
+      "Legal Entity" shall mean the union of the acting entity and all
+      other entities that control, are controlled by, or are under common
+      control with that entity. For the purposes of this definition,
+      "control" means (i) the power, direct or indirect, to cause the
+      direction or management of such entity, whether by contract or
+      otherwise, or (ii) ownership of fifty percent (50%) or more of the
+      outstanding shares, or (iii) beneficial ownership of such entity.
+
+      "You" (or "Your") shall mean an individual or Legal Entity
+      exercising permissions granted by this License.
+
+      "Source" form shall mean the preferred form for making modifications,
+      including but not limited to software source code, documentation
+      source, and configuration files.
+
+      "Object" form shall mean any form resulting from mechanical
+      transformation or translation of a Source form, including but
+      not limited to compiled object code, generated documentation,
+      and conversions to other media types.
+
+      "Work" shall mean the work of authorship, whether in Source or
+      Object form, made available under the License, as indicated by a
+      copyright notice that is included in or attached to the work
+      (an example is provided in the Appendix below).
+
+      "Derivative Works" shall mean any work, whether in Source or Object
+      form, that is based on (or derived from) the Work and for which the
+      editorial revisions, annotations, elaborations, or other modifications
+      represent, as a whole, an original work of authorship. For the purposes
+      of this License, Derivative Works shall not include works that remain
+      separable from, or merely link (or bind by name) to the interfaces of,
+      the Work and Derivative Works thereof.
+
+      "Contribution" shall mean any work of authorship, including
+      the original version of the Work and any modifications or additions
+      to that Work or Derivative Works thereof, that is intentionally
+      submitted to Licensor for inclusion in the Work by the copyright owner
+      or by an individual or Legal Entity authorized to submit on behalf of
+      the copyright owner. For the purposes of this definition, "submitted"
+      means any form of electronic, verbal, or written communication sent
+      to the Licensor or its representatives, including but not limited to
+      communication on electronic mailing lists, source code control systems,
+      and issue tracking systems that are managed by, or on behalf of, the
+      Licensor for the purpose of discussing and improving the Work, but
+      excluding communication that is conspicuously marked or otherwise
+      designated in writing by the copyright owner as "Not a Contribution."
+
+      "Contributor" shall mean Licensor and any individual or Legal Entity
+      on behalf of whom a Contribution has been received by Licensor and
+      subsequently incorporated within the Work.
+
+   2. Grant of Copyright License. Subject to the terms and conditions of
+      this License, each Contributor hereby grants to You a perpetual,
+      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+      copyright license to reproduce, prepare Derivative Works of,
+      publicly display, publicly perform, sublicense, and distribute the
+      Work and such Derivative Works in Source or Object form.
+
+   3. Grant of Patent License. Subject to the terms and conditions of
+      this License, each Contributor hereby grants to You a perpetual,
+      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+      (except as stated in this section) patent license to make, have made,
+      use, offer to sell, sell, import, and otherwise transfer the Work,
+      where such license applies only to those patent claims licensable
+      by such Contributor that are necessarily infringed by their
+      Contribution(s) alone or by combination of their Contribution(s)
+      with the Work to which such Contribution(s) was submitted. If You
+      institute patent litigation against any entity (including a
+      cross-claim or counterclaim in a lawsuit) alleging that the Work
+      or a Contribution incorporated within the Work constitutes direct
+      or contributory patent infringement, then any patent licenses
+      granted to You under this License for that Work shall terminate
+      as of the date such litigation is filed.
+
+   4. Redistribution. You may reproduce and distribute copies of the
+      Work or Derivative Works thereof in any medium, with or without
+      modifications, and in Source or Object form, provided that You
+      meet the following conditions:
+
+      (a) You must give any other recipients of the Work or
+          Derivative Works a copy of this License; and
+
+      (b) You must cause any modified files to carry prominent notices
+          stating that You changed the files; and
+
+      (c) You must retain, in the Source form of any Derivative Works
+          that You distribute, all copyright, patent, trademark, and
+          attribution notices from the Source form of the Work,
+          excluding those notices that do not pertain to any part of
+          the Derivative Works; and
+
+      (d) If the Work includes a "NOTICE" text file as part of its
+          distribution, then any Derivative Works that You distribute must
+          include a readable copy of the attribution notices contained
+          within such NOTICE file, excluding those notices that do not
+          pertain to any part of the Derivative Works, in at least one
+          of the following places: within a NOTICE text file distributed
+          as part of the Derivative Works; within the Source form or
+          documentation, if provided along with the Derivative Works; or,
+          within a display generated by the Derivative Works, if and
+          wherever such third-party notices normally appear. The contents
+          of the NOTICE file are for informational purposes only and
+          do not modify the License. You may add Your own attribution
+          notices within Derivative Works that You distribute, alongside
+          or as an addendum to the NOTICE text from the Work, provided
+          that such additional attribution notices cannot be construed
+          as modifying the License.
+
+      You may add Your own copyright statement to Your modifications and
+      may provide additional or different license terms and conditions
+      for use, reproduction, or distribution of Your modifications, or
+      for any such Derivative Works as a whole, provided Your use,
+      reproduction, and distribution of the Work otherwise complies with
+      the conditions stated in this License.
+
+   5. Submission of Contributions. Unless You explicitly state otherwise,
+      any Contribution intentionally submitted for inclusion in the Work
+      by You to the Licensor shall be under the terms and conditions of
+      this License, without any additional terms or conditions.
+      Notwithstanding the above, nothing herein shall supersede or modify
+      the terms of any separate license agreement you may have executed
+      with Licensor regarding such Contributions.
+
+   6. Trademarks. This License does not grant permission to use the trade
+      names, trademarks, service marks, or product names of the Licensor,
+      except as required for reasonable and customary use in describing the
+      origin of the Work and reproducing the content of the NOTICE file.
+
+   7. Disclaimer of Warranty. Unless required by applicable law or
+      agreed to in writing, Licensor provides the Work (and each
+      Contributor provides its Contributions) on an "AS IS" BASIS,
+      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+      implied, including, without limitation, any warranties or conditions
+      of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A
+      PARTICULAR PURPOSE. You are solely responsible for determining the
+      appropriateness of using or redistributing the Work and assume any
+      risks associated with Your exercise of permissions under this License.
+
+   8. Limitation of Liability. In no event and under no legal theory,
+      whether in tort (including negligence), contract, or otherwise,
+      unless required by applicable law (such as deliberate and grossly
+      negligent acts) or agreed to in writing, shall any Contributor be
+      liable to You for damages, including any direct, indirect, special,
+      incidental, or consequential damages of any character arising as a
+      result of this License or out of the use or inability to use the
+      Work (including but not limited to damages for loss of goodwill,
+      work stoppage, computer failure or malfunction, or any and all
+      other commercial damages or losses), even if such Contributor
+      has been advised of the possibility of such damages.
+
+   9. Accepting Warranty or Additional Liability. While redistributing
+      the Work or Derivative Works thereof, You may choose to offer,
+      and charge a fee for, acceptance of support, warranty, indemnity,
+      or other liability obligations and/or rights consistent with this
+      License. However, in accepting such obligations, You may act only
+      on Your own behalf and on Your sole responsibility, not on behalf
+      of any other Contributor, and only if You agree to indemnify,
+      defend, and hold each Contributor harmless for any liability
+      incurred by, or claims asserted against, such Contributor by reason
+      of your accepting any such warranty or additional liability.
+
+   END OF TERMS AND CONDITIONS
+
+   APPENDIX: How to apply the Apache License to your work.
+
+      To apply the Apache License to your work, attach the following
+      boilerplate notice, with the fields enclosed by brackets "[]"
+      replaced with your own identifying information. (Don't include
+      the brackets!)  The text should be enclosed in the appropriate
+      comment syntax for the file format. We also recommend that a
+      file or class name and description of purpose be included on the
+      same "printed page" as the copyright notice for easier
+      identification within third-party archives.
+
+   Copyright [yyyy] [name of copyright owner]
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+
+==============================================================================
+
+The MIT license applies to the following fonts:
+- fonts/TestTTC.ttc
+
+MIT License
+
+Copyright (c) 2017 Just van Rossum
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
