@@ -1100,6 +1100,10 @@ mod tests {
         /// inside the pass that started it; anything else outlives the next interval, which is the
         /// only way to ask § 6's question.
         holds: Duration,
+        /// What a run with a nonzero `holds` waits for before it returns, checked once per `holds`.
+        /// [`None`] returns after one `holds`. A case whose claim is a count of things that happen
+        /// during the run waits for that count here, because a loaded machine wakes a timer late.
+        held_until: Option<Rc<dyn Fn() -> bool>>,
         /// How many fires were asked for an isolate — a run § 6's `skip` dropped never gets here,
         /// which is what makes this different from counting the runs that *finished*.
         started: Cell<usize>,
@@ -1157,6 +1161,7 @@ mod tests {
         fn new() -> Self {
             Self {
                 holds: Duration::ZERO,
+                held_until: None,
                 started: Cell::new(0),
                 asked_on: Cell::new(None),
                 answering: Rc::new(Cell::new(None)),
@@ -1185,6 +1190,7 @@ mod tests {
             let narrowed = Rc::clone(&self.narrowed);
             let name = entry.name().to_owned();
             let holds = self.holds;
+            let held_until = self.held_until.clone();
             let program: Program = Box::new(move |child: &mut Ctx, _args| {
                 answering.set(Some(child.inbound().is_some()));
                 ran_on.set(nvs_host::current_task());
@@ -1217,6 +1223,9 @@ mod tests {
                     // The core is handed back, so the tick beside this one keeps its own intervals
                     // while this run is outstanding — which is the state § 6 is about.
                     nvs_host::sleep(holds);
+                    while held_until.as_ref().is_some_and(|until| !until()) {
+                        nvs_host::sleep(holds);
+                    }
                 }
                 child
                     .write_output(format!("ran {name}").as_bytes())
@@ -1727,7 +1736,11 @@ mod tests {
             took_the_lease(&armed[0], Some(&leases)).expect("this host took the lease");
         renewal.ttl = Duration::from_millis(40);
         let watcher = Rc::new(Watcher {
-            holds: Duration::from_millis(130),
+            holds: Duration::from_millis(50),
+            held_until: Some({
+                let store = Rc::clone(&store);
+                Rc::new(move || store.renewed.borrow().len() >= 2)
+            }),
             ..Watcher::new()
         });
         let during = Rc::new(Cell::new(0_usize));
