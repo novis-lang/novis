@@ -2,7 +2,7 @@
 //! font chain, and the elements the subset does not render
 //! (`rule:core-classes/pdf-css-subset`, `rule:core-classes/pdf-default-fonts`).
 
-use nvs_pdf::layout::{self, Item, Laid, MARGIN};
+use nvs_pdf::layout::{self, Item, Laid, MARGIN, Paint, Seg, Stroke};
 use nvs_pdf::{Asset, Document, assets, css, fonts, parse, render};
 
 const SERIF: &[u8] = include_bytes!("../../fonts/LiberationSerif-Regular.ttf");
@@ -67,18 +67,54 @@ fn lines(laid: &Laid) -> Vec<(f32, f32)> {
 /// A rectangle's `x`, `y`, width, height and colour.
 type Rect = (f32, f32, f32, f32, (u8, u8, u8));
 
+/// Each filled path's bounds and its colour, when it is filled with one.
 fn rects(laid: &Laid) -> Vec<Rect> {
+    paths(laid)
+        .into_iter()
+        .filter_map(|(bounds, paint, stroke)| match (paint, stroke) {
+            (Paint::Color(c), None) => {
+                Some((bounds.0, bounds.1, bounds.2, bounds.3, (c.r, c.g, c.b)))
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+/// A path's bounds as `x`, `y`, width and height, its paint and its stroke.
+type Drawn = ((f32, f32, f32, f32), Paint, Option<Stroke>);
+
+fn paths(laid: &Laid) -> Vec<Drawn> {
     laid.pages[0]
         .items
         .iter()
         .filter_map(|item| match item {
-            Item::Rect {
-                x,
-                y,
-                width,
-                height,
-                color,
-            } => Some((*x, *y, *width, *height, (color.r, color.g, color.b))),
+            Item::Path {
+                path,
+                paint,
+                stroke,
+            } => {
+                let (left, top, right, bottom) = layout::bounds(path);
+                Some((
+                    (left, top, right - left, bottom - top),
+                    paint.clone(),
+                    stroke.clone(),
+                ))
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+/// The segments of each path, by kind: moves and cubic curves.
+fn contours_and_curves(laid: &Laid) -> Vec<(usize, usize)> {
+    laid.pages[0]
+        .items
+        .iter()
+        .filter_map(|item| match item {
+            Item::Path { path, .. } => Some((
+                path.iter().filter(|s| matches!(s, Seg::Move(..))).count(),
+                path.iter().filter(|s| matches!(s, Seg::Cubic(..))).count(),
+            )),
             _ => None,
         })
         .collect()
@@ -350,6 +386,259 @@ fn block_boxes_take_margin_padding_border_and_width() {
     assert!(close(x, MARGIN + 17.0), "{x}");
 }
 
+/// A 2 by 2 PNG, opaque blue.
+fn png() -> Vec<u8> {
+    let mut out = Vec::new();
+    {
+        let mut encoder = png::Encoder::new(&mut out, 2, 2);
+        encoder.set_color(png::ColorType::Rgba);
+        encoder.set_depth(png::BitDepth::Eight);
+        let mut writer = encoder.write_header().unwrap();
+        writer
+            .write_image_data(&[0, 0, 255, 255].repeat(4))
+            .unwrap();
+    }
+    out
+}
+
+#[test]
+fn borders_radius_backgrounds_and_gradients_lay_out() {
+    let boxed = |style: &str| {
+        format!(
+            "<body style='margin: 0'><div style='width: 100pt; height: 50pt; {style}'>Shop</div>"
+        )
+    };
+    let lay_box = |style: &str| lay(&boxed(style));
+
+    // Sides that differ are drawn one by one: a dashed side is a stroke along its middle.
+    let laid = lay_box("border: 2pt dashed #ff0000; border-left-style: solid");
+    let strokes: Vec<Stroke> = paths(&laid).into_iter().filter_map(|p| p.2).collect();
+    assert_eq!(strokes.len(), 3, "{strokes:?}");
+    assert!(
+        strokes
+            .iter()
+            .all(|s| s.dash == [4.0, 4.0] && !s.round && s.width == 2.0)
+    );
+    assert_eq!(rects(&laid).len(), 1);
+
+    // Four dotted sides alike are one stroked rectangle along the border's middle.
+    let laid = lay_box("border: 2pt dotted #ff0000");
+    let all = paths(&laid);
+    assert_eq!(all.len(), 1, "{all:?}");
+    let ((x, y, w, h), _, stroke) = &all[0];
+    let stroke = stroke.as_ref().unwrap();
+    assert!(stroke.round && stroke.dash == [0.0, 4.0], "{stroke:?}");
+    assert!(
+        close(*x, MARGIN + 1.0) && close(*y, MARGIN + 1.0),
+        "{all:?}"
+    );
+    assert!(close(*w, 102.0) && close(*h, 52.0), "{all:?}");
+
+    // A double border is two rings, each a third of its width.
+    let laid = lay_box("border: 3pt double #ff0000");
+    let rings = contours_and_curves(&laid);
+    assert_eq!(rings, [(2, 0), (2, 0)], "{rings:?}");
+    let both = rects(&laid);
+    assert!(
+        close(both[0].2, 106.0) && close(both[1].2, 102.0),
+        "{both:?}"
+    );
+
+    // A radius rounds the background, and a percentage is of the width across and the height
+    // down.
+    let laid = lay_box("border-radius: 10pt; background-color: #00ff00");
+    assert_eq!(contours_and_curves(&laid), [(1, 4)]);
+    let background = rects(&laid)[0];
+    assert!(
+        close(background.0, MARGIN) && close(background.2, 100.0),
+        "{background:?}"
+    );
+    let laid = lay_box("border-radius: 50%; background-color: #00ff00");
+    let Item::Path { path, .. } = &laid.pages[0].items[0] else {
+        panic!("{:?}", laid.pages[0].items[0]);
+    };
+    assert!(matches!(path[0], Seg::Move(x, y) if close(x, MARGIN + 50.0) && close(y, MARGIN)));
+    assert!(
+        path.iter()
+            .any(|s| matches!(s, Seg::Cubic(.., x, y) if close(*x, MARGIN + 100.0) && close(*y, MARGIN + 25.0)))
+    );
+    // A rounded solid border is one ring that follows the corners.
+    let laid = lay_box("border: 2pt solid #ff0000; border-radius: 8pt");
+    assert_eq!(contours_and_curves(&laid), [(2, 8)]);
+
+    // A linear gradient runs along its direction over the padding box.
+    let laid = lay_box("background-image: linear-gradient(to right, red, blue)");
+    let all = paths(&laid);
+    let Paint::Linear {
+        x1,
+        y1,
+        x2,
+        y2,
+        stops,
+    } = &all[0].1
+    else {
+        panic!("{all:?}");
+    };
+    assert!(close(*x1, MARGIN) && close(*x2, MARGIN + 100.0) && close(*y1, *y2));
+    assert_eq!(stops.len(), 2);
+    assert_eq!((stops[0].offset, stops[0].color.r), (0.0, 255));
+    assert_eq!((stops[1].offset, stops[1].color.b), (1.0, 255));
+    let laid = lay_box("background: linear-gradient(red, lime 20%, blue)");
+    let all = paths(&laid);
+    let Paint::Linear {
+        x1, y1, y2, stops, ..
+    } = &all[0].1
+    else {
+        panic!("{all:?}");
+    };
+    assert!(close(*y1, MARGIN) && close(*y2, MARGIN + 50.0) && close(*x1, MARGIN + 50.0));
+    let offsets: Vec<f32> = stops.iter().map(|s| s.offset).collect();
+    assert!(close(offsets[1], 0.2) && offsets[2] == 1.0, "{offsets:?}");
+
+    // A radial gradient is centred, and `circle` reaches the farthest corner.
+    let laid = lay_box("background-image: radial-gradient(circle, white, black)");
+    let all = paths(&laid);
+    let Paint::Radial {
+        cx, cy, r, scale_y, ..
+    } = &all[0].1
+    else {
+        panic!("{all:?}");
+    };
+    assert!(
+        close(*cx, MARGIN + 50.0) && close(*cy, MARGIN + 25.0),
+        "{all:?}"
+    );
+    assert!(
+        close(*r, 50.0_f32.hypot(25.0)) && *scale_y == 1.0,
+        "{all:?}"
+    );
+
+    // An outline is drawn outside the border box, `outline-offset` away from it.
+    let laid = lay_box("outline: 1pt solid #0000ff; outline-offset: 2pt");
+    let top = rects(&laid)
+        .into_iter()
+        .find(|r| r.4 == (0, 0, 255) && r.3 < 2.0)
+        .expect("a top edge");
+    assert!(
+        close(top.0, MARGIN - 3.0) && close(top.1, MARGIN - 3.0),
+        "{top:?}"
+    );
+    assert!(close(top.2, 106.0), "{top:?}");
+
+    // `opacity` puts the box and its text in one group.
+    let laid = lay_box("opacity: 0.5; background-color: #00ff00");
+    let items = &laid.pages[0].items;
+    assert!(matches!(items[0], Item::Begin { opacity, clip: None } if opacity == 0.5));
+    assert!(matches!(items[items.len() - 1], Item::End));
+    assert!(items.iter().any(|i| matches!(i, Item::Text { .. })));
+
+    // An image `url()` is laid in tiles from the padding box, or once under `no-repeat`.
+    let assets = [Asset {
+        name: "tile.png".to_owned(),
+        data: png(),
+    }];
+    let laid = lay_with(
+        &boxed("border: 4pt solid #ff0000; background-image: url(tile.png)"),
+        &assets,
+    );
+    let all = paths(&laid);
+    assert!(
+        matches!(all[0].1, Paint::Tiles { x, y, width, .. } if close(x, MARGIN + 4.0) && close(y, MARGIN + 4.0) && close(width, 1.5)),
+        "{all:?}"
+    );
+    let laid = lay_with(&boxed("background: url(tile.png) no-repeat"), &assets);
+    let items = &laid.pages[0].items;
+    assert!(
+        matches!(items[0], Item::Begin { clip: Some(_), .. }),
+        "{items:?}"
+    );
+    assert!(matches!(items[1], Item::Image { width, .. } if close(width, 1.5)));
+    assert!(matches!(items[2], Item::End));
+
+    // `background-size` sizes the tile and `background-position` places it in the padding box.
+    let placed = |style: &str| {
+        let laid = lay_with(
+            &boxed(&format!("background: url(tile.png) no-repeat; {style}")),
+            &assets,
+        );
+        laid.pages[0]
+            .items
+            .iter()
+            .find_map(|item| match *item {
+                Item::Image {
+                    x,
+                    y,
+                    width,
+                    height,
+                    ..
+                } => Some((x - MARGIN, y - MARGIN, width, height)),
+                _ => None,
+            })
+            .unwrap()
+    };
+    let at = |got: (f32, f32, f32, f32), want: (f32, f32, f32, f32)| {
+        assert!(
+            close(got.0, want.0)
+                && close(got.1, want.1)
+                && close(got.2, want.2)
+                && close(got.3, want.3),
+            "{got:?} is not {want:?}"
+        );
+    };
+    at(
+        placed("background-position: right bottom"),
+        (98.5, 48.5, 1.5, 1.5),
+    );
+    at(
+        placed("background-position: bottom right"),
+        (98.5, 48.5, 1.5, 1.5),
+    );
+    at(
+        placed("background-size: cover; background-position: center"),
+        (0.0, -25.0, 100.0, 100.0),
+    );
+    at(
+        placed("background-size: contain; background-position: center"),
+        (25.0, 0.0, 50.0, 50.0),
+    );
+    at(
+        placed("background-size: 20pt; background-position: 10pt 25%"),
+        (10.0, 7.5, 20.0, 20.0),
+    );
+    at(placed("background-size: 50% 10pt"), (0.0, 0.0, 50.0, 10.0));
+    let laid = lay_with(
+        &boxed("background: url(tile.png) center / 10pt 5pt"),
+        &assets,
+    );
+    assert!(
+        matches!(paths(&laid)[0].1, Paint::Tiles { x, y, width, height, .. } if close(x, MARGIN + 45.0) && close(y, MARGIN + 22.5) && close(width, 10.0) && close(height, 5.0)),
+        "{:?}",
+        paths(&laid)
+    );
+
+    // All of them render, and twice to the same bytes.
+    let html: String = [
+        "border: 2pt dashed red; border-left-style: dotted",
+        "border: 3pt double red; border-radius: 6pt",
+        "border-radius: 50%; background: radial-gradient(white, black)",
+        "background-image: linear-gradient(45deg, red, blue 80%)",
+        "outline: 1pt dotted blue; opacity: 0.4",
+        "background: url(tile.png) repeat-x",
+        "background-image: url(tile.png)",
+    ]
+    .iter()
+    .map(|style| boxed(style).replace("<body style='margin: 0'>", ""))
+    .collect();
+    let document = Document {
+        html,
+        assets: assets.to_vec(),
+        ..Document::default()
+    };
+    let first = render(&document).unwrap();
+    assert!(first.data.starts_with(b"%PDF"));
+    assert_eq!(first.data, render(&document).unwrap().data);
+}
+
 #[test]
 fn display_none_draws_nothing_and_a_user_agent_margin_applies() {
     let laid = lay("<p style='display: none'>hidden</p><div class='x'></div>");
@@ -414,6 +703,18 @@ fn lists_and_counters_number_their_items() {
          <ol><li>a<ol><li>b</li><li>c</li></ol></li><li>d</li></ol>",
     );
     assert_eq!(line_texts(&laid), ["1 a", "1.1 b", "1.2 c", "2 d"]);
+
+    // A `::before` or `::after` with `display: block` is a box of its own above or below the
+    // element's text, with its own padding.
+    let laid = lay("<style>body { margin: 0 } p { margin: 0 }\
+         p::before { content: 'Shop'; display: block; padding-left: 20pt }\
+         p::after { content: 'Blog'; display: block }</style><p>Text</p>");
+    assert_eq!(line_texts(&laid), ["Shop", "Text", "Blog"]);
+    let starts: Vec<f32> = lines(&laid).iter().map(|(left, _)| left - MARGIN).collect();
+    assert!(
+        close(starts[0], 20.0) && close(starts[1], 0.0) && close(starts[2], 0.0),
+        "{starts:?}"
+    );
 }
 
 #[test]
@@ -442,4 +743,946 @@ fn iframe_video_canvas_and_form_fields_are_dropped_and_draw_nothing() {
     assert!(rendered.dropped.iter().all(|d| d.property.is_empty()));
     let laid = lay("<p>Shop</p><canvas>fallback</canvas><button>Buy</button>");
     assert_eq!(runs(&laid).len(), 1);
+}
+
+/// Each image item's width and height, and whether its picture is an SVG.
+fn pictures(laid: &Laid) -> Vec<(f32, f32, bool)> {
+    laid.pages[0]
+        .items
+        .iter()
+        .filter_map(|item| match item {
+            Item::Image {
+                image,
+                width,
+                height,
+                ..
+            } => Some((
+                *width,
+                *height,
+                matches!(laid.images[*image].0, layout::Picture::Vector(_)),
+            )),
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn an_inline_svg_is_vector_content_in_the_output() {
+    const LOGO: &str = "<svg width='40' height='20' viewBox='0 0 4 2'>\
+                        <rect width='4' height='2' fill='#ff0000'/>\
+                        <circle cx='1' cy='1' r='1' style='fill: blue'/></svg>";
+
+    // An inline `<svg>` is one picture at its own size, a pixel being three quarters of a point.
+    // A CSS `width` replaces the `width` attribute, and the `height` attribute still applies.
+    let laid = lay(&format!("<body style='margin: 0'><p>Shop</p>{LOGO}"));
+    assert_eq!(pictures(&laid), [(30.0, 15.0, true)]);
+    let laid = lay(&format!(
+        "<body>{}</body>",
+        LOGO.replace("<svg ", "<svg style='width: 60pt' ")
+    ));
+    assert_eq!(pictures(&laid), [(60.0, 15.0, true)]);
+    let laid = lay(&format!(
+        "<body>{}</body>",
+        LOGO.replace("<svg ", "<svg style='display: none' ")
+    ));
+    assert!(pictures(&laid).is_empty());
+
+    // An SVG `<img>` is a picture too, and an `<image>` inside it loads from the asset map.
+    let file = "<svg xmlns='http://www.w3.org/2000/svg' width='8' height='8'>\
+                <image href='tile.png' width='8' height='8'/></svg>";
+    let assets = [
+        Asset {
+            name: "logo.svg".to_owned(),
+            data: file.as_bytes().to_vec(),
+        },
+        Asset {
+            name: "tile.png".to_owned(),
+            data: png(),
+        },
+    ];
+    let laid = lay_with("<img src='logo.svg'>", &assets);
+    assert_eq!(pictures(&laid), [(6.0, 6.0, true)]);
+    let err = render(&Document {
+        html: "<img src='logo.svg'>".to_owned(),
+        assets: assets[..1].to_vec(),
+        ..Document::default()
+    })
+    .unwrap_err();
+    assert!(
+        matches!(&err, nvs_pdf::Error::Invalid(why) if why.contains("tile.png")),
+        "{err:?}"
+    );
+
+    // The output draws paths and holds no raster image, and two renders are byte-equal.
+    let document = Document {
+        html: format!("<p>Shop</p>{LOGO}"),
+        ..Document::default()
+    };
+    let first = render(&document).unwrap();
+    let raster = render(&Document {
+        html: "<img src='tile.png'>".to_owned(),
+        assets: assets[1..].to_vec(),
+        ..Document::default()
+    })
+    .unwrap();
+    let has = |data: &[u8], what: &[u8]| data.windows(what.len()).any(|w| w == what);
+    assert!(has(&raster.data, b"/Subtype/Image"));
+    assert!(!has(&first.data, b"/Subtype/Image"));
+    assert!(
+        first.data.len()
+            > render(&Document {
+                html: "<p>Shop</p>".to_owned(),
+                ..Document::default()
+            })
+            .unwrap()
+            .data
+            .len()
+    );
+    assert_eq!(first.data, render(&document).unwrap().data);
+}
+
+#[test]
+fn object_fit_and_object_position_place_the_picture_in_its_box() {
+    // The PNG is 1.5pt square, and each `<img>` box is 30pt by 15pt at the page margin.
+    let assets = [Asset {
+        name: "tile.png".to_owned(),
+        data: png(),
+    }];
+    // Each image's left and top from the box's, its width and height, and whether it is clipped.
+    let placed = |css: &str| {
+        let laid = lay_with(
+            &format!(
+                "<body style='margin: 0'><img src='tile.png' \
+                 style='width: 30pt; height: 15pt; {css}'></body>"
+            ),
+            &assets,
+        );
+        let items = &laid.pages[0].items;
+        let clipped = matches!(items.first(), Some(Item::Begin { clip: Some(_), .. }));
+        let image = items.iter().find_map(|item| match item {
+            Item::Image {
+                x,
+                y,
+                width,
+                height,
+                ..
+            } => Some([*x - MARGIN, *y - MARGIN, *width, *height]),
+            _ => None,
+        });
+        (image.unwrap(), clipped)
+    };
+    let near = |(got, clipped): ([f32; 4], bool), want: [f32; 4], clip: bool| {
+        assert!(
+            got.iter().zip(want).all(|(g, w)| close(*g, w)) && clipped == clip,
+            "{got:?} {clipped} against {want:?} {clip}"
+        );
+    };
+    near(placed(""), [0.0, 0.0, 30.0, 15.0], false);
+    near(placed("object-fit: fill"), [0.0, 0.0, 30.0, 15.0], false);
+    near(placed("object-fit: contain"), [7.5, 0.0, 15.0, 15.0], false);
+    near(placed("object-fit: cover"), [0.0, -7.5, 30.0, 30.0], true);
+    near(placed("object-fit: none"), [14.25, 6.75, 1.5, 1.5], false);
+    near(
+        placed("object-fit: scale-down"),
+        [14.25, 6.75, 1.5, 1.5],
+        false,
+    );
+    near(
+        placed("object-fit: contain; object-position: right"),
+        [15.0, 0.0, 15.0, 15.0],
+        false,
+    );
+    near(
+        placed("object-fit: contain; object-position: bottom right"),
+        [15.0, 0.0, 15.0, 15.0],
+        false,
+    );
+    near(
+        placed("object-fit: cover; object-position: 0 100%"),
+        [0.0, -15.0, 30.0, 30.0],
+        true,
+    );
+    near(
+        placed("object-fit: none; object-position: 10pt 50%"),
+        [10.0, 6.75, 1.5, 1.5],
+        false,
+    );
+
+    // A clipped picture renders, and the same input gives the same bytes.
+    let document = Document {
+        html: "<img src='tile.png' style='width: 30pt; height: 15pt; object-fit: cover'>"
+            .to_owned(),
+        assets: assets.to_vec(),
+        ..Document::default()
+    };
+    assert_eq!(
+        render(&document).unwrap().data,
+        render(&document).unwrap().data
+    );
+}
+
+#[test]
+fn text_indent_moves_the_first_line_of_each_block() {
+    let body = |css: &str, html: &str| {
+        lines(&lay(&format!(
+            "<body style='margin: 0'><div style='width: 200pt; {css}'>{html}</div>"
+        )))
+    };
+    // The first line starts 20pt in and is 20pt narrower, and the lines after it are not moved.
+    let indented = body("text-indent: 20pt", WORDS);
+    assert!(indented.len() > 2, "{indented:?}");
+    assert!(close(indented[0].0, MARGIN + 20.0), "{indented:?}");
+    assert!(indented[0].1 <= MARGIN + 200.0 + 0.05, "{indented:?}");
+    assert!(close(indented[1].0, MARGIN), "{indented:?}");
+    // A percentage is of the content box's width, and a negative indent hangs out to the left.
+    assert!(close(body("text-indent: 10%", WORDS)[0].0, MARGIN + 20.0));
+    assert!(close(body("text-indent: -10pt", WORDS)[0].0, MARGIN - 10.0));
+    // The property is inherited, so each paragraph's first line is indented. Text after a
+    // paragraph inside the same block is not its first line.
+    let blocks = body("text-indent: 20pt", "Shop<p style='margin: 0'>Blog</p>More");
+    let starts: Vec<f32> = blocks.iter().map(|(left, _)| left - MARGIN).collect();
+    assert_eq!(starts.len(), 3, "{blocks:?}");
+    assert!(
+        close(starts[0], 20.0) && close(starts[1], 20.0),
+        "{starts:?}"
+    );
+    assert!(close(starts[2], 0.0), "{starts:?}");
+    // In a right-to-left block the indent is at the right edge, so the first line ends 20pt
+    // before the line under it.
+    let rtl = body("text-indent: 20pt; direction: rtl", WORDS);
+    assert!(rtl.len() > 2, "{rtl:?}");
+    assert!(close(rtl[1].1 - rtl[0].1, 20.0), "{rtl:?}");
+}
+
+#[test]
+fn vertical_align_raises_and_lowers_a_span_from_its_baseline() {
+    // The baseline of each text item on the first page, in order.
+    let baselines = |html: &str| -> Vec<f32> {
+        lay(&format!(
+            "<body style='margin: 0; font-size: 12pt; line-height: 20pt'><p>{html}</p>"
+        ))
+        .pages[0]
+            .items
+            .iter()
+            .filter_map(|item| match item {
+                Item::Text { y, .. } => Some(*y),
+                _ => None,
+            })
+            .collect()
+    };
+    let span = |css: &str, text: &str| format!("<span style='vertical-align: {css}'>{text}</span>");
+    let got = baselines(&format!(
+        "Shop{}{}{}{}",
+        span("super", "a"),
+        span("sub", "b"),
+        span("6pt", "c"),
+        span("50%", "d")
+    ));
+    assert_eq!(got.len(), 5, "{got:?}");
+    let base = got[0];
+    // `super` raises by a third of the parent's 12pt and `sub` lowers by a fifth. A length
+    // raises by itself, and a percentage is of the line height.
+    for (at, rise) in [(1, 4.0), (2, -2.4), (3, 6.0), (4, 10.0)] {
+        assert!(close(base - got[at], rise), "{at}: {got:?}");
+    }
+    // A raised span inside a raised span adds its own shift to its parent's.
+    let nested = baselines(&format!(
+        "Shop{}",
+        span("super", &format!("a{}", span("super", "b")))
+    ));
+    assert!(close(nested[0] - nested[2], 8.0), "{nested:?}");
+    // `text-top` puts the top of a span's line box, half its leading above its letters, at the
+    // top of the paragraph font's letters, and `text-bottom` does the same at the bottom.
+    let small = |css: &str| format!("<span style='vertical-align: {css}; font-size: 6pt'>s</span>");
+    let edges = baselines(&format!(
+        "Shop{}{}{}{}",
+        span("text-top", "a"),
+        span("text-bottom", "b"),
+        small("text-top"),
+        small("text-bottom")
+    ));
+    assert_eq!(edges.len(), 5, "{edges:?}");
+    // Liberation Sans' ascent and descent, as fractions of the font size.
+    let (ascent, descent) = (1854.0 / 2048.0, 434.0 / 2048.0);
+    let half_leading = |size: f32| (20.0 - size * (ascent + descent)) / 2.0;
+    let down = |at: usize| edges[at] - edges[0];
+    assert!(close(down(1), half_leading(12.0)), "{edges:?}");
+    assert!(close(down(2), -half_leading(12.0)), "{edges:?}");
+    let top = 6.0 * ascent + half_leading(6.0) - 12.0 * ascent;
+    let bottom = 6.0 * descent + half_leading(6.0) - 12.0 * descent;
+    assert!(close(down(3), top), "{edges:?}");
+    assert!(close(down(4), -bottom), "{edges:?}");
+    // A span raised past the line's own height makes the line taller.
+    let plain = lay("<p style='margin: 0'>Shop</p><p style='margin: 0'>Blog</p>");
+    let raised = lay(&format!(
+        "<p style='margin: 0'>Shop{}</p><p style='margin: 0'>Blog</p>",
+        span("20pt", "a")
+    ));
+    let last_baseline = |laid: &Laid| {
+        laid.pages[0]
+            .items
+            .iter()
+            .filter_map(|item| match item {
+                Item::Text { y, .. } => Some(*y),
+                _ => None,
+            })
+            .fold(0.0, f32::max)
+    };
+    assert!(last_baseline(&raised) > last_baseline(&plain) + 10.0);
+}
+
+/// The pen start and right end of each text item drawn as `…`.
+fn ellipses(laid: &Laid) -> Vec<(f32, f32)> {
+    laid.pages[0]
+        .items
+        .iter()
+        .filter_map(|item| match item {
+            Item::Text {
+                x, glyphs, text, ..
+            } if text == "\u{2026}" => Some((*x, x + glyphs[0].advance)),
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn text_overflow_ellipsis_ends_a_cut_line_inside_its_box() {
+    let body = |css: &str, html: &str| {
+        lay(&format!(
+            "<body style='margin: 0'><div style='width: 100pt; white-space: nowrap; {css}'>{html}</div>"
+        ))
+    };
+    let cut = "overflow: hidden; text-overflow: ellipsis";
+    // A line wider than its box keeps the words that fit and ends in `…` at the right edge.
+    let laid = body(cut, WORDS);
+    let line = lines(&laid);
+    assert_eq!(line.len(), 1, "{line:?}");
+    let dots = ellipses(&laid);
+    assert_eq!(dots.len(), 1, "{dots:?}");
+    assert!(close(line[0].1, dots[0].1), "{line:?} {dots:?}");
+    assert!(dots[0].1 <= MARGIN + 100.0 + 0.01, "{dots:?}");
+    // `visible` overflow and `clip` draw the whole line and no ellipsis.
+    for css in [
+        "text-overflow: ellipsis",
+        "overflow: hidden; text-overflow: clip",
+    ] {
+        let laid = body(css, WORDS);
+        assert!(ellipses(&laid).is_empty(), "{css}");
+        assert!(lines(&laid)[0].1 > MARGIN + 100.0, "{css}");
+    }
+    // A line that fits is not cut.
+    assert!(ellipses(&body(cut, "Shop")).is_empty());
+    // In a right-to-left block the text is cut at its left end, and `…` is drawn there.
+    let hebrew = "שלום עולם ".repeat(8);
+    let laid = body(&format!("{cut}; direction: rtl"), &hebrew);
+    let dots = ellipses(&laid);
+    assert_eq!(dots.len(), 1, "{dots:?}");
+    assert!(dots[0].0 >= MARGIN - 0.01, "{dots:?}");
+    let (left, right) = lines(&laid)[0];
+    assert!(
+        close(left, dots[0].0) && right <= MARGIN + 100.0 + 0.01,
+        "{left} {right}"
+    );
+}
+
+#[test]
+fn a_right_to_left_list_item_has_its_marker_at_the_right() {
+    let laid = lay(
+        "<body style='margin: 0'><ol dir='rtl' style='margin: 0; padding: 0 30pt'><li>שלום</li></ol>",
+    );
+    let runs = runs(&laid);
+    assert!(runs.len() >= 2, "{runs:?}");
+    // The marker starts at the content box's right edge, level with the item's first line.
+    let content = runs[0];
+    let right = layout::PAGE_WIDTH - MARGIN - 30.0;
+    assert!(close(content.3, right), "{runs:?}");
+    let marker = runs[1..].iter().map(|r| r.1).fold(f32::MAX, f32::min);
+    assert!(close(marker, right), "{runs:?}");
+    assert!(runs[1..].iter().all(|r| close(r.2, content.2)), "{runs:?}");
+}
+
+#[test]
+fn an_inline_box_draws_its_border_padding_and_background_around_its_text() {
+    const YELLOW: (u8, u8, u8) = (255, 255, 0);
+    let page = |span: &str, width: &str| {
+        lay(&format!(
+            "<body style='margin: 0'><p style='margin: 0; {width}'>Shop <span style='{span}'>Blog Blog Blog Blog Blog</span> end</p>"
+        ))
+    };
+
+    // On one line, the padding and the border at each end push the text beside the span apart.
+    let plain = page("", "");
+    let laid = page(
+        "background-color: #ffff00; padding: 2pt 4pt; border: 1pt solid #ff0000",
+        "",
+    );
+    let grown = lines(&laid)[0].1 - lines(&plain)[0].1;
+    assert!(close(grown, 10.0), "{grown}");
+    let drawn = runs(&laid);
+    assert_eq!(drawn.len(), 3, "{drawn:?}");
+    let blog = drawn[1];
+    let yellow: Vec<Rect> = rects(&laid).into_iter().filter(|r| r.4 == YELLOW).collect();
+    assert_eq!(yellow.len(), 1, "{yellow:?}");
+    let (x, y, w, h, _) = yellow[0];
+    assert!(
+        close(x, blog.1 - 5.0) && close(x + w, blog.3 + 5.0),
+        "{yellow:?} {drawn:?}"
+    );
+    // It reaches above the text and below its baseline by the padding and the border.
+    assert!(
+        y < blog.2 - 12.0 && y + h > blog.2 + 3.0,
+        "{yellow:?} {drawn:?}"
+    );
+    assert!(rects(&laid).iter().any(|r| r.4 == (255, 0, 0)));
+
+    // Across lines, each line draws its slice: the left padding on the first line only and the
+    // right padding on the last line only.
+    let laid = page("background-color: #ffff00; padding: 0 6pt", "width: 60pt");
+    let mut yellow: Vec<Rect> = rects(&laid).into_iter().filter(|r| r.4 == YELLOW).collect();
+    yellow.sort_by(|a, b| a.1.total_cmp(&b.1));
+    assert!(yellow.len() >= 3, "{yellow:?}");
+    let runs = runs(&laid);
+    let first_blog = runs[1];
+    assert!(
+        close(yellow[0].0, first_blog.1 - 6.0),
+        "{yellow:?} {runs:?}"
+    );
+    assert!(close(yellow[1].0, MARGIN), "{yellow:?}");
+    let last = yellow[yellow.len() - 1];
+    let end = runs[runs.len() - 1];
+    let last_blog = runs[runs.len() - 2];
+    assert!(
+        close(last.0 + last.2, last_blog.3 + 6.0),
+        "{yellow:?} {runs:?}"
+    );
+    assert!(end.1 >= last.0 + last.2, "{yellow:?} {runs:?}");
+
+    // It renders, and twice to the same bytes.
+    let document = Document {
+        html: "<p>Shop <span style='border: 1pt dashed red; border-radius: 3pt; background: linear-gradient(white, gray)'>Blog</span></p>".to_owned(),
+        ..Document::default()
+    };
+    let first = render(&document).unwrap();
+    assert_eq!(first.data, render(&document).unwrap().data);
+}
+
+#[test]
+fn an_inline_block_is_laid_out_as_a_block_and_placed_in_its_line() {
+    const YELLOW: (u8, u8, u8) = (255, 255, 0);
+    const BOX: &str =
+        "display: inline-block; padding: 4pt; border: 1pt solid #ff0000; background-color: #ffff00";
+    let page = |inside: &str, style: &str| {
+        lay(&format!(
+            "<body style='margin: 0'><p style='margin: 0'>Shop <span style='{BOX}; {style}'>{inside}</span> end</p><p style='margin: 0'>Next</p>"
+        ))
+    };
+    let yellow =
+        |laid: &Laid| -> Vec<Rect> { rects(laid).into_iter().filter(|r| r.4 == YELLOW).collect() };
+
+    // With no width, the box is as wide as its text and its padding and border, and sits
+    // between the words on their baseline.
+    let laid = page("Blog", "");
+    let mut drawn = runs(&laid);
+    let first = drawn.iter().map(|r| r.2).fold(f32::MAX, f32::min);
+    drawn.retain(|r| close(r.2, first));
+    drawn.sort_by(|a, b| a.1.total_cmp(&b.1));
+    let (shop, blog, end) = (drawn[0], drawn[1], drawn[2]);
+    let boxes = yellow(&laid);
+    assert_eq!(boxes.len(), 1, "{boxes:?}");
+    let (x, y, w, h, _) = boxes[0];
+    assert!(close(blog.1, x + 5.0), "{boxes:?} {drawn:?}");
+    assert!(close(blog.3, x + w - 5.0), "{boxes:?} {drawn:?}");
+    assert!(x > shop.3 && end.1 > x + w - 0.05, "{boxes:?} {drawn:?}");
+    assert!(close(blog.2, shop.2) && close(end.2, shop.2), "{drawn:?}");
+    assert!(
+        y < blog.2 - 12.0 && y + h > blog.2 + 3.0,
+        "{boxes:?} {drawn:?}"
+    );
+    assert!(rects(&laid).iter().any(|r| r.4 == (255, 0, 0)));
+
+    // A width of its own is kept, and a taller box makes its line taller.
+    let plain = page("Blog", "");
+    let tall = page("Blog", "width: 80pt; height: 60pt");
+    let boxes = yellow(&tall);
+    assert!(
+        close(boxes[0].2, 90.0) && close(boxes[0].3, 70.0),
+        "{boxes:?}"
+    );
+    let next = |laid: &Laid| lines(laid).len();
+    assert_eq!(next(&tall), next(&plain));
+    let baseline = |laid: &Laid, text: &str| {
+        laid.pages[0]
+            .items
+            .iter()
+            .find_map(|item| match item {
+                Item::Text { y, text: t, .. } if t.starts_with(text) => Some(*y),
+                _ => None,
+            })
+            .unwrap()
+    };
+    let grown = baseline(&tall, "Next") - baseline(&plain, "Next");
+    assert!(grown > 40.0, "{grown}");
+    // The box's one line is at its top and on the line's baseline, so the box reaches down
+    // from it.
+    let shop_line = baseline(&tall, "Shop");
+    assert!(
+        boxes[0].1 < shop_line && boxes[0].1 + boxes[0].3 > shop_line + 40.0,
+        "{boxes:?} {shop_line}"
+    );
+
+    // Of two lines in the box, the last one is on the baseline of the words beside it.
+    let laid = page("Blog<br>Shop", "");
+    let drawn = runs(&laid);
+    let mut words: Vec<f32> = drawn.iter().map(|r| r.2).collect();
+    words.sort_by(f32::total_cmp);
+    // The last baseline is the next paragraph's.
+    words.pop();
+    assert_eq!(words.len(), 4, "{drawn:?}");
+    assert!(words[0] < words[1] - 5.0, "{drawn:?}");
+    assert!(
+        close(words[2], words[1]) && close(words[3], words[1]),
+        "{drawn:?}"
+    );
+
+    // An inline-block inside another is drawn inside it.
+    let laid = page(
+        "Blog <span style='display: inline-block; background-color: #0000ff'>Shop</span>",
+        "",
+    );
+    let outer = yellow(&laid)[0];
+    let inner = rects(&laid)
+        .into_iter()
+        .find(|r| r.4 == (0, 0, 255))
+        .unwrap();
+    assert!(
+        inner.0 > outer.0 && inner.0 + inner.2 < outer.0 + outer.2,
+        "{outer:?} {inner:?}"
+    );
+    assert!(
+        inner.1 >= outer.1 && inner.1 + inner.3 <= outer.1 + outer.3,
+        "{outer:?} {inner:?}"
+    );
+
+    // It renders, and twice to the same bytes.
+    let document = Document {
+        html: format!("<p>Shop <span style='{BOX}'>Blog</span> end</p>"),
+        ..Document::default()
+    };
+    let first = render(&document).unwrap();
+    assert_eq!(first.data, render(&document).unwrap().data);
+}
+
+const RED: (u8, u8, u8) = (255, 0, 0);
+const GREEN: (u8, u8, u8) = (0, 255, 0);
+const BLUE: (u8, u8, u8) = (0, 0, 255);
+
+/// The filled rectangle of each colour, in the order given.
+fn boxes_of(laid: &Laid, colours: &[(u8, u8, u8)]) -> Vec<Rect> {
+    colours
+        .iter()
+        .map(|c| {
+            rects(laid)
+                .into_iter()
+                .find(|r| r.4 == *c)
+                .unwrap_or_else(|| panic!("no box of {c:?}: {:?}", rects(laid)))
+        })
+        .collect()
+}
+
+/// A flex container with `style` around three items, red, green and blue, with their own
+/// styles and texts.
+fn flex(style: &str, items: [(&str, &str); 3]) -> Laid {
+    let colours = ["#ff0000", "#00ff00", "#0000ff"];
+    let inner: String = items
+        .iter()
+        .zip(colours)
+        .map(|((s, text), c)| format!("<div style='background-color: {c}; {s}'>{text}</div>"))
+        .collect();
+    lay(&format!(
+        "<body style='margin: 0'><div style='display: flex; {style}'>{inner}</div><p style='margin: 0'>Next</p>"
+    ))
+}
+
+#[test]
+fn flex_lays_out_rows_and_columns() {
+    let width = 595.275_6 - 2.0 * MARGIN;
+    let all = [RED, GREEN, BLUE];
+
+    // In a row, an item with no width is as wide as its text, a growing item takes the free
+    // space, and an item with a width keeps it. Every item is as tall as the line.
+    let laid = flex(
+        "",
+        [
+            ("padding: 4pt", "Shop"),
+            ("flex-grow: 1", "Blog"),
+            ("width: 60pt", "End"),
+        ],
+    );
+    let [red, green, blue] = boxes_of(&laid, &all)[..] else {
+        unreachable!()
+    };
+    assert!(close(red.0, MARGIN), "{red:?}");
+    assert!(red.2 > 20.0 && red.2 < 60.0, "{red:?}");
+    assert!(close(green.0, red.0 + red.2), "{red:?} {green:?}");
+    assert!(close(blue.0, green.0 + green.2), "{green:?} {blue:?}");
+    assert!(close(blue.2, 60.0), "{blue:?}");
+    assert!(close(blue.0 + blue.2, MARGIN + width), "{blue:?}");
+    for b in [green, blue] {
+        assert!(close(b.1, red.1) && close(b.3, red.3), "{red:?} {b:?}");
+    }
+    // The padding moves the first text down, the other two share a baseline, and the next
+    // paragraph is under the row.
+    let lines_drawn = lines(&laid);
+    assert_eq!(lines_drawn.len(), 3, "{lines_drawn:?}");
+    assert!(
+        close(lines_drawn[0].0, green.0) && lines_drawn[0].1 > blue.0,
+        "{lines_drawn:?}"
+    );
+    let next = runs(&laid).last().unwrap().2;
+    assert!(next > red.1 + red.3, "{next} {red:?}");
+
+    // In a column with a gap, each item is as wide as the container and under the one before.
+    let laid = flex(
+        "flex-direction: column; row-gap: 10pt",
+        [("", "Shop"), ("", "Blog"), ("", "End")],
+    );
+    let [red, green, blue] = boxes_of(&laid, &all)[..] else {
+        unreachable!()
+    };
+    for b in [red, green, blue] {
+        assert!(close(b.0, MARGIN) && close(b.2, width), "{b:?}");
+    }
+    assert!(close(green.1, red.1 + red.3 + 10.0), "{red:?} {green:?}");
+    assert!(
+        close(blue.1, green.1 + green.3 + 10.0),
+        "{green:?} {blue:?}"
+    );
+
+    // `justify-content: center` shares the free space on both sides, `align-items: center`
+    // centres a short item against a tall one, and `order` moves an item first.
+    let laid = flex(
+        "justify-content: center; align-items: center",
+        [
+            ("width: 100pt; height: 40pt", "Shop"),
+            ("width: 100pt; height: 20pt", "Blog"),
+            ("width: 100pt; height: 40pt; order: -1", "End"),
+        ],
+    );
+    let [red, green, blue] = boxes_of(&laid, &all)[..] else {
+        unreachable!()
+    };
+    assert!(close(blue.0, MARGIN + (width - 300.0) / 2.0), "{blue:?}");
+    assert!(close(red.0, blue.0 + 100.0) && close(green.0, red.0 + 100.0));
+    assert!(
+        close(green.3, 20.0) && close(green.1, red.1 + 10.0),
+        "{red:?} {green:?}"
+    );
+
+    // Under `flex-wrap: wrap`, an item that does not fit starts a new line.
+    let laid = flex(
+        "flex-wrap: wrap",
+        [
+            ("width: 200pt", "Shop"),
+            ("width: 200pt", "Blog"),
+            ("width: 200pt", "End"),
+        ],
+    );
+    let [red, green, blue] = boxes_of(&laid, &all)[..] else {
+        unreachable!()
+    };
+    assert!(
+        close(green.1, red.1) && close(green.0, red.0 + 200.0),
+        "{green:?}"
+    );
+    assert!(
+        close(blue.0, MARGIN) && close(blue.1, red.1 + red.3),
+        "{blue:?}"
+    );
+
+    // Text directly in the container is an item of its own.
+    let laid = lay(
+        "<body style='margin: 0'><div style='display: flex'>Shop <span style='background-color: #ff0000'>Blog</span></div>",
+    );
+    let drawn = runs(&laid);
+    assert_eq!(drawn.len(), 2, "{drawn:?}");
+    let red = boxes_of(&laid, &[RED])[0];
+    assert!(
+        close(red.0, drawn[0].3) || red.0 > drawn[0].3,
+        "{red:?} {drawn:?}"
+    );
+    assert!(close(drawn[0].2, drawn[1].2), "{drawn:?}");
+
+    // It renders, and twice to the same bytes.
+    let document = Document {
+        html: "<div style='display: flex; gap: 8pt'><p style='flex: 1'>Shop</p><p>Blog</p></div>"
+            .into(),
+        ..Document::default()
+    };
+    let first = render(&document).unwrap();
+    assert_eq!(first.data, render(&document).unwrap().data);
+}
+
+/// The top of each box on page `page` that is filled with one of `colours`, with its colour.
+fn tops_on(laid: &Laid, page: usize, colours: &[(u8, u8, u8)]) -> Vec<((u8, u8, u8), f32)> {
+    laid.pages[page]
+        .items
+        .iter()
+        .filter_map(|item| match item {
+            Item::Path {
+                path,
+                paint: Paint::Color(c),
+                stroke: None,
+            } if colours.contains(&(c.r, c.g, c.b)) => {
+                Some(((c.r, c.g, c.b), layout::bounds(path).1))
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn flex_and_grid_break_only_between_items_and_rows() {
+    let all = [RED, GREEN, BLUE];
+    let item = |c: &str| format!("<div style='background-color: {c}; height: 60pt'>Shop</div>");
+    let items: String = ["#ff0000", "#00ff00", "#0000ff"].map(item).concat();
+
+    // A flex line that does not fit under the block above it goes to the next page whole.
+    let laid = lay(&format!(
+        "<div style='height: 700pt'></div><div style='display: flex'>{items}</div>"
+    ));
+    assert_eq!(laid.pages.len(), 2, "{:?}", rects(&laid));
+    assert!(
+        tops_on(&laid, 0, &all).is_empty(),
+        "{:?}",
+        tops_on(&laid, 0, &all)
+    );
+    let moved = tops_on(&laid, 1, &all);
+    assert_eq!(moved.len(), 3, "{moved:?}");
+    assert!(
+        moved.iter().all(|(_, top)| close(*top, MARGIN)),
+        "{moved:?}"
+    );
+
+    // A grid breaks between its rows: the first row stays and the second starts the next page.
+    let laid = lay(&format!(
+        "<div style='height: 620pt'></div>\
+         <div style='display: grid; grid-template-columns: 1fr 1fr; row-gap: 10pt'>{items}</div>"
+    ));
+    assert_eq!(laid.pages.len(), 2);
+    let stayed = tops_on(&laid, 0, &all);
+    assert_eq!(stayed.len(), 2, "{stayed:?}");
+    assert!(close(stayed[0].1, stayed[1].1), "{stayed:?}");
+    assert_eq!(tops_on(&laid, 1, &all), vec![(BLUE, MARGIN)]);
+}
+
+#[test]
+fn grid_places_items_in_tracks() {
+    let width = 595.275_6 - 2.0 * MARGIN;
+    let all = [RED, GREEN, BLUE];
+
+    // A fixed column, then two `fr` columns that share what is left after the gaps.
+    let laid = flex(
+        "display: grid; grid-template-columns: 100pt 1fr 2fr; column-gap: 10pt",
+        [("", "Shop"), ("", "Blog"), ("", "End")],
+    );
+    let [red, green, blue] = boxes_of(&laid, &all)[..] else {
+        unreachable!()
+    };
+    let share = (width - 120.0) / 3.0;
+    assert!(close(red.0, MARGIN) && close(red.2, 100.0), "{red:?}");
+    assert!(
+        close(green.0, MARGIN + 110.0) && close(green.2, share),
+        "{green:?}"
+    );
+    assert!(
+        close(blue.0, green.0 + share + 10.0) && close(blue.2, 2.0 * share),
+        "{blue:?}"
+    );
+    for b in [green, blue] {
+        assert!(close(b.1, red.1) && close(b.3, red.3), "{red:?} {b:?}");
+    }
+    let next = runs(&laid).last().unwrap().2;
+    assert!(next > red.1 + red.3, "{next} {red:?}");
+
+    // Lines and rows: the first item spans both columns, the second is placed in the second
+    // row's second column, and the third fills the first free cell.
+    let laid = flex(
+        "display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 30pt 50pt",
+        [
+            ("grid-column: 1 / 3", "Shop"),
+            ("grid-row: 2; grid-column: 2", "Blog"),
+            ("", "End"),
+        ],
+    );
+    let [red, green, blue] = boxes_of(&laid, &all)[..] else {
+        unreachable!()
+    };
+    assert!(
+        close(red.0, MARGIN) && close(red.2, width) && close(red.3, 30.0),
+        "{red:?}"
+    );
+    assert!(
+        close(green.0, MARGIN + width / 2.0) && close(green.1, red.1 + 30.0),
+        "{green:?}"
+    );
+    assert!(close(green.3, 50.0), "{green:?}");
+    assert!(close(blue.0, MARGIN) && close(blue.1, green.1), "{blue:?}");
+
+    // Named areas.
+    let laid = flex(
+        "display: grid; grid-template-columns: 80pt 1fr; grid-template-areas: \"head head\" \"side main\"",
+        [
+            ("grid-area: main", "Shop"),
+            ("grid-area: head", "Blog"),
+            ("grid-area: side", "End"),
+        ],
+    );
+    let [red, green, blue] = boxes_of(&laid, &all)[..] else {
+        unreachable!()
+    };
+    assert!(close(green.0, MARGIN) && close(green.2, width), "{green:?}");
+    assert!(close(blue.0, MARGIN) && close(blue.2, 80.0), "{blue:?}");
+    assert!(close(blue.1, green.1 + green.3), "{green:?} {blue:?}");
+    assert!(
+        close(red.0, MARGIN + 80.0) && close(red.1, blue.1),
+        "{red:?} {blue:?}"
+    );
+
+    // `repeat()` and `span`: an item two columns wide, then the next row once the first is
+    // full. Under `justify-items: start`, an item is as wide as its text.
+    let laid = flex(
+        "display: grid; grid-template-columns: repeat(3, 50pt); justify-items: start",
+        [
+            ("grid-column: span 2; justify-self: stretch", "Shop"),
+            ("", "Blog"),
+            ("grid-column: span 2", "End"),
+        ],
+    );
+    let [red, green, blue] = boxes_of(&laid, &all)[..] else {
+        unreachable!()
+    };
+    assert!(close(red.0, MARGIN) && close(red.2, 100.0), "{red:?}");
+    assert!(
+        close(green.0, MARGIN + 100.0) && green.2 < 50.0,
+        "{green:?}"
+    );
+    assert!(
+        close(blue.0, MARGIN) && close(blue.1, red.1 + red.3),
+        "{blue:?}"
+    );
+
+    // It renders, and twice to the same bytes.
+    let document = Document {
+        html: "<div style='display: grid; grid-template-columns: 1fr 1fr'><p>Shop</p><p>Blog</p></div>"
+            .into(),
+        ..Document::default()
+    };
+    let first = render(&document).unwrap();
+    assert_eq!(first.data, render(&document).unwrap().data);
+}
+
+/// The baseline of the first text item that starts with `text`.
+fn baseline_of(laid: &Laid, text: &str) -> f32 {
+    laid.pages[0]
+        .items
+        .iter()
+        .find_map(|item| match item {
+            Item::Text { y, text: t, .. } if t.starts_with(text) => Some(*y),
+            _ => None,
+        })
+        .unwrap_or_else(|| panic!("no text {text}"))
+}
+
+#[test]
+fn a_float_right_wraps_the_text_beside_it() {
+    const FLOAT: &str = "width: 100pt; height: 60pt; background-color: #0000ff";
+    let right = layout::PAGE_WIDTH - MARGIN;
+
+    // A right float is at the right of its containing block, and the lines beside it end
+    // before it. The lines below it are as wide as the box again.
+    let laid = lay(&format!(
+        "<body style='margin: 0'><div style='float: right; {FLOAT}'></div><p style='margin: 0'>{WORDS} {WORDS} {WORDS} {WORDS} {WORDS}</p>"
+    ));
+    let [float] = boxes_of(&laid, &[BLUE])[..] else {
+        unreachable!()
+    };
+    assert!(
+        close(float.0 + float.2, right) && close(float.1, MARGIN),
+        "{float:?}"
+    );
+    assert!(close(float.2, 100.0) && close(float.3, 60.0), "{float:?}");
+    let drawn = lines(&laid);
+    let baselines: Vec<f32> = {
+        let mut b: Vec<f32> = runs(&laid).iter().map(|r| r.2).collect();
+        b.sort_by(f32::total_cmp);
+        b.dedup_by(|a, b| close(*a, *b));
+        b
+    };
+    let beside: Vec<_> = drawn
+        .iter()
+        .zip(&baselines)
+        .filter(|(_, y)| **y < MARGIN + 60.0)
+        .collect();
+    let below: Vec<_> = drawn
+        .iter()
+        .zip(&baselines)
+        .filter(|(_, y)| **y > MARGIN + 80.0)
+        .collect();
+    assert!(beside.len() >= 3 && below.len() >= 2, "{drawn:?}");
+    for ((l, r), _) in &beside {
+        assert!(close(*l, MARGIN) && *r <= float.0 + 0.05, "{drawn:?}");
+    }
+    assert!(
+        below.iter().any(|((_, r), _)| *r > float.0 + 20.0),
+        "{drawn:?}"
+    );
+
+    // A left float moves the lines beside it to the right, and an inline element can float.
+    let laid = lay(&format!(
+        "<body style='margin: 0'><p style='margin: 0'><span style='float: left; {FLOAT}'></span>{WORDS}</p>"
+    ));
+    let [float] = boxes_of(&laid, &[BLUE])[..] else {
+        unreachable!()
+    };
+    assert!(
+        close(float.0, MARGIN) && close(float.1, MARGIN),
+        "{float:?}"
+    );
+    let first = lines(&laid)[0];
+    assert!(close(first.0, MARGIN + 100.0), "{first:?}");
+
+    // `clear` moves a block below the float. Without it, a short paragraph sits beside it.
+    let short = |clear: &str| {
+        lay(&format!(
+            "<body style='margin: 0'><div style='float: right; {FLOAT}'></div><p style='margin: 0'>Shop</p><p style='margin: 0; {clear}'>Blog</p>"
+        ))
+    };
+    let beside = baseline_of(&short(""), "Blog");
+    let cleared = baseline_of(&short("clear: right"), "Blog");
+    assert!(beside < MARGIN + 60.0, "{beside}");
+    assert!(cleared > MARGIN + 60.0, "{cleared}");
+    assert!(baseline_of(&short("clear: left"), "Blog") < MARGIN + 60.0);
+    assert!(baseline_of(&short("clear: both"), "Blog") > MARGIN + 60.0);
+
+    // Two right floats sit side by side, the second to the left of the first, and a float
+    // with no width is as wide as its content.
+    let laid = lay(&format!(
+        "<body style='margin: 0'><div style='float: right; {FLOAT}'></div><div style='float: right; height: 20pt; background-color: #ff0000'>Shop</div><p style='margin: 0'>Blog</p>"
+    ));
+    let [blue, red] = boxes_of(&laid, &[BLUE, RED])[..] else {
+        unreachable!()
+    };
+    assert!(
+        close(red.0 + red.2, blue.0) && close(red.1, blue.1),
+        "{blue:?} {red:?}"
+    );
+    assert!(red.2 > 10.0 && red.2 < 60.0, "{red:?}");
+
+    // It renders, and twice to the same bytes.
+    let document = Document {
+        html: format!("<div style='float: right; {FLOAT}'></div><p>{WORDS}</p>"),
+        ..Document::default()
+    };
+    let first = render(&document).unwrap();
+    assert_eq!(first.data, render(&document).unwrap().data);
 }

@@ -41,7 +41,7 @@ stages:
         shapes: []
   - id: 7
     title: "text, blocks, lists and images"
-    status: open
+    status: done
     extra:
       context:
         rules: [core-classes/pdf-css-subset]
@@ -791,27 +791,30 @@ One file set: `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/n
 
 ### State
 
-**Stage 7 is under way.** `cargo test --manifest-path extensions/pdf/Cargo.toml --test layout` passes its 13 tests. Of the stage's 10 checked names, 8 are written, now including `hyphens_auto_breaks_by_the_language`. Two still do not run: `borders_radius_backgrounds_and_gradients_lay_out` and `an_inline_svg_is_vector_content_in_the_output`.
+**Stage 8: flex, grid and floats are in.** `cargo test --manifest-path extensions/pdf/Cargo.toml --test layout` passes 26 tests, now with `a_float_right_wraps_the_text_beside_it`. Positioning and transforms are still owed: 3 of the stage's 7 checked names do not run yet.
 
-- Hyphenation: `Frame::lang` is the nearest `lang` attribute that `hypher` has patterns for (`lang_of`), and `Frame::hyphenate` is that language under `hyphens: auto`. `push_text` writes a soft hyphen at each break point (`hyphenated`, `extensions/pdf/src/layout.rs:1498`), not in a right-to-left paragraph. `break_lines` (`extensions/pdf/src/layout.rs:1591`) breaks a line ending at a soft hyphen again, narrower by the hyphen, and the line loop draws a `-` item at its end. All of `hypher`'s languages are in; `THIRD-PARTY-LICENSES.txt` is regenerated.
-- Bidi: `Para::direction` is `parley`'s base direction (`para_of`, `extensions/pdf/src/layout.rs:381`). An inline `unicode-bidi` is written into the text as bidi control characters (`bidi_controls`, `extensions/pdf/src/layout.rs:424`), and a cluster of them or of soft hyphens draws nothing.
-- Counters: `Counters` (`extensions/pdf/src/layout.rs:533`) is scoped by frame depth. An outside marker is a `Block::Text` with `marker: true`, laid at baseline 0 and moved down onto the next line placed. `::before`/`::after` are inline text from `content_text` (`extensions/pdf/src/layout.rs:625`).
-- `cargo clippy --manifest-path extensions/pdf/Cargo.toml` has 6 warnings in `css/value.rs` and `css/mod.rs` that are older than this stage. `bun nv verify` does not run clippy over the extension's own workspace.
-- `css::USER_AGENT` (`extensions/pdf/src/css/mod.rs`) is HTML's default sheet, below every document rule. `css::UNRENDERED` elements are `display: none` and reported in `dropped`. `fonts::Fonts` registers `@font-face` from the asset map; `Laid::faces` is what `write.rs` embeds.
-- `layout.rs` is one file of about 1640 lines: block boxes, text through `parley` with the span index as the brush, bidi, hyphenation, counters and markers, and `<img>` sizing.
+- Floats are as `extensions/pdf/src/layout.rs`'s § *Floats* and `extensions/pdf/src/layout/block.rs`'s module doc say. A floating element is an `Atom` laid out as an inline-block, closed by `close_float` (`extensions/pdf/src/layout/inline.rs:651`) into a `Block::Float` placed before the text around it. `Flow::float` (`extensions/pdf/src/layout/block.rs:232`) places it, `Flow::band` (`extensions/pdf/src/layout/block.rs:207`) gives each line its room, and the text loop breaks a paragraph up to four times until the lines keep the room they were broken in (`extensions/pdf/src/layout/text.rs:363`). A float does not go on past its page, and `clear` is read in `Flow::open`.
+- Flex and grid are as `extensions/pdf/src/layout/flex.rs`'s and `grid.rs`'s module docs say, and break only between items and rows.
+- `looper verify` was red only in `nvs-stdlib`'s `ldap` and lib tests and `nvs-ldap`'s `samba`, each of which verify reran alone and saw pass: timing under load, not this change, which touches `extensions/pdf/` alone.
+- `cargo deny --manifest-path extensions/pdf/Cargo.toml --target wasm32-wasip2 --locked check` fails on advisories alone: `rustybuzz` is unmaintained, through `krilla`. No check runs it.
+- `cargo clippy --manifest-path extensions/pdf/Cargo.toml --all-targets` has the same 7 warnings as before: 5 in `css/value.rs` and `css/mod.rs`, and 2 `large_enum_variant` for `Block::Flex` and `Step`. `bun nv verify` does not run clippy over the extension's own workspace.
 
 ### Next
 
-**Stage 7, the split and the boxes**: the file set is `extensions/pdf/src/layout.rs`, `extensions/pdf/src/write.rs` and `extensions/pdf/tests/layout.rs`.
+**Stage 8, positioning and transforms next**: the file set is `extensions/pdf/src/layout/block.rs`, `extensions/pdf/src/layout/text.rs`, `extensions/pdf/src/layout/inline.rs` and `extensions/pdf/tests/layout.rs`.
 
-- [ ] **Split the layout**: `extensions/pdf/src/layout.rs` becomes `extensions/pdf/src/layout/` with `block.rs` (`Flow`, `BoxGeometry`, `geometry` at `extensions/pdf/src/layout.rs:286`), `inline.rs` (`Builder`, `Counters`, `blocks`, `hyphenated`) and `text.rs` (the line loop in `layout`, `push_span`, `hyphen`, `break_lines` at `extensions/pdf/src/layout.rs:1591`). Behaviour stays the same and the 13 tests pass unchanged (`rule:core-classes/pdf-css-subset`).
-- [ ] **Boxes**: dashed, dotted and double borders, `border-radius`, `outline`, `opacity`, gradients and `background-image` as paths in `Flow::close` (`extensions/pdf/src/layout.rs:1166`) and `extensions/pdf/src/write.rs:90`. `Item::Rect` becomes a path item there. Pinned by `borders_radius_backgrounds_and_gradients_lay_out` (`rule:core-classes/pdf-css-subset-table`).
+- [x] **Flex rows and columns through `taffy`** (`flex_lays_out_rows_and_columns`).
+- [x] **Grid through `taffy`** (`grid_places_items_in_tracks`).
+- [x] **Flex and grid break only between items and rows** (`flex_and_grid_break_only_between_items_and_rows`).
+- [x] **Floats and `clear`** (`a_float_right_wraps_the_text_beside_it`).
+- [ ] **`position: relative` and `absolute`, with `z-index`** (`absolute_positions_against_its_containing_block`, `rule:core-classes/pdf-css-subset-table`). `position`, the insets and `z-index` parse (`extensions/pdf/src/css/properties.rs:405`). An absolute box can be an `Atom` placed as `Block::Float` is (`extensions/pdf/src/layout/text.rs:270`) without taking room, against the nearest positioned `Block::Open` (`extensions/pdf/src/layout/block.rs:291`).
+- [ ] **`position: fixed` on every page, and 2D transforms** (`fixed_repeats_on_every_page`, `a_rotated_transform_is_drawn_rotated`). `transform` is `Grammar::Transform` text (`extensions/pdf/src/css/properties.rs:418`); a transform needs a new `Item` group the writer draws under a matrix (`extensions/pdf/src/layout.rs:165`).
 
 ### Backlog
 
-- Inline `<svg>` and an SVG `<img>` through `krilla-svg` are `an_inline_svg_is_vector_content_in_the_output`. `object-fit`, `text-indent`, `vertical-align`, `text-overflow`, inline boxes with borders, a block `::before`/`::after`, a marker in a right-to-left item and `hyphenate-character` are not laid out yet (`extensions/pdf/src/layout.rs`).
-- Stage 10 reaches `first` through `Pass`'s `First` case, whose shape is `{document, headerHeight, footerHeight}` (`extensions/pdf/manifest.json`, `wit/pdf.wit`).
-- `cssparser` enters at most 75 nested blocks. Past that, the reference scan reads every string as a URL (`extensions/pdf/src/assets.rs:206`), and the cascade reads CSS on its own. One reading for both is still open.
-- `Grammar::Free` properties are not checked past their tokens (`extensions/pdf/src/css/properties.rs`). SVG `<text>` through `usvg`'s `text` feature (`rule:core-classes/image-format-roster`).
-- The PDF fixtures owed by `rule:core-classes/pdf-decode-refusals`, the guest-against-native benchmark owed by `rule:core-classes/pdf-page-is-an-image-source`, `hayro`'s `embed-cmaps`, and veraPDF in CI, which is the user's call.
-- Stage 14 measures the component's growth, which now carries `hypher`'s patterns for every language.
+- Floats: an `<img>` with `float` stays a block, a float in the middle of a paragraph is placed at the paragraph's top, a line with no room beside a float is not moved below it, and a float does not go on to the next page (`extensions/pdf/src/layout.rs`, `extensions/pdf/src/layout/block.rs`).
+- Grid: a track with a length and a percentage in one `calc()` is not read, and `grid-template` and `grid` shorthands are not in the subset table (`extensions/pdf/src/layout/grid.rs`). A flex or grid container's `::before` and `::after` and a `<br>` in it are not items, `align-items: baseline` has no baseline from an item, and an item's `margin: auto` does nothing (`extensions/pdf/src/layout/flex.rs`).
+- Elliptical radii and repeating gradients are not laid out (`extensions/pdf/src/layout/boxes.rs`). `hyphenate-character` is not in the subset table, so the drawn hyphen is always `-` (`extensions/pdf/subset.json`, `rule:core-classes/pdf-css-subset-table`).
+- An inline box draws its sides left to right in a right-to-left line, its `opacity` is not drawn, and it does not draw around an inline-block in it. An inline-block's `margin: auto`, a percentage of a narrowed width and a `::before` inline-block are not CSS's yet (`extensions/pdf/src/layout.rs`).
+- SVG `<text>` in the PDF and in `Novis\Image`: fill `usvg`'s font database with the Liberation faces (`extensions/pdf/src/layout.rs`, `rule:core-classes/image-format-roster`). Stage 10 reaches `first` through `Pass`'s `First` case (`extensions/pdf/manifest.json`, `wit/pdf.wit`).
+- `Grammar::Free` properties are not checked past their tokens (`extensions/pdf/src/css/properties.rs`). The PDF fixtures owed by `rule:core-classes/pdf-decode-refusals`, the guest-against-native benchmark owed by `rule:core-classes/pdf-page-is-an-image-source`, `hayro`'s `embed-cmaps`, veraPDF in CI (the user's call), and Stage 14's growth with `hypher` and `krilla-svg`.

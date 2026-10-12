@@ -1,8 +1,10 @@
 //! The writer: laid-out pages as a PDF file, by `krilla` (`rule:core-classes/pdf-output-is-inert`).
 //!
 //! Each page is A4, and each glyph run is drawn in its colour and its face, a default or an
-//! `@font-face` font, which `krilla` subsets to the glyphs the document draws. Each rectangle is
-//! filled in its colour, and each image is drawn at its box.
+//! `@font-face` font, which `krilla` subsets to the glyphs the document draws. Each path is
+//! filled with the even-odd rule or stroked, in a colour, a gradient or an image's tiles, and each
+//! image is drawn at its box. A group is a clip path, an opacity or both, pushed at its start and
+//! popped at its end.
 //!
 //! The file is the same bytes for the same input. Nothing here reads a clock: the creation
 //! time is written only when the program passes one, in UTC. The file's `/ID` and its XMP
@@ -16,25 +18,151 @@
 //! (`render`'s doc in the crate root says what each option does until then).
 
 use krilla::color::rgb;
-use krilla::geom::{PathBuilder, Point, Rect, Size, Transform};
+use krilla::geom::{Path, PathBuilder, Point, Size, Transform};
 use krilla::metadata::{DateTime, Metadata};
 use krilla::num::NormalizedF32;
 use krilla::page::PageSettings;
-use krilla::paint::Fill;
+use krilla::paint::{
+    Fill, FillRule, LineCap, LinearGradient, Pattern, RadialGradient, SpreadMethod, Stop, Stroke,
+    StrokeDash,
+};
 use krilla::surface::Surface;
 use krilla::text::{Font, GlyphId, KrillaGlyph};
 use krilla::{Data, Document, SerializeSettings};
+use krilla_svg::{SurfaceExt, SvgSettings};
 
 use crate::css::Color;
-use crate::layout::{self, Item, Laid};
+use crate::layout::{self, Item, Laid, Paint, Picture, Seg};
 use crate::{Error, Instant};
+
+/// Draws `picture` with its top-left corner at the surface's origin, stretched to `size`. An
+/// SVG is drawn as vector paths.
+fn draw_picture(surface: &mut Surface<'_>, picture: &Picture, size: Size) {
+    match picture {
+        Picture::Raster(image) => surface.draw_image(image.clone(), size),
+        Picture::Vector(tree) => {
+            surface.draw_svg(tree, size, SvgSettings::default());
+        }
+    }
+}
 
 fn fill(surface: &mut Surface<'_>, color: Color) {
     surface.set_fill(Some(Fill {
-        paint: rgb::Color::new(color.r, color.g, color.b).into(),
-        opacity: NormalizedF32::new(color.a.clamp(0.0, 1.0)).unwrap_or(NormalizedF32::ONE),
+        paint: rgb_of(color).into(),
+        opacity: normal(color.a),
         ..Fill::default()
     }));
+}
+
+fn rgb_of(color: Color) -> krilla::color::Color {
+    rgb::Color::new(color.r, color.g, color.b).into()
+}
+
+fn normal(value: f32) -> NormalizedF32 {
+    NormalizedF32::new(value.clamp(0.0, 1.0)).unwrap_or(NormalizedF32::ONE)
+}
+
+/// `path` as a `krilla` path, or `None` when it has no area or no length.
+fn shape(path: &[Seg]) -> Option<Path> {
+    let mut builder = PathBuilder::new();
+    for seg in path {
+        match *seg {
+            Seg::Move(x, y) => builder.move_to(x, y),
+            Seg::Line(x, y) => builder.line_to(x, y),
+            Seg::Cubic(x1, y1, x2, y2, x, y) => builder.cubic_to(x1, y1, x2, y2, x, y),
+            Seg::Close => builder.close(),
+        }
+    }
+    builder.finish()
+}
+
+/// `paint` as a `krilla` paint and the opacity it is drawn at. A gradient's stops carry their
+/// own opacity, and an image's tile is drawn once into a pattern.
+fn paint_of(
+    surface: &mut Surface<'_>,
+    paint: &Paint,
+    laid: &Laid,
+) -> Option<(krilla::paint::Paint, NormalizedF32)> {
+    let stops = |stops: &[layout::Stop]| -> Vec<Stop> {
+        stops
+            .iter()
+            .map(|s| Stop {
+                offset: normal(s.offset),
+                color: rgb_of(s.color),
+                opacity: normal(s.color.a),
+            })
+            .collect()
+    };
+    Some(match paint {
+        Paint::Color(color) => (rgb_of(*color).into(), normal(color.a)),
+        Paint::Linear {
+            x1,
+            y1,
+            x2,
+            y2,
+            stops: each,
+        } => (
+            LinearGradient {
+                x1: *x1,
+                y1: *y1,
+                x2: *x2,
+                y2: *y2,
+                transform: Transform::identity(),
+                spread_method: SpreadMethod::Pad,
+                stops: stops(each),
+                anti_alias: false,
+            }
+            .into(),
+            NormalizedF32::ONE,
+        ),
+        Paint::Radial {
+            cx,
+            cy,
+            r,
+            scale_y,
+            stops: each,
+        } => (
+            RadialGradient {
+                fx: *cx,
+                fy: *cy,
+                fr: 0.0,
+                cx: *cx,
+                cy: *cy,
+                cr: *r,
+                // Stretches the circle down about its centre into the ellipse.
+                transform: Transform::from_row(1.0, 0.0, 0.0, *scale_y, 0.0, cy * (1.0 - scale_y)),
+                spread_method: SpreadMethod::Pad,
+                stops: stops(each),
+                anti_alias: false,
+            }
+            .into(),
+            NormalizedF32::ONE,
+        ),
+        Paint::Tiles {
+            image,
+            x,
+            y,
+            width,
+            height,
+        } => {
+            let size = Size::from_wh(*width, *height)?;
+            let mut builder = surface.stream_builder();
+            let mut tile = builder.surface();
+            draw_picture(&mut tile, &laid.images[*image].0, size);
+            tile.finish();
+            let stream = builder.finish();
+            (
+                Pattern {
+                    stream,
+                    transform: Transform::from_translate(*x, *y),
+                    width: *width,
+                    height: *height,
+                }
+                .into(),
+                NormalizedF32::ONE,
+            )
+        }
+    })
 }
 
 /// The PDF file of `laid`, created at `created` when there is one.
@@ -49,6 +177,8 @@ pub fn write(laid: &Laid, created: Option<Instant>) -> Result<Vec<u8>, Error> {
     for laid_page in &laid.pages {
         let mut page = document.start_page_with(size.clone());
         let mut surface = page.surface();
+        // How many states each open group pushed, innermost last.
+        let mut groups: Vec<usize> = Vec::new();
         for item in &laid_page.items {
             match item {
                 Item::Text {
@@ -87,21 +217,61 @@ pub fn write(laid: &Laid, created: Option<Instant>) -> Result<Vec<u8>, Error> {
                     fill(&mut surface, *color);
                     surface.draw_glyphs(Point::from_xy(*x, *y), &glyphs, font, text, *size, false);
                 }
-                Item::Rect {
-                    x,
-                    y,
-                    width,
-                    height,
-                    color,
+                Item::Path {
+                    path,
+                    paint,
+                    stroke,
                 } => {
-                    let Some(rect) = Rect::from_xywh(*x, *y, *width, *height) else {
+                    let Some(path) = shape(path) else {
                         continue;
                     };
-                    let mut path = PathBuilder::new();
-                    path.push_rect(rect);
-                    if let Some(path) = path.finish() {
-                        fill(&mut surface, *color);
-                        surface.draw_path(&path);
+                    let (paint, opacity) = match paint_of(&mut surface, paint, laid) {
+                        Some(paint) => paint,
+                        None => continue,
+                    };
+                    match stroke {
+                        None => surface.set_fill(Some(Fill {
+                            paint,
+                            opacity,
+                            rule: FillRule::EvenOdd,
+                        })),
+                        Some(stroke) => {
+                            surface.set_fill(None);
+                            surface.set_stroke(Some(Stroke {
+                                paint,
+                                width: stroke.width,
+                                line_cap: if stroke.round {
+                                    LineCap::Round
+                                } else {
+                                    LineCap::Butt
+                                },
+                                opacity,
+                                dash: (!stroke.dash.is_empty()).then(|| StrokeDash {
+                                    array: stroke.dash.clone(),
+                                    offset: 0.0,
+                                }),
+                                ..Stroke::default()
+                            }));
+                        }
+                    }
+                    surface.draw_path(&path);
+                    surface.set_stroke(None);
+                }
+                Item::Begin { opacity, clip } => {
+                    let mut pushed = 0;
+                    if let Some(clip) = clip.as_deref().and_then(shape) {
+                        surface.push_clip_path(&clip, &FillRule::EvenOdd);
+                        pushed += 1;
+                    }
+                    if *opacity < 1.0 {
+                        surface.push_opacity(normal(*opacity));
+                        pushed += 1;
+                    }
+                    groups.push(pushed);
+                }
+                Item::End => {
+                    for _ in 0..groups.pop().unwrap_or(0) {
+                        surface.pop();
                     }
                 }
                 Item::Image {
@@ -115,10 +285,13 @@ pub fn write(laid: &Laid, created: Option<Instant>) -> Result<Vec<u8>, Error> {
                         continue;
                     };
                     surface.push_transform(&Transform::from_translate(*x, *y));
-                    surface.draw_image(laid.images[*image].0.clone(), box_size);
+                    draw_picture(&mut surface, &laid.images[*image].0, box_size);
                     surface.pop();
                 }
             }
+        }
+        for _ in 0..groups.into_iter().sum::<usize>() {
+            surface.pop();
         }
         surface.finish();
         page.finish();
@@ -128,7 +301,7 @@ pub fn write(laid: &Laid, created: Option<Instant>) -> Result<Vec<u8>, Error> {
             let name = laid
                 .images
                 .iter()
-                .find(|(each, _)| *each == image)
+                .find(|(each, _)| matches!(each, Picture::Raster(each) if *each == image))
                 .map_or("an image", |(_, name)| name.as_str());
             Error::Parse(format!("`{name}` does not decode as an image: {why}"))
         }
