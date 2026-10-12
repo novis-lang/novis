@@ -41,7 +41,7 @@ stages:
         shapes: []
   - id: 7
     title: "text, blocks, lists and images"
-    status: open
+    status: done
     extra:
       context:
         rules: [core-classes/pdf-css-subset]
@@ -791,10 +791,12 @@ One file set: `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/n
 
 ### State
 
-**Stage 7 is under way, and all 10 of its checked names pass.** `cargo test --manifest-path extensions/pdf/Cargo.toml --test layout` passes 21 tests, now with `an_inline_box_draws_its_border_padding_and_background_around_its_text`; `borders_radius_backgrounds_and_gradients_lay_out` pins `background-position` and `background-size`. The stage stays open for `inline-block` alone.
+**Stage 7 is done: all 10 of its checked names pass.** `cargo test --manifest-path extensions/pdf/Cargo.toml --test layout` passes 22 tests, now with `an_inline_block_is_laid_out_as_a_block_and_placed_in_its_line`. Stage 8 has not started.
 
-- The layout is split. `extensions/pdf/src/layout.rs` keeps the public types, `Span`, `Para`, `Block`, `Inline`, `Frame` and the style helpers, and its module doc lists the submodules: `inline.rs` (the walk, `Builder`, counters, hyphenation), `image.rs` (`Picture`, `place`, `decode`, `svg`, `position`), `block.rs` (`BoxGeometry`, `geometry`, `Flow`), `text.rs` (`layout` and the line loop) and `boxes.rs`.
-- An inline box is an `Inline` on `Block::Text` (`Builder::open_inline`, `extensions/pdf/src/layout/inline.rs:527`). Its side space is a zero-height `parley` `InlineBox`, ids `2i` and `2i + 1`. The line loop moves its pen past each in-flow inline box (`spaces`, `extensions/pdf/src/layout/text.rs:203`) and paints each `Inline` under the line's glyphs. `boxes::paint` (`extensions/pdf/src/layout/boxes.rs:795`) takes the four sides it closes.
+- The layout is split. `extensions/pdf/src/layout.rs` keeps the public types, `Span`, `Para`, `Block`, `Inline`, `Atom`, `Frame` and the style helpers, and its module doc lists the submodules: `inline.rs` (the walk, `Builder`, counters, hyphenation), `image.rs` (`Picture`, `place`, `decode`, `svg`, `position`), `block.rs` (`BoxGeometry`, `geometry`, `Flow`), `text.rs` (`layout`, `Cx` and the line loop) and `boxes.rs`.
+- An inline box is an `Inline` on `Block::Text`. Its side space is a zero-height `parley` `InlineBox`, ids `2i` and `2i + 1`. The line loop moves its pen past each in-flow inline box (`spaces`, `extensions/pdf/src/layout/text.rs:369`) and paints each `Inline` under the line's glyphs.
+- An `inline-block` is an `Atom`: `Builder::open_atom` (`extensions/pdf/src/layout/inline.rs:572`) sets the paragraph aside and collects the box's own blocks at `x` 0, and `close_atom` adds it to the global atom list, inner ones first, and to its text as `(offset, index)`. `Cx::atom` (`extensions/pdf/src/layout/text.rs:84`) lays each out once, before the main flow, on a `Flow::new(f32::INFINITY)`, narrowing a box with no `width` by `narrow` (`extensions/pdf/src/layout/text.rs:635`) to `widest`, the `parley` max-content width. Its `parley` box id is `2 * inline.len() + k`, and its items are shifted onto the line where the line draws it (`extensions/pdf/src/layout/text.rs:571`). Nesting costs no recursion.
+- `BoxGeometry::fill` says a box's width fills its containing block. `Flow` carries its `limit` and the last line's `baseline`.
 - A background image is one tile from `tile` (`extensions/pdf/src/layout/boxes.rs:195`): `Fit` from `background_size`, and `image::position` reads both `object-position` and `background-position`.
 - `text-indent` and `vertical-align` use `parley` 0.12's own `Layout::set_text_indent` and `StyleProperty::VerticalAlign`. The ranged builder is flat, so `vertical_align` (`extensions/pdf/src/layout/inline.rs:64`) adds a parent span's shift itself.
 - The hyphen and the ellipsis are both a `Mark` from `mark` (`extensions/pdf/src/layout/text.rs:520`). `Builder::open` (`extensions/pdf/src/layout/inline.rs:508`) opens every block box, an element's or a generated one's.
@@ -803,15 +805,16 @@ One file set: `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/n
 
 ### Next
 
-**Stage 7, its last box, then Stage 8 begins**: the file set is `extensions/pdf/src/layout/inline.rs`, `extensions/pdf/src/layout/text.rs`, `extensions/pdf/src/layout/block.rs` and `extensions/pdf/tests/layout.rs`.
+**Stage 8, flex first**: the file set is `extensions/pdf/src/layout/inline.rs`, `extensions/pdf/src/layout/text.rs`, `extensions/pdf/src/layout/block.rs`, a new `extensions/pdf/src/layout/flex.rs` and `extensions/pdf/tests/layout.rs`.
 
-- [ ] **`inline-block`**: a box laid out as a block on its own blocks list and placed in its line as an in-flow `parley` `InlineBox` with its height and baseline, entered where `display != "inline"` starts a block (`extensions/pdf/src/layout/inline.rs:798`). The line loop already moves the pen past an in-flow box (`extensions/pdf/src/layout/text.rs:203`); its items are drawn at the box's position and a line's height grows to hold it (`rule:core-classes/pdf-css-subset-table`). Then mark Stage 7 done.
-- [ ] **Stage 8's first slice, flex rows and columns through `taffy`** (`flex_lays_out_rows_and_columns`, `extensions/pdf/src/layout/block.rs:1`, `rule:core-classes/pdf-css-subset-table`).
+- [ ] **Flex rows and columns through `taffy`** (`flex_lays_out_rows_and_columns`, `rule:core-classes/pdf-css-subset-table`). An item is laid out the way `Cx::atom` lays out an inline-block (`extensions/pdf/src/layout/text.rs:84`): its own blocks on an unbounded `Flow`, measured with `widest`, then placed. `display: flex` enters where `display != "inline"` starts a block (`extensions/pdf/src/layout/inline.rs:879`), and `open_atom` (`extensions/pdf/src/layout/inline.rs:572`) is the shape of collecting each item's blocks apart.
+- [ ] **Grid through `taffy`** (`grid_places_items_in_tracks`), on the same item layout (`extensions/pdf/src/layout/text.rs:84`).
+- [ ] **Flex and grid break only between items and rows** (`flex_and_grid_break_only_between_items_and_rows`): a row is placed with `Flow::place` (`extensions/pdf/src/layout/block.rs:135`) as one height.
 
 ### Backlog
 
 - Elliptical radii and repeating gradients are not laid out (`extensions/pdf/src/layout/boxes.rs`). `hyphenate-character` is not in the subset table, so the drawn hyphen is always `-`; adding it is a subset change (`extensions/pdf/subset.json`, `rule:core-classes/pdf-css-subset-table`).
-- An inline box draws its left and right sides as in a left-to-right line in a right-to-left one, and its `opacity` is not drawn (`extensions/pdf/src/layout.rs`, `rule:core-classes/pdf-css-subset-table`).
+- An inline box draws its left and right sides as in a left-to-right line in a right-to-left one, its `opacity` is not drawn, and it does not draw around an inline-block in it. An inline-block's `margin: auto`, a percentage of a narrowed width and a `::before` inline-block are not CSS's yet (`extensions/pdf/src/layout.rs`, `rule:core-classes/pdf-css-subset-table`).
 - SVG `<text>` in the PDF and in `Novis\Image`: fill `usvg`'s font database with the Liberation faces (`extensions/pdf/src/layout.rs`, `rule:core-classes/image-format-roster`).
 - Stage 10 reaches `first` through `Pass`'s `First` case, whose shape is `{document, headerHeight, footerHeight}` (`extensions/pdf/manifest.json`, `wit/pdf.wit`).
 - `cssparser` enters at most 75 nested blocks. Past that, the reference scan reads every string as a URL (`extensions/pdf/src/assets.rs:206`), and the cascade reads CSS on its own. One reading for both is still open.
