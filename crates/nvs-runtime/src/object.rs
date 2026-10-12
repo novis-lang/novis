@@ -5155,11 +5155,12 @@ unsafe fn slot_state(desc: &ClassDesc, ptr: *mut ObjHeader, name: &str, hint: us
 /// value is judged against the hook's declared parameter rather than against
 /// the field's declared tag.
 ///
-/// The hook's body commits the value, so nothing below it runs for that write:
-/// its store to the backing slot is an ordinary in-class `FieldSet`, carrying
-/// the observer step the same lowering gives every other write inside the
-/// class. Where no hook is declared the value written is exactly the value
-/// committed, and it is the one the observer is told about.
+/// The hook's body commits the value, and its store to the backing slot is an
+/// access inside the property's own hook, which carries no observer. So once
+/// the hook returns, the observer is told what the backing slot now holds, as
+/// the compiled hooked write in `nvs_ir::lower::stmt` reads it back. Where no
+/// hook is declared the value written is exactly the value committed, and it
+/// is the one the observer is told about.
 ///
 /// **`PropertyGuard` runs first**, before the `set` hook or the store, with the
 /// caller's value and `$keys` `[]`, exactly as a compiled write calls it. A
@@ -5215,7 +5216,21 @@ pub fn write_erased_property(
         unsafe {
             answered.release();
         }
-        return Ok(Value::null());
+        if !desc.conforms_to_name("PropertyObserver") {
+            return Ok(Value::null());
+        }
+        // A hooked property is always backed, so the slot is there to read.
+        let Some(slot) = desc.field_slot(name, hint) else {
+            return Ok(Value::null());
+        };
+        #[expect(
+            unsafe_code,
+            reason = "the slot came out of this object's own descriptor, so it is \
+                      inside the allocation and was initialized by `new`; the \
+                      object still owns the value, and the call retains what it passes"
+        )]
+        let committed = unsafe { *field_ptr(ptr, slot) };
+        return tell_erased_write(ctx, receiver, name, committed);
     }
     let Some(slot) = desc.field_slot(name, hint) else {
         return Err(Fault::thrown(format!(
@@ -5284,6 +5299,17 @@ pub fn write_erased_property(
     if !observed || (was_unset && ctx.late_init_running()) {
         return Ok(Value::null());
     }
+    tell_erased_write(ctx, receiver, name, value)
+}
+
+/// Calls `onPropertySet($name, $value)` on `receiver`, whose class implements
+/// `PropertyObserver`. A throw from the observer is returned.
+fn tell_erased_write(
+    ctx: &mut Ctx,
+    receiver: Value,
+    name: &str,
+    value: Value,
+) -> Result<Value, Fault> {
     let told = Value::str(crate::NvsStr::new(name.as_bytes()));
     let answered =
         crate::dispatch::call_erased_method(ctx, receiver, "onPropertySet", &[told, value]);

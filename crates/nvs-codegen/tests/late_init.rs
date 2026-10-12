@@ -216,6 +216,51 @@ echo $p->title;
     );
 }
 
+/// A write through a `mixed` receiver has no class to lower against, so the
+/// runtime runs the pipeline itself: `beforePropertySet` with `$keys` `[]`,
+/// then the store or the `set` hook, then `onPropertySet`, on a hooked
+/// property too. A throw from the guard stops the write: the old value stays
+/// and `onPropertySet` does not run.
+#[test]
+fn a_write_through_mixed_runs_the_guard_and_a_throw_keeps_the_old_value() {
+    let source = "<?nvs
+final class Account implements PropertyGuard, PropertyObserver {
+    public int $balance = 10;
+    public string $owner {
+        set(string $value) { echo \"hook/\"; $this->owner = $value; }
+    }
+    public function constructor(string $owner) {
+        $this->owner = $owner;
+    }
+    public function beforePropertySet(string $name, mixed $value, array<string> $keys): void {
+        echo \"guard \", $name, \" \", Core\\Json::encode($keys), \"/\";
+        if ($name == \"balance\" && $value is int && $value < 0) {
+            throw new LogicError(\"negative\");
+        }
+    }
+    public function beforePropertyUnset(string $name, array<string> $keys): void {}
+    public function onPropertyGet(string $name, mixed $value): void {}
+    public function onPropertySet(string $name, mixed $value): void { echo \"set \", $name, \"/\"; }
+}
+Account $a = new Account(\"ada\");
+echo \"|\";
+mixed $m = $a;
+$m->balance = 20;
+$m->owner = \"bob\";
+try {
+    $m->balance = -1;
+} catch (LogicError $e) {
+    echo \"stopped/\";
+}
+echo $a->balance, \" \", $a->owner;
+";
+    assert_eq!(
+        output_of(source),
+        "guard owner []/hook/set owner/|guard balance []/set balance/guard owner []/hook/set owner/\
+         guard balance []/stopped/20 bob"
+    );
+}
+
 /// `isinit` lowers to one tag test of the slot: no read of the property, and no
 /// call, so neither a `get` hook nor `onPropertyGet` can run. The observer
 /// prints nothing in the run either.
