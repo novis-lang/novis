@@ -6,8 +6,8 @@ use std::ops::Range;
 
 use parley::{
     AlignmentOptions, FontFamily, FontFamilyName, FontFeatures, FontStyle, FontWeight,
-    IndentOptions, Layout, LayoutContext, PositionedLayoutItem, RangedBuilder, StyleProperty,
-    VerticalAlign, YieldData,
+    IndentOptions, InlineBox, InlineBoxKind, Layout, LayoutContext, PositionedLayoutItem,
+    RangedBuilder, StyleProperty, VerticalAlign, YieldData,
 };
 
 use super::block::Flow;
@@ -78,6 +78,7 @@ pub fn layout(
                 x: left,
                 width,
                 marker: is_marker,
+                inline,
             } => {
                 // The hyphen of each span a soft hyphen is in, by the span's index.
                 let mut hyphens: Vec<(usize, Mark)> = Vec::new();
@@ -113,6 +114,28 @@ pub fn layout(
                 }
                 for (range, index) in &runs {
                     push_span(&mut builder, &spans[*index], *index, range.clone());
+                }
+                // An inline box's margin, border and padding at its start and its end are an
+                // empty inline box each, which takes their width in the line.
+                for (i, b) in inline.iter().enumerate() {
+                    let (m, g) = (&b.geometry.margin, &b.geometry);
+                    let sides = [
+                        (b.range.start, m[3] + g.border[3] + g.padding[3]),
+                        (b.range.end, g.padding[1] + g.border[1] + m[1]),
+                    ];
+                    for (side, (index, width)) in sides.into_iter().enumerate() {
+                        if width > 0.0 {
+                            builder.push_inline_box(InlineBox {
+                                id: (2 * i + side) as u64,
+                                kind: InlineBoxKind::InFlow,
+                                index,
+                                width,
+                                height: 0.0,
+                                baseline: None,
+                                vertical_align: VerticalAlign::BASELINE,
+                            });
+                        }
+                    }
                 }
                 let mut shaped = builder.build(&text);
                 shaped.set_text_indent(para.indent, IndentOptions::default());
@@ -172,6 +195,18 @@ pub fn layout(
                     let mut kept: Option<(f32, f32)> = None;
                     let mut past = false;
                     let mut items = Vec::new();
+                    // The left edge and width of each inline box's space on the line, left to
+                    // right, and how many of them the pen has passed.
+                    let spaces: Vec<(f32, f32)> = line
+                        .items()
+                        .filter_map(|item| match item {
+                            PositionedLayoutItem::InlineBox(b) => Some((left + b.x, b.width)),
+                            PositionedLayoutItem::GlyphRun(_) => None,
+                        })
+                        .collect();
+                    let mut passed = 0;
+                    // The left, top, right and bottom of each inline box's text on the line.
+                    let mut around: Vec<Option<[f32; 4]>> = vec![None; inline.len()];
                     for run in line.runs() {
                         let face = fonts
                             .face_index(run.font().data.data())
@@ -229,6 +264,15 @@ pub fn layout(
                             if current.as_ref().is_some_and(|c| c.0 != index) {
                                 finish(current.take(), &mut items);
                             }
+                            while let Some(&(at, room)) = spaces.get(passed)
+                                && at <= x + 0.01
+                            {
+                                if current.is_some() {
+                                    finish(current.take(), &mut items);
+                                }
+                                x += room;
+                                passed += 1;
+                            }
                             let start_x = x;
                             x += cluster.advance();
                             // A cut line draws the clusters inside its window and no others.
@@ -244,6 +288,18 @@ pub fn layout(
                                     continue;
                                 }
                                 kept = Some((kept.map_or(start_x, |k| k.0), x));
+                            }
+                            let at = cluster.text_range().start;
+                            let base = baseline_of(index);
+                            for (edges, b) in around.iter_mut().zip(&inline) {
+                                if b.range.contains(&at) {
+                                    let [l, t, r, bottom] =
+                                        edges.get_or_insert([start_x, f32::MAX, x, f32::MIN]);
+                                    *l = l.min(start_x);
+                                    *r = r.max(x);
+                                    *t = t.min(base - font_metrics.ascent);
+                                    *bottom = bottom.max(base + font_metrics.descent);
+                                }
                             }
                             let c =
                                 current.get_or_insert_with(|| (index, start_x, Vec::new(), 0.0));
@@ -308,6 +364,39 @@ pub fn layout(
                             report(&mut missing, missed, &spans[at], page_number);
                         }
                     }
+                    x += spaces[passed.min(spaces.len())..]
+                        .iter()
+                        .map(|(_, room)| room)
+                        .sum::<f32>();
+                    // Each inline box is drawn under the line's text, around the part of its
+                    // text on this line. Its left side is on the line its text starts on, and
+                    // its right side on the line its text ends on.
+                    let mut under = Vec::new();
+                    for (edges, b) in around.iter().zip(&inline) {
+                        let Some([l, t, r, bottom]) = *edges else {
+                            continue;
+                        };
+                        let g = &b.geometry;
+                        let first = line_range.contains(&b.range.start);
+                        let last = b.range.end <= line_range.end;
+                        let left = if first {
+                            l - g.padding[3] - g.border[3]
+                        } else {
+                            l
+                        };
+                        let right = if last {
+                            r + g.padding[1] + g.border[1]
+                        } else {
+                            r
+                        };
+                        let top = t - g.padding[0] - g.border[0];
+                        let height = bottom + g.padding[2] + g.border[2] - top;
+                        let mut slice = g.clone();
+                        slice.x = left;
+                        slice.width = right - left;
+                        under.extend(boxes::paint(&slice, top, height, [true, last, true, first]));
+                    }
+                    items.splice(0..0, under);
                     let last = line_range.end.saturating_sub(SOFT_HYPHEN.len_utf8());
                     if cut.is_none()
                         && line_text.ends_with(SOFT_HYPHEN)

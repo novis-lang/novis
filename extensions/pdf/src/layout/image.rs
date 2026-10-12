@@ -118,7 +118,7 @@ impl Builder<'_, '_> {
         let draw = match by {
             Some(by) => {
                 let (w, h) = (natural_w * by, natural_h * by);
-                let [x, y] = object_position(style, self.rem);
+                let [x, y] = position(style, "object-position", self.rem).unwrap_or([CENTRE; 2]);
                 [x.0 * (width - w) + x.1, y.0 * (height - h) + y.1, w, h]
             }
             None => [0.0, 0.0, width, height],
@@ -134,7 +134,7 @@ impl Builder<'_, '_> {
     }
 
     /// The background image of `style`: a gradient, or an image `url()` loaded from the asset map
-    /// at its natural size.
+    /// with its natural size, its `background-size` and its `background-position`.
     pub(super) fn layer(&mut self, style: &Style, rem: f32) -> Result<Option<boxes::Layer>, Error> {
         let Some(reference) = boxes::image_reference(style) else {
             return Ok(boxes::gradient(style, rem));
@@ -149,6 +149,8 @@ impl Builder<'_, '_> {
             height,
             repeat_x,
             repeat_y,
+            size: boxes::background_size(style, rem),
+            position: position(style, "background-position", rem).unwrap_or([(0.0, 0.0); 2]),
         }))
     }
 
@@ -227,15 +229,17 @@ impl Builder<'_, '_> {
     }
 }
 
-/// `style`'s `object-position` across and down, each as a fraction of the room the box has
-/// beside the picture and a length in points added to it. Each side is centred when the value
-/// does not give it, and a value that does not read centres both.
-fn object_position(style: &Style, rem: f32) -> [(f32, f32); 2] {
-    const CENTRE: (f32, f32) = (0.5, 0.0);
-    let comps = match style.get("object-position") {
-        Some(Value::Text(text)) => value::components(text).unwrap_or_default(),
-        _ => Vec::new(),
+/// The centre of a position's axis: half the room, and no length added.
+const CENTRE: (f32, f32) = (0.5, 0.0);
+
+/// `style`'s `name`, an `object-position` or a `background-position`, across and down, each as a
+/// fraction of the room the box has beside the picture and a length in points added to it. A side
+/// the value does not give is centred, and a value that is missing or does not read is `None`.
+fn position(style: &Style, name: &str, rem: f32) -> Option<[(f32, f32); 2]> {
+    let Some(Value::Text(text)) = style.get(name) else {
+        return None;
     };
+    let comps = value::components(text)?;
     let em = style.font_size();
     let side = |c: &Comp| match c {
         Comp::Ident(word) => match word.as_str() {
@@ -252,17 +256,19 @@ fn object_position(style: &Style, rem: f32) -> [(f32, f32); 2] {
     let down = |c: &Comp| matches!(c, Comp::Ident(w) if w == "top" || w == "bottom");
     let across = |c: &Comp| matches!(c, Comp::Ident(w) if w == "left" || w == "right");
     match comps.as_slice() {
-        [one] => match side(one) {
-            Some(at) if down(one) => [CENTRE, at],
-            Some(at) => [at, CENTRE],
-            None => [CENTRE; 2],
-        },
+        [one] => side(one).map(|at| {
+            if down(one) {
+                [CENTRE, at]
+            } else {
+                [at, CENTRE]
+            }
+        }),
         [a, b] => match (side(a), side(b)) {
-            (Some(x), Some(y)) if down(a) || across(b) => [y, x],
-            (Some(x), Some(y)) => [x, y],
-            _ => [CENTRE; 2],
+            (Some(x), Some(y)) if down(a) || across(b) => Some([y, x]),
+            (Some(x), Some(y)) => Some([x, y]),
+            _ => None,
         },
-        _ => [CENTRE; 2],
+        _ => None,
     }
 }
 

@@ -1,5 +1,5 @@
-//! What a block box draws under its content: its background colour and image, its borders, its
-//! outline and its rounded corners (`rule:core-classes/pdf-css-subset-table`).
+//! What a block or an inline box draws under its content: its background colour and image, its
+//! borders, its outline and its rounded corners (`rule:core-classes/pdf-css-subset-table`).
 //!
 //! Every shape is a path [`Item`], filled with the even-odd rule or stroked. The background
 //! colour and the background image fill the border box, rounded by `border-radius`. A corner is
@@ -11,10 +11,12 @@
 //! takes `circle` or `ellipse` and an extent keyword, centred in the padding box. Both take colour
 //! stops with a length or percentage, and a stop with none is spaced evenly between its
 //! neighbours. A stop past either end of the gradient line is drawn at that end. Any other image
-//! function, and a gradient written another way, draws nothing. An image `url()` is laid in tiles
-//! at its natural size from the padding box's top-left corner, repeated as `background-repeat`
-//! says, where `space` and `round` repeat as `repeat` does. `background-position` and
-//! `background-size` are not laid out yet.
+//! function, and a gradient written another way, draws nothing. An image `url()` is one tile,
+//! sized by `background-size` and placed in the padding box by `background-position`, and
+//! repeated from there as `background-repeat` says, where `space` and `round` repeat as `repeat`
+//! does. A size of `auto` keeps the image's natural size, or its aspect ratio when the other side
+//! is given. A position takes one or two keywords, lengths or percentages, and a value that does
+//! not read is the initial `0% 0%`.
 //!
 //! **Borders.** A solid side is a filled rectangle, a double side two rectangles a third of its
 //! width each, and a dashed or dotted side a stroked line along its middle: a dash and the gap
@@ -134,13 +136,91 @@ pub(super) enum Layer {
         extent: Extent,
         stops: Vec<Written>,
     },
+    /// An image `url()`: its natural `width` and `height`, and how it is sized, placed and
+    /// repeated.
     Image {
         image: usize,
         width: f32,
         height: f32,
         repeat_x: bool,
         repeat_y: bool,
+        size: Fit,
+        /// Across and down, each a fraction of the room beside the tile and a length added to it.
+        position: [(f32, f32); 2],
     },
+}
+
+/// A background image's `background-size`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(super) enum Fit {
+    /// The smallest size that covers the padding box, keeping the aspect ratio.
+    Cover,
+    /// The largest size that fits inside the padding box, keeping the aspect ratio.
+    Contain,
+    /// A width and a height, each a fraction of the padding box's and a length added to it, or
+    /// `None` for `auto`.
+    Sized(Option<(f32, f32)>, Option<(f32, f32)>),
+}
+
+/// `style`'s `background-size`. A value that does not read is the initial `auto`.
+pub(super) fn background_size(style: &Style, rem: f32) -> Fit {
+    const AUTO: Fit = Fit::Sized(None, None);
+    let comps = match style.get("background-size") {
+        Some(Value::Text(text)) => value::components(text).unwrap_or_default(),
+        _ => Vec::new(),
+    };
+    let em = style.font_size();
+    // `None` for a value that does not read, `Some(None)` for `auto`.
+    let side = |c: &Comp| match c {
+        Comp::Ident(word) if word == "auto" => Some(None),
+        c => value::length(c).map(|sum| {
+            let l = sum.compute(em, rem);
+            Some((l.percent / 100.0, l.pt))
+        }),
+    };
+    match comps.as_slice() {
+        [Comp::Ident(word)] if word == "cover" => Fit::Cover,
+        [Comp::Ident(word)] if word == "contain" => Fit::Contain,
+        [one] => side(one).map_or(AUTO, |across| Fit::Sized(across, None)),
+        [a, b] => match (side(a), side(b)) {
+            (Some(across), Some(down)) => Fit::Sized(across, down),
+            _ => AUTO,
+        },
+        _ => AUTO,
+    }
+}
+
+/// The tile of an image `natural` in size, sized by `size` and placed by `position` in the padding
+/// box `x`, `y`, `w`, `h`: its left, top, width and height.
+fn tile(
+    natural: (f32, f32),
+    size: Fit,
+    position: [(f32, f32); 2],
+    (x, y, w, h): (f32, f32, f32, f32),
+) -> (f32, f32, f32, f32) {
+    let (iw, ih) = natural;
+    let (tw, th) = match size {
+        Fit::Cover | Fit::Contain => {
+            let (sx, sy) = (w / iw.max(f32::EPSILON), h / ih.max(f32::EPSILON));
+            let by = if size == Fit::Cover {
+                sx.max(sy)
+            } else {
+                sx.min(sy)
+            };
+            (iw * by, ih * by)
+        }
+        Fit::Sized(across, down) => {
+            let of = |(fraction, pt): (f32, f32), room: f32| (fraction * room + pt).max(0.0);
+            match (across.map(|a| of(a, w)), down.map(|d| of(d, h))) {
+                (Some(tw), Some(th)) => (tw, th),
+                (Some(tw), None) => (tw, ih * tw / iw.max(f32::EPSILON)),
+                (None, Some(th)) => (iw * th / ih.max(f32::EPSILON), th),
+                (None, None) => (iw, ih),
+            }
+        }
+    };
+    let [(fx, ox), (fy, oy)] = position;
+    (x + fx * (w - tw) + ox, y + fy * (h - th) + oy, tw, th)
 }
 
 #[derive(Debug, Clone)]
@@ -458,14 +538,19 @@ fn layer_paint(layer: &Layer, x: f32, y: f32, w: f32, h: f32) -> Paint {
             image,
             width,
             height,
+            size,
+            position,
             ..
-        } => Paint::Tiles {
-            image: *image,
-            x,
-            y,
-            width: *width,
-            height: *height,
-        },
+        } => {
+            let (x, y, width, height) = tile((*width, *height), *size, *position, (x, y, w, h));
+            Paint::Tiles {
+                image: *image,
+                x,
+                y,
+                width,
+                height,
+            }
+        }
     }
 }
 
@@ -704,29 +789,26 @@ fn edges(
     }
 }
 
-/// The items that paint the slice of the box `g` from `y` to `y + h`, under its content. `first`
-/// and `last` say whether the slice has the box's top edge and its bottom edge.
-pub(super) fn paint(g: &BoxGeometry, y: f32, h: f32, first: bool, last: bool) -> Vec<Item> {
+/// The items that paint the slice of the box `g` from `y` to `y + h`, under its content. `closed`
+/// says which of the box's edges the slice has, top, right, bottom and left: an open side has no
+/// border, no outline edge and square corners.
+pub(super) fn paint(g: &BoxGeometry, y: f32, h: f32, closed: [bool; 4]) -> Vec<Item> {
     let (x, w, d) = (g.x, g.width, &g.decor);
     let mut out = Vec::new();
     if w <= 0.0 || h <= 0.0 {
         return out;
     }
+    let [top, right, bottom, left] = closed;
     let mut r = radii(&d.radius, w, h);
-    if !first {
-        r[0] = (0.0, 0.0);
-        r[1] = (0.0, 0.0);
+    for (corner, kept) in
+        r.iter_mut()
+            .zip([top && left, top && right, bottom && right, bottom && left])
+    {
+        if !kept {
+            *corner = (0.0, 0.0);
+        }
     }
-    if !last {
-        r[2] = (0.0, 0.0);
-        r[3] = (0.0, 0.0);
-    }
-    let width = [
-        if first { g.border[0] } else { 0.0 },
-        g.border[1],
-        if last { g.border[2] } else { 0.0 },
-        g.border[3],
-    ];
+    let width = [0, 1, 2, 3].map(|s| if closed[s] { g.border[s] } else { 0.0 });
     let mut outer = Vec::new();
     rounded(&mut outer, x, y, w, h, r);
     if let Some(background) = d.background {
@@ -736,35 +818,45 @@ pub(super) fn paint(g: &BoxGeometry, y: f32, h: f32, first: bool, last: bool) ->
         let (px, py) = (x + width[3], y + width[0]);
         let (pw, ph) = (w - width[1] - width[3], h - width[0] - width[2]);
         let paint = layer_paint(layer, px, py, pw, ph);
-        match *layer {
-            Layer::Image {
-                image,
-                width: iw,
-                height: ih,
-                repeat_x,
-                repeat_y,
-            } if !(repeat_x && repeat_y) => {
+        match (layer, &paint) {
+            // A tile with no area draws nothing.
+            (_, Paint::Tiles { width, height, .. }) if *width <= 0.0 || *height <= 0.0 => {}
+            (
+                Layer::Image {
+                    image,
+                    repeat_x,
+                    repeat_y,
+                    ..
+                },
+                &Paint::Tiles {
+                    x: tx,
+                    y: ty,
+                    width: tw,
+                    height: th,
+                    ..
+                },
+            ) if !(*repeat_x && *repeat_y) => {
                 out.push(Item::Begin {
                     opacity: 1.0,
                     clip: Some(outer.clone()),
                 });
                 out.push(match (repeat_x, repeat_y) {
                     (true, _) => Item::Path {
-                        path: rect(x, py, w, ih),
+                        path: rect(x, ty, w, th),
                         paint,
                         stroke: None,
                     },
                     (_, true) => Item::Path {
-                        path: rect(px, y, iw, h),
+                        path: rect(tx, y, tw, h),
                         paint,
                         stroke: None,
                     },
                     _ => Item::Image {
-                        image,
-                        x: px,
-                        y: py,
-                        width: iw,
-                        height: ih,
+                        image: *image,
+                        x: tx,
+                        y: ty,
+                        width: tw,
+                        height: th,
                     },
                 });
                 out.push(Item::End);
@@ -779,10 +871,7 @@ pub(super) fn paint(g: &BoxGeometry, y: f32, h: f32, first: bool, last: bool) ->
     edges(&mut out, (x, y, w, h), width, d.line, d.border_color, r);
     if let Some(o) = &d.outline {
         let grow = o.offset + o.width;
-        let (top, bottom) = (
-            if first { grow } else { 0.0 },
-            if last { grow } else { 0.0 },
-        );
+        let [gt, gr, gb, gl] = closed.map(|c| if c { grow } else { 0.0 });
         let r = r.map(|(a, b)| {
             if a > 0.0 && b > 0.0 {
                 ((a + grow).max(0.0), (b + grow).max(0.0))
@@ -790,15 +879,10 @@ pub(super) fn paint(g: &BoxGeometry, y: f32, h: f32, first: bool, last: bool) ->
                 (0.0, 0.0)
             }
         });
-        let width = [
-            if first { o.width } else { 0.0 },
-            o.width,
-            if last { o.width } else { 0.0 },
-            o.width,
-        ];
+        let width = closed.map(|c| if c { o.width } else { 0.0 });
         edges(
             &mut out,
-            (x - grow, y - top, w + 2.0 * grow, h + top + bottom),
+            (x - gl, y - gt, w + gl + gr, h + gt + gb),
             width,
             [o.line; 4],
             [o.color; 4],

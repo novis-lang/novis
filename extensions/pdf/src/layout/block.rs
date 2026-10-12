@@ -191,8 +191,12 @@ impl Flow {
                 } else {
                     CONTENT_HEIGHT
                 };
-                let mut items =
-                    boxes::paint(g, MARGIN + top, bottom - top, page == first, page == last);
+                let mut items = boxes::paint(
+                    g,
+                    MARGIN + top,
+                    bottom - top,
+                    [page == first, true, page == last, true],
+                );
                 let opacity = g.decor.opacity < 1.0;
                 if opacity {
                     items.insert(

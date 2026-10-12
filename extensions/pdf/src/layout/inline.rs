@@ -13,7 +13,8 @@ use parley::{
 
 use super::block::geometry;
 use super::{
-    BLACK, Block, CONTENT_WIDTH, Frame, Images, MARGIN, Para, Spaces, Span, color, keyword, length,
+    BLACK, Block, CONTENT_WIDTH, Frame, Images, Inline, MARGIN, Para, Spaces, Span, color, keyword,
+    length,
 };
 use crate::Error;
 use crate::assets::Assets;
@@ -422,6 +423,10 @@ pub(super) struct Builder<'a, 'd> {
     indented: bool,
     /// The root element's font size, which `rem` is relative to.
     pub(super) rem: f32,
+    /// The boxes of the inline elements in the text being collected.
+    inline: Vec<Inline>,
+    /// The index in `inline` of each inline box still open, innermost last.
+    open_inline: Vec<usize>,
 }
 
 impl Builder<'_, '_> {
@@ -517,6 +522,39 @@ impl Builder<'_, '_> {
         Ok(())
     }
 
+    /// Opens the box of an inline element with `style`, inside the content box of `frame`, when
+    /// it has a margin, a border, padding or a background, and says whether it did.
+    fn open_inline(&mut self, style: &Style, frame: &Frame) -> Result<bool, Error> {
+        let mut geometry = geometry(style, frame.x, frame.width);
+        geometry.decor.layer = self.layer(style, self.rem)?;
+        let d = &geometry.decor;
+        let drawn = d.background.is_some()
+            || d.layer.is_some()
+            || d.outline.is_some()
+            || geometry
+                .border
+                .iter()
+                .chain(&geometry.padding)
+                .any(|w| *w > 0.0)
+            || geometry.margin[1] > 0.0
+            || geometry.margin[3] > 0.0;
+        if drawn {
+            self.open_inline.push(self.inline.len());
+            self.inline.push(Inline {
+                range: self.text.len()..usize::MAX,
+                geometry,
+            });
+        }
+        Ok(drawn)
+    }
+
+    /// Closes the innermost open inline box at the end of the text so far.
+    fn close_inline(&mut self) {
+        if let Some(at) = self.open_inline.pop() {
+            self.inline[at].range.end = self.text.len();
+        }
+    }
+
     /// The `::before` or `::after` box of the element at `at`, whose own content box is
     /// `frame`: inline text, or a block box of its own when its `display` is not `inline`.
     fn generated(
@@ -576,6 +614,21 @@ impl Builder<'_, '_> {
             range.end = range.end.min(trimmed);
             range.start < range.end
         });
+        // An inline box still open goes on in the next text block.
+        let reopened: Vec<Inline> = self
+            .open_inline
+            .iter()
+            .map(|&at| Inline {
+                range: 0..usize::MAX,
+                ..self.inline[at].clone()
+            })
+            .collect();
+        self.open_inline = (0..reopened.len()).collect();
+        let mut inline = std::mem::replace(&mut self.inline, reopened);
+        inline.retain_mut(|i| {
+            i.range.end = i.range.end.min(trimmed);
+            i.range.start < i.range.end
+        });
         if let Some((mut para, x, width)) = self.owner.take()
             && !self.runs.is_empty()
         {
@@ -590,6 +643,7 @@ impl Builder<'_, '_> {
                 x,
                 width,
                 marker: false,
+                inline,
             });
         }
         self.text.clear();
@@ -606,6 +660,8 @@ enum Step {
     Exit {
         at: usize,
         block: bool,
+        /// Whether the element opened an inline box, which closes after its `::after`.
+        inline: bool,
         close: Option<&'static str>,
     },
 }
@@ -636,6 +692,8 @@ pub(super) fn blocks(
         after_space: true,
         indented: false,
         rem,
+        inline: Vec::new(),
+        open_inline: Vec::new(),
     };
     let root = Frame {
         x: MARGIN,
@@ -654,7 +712,12 @@ pub(super) fn blocks(
     while let Some(step) = work.pop() {
         let at = match step {
             Step::Enter(at) => at,
-            Step::Exit { at, block, close } => {
+            Step::Exit {
+                at,
+                block,
+                inline,
+                close,
+            } => {
                 let frame = frames.pop().expect("an exit follows its enter");
                 let depth = frames.len();
                 if let Some(after) = styles.after.get(&at) {
@@ -663,6 +726,9 @@ pub(super) fn blocks(
                 }
                 if let Some(close) = close {
                     builder.push_control(close, &frame);
+                }
+                if inline {
+                    builder.close_inline();
                 }
                 counters.leave(depth);
                 if block {
@@ -730,9 +796,12 @@ pub(super) fn blocks(
                     None
                 };
                 let block = display != "inline";
-                if block {
+                let inline = if block {
                     builder.open(style, &frame, &mut inner)?;
-                }
+                    false
+                } else {
+                    builder.open_inline(style, &frame)?
+                };
                 let depth = frames.len();
                 counters.apply(style, depth);
                 if name == "ol"
@@ -777,6 +846,7 @@ pub(super) fn blocks(
                                 x: inner.x,
                                 width: inner.width,
                                 marker: true,
+                                inline: Vec::new(),
                             });
                         }
                     }
@@ -793,6 +863,7 @@ pub(super) fn blocks(
                 work.push(Step::Exit {
                     at,
                     block,
+                    inline,
                     close: controls.map(|(_, close)| close),
                 });
                 work.extend(node.children.iter().rev().map(|&c| Step::Enter(c)));

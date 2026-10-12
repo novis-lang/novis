@@ -16,6 +16,16 @@
 //! module doc), and a box under `opacity` is drawn with its content in one group. A box that
 //! goes on past a page is drawn in a slice on each page, closed at its first and last edge.
 //!
+//! **Inline boxes.** An inline element with a horizontal margin, a border, padding or a
+//! background is an [`Inline`] of its text block. Its left margin, border and padding are an empty
+//! `parley` inline box at the start of its text and its right ones another at the end, so the
+//! line makes room for them. On each line its text reaches, it is painted under the line's
+//! glyphs, from its text's left to right end and from the highest ascent to the lowest descent
+//! of the runs in it, grown by its padding and border. Its left side is on the line its text
+//! starts on and its right side on the line it ends on, as in a left-to-right line, whatever the
+//! direction. Its vertical margins, and its `opacity`, change nothing. A block inside it splits
+//! it, and the part after the block draws its left side again.
+//!
 //! **Text** is the inline content of a block, shaped and broken into lines by `parley` over
 //! `harfrust` and `skrifa`. Each run takes its font chain (`fonts`' module doc), `font-size`,
 //! `font-weight`, `font-style`, `color`, `letter-spacing`, `word-spacing`,
@@ -233,6 +243,15 @@ enum Spaces {
     Keep,
 }
 
+/// An inline element's box, drawn around its text on each line the text reaches.
+#[derive(Debug, Clone)]
+struct Inline {
+    /// The element's text, as bytes of its text block's.
+    range: Range<usize>,
+    /// Its margin, border, padding and paint. Each line sets `x` and `width` to its own slice.
+    geometry: BoxGeometry,
+}
+
 enum Block {
     Open(BoxGeometry),
     Close,
@@ -245,6 +264,8 @@ enum Block {
         /// A list item's marker, drawn on one line that ends at `x` and level with the first
         /// line laid out after it.
         marker: bool,
+        /// The boxes of the inline elements in the text that draw one, outermost first.
+        inline: Vec<Inline>,
     },
     Image {
         image: usize,

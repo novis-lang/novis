@@ -555,6 +555,67 @@ fn borders_radius_backgrounds_and_gradients_lay_out() {
     assert!(matches!(items[1], Item::Image { width, .. } if close(width, 1.5)));
     assert!(matches!(items[2], Item::End));
 
+    // `background-size` sizes the tile and `background-position` places it in the padding box.
+    let placed = |style: &str| {
+        let laid = lay_with(
+            &boxed(&format!("background: url(tile.png) no-repeat; {style}")),
+            &assets,
+        );
+        laid.pages[0]
+            .items
+            .iter()
+            .find_map(|item| match *item {
+                Item::Image {
+                    x,
+                    y,
+                    width,
+                    height,
+                    ..
+                } => Some((x - MARGIN, y - MARGIN, width, height)),
+                _ => None,
+            })
+            .unwrap()
+    };
+    let at = |got: (f32, f32, f32, f32), want: (f32, f32, f32, f32)| {
+        assert!(
+            close(got.0, want.0)
+                && close(got.1, want.1)
+                && close(got.2, want.2)
+                && close(got.3, want.3),
+            "{got:?} is not {want:?}"
+        );
+    };
+    at(
+        placed("background-position: right bottom"),
+        (98.5, 48.5, 1.5, 1.5),
+    );
+    at(
+        placed("background-position: bottom right"),
+        (98.5, 48.5, 1.5, 1.5),
+    );
+    at(
+        placed("background-size: cover; background-position: center"),
+        (0.0, -25.0, 100.0, 100.0),
+    );
+    at(
+        placed("background-size: contain; background-position: center"),
+        (25.0, 0.0, 50.0, 50.0),
+    );
+    at(
+        placed("background-size: 20pt; background-position: 10pt 25%"),
+        (10.0, 7.5, 20.0, 20.0),
+    );
+    at(placed("background-size: 50% 10pt"), (0.0, 0.0, 50.0, 10.0));
+    let laid = lay_with(
+        &boxed("background: url(tile.png) center / 10pt 5pt"),
+        &assets,
+    );
+    assert!(
+        matches!(paths(&laid)[0].1, Paint::Tiles { x, y, width, height, .. } if close(x, MARGIN + 45.0) && close(y, MARGIN + 22.5) && close(width, 10.0) && close(height, 5.0)),
+        "{:?}",
+        paths(&laid)
+    );
+
     // All of them render, and twice to the same bytes.
     let html: String = [
         "border: 2pt dashed red; border-left-style: dotted",
@@ -1038,4 +1099,69 @@ fn a_right_to_left_list_item_has_its_marker_at_the_right() {
     let marker = runs[1..].iter().map(|r| r.1).fold(f32::MAX, f32::min);
     assert!(close(marker, right), "{runs:?}");
     assert!(runs[1..].iter().all(|r| close(r.2, content.2)), "{runs:?}");
+}
+
+#[test]
+fn an_inline_box_draws_its_border_padding_and_background_around_its_text() {
+    const YELLOW: (u8, u8, u8) = (255, 255, 0);
+    let page = |span: &str, width: &str| {
+        lay(&format!(
+            "<body style='margin: 0'><p style='margin: 0; {width}'>Shop <span style='{span}'>Blog Blog Blog Blog Blog</span> end</p>"
+        ))
+    };
+
+    // On one line, the padding and the border at each end push the text beside the span apart.
+    let plain = page("", "");
+    let laid = page(
+        "background-color: #ffff00; padding: 2pt 4pt; border: 1pt solid #ff0000",
+        "",
+    );
+    let grown = lines(&laid)[0].1 - lines(&plain)[0].1;
+    assert!(close(grown, 10.0), "{grown}");
+    let drawn = runs(&laid);
+    assert_eq!(drawn.len(), 3, "{drawn:?}");
+    let blog = drawn[1];
+    let yellow: Vec<Rect> = rects(&laid).into_iter().filter(|r| r.4 == YELLOW).collect();
+    assert_eq!(yellow.len(), 1, "{yellow:?}");
+    let (x, y, w, h, _) = yellow[0];
+    assert!(
+        close(x, blog.1 - 5.0) && close(x + w, blog.3 + 5.0),
+        "{yellow:?} {drawn:?}"
+    );
+    // It reaches above the text and below its baseline by the padding and the border.
+    assert!(
+        y < blog.2 - 12.0 && y + h > blog.2 + 3.0,
+        "{yellow:?} {drawn:?}"
+    );
+    assert!(rects(&laid).iter().any(|r| r.4 == (255, 0, 0)));
+
+    // Across lines, each line draws its slice: the left padding on the first line only and the
+    // right padding on the last line only.
+    let laid = page("background-color: #ffff00; padding: 0 6pt", "width: 60pt");
+    let mut yellow: Vec<Rect> = rects(&laid).into_iter().filter(|r| r.4 == YELLOW).collect();
+    yellow.sort_by(|a, b| a.1.total_cmp(&b.1));
+    assert!(yellow.len() >= 3, "{yellow:?}");
+    let runs = runs(&laid);
+    let first_blog = runs[1];
+    assert!(
+        close(yellow[0].0, first_blog.1 - 6.0),
+        "{yellow:?} {runs:?}"
+    );
+    assert!(close(yellow[1].0, MARGIN), "{yellow:?}");
+    let last = yellow[yellow.len() - 1];
+    let end = runs[runs.len() - 1];
+    let last_blog = runs[runs.len() - 2];
+    assert!(
+        close(last.0 + last.2, last_blog.3 + 6.0),
+        "{yellow:?} {runs:?}"
+    );
+    assert!(end.1 >= last.0 + last.2, "{yellow:?} {runs:?}");
+
+    // It renders, and twice to the same bytes.
+    let document = Document {
+        html: "<p>Shop <span style='border: 1pt dashed red; border-radius: 3pt; background: linear-gradient(white, gray)'>Blog</span></p>".to_owned(),
+        ..Document::default()
+    };
+    let first = render(&document).unwrap();
+    assert_eq!(first.data, render(&document).unwrap().data);
 }
