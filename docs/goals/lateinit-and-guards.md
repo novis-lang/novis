@@ -22,7 +22,7 @@ stages:
         shapes: ["A `.nvst` test case", A diagnostic]
   - id: 3
     title: "`LateInit` initializes on the first read"
-    status: open
+    status: done
     context: [crates/nvs-ir/src/lower/expr.rs, crates/nvs-runtime/src/object.rs]
     extra:
       context:
@@ -267,11 +267,11 @@ by stages 1 and 5, `lateinit-read-before-write` by stage 3.
 
 **Does:** a read of an uninitialized `lateinit` property in a `LateInit` class calls `initProperty`.
 
-- [ ] `LateInit` registered as a global interface beside `PropertyObserver`. `crates/nvs-hir/src/interfaces.rs:48`
-- [ ] The compiled read's uninitialized branch calls `initProperty`, then reads again. `crates/nvs-ir/src/lower/expr.rs:4898`
-- [ ] The erased read does the same. `crates/nvs-runtime/src/object.rs:4973`
-- [ ] Initializing writes inside `initProperty` are plain. `crates/nvs-ir/src/lower/stmt.rs:1090`
-- [ ] `E0428` skips a class implementing `LateInit`. `crates/nvs-types/src/lateinit.rs:80`
+- [x] `LateInit` registered as a global interface beside `PropertyObserver`. `crates/nvs-hir/src/interfaces.rs:48`
+- [x] The compiled read's uninitialized branch calls `initProperty`, then reads again. `crates/nvs-ir/src/lower/expr.rs:5066`
+- [x] The erased read does the same. `crates/nvs-runtime/src/object.rs:5010`
+- [x] Initializing writes inside `initProperty` are plain. `crates/nvs-ir/src/lower/stmt.rs:1372`
+- [x] `E0428` skips a class implementing `LateInit`. `crates/nvs-types/src/lateinit.rs:80`
 
 ### 4. `LateInit` across tasks
 
@@ -301,26 +301,33 @@ by stages 1 and 5, `lateinit-read-before-write` by stage 3.
 
 ### State
 
-Stages 1 and 2 are done. `lateinit` takes every type, and `E0424`/`E0425` are retired. The compiled
-`lateinit` read tests the slot's tag through the new `InstKind::FieldIsInit`
-(`crates/nvs-ir/src/ir.rs`), emitted by `emit_never_written_guard`
-(`crates/nvs-ir/src/lower/expr.rs:4985`). `isinit` is a keyword, `ExprKind::IsInit`, checked by
-`presence::check_isinit_operand` (`E0853`, `E0854`) and lowered by `lower_isinit`
-(`crates/nvs-ir/src/lower/expr.rs:5011`) to that same instruction. `rule:classes/isinit-reads-nothing`
-exists. The unwritten-read message still says "written"; the rewording to "initialized" is stage 3's,
-in `crates/nvs-runtime/src/object.rs:4978`, `crates/nvs-ir/src/lower/call.rs:1478`, the guard, and
-the cases and docs that pin the text.
+Stages 1 to 3 are done. `LateInit` is on the roster (`crates/nvs-hir/src/interfaces.rs:48`) and
+seeded in `crates/nvs-types/src/iter_lib.rs`. The compiled `lateinit` read tests the tag first, and
+its unset branch is an erased `SlotGet` (`emit_never_written_guard`,
+`crates/nvs-ir/src/lower/expr.rs:5066`), so both reads share `initialize_late`
+(`crates/nvs-runtime/src/object.rs:5010`): it throws without `LateInit`, calls `initProperty`,
+and the caller reads again. Both throw `LogicError` now; the erased read threw `RuntimeError`
+before. The in-flight table is a per-`Ctx` `Vec` (`crates/nvs-runtime/src/ctx/mod.rs:1500`,
+`begin_late_init` at `crates/nvs-runtime/src/ctx/wiring.rs:308`). A child task's `Ctx` has its own
+table, so another task still calls `initProperty` a second time. Plain writes: an observed `lateinit`
+write tests the tag before it stores, and `open_unless_plain` (`crates/nvs-ir/src/lower/expr.rs:4770`)
+skips `onPropertySet` when `Helper::LateInitRunning` is true. The erased write does the same in
+`write_erased_property`. `rule:classes/late-init-initializes-on-the-first-read` exists, and
+`an-unwritten-property-read-throws` and `lateinit-read-before-write` are rewritten.
+`an_ordinary_write_inside_init_property_runs_guard_and_observer` tests only the observer so far.
+Stage 5 adds the guard to it.
 
 ### Next
 
-**Stage 3: `LateInit` initializes on the first read**, one file set: `crates/nvs-ir/src/lower/expr.rs`, `crates/nvs-runtime/src/object.rs`, `crates/nvs-hir/src/interfaces.rs`.
+**Stage 4: `LateInit` across tasks**, one file set: `crates/nvs-runtime/src/object.rs`, `crates/nvs-runtime/src/ctx/`.
 
-- [ ] `LateInit` registered beside `PropertyObserver` (§ *Standing decisions*, `LateInit`). `crates/nvs-hir/src/interfaces.rs:48`
-- [ ] The compiled read's unset branch calls `initProperty`, tests again, and throws the two new messages; the guard is `emit_never_written_guard`. `crates/nvs-ir/src/lower/expr.rs:4985`
-- [ ] The erased read does the same, and every "read before it is written" becomes "initialized". `crates/nvs-runtime/src/object.rs:4978`
-- [ ] `E0428` skips a class implementing `LateInit`, and `lateinit-read-before-write` is rewritten whole. `crates/nvs-types/src/lateinit.rs:80`
+- [ ] Move the in-flight table to the request tree's shared state so every task sees it, keyed as now (§ *Standing decisions*, *Across tasks*). `crates/nvs-runtime/src/ctx/mod.rs:1500`, `crates/nvs-runtime/src/ctx/isolate.rs:377`
+- [ ] A read from another task parks until that `initProperty` returns, then reads; a throw or a cancellation removes the entry and the next read calls again. `crates/nvs-runtime/src/object.rs:5010`
+- [ ] "Plain" stays per task: `late_init_running` asks about this task's own calls only. `crates/nvs-runtime/src/ctx/wiring.rs:308`
+- [ ] The two cases `late-init-tasks` names, in the shape of the stage 3 cases. `tests/conformance/class/late-init-that-initializes-nothing-throws.nvst:1`
 
 ### Backlog
+- A delegation forward over a `lateinit` field still throws without calling `initProperty` (`crates/nvs-ir/src/lower/call.rs:1478`); decide in stage 6.
 
 - Whether `PropertyGuard` and `PropertyObserver` give their methods empty default bodies, since interfaces may have default methods (`docs/reference/lang/50-classes.md:381`); ask the user.
 - `isinit` on a hooked `lateinit` property reports `E0853`; decide in stage 6 whether it should test the slot (`crates/nvs-types/src/expr/presence.rs`).
