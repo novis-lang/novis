@@ -5,7 +5,7 @@
 //     bun nv verify                  every step the change reaches
 //     bun nv verify -p nvs-ir        the same build; only nvs-ir's test binaries run
 //     bun nv verify --fast           build and test only, for a mid-work check
-//     bun nv verify --doc            the rustdoc gate alone; the sweep's goal-end call
+//     bun nv verify --doc            the rustdoc gate alone, which a session runs before DONE
 //     bun nv verify --start          run it detached through `nv bg` and return at once
 //     bun nv verify --wait           collect what --start left, with its exit status
 //     bun nv verify --full           do not truncate the failing step's output

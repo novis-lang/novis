@@ -1,5 +1,5 @@
-// The acceptance sweep's order and verdicts: the half of `bun nv sweep` that decides, from a check
-// record and what its run printed, whether it is green. The judging functions are exported on their
+// The acceptance sweep's order and verdicts: the half of `accept/sweep.ts`'s sweep that decides, from a
+// check record and what its run printed, whether it is green. The judging functions are exported on their
 // own, because each is a pure function of a check and what its process printed, and
 // `tools/nv/test/accept.test.ts` pins them from recorded output. What runs a check is
 // `accept/runner.ts`, on the selection store.
@@ -12,9 +12,9 @@
 // first. An `overlap` command starts when the setup tier ends and is judged after the goal's fixtures.
 // The release tier's builds start when the cargo and command tier has ended, beside the goal's
 // fixtures and the overlap commands. They start no earlier because `nvs-server`'s `serve` tests in that
-// tier bind loopback sockets, and a saturating `cargo build --release` beside them turns one red. What the caller
-// hands in as `beside`, the Linux legs at a goal end, starts when the overlap tier does. The release
-// checks themselves run one at a time once every build, overlap command and `beside` run has ended, so a
+// tier bind loopback sockets, and a saturating `cargo build --release` beside them turns one red. What
+// the caller hands in as `beside`, the Linux legs when `sweepOver` is asked for them, starts when the
+// overlap tier does. The release checks themselves run one at a time once every build, overlap command and `beside` run has ended, so a
 // perf guard measures on cores nothing else of the sweep is using. A sweep that stops at a red check
 // before the release tier stops the builds: the cargo run in progress is killed, and no other starts.
 //
@@ -25,8 +25,8 @@
 // and what the plan asks beyond them, a test a check names or a suite's `minPassing`, is judged from
 // the store's last green runs. A suite below its `minPassing` is `short`, reported and never green.
 //
-// The floor gate is the sweep after a session's (`cmd/sweep.ts`), and the WSL leg and the valgrind sweep are
-// `accept/legs.ts`'s, which the turn starts as `beside`.
+// The floor gate is `cmd/sweep.ts`'s, which looper runs after every session. The WSL leg and the
+// valgrind sweep are `accept/legs.ts`'s, which `sweepOver` starts as `beside`.
 
 import { dirname } from "node:path";
 

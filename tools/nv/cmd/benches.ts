@@ -7,8 +7,8 @@
 // the cores. It is how a person pays the bench debt the sessions' `nv verify` and `bun nv affected --run`
 // leave, without waiting for the floor gate, and it resumes a pass that was stopped, since each bench is
 // recorded the moment it is judged. `--owed` narrows it to the benches selected for being owed; a bench
-// never recorded stays unrecorded, and the next pass without `--owed` picks it up. The driver calls
-// `benchTurn` in-process on the floor gate's cadence, and `nv guard` refuses this command as a heavy run.
+// never recorded stays unrecorded, and the next pass without `--owed` picks it up. `bun nv sweep` calls
+// `benchTurn` in-process when the floor gate opens, and `nv guard` refuses this command as a heavy run.
 //
 // It exits 0 when no bench is red, 1 when one is or the release build failed, and 2 on a usage error.
 
