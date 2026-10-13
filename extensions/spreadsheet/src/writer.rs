@@ -409,6 +409,36 @@ impl Writer {
         Ok(self.archive.take())
     }
 
+    /// The A1 address of the column at `column`, from 0, in the row `row`, such as `C7`
+    /// (`rule:core-classes/spreadsheet-formula-is-a-value`).
+    pub fn cell(&self, column: u32, row: u32) -> Result<String, Error> {
+        if column as usize >= MAX_COLUMNS || !(1..=MAX_ROWS).contains(&row) {
+            return Err(Error::Invalid(format!(
+                "Column {} of row {row} is outside the sheet. A sheet has 16,384 columns and 1,048,576 rows.",
+                u64::from(column) + 1
+            )));
+        }
+        Ok(cells::reference(column, row))
+    }
+
+    /// The open sheet's data range in the column at `column`, from 0, over the rows written so
+    /// far, such as `C2:C1043`. The header row is not in it. Before the first data row, the range
+    /// is that row alone.
+    pub fn column(&self, column: u32) -> Result<String, Error> {
+        let Some(open) = &self.open else {
+            return Err(Error::Invalid(
+                "No sheet is open. Call `sheet()` before you ask for a column.".to_owned(),
+            ));
+        };
+        let first = if open.header.is_some() { 2 } else { 1 };
+        let last = open.next.saturating_sub(1).max(first);
+        Ok(format!(
+            "{}:{}",
+            self.cell(column, first)?,
+            self.cell(column, last)?
+        ))
+    }
+
     /// Checks a sheet's options against Excel's rules and the sheets already started.
     fn check_options(&self, options: &SheetOptions) -> Result<(), Error> {
         check_sheet_name(&options.name, &self.sheets)?;

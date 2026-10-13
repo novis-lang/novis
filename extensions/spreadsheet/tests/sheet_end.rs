@@ -610,3 +610,54 @@ fn a_formula_carries_its_cached_value_and_the_workbook_recalculates_on_open() {
     );
     assert!(book.workbook().contains("<calcPr fullCalcOnLoad=\"1\"/>"));
 }
+
+#[test]
+fn cell_and_column_give_a1_text_over_the_rows_written_so_far() {
+    let mut writer = writer();
+    assert!(writer.column(0).is_err(), "no sheet is open");
+    let mut options = SheetOptions::named("Shop");
+    options.header.filter = false;
+    let header = Row {
+        cells: vec![text("Item"), text("Qty")],
+        header: true,
+        ..Row::default()
+    };
+    let mut out = writer.sheet(options, &[header]).unwrap();
+    assert_eq!(writer.cell(2, 7).unwrap(), "C7");
+    assert_eq!(writer.cell(16_383, 1_048_576).unwrap(), "XFD1048576");
+    assert!(writer.cell(16_384, 1).is_err());
+    assert!(writer.cell(0, 0).is_err());
+    // Before the first data row, the range is that row alone.
+    assert_eq!(writer.column(1).unwrap(), "B2:B2");
+    out.extend(writer.rows(&orders(1042)).unwrap());
+    assert_eq!(writer.column(1).unwrap(), "B2:B1043");
+    // A totals row written after the data covers every row of the stream.
+    let total = format!("SUM({})", writer.column(1).unwrap());
+    out.extend(
+        writer
+            .rows(&[row(vec![
+                text("Total"),
+                Cell {
+                    value: Some(Value::Formula {
+                        formula: total,
+                        cached_text: None,
+                        cached_number: None,
+                    }),
+                    style: None,
+                },
+            ])])
+            .unwrap(),
+    );
+    let book = finish(writer, out);
+    assert!(
+        book.sheet(1).contains("<c r=\"B1044\"><f>SUM(B2:B1043)</f></c>"),
+        "the totals row sums every data row"
+    );
+
+    // A sheet with no header row starts its data at row 1.
+    let mut plain = self::writer();
+    plain
+        .sheet(SheetOptions::named("Blog"), &orders(3))
+        .unwrap();
+    assert_eq!(plain.column(0).unwrap(), "A1:A3");
+}
