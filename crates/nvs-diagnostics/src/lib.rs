@@ -3238,33 +3238,45 @@ pub mod code {
         "This `Core` class has no text form, so it cannot be printed, joined with `.` or converted \
          with `as string`. Call one of its methods that returns the text you want.",
     );
-    /// An `expr as T` into an object target nothing can be tested against —
-    /// plain `object`, `callable`, a `Core` namespace class, or a shape whose
-    /// fields carry a `tainted` or `secret` qualifier — from an operand that is
-    /// not already an object.
+    /// An `expr as T` whose target the conversion cannot check the value
+    /// against. Two kinds of target take it.
     ///
-    /// `rule:types/conversion` tabulates no row producing an object, and the
-    /// reason a class or a shape target is admitted at all is that it can be
-    /// *checked*: the conversion out of `mixed` tests the value's runtime class,
-    /// or walks a shape's fields as `is` does, and throws when it misses.
-    /// `object` and `callable` name no class, and nothing is ever an instance
-    /// of a `Core` namespace class, so there is no descriptor to test against.
-    /// A qualifier is erased before codegen, so a shape carrying one has a
-    /// field no walk can check. Each time the conversion could only *assert*
-    /// what it cannot verify, and the honest answer is a diagnostic where it is
-    /// written.
+    /// **An object target nothing can be tested against**: plain `object`,
+    /// `callable`, a `Core` namespace class, or a shape whose fields carry a
+    /// `tainted` or `secret` qualifier, from an operand that is not already an
+    /// object. `rule:types/conversion` tabulates no row producing an object,
+    /// and a class or a shape target is admitted only because it can be
+    /// *checked*: the conversion out of `mixed` tests the value's runtime
+    /// class, or walks a shape's fields as `is` does, and throws when it
+    /// misses. `object` and `callable` name no class, and nothing is ever an
+    /// instance of a `Core` namespace class, so there is no descriptor to test
+    /// against. A qualifier is erased before codegen, so a shape carrying one
+    /// has a field no walk can check. An operand that is already an object is
+    /// the free widening row: `$plain as object` runs nothing, because both
+    /// sides are one pointer.
     ///
-    /// An operand that is already an object is untouched and is the free
-    /// widening row: `$plain as object` runs nothing, because both sides are
-    /// one pointer.
+    /// **An `array<U>` whose element type no tag decides**: a class, a shape,
+    /// `callable`, `object`, an enum, a union (`?T` included) or a
+    /// single-value type, at any nesting depth. The `array<T> as array<U>` row
+    /// checks each element by its tag alone, and a tag proves objecthood but
+    /// no class, names an enum's backing but no enum, and admits values a
+    /// union or a single-value type does not. `nvs_types`'
+    /// `reject_uncheckable_element_type` is where the list is decided, and its
+    /// help names `array<mixed>` and a per-element `as` as the fix.
     ///
-    /// The sibling for a target that *can* be tested is [`E_NO_CONVERSION`],
-    /// which refuses the pair sharing no value at all; the two never fire
-    /// together, because a target can be tested or it cannot.
+    /// Each time the conversion could only *assert* what it cannot verify, so
+    /// the answer is a diagnostic where it is written. The sibling for a target
+    /// that *can* be tested is [`E_NO_CONVERSION`], which refuses the pair
+    /// sharing no value at all; the two never fire together, because a target
+    /// can be tested or it cannot.
     pub const E_UNTESTABLE_CONVERSION_TARGET: Code = Code::new("E0711").card(
-        "`as` can only convert a value to a type it can test the value against. `object`, \
-         `callable` and a `Core` namespace class have nothing to test. Convert to a class, as in \
-         `$v as User`, or to a shape, as in `$v as {id: int}`.",
+        "`as` can only convert a value to a type it can check the value against. `object`, \
+         `callable` and a `Core` namespace class have nothing to check. Convert to a class, as in \
+         `$v as User`, or to a shape, as in `$v as {id: int}`.\n\n\
+         `as array<T>` checks each element by the kind of value it is. That works when `T` is \
+         `mixed` or a simple type such as `int` or `string`. It does not work for a class, a \
+         shape, an enum, or a union such as `?int` or `'on'|'off'`. Convert to `array<mixed>`, \
+         then convert each element where you read it, as in `$item as User`.",
     );
 
     /// A `name:` argument at a call through a `callable`.
