@@ -45,7 +45,7 @@ if (Core\Env::context() == Core\Env::Context::Request) {
     }
 
     // 2. The same body with the largest `maxDepth`. The result is an object,
-    // or an error the test can catch.
+    // so this prints `deep: read f`.
     try {
         var $root = $deep->jsonAs<Folder>({ maxDepth: 1024 });
         echo 'deep: read ', $root->name, "\n";

@@ -1344,8 +1344,9 @@ const RESPONSE_JSON_AS_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "RecursionError",
-            desc: "The call stack is full before the last object is created. This can happen \
-                   when a class contains itself and the body nests very deeply.",
+            desc: "The call stack is full when a constructor runs. This happens when the call \
+                   starts with the stack almost full, or when a constructor recurses deeply. A \
+                   deep body within `maxDepth` does not throw this error.",
         },
     ],
 };
