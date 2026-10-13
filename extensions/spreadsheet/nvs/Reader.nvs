@@ -4,29 +4,29 @@ namespace Novis\Spreadsheet;
 use Iterator;
 use LogicError;
 
-/// A spreadsheet file that your program reads row by row. It can be xlsx, xlsm, xlsb, xls or ods.
-/// Open one with `Reader::open`. `sheets` lists its sheets, and `rows` reads the rows of one sheet.
+/// A spreadsheet file that your program reads row by row, such as an upload. It can be xlsx, xlsm, xlsb, xls or ods.
+/// Open one with `Reader::open`. Every string and `bytes` value it returns is `tainted`, because it comes from the file.
 final class Reader
 {
     type RowOptions = ?{header?: bool|int, from?: uint, limit?: uint, columns?: array<string>, zone?: string, text?: bool|array<string>, formulas?: bool, emptyRows?: string, merged?: string, hidden?: string, locale?: string};
-    type SheetInfo = {name: string, position: uint, visibility: Visibility, rows: uint, columns: uint, kind: SheetKind};
-    type Link = {anchor: string, target: string, text: ?string, tooltip: ?string, external: bool};
-    type Note = {noted: string, note: string, author: ?string};
-    type Name = {name: string, reference: string, sheet: ?string};
-    type Table = {table: string, name: string, sheet: string};
-    type Image = {at: string, image: bytes, format: string, link: ?string};
-    type Properties = {title: ?string, subject: ?string, author: ?string, company: ?string, keywords: ?string, created: ?Core\Time\Instant};
+    type SheetInfo = {name: tainted string, position: uint, visibility: Visibility, rows: uint, columns: uint, kind: SheetKind};
+    type Link = {anchor: tainted string, target: tainted string, text: ?tainted string, tooltip: ?tainted string, external: bool};
+    type Note = {noted: tainted string, note: tainted string, author: ?tainted string};
+    type Name = {name: tainted string, reference: tainted string, sheet: ?tainted string};
+    type Table = {table: tainted string, name: tainted string, sheet: tainted string};
+    type Image = {at: tainted string, image: tainted bytes, format: tainted string, link: ?tainted string};
+    type Properties = {title: ?tainted string, subject: ?tainted string, author: ?tainted string, company: ?tainted string, keywords: ?tainted string, created: ?Core\Time\Instant};
     type Read = {text: string}|{integer: int}|{number: float}|{boolean: bool}|{day: Core\Time\Date, clock: Core\Time\TimeOfDay}|{date: Core\Time\Date}|{time: Core\Time\TimeOfDay}|{duration: Core\Time\Duration}|{error: CellError};
     type Asked = {sheet: string, headerRow: ?uint, from: ?uint, limit: ?uint, columns: array<string>, text: array<string>, textAll: bool, formulas: bool, keepEmptyRows: bool, fillMerged: bool, skipHidden: bool, locale: string};
 
     private function constructor(
         private readonly Reading $reader,
-        private readonly bytes|Core\IO\File $source,
+        private readonly tainted bytes|Core\IO\File $source,
     ) {}
 
     /// `Reader::open` opens the workbook in `$source`. The source is the bytes of the file, or a file your program opened.
     /// This reads the list of sheets. An xls or ods file is read whole here. Any other file type throws an error.
-    public static function open(bytes|Core\IO\File $source): Reader
+    public static function open(tainted bytes|Core\IO\File $source): Reader
     {
         return new Reader(Engine::readerOpen($source), $source);
     }
@@ -39,14 +39,14 @@ final class Reader
 
     /// `macros` returns the names of the macro modules in an xlsm or xls file. The list is empty when the file has no macros.
     /// Reading a file never runs its macros.
-    public function macros(): array<string>
+    public function macros(): array<tainted string>
     {
         return Engine::readerMacros($this->reader, $this->source);
     }
 
     /// `merged` returns the merged cells of the sheet `$sheet`, by name or by position from 0. Each one is a range such as `"A1:C2"`.
     /// When you read rows, the value of a merged range is in its top-left cell. With `merged: 'fill'`, every cell of the range has that value.
-    public function merged(string|int $sheet): array<string>
+    public function merged(string|int $sheet): array<tainted string>
     {
         return Engine::readerMerged($this->reader, $this->source, $this->sheetName($sheet));
     }
@@ -143,7 +143,7 @@ final class Reader
                 return;
             }
         }
-        array<string> $keys = $this->keys($asked, $headerRow, $from);
+        array<tainted string> $keys = $this->keys($asked, $headerRow, $from);
         ?uint $next = $from;
         ?uint $left = $limit;
         while (true) {
@@ -179,7 +179,7 @@ final class Reader
         return null;
     }
 
-    private function keys(Asked $asked, ?uint $headerRow, ?uint $from): array<string>
+    private function keys(Asked $asked, ?uint $headerRow, ?uint $from): array<tainted string>
     {
         if ($headerRow == null) {
             return [];
@@ -187,21 +187,21 @@ final class Reader
         return Engine::readerHeader($this->reader, $this->source, self::with($asked, $headerRow, $from, null, $asked->keepEmptyRows));
     }
 
-    private function batch(Asked $asked, ?uint $headerRow, ?uint $from, ?uint $left, uint $most, array<string> $keys, Core\Time\Zone $zone): array<Row>
+    private function batch(Asked $asked, ?uint $headerRow, ?uint $from, ?uint $left, uint $most, array<tainted string> $keys, Core\Time\Zone $zone): array<Row>
     {
         var $batch = Engine::readerRows($this->reader, $this->source, self::with($asked, $headerRow, $from, $left, $asked->keepEmptyRows), $most);
         array<Row> $rows = [];
         foreach ($batch->rows as var $row) {
             array<mixed> $values = [];
             uint $column = 0;
-            foreach ($keys as string $named) {
+            foreach ($keys as tainted string $named) {
                 $column = $column + 1;
                 if (self::selected($asked->columns, $column)) {
                     $values[$named] = null;
                 }
             }
             foreach ($row->cells as var $cell) {
-                string $key = $cell->column <= Core\Arr::count($keys) ? $keys[$cell->column - 1] : self::letters($cell->column);
+                tainted string $key = $cell->column <= Core\Arr::count($keys) ? $keys[$cell->column - 1] : self::letters($cell->column);
                 $values[$key] = self::value($cell->value, $cell->formula, $cell->display, $asked->formulas, $zone);
             }
             $rows[] = new Row($row->number, $values);
@@ -216,7 +216,7 @@ final class Reader
         }
         foreach ($this->sheets() as var $info) {
             if ($info->position as int == $sheet) {
-                return $info->name;
+                return Core\Taint::assertTrusted($info->name, "the file gave this sheet name, and it goes back only to the same file");
             }
         }
         throw new LogicError("The workbook has no sheet at position {$sheet}. The first sheet is at position 0.");

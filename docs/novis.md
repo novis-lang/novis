@@ -30202,18 +30202,18 @@ Keywords: constructor, of
 
 | Member | Signature |
 |---|---|
-| [`Novis\Spreadsheet\Formula::constructor`](#core-novis-spreadsheet-formula-constructor) | `constructor(string $text, string\|int\|float\|null $cached)` |
+| [`Novis\Spreadsheet\Formula::constructor`](#core-novis-spreadsheet-formula-constructor) | `constructor(tainted string $text, string\|int\|float\|null $cached)` |
 | [`Novis\Spreadsheet\Formula::of`](#core-novis-spreadsheet-formula-of) | `of(string $text, ?{cached?: string\|int\|float} $options = null): Formula` |
 
 <a id="core-novis-spreadsheet-formula-constructor"></a>
 #### `Novis\Spreadsheet\Formula::constructor`
 
 ```nvs skip
-new Novis\Spreadsheet\Formula(string $text, string|int|float|null $cached)
+new Novis\Spreadsheet\Formula(tainted string $text, string|int|float|null $cached)
 ```
 
 `new Formula` makes a formula from its values. `Formula::of` makes one for you.
-`text` has no `=` at the start. `cached` is the result the file has for a program that does not calculate.
+`text` has no `=` at the start. It is `tainted`, because `Reader` can read a formula from a file. `cached` is the result the file has for a program that does not calculate.
 
 <a id="core-novis-spreadsheet-formula-of"></a>
 #### `Novis\Spreadsheet\Formula::of`
@@ -30230,20 +30230,27 @@ Novis\Spreadsheet\Formula::of(string $text, ?{cached?: string|int|float} $option
 <a id="core-novis-spreadsheet-reader"></a>
 ### `Novis\Spreadsheet\Reader`
 
-Keywords: open, sheets, macros, rows
+Keywords: open, sheets, macros, merged, links, notes, names, tables, images, properties, rows
 
 | Member | Signature |
 |---|---|
-| [`Novis\Spreadsheet\Reader::open`](#core-novis-spreadsheet-reader-open) | `open(bytes\|Core\IO\File $source): Reader` |
+| [`Novis\Spreadsheet\Reader::open`](#core-novis-spreadsheet-reader-open) | `open(tainted bytes\|Core\IO\File $source): Reader` |
 | [`Novis\Spreadsheet\Reader->sheets`](#core-novis-spreadsheet-reader-sheets) | `sheets(): array<SheetInfo>` |
-| [`Novis\Spreadsheet\Reader->macros`](#core-novis-spreadsheet-reader-macros) | `macros(): array<string>` |
+| [`Novis\Spreadsheet\Reader->macros`](#core-novis-spreadsheet-reader-macros) | `macros(): array<tainted string>` |
+| [`Novis\Spreadsheet\Reader->merged`](#core-novis-spreadsheet-reader-merged) | `merged(string\|int $sheet): array<tainted string>` |
+| [`Novis\Spreadsheet\Reader->links`](#core-novis-spreadsheet-reader-links) | `links(string\|int $sheet): array<Link>` |
+| [`Novis\Spreadsheet\Reader->notes`](#core-novis-spreadsheet-reader-notes) | `notes(string\|int $sheet): array<Note>` |
+| [`Novis\Spreadsheet\Reader->names`](#core-novis-spreadsheet-reader-names) | `names(): array<Name>` |
+| [`Novis\Spreadsheet\Reader->tables`](#core-novis-spreadsheet-reader-tables) | `tables(string\|int $sheet): array<Table>` |
+| [`Novis\Spreadsheet\Reader->images`](#core-novis-spreadsheet-reader-images) | `images(string\|int $sheet): array<Image>` |
+| [`Novis\Spreadsheet\Reader->properties`](#core-novis-spreadsheet-reader-properties) | `properties(): Properties` |
 | [`Novis\Spreadsheet\Reader->rows`](#core-novis-spreadsheet-reader-rows) | `rows(string\|int $sheet, RowOptions $options = null): Iterator<Row>` |
 
 <a id="core-novis-spreadsheet-reader-open"></a>
 #### `Novis\Spreadsheet\Reader::open`
 
 ```nvs skip
-Novis\Spreadsheet\Reader::open(bytes|Core\IO\File $source): Reader
+Novis\Spreadsheet\Reader::open(tainted bytes|Core\IO\File $source): Reader
 ```
 
 `Reader::open` opens the workbook in `$source`. The source is the bytes of the file, or a file your program opened.
@@ -30266,13 +30273,95 @@ $reader->sheets(): array<SheetInfo>
 #### `Novis\Spreadsheet\Reader->macros`
 
 ```nvs skip
-$reader->macros(): array<string>
+$reader->macros(): array<tainted string>
 ```
 
 `macros` returns the names of the macro modules in an xlsm or xls file. The list is empty when the file has no macros.
 Reading a file never runs its macros.
 
-**Returns** `array<string>`
+**Returns** `array<tainted string>`
+
+<a id="core-novis-spreadsheet-reader-merged"></a>
+#### `Novis\Spreadsheet\Reader->merged`
+
+```nvs skip
+$reader->merged(string|int $sheet): array<tainted string>
+```
+
+`merged` returns the merged cells of the sheet `$sheet`, by name or by position from 0. Each one is a range such as `"A1:C2"`.
+When you read rows, the value of a merged range is in its top-left cell. With `merged: 'fill'`, every cell of the range has that value.
+
+**Returns** `array<tainted string>`
+
+<a id="core-novis-spreadsheet-reader-links"></a>
+#### `Novis\Spreadsheet\Reader->links`
+
+```nvs skip
+$reader->links(string|int $sheet): array<Link>
+```
+
+`links` returns the hyperlinks of the sheet `$sheet`. `anchor` is the cell, such as `"B2"`, and `target` is where the link goes.
+`external` is `true` for a URL or a file. Reading a file never opens its links.
+
+**Returns** `array<Link>`
+
+<a id="core-novis-spreadsheet-reader-notes"></a>
+#### `Novis\Spreadsheet\Reader->notes`
+
+```nvs skip
+$reader->notes(string|int $sheet): array<Note>
+```
+
+`notes` returns the notes of the sheet `$sheet`. Each one has its cell in `noted`, its text in `note`, and its `author`.
+
+**Returns** `array<Note>`
+
+<a id="core-novis-spreadsheet-reader-names"></a>
+#### `Novis\Spreadsheet\Reader->names`
+
+```nvs skip
+$reader->names(): array<Name>
+```
+
+`names` returns the defined names of the workbook. `reference` is the text of the name, such as `"Shop!$A$1:$C$9"`.
+`sheet` is `null` for a name the whole workbook can use.
+
+**Returns** `array<Name>`
+
+<a id="core-novis-spreadsheet-reader-tables"></a>
+#### `Novis\Spreadsheet\Reader->tables`
+
+```nvs skip
+$reader->tables(string|int $sheet): array<Table>
+```
+
+`tables` returns the Excel tables of the sheet `$sheet`. `table` is the range, such as `"A1:C10"`, and `name` is the table name.
+
+**Returns** `array<Table>`
+
+<a id="core-novis-spreadsheet-reader-images"></a>
+#### `Novis\Spreadsheet\Reader->images`
+
+```nvs skip
+$reader->images(string|int $sheet): array<Image>
+```
+
+`images` returns the pictures of the sheet `$sheet`. `at` is the top-left cell, and `image` is the bytes of the picture.
+A linked picture has empty `image` bytes, and `link` is its target. Reading a file never fetches a link.
+
+**Returns** `array<Image>`
+
+<a id="core-novis-spreadsheet-reader-properties"></a>
+#### `Novis\Spreadsheet\Reader->properties`
+
+```nvs skip
+$reader->properties(): Properties
+```
+
+`properties` returns the title, subject, author, company and keywords of the workbook, and the time it was created.
+A property the file does not have is `null`. An xls or ods file throws an error.
+
+**Returns** `Properties`
 
 <a id="core-novis-spreadsheet-reader-rows"></a>
 #### `Novis\Spreadsheet\Reader->rows`
@@ -30679,7 +30768,7 @@ new Novis\Spreadsheet\Written(array<int> $rows, int $size, ?bytes $bytes)
 <a id="core-novis-spreadsheet-engine"></a>
 ### `Novis\Spreadsheet\Engine`
 
-Keywords: writerOpen, writerStyle, writerSheet, writerRows, writerPart, writerDefine, writerCell, writerColumn, writerFinish, readerOpen, readerSheets, readerMacros, readerHeader, readerRows
+Keywords: writerOpen, writerStyle, writerSheet, writerRows, writerPart, writerDefine, writerCell, writerColumn, writerFinish, readerOpen, readerSheets, readerMacros, readerMerged, readerLinks, readerNotes, readerNames, readerTables, readerImages, readerProperties, readerHeader, readerRows
 
 | Member | Signature |
 |---|---|
@@ -30695,6 +30784,13 @@ Keywords: writerOpen, writerStyle, writerSheet, writerRows, writerPart, writerDe
 | [`Novis\Spreadsheet\Engine::readerOpen`](#core-novis-spreadsheet-engine-readeropen) | `readerOpen(mixed $source): Reading` |
 | [`Novis\Spreadsheet\Engine::readerSheets`](#core-novis-spreadsheet-engine-readersheets) | `readerSheets(Reading $reader, mixed $source): array<{name: string, position: uint, visibility: Visibility, rows: uint, columns: uint, kind: SheetKind}>` |
 | [`Novis\Spreadsheet\Engine::readerMacros`](#core-novis-spreadsheet-engine-readermacros) | `readerMacros(Reading $reader, mixed $source): array<string>` |
+| [`Novis\Spreadsheet\Engine::readerMerged`](#core-novis-spreadsheet-engine-readermerged) | `readerMerged(Reading $reader, mixed $source, string $sheet): array<string>` |
+| [`Novis\Spreadsheet\Engine::readerLinks`](#core-novis-spreadsheet-engine-readerlinks) | `readerLinks(Reading $reader, mixed $source, string $sheet): array<{anchor: string, target: string, text: ?string, tooltip: ?string, external: bool}>` |
+| [`Novis\Spreadsheet\Engine::readerNotes`](#core-novis-spreadsheet-engine-readernotes) | `readerNotes(Reading $reader, mixed $source, string $sheet): array<{noted: string, note: string, author: ?string}>` |
+| [`Novis\Spreadsheet\Engine::readerNames`](#core-novis-spreadsheet-engine-readernames) | `readerNames(Reading $reader, mixed $source): array<{name: string, reference: string, sheet: ?string}>` |
+| [`Novis\Spreadsheet\Engine::readerTables`](#core-novis-spreadsheet-engine-readertables) | `readerTables(Reading $reader, mixed $source, string $sheet): array<{table: string, name: string, sheet: string}>` |
+| [`Novis\Spreadsheet\Engine::readerImages`](#core-novis-spreadsheet-engine-readerimages) | `readerImages(Reading $reader, mixed $source, string $sheet): array<{at: string, image: bytes, format: string, link: ?string}>` |
+| [`Novis\Spreadsheet\Engine::readerProperties`](#core-novis-spreadsheet-engine-readerproperties) | `readerProperties(Reading $reader, mixed $source): {title: ?string, subject: ?string, author: ?string, company: ?string, keywords: ?string, created: ?{day: Core\Time\Date, clock: Core\Time\TimeOfDay}}` |
 | [`Novis\Spreadsheet\Engine::readerHeader`](#core-novis-spreadsheet-engine-readerheader) | `readerHeader(Reading $reader, mixed $source, {sheet: string, headerRow: ?uint, from: ?uint, limit: ?uint, columns: array<string>, text: array<string>, textAll: bool, formulas: bool, keepEmptyRows: bool, fillMerged: bool, skipHidden: bool, locale: string} $options): array<string>` |
 | [`Novis\Spreadsheet\Engine::readerRows`](#core-novis-spreadsheet-engine-readerrows) | `readerRows(Reading $reader, mixed $source, {sheet: string, headerRow: ?uint, from: ?uint, limit: ?uint, columns: array<string>, text: array<string>, textAll: bool, formulas: bool, keepEmptyRows: bool, fillMerged: bool, skipHidden: bool, locale: string} $options, uint $max): {rows: array<{number: uint, cells: array<{column: uint, value: ?ReadValue, formula: ?string, display: ?string}>}>, done: bool}` |
 
@@ -30889,6 +30985,123 @@ Returns the names of the workbook's macro modules. The list is empty when the wo
 | `$source` | `mixed` |  |
 
 **Returns** `array<string>`
+
+<a id="core-novis-spreadsheet-engine-readermerged"></a>
+#### `Novis\Spreadsheet\Engine::readerMerged`
+
+```nvs skip
+Novis\Spreadsheet\Engine::readerMerged(Reading $reader, mixed $source, string $sheet): array<string>
+```
+
+Returns the merged cells of the sheet `sheet`. Each one is a range such as `A1:C2`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$reader` | `Reading` |  |
+| `$source` | `mixed` |  |
+| `$sheet` | `string` |  |
+
+**Returns** `array<string>`
+
+<a id="core-novis-spreadsheet-engine-readerlinks"></a>
+#### `Novis\Spreadsheet\Engine::readerLinks`
+
+```nvs skip
+Novis\Spreadsheet\Engine::readerLinks(Reading $reader, mixed $source, string $sheet): array<{anchor: string, target: string, text: ?string, tooltip: ?string, external: bool}>
+```
+
+Returns the hyperlinks of the sheet `sheet`. `external` is `true` for a link to a URL or a file. Nothing opens the link.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$reader` | `Reading` |  |
+| `$source` | `mixed` |  |
+| `$sheet` | `string` |  |
+
+**Returns** `array<{anchor: string, target: string, text: ?string, tooltip: ?string, external: bool}>`
+
+<a id="core-novis-spreadsheet-engine-readernotes"></a>
+#### `Novis\Spreadsheet\Engine::readerNotes`
+
+```nvs skip
+Novis\Spreadsheet\Engine::readerNotes(Reading $reader, mixed $source, string $sheet): array<{noted: string, note: string, author: ?string}>
+```
+
+Returns the notes of the sheet `sheet`, each with its cell, its text and its author.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$reader` | `Reading` |  |
+| `$source` | `mixed` |  |
+| `$sheet` | `string` |  |
+
+**Returns** `array<{noted: string, note: string, author: ?string}>`
+
+<a id="core-novis-spreadsheet-engine-readernames"></a>
+#### `Novis\Spreadsheet\Engine::readerNames`
+
+```nvs skip
+Novis\Spreadsheet\Engine::readerNames(Reading $reader, mixed $source): array<{name: string, reference: string, sheet: ?string}>
+```
+
+Returns the defined names of the workbook, each with its reference as text. `sheet` is the sheet a local name belongs to.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$reader` | `Reading` |  |
+| `$source` | `mixed` |  |
+
+**Returns** `array<{name: string, reference: string, sheet: ?string}>`
+
+<a id="core-novis-spreadsheet-engine-readertables"></a>
+#### `Novis\Spreadsheet\Engine::readerTables`
+
+```nvs skip
+Novis\Spreadsheet\Engine::readerTables(Reading $reader, mixed $source, string $sheet): array<{table: string, name: string, sheet: string}>
+```
+
+Returns the Excel tables of the sheet `sheet`, each with its range, such as `A1:C10`, and its name.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$reader` | `Reading` |  |
+| `$source` | `mixed` |  |
+| `$sheet` | `string` |  |
+
+**Returns** `array<{table: string, name: string, sheet: string}>`
+
+<a id="core-novis-spreadsheet-engine-readerimages"></a>
+#### `Novis\Spreadsheet\Engine::readerImages`
+
+```nvs skip
+Novis\Spreadsheet\Engine::readerImages(Reading $reader, mixed $source, string $sheet): array<{at: string, image: bytes, format: string, link: ?string}>
+```
+
+Returns the pictures of the sheet `sheet`, each with its top-left cell, its bytes and its format. A linked picture has no bytes, and `link` is its target. Nothing fetches it.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$reader` | `Reading` |  |
+| `$source` | `mixed` |  |
+| `$sheet` | `string` |  |
+
+**Returns** `array<{at: string, image: bytes, format: string, link: ?string}>`
+
+<a id="core-novis-spreadsheet-engine-readerproperties"></a>
+#### `Novis\Spreadsheet\Engine::readerProperties`
+
+```nvs skip
+Novis\Spreadsheet\Engine::readerProperties(Reading $reader, mixed $source): {title: ?string, subject: ?string, author: ?string, company: ?string, keywords: ?string, created: ?{day: Core\Time\Date, clock: Core\Time\TimeOfDay}}
+```
+
+Returns the document properties of the workbook. `created` is the time it was created, in UTC.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$reader` | `Reading` |  |
+| `$source` | `mixed` |  |
+
+**Returns** `{title: ?string, subject: ?string, author: ?string, company: ?string, keywords: ?string, created: ?{day: Core\Time\Date, clock: Core\Time\TimeOfDay}}`
 
 <a id="core-novis-spreadsheet-engine-readerheader"></a>
 #### `Novis\Spreadsheet\Engine::readerHeader`

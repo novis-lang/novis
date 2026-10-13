@@ -6,9 +6,9 @@ namespace Novis\Spreadsheet;
 final class Formula
 {
     /// `new Formula` makes a formula from its values. `Formula::of` makes one for you.
-    /// `text` has no `=` at the start. `cached` is the result the file has for a program that does not calculate.
+    /// `text` has no `=` at the start. It is `tainted`, because `Reader` can read a formula from a file. `cached` is the result the file has for a program that does not calculate.
     public function constructor(
-        public readonly string $text,
+        public readonly tainted string $text,
         public readonly string|int|float|null $cached,
     ) {}
 

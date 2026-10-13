@@ -28,8 +28,20 @@ one API for the job.
 result the file's author wrote beside it, and the two are distinguishable at the API, because a cached
 value is a claim by the author rather than a computation by us
 (`rule:core-classes/spreadsheet-value-types`). VBA and embedded OLE objects are inert payload the reader
-may list but never executes. The XML parser resolves no entity and loads no DTD. Cells read from
-`tainted` bytes are `tainted`.
+may list but never executes. The XML parser resolves no entity and loads no DTD.
+
+**Everything read is `tainted`.** `Reader::open` takes `tainted bytes`, so an upload reads, and the
+source is held `tainted` whatever the program passed, because a workbook is outside data even when
+the program holds it as plain `bytes`. Every string and `bytes` value `Reader` returns is `tainted`:
+cells, header keys, sheet names, macro names, merged ranges and every extra. A `Formula` read with
+`formulas: true` carries its text as a `tainted string`, so `Formula::text` is `tainted` for every
+formula. The writer launders it with `Core\Taint::assertTrusted` at the one place a `Formula` becomes
+a formula, because passing a `Formula` is the program's own choice to write one, and a string is
+always text. Cost: a program that reads `->text` of a formula it made must assert it trusted too.
+The engine's own results are plain shapes, because an extension call's contagion does not reach a
+shape's fields (`crates/nvs-types/src/expr/quals.rs`'s `tainted_result`), so the `tainted` types are
+written in `Reader`'s declarations, and a sheet name goes back to the engine through one
+`assertTrusted` naming why.
 
 The component's tests owe, asserted inside the guest: a read and a write with no capability grant that
 succeed with no network or filesystem access observable; and an xlsx whose sheet XML declares an
@@ -52,5 +64,8 @@ surfaced as data and nothing resolved.
 - **Written in Novis.** It would reimplement OOXML and BIFF parsing that production crates already
   carry, unfuzzed and ours to maintain, and buy nothing the wasm build does not give. Novis code
   belongs in the builder.
+- **A plain `Formula::text`, with the reader asserting a read formula trusted.** That launders a
+  file's text into every sink, an HTML page included, to save a program one `assertTrusted` on a
+  formula it made itself.
 - **Exposing the crates' surfaces directly.** That is several disjoint APIs for one job inside a single
   component.
