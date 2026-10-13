@@ -24,7 +24,10 @@
  *
  * "External" is any absolute `http(s)` or protocol-relative URL whose origin
  * is not SITE_URL's. `mailto:` and `tel:` are not websites and stay as they
- * are; the site's own absolute URLs stay in-tab.
+ * are; the site's own absolute URLs stay in-tab. One kind of the site's own
+ * link opens in a new tab as well, with no `rel`: a PDF file the site serves
+ * (`isOwnPdf`), such as an example app's documents, so the reader keeps the
+ * page that linked it.
  */
 import { isSatteriProcessor } from '@astrojs/markdown-satteri'
 import { SITE_URL, GITHUB_URL, DISCORD_URL } from './site.mjs'
@@ -63,16 +66,34 @@ export function isExternal(href) {
 }
 
 /**
+ * Whether `href` is a PDF file on this site: a site-relative path, or an
+ * absolute URL on SITE_URL's origin, whose path ends in `.pdf`.
+ * @param {unknown} href
+ * @returns {boolean}
+ */
+export function isOwnPdf(href) {
+  if (href instanceof URL) href = href.href
+  if (typeof href !== 'string') return false
+  try {
+    const url = new URL(href, SITE_URL)
+    return url.origin === siteOrigin && /\.pdf$/i.test(url.pathname)
+  } catch {
+    return false
+  }
+}
+
+/**
  * The attributes a component spreads onto an anchor: `{}` for a link that
- * stays on the site, `target` alone for one of our own pages elsewhere,
- * `target` and `rel` for one that leaves the project. An existing `rel`
- * (Starlight's social icons carry `rel="me"`) is kept, and extended where
- * the rule adds tokens.
+ * stays on the site, `target` alone for one of our own pages elsewhere or a
+ * PDF file on the site, `target` and `rel` for one that leaves the project.
+ * An existing `rel` (Starlight's social icons carry `rel="me"`) is kept, and
+ * extended where the rule adds tokens.
  * @param {unknown} href
  * @param {string} [rel]
  * @returns {{ target?: string; rel?: string }}
  */
 export function externalLinkAttrs(href, rel) {
+  if (isOwnPdf(href)) return rel ? { target: '_blank', rel } : { target: '_blank' }
   if (!isExternal(href)) return rel ? { rel } : {}
   if (isOwn(String(href))) return rel ? { target: '_blank', rel } : { target: '_blank' }
   return { target: '_blank', rel: mergeRel(rel) }
@@ -159,9 +180,9 @@ export function decorateRawAnchors(html) {
   if (!html.includes('<a')) return html
   return html.replace(rawAnchor, (tag, attrs) => {
     const href = rawAttr('href').exec(attrs)?.[1]
-    if (!isExternal(href)) return tag
+    if (!isExternal(href) && !isOwnPdf(href)) return tag
     const target = rawAttr('target').test(attrs) ? '' : ' target="_blank"'
-    if (isOwn(href)) return `<a ${attrs}${target}>`
+    if (isOwnPdf(href) || isOwn(href)) return `<a ${attrs}${target}>`
     let rest = attrs
     const rel = rawAttr('rel').exec(attrs)?.[1]
     if (rel !== undefined) rest = rest.replace(rawAttr('rel'), ' ').replace(/\s+/g, ' ').trim()
