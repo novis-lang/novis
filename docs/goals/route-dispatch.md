@@ -54,7 +54,7 @@ stages:
         shapes: ["An example"]
   - id: 7
     title: the feature proofs
-    status: open
+    status: done
     extra:
       context:
         rules: [testing/feature-proofs]
@@ -286,10 +286,10 @@ refusal mode, and never a handler.
 
 **Does:** `Core\Router::dispatch` owes nothing (`bun nv proofs --id 'Core\Router::dispatch'`).
 
-- [ ] Its `about.md` and three examples (`docs/examples/core/Router/dispatch/about.md:1`)
-- [ ] The bench, with its growth against the number of routes (`benches/members/core/Router/dispatch.nvs:1`)
-- [ ] The attack: a refused request tries to reach a handler, including through a gate that throws (`tests/hostile/core/Router/dispatch/01-a-refused-request-tries-to-reach-a-handler.nvs:1`)
-- [ ] Its help in the binary (`crates/nvs-stdlib/src/router.rs:207`)
+- [x] Its `about.md` and three examples (`docs/examples/core/Router/dispatch/about.md:1`)
+- [x] The bench, with its growth against the number of routes (`benches/members/core/Router/dispatch.nvs:1`)
+- [x] The attack: a refused request tries to reach a handler, including through a gate that throws (`tests/hostile/core/Router/dispatch/01-a-refused-request-tries-to-reach-a-handler.nvs:1`)
+- [x] Its help in the binary (`crates/nvs-stdlib/src/router.rs:207`)
 
 ### 8. a match reads another attribute of its route
 
@@ -303,18 +303,19 @@ refusal mode, and never a handler.
 
 ### State
 
-Stages 2 to 6 are done, and `rule:routing/a-gate-answers-around-every-handler` is `shipped`.
+Stages 2 to 7 are done, and `rule:routing/a-gate-answers-around-every-handler` is `shipped`.
 `door-refusals` and `limit-failed` pass: `cargo test --test gate`, eight tests over a real `nvs serve`.
-`apps`, `guides` and `snippets` pass with the current binary (`bun nv site --check apps guides snippets
---nvs target/debug/nvs.exe`).
+`apps`, `guides`, `snippets` and `dispatch-proofs` pass.
 
-- The website teaches `dispatch` and a gate first: the routes syntax page (`02-dispatch.nvs`, then
-  the hand-written `03-match.nvs`), the requests and JSON API guides and the route-test snippet.
-  The routes page `covers:` `Core\Router::dispatch` and is stamped, so stage 7's `about.md` makes it
-  stale until it is stamped again (`bun nv site --stamp syntax/attributes/routes.mdx`).
-- `bun nv site` serves a snippet under the root `nvs.toml` only after it brought `postgres` up and ran
-  `nvs queue migrate` once, because that file's `[queue]` arms on `[db.main]` and the boot refuses
-  without its tables (`tools/nv/cmd/site.ts:967`). That was the red `snippets` sweep.
+- `Core\Router::dispatch` owes nothing: `about.md` and three examples under
+  `docs/examples/core/Router/dispatch/`, the bench `benches/members/core/Router/dispatch.nvs` (a
+  `.nvsr` makes it a request; `complexity constant`, because the jump is indexed by the matched row),
+  and the attack under `tests/hostile/core/Router/dispatch/`. The routes page is stamped again.
+- The attack's CSRF steps send a foreign `Origin`: a `POST` with no `Origin` passes the check by
+  design (`tests/conformance/core/router-dispatch-a-test-requests-csrf-refusal-reaches-the-gate.nvst`).
+- The red `snippets` sweep was the instrumented `covws` binary printing `LLVM Profile Error` lines,
+  because a stale `.profraw` in the discard pool shared its `%m` name. `buildCovws` now empties the
+  pool after each build (`tools/nv/lib/covws.ts:110`).
 - Both example apps call `Core\Router::dispatch(new <App>\Gate())` from `public/index.nvs`
   (`apps/notes/src/Gate.nvs:11`).
 - `dispatch` opts a program into the autoload scan, as `route()` does (`crates/nvs-hir/src/requires.rs:853`,
@@ -341,12 +342,11 @@ gets no route and no error after a limit; a run whose head was already streamed 
 
 ### Next
 
-Stage 7, `Core\Router::dispatch`'s feature proofs under `docs/examples/core/Router/dispatch/`, `benches/members/core/Router/` and `tests/hostile/core/Router/` (`rule:testing/feature-proofs`, § *Text an end user reads*). `bun nv proofs --id 'Core\Router::dispatch'` prints what it owes:
+Stage 8, `Core\Router\Match::attribute<T>()`, in `crates/nvs-stdlib/src/router.rs` and `crates/nvs-runtime/src/routes.rs` (`rule:routing/a-match-is-not-invocable`, `rule:core-classes/derive-attribute`):
 
-- [ ] Its `about.md` and three examples (`docs/examples/core/Router/dispatch/about.md:1`); `website/snippets/syntax/routes/02-dispatch.nvs:1` is a shape an example can copy
-- [ ] The bench, with its growth against the number of routes (`benches/members/core/Router/dispatch.nvs:1`)
-- [ ] The attack: a refused request tries to reach a handler, including through a gate that throws (`tests/hostile/core/Router/dispatch/01-a-refused-request-tries-to-reach-a-handler.nvs:1`)
-- [ ] Its help in the binary (`crates/nvs-stdlib/src/router.rs:207`), then restamp the routes page
+- [ ] Its rule, beside the match rule, stating what the match carries and what it costs per route (`docs/rules/routing/a-match-is-not-invocable.md:1`)
+- [ ] The member, typed by a shape the way `Core\Program::implementingWith` is (`docs/rules/programs.md:303`), beside `accessAs` (`crates/nvs-stdlib/src/router.rs:691`)
+- [ ] Its feature proofs (`docs/examples/core/Router-Match/attribute/about.md:1`)
 
 ### Backlog
 
