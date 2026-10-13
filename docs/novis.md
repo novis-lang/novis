@@ -30372,6 +30372,8 @@ $reader->rows(string|int $sheet, RowOptions $options = null): Iterator<Row>
 
 `rows` reads the sheet `$sheet`, by name or by position from 0. It gives one `Row` at a time, with its row number in the file.
 With `header: true`, the keys are the header cells, and an empty cell is `null`. Without a header, the keys are the column letters.
+`text: ["Zip"]` reads the column `Zip` as the text Excel shows, so `1234` with the format `00000` is `"01234"`.
+`text` takes header names or column letters, and `text: true` reads every column this way. `locale` sets the separators, such as `"de"`.
 
 **Returns** `Iterator<Row>`
 

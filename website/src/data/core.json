@@ -19346,7 +19346,7 @@
               },
               {
                 "error": "RecursionError",
-                "descHtml": "The call stack is full before the last object is created. This can happen when a class contains itself and the document nests very deeply."
+                "descHtml": "The call stack is full when a constructor runs. This happens when the call starts with the stack almost full, or when a constructor recurses deeply. A deep document within <code>maxDepth</code> does not throw this error."
               }
             ]
           },
@@ -32918,6 +32918,415 @@
       "surfaceHtml": ""
     },
     {
+      "id": "Novis.Spreadsheet.Chart",
+      "name": "Novis\\Spreadsheet\\Chart",
+      "section": "",
+      "summary": "One chart for a sheet. Start it with its type, such as `Chart::column()`, then add its data with `series`.\n`Sheet::chart` puts the chart on a sheet. A `Chart` does not change: each method returns a new chart.",
+      "surface": "",
+      "enums": [],
+      "types": [
+        {
+          "name": "Series",
+          "type": "{values: string, categories: ?string, name: ?string, color: ?string}"
+        },
+        {
+          "name": "Layer",
+          "type": "{kind: ChartKind, series: array<Series>}"
+        },
+        {
+          "name": "Options",
+          "type": "?{title?: string, xTitle?: string, yTitle?: string, legend?: string, labels?: bool}"
+        },
+        {
+          "name": "SeriesOptions",
+          "type": "?{categories?: string, name?: string, color?: string}"
+        }
+      ],
+      "constants": [],
+      "members": [
+        {
+          "id": "Novis.Spreadsheet.Chart.constructor",
+          "name": "constructor",
+          "static": false,
+          "receiver": "chart",
+          "generics": null,
+          "signature": "constructor(ChartKind $kind, array<Series> $series, array<Layer> $combined, ?string $title, ?string $xTitle, ?string $yTitle, Legend $legend, bool $labels): void",
+          "params": [
+            {
+              "kind": "param",
+              "name": "kind",
+              "type": "ChartKind",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "series",
+              "type": "array<Series>",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "combined",
+              "type": "array<Layer>",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "title",
+              "type": "?string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "xTitle",
+              "type": "?string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "yTitle",
+              "type": "?string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "legend",
+              "type": "Legend",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "labels",
+              "type": "bool",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "void",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>new Chart</code> makes a chart from its values. <code>Chart::column</code> and the other types make one for you.\n<code>combined</code> has the types and series that <code>combine</code> added."
+          },
+          "slug": "constructor",
+          "url": "/reference/core/novis-spreadsheet-chart/constructor/",
+          "examples": "novis/Spreadsheet-Chart/constructor"
+        },
+        {
+          "id": "Novis.Spreadsheet.Chart.column",
+          "name": "column",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "column(Options $options = null): Chart",
+          "params": [
+            {
+              "kind": "param",
+              "name": "options",
+              "type": "Options",
+              "default": "null",
+              "optional": true,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Chart",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>Chart::column</code> starts a chart of vertical bars.\n<code>title</code> is the chart's title. <code>xTitle</code> and <code>yTitle</code> are the titles of its axes. <code>legend</code> is <code>'right'</code>, <code>'top'</code>, <code>'bottom'</code>, <code>'left'</code> or <code>'hidden'</code>. <code>labels</code> shows each value on the chart."
+          },
+          "slug": "column",
+          "url": "/reference/core/novis-spreadsheet-chart/column/",
+          "examples": "novis/Spreadsheet-Chart/column"
+        },
+        {
+          "id": "Novis.Spreadsheet.Chart.bar",
+          "name": "bar",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "bar(Options $options = null): Chart",
+          "params": [
+            {
+              "kind": "param",
+              "name": "options",
+              "type": "Options",
+              "default": "null",
+              "optional": true,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Chart",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>Chart::bar</code> starts a chart of horizontal bars. It takes the same options as <code>Chart::column</code>."
+          },
+          "slug": "bar",
+          "url": "/reference/core/novis-spreadsheet-chart/bar/",
+          "examples": "novis/Spreadsheet-Chart/bar"
+        },
+        {
+          "id": "Novis.Spreadsheet.Chart.line",
+          "name": "line",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "line(Options $options = null): Chart",
+          "params": [
+            {
+              "kind": "param",
+              "name": "options",
+              "type": "Options",
+              "default": "null",
+              "optional": true,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Chart",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>Chart::line</code> starts a chart that joins the values of each series with a line. It takes the same options as <code>Chart::column</code>."
+          },
+          "slug": "line",
+          "url": "/reference/core/novis-spreadsheet-chart/line/",
+          "examples": "novis/Spreadsheet-Chart/line"
+        },
+        {
+          "id": "Novis.Spreadsheet.Chart.area",
+          "name": "area",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "area(Options $options = null): Chart",
+          "params": [
+            {
+              "kind": "param",
+              "name": "options",
+              "type": "Options",
+              "default": "null",
+              "optional": true,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Chart",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>Chart::area</code> starts a line chart with the space under each line filled. It takes the same options as <code>Chart::column</code>."
+          },
+          "slug": "area",
+          "url": "/reference/core/novis-spreadsheet-chart/area/",
+          "examples": "novis/Spreadsheet-Chart/area"
+        },
+        {
+          "id": "Novis.Spreadsheet.Chart.pie",
+          "name": "pie",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "pie(Options $options = null): Chart",
+          "params": [
+            {
+              "kind": "param",
+              "name": "options",
+              "type": "Options",
+              "default": "null",
+              "optional": true,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Chart",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>Chart::pie</code> starts a pie chart. Each value of the first series is one slice. It takes the same options as <code>Chart::column</code>."
+          },
+          "slug": "pie",
+          "url": "/reference/core/novis-spreadsheet-chart/pie/",
+          "examples": "novis/Spreadsheet-Chart/pie"
+        },
+        {
+          "id": "Novis.Spreadsheet.Chart.doughnut",
+          "name": "doughnut",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "doughnut(Options $options = null): Chart",
+          "params": [
+            {
+              "kind": "param",
+              "name": "options",
+              "type": "Options",
+              "default": "null",
+              "optional": true,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Chart",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>Chart::doughnut</code> starts a pie chart with a hole in the middle. It takes the same options as <code>Chart::column</code>."
+          },
+          "slug": "doughnut",
+          "url": "/reference/core/novis-spreadsheet-chart/doughnut/",
+          "examples": "novis/Spreadsheet-Chart/doughnut"
+        },
+        {
+          "id": "Novis.Spreadsheet.Chart.scatter",
+          "name": "scatter",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "scatter(Options $options = null): Chart",
+          "params": [
+            {
+              "kind": "param",
+              "name": "options",
+              "type": "Options",
+              "default": "null",
+              "optional": true,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Chart",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>Chart::scatter</code> starts a chart of points. A series' <code>categories</code> are the x values of its points. It takes the same options as <code>Chart::column</code>."
+          },
+          "slug": "scatter",
+          "url": "/reference/core/novis-spreadsheet-chart/scatter/",
+          "examples": "novis/Spreadsheet-Chart/scatter"
+        },
+        {
+          "id": "Novis.Spreadsheet.Chart.series",
+          "name": "series",
+          "static": false,
+          "receiver": "chart",
+          "generics": null,
+          "signature": "series(string $values, SeriesOptions $options = null): Chart",
+          "params": [
+            {
+              "kind": "param",
+              "name": "values",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "options",
+              "type": "SeriesOptions",
+              "default": "null",
+              "optional": true,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Chart",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>series</code> returns the chart with one more series. <code>$values</code> is a range, such as <code>$sheet-&gt;column('sales')</code>.\n<code>categories</code> is the range of the labels under the values. <code>name</code> is the series' name in the legend. <code>color</code> is a color such as <code>'#1F77B4'</code>."
+          },
+          "slug": "series",
+          "url": "/reference/core/novis-spreadsheet-chart/series/",
+          "examples": "novis/Spreadsheet-Chart/series"
+        },
+        {
+          "id": "Novis.Spreadsheet.Chart.combine",
+          "name": "combine",
+          "static": false,
+          "receiver": "chart",
+          "generics": null,
+          "signature": "combine(Chart $other): Chart",
+          "params": [
+            {
+              "kind": "param",
+              "name": "other",
+              "type": "Chart",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Chart",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>combine</code> returns the chart with the type and the series of <code>$other</code> drawn on the same axes.\nYou can combine two of column, line and area, such as columns of sales with a line of costs. The title and the legend come from this chart."
+          },
+          "slug": "combine",
+          "url": "/reference/core/novis-spreadsheet-chart/combine/",
+          "examples": "novis/Spreadsheet-Chart/combine"
+        }
+      ],
+      "unparsed": [],
+      "implemented": true,
+      "slug": "novis-spreadsheet-chart",
+      "url": "/reference/core/novis-spreadsheet-chart/",
+      "summaryHtml": "<p>One chart for a sheet. Start it with its type, such as <code>Chart::column()</code>, then add its data with <code>series</code>. <code>Sheet::chart</code> puts the chart on a sheet. A <code>Chart</code> does not change: each method returns a new chart.</p>",
+      "surfaceHtml": ""
+    },
+    {
       "id": "Novis.Spreadsheet.Engine",
       "name": "Novis\\Spreadsheet\\Engine",
       "section": "",
@@ -32925,6 +33334,10 @@
       "surface": "",
       "enums": [],
       "types": [
+        {
+          "name": "ReadValue",
+          "type": "{text: string} | {integer: int} | {number: float} | {boolean: bool} | {day: Core\\Time\\Date, clock: Core\\Time\\TimeOfDay} | {date: Core\\Time\\Date} | {time: Core\\Time\\TimeOfDay} | {duration: Core\\Time\\Duration} | {error: CellError}"
+        },
         {
           "name": "CellValue",
           "type": "{text: string} | {number: float} | {integer: int} | {decimal: string} | {boolean: bool} | {date: Core\\Time\\Date} | {time: Core\\Time\\TimeOfDay} | {duration: Core\\Time\\Duration} | {day: Core\\Time\\Date, clock: Core\\Time\\TimeOfDay} | {formula: string, cachedText: ?string, cachedNumber: ?float} | {runs: array<{text: string, style: ?uint}>}"
@@ -33294,6 +33707,530 @@
           "slug": "writerfinish",
           "url": "/reference/core/novis-spreadsheet-engine/writerfinish/",
           "examples": "novis/Spreadsheet-Engine/writerFinish"
+        },
+        {
+          "id": "Novis.Spreadsheet.Engine.readerOpen",
+          "name": "readerOpen",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "readerOpen(mixed $source): Reading",
+          "params": [
+            {
+              "kind": "param",
+              "name": "source",
+              "type": "mixed",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Reading",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "Opens the workbook in <code>source</code>, which is <code>bytes</code> or an open <code>Core\\IO\\File</code>. This reads the list of sheets and no rows."
+          },
+          "slug": "readeropen",
+          "url": "/reference/core/novis-spreadsheet-engine/readeropen/",
+          "examples": "novis/Spreadsheet-Engine/readerOpen"
+        },
+        {
+          "id": "Novis.Spreadsheet.Engine.readerSheets",
+          "name": "readerSheets",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "readerSheets(Reading $reader, mixed $source): array<{name: string, position: uint, visibility: Visibility, rows: uint, columns: uint, kind: SheetKind}>",
+          "params": [
+            {
+              "kind": "param",
+              "name": "reader",
+              "type": "Reading",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "source",
+              "type": "mixed",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "array<{name: string, position: uint, visibility: Visibility, rows: uint, columns: uint, kind: SheetKind}>",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "Returns each sheet of the workbook in tab order. <code>rows</code> and <code>columns</code> are the size the file gives for the sheet, or 0 when it gives none."
+          },
+          "slug": "readersheets",
+          "url": "/reference/core/novis-spreadsheet-engine/readersheets/",
+          "examples": "novis/Spreadsheet-Engine/readerSheets"
+        },
+        {
+          "id": "Novis.Spreadsheet.Engine.readerMacros",
+          "name": "readerMacros",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "readerMacros(Reading $reader, mixed $source): array<string>",
+          "params": [
+            {
+              "kind": "param",
+              "name": "reader",
+              "type": "Reading",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "source",
+              "type": "mixed",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "array<string>",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "Returns the names of the workbook's macro modules. The list is empty when the workbook has no macros. Nothing runs the macros."
+          },
+          "slug": "readermacros",
+          "url": "/reference/core/novis-spreadsheet-engine/readermacros/",
+          "examples": "novis/Spreadsheet-Engine/readerMacros"
+        },
+        {
+          "id": "Novis.Spreadsheet.Engine.readerMerged",
+          "name": "readerMerged",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "readerMerged(Reading $reader, mixed $source, string $sheet): array<string>",
+          "params": [
+            {
+              "kind": "param",
+              "name": "reader",
+              "type": "Reading",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "source",
+              "type": "mixed",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "sheet",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "array<string>",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "Returns the merged cells of the sheet <code>sheet</code>. Each one is a range such as <code>A1:C2</code>."
+          },
+          "slug": "readermerged",
+          "url": "/reference/core/novis-spreadsheet-engine/readermerged/",
+          "examples": "novis/Spreadsheet-Engine/readerMerged"
+        },
+        {
+          "id": "Novis.Spreadsheet.Engine.readerLinks",
+          "name": "readerLinks",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "readerLinks(Reading $reader, mixed $source, string $sheet): array<{anchor: string, target: string, text: ?string, tooltip: ?string, external: bool}>",
+          "params": [
+            {
+              "kind": "param",
+              "name": "reader",
+              "type": "Reading",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "source",
+              "type": "mixed",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "sheet",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "array<{anchor: string, target: string, text: ?string, tooltip: ?string, external: bool}>",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "Returns the hyperlinks of the sheet <code>sheet</code>. <code>external</code> is <code>true</code> for a link to a URL or a file. Nothing opens the link."
+          },
+          "slug": "readerlinks",
+          "url": "/reference/core/novis-spreadsheet-engine/readerlinks/",
+          "examples": "novis/Spreadsheet-Engine/readerLinks"
+        },
+        {
+          "id": "Novis.Spreadsheet.Engine.readerNotes",
+          "name": "readerNotes",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "readerNotes(Reading $reader, mixed $source, string $sheet): array<{noted: string, note: string, author: ?string}>",
+          "params": [
+            {
+              "kind": "param",
+              "name": "reader",
+              "type": "Reading",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "source",
+              "type": "mixed",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "sheet",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "array<{noted: string, note: string, author: ?string}>",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "Returns the notes of the sheet <code>sheet</code>, each with its cell, its text and its author."
+          },
+          "slug": "readernotes",
+          "url": "/reference/core/novis-spreadsheet-engine/readernotes/",
+          "examples": "novis/Spreadsheet-Engine/readerNotes"
+        },
+        {
+          "id": "Novis.Spreadsheet.Engine.readerNames",
+          "name": "readerNames",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "readerNames(Reading $reader, mixed $source): array<{name: string, reference: string, sheet: ?string}>",
+          "params": [
+            {
+              "kind": "param",
+              "name": "reader",
+              "type": "Reading",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "source",
+              "type": "mixed",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "array<{name: string, reference: string, sheet: ?string}>",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "Returns the defined names of the workbook, each with its reference as text. <code>sheet</code> is the sheet a local name belongs to."
+          },
+          "slug": "readernames",
+          "url": "/reference/core/novis-spreadsheet-engine/readernames/",
+          "examples": "novis/Spreadsheet-Engine/readerNames"
+        },
+        {
+          "id": "Novis.Spreadsheet.Engine.readerTables",
+          "name": "readerTables",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "readerTables(Reading $reader, mixed $source, string $sheet): array<{table: string, name: string, sheet: string}>",
+          "params": [
+            {
+              "kind": "param",
+              "name": "reader",
+              "type": "Reading",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "source",
+              "type": "mixed",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "sheet",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "array<{table: string, name: string, sheet: string}>",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "Returns the Excel tables of the sheet <code>sheet</code>, each with its range, such as <code>A1:C10</code>, and its name."
+          },
+          "slug": "readertables",
+          "url": "/reference/core/novis-spreadsheet-engine/readertables/",
+          "examples": "novis/Spreadsheet-Engine/readerTables"
+        },
+        {
+          "id": "Novis.Spreadsheet.Engine.readerImages",
+          "name": "readerImages",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "readerImages(Reading $reader, mixed $source, string $sheet): array<{at: string, image: bytes, format: string, link: ?string}>",
+          "params": [
+            {
+              "kind": "param",
+              "name": "reader",
+              "type": "Reading",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "source",
+              "type": "mixed",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "sheet",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "array<{at: string, image: bytes, format: string, link: ?string}>",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "Returns the pictures of the sheet <code>sheet</code>, each with its top-left cell, its bytes and its format. A linked picture has no bytes, and <code>link</code> is its target. Nothing fetches it."
+          },
+          "slug": "readerimages",
+          "url": "/reference/core/novis-spreadsheet-engine/readerimages/",
+          "examples": "novis/Spreadsheet-Engine/readerImages"
+        },
+        {
+          "id": "Novis.Spreadsheet.Engine.readerProperties",
+          "name": "readerProperties",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "readerProperties(Reading $reader, mixed $source): {title: ?string, subject: ?string, author: ?string, company: ?string, keywords: ?string, created: ?{day: Core\\Time\\Date, clock: Core\\Time\\TimeOfDay}}",
+          "params": [
+            {
+              "kind": "param",
+              "name": "reader",
+              "type": "Reading",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "source",
+              "type": "mixed",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "{title: ?string, subject: ?string, author: ?string, company: ?string, keywords: ?string, created: ?{day: Core\\Time\\Date, clock: Core\\Time\\TimeOfDay}}",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "Returns the document properties of the workbook. <code>created</code> is the time it was created, in UTC."
+          },
+          "slug": "readerproperties",
+          "url": "/reference/core/novis-spreadsheet-engine/readerproperties/",
+          "examples": "novis/Spreadsheet-Engine/readerProperties"
+        },
+        {
+          "id": "Novis.Spreadsheet.Engine.readerHeader",
+          "name": "readerHeader",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "readerHeader(Reading $reader, mixed $source, {sheet: string, headerRow: ?uint, from: ?uint, limit: ?uint, columns: array<string>, text: array<string>, textAll: bool, formulas: bool, keepEmptyRows: bool, fillMerged: bool, skipHidden: bool, locale: string} $options): array<string>",
+          "params": [
+            {
+              "kind": "param",
+              "name": "reader",
+              "type": "Reading",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "source",
+              "type": "mixed",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "options",
+              "type": "{sheet: string, headerRow: ?uint, from: ?uint, limit: ?uint, columns: array<string>, text: array<string>, textAll: bool, formulas: bool, keepEmptyRows: bool, fillMerged: bool, skipHidden: bool, locale: string}",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "array<string>",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "Returns the names in the header row, one for each column from <code>A</code>. A name that is already used gets <code> (2)</code>, <code> (3)</code> and so on. An empty header cell gets its column letter."
+          },
+          "slug": "readerheader",
+          "url": "/reference/core/novis-spreadsheet-engine/readerheader/",
+          "examples": "novis/Spreadsheet-Engine/readerHeader"
+        },
+        {
+          "id": "Novis.Spreadsheet.Engine.readerRows",
+          "name": "readerRows",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "readerRows(Reading $reader, mixed $source, {sheet: string, headerRow: ?uint, from: ?uint, limit: ?uint, columns: array<string>, text: array<string>, textAll: bool, formulas: bool, keepEmptyRows: bool, fillMerged: bool, skipHidden: bool, locale: string} $options, uint $max): {rows: array<{number: uint, cells: array<{column: uint, value: ?ReadValue, formula: ?string, display: ?string}>}>, done: bool}",
+          "params": [
+            {
+              "kind": "param",
+              "name": "reader",
+              "type": "Reading",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "source",
+              "type": "mixed",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "options",
+              "type": "{sheet: string, headerRow: ?uint, from: ?uint, limit: ?uint, columns: array<string>, text: array<string>, textAll: bool, formulas: bool, keepEmptyRows: bool, fillMerged: bool, skipHidden: bool, locale: string}",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "max",
+              "type": "uint",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "{rows: array<{number: uint, cells: array<{column: uint, value: ?ReadValue, formula: ?string, display: ?string}>}>, done: bool}",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "Returns the next rows of a sheet, at most <code>max</code> of them. To get the rows after these, call it again with <code>from</code> one past the last row number. <code>done</code> is <code>true</code> after the last row of the sheet."
+          },
+          "slug": "readerrows",
+          "url": "/reference/core/novis-spreadsheet-engine/readerrows/",
+          "examples": "novis/Spreadsheet-Engine/readerRows"
         }
       ],
       "unparsed": [],
@@ -33496,12 +34433,12 @@
           "static": false,
           "receiver": "formula",
           "generics": null,
-          "signature": "constructor(string $text, string|int|float|null $cached): void",
+          "signature": "constructor(tainted string $text, string|int|float|null $cached): void",
           "params": [
             {
               "kind": "param",
               "name": "text",
-              "type": "string",
+              "type": "tainted string",
               "default": null,
               "optional": false,
               "variadic": false
@@ -33523,7 +34460,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "<code>new Formula</code> makes a formula from its values. <code>Formula::of</code> makes one for you.\n<code>text</code> has no <code>=</code> at the start. <code>cached</code> is the result the file has for a program that does not calculate."
+            "shortHtml": "<code>new Formula</code> makes a formula from its values. <code>Formula::of</code> makes one for you.\n<code>text</code> has no <code>=</code> at the start. It is <code>tainted</code>, because <code>Reader</code> can read a formula from a file. <code>cached</code> is the result the file has for a program that does not calculate."
           },
           "slug": "constructor",
           "url": "/reference/core/novis-spreadsheet-formula/constructor/",
@@ -33577,6 +34514,435 @@
       "surfaceHtml": ""
     },
     {
+      "id": "Novis.Spreadsheet.Reader",
+      "name": "Novis\\Spreadsheet\\Reader",
+      "section": "",
+      "summary": "A spreadsheet file that your program reads row by row, such as an upload. It can be xlsx, xlsm, xlsb, xls or ods.\nOpen one with `Reader::open`. Every string and `bytes` value it returns is `tainted`, because it comes from the file.",
+      "surface": "",
+      "enums": [],
+      "types": [
+        {
+          "name": "RowOptions",
+          "type": "?{header?: bool|int, from?: uint, limit?: uint, columns?: array<string>, zone?: string, text?: bool|array<string>, formulas?: bool, emptyRows?: string, merged?: string, hidden?: string, locale?: string}"
+        },
+        {
+          "name": "SheetInfo",
+          "type": "{name: tainted string, position: uint, visibility: Visibility, rows: uint, columns: uint, kind: SheetKind}"
+        },
+        {
+          "name": "Link",
+          "type": "{anchor: tainted string, target: tainted string, text: ?tainted string, tooltip: ?tainted string, external: bool}"
+        },
+        {
+          "name": "Note",
+          "type": "{noted: tainted string, note: tainted string, author: ?tainted string}"
+        },
+        {
+          "name": "Name",
+          "type": "{name: tainted string, reference: tainted string, sheet: ?tainted string}"
+        },
+        {
+          "name": "Table",
+          "type": "{table: tainted string, name: tainted string, sheet: tainted string}"
+        },
+        {
+          "name": "Image",
+          "type": "{at: tainted string, image: tainted bytes, format: tainted string, link: ?tainted string}"
+        },
+        {
+          "name": "Properties",
+          "type": "{title: ?tainted string, subject: ?tainted string, author: ?tainted string, company: ?tainted string, keywords: ?tainted string, created: ?Core\\Time\\Instant}"
+        },
+        {
+          "name": "Read",
+          "type": "{text: string}|{integer: int}|{number: float}|{boolean: bool}|{day: Core\\Time\\Date, clock: Core\\Time\\TimeOfDay}|{date: Core\\Time\\Date}|{time: Core\\Time\\TimeOfDay}|{duration: Core\\Time\\Duration}|{error: CellError}"
+        },
+        {
+          "name": "Asked",
+          "type": "{sheet: string, headerRow: ?uint, from: ?uint, limit: ?uint, columns: array<string>, text: array<string>, textAll: bool, formulas: bool, keepEmptyRows: bool, fillMerged: bool, skipHidden: bool, locale: string}"
+        }
+      ],
+      "constants": [],
+      "members": [
+        {
+          "id": "Novis.Spreadsheet.Reader.open",
+          "name": "open",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "open(tainted bytes|Core\\IO\\File $source): Reader",
+          "params": [
+            {
+              "kind": "param",
+              "name": "source",
+              "type": "tainted bytes|Core\\IO\\File",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Reader",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>Reader::open</code> opens the workbook in <code>$source</code>. The source is the bytes of the file, or a file your program opened.\nThis reads the list of sheets. An xls or ods file is read whole here. Any other file type throws an error."
+          },
+          "slug": "open",
+          "url": "/reference/core/novis-spreadsheet-reader/open/",
+          "examples": "novis/Spreadsheet-Reader/open"
+        },
+        {
+          "id": "Novis.Spreadsheet.Reader.sheets",
+          "name": "sheets",
+          "static": false,
+          "receiver": "reader",
+          "generics": null,
+          "signature": "sheets(): array<SheetInfo>",
+          "params": [],
+          "options": [],
+          "returnType": "array<SheetInfo>",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>sheets</code> returns each sheet in tab order, with its name, its position from 0, whether it is hidden, its size and its kind."
+          },
+          "slug": "sheets",
+          "url": "/reference/core/novis-spreadsheet-reader/sheets/",
+          "examples": "novis/Spreadsheet-Reader/sheets"
+        },
+        {
+          "id": "Novis.Spreadsheet.Reader.macros",
+          "name": "macros",
+          "static": false,
+          "receiver": "reader",
+          "generics": null,
+          "signature": "macros(): array<tainted string>",
+          "params": [],
+          "options": [],
+          "returnType": "array<tainted string>",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>macros</code> returns the names of the macro modules in an xlsm or xls file. The list is empty when the file has no macros.\nReading a file never runs its macros."
+          },
+          "slug": "macros",
+          "url": "/reference/core/novis-spreadsheet-reader/macros/",
+          "examples": "novis/Spreadsheet-Reader/macros"
+        },
+        {
+          "id": "Novis.Spreadsheet.Reader.merged",
+          "name": "merged",
+          "static": false,
+          "receiver": "reader",
+          "generics": null,
+          "signature": "merged(string|int $sheet): array<tainted string>",
+          "params": [
+            {
+              "kind": "param",
+              "name": "sheet",
+              "type": "string|int",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "array<tainted string>",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>merged</code> returns the merged cells of the sheet <code>$sheet</code>, by name or by position from 0. Each one is a range such as <code>&quot;A1:C2&quot;</code>.\nWhen you read rows, the value of a merged range is in its top-left cell. With <code>merged: 'fill'</code>, every cell of the range has that value."
+          },
+          "slug": "merged",
+          "url": "/reference/core/novis-spreadsheet-reader/merged/",
+          "examples": "novis/Spreadsheet-Reader/merged"
+        },
+        {
+          "id": "Novis.Spreadsheet.Reader.links",
+          "name": "links",
+          "static": false,
+          "receiver": "reader",
+          "generics": null,
+          "signature": "links(string|int $sheet): array<Link>",
+          "params": [
+            {
+              "kind": "param",
+              "name": "sheet",
+              "type": "string|int",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "array<Link>",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>links</code> returns the hyperlinks of the sheet <code>$sheet</code>. <code>anchor</code> is the cell, such as <code>&quot;B2&quot;</code>, and <code>target</code> is where the link goes.\n<code>external</code> is <code>true</code> for a URL or a file. Reading a file never opens its links."
+          },
+          "slug": "links",
+          "url": "/reference/core/novis-spreadsheet-reader/links/",
+          "examples": "novis/Spreadsheet-Reader/links"
+        },
+        {
+          "id": "Novis.Spreadsheet.Reader.notes",
+          "name": "notes",
+          "static": false,
+          "receiver": "reader",
+          "generics": null,
+          "signature": "notes(string|int $sheet): array<Note>",
+          "params": [
+            {
+              "kind": "param",
+              "name": "sheet",
+              "type": "string|int",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "array<Note>",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>notes</code> returns the notes of the sheet <code>$sheet</code>. Each one has its cell in <code>noted</code>, its text in <code>note</code>, and its <code>author</code>."
+          },
+          "slug": "notes",
+          "url": "/reference/core/novis-spreadsheet-reader/notes/",
+          "examples": "novis/Spreadsheet-Reader/notes"
+        },
+        {
+          "id": "Novis.Spreadsheet.Reader.names",
+          "name": "names",
+          "static": false,
+          "receiver": "reader",
+          "generics": null,
+          "signature": "names(): array<Name>",
+          "params": [],
+          "options": [],
+          "returnType": "array<Name>",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>names</code> returns the defined names of the workbook. <code>reference</code> is the text of the name, such as <code>&quot;Shop!$A$1:$C$9&quot;</code>.\n<code>sheet</code> is <code>null</code> for a name the whole workbook can use."
+          },
+          "slug": "names",
+          "url": "/reference/core/novis-spreadsheet-reader/names/",
+          "examples": "novis/Spreadsheet-Reader/names"
+        },
+        {
+          "id": "Novis.Spreadsheet.Reader.tables",
+          "name": "tables",
+          "static": false,
+          "receiver": "reader",
+          "generics": null,
+          "signature": "tables(string|int $sheet): array<Table>",
+          "params": [
+            {
+              "kind": "param",
+              "name": "sheet",
+              "type": "string|int",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "array<Table>",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>tables</code> returns the Excel tables of the sheet <code>$sheet</code>. <code>table</code> is the range, such as <code>&quot;A1:C10&quot;</code>, and <code>name</code> is the table name."
+          },
+          "slug": "tables",
+          "url": "/reference/core/novis-spreadsheet-reader/tables/",
+          "examples": "novis/Spreadsheet-Reader/tables"
+        },
+        {
+          "id": "Novis.Spreadsheet.Reader.images",
+          "name": "images",
+          "static": false,
+          "receiver": "reader",
+          "generics": null,
+          "signature": "images(string|int $sheet): array<Image>",
+          "params": [
+            {
+              "kind": "param",
+              "name": "sheet",
+              "type": "string|int",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "array<Image>",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>images</code> returns the pictures of the sheet <code>$sheet</code>. <code>at</code> is the top-left cell, and <code>image</code> is the bytes of the picture.\nA linked picture has empty <code>image</code> bytes, and <code>link</code> is its target. Reading a file never fetches a link."
+          },
+          "slug": "images",
+          "url": "/reference/core/novis-spreadsheet-reader/images/",
+          "examples": "novis/Spreadsheet-Reader/images"
+        },
+        {
+          "id": "Novis.Spreadsheet.Reader.properties",
+          "name": "properties",
+          "static": false,
+          "receiver": "reader",
+          "generics": null,
+          "signature": "properties(): Properties",
+          "params": [],
+          "options": [],
+          "returnType": "Properties",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>properties</code> returns the title, subject, author, company and keywords of the workbook, and the time it was created.\nA property the file does not have is <code>null</code>. An xls or ods file throws an error."
+          },
+          "slug": "properties",
+          "url": "/reference/core/novis-spreadsheet-reader/properties/",
+          "examples": "novis/Spreadsheet-Reader/properties"
+        },
+        {
+          "id": "Novis.Spreadsheet.Reader.rows",
+          "name": "rows",
+          "static": false,
+          "receiver": "reader",
+          "generics": null,
+          "signature": "rows(string|int $sheet, RowOptions $options = null): Iterator<Row>",
+          "params": [
+            {
+              "kind": "param",
+              "name": "sheet",
+              "type": "string|int",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "options",
+              "type": "RowOptions",
+              "default": "null",
+              "optional": true,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Iterator<Row>",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>rows</code> reads the sheet <code>$sheet</code>, by name or by position from 0. It gives one <code>Row</code> at a time, with its row number in the file.\nWith <code>header: true</code>, the keys are the header cells, and an empty cell is <code>null</code>. Without a header, the keys are the column letters.\n<code>text: [&quot;Zip&quot;]</code> reads the column <code>Zip</code> as the text Excel shows, so <code>1234</code> with the format <code>00000</code> is <code>&quot;01234&quot;</code>.\n<code>text</code> takes header names or column letters, and <code>text: true</code> reads every column this way. <code>locale</code> sets the separators, such as <code>&quot;de&quot;</code>."
+          },
+          "slug": "rows",
+          "url": "/reference/core/novis-spreadsheet-reader/rows/",
+          "examples": "novis/Spreadsheet-Reader/rows"
+        }
+      ],
+      "unparsed": [],
+      "implemented": true,
+      "slug": "novis-spreadsheet-reader",
+      "url": "/reference/core/novis-spreadsheet-reader/",
+      "summaryHtml": "<p>A spreadsheet file that your program reads row by row, such as an upload. It can be xlsx, xlsm, xlsb, xls or ods. Open one with <code>Reader::open</code>. Every string and <code>bytes</code> value it returns is <code>tainted</code>, because it comes from the file.</p>",
+      "surfaceHtml": ""
+    },
+    {
+      "id": "Novis.Spreadsheet.Row",
+      "name": "Novis\\Spreadsheet\\Row",
+      "section": "",
+      "summary": "One row that `Reader::rows` read. `number` is the row number in the file, and the first row is 1.\n`values` has the values of the row, by header text or by column letter.",
+      "surface": "",
+      "enums": [],
+      "types": [],
+      "constants": [],
+      "members": [
+        {
+          "id": "Novis.Spreadsheet.Row.constructor",
+          "name": "constructor",
+          "static": false,
+          "receiver": "row",
+          "generics": null,
+          "signature": "constructor(uint $number, array<mixed> $values): void",
+          "params": [
+            {
+              "kind": "param",
+              "name": "number",
+              "type": "uint",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "values",
+              "type": "array<mixed>",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "void",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>new Row</code> makes a row from its values. <code>Reader::rows</code> makes one for you."
+          },
+          "slug": "constructor",
+          "url": "/reference/core/novis-spreadsheet-row/constructor/",
+          "examples": "novis/Spreadsheet-Row/constructor"
+        }
+      ],
+      "unparsed": [],
+      "implemented": true,
+      "slug": "novis-spreadsheet-row",
+      "url": "/reference/core/novis-spreadsheet-row/",
+      "summaryHtml": "<p>One row that <code>Reader::rows</code> read. <code>number</code> is the row number in the file, and the first row is 1. <code>values</code> has the values of the row, by header text or by column letter.</p>",
+      "surfaceHtml": ""
+    },
+    {
       "id": "Novis.Spreadsheet.Sheet",
       "name": "Novis\\Spreadsheet\\Sheet",
       "section": "",
@@ -33606,7 +34972,7 @@
         },
         {
           "name": "Part",
-          "type": "{merge: string}\n        |{anchor: string, target: string, text: ?string, tooltip: ?string}\n        |{noted: string, note: string, author: ?string}\n        |{validated: string, kind: RuleKind, operator: ?Operator, values: array<string>, inputTitle: ?string, inputMessage: ?string, errorTitle: ?string, errorMessage: ?string, allowEmpty: bool}\n        |{grouped: string, collapsed: bool}\n        |{table: string, name: ?string, style: ?string, banded: bool, filter: bool, totals: array<{column: string, function: ?TotalFunction, formula: ?string}>}\n        |{formatted: string, kind: ConditionalKind, operator: ?Operator, values: array<string>, colors: array<string>, icons: ?string, rank: ?uint, percent: bool, style: ?{font: ?string, size: ?float, bold: ?bool, italic: ?bool, strike: ?bool, underline: ?Underline, color: ?string, fill: ?string, border: ?{top: ?Line, right: ?Line, bottom: ?Line, left: ?Line}, borderColor: ?string, align: ?Align, valign: ?Valign, wrap: ?bool, rotate: ?int, indent: ?uint, format: ?string, locked: ?bool, hideFormula: ?bool}}\n        |{at: string, image: bytes, width: ?float, height: ?float, offsetX: ?float, offsetY: ?float}\n        |{orientation: ?Orientation, fitWidth: ?uint, fitHeight: ?uint, margins: ?{top: float, right: float, bottom: float, left: float}, header: ?string, footer: ?string, repeatRows: ?string, area: ?string}\n        |{password: ?string, allow: array<string>}"
+          "type": "{merge: string}\n        |{anchor: string, target: string, text: ?string, tooltip: ?string}\n        |{noted: string, note: string, author: ?string}\n        |{validated: string, kind: RuleKind, operator: ?Operator, values: array<string>, inputTitle: ?string, inputMessage: ?string, errorTitle: ?string, errorMessage: ?string, allowEmpty: bool}\n        |{grouped: string, collapsed: bool}\n        |{table: string, name: ?string, style: ?string, banded: bool, filter: bool, totals: array<{column: string, function: ?TotalFunction, formula: ?string}>}\n        |{formatted: string, kind: ConditionalKind, operator: ?Operator, values: array<string>, colors: array<string>, icons: ?string, rank: ?uint, percent: bool, style: ?{font: ?string, size: ?float, bold: ?bool, italic: ?bool, strike: ?bool, underline: ?Underline, color: ?string, fill: ?string, border: ?{top: ?Line, right: ?Line, bottom: ?Line, left: ?Line}, borderColor: ?string, align: ?Align, valign: ?Valign, wrap: ?bool, rotate: ?int, indent: ?uint, format: ?string, locked: ?bool, hideFormula: ?bool}}\n        |{at: string, image: bytes, width: ?float, height: ?float, offsetX: ?float, offsetY: ?float}\n        |{placed: string, layers: array<{kind: ChartKind, series: array<{values: string, categories: ?string, name: ?string, color: ?string}>}>, title: ?string, xTitle: ?string, yTitle: ?string, legend: Legend, labels: bool, width: ?float, height: ?float}\n        |{orientation: ?Orientation, fitWidth: ?uint, fitHeight: ?uint, margins: ?{top: float, right: float, bottom: float, left: float}, header: ?string, footer: ?string, repeatRows: ?string, area: ?string}\n        |{password: ?string, allow: array<string>}"
         },
         {
           "name": "PrintOptions",
@@ -34153,6 +35519,53 @@
           "slug": "image",
           "url": "/reference/core/novis-spreadsheet-sheet/image/",
           "examples": "novis/Spreadsheet-Sheet/image"
+        },
+        {
+          "id": "Novis.Spreadsheet.Sheet.chart",
+          "name": "chart",
+          "static": false,
+          "receiver": "sheet",
+          "generics": null,
+          "signature": "chart(string $cell, Chart $chart, ?{width?: float, height?: float} $options = null): Sheet",
+          "params": [
+            {
+              "kind": "param",
+              "name": "cell",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "chart",
+              "type": "Chart",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "options",
+              "type": "?{width?: float, height?: float}",
+              "default": "null",
+              "optional": true,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Sheet",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>chart</code> puts <code>$chart</code> at the cell <code>$cell</code>. <code>width</code> and <code>height</code> are in pixels. The chart is 480 by 288 pixels if you do not set them.\nA series range from <code>column</code> grows with the sheet, so a chart you add before the last row still shows every row."
+          },
+          "slug": "chart",
+          "url": "/reference/core/novis-spreadsheet-sheet/chart/",
+          "examples": "novis/Spreadsheet-Sheet/chart"
         },
         {
           "id": "Novis.Spreadsheet.Sheet.print",
@@ -40992,7 +42405,7 @@
               },
               {
                 "error": "RecursionError",
-                "descHtml": "The call stack is full before the last object is created. This can happen when a class contains itself and the body nests very deeply."
+                "descHtml": "The call stack is full when a constructor runs. This happens when the call starts with the stack almost full, or when a constructor recurses deeply. A deep body within <code>maxDepth</code> does not throw this error."
               },
               {
                 "error": "RuntimeError",
@@ -49484,7 +50897,7 @@
               },
               {
                 "error": "RecursionError",
-                "descHtml": "The call stack is full before the last object is created. This can happen when a class contains itself and the body nests very deeply."
+                "descHtml": "The call stack is full when a constructor runs. This happens when the call starts with the stack almost full, or when a constructor recurses deeply. A deep body within <code>maxDepth</code> does not throw this error."
               }
             ]
           },

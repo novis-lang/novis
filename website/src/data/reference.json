@@ -2041,6 +2041,19 @@
     },
     {
       "area": "types",
+      "slug": "novis-spreadsheet-cellerror",
+      "url": "/reference/types/novis-spreadsheet-cellerror/",
+      "title": "Novis\\Spreadsheet\\CellError",
+      "group": "Enums",
+      "intro": {
+        "id": "Novis\\Spreadsheet\\CellError",
+        "title": "Novis\\Spreadsheet\\CellError",
+        "examples": "types/Novis-Spreadsheet-CellError"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
       "slug": "novis-spreadsheet-chartkind",
       "url": "/reference/types/novis-spreadsheet-chartkind/",
       "title": "Novis\\Spreadsheet\\ChartKind",
@@ -2127,6 +2140,19 @@
         "id": "Novis\\Spreadsheet\\RuleKind",
         "title": "Novis\\Spreadsheet\\RuleKind",
         "examples": "types/Novis-Spreadsheet-RuleKind"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "novis-spreadsheet-sheetkind",
+      "url": "/reference/types/novis-spreadsheet-sheetkind/",
+      "title": "Novis\\Spreadsheet\\SheetKind",
+      "group": "Enums",
+      "intro": {
+        "id": "Novis\\Spreadsheet\\SheetKind",
+        "title": "Novis\\Spreadsheet\\SheetKind",
+        "examples": "types/Novis-Spreadsheet-SheetKind"
       },
       "keys": []
     },
