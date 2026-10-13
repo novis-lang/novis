@@ -1,0 +1,46 @@
+<?nvs
+namespace Paperwork;
+
+use Core\Html\Markup;
+use Novis\Intl\NumberFormat;
+
+// The look that the three documents share: the logo, the colours, the fonts and the money format.
+final class Brand {
+    // Reads the logo from the folder `assets`. `nvs.toml` allows the app to read this one file.
+    // A relative path starts at the folder of this file, which is `src`.
+    public static function logo(): bytes {
+        return Core\IO::read("../assets/logo.svg") as bytes;
+    }
+
+    // Writes an amount in euros, such as `€1,234.50`.
+    public static function money(decimal $amount): string {
+        return NumberFormat::currency([$amount], "EUR", "en")[0];
+    }
+
+    // Writes a whole number with a comma between thousands, such as `38,214`.
+    public static function number(int $value): string {
+        return NumberFormat::decimal([$value], "en")[0];
+    }
+
+    // Divides two whole numbers and rounds the result to `$digits` decimals, such as `12.4`.
+    public static function divide(int $part, int $whole, uint $digits): decimal {
+        return Core\Decimal::divRound($part as decimal, $whole as decimal, $digits, Core\RoundMode::HalfUp);
+    }
+
+    // The colours and fonts as CSS variables. Each document adds its own rules after these.
+    public static function css(): Markup {
+        return html`<style>
+:root {
+  --ink: #1f2937; --muted: #6b7280; --line: #e3e7ee; --paper: #f5f7fa;
+  --brand: #1d3557; --brand-soft: #e8eef6; --accent: #2a9d8f; --warm: #e76f51;
+}
+html { font-family: "Liberation Sans", sans-serif; font-size: 9.5pt; line-height: 1.45; color: var(--ink); }
+body { margin: 0; }
+h1, h2, h3 { color: var(--brand); line-height: 1.2; margin: 0; }
+p { margin: 0 0 6pt 0; }
+.muted { color: var(--muted); }
+.mono { font-family: "Liberation Mono", monospace; }
+.label { font-size: 7pt; font-weight: bold; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+</style>`;
+    }
+}

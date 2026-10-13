@@ -1,0 +1,176 @@
+<?nvs
+namespace Paperwork;
+
+use Core\Html\Markup;
+use Novis\Image\Barcode;
+use Novis\Image\QrCode;
+use Novis\Pdf\Document;
+use Novis\Pdf\Pages;
+use Novis\Pdf\Rendered;
+
+// The tickets of one order. Each ticket is its own PDF file, so each person can get their own ticket.
+// The buyer gets one file with a summary of the order and all the tickets.
+final class Tickets {
+    // Returns the file for the buyer: the summary of the order, then one page for each ticket.
+    public static function order(): bytes {
+        var $order = Sample::order();
+        array<Pages> $parts = [Pages::of(Tickets::summary()->bytes)];
+        foreach ($order->attendees as Sample::Attendee $attendee) {
+            $parts[] = Pages::of(Tickets::ticket($attendee)->bytes);
+        }
+        // `Pages::merge` puts the pages of all the files into one file, in this order.
+        return Pages::merge($parts);
+    }
+
+    // Renders the ticket of one person.
+    public static function ticket(Sample::Attendee $attendee): Rendered {
+        var $event = Sample::event();
+        var $order = Sample::order();
+        string $price = Brand::money($attendee->price);
+        string $title = "Ticket {$attendee->id}";
+        // The QR code and the barcode both contain the ticket number. A scanner at the entrance reads either one.
+        string $qr = QrCode::svg($attendee->id, {margin: 0});
+        string $barcode = Barcode::svg($attendee->id, Barcode::Symbology::Code128, {height: 40, margin: 0});
+        var $html = html`<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>{$title}</title>
+<?= Brand::css() ?>
+<?= Tickets::css() ?>
+</head>
+<body>
+<div class="card">
+  <div class="banner">
+    <p class="kicker">{$event->dates}</p>
+    <h1>{$event->name}</h1>
+    <p>{$event->tagline}</p>
+  </div>
+  <div class="who">
+    <div class="label">Attendee</div>
+    <p class="name">{$attendee->name}</p>
+    <p class="type">{$attendee->ticket}</p>
+  </div>
+  <div class="fact first"><div class="label">Valid on</div>{$attendee->days}</div>
+  <div class="fact"><div class="label">Venue</div>{$event->venue}</div>
+  <div class="fact"><div class="label">Seat</div>{$attendee->zone}, {$attendee->seat}</div>
+  <div class="fact first second"><div class="label">Order</div>{$order->number}</div>
+  <div class="fact second"><div class="label">Bought by</div>{$order->buyer->name}</div>
+  <div class="fact second"><div class="label">Price</div>{$price}</div>
+  <div class="small">{$event->doors} {$event->venue}, {$event->address}. This ticket is for one person, and it is checked once at the entrance.</div>
+  <div class="stub">
+    <div class="label">Admit one</div>
+    <img class="qr" src="qr.svg" alt="QR code of the ticket number">
+    <p class="id">{$attendee->id}</p>
+    <img class="barcode" src="barcode.svg" alt="Barcode of the ticket number">
+    <p class="seat">{$attendee->zone}<br>{$attendee->seat}</p>
+  </div>
+</div>
+</body>
+</html>`;
+        return Document::fromHtml($html)
+            ->asset("qr.svg", $qr as bytes)
+            ->asset("barcode.svg", $barcode as bytes)
+            ->created(Tickets::created())
+            ->render();
+    }
+
+    // Renders the summary of the order: who bought the tickets, each ticket and its price, and the total.
+    public static function summary(): Rendered {
+        var $order = Sample::order();
+        var $event = Sample::event();
+        decimal $total = "0.00" as decimal;
+        var $rows = html``;
+        foreach ($order->attendees as Sample::Attendee $attendee) {
+            $total = $total + $attendee->price;
+            string $price = Brand::money($attendee->price);
+            $rows = $rows + html`<tr><td><b>{$attendee->name}</b></td><td>{$attendee->ticket}</td><td class="mono">{$attendee->id}</td><td class="num">{$price}</td></tr>
+`;
+        }
+        // The prices include VAT of 19 %. This is the VAT part of the total.
+        string $vat = Brand::money(Core\Decimal::divRound($total * ("19" as decimal), "119" as decimal, 2, Core\RoundMode::HalfUp));
+        string $sum = Brand::money($total);
+        string $placed = $order->placed->format("d MMMM yyyy");
+        string $title = "Order {$order->number}";
+        var $html = html`<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>{$title}</title>
+<?= Brand::css() ?>
+<?= Tickets::css() ?>
+</head>
+<body>
+<div class="summary">
+  <div class="banner">
+    <p class="kicker">Your order</p>
+    <h1>{$event->name}</h1>
+    <p>{$event->dates} · {$event->venue}, {$event->address}</p>
+  </div>
+  <div class="order">
+    <div><div class="label">Order number</div>{$order->number}</div>
+    <div><div class="label">Ordered on</div>{$placed}</div>
+    <div><div class="label">Bought by</div>{$order->buyer->name}, {$order->buyer->city}</div>
+  </div>
+  <table class="lines">
+    <thead><tr><th>Attendee</th><th>Ticket</th><th>Ticket number</th><th class="num">Price</th></tr></thead>
+    <tbody>
+<?= $rows ?>
+    </tbody>
+    <tfoot>
+      <tr class="total"><td colspan="3">Total, paid by card</td><td class="num">{$sum}</td></tr>
+      <tr class="vat"><td colspan="3">This includes VAT of 19 %</td><td class="num">{$vat}</td></tr>
+    </tfoot>
+  </table>
+  <p class="small">Each ticket is on its own page. Print the pages, or send each person their page. A scanner at the entrance reads the QR code or the barcode.</p>
+</div>
+</body>
+</html>`;
+        return Document::fromHtml($html)->created(Tickets::created())->render();
+    }
+
+    // The time of the order is the creation time of each file, so the same order always gives the same files.
+    private static function created(): Core\Time\Instant {
+        return Core\Time::fromIso(Sample::order()->placed->format("yyyy-MM-dd") . "T10:30:00Z");
+    }
+
+    private static function css(): Markup {
+        return html`<style>
+@page { size: A5 landscape; margin: 9mm; }
+.banner { background-image: linear-gradient(120deg, #1d3557 0%, #23577a 50%, #2a9d8f 100%); color: #ffffff; padding: 6mm 8mm 5mm 8mm; border-radius: 8pt 0 0 0; }
+.banner h1 { color: #ffffff; font-size: 21pt; margin: 1mm 0 1.5mm 0; }
+.banner p { margin: 0; color: #d6e6f0; }
+.banner .kicker { font-size: 7.5pt; font-weight: bold; letter-spacing: 0.16em; text-transform: uppercase; color: #9fe0d6; }
+
+.card { display: grid; grid-template-columns: 1fr 1fr 1fr 52mm; grid-template-rows: auto auto auto auto 1fr; height: 130mm; }
+.card .banner { grid-column: 1 / 4; grid-row: 1; }
+.who { grid-column: 1 / 4; grid-row: 2; padding: 6mm 8mm 3mm 8mm; border-left: 0.75pt solid var(--line); }
+.who .name { font-size: 22pt; font-weight: bold; color: var(--brand); margin: 1mm 0 1mm 0; }
+.who .type { font-size: 10pt; font-weight: bold; color: var(--accent); margin: 0; }
+.fact { grid-row: 3; padding: 3mm 8mm 3mm 8mm; font-size: 10pt; font-weight: bold; color: var(--ink); }
+.fact.second { grid-row: 4; padding-bottom: 5mm; font-size: 9pt; color: var(--muted); }
+.fact.first { border-left: 0.75pt solid var(--line); }
+.fact .label { margin-bottom: 1.5mm; }
+.card .small { grid-column: 1 / 4; grid-row: 5; padding: 4mm 8mm 5mm 8mm; font-size: 7.5pt; color: var(--muted); border-top: 0.75pt solid var(--line); border-left: 0.75pt solid var(--line); border-bottom: 0.75pt solid var(--line); border-radius: 0 0 0 8pt; }
+.stub { grid-column: 4; grid-row: 1 / 6; text-align: center; padding: 7mm 6mm 5mm 6mm; background: var(--paper); border: 1.2pt dashed #9aa5b4; border-radius: 0 8pt 8pt 0; }
+.stub .label { margin-bottom: 4mm; }
+.stub .qr { display: block; width: 34mm; height: 34mm; margin: 0 auto; }
+.stub .id { font-family: "Liberation Mono", monospace; font-size: 8.5pt; font-weight: bold; color: var(--brand); margin: 3mm 0 6mm 0; }
+.stub .barcode { display: block; width: 40mm; height: 12mm; margin: 0 auto; }
+.stub .seat { margin-top: 8mm; padding-top: 4mm; border-top: 0.75pt solid var(--line); font-size: 9pt; font-weight: bold; color: var(--brand); }
+
+.summary .banner { border-radius: 8pt 8pt 0 0; }
+.order { display: grid; grid-template-columns: 1fr 1fr 1.4fr; padding: 4mm 8mm; background: var(--paper); font-weight: bold; color: var(--brand); border-radius: 0 0 8pt 8pt; margin-bottom: 6mm; }
+.order .label { margin-bottom: 1mm; }
+table.lines { width: 100%; border-collapse: collapse; }
+.lines th { text-align: left; font-size: 7pt; font-weight: bold; letter-spacing: 0.06em; text-transform: uppercase; color: var(--brand); padding: 4pt 6pt; border-bottom: 1.5pt solid var(--brand); }
+.lines th.num { text-align: right; }
+.lines td { padding: 5pt 6pt; border-bottom: 0.5pt solid var(--line); }
+.lines .mono { font-size: 8pt; color: var(--muted); }
+.num { text-align: right; white-space: nowrap; }
+.lines tr.total td { font-weight: bold; font-size: 11pt; color: var(--brand); border-bottom: none; padding-top: 8pt; }
+.lines tr.vat td { color: var(--muted); border-bottom: none; padding-top: 0; }
+.summary .small { margin-top: 5mm; font-size: 8pt; color: var(--muted); }
+</style>`;
+    }
+}

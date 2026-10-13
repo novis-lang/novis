@@ -1,0 +1,4 @@
+# The app reads one file: the logo that the three documents show.
+# The path is relative to this folder. The app may read no other file, and it may write none.
+[capabilities.fs]
+read = ["assets/logo.svg"]

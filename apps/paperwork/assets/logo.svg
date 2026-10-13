@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="240" height="64" viewBox="0 0 240 64">
+  <title>Shop</title>
+  <rect width="64" height="64" rx="15" fill="#1d3557"/>
+  <path d="M25 27v-5a7 7 0 0 1 14 0v5" fill="none" stroke="#5ec4b6" stroke-width="4" stroke-linecap="round"/>
+  <rect x="17" y="26" width="30" height="25" rx="4" fill="#ffffff"/>
+  <circle cx="32" cy="38.5" r="3.5" fill="#2a9d8f"/>
+  <text x="78" y="46" font-family="Liberation Sans" font-size="42" font-weight="700" letter-spacing="-1.5" fill="#1d3557">shop</text>
+  <circle cx="184" cy="42" r="5" fill="#2a9d8f"/>
+</svg>

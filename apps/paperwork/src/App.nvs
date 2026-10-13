@@ -1,0 +1,68 @@
+<?nvs
+namespace Paperwork;
+
+use Core\Access;
+use Core\Audience;
+use Core\Http\Method;
+use Core\Request;
+use Core\Response;
+use Core\Route;
+
+// The routes of the app. Each method with a `Route` handles one kind of request.
+final class App {
+    // Handles one request. `public/index.nvs` calls this for every request.
+    public static function handle(): void {
+        // `route()` returns the route that matches the method and the path, or `null`.
+        ?Core\Router\Match $matched = Request::route();
+        if ($matched == null) {
+            Response::setStatus(404);
+            Response::html(Home::notFound());
+            return;
+        }
+        string $name = $matched->name() ?? "";
+        if ($name == "App::home") {
+            App::home();
+        } else if ($name == "App::invoice") {
+            App::invoice();
+        } else if ($name == "App::report") {
+            App::report();
+        } else if ($name == "App::tickets") {
+            App::tickets();
+        }
+    }
+
+    // Shows a link to each document.
+    #[Route(path: "/", method: Method::Get, name: "App::home")]
+    #[Access(allow: Audience::Public)]
+    public static function home(): void {
+        Response::html(Home::page(Report::password()));
+    }
+
+    // Sends the invoice.
+    #[Route(path: "/invoice.pdf", method: Method::Get, name: "App::invoice")]
+    #[Access(allow: Audience::Public)]
+    public static function invoice(): void {
+        App::send(Invoice::render()->bytes, "invoice.pdf");
+    }
+
+    // Sends the report. A PDF viewer needs the password before it shows the report.
+    // This app shows the password on the home page. A real app gets it from the person who requests the report.
+    #[Route(path: "/report.pdf", method: Method::Get, name: "App::report")]
+    #[Access(allow: Audience::Public)]
+    public static function report(): void {
+        App::send(Report::render(Report::password())->bytes, "report.pdf");
+    }
+
+    // Sends the tickets of one order as one file.
+    #[Route(path: "/tickets.pdf", method: Method::Get, name: "App::tickets")]
+    #[Access(allow: Audience::Public)]
+    public static function tickets(): void {
+        App::send(Tickets::order(), "tickets.pdf");
+    }
+
+    // Sends a PDF file. `inline` tells the browser to show the file, and `filename` is the name for a download.
+    private static function send(bytes $pdf, string $filename): void {
+        Response::setHeader("content-disposition", "inline; filename=\"{$filename}\"");
+        Response::bytes($pdf, "application/pdf");
+    }
+}

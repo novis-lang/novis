@@ -1,0 +1,227 @@
+<?nvs
+namespace Paperwork;
+
+use Core\Html\Markup;
+use Core\Time\Date;
+use Core\Unit;
+use Novis\Image\QrCode;
+use Novis\Pdf\Document;
+use Novis\Pdf\Page;
+use Novis\Pdf\Rendered;
+
+// An invoice with many lines. It is also an electronic invoice: the PDF contains the same invoice as XML.
+final class Invoice {
+    // Renders the sample invoice as a PDF/A-3b file with the Factur-X XML inside.
+    public static function render(): Rendered {
+        var $invoice = Sample::invoice();
+        var $totals = Totals::of($invoice->items);
+        return Document::fromHtml(Invoice::html($invoice, $totals))
+            ->asset("logo.svg", Brand::logo())
+            ->asset("pay.svg", Invoice::giroCode($invoice, $totals) as bytes)
+            ->header(fn(Page $page): Markup => Invoice::header($invoice, $page), {height: "30mm"})
+            ->footer(fn(Page $page): Markup => Invoice::footer($invoice, $page), {height: "30mm"})
+            ->slots(fn(Page $page): array<Markup> => Invoice::slots($page))
+            // PDF/A-3b is the standard for archived files that may contain an XML file.
+            ->standard(Document::Standard::PdfA3b)
+            // The date of the invoice is the creation time, so the same invoice always gives the same file.
+            ->created(Core\Time::fromIso("{$invoice->issued->format("yyyy-MM-dd")}T09:00:00Z"))
+            ->invoiceXml(FacturX::xml($invoice, $totals))
+            ->render();
+    }
+
+    // The day the invoice must be paid.
+    public static function due(Sample::Invoice $invoice): Date {
+        return $invoice->issued->plus($invoice->days, Unit::Day);
+    }
+
+    // The text of a SEPA bank transfer as an SVG QR code. A banking app reads it and fills in the transfer.
+    private static function giroCode(Sample::Invoice $invoice, Totals $totals): string {
+        string $payment = QrCode::giroCode({
+            name: $invoice->seller->name,
+            iban: Sample::iban(),
+            amount: $totals->total,
+            text: "Invoice {$invoice->number}",
+        });
+        return QrCode::svg($payment, {margin: 0});
+    }
+
+    private static function html(Sample::Invoice $invoice, Totals $totals): Markup {
+        string $title = "Invoice {$invoice->number}";
+        string $issued = $invoice->issued->format("d MMMM yyyy");
+        string $delivered = $invoice->delivered->format("d MMMM yyyy");
+        string $due = Invoice::due($invoice)->format("d MMMM yyyy");
+        string $total = Brand::money($totals->total);
+        string $iban = Sample::iban();
+        string $vatLabel = "VAT " . (Totals::rate() as string) . " %";
+        return html`<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>{$title}</title>
+<meta name="author" content="{$invoice->seller->name}">
+<?= Brand::css() ?>
+<?= Invoice::css() ?>
+</head>
+<body>
+<section class="parties">
+  <?= Invoice::address("From", $invoice->seller) ?>
+  <?= Invoice::address("Bill to", $invoice->buyer) ?>
+  <div class="box due">
+    <div class="label">Amount due</div>
+    <p class="amount">{$total}</p>
+    <p>Please pay by <b>{$due}</b>.</p>
+    <p class="small">Payable within {$invoice->days} days without deduction.</p>
+  </div>
+</section>
+
+<h1>{$title}</h1>
+<p class="muted">Thank you for your order. We have delivered the following items.</p>
+
+<table class="facts">
+  <tr>
+    <td><div class="label">Invoice no.</div>{$invoice->number}</td>
+    <td><div class="label">Invoice date</div>{$issued}</td>
+    <td><div class="label">Delivery date</div>{$delivered}</td>
+    <td><div class="label">Customer no.</div>{$invoice->customer}</td>
+    <td><div class="label">Your order</div>{$invoice->order}</td>
+  </tr>
+</table>
+
+<table class="items">
+  <thead>
+    <tr><th class="pos">#</th><th class="sku">Article</th><th>Description</th><th class="num">Qty</th><th class="num">Unit price</th><th class="num">Amount</th></tr>
+    <tr class="carry" data-repeat="continued"><td colspan="5">Brought forward</td><td class="num"><slot name="brought"></slot></td></tr>
+  </thead>
+  <tbody>
+<?= Invoice::rows($invoice->items) ?>
+  </tbody>
+  <tfoot>
+    <tr class="carry" data-repeat="continued"><td colspan="5">Carried forward</td><td class="num"><slot name="carried"></slot></td></tr>
+    <tr class="sum first" data-repeat="last"><td colspan="5">Subtotal (net)</td><td class="num"><?= Brand::money($totals->net) ?></td></tr>
+    <tr class="sum" data-repeat="last"><td colspan="5">{$vatLabel}</td><td class="num"><?= Brand::money($totals->vat) ?></td></tr>
+    <tr class="grand" data-repeat="last"><td colspan="5">Total due</td><td class="num">{$total}</td></tr>
+  </tfoot>
+</table>
+
+<section class="pay">
+  <table>
+    <tr>
+      <td class="code"><img src="pay.svg" alt="QR code for the bank transfer"></td>
+      <td>
+        <h2>Pay by bank transfer</h2>
+        <p>Please transfer <b>{$total}</b> by <b>{$due}</b>. Scan the code with your banking app, and it fills in the transfer for you.</p>
+        <table class="account">
+          <tr><th>Account holder</th><td>{$invoice->seller->name}</td></tr>
+          <tr><th>IBAN</th><td class="mono">{$iban}</td></tr>
+          <tr><th>Reference</th><td class="mono">Invoice {$invoice->number}</td></tr>
+          <tr><th>Amount</th><td>{$total}</td></tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</section>
+<p class="thanks muted">This invoice is also an electronic invoice. Your accounting software can read the attached Factur-X file.</p>
+</body>
+</html>`;
+    }
+
+    // One table row for each item. `data-mark` gives the row its amount, and the slots add these up.
+    private static function rows(array<Sample::Item> $items): Markup {
+        var $rows = html``;
+        uint $position = 0;
+        foreach ($items as Sample::Item $item) {
+            $position++;
+            decimal $amount = Totals::line($item);
+            string $price = Brand::money($item->price);
+            string $line = Brand::money($amount);
+            $rows = $rows + html`<tr data-mark="amount:{$amount}"><td class="pos">{$position}</td><td class="sku">{$item->sku}</td><td>{$item->name}</td><td class="num">{$item->quantity} {$item->unit}</td><td class="num">{$price}</td><td class="num">{$line}</td></tr>
+`;
+        }
+        return $rows;
+    }
+
+    private static function address(string $label, Sample::Party $party): Markup {
+        return html`<div class="box">
+    <div class="label">{$label}</div>
+    <p><b>{$party->name}</b><br>{$party->street}<br>{$party->postcode} {$party->city}<br>{$party->country}</p>
+    <p class="muted small">VAT ID {$party->vatId}<br>{$party->email}</p>
+  </div>`;
+    }
+
+    // Fills the two slots of the table. `marksUpTo` returns the amounts on this page and on every page before it.
+    private static function slots(Page $page): array<Markup> {
+        decimal $upTo = Totals::sum($page->marksUpTo("amount"));
+        decimal $before = $upTo - Totals::sum($page->marks("amount"));
+        return ["carried" => Invoice::fill($upTo), "brought" => Invoice::fill($before)];
+    }
+
+    // The HTML of a slot does not get the styles of the document, so it sets its own font and alignment.
+    private static function fill(decimal $amount): Markup {
+        string $text = Brand::money($amount);
+        return html`<div style="font-family: 'Liberation Sans', sans-serif; font-size: 9pt; font-weight: bold; color: #1d3557; text-align: right; line-height: 1.45">{$text}</div>`;
+    }
+
+    // The header shows the logo on every page. Page 1 has the word "Invoice", and the other pages have the number.
+    private static function header(Sample::Invoice $invoice, Page $page): Markup {
+        string $right = $page->isFirst() ? "Invoice" : "Invoice {$invoice->number}, continued";
+        return html`<div style="font-family: 'Liberation Sans', sans-serif; display: flex; justify-content: space-between; align-items: flex-end; padding-top: 12mm">
+<img src="logo.svg" alt="Shop" style="height: 10mm">
+<div style="font-size: 8.5pt; letter-spacing: 0.14em; text-transform: uppercase; color: #6b7280; padding-bottom: 1mm; white-space: nowrap">{$right}</div>
+</div>`;
+    }
+
+    // The footer has the legal and bank details of the shop, and the page number.
+    private static function footer(Sample::Invoice $invoice, Page $page): Markup {
+        var $shop = $invoice->seller;
+        string $iban = Sample::iban();
+        return html`<div style="font-family: 'Liberation Sans', sans-serif; font-size: 6.8pt; line-height: 1.55; color: #6b7280; margin-top: 6mm; padding-top: 3mm; border-top: 0.75pt solid #e3e7ee; display: flex; justify-content: space-between; white-space: nowrap">
+<div><b style="color: #1d3557">{$shop->name}</b><br>{$shop->street}<br>{$shop->postcode} {$shop->city}, {$shop->country}</div>
+<div>Phone +49 30 1234 5678<br>{$shop->email}<br>www.example.com</div>
+<div>Example Bank<br>IBAN {$iban}<br>VAT ID {$shop->vatId}</div>
+<div>Managing director: Ada Lovelace<br>Local court of Berlin<br>HRB 123456</div>
+<div style="text-align: right; color: #1d3557; font-weight: bold">Page {$page->number} of {$page->count}</div>
+</div>`;
+    }
+
+    private static function css(): Markup {
+        return html`<style>
+@page { size: A4; margin: 0 18mm; }
+.small { font-size: 8pt; }
+.parties { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 9pt; margin: 7mm 0 8mm 0; }
+.box { border: 0.75pt solid var(--line); border-radius: 5pt; padding: 9pt 11pt 4pt 11pt; background: var(--paper); }
+.box .label { margin-bottom: 5pt; }
+.box p { margin-bottom: 5pt; }
+.box.due { background: var(--brand); border-color: var(--brand); color: #ffffff; }
+.box.due .label { color: #a8c5e2; }
+.box.due .amount { font-size: 19pt; font-weight: bold; margin: 2pt 0 6pt 0; }
+.box.due .small { color: #c9d8ea; }
+h1 { font-size: 19pt; margin-bottom: 3pt; }
+table.facts { width: 100%; border-collapse: collapse; margin: 5mm 0 6mm 0; border-top: 0.75pt solid var(--line); border-bottom: 0.75pt solid var(--line); }
+.facts td { padding: 6pt 8pt 6pt 0; font-weight: bold; color: var(--brand); }
+.facts .label { margin-bottom: 2pt; }
+table.items { width: 100%; border-collapse: collapse; }
+.items th { background: var(--brand); color: #ffffff; font-size: 7pt; font-weight: bold; letter-spacing: 0.06em; text-transform: uppercase; text-align: left; padding: 6pt 6pt; }
+.items td { padding: 5pt 6pt; border-bottom: 0.5pt solid var(--line); vertical-align: top; }
+.items tbody tr:nth-child(even) td { background: #f6f8fb; }
+.items .pos { color: var(--muted); }
+.items td.sku { font-family: "Liberation Mono", monospace; font-size: 7.5pt; color: var(--muted); padding-top: 5.5pt; }
+.num { text-align: right; white-space: nowrap; }
+.items th.num { text-align: right; }
+.account td.mono { font-weight: normal; color: var(--brand); }
+.items tr.carry td { background: var(--brand-soft); color: var(--brand); font-weight: bold; border-bottom: none; }
+.items tr.sum td { border-bottom: none; padding: 3pt 6pt; }
+.items tr.sum.first td { padding-top: 9pt; }
+.items tr.grand td { background: var(--brand); color: #ffffff; font-size: 11pt; font-weight: bold; padding: 7pt 6pt; }
+.pay { margin-top: 9mm; padding: 12pt; border: 1pt solid var(--accent); border-radius: 6pt; break-inside: avoid; }
+.pay > table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.pay td { vertical-align: top; }
+.pay td.code { width: 36mm; }
+.pay img { width: 31mm; height: 31mm; }
+.pay h2 { font-size: 12pt; margin-bottom: 5pt; }
+table.account { border-collapse: collapse; margin-top: 4pt; }
+.account th { text-align: left; font-weight: normal; color: var(--muted); padding: 1pt 12pt 1pt 0; }
+.account td { padding: 1pt 0; font-weight: bold; }
+.thanks { margin-top: 6mm; font-size: 8pt; }
+</style>`;
+    }
+}

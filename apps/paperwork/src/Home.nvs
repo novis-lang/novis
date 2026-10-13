@@ -1,0 +1,47 @@
+<?nvs
+namespace Paperwork;
+
+use Core\Html\Markup;
+
+// Builds the two HTML pages of the app. Each `{$value}` in an `html` template is escaped.
+final class Home {
+    // The home page: one link for each document, with its address.
+    public static function page(string $password): Markup {
+        return Home::layout("Paperwork", html`<h1>Paperwork</h1>
+<p>This app makes three PDF documents, the way a business needs them. Open one to see it.</p>
+<ul class="documents">
+<li><a href="/invoice.pdf">Invoice</a> <code>GET /invoice.pdf</code>
+<p>An invoice over three pages, with a QR code for the payment. It is also an electronic invoice in the Factur-X format.</p></li>
+<li><a href="/report.pdf">Quarterly report</a> <code>GET /report.pdf</code>
+<p>A confidential report with a table of contents and charts. The password is <code>{$password}</code>.</p></li>
+<li><a href="/tickets.pdf">Event tickets</a> <code>GET /tickets.pdf</code>
+<p>The tickets of one order in one file: an order summary, then one page for each person.</p></li>
+</ul>`);
+    }
+
+    // The page for a path that has no route.
+    public static function notFound(): Markup {
+        return Home::layout("Not found", html`<h1>Not found</h1><p><a href="/">All documents</a></p>`);
+    }
+
+    private static function layout(string $title, Markup $content): Markup {
+        return html`<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{$title}</title>
+<style>
+body { font-family: system-ui, sans-serif; max-width: 40rem; margin: 3rem auto; padding: 0 1rem; color: #1f2937; line-height: 1.5; }
+h1 { color: #1d3557; }
+.documents { list-style: none; padding: 0; }
+.documents li { border: 1px solid #e3e7ee; border-radius: 8px; padding: 1rem; margin-bottom: 1rem; }
+.documents a { font-weight: bold; color: #1d3557; }
+.documents p { margin: 0.4rem 0 0; color: #6b7280; }
+code { background: #f5f7fa; padding: 0 0.3rem; border-radius: 4px; }
+</style>
+</head>
+<body><?= $content ?></body>
+</html>`;
+    }
+}

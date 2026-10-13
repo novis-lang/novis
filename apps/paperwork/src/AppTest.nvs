@@ -1,0 +1,36 @@
+<?nvs
+namespace Paperwork;
+
+use Core\Http\Method;
+use Core\Str;
+use Core\Test;
+
+// Tests that send requests to the app. `Test::request` runs the app without a server.
+final class AppTest {
+    #[Test]
+    public function theHomePageLinksEachDocument(): void {
+        var $response = Test::request(Method::Get, "/");
+        Test::assertEquals($response->status(), 200);
+        Test::assertTrue(Str::contains($response->body(), "<a href=\"/invoice.pdf\">"));
+        Test::assertTrue(Str::contains($response->body(), "<a href=\"/report.pdf\">"));
+        Test::assertTrue(Str::contains($response->body(), "<a href=\"/tickets.pdf\">"));
+        Test::assertTrue(Str::contains($response->body(), "<code>novis</code>"));
+    }
+
+    #[Test]
+    public function eachDocumentIsSentAsAPdf(): void {
+        array<string> $names = ["invoice.pdf", "report.pdf", "tickets.pdf"];
+        foreach ($names as string $name) {
+            var $response = Test::request(Method::Get, "/{$name}");
+            Test::assertEquals($response->status(), 200);
+            Test::assertEquals($response->header("content-type"), "application/pdf");
+            Test::assertEquals($response->header("content-disposition"), "inline; filename=\"{$name}\"");
+        }
+    }
+
+    #[Test]
+    public function anUnknownPathIsNotFound(): void {
+        Test::assertEquals(Test::request(Method::Get, "/no-such-page")->status(), 404);
+        Test::assertEquals(Test::request(Method::Post, "/invoice.pdf")->status(), 404);
+    }
+}

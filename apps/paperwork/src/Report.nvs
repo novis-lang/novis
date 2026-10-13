@@ -1,0 +1,314 @@
+<?nvs
+namespace Paperwork;
+
+use Core\Decimal;
+use Core\Html\Markup;
+use Core\RoundMode;
+use Novis\Pdf\Document;
+use Novis\Pdf\Page;
+use Novis\Pdf\Rendered;
+
+// A confidential quarterly report with a cover, a table of contents, charts and tables.
+final class Report {
+    // The password of the report. The home page shows it, so you can open the file.
+    public static function password(): string {
+        return "novis";
+    }
+
+    // Renders the report. With a password, the file is encrypted, and a PDF viewer needs the password to open it.
+    public static function render(?string $password): Rendered {
+        var $document = Document::fromHtml(Report::html())
+            ->asset("logo.svg", Brand::logo())
+            ->asset("revenue.svg", Chart::bars(Sample::quarters(), 6000, 1000) as bytes)
+            ->asset("orders.svg", Chart::lines(Sample::weeks(), 2000, 3600, 400) as bytes)
+            ->header(fn(Page $page): Markup => Report::header($page), {height: "22mm"})
+            ->footer(fn(Page $page): Markup => Report::footer($page), {height: "20mm"})
+            // PDF/UA is the standard for accessible files. A screen reader can read this report aloud.
+            ->standard(Document::Standard::PdfUa1)
+            ->created(Core\Time::fromIso(Sample::reportDate()->format("yyyy-MM-dd") . "T16:00:00Z"));
+        if ($password != null) {
+            $document = $document->password($password);
+        }
+        return $document->render();
+    }
+
+    // The header shows the name of the chapter. The chapter heading saves its text with `string-set`.
+    // The cover is on the page named `cover`, and it has no header.
+    private static function header(Page $page): Markup {
+        if ($page->name == "cover") {
+            return html``;
+        }
+        string $chapter = $page->string("chapter") ?? "";
+        return html`<div style="font-family: 'Liberation Sans', sans-serif; font-size: 7.5pt; color: #6b7280; display: flex; justify-content: space-between; padding-top: 11mm; padding-bottom: 2mm; border-bottom: 0.75pt solid #e3e7ee">
+<div><b style="color: #1d3557">Shop GmbH</b> · Quarterly report Q3 2026</div>
+<div style="color: #1d3557; font-weight: bold">{$chapter}</div>
+</div>`;
+    }
+
+    // The footer says that the report is confidential, and gives the page number.
+    private static function footer(Page $page): Markup {
+        if ($page->name == "cover") {
+            return html``;
+        }
+        return html`<div style="font-family: 'Liberation Sans', sans-serif; font-size: 7.5pt; color: #6b7280; display: flex; justify-content: space-between; padding-top: 6mm">
+<div><b style="color: #e76f51; letter-spacing: 0.08em">CONFIDENTIAL</b> · Page {$page->number} of {$page->count}</div>
+<div>For the board of Shop GmbH only</div>
+</div>`;
+    }
+
+    private static function html(): Markup {
+        string $written = Sample::reportDate()->format("d MMMM yyyy");
+        return html`<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Quarterly report Q3 2026</title>
+<meta name="author" content="Shop GmbH">
+<meta name="description" content="Revenue, orders, regions and products of Shop GmbH in the third quarter of 2026.">
+<?= Brand::css() ?>
+<?= Report::css() ?>
+</head>
+<body>
+
+<section class="cover">
+  <div class="band">
+    <p class="pill">Confidential</p>
+    <h1>Quarterly report</h1>
+    <p class="quarter">Third quarter 2026</p>
+    <p class="period">1 July to 30 September 2026</p>
+  </div>
+  <div class="cover-body">
+    <img src="logo.svg" alt="Shop">
+    <p><b>Prepared for the board of Shop GmbH</b><br>Written on {$written} by Ada Lovelace, managing director</p>
+    <p class="muted">This report contains figures that are not public. Please do not forward it.</p>
+  </div>
+</section>
+
+<section class="contents">
+  <h2>Contents</h2>
+  <ol class="toc">
+    <li><a href="#summary">Summary of the quarter</a></li>
+    <li><a href="#revenue">Revenue and orders</a></li>
+    <li><a href="#regions">Revenue by region</a></li>
+    <li><a href="#products">Products</a></li>
+    <li><a href="#outlook">Outlook for the fourth quarter</a></li>
+  </ol>
+</section>
+
+<section class="chapter">
+  <p class="eyebrow">Chapter 1</p>
+  <h2 id="summary">Summary of the quarter</h2>
+  <p class="lead">The third quarter was the best third quarter in the history of the shop. Revenue grew by 12.4 % to €4.82 million, and the gross margin rose to 41.3 %.</p>
+  <div class="kpis">
+<?= Report::kpis() ?>
+  </div>
+  <h3>What went well</h3>
+  <ul>
+    <li>September was the strongest month of the year. Offices restocked after the summer, and paper and toner sold well.</li>
+    <li>Technology products such as headsets and USB-C hubs grew by 27 %. They have a higher margin than paper.</li>
+    <li>2,940 companies ordered for the first time. Most of them came through the new price comparison listings.</li>
+  </ul>
+  <h3>What needs attention</h3>
+  <ul>
+    <li>Delivery times in Italy and Spain were 1.4 days longer than our target of 3 days.</li>
+    <li>The price of copy paper rose by 6 % in August. We passed on only half of it to customers.</li>
+  </ul>
+</section>
+
+<section class="chapter">
+  <p class="eyebrow">Chapter 2</p>
+  <h2 id="revenue">Revenue and orders</h2>
+  <p>Revenue grows every year in the third quarter, because offices buy supplies after the summer holidays. This year the growth was larger than in 2025.</p>
+  <div class="chart">
+    <p class="caption">Revenue per quarter, in thousand euros</p>
+    <img src="revenue.svg" alt="Bar chart of the revenue in the last eight quarters. It rose from 4,290 thousand euros in Q3 2025 to 4,820 thousand euros in Q3 2026.">
+  </div>
+  <table class="data">
+    <thead><tr><th>Month</th><th class="num">2026</th><th class="num">2025</th><th class="num">Change</th></tr></thead>
+    <tbody>
+<?= Report::compareRows(Sample::months(), false) ?>
+    </tbody>
+  </table>
+  <div class="chart">
+    <p class="caption">Orders per week, in 2026 and in 2025</p>
+    <img src="orders.svg" alt="Line chart of the orders in each week of the quarter. Every week had more orders than the same week in 2025.">
+  </div>
+</section>
+
+<section class="chapter">
+  <p class="eyebrow">Chapter 3</p>
+  <h2 id="regions">Revenue by region</h2>
+  <p>Germany is still half of the revenue. Poland and Spain grew the fastest, from a small base. Only the countries outside Europe sold less than last year.</p>
+  <table class="data">
+    <thead><tr><th>Region</th><th class="num">Revenue</th><th>Share</th><th class="num">Last year</th><th class="num">Change</th></tr></thead>
+    <tbody>
+<?= Report::compareRows(Sample::regions(), true) ?>
+    </tbody>
+  </table>
+  <p class="note muted">All amounts are in thousand euros. The share is the part of the total revenue of the quarter.</p>
+</section>
+
+<section class="chapter">
+  <p class="eyebrow">Chapter 4</p>
+  <h2 id="products">Products</h2>
+  <p>The table lists the products with the most revenue. The margin is the part of the revenue that is left after the cost of buying the product.</p>
+  <table class="data products">
+    <thead><tr><th class="num">#</th><th>Product</th><th>Line</th><th class="num">Units</th><th class="num">Revenue</th><th class="num">Margin</th></tr></thead>
+    <tbody>
+<?= Report::productRows() ?>
+    </tbody>
+  </table>
+</section>
+
+<section class="chapter">
+  <p class="eyebrow">Chapter 5</p>
+  <h2 id="outlook">Outlook for the fourth quarter</h2>
+  <p class="lead">We expect revenue of €5.3 to €5.5 million in the fourth quarter. This is 4 % to 8 % more than in the fourth quarter of 2025.</p>
+  <div class="columns">
+    <div class="panel">
+      <h3>Our plans</h3>
+      <ul>
+        <li>Open a second warehouse near Vienna in November, so orders from Austria arrive one day sooner.</li>
+        <li>Add 120 technology products to the range before the end of the year.</li>
+        <li>Offer a yearly contract with fixed prices for paper to our 500 largest customers.</li>
+      </ul>
+    </div>
+    <div class="panel warn">
+      <h3>Risks</h3>
+      <ul>
+        <li>The price of paper may rise again in the winter.</li>
+        <li>A strike at a parcel company could delay deliveries before Christmas.</li>
+        <li>Many companies plan their budgets for next year with less money for offices.</li>
+      </ul>
+    </div>
+  </div>
+  <p class="sign">Ada Lovelace<br><span class="muted">Managing director, Shop GmbH</span></p>
+</section>
+</body>
+</html>`;
+    }
+
+    // One tile for each key figure. The tiles are in a CSS grid with three columns.
+    private static function kpis(): Markup {
+        var $tiles = html``;
+        foreach (Sample::kpis() as Sample::Kpi $kpi) {
+            $tiles = $tiles + html`<div class="kpi"><div class="label">{$kpi->label}</div><div class="value">{$kpi->value}</div><div class="change">{$kpi->change}</div><div class="note">{$kpi->note}</div></div>
+`;
+        }
+        return $tiles;
+    }
+
+    // One row for each month or region, with the change to last year. The last row is the total.
+    private static function compareRows(array<Sample::Compare> $rows, bool $withShare): Markup {
+        int $total = 0;
+        int $totalLast = 0;
+        foreach ($rows as Sample::Compare $row) {
+            $total = $total + $row->value;
+            $totalLast = $totalLast + $row->last;
+        }
+        var $html = html``;
+        foreach ($rows as Sample::Compare $row) {
+            $html = $html + Report::compareRow($row->name, $row->value, $row->last, $withShare ? $total : 0, "");
+        }
+        return $html + Report::compareRow("Total", $total, $totalLast, $withShare ? $total : 0, "total");
+    }
+
+    private static function compareRow(string $name, int $value, int $last, int $total, string $class): Markup {
+        string $now = Brand::number($value);
+        string $before = Brand::number($last);
+        string $change = Report::change($value, $last);
+        string $direction = $value >= $last ? "up" : "down";
+        if ($total == 0) {
+            return html`<tr class="{$class}"><td>{$name}</td><td class="num">{$now}</td><td class="num">{$before}</td><td class="num {$direction}">{$change}</td></tr>
+`;
+        }
+        // The bar in the share column is as wide as the share of this row.
+        decimal $share = Brand::divide($value * 100, $total, 1);
+        string $width = "width: {$share}%";
+        return html`<tr class="{$class}"><td>{$name}</td><td class="num">{$now}</td><td class="share"><div class="track"><div class="fill" style="{$width}"></div></div>{$share} %</td><td class="num">{$before}</td><td class="num {$direction}">{$change}</td></tr>
+`;
+    }
+
+    // The change from last year in percent, with one decimal, such as `+12.4 %`.
+    private static function change(int $value, int $last): string {
+        int $difference = $value >= $last ? $value - $last : $last - $value;
+        decimal $percent = Brand::divide($difference * 100, $last, 1);
+        string $sign = $value >= $last ? "+" : "−";
+        return "{$sign}{$percent} %";
+    }
+
+    private static function productRows(): Markup {
+        var $html = html``;
+        int $position = 0;
+        foreach (Sample::products() as Sample::Product $product) {
+            $position++;
+            string $units = Brand::number($product->units);
+            string $revenue = "€" . Brand::number($product->revenue);
+            $html = $html + html`<tr><td class="num muted">{$position}</td><td>{$product->name}</td><td class="muted">{$product->line}</td><td class="num">{$units}</td><td class="num">{$revenue}</td><td class="num">{$product->margin} %</td></tr>
+`;
+        }
+        return $html;
+    }
+
+    private static function css(): Markup {
+        return html`<style>
+@page { size: A4; margin: 0 20mm; }
+@page cover { margin: 0; }
+body { font-size: 9.5pt; }
+h2 { font-size: 20pt; margin-bottom: 8pt; string-set: chapter content(text); }
+h3 { font-size: 11pt; margin: 14pt 0 5pt 0; }
+ul { margin: 0 0 6pt 0; padding-left: 14pt; }
+li { margin-bottom: 3pt; }
+.lead { font-size: 11pt; line-height: 1.5; color: #374151; margin-bottom: 12pt; }
+
+.cover { page: cover; break-after: page; }
+.band { height: 165mm; padding: 38mm 22mm 0 22mm; background-image: linear-gradient(135deg, #1d3557 0%, #23577a 55%, #2a9d8f 100%); color: #ffffff; }
+.band h1 { color: #ffffff; font-family: "Liberation Serif", serif; font-size: 44pt; font-weight: normal; margin: 14mm 0 4mm 0; }
+.pill { display: inline; border: 1pt solid #ffffff; border-radius: 10pt; padding: 3pt 10pt; font-size: 8pt; font-weight: bold; letter-spacing: 0.18em; text-transform: uppercase; }
+.quarter { font-size: 18pt; margin-bottom: 2mm; }
+.period { font-size: 11pt; color: #cfe3ee; }
+.cover-body { padding: 16mm 22mm 0 22mm; font-size: 10pt; }
+.cover-body img { height: 13mm; margin-bottom: 10mm; }
+
+.contents { break-after: page; padding-top: 10mm; }
+.contents h2 { margin-bottom: 10mm; }
+ol.toc { list-style: none; padding: 0; margin: 0; }
+.toc li { font-size: 12pt; margin: 0; padding: 7pt 0; border-bottom: 0.75pt solid var(--line); }
+.toc a { color: var(--brand); text-decoration: none; }
+.toc a::after { content: leader('.') target-counter(attr(href), page); color: var(--muted); }
+
+.chapter { break-before: page; padding-top: 6mm; }
+.contents + .chapter { break-before: auto; }
+.eyebrow { font-size: 8pt; font-weight: bold; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); margin-bottom: 3pt; }
+
+.kpis { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 9pt; margin: 6pt 0 8pt 0; }
+.kpi { border-radius: 6pt; padding: 10pt 12pt; background: var(--paper); border-top: 3pt solid var(--accent); }
+.kpi .value { font-size: 19pt; font-weight: bold; color: var(--brand); margin: 3pt 0 2pt 0; }
+.kpi .change { font-weight: bold; color: var(--accent); }
+.kpi .note { font-size: 7.5pt; color: var(--muted); }
+
+.chart { margin: 10pt 0 12pt 0; padding: 10pt 12pt 6pt 12pt; border: 0.75pt solid var(--line); border-radius: 6pt; break-inside: avoid; }
+.chart img { width: 100%; }
+.caption { font-size: 8pt; font-weight: bold; letter-spacing: 0.06em; text-transform: uppercase; color: var(--brand); margin-bottom: 6pt; }
+
+table.data { width: 100%; border-collapse: collapse; margin: 6pt 0 10pt 0; }
+.data th { text-align: left; font-size: 7.5pt; font-weight: bold; letter-spacing: 0.06em; text-transform: uppercase; color: var(--brand); padding: 6pt 6pt; border-bottom: 1.5pt solid var(--brand); }
+.data td { padding: 4.5pt 6pt; border-bottom: 0.5pt solid var(--line); }
+.data tbody tr:nth-child(even) td { background: var(--paper); }
+.data tr.total td { font-weight: bold; color: var(--brand); border-top: 1pt solid var(--brand); border-bottom: none; background: #ffffff; }
+.num { text-align: right; white-space: nowrap; }
+.up { color: #1f7a6f; }
+.down { color: #c2410c; }
+.data th.num { text-align: right; }
+td.share { font-size: 8pt; color: var(--muted); white-space: nowrap; }
+.track { width: 34mm; height: 5pt; background: #e3e7ee; border-radius: 3pt; margin: 2pt 0 2pt 0; }
+.fill { height: 5pt; background: var(--accent); border-radius: 3pt; }
+.note { font-size: 8pt; }
+
+.columns { display: grid; grid-template-columns: 1fr 1fr; gap: 10pt; margin-top: 6pt; }
+.panel { background: var(--paper); border-radius: 6pt; padding: 4pt 12pt 6pt 12pt; border-left: 3pt solid var(--accent); }
+.panel.warn { border-left-color: var(--warm); }
+.sign { margin-top: 14mm; font-family: "Liberation Serif", serif; font-size: 12pt; }
+</style>`;
+    }
+}
