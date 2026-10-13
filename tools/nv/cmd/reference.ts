@@ -3,6 +3,7 @@
 //
 //     bun nv reference                  regenerate docs/novis.md, then run every example in it
 //     bun nv reference --check          regenerate in memory; exit 1 if docs/novis.md is stale
+//     bun nv reference --stale-fails    regenerate as the bare command does, then exit 1 if it was stale
 //     bun nv reference --no-examples    regenerate only
 //     bun nv reference --examples-only [--only <substring>]   run the examples, write nothing
 //     bun nv reference --primer --check prove `nvs agent primer` instead, writing nothing
@@ -39,9 +40,11 @@ import { run as runProc } from "../lib/proc.ts";
 import { ArgError, comparePaths, parseArgs, pyInt, pyRepr, splitlines } from "../lib/py.ts";
 import { record } from "../lib/written.ts";
 
-export const summary = "generate docs/novis.md and prove its examples: nv reference [--check | --no-examples | --examples-only [--only S] | --primer | --agent-walk] [--keep]";
+export const summary = "generate docs/novis.md and prove its examples: nv reference [--check | --stale-fails | --no-examples | --examples-only [--only S] | --primer | --agent-walk] [--keep]";
 
 const OUT = join(ROOT, "docs", "novis.md");
+/** What `--stale-fails` prints when it rewrote the file, which `nv verify` shows as the step's summary. */
+export const STALE_FAILS = "nv reference: docs/novis.md was stale and is rewritten -- commit it with the change that made it stale";
 const SOURCES = join(ROOT, "docs", "reference");
 /** The whole diagnostic registry: a code declared anywhere else does not exist. */
 const DIAGNOSTICS = join(ROOT, "crates", "nvs-diagnostics", "src", "lib.rs");
@@ -748,14 +751,14 @@ async function checkWalk(keep: boolean): Promise<number> {
 // ------------------------------------------------------------------ main
 
 const USAGE = [
-  "usage: nv reference [-h] [--check] [--no-examples] [--examples-only]",
+  "usage: nv reference [-h] [--check] [--stale-fails] [--no-examples] [--examples-only]",
   "                    [--primer] [--agent-walk] [--only ONLY] [--keep]",
 ].join("\n");
 
 export async function run(args: string[]): Promise<number> {
   let parsed;
   try {
-    parsed = parseArgs(args, { flags: ["--check", "--no-examples", "--examples-only", "--primer", "--agent-walk", "--keep"], valued: ["--only"] });
+    parsed = parseArgs(args, { flags: ["--check", "--stale-fails", "--no-examples", "--examples-only", "--primer", "--agent-walk", "--keep"], valued: ["--only"] });
   } catch (e) {
     if (!(e instanceof ArgError)) throw e;
     console.error(`${USAGE}\nnv reference: error: ${e.message}`);
@@ -777,13 +780,14 @@ export async function run(args: string[]): Promise<number> {
 
     const text = build(await registry());
     const current = existsSync(OUT) ? readText(OUT).replace(/\r\n/g, "\n") : "";
+    const stale = text !== current;
     if (flags.has("--check")) {
-      if (text !== current) {
+      if (stale) {
         console.log("nv reference: docs/novis.md is stale -- run `bun nv reference` and commit it");
         return 1;
       }
       console.log("nv reference: docs/novis.md is current");
-    } else if (text !== current) {
+    } else if (stale) {
       writeText(OUT, text);
       // Nothing a session does names this file, and verification runs this command in every session:
       // without the note, the loop's sweep reads it as somebody else's edit.
@@ -793,8 +797,14 @@ export async function run(args: string[]): Promise<number> {
     } else {
       console.log("nv reference: docs/novis.md unchanged");
     }
-    if (flags.has("--no-examples")) return 0;
-    return await checkExamples(only, keep);
+    const examples = flags.has("--no-examples") ? 0 : await checkExamples(only, keep);
+    // Verification passes `--stale-fails`: it shows a passing step as one line, so a rewrite that
+    // still exited 0 would reach no commit. The run after the commit finds the file current.
+    if (stale && flags.has("--stale-fails")) {
+      console.log(STALE_FAILS);
+      return 1;
+    }
+    return examples;
   } catch (e) {
     if (!(e instanceof Fatal)) throw e;
     console.error(e.message);
