@@ -254,6 +254,7 @@ export default defineConfig({
               items: [
                 { label: 'Overview', link: '/guides/example-apps/' },
                 { label: 'Notes', link: '/guides/example-apps/notes/' },
+                { label: 'PDF documents', link: '/guides/example-apps/paperwork/' },
               ],
             },
           ],

@@ -1,0 +1,223 @@
+---
+title: PDF documents
+covers: []
+description: A small web app that makes three PDF files. They are an invoice, an encrypted report and event tickets. See each file, then run the app and its tests.
+shows: ['Novis\Pdf', 'Novis\Image\QrCode', 'Novis\Image\Barcode']
+---
+
+import PdfPreview from '@components/PdfPreview.astro'
+
+Paperwork is a small web app that makes three PDF documents, the way a business needs them.
+Each document is an HTML page with CSS. `Novis\Pdf\Document` turns it into a PDF file.
+
+The three files on this page are the files the app returns. You can look at them before you install
+anything.
+
+## The invoice
+
+The invoice has three pages. The table of items continues from one page to the next, and each page
+shows the amount carried forward. At the end, a banking app can read a QR code to pay the invoice.
+
+The file follows PDF/A-3b, the standard for archived files. It also contains the same invoice as XML
+in the Factur-X format. An accounting program reads this XML, so nobody needs to type the invoice
+again.
+
+<PdfPreview src="/example-apps/paperwork/invoice.pdf" title="the invoice" />
+
+## The quarterly report
+
+The report has eight pages: a cover, a table of contents, key figures, charts and tables. It is
+confidential, so the file is encrypted. Your PDF viewer needs the password `novis` before it shows the
+report.
+
+The file follows PDF/UA-1, the standard for accessible files. A screen reader can read it aloud, and
+each chart has a text that describes it.
+
+<PdfPreview src="/example-apps/paperwork/report.pdf" title="the report" />
+
+## The event tickets
+
+This file is for the person who bought four tickets. Page 1 is a summary of the order. Then each
+ticket has its own page, with a QR code and a barcode. The app renders each ticket as its own PDF
+file. Then `Pages::merge` joins the five files into one.
+
+<PdfPreview src="/example-apps/paperwork/tickets.pdf" title="the tickets" />
+
+## Get it running
+
+[Install Novis](/install/) first. Then download only the folder `apps/paperwork` of the Novis
+repository. A sparse clone (a clone that checks out only the folders you name) does this:
+
+```sh
+git clone --depth 1 --filter=blob:none --sparse https://github.com/novis-lang/novis.git
+cd novis
+git sparse-checkout set apps/paperwork
+cd apps/paperwork
+```
+
+Start the server from the folder `apps/paperwork`:
+
+```sh
+nvs serve public/index.nvs
+```
+
+Open `http://127.0.0.1:8000/` in your browser. The home page has a link to each document. You can
+also open each address directly:
+
+- `http://127.0.0.1:8000/invoice.pdf`
+- `http://127.0.0.1:8000/report.pdf`
+- `http://127.0.0.1:8000/tickets.pdf`
+
+The app renders the document again for each request. It writes no file.
+
+## Run the tests
+
+```sh
+nvs test .
+```
+
+`nvs test .` reads every `.nvs` file in the folder as one program and runs each `#[Test]` method.
+The tests open each finished PDF file with `Novis\Pdf\Reader` and check the text on its pages:
+
+```txt
+  Paperwork\AppTest
+    ✓ theHomePageLinksEachDocument     0.7 ms
+    ✓ eachDocumentIsSentAsAPdf         589.4 ms
+    ✓ anUnknownPathIsNotFound          0.3 ms
+  Paperwork\InvoiceTest
+    ✓ theTotalsAddUp                   0.5 ms
+    ✓ theLastPageShowsTheTotal         172.7 ms
+    ✓ theCarriedForwardAmountIsOnPageOne 177.3 ms
+    ✓ theXmlHasTheSameNumberAndTotal   130.5 ms
+    ✓ nothingIsDroppedOrCutOff         116.2 ms
+    ✓ twoRendersGiveTheSameFile        263.6 ms
+  Paperwork\ReportTest
+    ✓ theEncryptedReportCannotBeReadWithoutThePassword 261.0 ms
+    ✓ theContentsGiveThePageOfEachChapter 230.0 ms
+    ✓ theHeaderShowsTheChapter         256.9 ms
+    ✓ theLongTableRepeatsItsHeader     183.2 ms
+    ✓ nothingIsDroppedOrCutOff         207.5 ms
+  Paperwork\TicketsTest
+    ✓ theOrderHasOnePageForEachTicket  165.4 ms
+    ✓ eachTicketPageHasItsAttendee     297.2 ms
+    ✓ nothingIsDroppedOrCutOff         248.1 ms
+
+  0 failed, 17 passed, 0 skipped, 0 flaky in 3305 ms
+```
+
+## What each file does
+
+```txt
+paperwork/
+  nvs.toml             the configuration: the app may read its logo, and no other file
+  assets/
+    logo.svg           the logo that the three documents show
+  public/
+    index.nvs          the entry file: every request starts here
+  src/
+    App.nvs            the routes, and the method that sends a PDF file
+    AppTest.nvs        sends requests to the app and checks the responses
+    Brand.nvs          the logo, the colours and the money format of all three documents
+    Chart.nvs          draws the charts of the report as SVG images
+    FacturX.nvs        writes the XML of the electronic invoice
+    Home.nvs           the HTML page with a link to each document
+    Invoice.nvs        the invoice
+    InvoiceTest.nvs    tests the totals, the pages and the XML of the invoice
+    Report.nvs         the quarterly report
+    ReportTest.nvs     tests the password, the contents and the tables of the report
+    Sample.nvs         the data that the documents show
+    Tickets.nvs        the tickets, and the summary of the order
+    TicketsTest.nvs    tests the pages of the tickets
+    Totals.nvs         the sums of the invoice, for the PDF and for the XML
+```
+
+`nvs.toml` has one section. `[capabilities.fs]` allows the app to read the file `assets/logo.svg`.
+The app cannot read any other file, and it cannot write a file.
+
+`src/App.nvs` has one method for each route. `send()` sets the header
+`content-disposition: inline`, so the browser shows the PDF file. Then it sends the bytes with `Core\Response::bytes`.
+
+`Invoice.nvs`, `Report.nvs` and `Tickets.nvs` each build the HTML of their document with an `html`
+template, which escapes every value. `Document::fromHtml` reads that HTML. Each method call after it
+adds one thing to the document, and `render()` returns the finished file.
+
+Each document sets its creation time with `created()`. The same data then always gives the same file,
+byte for byte. The test `twoRendersGiveTheSameFile` checks this.
+
+`Sample.nvs` has the data of the three documents. A real app reads it from its database.
+
+## What each document uses
+
+The invoice:
+
+- [`Document::fromHtml`](/reference/core/novis-pdf-document/fromhtml/) reads the HTML and the CSS of
+  the invoice.
+- [`asset`](/reference/core/novis-pdf-document/asset/) adds the logo and the QR code as SVG images.
+  The HTML shows them with `<img src="logo.svg">`.
+- [`header`](/reference/core/novis-pdf-document/header/) and
+  [`footer`](/reference/core/novis-pdf-document/footer/) build the top and the bottom of each page.
+  Each gets a [`Page`](/reference/core/novis-pdf-page/), which has the page number and the number of
+  pages.
+- [`slots`](/reference/core/novis-pdf-document/slots/) fills the rows "Carried forward" and "Brought
+  forward" on each page. Each row of items has a `data-mark` attribute with its amount.
+- [`Page::marks`](/reference/core/novis-pdf-page/marks/) returns the amounts on one page.
+  [`Page::marksUpTo`](/reference/core/novis-pdf-page/marksupto/) returns the amounts on this page and
+  on every page before it.
+- [`standard`](/reference/core/novis-pdf-document/standard/) with `Document::Standard::PdfA3b` makes a
+  file for an archive.
+- [`invoiceXml`](/reference/core/novis-pdf-document/invoicexml/) puts the Factur-X XML into the file.
+- [`created`](/reference/core/novis-pdf-document/created/) sets the creation time.
+- [`QrCode::giroCode`](/reference/core/novis-image-qrcode/girocode/) writes the text of a SEPA bank
+  transfer. [`QrCode::svg`](/reference/core/novis-image-qrcode/svg/) draws that text as a QR code.
+
+The report:
+
+- [`password`](/reference/core/novis-pdf-document/password/) encrypts the file with a password.
+- [`standard`](/reference/core/novis-pdf-document/standard/) with `Document::Standard::PdfUa1` makes
+  an accessible file. Each chart has an `alt` text, which a screen reader reads.
+- [`Page::string`](/reference/core/novis-pdf-page/string/) returns the name of the chapter for the
+  header. Each chapter heading saves its text with the CSS property `string-set`.
+- The cover is on a page named `cover`, from the CSS rule `@page cover`. The header checks
+  `$page->name`, and the cover gets no header.
+- The table of contents uses the CSS function `target-counter()`. It gives the page number of each
+  chapter.
+- `asset` adds the two charts. `Chart.nvs` draws each chart as SVG, so the PDF file has it as a
+  vector drawing.
+
+The tickets:
+
+- `Document::fromHtml` and [`render`](/reference/core/novis-pdf-document/render/) make one PDF file
+  for each ticket, and one for the summary.
+- [`Pages::of`](/reference/core/novis-pdf-pages/of/) reads each file.
+  [`Pages::merge`](/reference/core/novis-pdf-pages/merge/) joins them into one file, in order.
+- `QrCode::svg` and [`Barcode::svg`](/reference/core/novis-image-barcode/svg/) draw the two codes of
+  each ticket. The barcode uses `Barcode::Symbology::Code128`.
+
+The tests:
+
+- [`Reader::open`](/reference/core/novis-pdf-reader/open/) opens a finished file.
+  [`text`](/reference/core/novis-pdf-reader/text/) returns the text of one page.
+  [`invoiceXml`](/reference/core/novis-pdf-reader/invoicexml/) returns the XML inside the invoice.
+- [`Rendered`](/reference/core/novis-pdf-rendered/) has the bytes of the file, its number of pages
+  and its `overflows`. `overflows` lists the content that did not fit on its page. The tests check that
+  this list is empty.
+
+## Start your own document from it
+
+1. Copy the folder `apps/paperwork` and give it the name of your app.
+2. Choose a namespace for your app, for example `Shop`. Change `namespace Paperwork;` in each file
+   under `src/`, and the `autoload` line in `public/index.nvs`.
+3. Keep the document that is closest to yours, for example `Invoice.nvs`, and its test. Delete the
+   other documents, their tests and their routes in `src/App.nvs`.
+4. Replace `Sample.nvs` with your own data. Then change the HTML and the CSS. Run `nvs test .` after
+   each change.
+5. Replace `assets/logo.svg` with your logo. If the file name changes, change it in `nvs.toml` too.
+
+The home page of this app shows the password of the report, so you can open the file. A real app gets
+the password from the person who requests the report.
+
+## Read more
+
+- [`Novis\Pdf\Document`](/reference/core/novis-pdf-document/) lists every method that builds a PDF
+  file.
+- [Notes](/guides/example-apps/notes/) is an example app with SQLite, HTML pages and a JSON API.

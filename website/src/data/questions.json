@@ -141,7 +141,7 @@
   },
   "/guides/example-apps/": {
     "feature": "guides/example-apps/index.mdx",
-    "hash": "c2b3314cf335fa4a",
+    "hash": "fe8109b0e67ec6e4",
     "questions": [
       "Complete example projects I can download and run",
       "Where can I find a full Novis app to copy?",
@@ -151,12 +151,23 @@
   },
   "/guides/example-apps/notes/": {
     "feature": "guides/example-apps/notes.mdx",
-    "hash": "66e56730d4277a75",
+    "hash": "85824858ad34b15d",
     "questions": [
       "Example web app with SQLite, HTML pages and a JSON API",
       "How do I download and run the Notes example app?",
       "Start my own app by copying an example project",
       "Small CRUD app with forms and tests"
+    ]
+  },
+  "/guides/example-apps/paperwork/": {
+    "feature": "guides/example-apps/paperwork.mdx",
+    "hash": "a3966ebcf3fd5dcc",
+    "questions": [
+      "Example app that makes PDF invoices, reports and tickets",
+      "See a sample PDF made with Novis",
+      "Full example of an encrypted PDF report with charts",
+      "Invoice PDF with a payment QR code and Factur-X XML",
+      "Start a PDF project from a working example"
     ]
   },
   "/guides/how-to-use/": {
