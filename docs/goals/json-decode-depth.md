@@ -6,20 +6,20 @@ context: [crates/nvs-stdlib/src/json.rs, docs/rules/errors/stack-depth.md]
 stages:
   - id: 1
     title: the iterative build walk
-    status: open
+    status: done
     context: [crates/nvs-host/src/stack.rs, tests/conformance/core/a-json-chain-hydrated-near-the-stack-floor-throws-a-recursion-error.nvst]
     extra:
       context:
         rules: [errors/stack-depth, errors/on-limit, programs/memory-priority]
         shapes: ["A `.nvst` test case"]
   - id: 2
-    title: the cards, the rule and the attack say what is now true
+    title: "the cards, the rule and the attack say what is now true"
     status: open
     context: [tests/hostile/core/Test-Response/jsonAs/01-a-class-that-contains-itself-and-wrong-bodies.nvs, docs/examples/core/Json/decodeAs/about.md]
     extra:
       context:
         rules: [errors/stack-depth, core-api/reference-card]
-        shapes: ["A rule fragment", "A `Core` member"]
+        shapes: [A rule fragment, "A `Core` member"]
 checks:
   - id: within-max-depth
     stage: 1
@@ -31,12 +31,12 @@ checks:
     run: [bun, nv, suite, tests/conformance/, --case, tests/conformance/core/a-json-chain-hydrated-near-the-stack-floor-throws-a-recursion-error.nvst]
   - id: attack-proof-build
     stage: 1
-    name: "the jsonAs attack reads the 1000-level body on the proof build"
+    name: the jsonAs attack reads the 1000-level body on the proof build
     run: [bun, nv, proofs, --run, --show, --id, "Core\\Test\\Response::jsonAs"]
     stdout_contains: ["deep: read f"]
   - id: attack-covws-build
     stage: 1
-    name: "the jsonAs attack reads the 1000-level body on the covws build"
+    name: the jsonAs attack reads the 1000-level body on the covws build
     run: [bun, nv, proofs, --run, --show, --id, "Core\\Test\\Response::jsonAs", --nvs, target/covws/x86_64-pc-windows-msvc/debug/nvs.exe]
     stdout_contains: ["deep: read f"]
   - id: rules
@@ -109,13 +109,13 @@ compare throws now.
 **Does:** building the objects takes a heap frame per level, and a 1000-level document under
 `maxDepth: 1024` decodes on the covws build as it does on the proof build.
 
-- [ ] The frame type and the loop, beside the encoder's (`crates/nvs-stdlib/src/json.rs:224`)
-- [ ] `decode_fields`, `decode_field`, `convert_field` and `decode_nested` as steps of the loop, constructors run on the way up (`crates/nvs-stdlib/src/json.rs:2561`, `crates/nvs-stdlib/src/json.rs:2838`, `crates/nvs-stdlib/src/json.rs:2956`)
-- [ ] A list of objects the same, and a shape built on the way up as a class is (`crates/nvs-stdlib/src/json.rs:3214`, `crates/nvs-stdlib/src/json.rs:3385`, `crates/nvs-stdlib/src/json.rs:2693`)
-- [ ] A hand-written decoder member inside the loop (`crates/nvs-stdlib/src/json.rs:2288`)
-- [ ] The new case at 1000 levels with `maxDepth: 1024` (`tests/conformance/core/a-json-chain-within-max-depth-decodes.nvst:1`)
-- [ ] The near-floor case's description and comment (`tests/conformance/core/a-json-chain-hydrated-near-the-stack-floor-throws-a-recursion-error.nvst:1`)
-- [ ] The module doc says what the walk spends, measured (`crates/nvs-stdlib/src/json.rs:233`)
+- [x] The frame type and the loop, beside the encoder's (`crates/nvs-stdlib/src/json.rs:224`)
+- [x] `decode_fields`, `decode_field`, `convert_field` and `decode_nested` as steps of the loop, constructors run on the way up (`crates/nvs-stdlib/src/json.rs:2561`, `crates/nvs-stdlib/src/json.rs:2838`, `crates/nvs-stdlib/src/json.rs:2956`)
+- [x] A list of objects the same, and a shape built on the way up as a class is (`crates/nvs-stdlib/src/json.rs:3214`, `crates/nvs-stdlib/src/json.rs:3385`, `crates/nvs-stdlib/src/json.rs:2693`)
+- [x] A hand-written decoder member inside the loop (`crates/nvs-stdlib/src/json.rs:2288`)
+- [x] The new case at 1000 levels with `maxDepth: 1024` (`tests/conformance/core/a-json-chain-within-max-depth-decodes.nvst:1`)
+- [x] The near-floor case's description and comment (`tests/conformance/core/a-json-chain-hydrated-near-the-stack-floor-throws-a-recursion-error.nvst:1`)
+- [x] The module doc says what the walk spends, measured (`crates/nvs-stdlib/src/json.rs:233`)
 
 ### 2. the cards, the rule and the attack say what is now true
 
@@ -129,16 +129,23 @@ compare throws now.
 
 ### State
 
-Nothing is built. The proof build prints `deep: read f` for the attack's step 2, and the covws build
-prints `deep: the stack is full`.
+Stage 1 is built and its four checks are green. `Core\Json`'s decoder builds objects on heap frames:
+`walk` (`crates/nvs-stdlib/src/json.rs:2640`) steps through `Build` frames, and `Fields::finish`
+(`crates/nvs-stdlib/src/json.rs:2828`) runs each constructor after a stack compare. Both builds print
+`deep: read f` for the attack's step 2. The new case decodes 1000 levels under `maxDepth: 1024`.
+
+A written `fromJson` needed no frame: the walk calls it like a scalar conversion and gets one value back.
 
 ### Next
 
-Stage 1, over `crates/nvs-stdlib/src/json.rs`:
+Stage 2, over the three reference cards, `docs/rules/errors/stack-depth.md` and the attack:
 
-- [ ] The frame type and the loop, beside the encoder's, per `rule:errors/stack-depth` (`crates/nvs-stdlib/src/json.rs:224`, `crates/nvs-stdlib/src/json.rs:2561`)
-- [ ] The new `.nvst` case at 1000 levels, per `rule:errors/stack-depth` (`tests/conformance/core/a-json-chain-within-max-depth-decodes.nvst:1`)
+- [ ] The `RecursionError` text on the three cards, per `rule:core-api/reference-card`: a deep document no longer fills the stack, only a constructor or a decode entered with little stack left (`crates/nvs-stdlib/src/json.rs:484`, `crates/nvs-stdlib/src/test.rs:1346`, `crates/nvs-stdlib/src/request.rs:767`)
+- [ ] The rule names the build walk's heap frames among the engine walks, per `rule:errors/stack-depth` (`docs/rules/errors/stack-depth.md:18`)
+- [ ] The attack's step 2 comment says the result is an object (`tests/hostile/core/Test-Response/jsonAs/01-a-class-that-contains-itself-and-wrong-bodies.nvs:47`)
 
 ### Backlog
 
 - `rule:errors/stack-depth` states an 8 MB ceiling per coroutine, and a task stack is 1 MiB: not checked which is meant (`docs/rules/errors/stack-depth.md:11`, `crates/nvs-host/src/stack.rs:88`).
+- Security, not measured: each open object holds its issue-path prefix, so prefix bytes grow with key length times depth squared. A body of about 1 MB, 1024 levels deep with 1000-byte keys, would hold about 500 MB of prefixes. The recursive walk had the same cost. Build the path from the frames when an issue is made (`crates/nvs-stdlib/src/json.rs:2682`, `rule:programs/memory-priority`).
+- The `Core\Json` member benches are stale after this change to `json.rs`: `bun nv proofs --record-perf --group 'Core\Json'` (`docs/agent/playbook.md`).
