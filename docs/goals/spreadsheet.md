@@ -767,28 +767,28 @@ One file set: `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/n
 
 ### State
 
-**Stage 6 is done: `spreadsheet-the-chart-subset` and `spreadsheet-a-report-carries-a-chart` both pass.** `spreadsheet-a-report-with-totals-runs`, which the last sweep reported red as "not written yet", passes on this tree with no change.
+**Stage 7 has its engine half: the component reads an xlsx's sheets, header and rows.** `nvs-ext-the-spreadsheet-reader` runs 13 tests in `crates/nvs-ext/tests/spreadsheet_read.rs`, all green, and still lacks six of the names it lists. `spreadsheet-an-upload-reads-with-row-numbers` is red because `Reader.nvs` and its two cases do not exist yet.
 
-- `extensions/spreadsheet/src/chart.rs` writes `xl/charts/chart<n>.xml` for column, bar, line, area, pie, doughnut and scatter, and a combination of two different types of column, line and area. Any other combination throws. The chart XML has no cached values.
-- A chart is a `graphicFrame` in the same `drawing<n>.xml` as the images, anchored at one cell, 480 by 288 pixels by default (`extensions/spreadsheet/src/drawing.rs`). Charts are numbered across the workbook and written when their sheet ends.
-- **A series range grows with the sheet** when it is on its own sheet and ends at the row `Writer::column` gives when the chart is added. The rule's fragment states this now (`rule:core-classes/spreadsheet-sheet-end-parts`).
-- `Chart.nvs` does not change. Each method returns a new `Chart`. `legend` is a string: `'right'` (the default), `'top'`, `'bottom'`, `'left'` or `'hidden'`. `Sheet::chart` sends every layer. The component is 0.52 MiB.
-- Excel has not opened a chart yet. Stage 13 compares the chart XML with Excel-made fixtures.
-- Under `looper verify`, `nvs-stdlib`'s `ldap` test failed when run with the other binaries and passed alone, and six `reject/` conformance cases failed once in `bun nv suite` and passed on the rerun. This change does not reach either.
+- `nvs:ext/types`'s `value` has `size` and `range`. `range` gives at most 1 MiB of a `bytes` value per call (`crates/nvs-ext/src/handle.rs`). An open `Core\IO\File` crosses as `Value::Object` and has no range yet.
+- `extensions/spreadsheet/src/read/` is our own thin xlsx reader, not calamine. Its module doc says why. `zip.rs` reads the directory from the end and inflates a part 64 KiB at a time. A part larger than its directory line says is a parse error. `xml.rs` tokenizes, refuses a DTD and every entity but the five XML defines. `sheet.rs` is the row cursor. `format.rs` classifies number formats for the date rule.
+- `reader-rows` continues its cursor when `from` is past the last row it gave, and starts the sheet again otherwise. `limit` is per call. So the Novis half passes `from` one past its last row and the limit it has left (`wit/spreadsheet.wit`'s `reader-rows` doc).
+- `manifest.json` has `readerOpen`, `readerSheets`, `readerHeader` and `readerRows`, the `Reader` resource, the `ReadValue` union and the `SheetKind` and `CellError` enums. `crates/nvs-cli/tests/meta.rs` lists them.
+- The component is 0.62 MiB with the reader (`extensions/spreadsheet/src/lib.rs`'s module doc).
+- `merged: 'fill'`, `text` (`display` is always `null`), xlsb, xls and ods return `runtime`. An xlsm reads as an xlsx.
 
 ### Next
 
-**Stage 7, the reader: the byte-range source, then xlsx rows.** Files: `wit/nvs-ext/types.wit`, `wit/spreadsheet.wit`, `extensions/spreadsheet/src/read/` (new), `extensions/spreadsheet/src/lib.rs`, `crates/nvs-ext/tests/spreadsheet_read.rs` (new).
+**Stage 7, the Novis half: `Reader.nvs`, the file source and the two conformance cases.** Files: `extensions/spreadsheet/nvs/Reader.nvs` (new), `crates/nvs-cli/src/extensions.rs`, `crates/nvs-ext/src/convert.rs`, `crates/nvs-ext/src/handle.rs`, `tests/conformance/novis/`.
 
-- [ ] **The `value` range accessor** that reads a byte range of an open file or of `bytes` (`rule:core-classes/spreadsheet-reads-as-a-stream`). `wit/nvs-ext/types.wit:39`, `wit/spreadsheet.wit:602`
-- [ ] **`reader-open`, `reader-sheets` and `reader-rows` for xlsx**: the zip directory and each part read through the range source, shared strings in one arena, cells by the read table (`rule:core-classes/spreadsheet-reads-as-a-stream`). `extensions/spreadsheet/src/lib.rs:941`, `extensions/spreadsheet/src/lib.rs:960`
-- [ ] **The first tests of `nvs-ext-the-spreadsheet-reader`** in `crates/nvs-ext/tests/spreadsheet_read.rs`, each named as the check names it, after the helpers of `crates/nvs-ext/tests/spreadsheet.rs:27`.
+- [ ] **`Reader::open`, `sheets()` and `rows()` in Novis**: the `foreach` key the row number, every header key on every row with `null` for a missing cell, a clock time placed in `zone`, batches continued by `from` (`rule:core-classes/spreadsheet-reads-as-a-stream`). `extensions/spreadsheet/manifest.json`, `extensions/spreadsheet/nvs/Workbook.nvs:1`
+- [ ] **A range of an open `Core\IO\File`, and `bytes` lent without a copy.** `crossed` copies a `bytes` source whole on every reader call, and turns a file into a class name (`rule:core-classes/spreadsheet-reads-as-a-stream`). `crates/nvs-cli/src/extensions.rs:648`, `crates/nvs-ext/src/handle.rs:1`
+- [ ] **`spreadsheet-reads-typed-rows-by-row-number.nvst` and `spreadsheet-reads-back-what-it-wrote.nvst`** under `tests/conformance/novis/`, which turn `spreadsheet-an-upload-reads-with-row-numbers` green, after the shape of `tests/conformance/novis/spreadsheet-a-report-carries-a-chart.nvst:1`.
 
 ### Backlog
 
-- `Cell::rich` for rich text in one cell: the engine writes it (`rich_text_in_one_cell_is_written`), and no Novis call reaches it yet (`rule:core-classes/spreadsheet-sheet-end-parts`). `extensions/spreadsheet/nvs/Workbook.nvs:537`
-- Write the shapes of `validate`, `conditional` and `Chart`'s options into `rule:core-classes/spreadsheet-sheet-end-parts`.
-- The style enums under `Style`, and the part enums, `ChartKind` and `Legend` included, somewhere better than namespace scope (`rule:core-classes/spreadsheet-roster`). Moving them changes `crates/nvs-cli/tests/meta.rs` too.
+- The reader's extras: `merged` (and `merged: 'fill'`, which renames `empty_rows_and_hidden_rows_follow_their_options` to the check's name), `links`, `notes`, `names`, `tables`, `images`, `properties` and `macros`; then the check's tests for them, for external links, for `tainted` and for xlsb, xlsm, xls and ods (`rule:core-classes/spreadsheet-reads-as-a-stream`). `extensions/spreadsheet/src/lib.rs:1`
+- xlsb, xls and ods through calamine, which the stage keeps for them. `extensions/spreadsheet/src/read/mod.rs:1`
+- `Cell::rich` for rich text in one cell: the engine writes it, and no Novis call reaches it yet (`rule:core-classes/spreadsheet-sheet-end-parts`). `extensions/spreadsheet/nvs/Workbook.nvs:537`
+- Write the shapes of `validate`, `conditional` and `Chart`'s options into `rule:core-classes/spreadsheet-sheet-end-parts`. The style and part enums somewhere better than namespace scope (`rule:core-classes/spreadsheet-roster`), which changes `crates/nvs-cli/tests/meta.rs` too.
 - Stages 8 to 14: the number-format renderer, CSV, template fill, hostile files, 100 MB, the comparison with Excel's files and the feature proofs. See `docs/goals/spreadsheet.md`.
-- The flaky `nvs-stdlib` `ldap` test and `a_connect_refused_for_one_address_is_asked_again_for_the_next`, and `nvs-cli`'s `live_edit` swaps, each need their own fix (`tools/nv/cmd/verify.ts`'s module doc).
-- `looper lint` reports AGENTS.md's managed text as edited by hand, and `AGENTS.md:403` links the missing `docs/decisions/README.md`. Neither came from this goal. See `AGENTS.md`.
+- The flaky `nvs-stdlib` `ldap` test, `nvs-cli`'s `live_edit` swaps, and `looper lint`'s report on `AGENTS.md`'s managed text, none from this goal (`tools/nv/cmd/verify.ts`'s module doc, `AGENTS.md`).
