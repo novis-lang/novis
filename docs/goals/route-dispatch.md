@@ -61,7 +61,7 @@ stages:
         shapes: ["An example", "A `.nvst` test case"]
   - id: 8
     title: a match reads another attribute of its route
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/router.rs, crates/nvs-runtime/src/routes.rs]
     extra:
       context:
@@ -295,18 +295,26 @@ refusal mode, and never a handler.
 
 **Does:** a gate can read a per-route option such as `#[Cache]` or `#[RateLimit]` off the match.
 
-- [ ] `Core\Router\Match::attribute<T>()`, typed by a shape the way `Core\Program::implementingWith` is, and still data rather than something callable (`crates/nvs-stdlib/src/router.rs:560`)
-- [ ] Its rule, beside the match rule (`docs/rules/routing/a-match-is-not-invocable.md:1`)
-- [ ] Its feature proofs (`docs/examples/core/Router-Match/attribute/about.md:1`)
+- [x] `Core\Router\Match::attribute<T>()`, typed by a shape the way `Core\Program::implementingWith` is, and still data rather than something callable (`crates/nvs-stdlib/src/router.rs:560`)
+- [x] Its rule, beside the match rule (`docs/rules/routing/a-match-is-not-invocable.md:1`)
+- [x] Its feature proofs (`docs/examples/core/Router-Match/attribute/about.md:1`)
 
 ## Handoff
 
 ### State
 
-Stages 2 to 7 are done, and `rule:routing/a-gate-answers-around-every-handler` is `shipped`.
-`door-refusals` and `limit-failed` pass: `cargo test --test gate`, eight tests over a real `nvs serve`.
-`apps`, `guides`, `snippets` and `dispatch-proofs` pass.
+Every stage is done, and the goal is reached. `rule:routing/a-gate-answers-around-every-handler` and
+`rule:routing/a-match-reads-an-attribute-as-data` are `shipped`. `door-refusals` and `limit-failed`
+pass: `cargo test --test gate`, eight tests over a real `nvs serve`. `apps`, `guides`, `snippets`,
+`dispatch-proofs` and `attribute-proofs` pass.
 
+- `Core\Router\Match::attribute<T>()` is folded while checking (`crates/nvs-types/src/match_attribute.rs:1`):
+  each call site gets every routed method's payload of shape `T`, keyed by its `Class::method` label,
+  as argument 0 (`crates/nvs-stdlib/src/registry.rs:3629`). The match carries its row index in a slot
+  no member returns, and the helper looks the label up on the Rust side (`crates/nvs-stdlib/src/router.rs:2245`).
+- Its proofs are under `docs/examples/core/Router-Match/attribute/`, `tests/hostile/core/Router-Match/attribute/`
+  and `benches/members/core/Router-Match/attribute.nvs`. The `Core\Router` and `Core\Router\Match`
+  perf records are current against the changed `router.rs`.
 - `Core\Router::dispatch` owes nothing: `about.md` and three examples under
   `docs/examples/core/Router/dispatch/`, the bench `benches/members/core/Router/dispatch.nvs` (a
   `.nvsr` makes it a request; `complexity constant`, because the jump is indexed by the matched row),
@@ -342,11 +350,10 @@ gets no route and no error after a limit; a run whose head was already streamed 
 
 ### Next
 
-Stage 8, `Core\Router\Match::attribute<T>()`, in `crates/nvs-stdlib/src/router.rs` and `crates/nvs-runtime/src/routes.rs` (`rule:routing/a-match-is-not-invocable`, `rule:core-classes/derive-attribute`):
+Landing, by hand, on `main` (`docs/goals/route-dispatch.md:1`):
 
-- [ ] Its rule, beside the match rule, stating what the match carries and what it costs per route (`docs/rules/routing/a-match-is-not-invocable.md:1`)
-- [ ] The member, typed by a shape the way `Core\Program::implementingWith` is (`docs/rules/programs.md:303`), beside `accessAs` (`crates/nvs-stdlib/src/router.rs:691`)
-- [ ] Its feature proofs (`docs/examples/core/Router-Match/attribute/about.md:1`)
+- [ ] The user reviews the open decisions above and merges `side/route-dispatch` into `main` (`docs/rules/routing/a-gate-answers-around-every-handler.md:1`)
+- [ ] This goal file is deleted as the branch lands, and the worktree and branch are removed (`docs/goals/route-dispatch.md:1`)
 
 ### Backlog
 
