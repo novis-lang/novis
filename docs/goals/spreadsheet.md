@@ -767,24 +767,26 @@ One file set: `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/n
 
 ### State
 
-**Stage 5, the sheet tail: 10 of the 12 tests of `spreadsheet-the-sheet-end-parts` exist and pass** (`extensions/spreadsheet/tests/sheet_end.rs`). That check stays red until tables and conditional formats are written. `spreadsheet-a-report-with-totals-runs` is red because its three `.nvst` cases are not written yet.
+**Stage 5, the Rust half is done: all 12 tests of `spreadsheet-the-sheet-end-parts` pass** (`extensions/spreadsheet/tests/sheet_end.rs`). `spreadsheet-a-report-with-totals-runs` is red because its three `.nvst` cases are not written yet, and they need the Novis half below.
 
-- `src/tail.rs` is the sheet tail (its module doc). `Writer::part` keeps each part in the open sheet's `Tail`, and `end_sheet` writes them after `</sheetData>` in the schema's order, then the sheet's rels, `comments<n>.xml`, the VML drawing and `drawing<n>.xml`.
-- **Images are written** (`src/drawing.rs`'s module doc). `drawing::read` gets the format and pixel size from the header. `xl/media/image<n>.<ext>` is numbered across the workbook. The sheet's rIds are external links, then the notes' two, then the drawing (`Tail::drawing_id`). An image added after the first row waits in `OpenSheet::waiting` until the sheet's entry ends, because a zip entry cannot be split. `rule:core-classes/spreadsheet-sheet-end-parts` now says so, and its memory line counts those bytes. The goal's Stage 5 text still says "written as soon as it is added". The rule is the home.
-- `wit::SheetPart::Image` maps to `Part::Image` (`extensions/spreadsheet/src/lib.rs`). Table, conditional and chart still return `runtime`.
+- `src/tail.rs` is the sheet tail (its module doc). Images are `src/drawing.rs`, tables `src/table.rs`, conditional formats `src/conditional.rs`, each with its module doc. The sheet's rIds are external links, the notes' two, the drawing, then the tables (`Tail::table_id`).
+- **Tables** (`rule:core-classes/spreadsheet-sheet-end-parts`, which now says where the totals row goes): a table added before its rows takes its header names when that row is written, and `Writer::append` splits a batch to write the totals row after the table's last row. A sheet does not end while a table owes its header or totals row (`Writer::ready_to_end`). `[@qty]` is qualified only in rows written after the table is added.
+- **Conditional formats**: each rule's style is a `dxf` in `styles.xml` (`Styles::dxf`).
+- Every `wit::SheetPart` but `chart` maps to a `Part` (`extensions/spreadsheet/src/lib.rs`). Chart returns `runtime`.
 - **`Writer::cell` and `Writer::column` are Rust only.** No WIT export reaches them yet.
+- The goal's Stage 5 text still says an image is "written as soon as it is added". The rule is the home.
 - **Two tests outside this goal failed once under the full gate and passed on the next run.** They are `nvs-stdlib`'s `a_connect_refused_for_one_address_is_asked_again_for_the_next` (a proxy read deadline) and `nvs-cli`'s `live_edit` swaps (a 30 s wait). Each needs a fix in a commit of its own (`docs/agent/playbook/running-things/a-test-verify-py-reports-as-failed-beside-the-other-test.md`).
 
 ### Next
 
-**Stage 5, the Rust half: Excel tables, then conditional formats.** Files: `extensions/spreadsheet/src/tail.rs` (over 1,000 lines, so each new part goes in a module of its own, `src/table.rs` and `src/conditional.rs`, as `src/drawing.rs` does), `src/writer.rs`, `src/lib.rs`, `src/styles.rs` and `tests/sheet_end.rs`. Table rIds number after `Tail::drawing_id`.
+**Stage 5, the Novis half: the `Sheet` calls over `Engine::writerPart`, then the report cases.** Files: `extensions/spreadsheet/nvs/Sheet.nvs`, `nvs/Workbook.nvs`, `wit/spreadsheet.wit`, `crates/nvs-cli/tests/meta.rs` (a new export changes its member list, see the playbook) and `tests/conformance/novis/`.
 
-- [ ] **Excel tables** (`rule:core-classes/spreadsheet-sheet-end-parts`): `xl/tables/table<n>.xml` per table, with ids across the workbook. `<tableParts>` goes last in the sheet, with a rel and an `Override`. Each `tableColumn` name must equal its header cell's text, and the writer keeps only the sheet's header row (`OpenSheet::header`). So a table added after its rows starts at that header row, and a table over rows still to come records its header names as they are written. A totals row is the row after the table, written by `part` with `SUBTOTAL(109,[qty])` (101 average, 103 count, 104 max, 105 min) or the formula. It needs the table's last row to be the last row written. Drop the sheet's default autofilter where it overlaps a table. Test `a_table_with_a_totals_row_and_structured_references_is_written`. `wit/spreadsheet.wit:310`, `extensions/spreadsheet/src/writer.rs:388`
-- [ ] **Conditional formats**: each kind as `<conditionalFormatting>` after the merges, and each rule's `style` as a `dxf` in `styles.xml`. Test `every_conditional_format_kind_is_written_with_its_style`. `wit/spreadsheet.wit:331`, `extensions/spreadsheet/src/styles.rs:155`
+- [ ] **The sheet-end calls** (`rule:core-classes/spreadsheet-sheet-end-parts`): `Sheet::merge`, `link`, `note`, `validate`, `group`, `table`, `conditional`, `image`, `print` and `protect`, each building one `sheet-part` and sending `Engine::writerPart`'s bytes as `Workbook::send` does. `extensions/spreadsheet/nvs/Sheet.nvs:21`, `wit/spreadsheet.wit:473`, `extensions/spreadsheet/nvs/Workbook.nvs:389`
+- [ ] **Formulas** (`rule:core-classes/spreadsheet-formula-is-a-value`): `Formula::of`, `Cell::of`, `$sheet->cell()` and `$sheet->column()` (a WIT export over `Writer::cell` and `Writer::column`), and a column's `formula: fn(int $row)`. `extensions/spreadsheet/src/writer.rs:567`
+- [ ] **The three `.nvst` cases of `spreadsheet-a-report-with-totals-runs`**: a totals row sums its column, a column formula is called once per row, and an image of another format throws. `extensions/spreadsheet/nvs/Workbook.nvs:174`
 
 ### Backlog
 
-- The Novis half of Stage 5: `Sheet::merge`, `link`, `note`, `validate`, `group`, `table`, `conditional`, `image`, `print`, `protect`, `cell`, `column` (a WIT export for each, or computed in Novis), `Formula`, `Cell::of` and a column's `formula`, then the three `.nvst` cases of `spreadsheet-a-report-with-totals-runs`. `extensions/spreadsheet/nvs/Sheet.nvs:21`
 - Stage 6: charts, whose `<drawing>` shares `src/drawing.rs`'s part (`rule:core-classes/spreadsheet-sheet-end-parts`).
 - The style enums under `Style`, and the seven part enums somewhere better than namespace scope (`rule:core-classes/spreadsheet-roster`). Moving them changes `crates/nvs-cli/tests/meta.rs:341` too.
 - Stage 7: the `value` range accessor in `wit/nvs-ext/types.wit`, the reader, and `Reader::Visibility` (`rule:core-classes/spreadsheet-reads-as-a-stream`).
