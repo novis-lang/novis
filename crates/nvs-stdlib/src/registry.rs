@@ -3610,6 +3610,33 @@ pub fn takes_written_enum(class: &str, method: &str) -> bool {
         .any(|(owner, name)| *owner == class && *name == method)
 }
 
+/// The closed roster of members whose helper is handed the attribute payloads
+/// the checker folded for every routed method, as an extra leading argument.
+///
+/// `Core\Router\Match::attribute<T>()` returns the one payload on the matched
+/// route's method that satisfies the shape `T`
+/// (`rule:routing/a-match-reads-an-attribute-as-data`). Which payload that is
+/// for each method is decided while compiling, by the same fold
+/// `Core\Attributes::get<T>` makes, so the call is handed an array from each
+/// routed method's `Class::method` label to its payload. The helper reads the
+/// matched row's label on the Rust side and looks it up there, so the label
+/// never becomes a value the program holds.
+///
+/// **The array is always argument 0**, ahead of the receiver, for
+/// [`WRITTEN_ENUM_MEMBERS`]' reason. The lowering builds it fresh for the call,
+/// so `args: [N]` counts **one** more than [`CoreMethod::params`] does,
+/// receiver included. No member is on this roster and another.
+pub const ROUTE_ATTRIBUTE_MEMBERS: &[(&str, &str)] = &[(crate::router::MATCH_NAME, "attribute")];
+
+/// Whether `class::method` is one of [`ROUTE_ATTRIBUTE_MEMBERS`].
+#[must_use]
+pub fn takes_route_attributes(class: &str, method: &str) -> bool {
+    nvs_footprint::class(class);
+    ROUTE_ATTRIBUTE_MEMBERS
+        .iter()
+        .any(|(owner, name)| *owner == class && *name == method)
+}
+
 /// The closed roster of members whose helper is handed **where it was called**,
 /// as an extra leading argument — the file, the one-based line and the
 /// enclosing `Class::member` of the call.

@@ -3593,7 +3593,9 @@ pub mod code {
     /// A declaration's attached-attribute list is fully static, so "which one
     /// did I get?" is a question this compiler answers rather than one a test
     /// run answers. `::all<T>` is the member that wants every match, and the
-    /// help names it.
+    /// help names it. `Core\Program::implementingWith` and
+    /// `Core\Router\Match::attribute` report it for the same mistake on one
+    /// listed class or one routed method.
     pub const E_ATTRIBUTE_RETRIEVAL_AMBIGUOUS: Code = Code::new("E0728").card(
         "More than one attribute on this declaration matches the shape, so `get` cannot choose \
          one. Make the shape more specific, or call `Core\\Attributes::all` to get every match.",
@@ -3604,6 +3606,8 @@ pub mod code {
     /// Retrieval is *structural*: `T` is what an attribute's payload object is matched
     /// against under `rule:types/shape-type`'s width subtyping, so a `T` that is not a
     /// shape names nothing an attribute payload could ever satisfy.
+    /// `Core\Program::implementingWith` and `Core\Router\Match::attribute`
+    /// report it for their shape argument too.
     pub const E_ATTRIBUTE_TYPE_ARG_NOT_A_SHAPE: Code = Code::new("E0729").card(
         "The type argument of an attribute lookup must be a shape. Write an inline shape `{...}`, \
          or the name of a `type` alias for one.",

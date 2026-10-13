@@ -16,6 +16,7 @@
     "routing/a-shared-name-is-one-endpoint-everywhere",
     "routing/matching-is-not-dispatching",
     "routing/a-match-is-not-invocable",
+    "routing/a-match-reads-an-attribute-as-data",
     "routing/matched-once-before-the-handler",
     "routing/the-servers-match-dispatches-nothing",
     "routing/a-refused-verb-is-not-a-missing-path",

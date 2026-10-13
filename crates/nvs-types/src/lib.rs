@@ -188,6 +188,7 @@ pub(crate) mod links;
 pub(crate) mod live;
 pub mod locals;
 pub mod lower;
+pub(crate) mod match_attribute;
 pub mod paths;
 pub(crate) mod program;
 pub(crate) mod reasons;
@@ -246,6 +247,7 @@ pub use nvs_stdlib::regex::{
 pub use nvs_stdlib::registry::constructor_symbol as core_constructor_symbol;
 pub use nvs_stdlib::registry::takes_call_site as core_takes_call_site;
 pub use nvs_stdlib::registry::takes_prepared as core_takes_prepared;
+pub use nvs_stdlib::registry::takes_route_attributes as core_takes_route_attributes;
 pub use nvs_stdlib::registry::takes_source as core_takes_source;
 pub use nvs_stdlib::registry::takes_written_class as core_takes_written_class;
 pub use nvs_stdlib::registry::takes_written_enum as core_takes_written_enum;

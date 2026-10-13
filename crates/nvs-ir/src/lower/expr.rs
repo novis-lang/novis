@@ -4169,6 +4169,12 @@ impl<'a> Lowering<'a> {
             let written_enum =
                 nvs_types::core_takes_written_enum(&call.class.to_string(), &call.method)
                     .then(|| self.written_enum_constant(*cur, call));
+            // A member on `nvs_stdlib::registry::ROUTE_ATTRIBUTE_MEMBERS` is
+            // handed the payloads its call site folded, as argument 0, staged
+            // where the enum name above is and for its reason.
+            let route_attributes =
+                nvs_types::core_takes_route_attributes(&call.class.to_string(), &call.method)
+                    .then(|| self.route_attributes_constant(*cur, call, env));
             let LoweredArgs { values } =
                 self.lower_call_args(args, &sig, checked_types, ArgOwnership::Borrowed, env, cur);
             let mut arg_values = Vec::with_capacity(values.len() + 6);
@@ -4176,6 +4182,7 @@ impl<'a> Lowering<'a> {
             arg_values.extend(source);
             arg_values.extend(written_class.into_iter().flatten());
             arg_values.extend(written_enum);
+            arg_values.extend(route_attributes);
             arg_values.push(object_v);
             arg_values.extend(values);
             arg_values.extend(site);

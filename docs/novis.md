@@ -16281,7 +16281,7 @@ Calls the method of the route that the request matched. First, `$gate->allows()`
 <a id="core-core-router-match"></a>
 ### `Core\Router\Match`
 
-Keywords: route match, matched route, route parameters, path captures, Core\Request::route, named route, tainted capture, access decision, #[Core\Access], allow, authorization, dispatch, name, params, param, method, access, accessAs
+Keywords: route match, matched route, route parameters, path captures, Core\Request::route, named route, tainted capture, access decision, #[Core\Access], allow, authorization, dispatch, name, params, param, method, access, accessAs, attribute
 
 A `Core\Router\Match` is what `Core\Request::route()` answers (`null` when nothing in the route
 table claimed this method and path); it is never constructed by hand. The server matches the
@@ -16331,6 +16331,7 @@ no request here
 | [`Core\Router\Match->method`](#core-core-router-match-method) | `method(): Core\Http\Method` |
 | [`Core\Router\Match->access`](#core-core-router-match-access) | `access(): ?string` |
 | [`Core\Router\Match->accessAs`](#core-core-router-match-accessas) | `accessAs<T>(): ?T` |
+| [`Core\Router\Match->attribute`](#core-core-router-match-attribute) | `attribute<T>(): ?T` |
 
 <a id="core-core-router-match-name"></a>
 #### `Core\Router\Match->name`
@@ -16401,6 +16402,17 @@ $match->accessAs<T>(): ?T
 Returns the access rule of the matched route as a case of the enum you write between `<` and `>`. `$match->accessAs<App\Role>()` returns `App\Role::Admin` for a route with `#[Access(allow: App\Role::Admin)]`. Compare the result with a case, such as `== Core\Audience::Public`.
 
 **Returns** `?T` — The case of that enum, or `null` when the route's rule is not a case of that enum. Treat `null` as access denied. The type argument must be an enum.
+
+<a id="core-core-router-match-attribute"></a>
+#### `Core\Router\Match->attribute`
+
+```nvs skip
+$match->attribute<T>(): ?T
+```
+
+Returns the attribute of the route's method that has the shape you write between `<` and `>`. For a method with `#[{seconds: 60}]`, `$match->attribute<{seconds: int}>()` returns `{seconds: 60}`. A gate uses it to read a setting for one route.
+
+**Returns** `?T` — The attribute as an object of that shape, or `null` when the method has no attribute with every field of the shape. The type argument must be a shape. Two matching attributes on one method do not compile.
 
 <a id="core-core-csv"></a>
 ### `Core\Csv`

@@ -511,6 +511,39 @@ pub(crate) fn sites_for<'a>(
     sites
 }
 
+/// Every method that carries a `#[Route]`, as its class, its name and its own
+/// attach sites, sorted by class and then by method.
+///
+/// `#[Route]` is recognised under each site's own [`Scope`], the way
+/// `crate::routes::check_class_routes` recognises it where the method is
+/// declared, so a `use Core\Route;` in the declaring file is honoured whatever
+/// the asking file imports. The order is fixed so a diagnostic and the folded
+/// array come out the same on every run.
+pub(crate) fn routed_methods<'a>(env: &mut Env<'a>) -> Vec<(QName, String, Vec<Site<'a>>)> {
+    let outer = env.src;
+    let table = env.attributes;
+    let mut found = Vec::new();
+    for (class, entry) in &table.classes {
+        for (method, sites) in &entry.methods {
+            let routed = sites.iter().any(|site| {
+                env.src = site.src;
+                let written = site_ctx(&table.scopes[site.scope]);
+                crate::derive::attribute_is(site.attr, crate::derive::ROUTE, &written, env)
+            });
+            if routed {
+                found.push((class.clone(), method.clone(), sites.clone()));
+            }
+        }
+    }
+    env.src = outer;
+    found.sort_by(|a, b| {
+        a.0.to_string()
+            .cmp(&b.0.to_string())
+            .then_with(|| a.1.cmp(&b.1))
+    });
+    found
+}
+
 /// The sites whose payload satisfies `want`, in attach order.
 ///
 /// Each payload is inferred under **its own** file's source and its own

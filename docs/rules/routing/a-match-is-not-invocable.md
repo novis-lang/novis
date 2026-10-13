@@ -15,8 +15,12 @@ What a match returns beyond its name and captures, and why:
   `name` when they share a path, so only the verb tells a `Get` match from a `Post` match.
 - **The handler's `Class::method` label stays off the match**, because it is the one field of the row
   a program could turn into a call.
+- **`attribute<T>()` returns the matched method's attribute payload of the shape `T`**, folded while
+  compiling and looked up by the label on the runtime's side, so the label still does not cross
+  (`rule:routing/a-match-reads-an-attribute-as-data`).
 - **Memory:** each read of `Core\Request::route()` or `Core\Router::match` holds one string, the length
-  of the decision's name, and one integer. A program that never reads a match pays nothing.
+  of the decision's name, and two integers, the verb and the row's place in the table. A program that
+  never reads a match pays nothing.
 
 Routes do not share a signature: `show(uint $id)`, `index()` and `blog(uint $y, uint $m, string $slug)`
 cannot inhabit one `handler` field, and pre-binding the converted parameters into a zero-argument callable

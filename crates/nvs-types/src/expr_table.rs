@@ -220,6 +220,19 @@ pub struct ResolvedCall {
     /// of the receiver. `None` for every member off that roster, and for a call
     /// whose type argument `E0841` refused.
     pub written_enum: Option<QName>,
+    /// The attribute payloads a member on
+    /// `nvs_stdlib::registry::ROUTE_ATTRIBUTE_MEMBERS` was folded to —
+    /// `Core\Router\Match::attribute<{seconds: int}>` records one entry per
+    /// method carrying a `#[Route]` whose attributes hold a payload satisfying
+    /// the shape, keyed by that method's `Class::method` label and sorted by
+    /// it ([`crate::match_attribute`]).
+    ///
+    /// A field of the call rather than an [`ExprInfo`] of its own, because one
+    /// span carries one entry and the call still runs: `nvs-ir` lowers the
+    /// receiver and the native member as for any other `Core` call, and hands
+    /// this as an array ahead of the receiver. `None` for every member off that
+    /// roster, and for a call the checker refused.
+    pub route_attributes: Option<Vec<(String, ConstArg)>>,
     /// Whether [`Self::class`] is a loaded extension's — [`crate::signatures::ClassSignature::extension`].
     /// `nvs-ir` lowers such a call to a direct call of the export's trampoline, because no
     /// compiled Novis function has the label `Self::class::Self::method`

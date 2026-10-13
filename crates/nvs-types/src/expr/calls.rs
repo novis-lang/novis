@@ -195,6 +195,10 @@ pub(crate) fn infer_method_call(
             // The thunk calls the native member with the same leading enum
             // name a call would — see `nvs_stdlib::registry::WRITTEN_ENUM_MEMBERS`.
             call.written_enum = written_enum_of(qname, name, &written, type_args, expr.span, env);
+            // The same folded payloads a call is handed — see
+            // `nvs_stdlib::registry::ROUTE_ATTRIBUTE_MEMBERS`.
+            call.route_attributes =
+                crate::match_attribute::fold(qname, name, &written, expr.span, env);
             env.exprs.record(expr.span, ExprInfo::CallableRef(call));
             let held = method_ref_type(sig, env);
             env.exprs.record_callable_value(expr.span, held);
@@ -225,6 +229,10 @@ pub(crate) fn infer_method_call(
         // site wrote, and a case does not say at run time which enum it is
         // from — see `nvs_stdlib::registry::WRITTEN_ENUM_MEMBERS`.
         call.written_enum = written_enum_of(qname, name, &written, type_args, expr.span, env);
+        // `Core\Router\Match::attribute<T>` returns the payload the checker
+        // folded for the matched route's method — see
+        // `nvs_stdlib::registry::ROUTE_ATTRIBUTE_MEMBERS`.
+        call.route_attributes = crate::match_attribute::fold(qname, name, &written, expr.span, env);
         env.exprs.record(expr.span, ExprInfo::Call(call));
     }
     // `rule:statements/static-is-a-member-modifier`'s late static binding, as a type: a member declaring
@@ -1333,6 +1341,10 @@ pub(crate) fn resolved_call(
         // Set by both call arms and both callable-reference arms, for a member
         // on `registry::WRITTEN_ENUM_MEMBERS` — see the field's own doc comment.
         written_enum: None,
+        // Set by the instance call arm and its callable-reference arm, for a
+        // member on `registry::ROUTE_ATTRIBUTE_MEMBERS` — see the field's own
+        // doc comment.
+        route_attributes: None,
     }
 }
 

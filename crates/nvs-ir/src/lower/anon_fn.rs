@@ -110,7 +110,7 @@ pub(crate) fn drain_anon_fns(
     for next in &callables {
         let (function, synthesized) = lower_callable(next, src, exprs, checked_types, enums);
         functions.push(function);
-        classes.push(synthesized);
+        classes.extend(synthesized);
     }
     (functions, classes)
 }
@@ -659,7 +659,7 @@ pub(crate) fn lower_callable(
     exprs: &ExprTypeTable,
     checked_types: &TypeInterner,
     enums: &EnumTable,
-) -> (Function, crate::ir::Class) {
+) -> (Function, Vec<crate::ir::Class>) {
     let PendingCallable {
         class,
         target,
@@ -756,6 +756,8 @@ pub(crate) fn lower_callable(
             );
             low.release_all_locals(cur, &env, None);
             low.seal(cur, Terminator::Return(Some(value)));
+            let mut classes = vec![thunk_class(class, false, *span, exprs)];
+            classes.append(&mut low.shapes);
             let (blocks, stmt_spans, edge_spans) = low.finish();
             return (
                 Function {
@@ -767,7 +769,7 @@ pub(crate) fn lower_callable(
                     stmt_spans,
                     edge_spans,
                 },
-                thunk_class(class, false, *span, exprs),
+                classes,
             );
         }
     };
@@ -781,6 +783,11 @@ pub(crate) fn lower_callable(
         let written_enum =
             nvs_types::core_takes_written_enum(&call.class.to_string(), &call.method)
                 .then(|| low.written_enum_constant(cur, call));
+        // `nvs_stdlib::registry::ROUTE_ATTRIBUTE_MEMBERS`' leading array, which
+        // the checker folded at the reference as it does at a call.
+        let route_attributes =
+            nvs_types::core_takes_route_attributes(&call.class.to_string(), &call.method)
+                .then(|| low.route_attributes_constant(cur, call, &mut env));
         // A producer reached through a callable reference is handed the zero
         // word rather than this thunk's own position: the record is produced
         // wherever the callable is later invoked, and the line that wrote the
@@ -819,6 +826,7 @@ pub(crate) fn lower_callable(
             .chain(source)
             .chain(written.into_iter().flatten())
             .chain(written_enum)
+            .chain(route_attributes)
             .chain(receiver)
             .chain(args)
             .chain(site)
@@ -897,6 +905,11 @@ pub(crate) fn lower_callable(
     // doc comment for why the caller still sees `null`.
     low.seal(cur, Terminator::Return((ret != Ty::Void).then_some(value)));
 
+    // A shape a thunk builds, such as the payloads a
+    // `nvs_stdlib::registry::ROUTE_ATTRIBUTE_MEMBERS` member is handed, rides
+    // out beside the thunk's class, as an anonymous function's does.
+    let mut classes = vec![thunk_class(class, takes_receiver, *span, exprs)];
+    classes.append(&mut low.shapes);
     let (blocks, stmt_spans, edge_spans) = low.finish();
     (
         Function {
@@ -908,7 +921,7 @@ pub(crate) fn lower_callable(
             stmt_spans,
             edge_spans,
         },
-        thunk_class(class, takes_receiver, *span, exprs),
+        classes,
     )
 }
 

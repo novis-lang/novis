@@ -10,6 +10,7 @@ Core\Router\Match::param(string $name): ?(tainted string|int|uint|decimal|Core\U
 Core\Router\Match::method(): Http\Method;
 Core\Router\Match::access(): ?string;                                   // the resolved name of `allow:`
 Core\Router\Match::accessAs<E>(): ?E;                                   // `allow:` as a case of enum E
+Core\Router\Match::attribute<T>(): ?T;                                  // the method's payload of shape T
 ```
 
 The server matches a request once, before any application code, and `Core\Request::route()` is that

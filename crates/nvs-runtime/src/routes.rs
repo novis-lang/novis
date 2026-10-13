@@ -51,14 +51,16 @@
 //! That is `matchit`'s left-to-right precedence, which `rule:routing/path-grammar` names as the
 //! model, stated as a comparison rather than grown out of a trie.
 //!
-//! **The match crosses as four answers, and never as the row.**
+//! **The match crosses as four answers and a row index, and never as the row.**
 //! `Core\Request::route()` answers with `nvs_stdlib::router`'s
 //! `Core\Router\Match`, built out of [`Match`] where the match crosses: the
 //! name, the captures, the declared verb and the access decision's name, which
-//! are what a dispatcher reads. The [`Route`] itself stays on this side, and so
-//! does its handler label, because a program that could read `Class::method`
-//! off a match is one step from the dispatch
-//! `rule:routing/matching-is-not-dispatching` refuses.
+//! are what a dispatcher reads, and [`Match::index`], which no member returns.
+//! The [`Route`] itself stays on this side, and so does its handler label,
+//! because a program that could read `Class::method` off a match is one step
+//! from the dispatch `rule:routing/matching-is-not-dispatching` refuses.
+//! `Core\Router\Match::attribute<T>()` reads the label through the index on
+//! this side and hands back only the attribute payload it selects.
 //!
 //! **What it spends:** one `Arc` clone per request that carries a table, over
 //! one `String` per row's verb, path, name, handler and access decision — tens
@@ -627,6 +629,8 @@ impl Prefix {
 #[derive(Clone, Debug)]
 pub struct Match {
     route: Arc<Route>,
+    /// The row's place in [`Routes::rows`] of the table that matched it.
+    index: usize,
     params: Vec<(String, Param)>,
 }
 
@@ -635,6 +639,16 @@ impl Match {
     #[must_use]
     pub fn route(&self) -> &Route {
         &self.route
+    }
+
+    /// The row's place in [`Routes::rows`] of the table that matched it.
+    ///
+    /// `nvs_stdlib::router`'s `Core\Router\Match` keeps this integer in place
+    /// of the row, so `attribute<T>()` can read the row's handler label back on
+    /// this side of the crossing. No member returns it.
+    #[must_use]
+    pub fn index(&self) -> usize {
+        self.index
     }
 
     /// § 1's declared name, which
@@ -839,6 +853,7 @@ impl Routes {
                     &row.rank,
                     Match {
                         route: Arc::clone(row),
+                        index,
                         params,
                     },
                 ));

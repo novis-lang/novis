@@ -2408,6 +2408,39 @@ impl<'a> Lowering<'a> {
         v
     }
 
+    /// The array a member on `nvs_stdlib::registry::ROUTE_ATTRIBUTE_MEMBERS`
+    /// takes as its argument 0: every routed method's folded attribute
+    /// payload, keyed by its `Class::method` label.
+    ///
+    /// Built fresh for each call out of the constants the checker recorded —
+    /// one array and one payload object per entry — and staged as a temporary,
+    /// so it is released with the call's other borrowed arguments.
+    /// [`Self::written_enum_constant`] owns where every caller emits it.
+    ///
+    /// # Panics
+    ///
+    /// Panics naming the member when the checker recorded no payloads, which is
+    /// one run's two halves disagreeing: a call the checker refused never
+    /// reaches lowering.
+    pub(crate) fn route_attributes_constant(
+        &mut self,
+        b: BlockId,
+        call: &nvs_types::expr_table::ResolvedCall,
+        env: &mut Env,
+    ) -> ValueId {
+        let entries = call.route_attributes.clone().unwrap_or_else(|| {
+            panic!(
+                "nvs-ir: `{}::{}` needs the attribute payloads folded at its call site, and \
+                 nvs_types recorded none — did this program pass nvs_types::check_program with \
+                 the same table?",
+                call.class, call.method
+            )
+        });
+        let (v, _) = self.emit_const_arg(&nvs_types::ConstArg::Array(entries), None, env, b);
+        self.own_temporary(v);
+        v
+    }
+
     /// The constant a member on `nvs_stdlib::registry::SOURCE_MEMBERS`
     /// takes as its argument 0: where this call site is, as
     /// [`InstKind::SourceConst`] carries it.

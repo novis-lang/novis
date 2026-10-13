@@ -1,0 +1,18 @@
+{
+  "title": "`Core\\Router\\Match::attribute<T>()` returns the one attribute payload on the matched route's method that satisfies the shape `T`, folded while compiling",
+  "status": "shipped",
+  "seeAlso": [
+    "routing/a-match-is-not-invocable",
+    "attributes/structural-retrieval",
+    "attributes/retrieval-folds-while-checking",
+    "routing/a-gate-answers-around-every-handler"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/router-match-attribute-a-gate-reads-a-routes-setting.nvst",
+    "tests/conformance/core/router-match-attribute-is-null-where-the-method-has-none.nvst",
+    "tests/conformance/core/router-match-attribute-of-a-type-that-is-not-a-shape-is-e0729.nvst",
+    "tests/conformance/core/router-match-attribute-with-two-matches-on-one-method-is-e0728.nvst",
+    "crates/nvs-types/src/match_attribute.rs",
+    "crates/nvs-stdlib/src/router.rs"
+  ]
+}
