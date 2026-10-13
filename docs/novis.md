@@ -30225,7 +30225,7 @@ new Novis\Spreadsheet\Written(array<int> $rows, int $size, ?bytes $bytes)
 <a id="core-novis-spreadsheet-engine"></a>
 ### `Novis\Spreadsheet\Engine`
 
-Keywords: writerOpen, writerStyle, writerSheet, writerRows, writerDefine, writerFinish
+Keywords: writerOpen, writerStyle, writerSheet, writerRows, writerPart, writerDefine, writerFinish
 
 | Member | Signature |
 |---|---|
@@ -30233,6 +30233,7 @@ Keywords: writerOpen, writerStyle, writerSheet, writerRows, writerDefine, writer
 | [`Novis\Spreadsheet\Engine::writerStyle`](#core-novis-spreadsheet-engine-writerstyle) | `writerStyle(Writer $writer, {font: ?string, size: ?float, bold: ?bool, italic: ?bool, strike: ?bool, underline: ?Underline, color: ?string, fill: ?string, border: ?{top: ?Line, right: ?Line, bottom: ?Line, left: ?Line}, borderColor: ?string, align: ?Align, valign: ?Valign, wrap: ?bool, rotate: ?int, indent: ?uint, format: ?string, locked: ?bool, hideFormula: ?bool} $style): uint` |
 | [`Novis\Spreadsheet\Engine::writerSheet`](#core-novis-spreadsheet-engine-writersheet) | `writerSheet(Writer $writer, {name: string, position: ?uint, visibility: Visibility, columns: array<{width: ?float, auto: bool, style: ?uint, format: ?string, hidden: bool}>, freezeRows: uint, freezeColumns: uint, autofilter: ?string, tabColor: ?string, zoom: ?uint, gridlines: bool, rightToLeft: bool, header: {defaultStyle: bool, style: ?uint, freeze: bool, filter: bool}, newSheetOnOverflow: bool} $options, array<{cells: array<{value: ?CellValue, style: ?uint}>, style: ?uint, height: ?float, hidden: bool, level: uint, header: bool}> $first): bytes` |
 | [`Novis\Spreadsheet\Engine::writerRows`](#core-novis-spreadsheet-engine-writerrows) | `writerRows(Writer $writer, array<{cells: array<{value: ?CellValue, style: ?uint}>, style: ?uint, height: ?float, hidden: bool, level: uint, header: bool}> $rows): bytes` |
+| [`Novis\Spreadsheet\Engine::writerPart`](#core-novis-spreadsheet-engine-writerpart) | `writerPart(Writer $writer, SheetPart $part): bytes` |
 | [`Novis\Spreadsheet\Engine::writerDefine`](#core-novis-spreadsheet-engine-writerdefine) | `writerDefine(Writer $writer, string $name, string $reference): void` |
 | [`Novis\Spreadsheet\Engine::writerFinish`](#core-novis-spreadsheet-engine-writerfinish) | `writerFinish(Writer $writer): {data: bytes, rows: array<{name: string, rows: uint}>, size: uint}` |
 
@@ -30297,6 +30298,22 @@ Adds `rows` to the current sheet. Returns the bytes of the file that are ready t
 |---|---|---|
 | `$writer` | `Writer` |  |
 | `$rows` | `array<{cells: array<{value: ?CellValue, style: ?uint}>, style: ?uint, height: ?float, hidden: bool, level: uint, header: bool}>` |  |
+
+**Returns** `bytes`
+
+<a id="core-novis-spreadsheet-engine-writerpart"></a>
+#### `Novis\Spreadsheet\Engine::writerPart`
+
+```nvs skip
+Novis\Spreadsheet\Engine::writerPart(Writer $writer, SheetPart $part): bytes
+```
+
+Adds `part` to the current sheet, such as a merged range, a link or a note. The part is written when the sheet ends. Returns the bytes of the file that are ready to send.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$writer` | `Writer` |  |
+| `$part` | `SheetPart` |  |
 
 **Returns** `bytes`
 
@@ -31148,6 +31165,62 @@ Where the text sits from top to bottom in its cell.
 #### `Novis\Spreadsheet\Visibility`
 
 Whether a sheet is shown. A person can show a `Hidden` sheet again in Excel. Only a program can show a `VeryHidden` sheet.
+
+| Case | Meaning |
+|---|---|
+
+<a id="enum-novis-spreadsheet-rulekind"></a>
+#### `Novis\Spreadsheet\RuleKind`
+
+What a data validation checks: a value from a list, a whole number, a decimal number, a date, the length of a text, or a formula.
+
+| Case | Meaning |
+|---|---|
+
+<a id="enum-novis-spreadsheet-operator"></a>
+#### `Novis\Spreadsheet\Operator`
+
+How a value is compared with the values of a rule. `Between` and `NotBetween` need two values. The others need one.
+
+| Case | Meaning |
+|---|---|
+
+<a id="enum-novis-spreadsheet-totalfunction"></a>
+#### `Novis\Spreadsheet\TotalFunction`
+
+The function the totals row of a table uses for a column.
+
+| Case | Meaning |
+|---|---|
+
+<a id="enum-novis-spreadsheet-conditionalkind"></a>
+#### `Novis\Spreadsheet\ConditionalKind`
+
+The kind of a conditional format rule.
+
+| Case | Meaning |
+|---|---|
+
+<a id="enum-novis-spreadsheet-chartkind"></a>
+#### `Novis\Spreadsheet\ChartKind`
+
+The type of a chart.
+
+| Case | Meaning |
+|---|---|
+
+<a id="enum-novis-spreadsheet-legend"></a>
+#### `Novis\Spreadsheet\Legend`
+
+Where a chart shows its legend. `Hidden` shows no legend.
+
+| Case | Meaning |
+|---|---|
+
+<a id="enum-novis-spreadsheet-orientation"></a>
+#### `Novis\Spreadsheet\Orientation`
+
+Whether a printed page is tall or wide.
 
 | Case | Meaning |
 |---|---|

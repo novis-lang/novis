@@ -311,6 +311,7 @@ fn meta_lists_the_built_in_components_classes_and_enums() {
             "writerStyle",
             "writerSheet",
             "writerRows",
+            "writerPart",
             "writerDefine",
             "writerFinish"
         ]
@@ -337,7 +338,16 @@ fn meta_lists_the_built_in_components_classes_and_enums() {
         ["constructor", "download", "save", "to", "bytes"]
     );
     assert_eq!(names(r"Novis\Spreadsheet\Style"), ["constructor", "of"]);
-    for name in ["Line", "Underline", "Align", "Valign", "Visibility"] {
+    for name in [
+        "Line",
+        "Underline",
+        "Align",
+        "Valign",
+        "Visibility",
+        "RuleKind",
+        "Operator",
+        "Orientation",
+    ] {
         core_enum(&document, &format!(r"Novis\Spreadsheet\{name}"));
     }
 }
