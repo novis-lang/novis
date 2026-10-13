@@ -110,9 +110,9 @@ checks:
     tests: [the_spreadsheet_interface_parses_against_the_world_in_wit_types_alone, the_spreadsheet_interface_exports_writer_reader_and_template_resources]
   - id: nvs-ext-the-spreadsheet-component-writes-as-a-stream
     stage: 3
-    name: "nvs-ext (the spreadsheet component is built in, writes with no configuration and no grant, returns compressed bytes per batch with no string table, maps the write type table, and writes byte-equal output)"
+    name: "nvs-ext (the spreadsheet component is built in, writes with no configuration and no grant, returns compressed bytes per batch with no string table, maps the write type table for what crosses, and writes byte-equal output)"
     run: [cargo, test, --test, spreadsheet]
-    tests: [the_spreadsheet_component_is_built_in_and_answers_with_no_configuration, a_write_needs_no_capability_grant, a_batch_of_rows_returns_the_compressed_bytes_ready_to_leave, the_guest_holds_no_row_of_an_earlier_batch, strings_are_written_inline_and_no_string_table_grows, the_chunks_of_a_finished_workbook_are_one_valid_xlsx_archive, every_novis_type_writes_as_its_cell_type, a_number_past_fifteen_significant_digits_is_a_text_cell, an_instant_is_its_clock_time_in_the_workbook_zone, an_instant_with_no_workbook_zone_throws_naming_the_column, finish_returns_the_row_count_per_sheet_and_the_size, a_workbook_never_finished_is_logged_naming_it, two_writes_of_equal_input_are_byte_equal]
+    tests: [the_spreadsheet_component_is_built_in_and_answers_with_no_configuration, a_write_needs_no_capability_grant, a_batch_of_rows_returns_the_compressed_bytes_ready_to_leave, the_guest_holds_no_row_of_an_earlier_batch, strings_are_written_inline_and_no_string_table_grows, the_chunks_of_a_finished_workbook_are_one_valid_xlsx_archive, every_novis_type_writes_as_its_cell_type, a_number_past_fifteen_significant_digits_is_a_text_cell, a_clock_time_is_its_serial_with_the_date_time_format, finish_returns_the_row_count_per_sheet_and_the_size, a_workbook_never_finished_is_logged_naming_it, two_writes_of_equal_input_are_byte_equal]
   - id: spreadsheet-writes-to-every-target
     stage: 3
     name: "`Novis\\Spreadsheet` writes from a binary with no `nvs.toml` to memory, a file and an open file, and an `Instant` with no zone throws"
