@@ -634,6 +634,20 @@ impl nvs_runtime::inproc::Answering for UnderTest {
         if let Some(matched) = self.routes.match_request(inbound.method(), inbound.path()) {
             inbound.set_route(matched);
         }
+        // `rule:routing/a-gate-answers-around-every-handler`'s refusal mode, for
+        // the one door refusal a synthetic request can meet: its verb is a
+        // `Core\Http\Method` case and its body is no stream, so only the CSRF
+        // check is taken, with [`Door`]'s inputs and as `answer_on_the_wire`
+        // takes it. A unit that does not dispatch is answered as before.
+        if self.routes.dispatches() {
+            let door = Door::of(ctx);
+            if nvs_server::route::csrf(&inbound, door.key.as_deref(), &door.cookie)
+                == nvs_server::route::Csrf::Refused
+            {
+                inbound.set_refusal(nvs_runtime::routes::Refusal::Csrf);
+                inbound.clear_body();
+            }
+        }
         let unit = Rc::clone(&self.unit);
         let routes = std::sync::Arc::clone(&self.routes);
         // The same program `crate::script::program_over` builds for a `spawn

@@ -816,6 +816,15 @@ impl Inbound {
     pub fn set_body(&mut self, body: Box<dyn RequestBody>) {
         self.body = Some(body);
     }
+    /// Takes away the body this carrier was given, so [`Self::body`] answers
+    /// `None`.
+    ///
+    /// For a door that refused the request after its body was set: refusal
+    /// mode runs the entry with no body
+    /// (`rule:routing/a-gate-answers-around-every-handler`).
+    pub fn clear_body(&mut self) {
+        self.body = None;
+    }
     /// Gives this carrier a body that is already whole in memory.
     ///
     /// The one supplier that is not a socket: `nvs run --request` reads a
