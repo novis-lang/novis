@@ -28,7 +28,7 @@ stages:
         shapes: ["A `.nvst` test case"]
   - id: 5
     title: "the sheet-end parts, formulas, tables, conditional formats and images"
-    status: open
+    status: done
     extra:
       context:
         rules: [core-classes/spreadsheet-formula-is-a-value]
@@ -578,8 +578,8 @@ One file set: `extensions/spreadsheet/src/write/` (sheet tail, drawing, table), 
 - **Conditional formats:** cell-value and formula rules, colour scales, data bars, icon sets, top and
   bottom N, duplicates and unique values, each rule's style a `Style` (font, fill, border, format).
 - **Images:** PNG, JPEG and GIF bytes the program supplies, anchored to a cell with an optional size
-  and offset. The image is its own zip entry, written as soon as it is added. The format is read from
-  the bytes, and anything else throws.
+  and offset. The image is its own zip entry, which `rule:core-classes/spreadsheet-sheet-end-parts`
+  says when it is written. The format is read from the bytes, and anything else throws.
 - **Pinned by** the Stage 5 checks.
 
 ### 6. charts
@@ -767,28 +767,28 @@ One file set: `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/n
 
 ### State
 
-**Stage 5, the Rust half is done: all 12 tests of `spreadsheet-the-sheet-end-parts` pass** (`extensions/spreadsheet/tests/sheet_end.rs`). `spreadsheet-a-report-with-totals-runs` is red because its three `.nvst` cases are not written yet, and they need the Novis half below.
+**Stage 5 is done: `spreadsheet-the-sheet-end-parts` and `spreadsheet-a-report-with-totals-runs` both pass.** The Novis half landed: `Sheet::merge`, `link`, `note`, `validate`, `group`, `table`, `conditional`, `image`, `print`, `protect`, `cell` and `column`, `Workbook::define`, `Formula::of`, `Cell::of` and a column's `formula`.
 
-- `src/tail.rs` is the sheet tail (its module doc). Images are `src/drawing.rs`, tables `src/table.rs`, conditional formats `src/conditional.rs`, each with its module doc. The sheet's rIds are external links, the notes' two, the drawing, then the tables (`Tail::table_id`).
-- **Tables** (`rule:core-classes/spreadsheet-sheet-end-parts`, which now says where the totals row goes): a table added before its rows takes its header names when that row is written, and `Writer::append` splits a batch to write the totals row after the table's last row. A sheet does not end while a table owes its header or totals row (`Writer::ready_to_end`). `[@qty]` is qualified only in rows written after the table is added.
-- **Conditional formats**: each rule's style is a `dxf` in `styles.xml` (`Styles::dxf`).
-- Every `wit::SheetPart` but `chart` maps to a `Part` (`extensions/spreadsheet/src/lib.rs`). Chart returns `runtime`.
-- **`Writer::cell` and `Writer::column` are Rust only.** No WIT export reaches them yet.
-- The goal's Stage 5 text still says an image is "written as soon as it is added". The rule is the home.
-- **Two tests outside this goal failed once under the full gate and passed on the next run.** They are `nvs-stdlib`'s `a_connect_refused_for_one_address_is_asked_again_for_the_next` (a proxy read deadline) and `nvs-cli`'s `live_edit` swaps (a 30 s wait). Each needs a fix in a commit of its own (`docs/agent/playbook/running-things/a-test-verify-py-reports-as-failed-beside-the-other-test.md`).
+- `Sheet` calls `Engine::writerPart` itself. `Workbook` gives it four callables: `queue` adds a row, `ready` sends the rows that wait and checks the sheet is open, `send` sends bytes, `position` finds a column by key or letter (`extensions/spreadsheet/nvs/Workbook.nvs`).
+- **The Novis half numbers rows itself** (`Workbook::claim`), for a column's `formula`. A table with totals records its totals row in `totalsAt`, so a later row skips it, and `overflow: 'newSheet'` restarts the count. It matches `Writer::append` in `extensions/spreadsheet/src/writer.rs`.
+- `writer-cell` and `writer-column` are new WIT exports over `Writer::cell` and `Writer::column`. The component is now 0.49 MiB (`extensions/spreadsheet/src/lib.rs`).
+- A Novis type alias is not reachable from another class, so `Sheet::Part` copies the `sheet-part` shapes, and its conditional style copies `Style::Record`.
+- `validate` takes one of `list`, `whole`, `decimal`, `date`, `length` or `formula`, with `min` and `max` as bounds. `conditional` takes a flat `{kind, operator, values, colors, icons, rank, percent, style}`. The rule's table leaves both shapes open, so neither is written into the rule yet.
+- **Two tests outside this goal failed once under the full gate and passed on the next run.** They are `nvs-stdlib`'s `a_connect_refused_for_one_address_is_asked_again_for_the_next` and `nvs-cli`'s `live_edit` swaps. Each needs a fix in a commit of its own (`docs/agent/playbook/running-things/a-test-verify-py-reports-as-failed-beside-the-other-test.md`).
 
 ### Next
 
-**Stage 5, the Novis half: the `Sheet` calls over `Engine::writerPart`, then the report cases.** Files: `extensions/spreadsheet/nvs/Sheet.nvs`, `nvs/Workbook.nvs`, `wit/spreadsheet.wit`, `crates/nvs-cli/tests/meta.rs` (a new export changes its member list, see the playbook) and `tests/conformance/novis/`.
+**Stage 6, charts: the Rust chart part, then `Chart.nvs` and `Sheet::chart`.** Files: `extensions/spreadsheet/src/chart.rs` (new, the goal's `src/write/` is the flat `src/`), `src/drawing.rs`, `src/lib.rs`, `extensions/spreadsheet/nvs/Chart.nvs` (new), `nvs/Sheet.nvs`, `extensions/spreadsheet/tests/chart.rs` (new).
 
-- [ ] **The sheet-end calls** (`rule:core-classes/spreadsheet-sheet-end-parts`): `Sheet::merge`, `link`, `note`, `validate`, `group`, `table`, `conditional`, `image`, `print` and `protect`, each building one `sheet-part` and sending `Engine::writerPart`'s bytes as `Workbook::send` does. `extensions/spreadsheet/nvs/Sheet.nvs:21`, `wit/spreadsheet.wit:473`, `extensions/spreadsheet/nvs/Workbook.nvs:389`
-- [ ] **Formulas** (`rule:core-classes/spreadsheet-formula-is-a-value`): `Formula::of`, `Cell::of`, `$sheet->cell()` and `$sheet->column()` (a WIT export over `Writer::cell` and `Writer::column`), and a column's `formula: fn(int $row)`. `extensions/spreadsheet/src/writer.rs:567`
-- [ ] **The three `.nvst` cases of `spreadsheet-a-report-with-totals-runs`**: a totals row sums its column, a column formula is called once per row, and an image of another format throws. `extensions/spreadsheet/nvs/Workbook.nvs:174`
+- [ ] **The chart XML for the subset and the combination** (`rule:core-classes/spreadsheet-sheet-end-parts`), ported from `rust_xlsxwriter` with its attribution, in the drawing part images use. `extensions/spreadsheet/src/drawing.rs:58`, `extensions/spreadsheet/src/lib.rs:793`
+- [ ] **The five tests of `spreadsheet-the-chart-subset`** in `extensions/spreadsheet/tests/chart.rs`, each named as the check names it, after the shape of `extensions/spreadsheet/tests/sheet_end.rs:883`.
+- [ ] **`Chart` and `Sheet::chart`**, then the case `spreadsheet-a-report-carries-a-chart.nvst`. Adding `chart` changes `Sheet`'s list in `crates/nvs-cli/tests/meta.rs:333`. `extensions/spreadsheet/nvs/Sheet.nvs:281`
 
 ### Backlog
 
-- Stage 6: charts, whose `<drawing>` shares `src/drawing.rs`'s part (`rule:core-classes/spreadsheet-sheet-end-parts`).
-- The style enums under `Style`, and the seven part enums somewhere better than namespace scope (`rule:core-classes/spreadsheet-roster`). Moving them changes `crates/nvs-cli/tests/meta.rs:341` too.
+- `Cell::rich` for rich text in one cell: the engine writes it (`rich_text_in_one_cell_is_written`), and no Novis call reaches it yet (`rule:core-classes/spreadsheet-sheet-end-parts`). `extensions/spreadsheet/nvs/Workbook.nvs:537`
+- Write the shapes of `validate` and `conditional` into `rule:core-classes/spreadsheet-sheet-end-parts`.
+- The style enums under `Style`, and the part enums somewhere better than namespace scope (`rule:core-classes/spreadsheet-roster`). Moving them changes `crates/nvs-cli/tests/meta.rs` too.
 - Stage 7: the `value` range accessor in `wit/nvs-ext/types.wit`, the reader, and `Reader::Visibility` (`rule:core-classes/spreadsheet-reads-as-a-stream`).
 - Stages 8 to 14: the number-format renderer, CSV, template fill, hostile files, 100 MB, the comparison with Excel's files and the feature proofs. See `docs/goals/spreadsheet.md`.
 - `looper lint` reports AGENTS.md's managed text as edited by hand, and `AGENTS.md:403` links the missing `docs/decisions/README.md`. Neither came from this goal. See `AGENTS.md`.
