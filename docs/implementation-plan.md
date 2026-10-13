@@ -96,7 +96,7 @@ somebody has already followed.
 | ongoing | [M12](plan/m12.md) | Optimising JIT tier (ongoing) | measurement-bound |
 | backlog 4 | [M15](plan/m15.md) | Packages, the registry and the supply chain (~8 weeks) | ~3 + a calendar floor |
 | backlog 5 | [M16](plan/m16.md) | `nvs/web`, `nvs new`, and the framework (~12 weeks) | ~4 |
-| goals `pdf`, `spreadsheet` | [M17](plan/m17.md) | Document components: the image second wave, `Novis\Pdf` and `Novis\Spreadsheet` (not yet sized) | not estimated |
+| goal `spreadsheet` | [M17](plan/m17.md) | Document components: the image second wave, `Novis\Pdf` and `Novis\Spreadsheet` (not yet sized) | not estimated |
 
 **One milestone is not one block of schedule, which is why the cell holds a list.** M8's work is spread
 across a row of goals, and the goals tagged `post-parity` in the chain land in no milestone at all. A

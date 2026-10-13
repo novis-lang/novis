@@ -29,7 +29,7 @@
 //! **Not done yet.** The template exports return `runtime`, and are not in `manifest.json`:
 //! Stage 10 of goal `spreadsheet`.
 //!
-//! Packed as a `.nvsx` and embedded in every `nvs` binary, the component is 0.77 MiB, built for
+//! Packed as a `.nvsx` and embedded in every `nvs` binary, the component is 0.84 MiB, built for
 //! release as `crates/nvs-ext/build.rs` always builds it. That is the binary's growth for
 //! spreadsheets, and `crates/nvs-ext/tests/builtin.rs` fails when this figure drifts past 5% of
 //! the bytes the binary carries.
