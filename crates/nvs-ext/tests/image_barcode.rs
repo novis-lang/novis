@@ -5,7 +5,7 @@
 //! `rxing`, a reader that is a dependency of this test only. A QR code and a Code 128 drawn as SVG
 //! are SVG documents, and the component's own SVG decoding turns them into pixels that read back
 //! too. A wrong check digit returns `invalid` naming the digit it should be, and a character a
-//! symbology cannot carry returns `invalid` naming it. The GiroCode payload is Novis source, and
+//! symbology cannot encode returns `invalid` naming it. The GiroCode payload is Novis source, and
 //! `crates/nvs-cli/tests/image_barcode.rs` runs it.
 
 use std::future::Future;

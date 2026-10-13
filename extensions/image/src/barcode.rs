@@ -2,7 +2,7 @@
 //! (`rule:core-classes/image-barcode-roster`).
 //!
 //! Each symbology checks its data before anything is drawn, and returns `invalid` naming what is
-//! wrong: a character the symbology cannot carry and its position, a length it does not take, or
+//! wrong: a character the symbology cannot encode and its position, a length it does not take, or
 //! a check digit that is not the one the digits before it give. A check digit is never computed
 //! for the program, so EAN-13 takes 13 digits, EAN-8 8, UPC-A 12 and ITF-14 14, each ending in its
 //! check digit. Code 128 carries printable ASCII. Code 39 carries the digits, the capital letters,
@@ -302,7 +302,7 @@ fn modules(data: &str, symbology: Symbology) -> Result<(Grid, String), Error> {
             return Ok((grid, data.to_owned()));
         }
     }
-    .map_err(|err| Error::Invalid(format!("{symbology:?} cannot carry {data:?}: {err}")))?;
+    .map_err(|err| Error::Invalid(format!("{symbology:?} cannot encode {data:?}: {err}")))?;
     let grid = Grid {
         width: bars.len() as u64,
         height: 1,
@@ -320,7 +320,7 @@ fn printable(data: &str, name: &str, allowed: impl Fn(char) -> bool) -> Result<(
     }
     match data.chars().enumerate().find(|&(_, c)| !allowed(c)) {
         Some((at, c)) => Err(Error::Invalid(format!(
-            "{name} cannot carry the character {c:?} at position {}",
+            "{name} cannot encode the character {c:?} at position {}",
             at + 1
         ))),
         None => Ok(()),
@@ -359,7 +359,7 @@ fn check_digit(data: &str, name: &str) -> Result<(), Error> {
 
 /// `data`'s GS1 element strings, each application identifier with its value.
 fn gs1(data: &str) -> Result<Vec<(&str, &str)>, Error> {
-    let fail = |why: String| Error::Invalid(format!("GS1-128 cannot carry {data:?}: {why}"));
+    let fail = |why: String| Error::Invalid(format!("GS1-128 cannot encode {data:?}: {why}"));
     let mut groups = Vec::new();
     let mut rest = data;
     while !rest.is_empty() {

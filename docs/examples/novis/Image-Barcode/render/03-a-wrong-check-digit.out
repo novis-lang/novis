@@ -1,2 +1,2 @@
 the check digit of the EAN-13 4006381333932 is 1, and the data ends in 2
-Code 128 cannot carry the character 'ö' at position 3
+Code 128 cannot encode the character 'ö' at position 3
