@@ -599,29 +599,31 @@ interface engine {
     }
 
     /// A workbook being read (`rule:core-classes/spreadsheet-reads-as-a-stream`).
-    resource reader;
+    /// It is not named `reader`, because a manifest's resource is a class in
+    /// `Novis\Spreadsheet` and `Reader` is the Novis class over it.
+    resource reading;
 
     /// Opens the workbook `source` holds: reads its directory and its
     /// workbook part, and nothing of a sheet.
-    reader-open: func(source: borrow<value>) -> result<reader, error>;
-    reader-sheets: func(reader: borrow<reader>, source: borrow<value>) -> result<list<sheet-info>, error>;
+    reader-open: func(source: borrow<value>) -> result<reading, error>;
+    reader-sheets: func(reader: borrow<reading>, source: borrow<value>) -> result<list<sheet-info>, error>;
     /// The header's keys: a duplicate numbered, an empty one its column
     /// letter.
-    reader-header: func(reader: borrow<reader>, source: borrow<value>, options: read-options) -> result<list<string>, error>;
+    reader-header: func(reader: borrow<reading>, source: borrow<value>, options: read-options) -> result<list<string>, error>;
     /// The next batch of at most `max` rows of the sheet `options` names.
     /// A call whose `from` is past the last row the reader gave continues
     /// where it stopped, and any other starts the sheet again. `limit` is
     /// the most rows this call may give.
-    reader-rows: func(reader: borrow<reader>, source: borrow<value>, options: read-options, max: u64) -> result<read-batch, error>;
-    reader-merged: func(reader: borrow<reader>, source: borrow<value>, sheet: string) -> result<list<string>, error>;
-    reader-links: func(reader: borrow<reader>, source: borrow<value>, sheet: string) -> result<list<link-info>, error>;
-    reader-notes: func(reader: borrow<reader>, source: borrow<value>, sheet: string) -> result<list<note-info>, error>;
-    reader-names: func(reader: borrow<reader>, source: borrow<value>) -> result<list<name-info>, error>;
-    reader-tables: func(reader: borrow<reader>, source: borrow<value>, sheet: string) -> result<list<table-info>, error>;
-    reader-images: func(reader: borrow<reader>, source: borrow<value>, sheet: string) -> result<list<image-info>, error>;
-    reader-properties: func(reader: borrow<reader>, source: borrow<value>) -> result<properties, error>;
+    reader-rows: func(reader: borrow<reading>, source: borrow<value>, options: read-options, max: u64) -> result<read-batch, error>;
+    reader-merged: func(reader: borrow<reading>, source: borrow<value>, sheet: string) -> result<list<string>, error>;
+    reader-links: func(reader: borrow<reading>, source: borrow<value>, sheet: string) -> result<list<link-info>, error>;
+    reader-notes: func(reader: borrow<reading>, source: borrow<value>, sheet: string) -> result<list<note-info>, error>;
+    reader-names: func(reader: borrow<reading>, source: borrow<value>) -> result<list<name-info>, error>;
+    reader-tables: func(reader: borrow<reading>, source: borrow<value>, sheet: string) -> result<list<table-info>, error>;
+    reader-images: func(reader: borrow<reading>, source: borrow<value>, sheet: string) -> result<list<image-info>, error>;
+    reader-properties: func(reader: borrow<reading>, source: borrow<value>) -> result<properties, error>;
     /// The names of an xlsm's macro modules. Nothing runs them.
-    reader-macros: func(reader: borrow<reader>, source: borrow<value>) -> result<list<string>, error>;
+    reader-macros: func(reader: borrow<reading>, source: borrow<value>) -> result<list<string>, error>;
 
     // ---- template fill ----
 

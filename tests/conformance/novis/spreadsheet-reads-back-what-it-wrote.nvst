@@ -1,0 +1,117 @@
+--TEST--
+What `Workbook` writes, `Reader` reads back equal by the read table: text, whole numbers, other numbers, booleans, dates, times, durations and clock times keep their type and value, an `Instant` reads as its clock time in the workbook's zone, a number past fifteen digits reads as its text, a formula reads as its stored result or with `formulas: true` as a `Formula`, and a sheet of a thousand and more rows reads back whole in order: rule:core-classes/spreadsheet-reads-as-a-stream
+--FILE--
+<?nvs
+// covers: Novis\Spreadsheet\Reader::open
+// covers: Novis\Spreadsheet\Reader::rows
+// covers: Novis\Spreadsheet\Row::number
+// covers: Novis\Spreadsheet\Row::values
+use Novis\Spreadsheet\Formula;
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Row;
+use Novis\Spreadsheet\Workbook;
+
+final class Show
+{
+    public static function value(mixed $value): string
+    {
+        if ($value == null) {
+            return "null";
+        }
+        if ($value is tainted string) {
+            return "string " . Core\Taint::assertTrusted($value, "the test prints what it wrote");
+        }
+        if ($value is int) {
+            return "int " . ($value as string);
+        }
+        if ($value is float) {
+            return "float " . ($value as string);
+        }
+        if ($value is bool) {
+            return $value ? "bool true" : "bool false";
+        }
+        if ($value is Core\Time\DateTime) {
+            return "DateTime " . $value->format("yyyy-MM-dd HH:mm:ss VV");
+        }
+        if ($value is Core\Time\Date) {
+            return "Date " . $value->format("yyyy-MM-dd");
+        }
+        if ($value is Core\Time\TimeOfDay) {
+            return "TimeOfDay " . $value->format("HH:mm:ss");
+        }
+        if ($value is Core\Time\Duration) {
+            return "Duration " . ($value->toSeconds() as string) . "s";
+        }
+        if ($value is Formula) {
+            return "Formula " . $value->text . " = " . ($value->cached as string);
+        }
+        return "another value";
+    }
+}
+
+// One row has a value of each type. The workbook's zone is Europe/Berlin.
+var $zone = Core\Time\Zone::of("Europe/Berlin");
+var $book = Workbook::createInMemory({zone: "Europe/Berlin"});
+var $sheet = $book->sheet("Shop", {header: true});
+$sheet->add(["Text", "Whole", "Number", "Yes", "Day", "Time", "Took", "Local", "Moment", "Long", "Sum"]);
+$sheet->add([
+    "Widget",
+    -42,
+    2.75,
+    true,
+    Core\Time\Date::at(2024, 2, 29),
+    Core\Time\TimeOfDay::at(17, 45, {second: 30}),
+    Core\Time\Duration::hours(30),
+    Core\Time::at(2024, 7, 1, $zone, {hour: 8, minute: 15}),
+    Core\Time::fromEpoch(1704067200),
+    1234567890123456789,
+    Formula::of("B2*2", {cached: -84}),
+]);
+bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+
+// Each value reads back with its type. Read the clock times in the workbook's zone.
+var $reader = Reader::open($file);
+foreach ($reader->rows("Shop", {header: true, zone: "Europe/Berlin"}) as Row $row) {
+    foreach ($row->values as tainted string $key => mixed $value) {
+        echo Core\Taint::assertTrusted($key, "the test prints what it wrote"), ": ", Show::value($value), "\n";
+    }
+}
+
+// With `formulas: true`, the formula cell reads as a `Formula` with its stored result.
+foreach ($reader->rows("Shop", {header: true, columns: ["K"], formulas: true}) as Row $row) {
+    echo "Sum: ", Show::value($row->values["Sum"]), "\n";
+}
+
+// A sheet of 2,500 rows is read in batches. Every row comes back once, in order.
+var $long = Workbook::createInMemory();
+var $orders = $long->sheet("Orders", {header: true});
+$orders->add(["Order"]);
+int $n = 1;
+while ($n <= 2500) {
+    $orders->add([$n]);
+    $n = $n + 1;
+}
+var $many = Reader::open($long->finish()->bytes ?? Core\Bytes::fill(0, 0));
+int $expected = 1;
+bool $inOrder = true;
+foreach ($many->rows("Orders", {header: true}) as Row $row) {
+    if ($row->values["Order"] != $expected || $row->number as int != $expected + 1) {
+        $inOrder = false;
+    }
+    $expected = $expected + 1;
+}
+echo $expected - 1, " rows, ", $inOrder ? "in order" : "out of order", "\n";
+--EXPECT--
+Text: string Widget
+Whole: int -42
+Number: float 2.75
+Yes: bool true
+Day: Date 2024-02-29
+Time: TimeOfDay 17:45:30
+Took: Duration 108000s
+Local: DateTime 2024-07-01 08:15:00 Europe/Berlin
+Moment: DateTime 2024-01-01 01:00:00 Europe/Berlin
+Long: string 1234567890123456789
+Sum: int -84
+Sum: Formula B2*2 = -84
+2500 rows, in order

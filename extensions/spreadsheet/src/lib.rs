@@ -455,7 +455,7 @@ mod guest {
 
     use crate::tail;
     use exports::nvs::spreadsheet::engine as wit;
-    use exports::nvs::spreadsheet::engine::{Guest, GuestReader, GuestTemplate, GuestWriter};
+    use exports::nvs::spreadsheet::engine::{Guest, GuestReading, GuestTemplate, GuestWriter};
     use nvs::ext::log;
     use nvs::ext::types::Value as Source;
 
@@ -485,7 +485,7 @@ mod guest {
         reader: RefCell<crate::read::Reader>,
     }
 
-    impl GuestReader for Reader {}
+    impl GuestReading for Reader {}
 
     /// The source a reader call was lent, read through the host's `range`.
     struct Lent<'a>(&'a Source);
@@ -971,7 +971,7 @@ mod guest {
 
     impl Guest for Component {
         type Writer = Book;
-        type Reader = Reader;
+        type Reading = Reader;
         type Template = Template;
 
         fn writer_open(options: wit::WorkbookOptions) -> Result<wit::Writer, wit::Error> {
@@ -1066,15 +1066,15 @@ mod guest {
             })
         }
 
-        fn reader_open(source: &Source) -> Result<wit::Reader, wit::Error> {
+        fn reader_open(source: &Source) -> Result<wit::Reading, wit::Error> {
             let reader = crate::read::Reader::open(&Lent(source)).map_err(error)?;
-            Ok(wit::Reader::new(Reader {
+            Ok(wit::Reading::new(Reader {
                 reader: RefCell::new(reader),
             }))
         }
 
         fn reader_sheets(
-            reader: wit::ReaderBorrow<'_>,
+            reader: wit::ReadingBorrow<'_>,
             source: &Source,
         ) -> Result<Vec<wit::SheetInfo>, wit::Error> {
             let sheets = reader
@@ -1087,7 +1087,7 @@ mod guest {
         }
 
         fn reader_header(
-            reader: wit::ReaderBorrow<'_>,
+            reader: wit::ReadingBorrow<'_>,
             source: &Source,
             options: wit::ReadOptions,
         ) -> Result<Vec<String>, wit::Error> {
@@ -1100,7 +1100,7 @@ mod guest {
         }
 
         fn reader_rows(
-            reader: wit::ReaderBorrow<'_>,
+            reader: wit::ReadingBorrow<'_>,
             source: &Source,
             options: wit::ReadOptions,
             max: u64,
@@ -1118,7 +1118,7 @@ mod guest {
         }
 
         fn reader_merged(
-            _reader: wit::ReaderBorrow<'_>,
+            _reader: wit::ReadingBorrow<'_>,
             _source: &Source,
             _sheet: String,
         ) -> Result<Vec<String>, wit::Error> {
@@ -1126,7 +1126,7 @@ mod guest {
         }
 
         fn reader_links(
-            _reader: wit::ReaderBorrow<'_>,
+            _reader: wit::ReadingBorrow<'_>,
             _source: &Source,
             _sheet: String,
         ) -> Result<Vec<wit::LinkInfo>, wit::Error> {
@@ -1134,7 +1134,7 @@ mod guest {
         }
 
         fn reader_notes(
-            _reader: wit::ReaderBorrow<'_>,
+            _reader: wit::ReadingBorrow<'_>,
             _source: &Source,
             _sheet: String,
         ) -> Result<Vec<wit::NoteInfo>, wit::Error> {
@@ -1142,14 +1142,14 @@ mod guest {
         }
 
         fn reader_names(
-            _reader: wit::ReaderBorrow<'_>,
+            _reader: wit::ReadingBorrow<'_>,
             _source: &Source,
         ) -> Result<Vec<wit::NameInfo>, wit::Error> {
             Err(reading())
         }
 
         fn reader_tables(
-            _reader: wit::ReaderBorrow<'_>,
+            _reader: wit::ReadingBorrow<'_>,
             _source: &Source,
             _sheet: String,
         ) -> Result<Vec<wit::TableInfo>, wit::Error> {
@@ -1157,7 +1157,7 @@ mod guest {
         }
 
         fn reader_images(
-            _reader: wit::ReaderBorrow<'_>,
+            _reader: wit::ReadingBorrow<'_>,
             _source: &Source,
             _sheet: String,
         ) -> Result<Vec<wit::ImageInfo>, wit::Error> {
@@ -1165,14 +1165,14 @@ mod guest {
         }
 
         fn reader_properties(
-            _reader: wit::ReaderBorrow<'_>,
+            _reader: wit::ReadingBorrow<'_>,
             _source: &Source,
         ) -> Result<wit::Properties, wit::Error> {
             Err(reading())
         }
 
         fn reader_macros(
-            _reader: wit::ReaderBorrow<'_>,
+            _reader: wit::ReadingBorrow<'_>,
             _source: &Source,
         ) -> Result<Vec<String>, wit::Error> {
             Err(reading())

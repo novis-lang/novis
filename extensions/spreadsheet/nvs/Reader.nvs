@@ -1,0 +1,267 @@
+<?nvs
+namespace Novis\Spreadsheet;
+
+use Iterator;
+use LogicError;
+
+/// An Excel file (xlsx) that your program reads row by row.
+/// Open one with `Reader::open`. `sheets` lists its sheets, and `rows` reads the rows of one sheet.
+final class Reader
+{
+    type RowOptions = ?{header?: bool|int, from?: uint, limit?: uint, columns?: array<string>, zone?: string, text?: bool|array<string>, formulas?: bool, emptyRows?: string, merged?: string, hidden?: string, locale?: string};
+    type SheetInfo = {name: string, position: uint, visibility: Visibility, rows: uint, columns: uint, kind: SheetKind};
+    type Read = {text: string}|{integer: int}|{number: float}|{boolean: bool}|{day: Core\Time\Date, clock: Core\Time\TimeOfDay}|{date: Core\Time\Date}|{time: Core\Time\TimeOfDay}|{duration: Core\Time\Duration}|{error: CellError};
+    type Asked = {sheet: string, headerRow: ?uint, from: ?uint, limit: ?uint, columns: array<string>, text: array<string>, textAll: bool, formulas: bool, keepEmptyRows: bool, fillMerged: bool, skipHidden: bool, locale: string};
+
+    private function constructor(
+        private readonly Reading $reader,
+        private readonly bytes|Core\IO\File $source,
+    ) {}
+
+    /// `Reader::open` opens the workbook in `$source`. The source is the bytes of the file, or a file your program opened.
+    /// This reads the list of sheets and no rows. A file that is not an xlsx file throws an error.
+    public static function open(bytes|Core\IO\File $source): Reader
+    {
+        return new Reader(Engine::readerOpen($source), $source);
+    }
+
+    /// `sheets` returns each sheet in tab order, with its name, its position from 0, whether it is hidden, its size and its kind.
+    public function sheets(): array<SheetInfo>
+    {
+        return Engine::readerSheets($this->reader, $this->source);
+    }
+
+    /// `rows` reads the sheet `$sheet`, by name or by position from 0. It gives one `Row` at a time, with its row number in the file.
+    /// With `header: true`, the keys are the header cells, and an empty cell is `null`. Without a header, the keys are the column letters.
+    public function rows(string|int $sheet, RowOptions $options = null): Iterator<Row>
+    {
+        bool|array<string> $text = $options?->text ?? false;
+        Asked $asked = {
+            sheet: $this->sheetName($sheet),
+            headerRow: null,
+            from: $options?->from ?? null,
+            limit: null,
+            columns: $options?->columns ?? [],
+            text: $text is array<string> ? $text : [],
+            textAll: $text is bool && $text,
+            formulas: $options?->formulas ?? false,
+            keepEmptyRows: self::choice($options?->emptyRows ?? null, "emptyRows", "skip", "keep"),
+            fillMerged: self::choice($options?->merged ?? null, "merged", "first", "fill"),
+            skipHidden: self::choice($options?->hidden ?? null, "hidden", "read", "skip"),
+            locale: $options?->locale ?? "en",
+        };
+        Core\Time\Zone $zone = Core\Time\Zone::of($options?->zone ?? "UTC");
+        bool|int $header = $options?->header ?? false;
+        ?uint $headerRow = null;
+        if ($header is int) {
+            if ($header < 1) {
+                throw new LogicError("The option `header` is `true` or a row number, and the first row is 1. It cannot be {$header}.");
+            }
+            $headerRow = $header as uint;
+        }
+        return $this->walk($asked, $header is bool && $header, $headerRow, $options?->from ?? null, $options?->limit ?? null, $zone);
+    }
+
+    private function walk(Asked $asked, bool $findHeader, ?uint $headerRow, ?uint $from, ?uint $limit, Core\Time\Zone $zone): Iterator<Row>
+    {
+        if ($findHeader) {
+            $headerRow = $this->firstRow($asked, $from);
+            if ($headerRow == null) {
+                return;
+            }
+        }
+        array<string> $keys = $this->keys($asked, $headerRow, $from);
+        ?uint $next = $from;
+        ?uint $left = $limit;
+        while (true) {
+            uint $most = 1000;
+            if ($left != null && $left < $most) {
+                $most = $left;
+            }
+            if ($most == 0) {
+                return;
+            }
+            array<Row> $rows = $this->batch($asked, $headerRow, $next, $left, $most, $keys, $zone);
+            uint $count = Core\Arr::count($rows);
+            foreach ($rows as Row $row) {
+                $next = $row->number + 1;
+                yield $row;
+            }
+            if ($count < $most) {
+                return;
+            }
+            ?uint $before = $left;
+            if ($before != null) {
+                $left = $before - $count;
+            }
+        }
+    }
+
+    private function firstRow(Asked $asked, ?uint $from): ?uint
+    {
+        var $first = Engine::readerRows($this->reader, $this->source, self::with($asked, null, $from, 1, false), 1);
+        foreach ($first->rows as var $row) {
+            return $row->number;
+        }
+        return null;
+    }
+
+    private function keys(Asked $asked, ?uint $headerRow, ?uint $from): array<string>
+    {
+        if ($headerRow == null) {
+            return [];
+        }
+        return Engine::readerHeader($this->reader, $this->source, self::with($asked, $headerRow, $from, null, $asked->keepEmptyRows));
+    }
+
+    private function batch(Asked $asked, ?uint $headerRow, ?uint $from, ?uint $left, uint $most, array<string> $keys, Core\Time\Zone $zone): array<Row>
+    {
+        var $batch = Engine::readerRows($this->reader, $this->source, self::with($asked, $headerRow, $from, $left, $asked->keepEmptyRows), $most);
+        array<Row> $rows = [];
+        foreach ($batch->rows as var $row) {
+            array<mixed> $values = [];
+            uint $column = 0;
+            foreach ($keys as string $named) {
+                $column = $column + 1;
+                if (self::selected($asked->columns, $column)) {
+                    $values[$named] = null;
+                }
+            }
+            foreach ($row->cells as var $cell) {
+                string $key = $cell->column <= Core\Arr::count($keys) ? $keys[$cell->column - 1] : self::letters($cell->column);
+                $values[$key] = self::value($cell->value, $cell->formula, $cell->display, $asked->formulas, $zone);
+            }
+            $rows[] = new Row($row->number, $values);
+        }
+        return $rows;
+    }
+
+    private function sheetName(string|int $sheet): string
+    {
+        if ($sheet is string) {
+            return $sheet;
+        }
+        foreach ($this->sheets() as var $info) {
+            if ($info->position as int == $sheet) {
+                return $info->name;
+            }
+        }
+        throw new LogicError("The workbook has no sheet at position {$sheet}. The first sheet is at position 0.");
+    }
+
+    private static function with(Asked $asked, ?uint $headerRow, ?uint $from, ?uint $limit, bool $keepEmptyRows): Asked
+    {
+        return {
+            sheet: $asked->sheet,
+            headerRow: $headerRow,
+            from: $from,
+            limit: $limit,
+            columns: $asked->columns,
+            text: $asked->text,
+            textAll: $asked->textAll,
+            formulas: $asked->formulas,
+            keepEmptyRows: $keepEmptyRows,
+            fillMerged: $asked->fillMerged,
+            skipHidden: $asked->skipHidden,
+            locale: $asked->locale,
+        };
+    }
+
+    private static function choice(?string $given, string $option, string $usual, string $other): bool
+    {
+        if ($given == null || $given == $usual) {
+            return false;
+        }
+        if ($given == $other) {
+            return true;
+        }
+        throw new LogicError("The option `{$option}` is `'{$usual}'` or `'{$other}'`, not `'{$given}'`.");
+    }
+
+    private static function value(?Read $value, ?string $formula, ?string $display, bool $formulas, Core\Time\Zone $zone): mixed
+    {
+        if ($display != null) {
+            return $display;
+        }
+        mixed $plain = self::plain($value, $zone);
+        if ($formulas && $formula != null) {
+            string|int|float|null $cached = null;
+            if ($plain is int) {
+                $cached = $plain;
+            } elseif ($plain is float) {
+                $cached = $plain;
+            }
+            return new Formula($formula, $cached);
+        }
+        return $plain;
+    }
+
+    private static function plain(?Read $value, Core\Time\Zone $zone): mixed
+    {
+        if ($value is tainted {text: string}) {
+            return $value->text;
+        }
+        if ($value is {integer: int}) {
+            return $value->integer;
+        }
+        if ($value is {number: float}) {
+            return $value->number;
+        }
+        if ($value is {boolean: bool}) {
+            return $value->boolean;
+        }
+        if ($value is {day: Core\Time\Date, clock: Core\Time\TimeOfDay}) {
+            return Core\Time::parse($value->day->format("yyyy-MM-dd"), "yyyy-MM-dd", $zone)->withTime($value->clock);
+        }
+        if ($value is {date: Core\Time\Date}) {
+            return $value->date;
+        }
+        if ($value is {time: Core\Time\TimeOfDay}) {
+            return $value->time;
+        }
+        if ($value is {duration: Core\Time\Duration}) {
+            return $value->duration;
+        }
+        if ($value is {error: CellError}) {
+            return $value->error;
+        }
+        return null;
+    }
+
+    private static function selected(array<string> $columns, uint $column): bool
+    {
+        if (Core\Arr::count($columns) == 0) {
+            return true;
+        }
+        foreach ($columns as string $range) {
+            array<string> $ends = Core\Str::split($range, ":");
+            uint $first = self::number($ends[0]);
+            uint $last = Core\Arr::count($ends) > 1 ? self::number($ends[1]) : $first;
+            if ($column >= $first && $column <= $last) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static function number(string $letters): uint
+    {
+        uint $number = 0;
+        foreach (Core\Str::codePoints(Core\Str::upper($letters)) as uint $code) {
+            $number = $number * 26 + ($code - 64);
+        }
+        return $number;
+    }
+
+    private static function letters(uint $column): string
+    {
+        string $letters = "";
+        int $left = $column as int;
+        while ($left > 0) {
+            int $rest = ($left - 1) % 26;
+            $letters = Core\Str::fromCodePoint((65 + $rest) as uint) . $letters;
+            $left = Core\Math::intDiv($left - 1, 26);
+        }
+        return $letters;
+    }
+}

@@ -91,13 +91,13 @@
       "params": [
         {"name": "source", "type": "mixed"}
       ],
-      "returns": "Reader",
+      "returns": "Reading",
       "help": "Opens the workbook in `source`, which is `bytes`. This reads the list of sheets and no rows."
     },
     {
       "name": "readerSheets",
       "params": [
-        {"name": "reader", "type": "Reader"},
+        {"name": "reader", "type": "Reading"},
         {"name": "source", "type": "mixed"}
       ],
       "returns": "array<{name: string, position: uint, visibility: Visibility, rows: uint, columns: uint, kind: SheetKind}>",
@@ -106,7 +106,7 @@
     {
       "name": "readerHeader",
       "params": [
-        {"name": "reader", "type": "Reader"},
+        {"name": "reader", "type": "Reading"},
         {"name": "source", "type": "mixed"},
         {"name": "options", "type": "{sheet: string, headerRow: ?uint, from: ?uint, limit: ?uint, columns: array<string>, text: array<string>, textAll: bool, formulas: bool, keepEmptyRows: bool, fillMerged: bool, skipHidden: bool, locale: string}"}
       ],
@@ -116,7 +116,7 @@
     {
       "name": "readerRows",
       "params": [
-        {"name": "reader", "type": "Reader"},
+        {"name": "reader", "type": "Reading"},
         {"name": "source", "type": "mixed"},
         {"name": "options", "type": "{sheet: string, headerRow: ?uint, from: ?uint, limit: ?uint, columns: array<string>, text: array<string>, textAll: bool, formulas: bool, keepEmptyRows: bool, fillMerged: bool, skipHidden: bool, locale: string}"},
         {"name": "max", "type": "uint"}
@@ -141,7 +141,7 @@
     {"name": "SheetKind", "cases": ["Worksheet", "Chartsheet"], "help": "Whether a sheet has cells or only a chart."},
     {"name": "CellError", "cases": ["Null", "DivZero", "Value", "Ref", "Name", "Num", "NotAvailable", "GettingData", "Spill", "Calc"], "help": "The error a cell shows: `#NULL!`, `#DIV/0!`, `#VALUE!`, `#REF!`, `#NAME?`, `#NUM!`, `#N/A`, `#GETTING_DATA`, `#SPILL!` or `#CALC!`."}
   ],
-  "resources": [{"name": "Writer"}, {"name": "Reader"}],
+  "resources": [{"name": "Writer"}, {"name": "Reading"}],
   "unions": [
     {"name": "ReadValue", "cases": [
       {"name": "Text", "shape": "{text: string}"},
