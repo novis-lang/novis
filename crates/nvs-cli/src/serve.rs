@@ -1019,29 +1019,21 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
             // The carrier, built here because this is the last point at which
             // the arrived request and step 2's remainder are both in hand, and
             // handed to the isolate rather than to this loop's own context —
-            // `Isolate::answering` owns that direction. It interprets nothing:
-            // the verb is the token the peer wrote, the query is everything
-            // after the `?` undecoded, and a header is one entry per field
-            // line in arrival order. The names are `hyper`'s, so they are
-            // lower-cased — a `HeaderName` is normalised on the way in and
-            // there is no spelling left to preserve; `Core\Request::header`
-            // compares case-insensitively regardless (RFC 9110 § 5.1).
-            let mut inbound = Inbound::new(
+            // `Isolate::answering` owns that direction, and [`carrier`] owns
+            // what it reads. The names are `hyper`'s, so they are lower-cased —
+            // a `HeaderName` is normalised on the way in and there is no
+            // spelling left to preserve; `Core\Request::header` compares
+            // case-insensitively regardless (RFC 9110 § 5.1).
+            let mut inbound = carrier(
                 request.method().as_str(),
                 &stripped,
                 request.uri().query().unwrap_or(""),
+                request
+                    .headers()
+                    .iter()
+                    .map(|(name, value)| (name.as_str(), value.as_bytes())),
+                origin,
             );
-            for (name, value) in request.headers() {
-                inbound.push_header(name.as_str(), value.as_bytes());
-            }
-            // And who it came from, which this handler is *told* rather than
-            // reading: `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`'s walk ran on the connection, before the
-            // ceiling and before this Rust closure, because the answer decides
-            // policy on responses no handler ever sees. Both of its answers
-            // land here together — `Inbound::set_peer` owns why they are one
-            // call — and `Core\Request::clientIp()` and `::scheme()` are what
-            // read them back.
-            inbound.set_peer(origin.client(), origin.scheme());
             // `rule:observability/an-inbound-traceparent-is-continued`'s trace, off the header lines just pushed: continued
             // where the peer sent a `traceparent` this understands, and a new
             // root where it did not. `nvs_server::trace` owns why the door
@@ -1121,6 +1113,58 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
                     Some(supply)
                 }
             };
+            // `rule:routing/a-gate-answers-around-every-handler`'s limit: a
+            // dispatching unit's request the door accepted is run again, in a
+            // fresh isolate with no body, when a memory or CPU-time limit stops
+            // its first run, so that its gate's `failed` answers. Nothing is
+            // built until then: the closure keeps the head the door already
+            // holds, and finds the mount again by its place in the table.
+            let rerun = (refusal_mode && inbound.refusal().is_none()).then(|| {
+                let compiler = Arc::clone(&compiler);
+                let at = table
+                    .mounts()
+                    .iter()
+                    .position(|row| std::ptr::eq(row, mount));
+                let table = Rc::clone(&table);
+                let trace = inbound.trace_context();
+                let watched = watched.clone();
+                nvs_server::Rerun::new(move || {
+                    let program: Program = match compiler.compiled(&file.to_string_lossy()) {
+                        Ok((program, _routes)) => program,
+                        Err(message) => Box::new(move |ctx: &mut Ctx, _args| {
+                            ctx.set_pending(message);
+                            Value::null()
+                        }),
+                    };
+                    let mut inbound = carrier(
+                        head.method.as_str(),
+                        &stripped,
+                        head.uri.query().unwrap_or(""),
+                        head.headers
+                            .iter()
+                            .map(|(name, value)| (name.as_str(), value.as_bytes())),
+                        origin,
+                    );
+                    if let Some(trace) = trace {
+                        inbound.set_trace_context(trace);
+                    }
+                    let mount = at.and_then(|at| table.mounts().get(at));
+                    if let Some(mount) = mount {
+                        nvs_server::mount::carry(mount, &mut inbound);
+                    }
+                    inbound.set_refusal(nvs_runtime::routes::Refusal::Limit);
+                    let isolate =
+                        Isolate::new(program, Value::null(), Output::Capture).answering(inbound);
+                    let isolate = match mount {
+                        Some(mount) => at_mount_origin(isolate, mount),
+                        None => isolate,
+                    };
+                    match &watched {
+                        Some(watched) => isolate.watched_by(Rc::clone(watched)),
+                        None => isolate,
+                    }
+                })
+            });
             // And the other half of the row step 1 chose: the origin this
             // mount resolved, which is what the program's absolute links are
             // built from. [`at_mount_origin`] owns why it goes onto the
@@ -1141,7 +1185,10 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
                 Some(watched) => isolate.watched_by(Rc::clone(watched)),
                 None => isolate,
             };
-            Reply::Run(isolate, supply, config)
+            match rerun {
+                Some(rerun) => Reply::Gated(isolate, supply, config, rerun),
+                None => Reply::Run(isolate, supply, config),
+            }
         }
     });
 
@@ -2150,6 +2197,31 @@ fn unreached_origin(mount: &Mounted, routes: &nvs_runtime::routes::Routes) -> Op
 /// the fail-closed direction: `Core\Router::urlAbsolute` throws in a program
 /// with no origin rather than linking to an authority somebody guessed, and
 /// § 3's boot check is what turns that throw into a start that fails instead.
+/// The carrier for a request's verb, its path after the mount's prefix, its
+/// query, its header lines and the peer it came from.
+///
+/// It interprets nothing: the verb is the token the peer wrote, the query is
+/// everything after the `?` undecoded, and a header is one entry per field line
+/// in arrival order. Who the request came from is *told* to the handler rather
+/// than read: `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`'s
+/// walk ran on the connection, because the answer decides policy on responses
+/// no handler ever sees. `Inbound::set_peer` owns why its two answers are one
+/// call, and `Core\Request::clientIp()` and `::scheme()` read them back.
+fn carrier<'h>(
+    method: &str,
+    path: &str,
+    query: &str,
+    headers: impl IntoIterator<Item = (&'h str, &'h [u8])>,
+    origin: Origin,
+) -> Inbound {
+    let mut inbound = Inbound::new(method, path, query);
+    for (name, value) in headers {
+        inbound.push_header(name, value);
+    }
+    inbound.set_peer(origin.client(), origin.scheme());
+    inbound
+}
+
 fn at_mount_origin(isolate: Isolate, mount: &Mounted) -> Isolate {
     match &mount.origin {
         Some(origin) => isolate.at_origin(origin),

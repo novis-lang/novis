@@ -62,6 +62,18 @@ impl Ctx {
         self.limit_handler
     }
 
+    /// The first limit that stopped this request, and `None` while none has.
+    ///
+    /// Recorded by [`Self::run_limit_handler`], which every breach passes
+    /// through whether or not a handler is registered, and read once the
+    /// request has ended: the completion carries it
+    /// ([`crate::host::Failure::limit`]) to a door that may run the gate's
+    /// `failed` in a fresh isolate.
+    #[must_use]
+    pub fn limit_reached(&self) -> Option<Limit> {
+        self.limit_reached
+    }
+
     /// Whether this request registered a tier-1 handler at all.
     ///
     /// The question the ladder asks first, and the reason it is a method rather
@@ -503,6 +515,7 @@ impl Ctx {
                   produced"
     )]
     pub fn run_limit_handler(&mut self, limit: Limit) {
+        self.limit_reached.get_or_insert(limit);
         if !self.has_limit_handler() {
             return;
         }

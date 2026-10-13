@@ -700,6 +700,11 @@ pub enum Refusal {
     Csrf,
     /// The declared body length is over the server's cap: `413`.
     BodyTooLarge,
+    /// The request's first run was stopped by its memory or CPU-time limit,
+    /// and this is the second run, in a fresh isolate under the same limits:
+    /// `500`. Not a refusal the door decides but one it answers the same way,
+    /// so `dispatch` calls the gate's `failed` rather than `refused`.
+    Limit,
 }
 
 impl Refusal {
@@ -710,6 +715,7 @@ impl Refusal {
             Self::UnknownMethod => 501,
             Self::Csrf => 403,
             Self::BodyTooLarge => 413,
+            Self::Limit => 500,
         }
     }
 }

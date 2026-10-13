@@ -1520,6 +1520,7 @@ fn refusal(message: String) -> nvs_host::Failure {
     nvs_host::Failure {
         class: "Error".to_string(),
         message,
+        limit: None,
     }
 }
 
@@ -2279,6 +2280,7 @@ mod tests {
                 &nvs_host::Failure {
                     class: class.to_string(),
                     message: message.to_string(),
+                    limit: None,
                 },
             ));
         }

@@ -2314,12 +2314,14 @@ fn refusal_status(ordinal: i64) -> u16 {
     }
 }
 
-/// The [`REFUSAL`] case of a refusal the door left on the carrier.
-fn door_refusal(refused: nvs_runtime::routes::Refusal) -> i64 {
+/// The [`REFUSAL`] case of a refusal the door left on the carrier, and `None`
+/// for the run after a limit, which `failed` answers.
+fn door_refusal(refused: nvs_runtime::routes::Refusal) -> Option<i64> {
     match refused {
-        nvs_runtime::routes::Refusal::UnknownMethod => refusal::UNKNOWN_METHOD,
-        nvs_runtime::routes::Refusal::Csrf => refusal::CSRF,
-        nvs_runtime::routes::Refusal::BodyTooLarge => refusal::BODY_TOO_LARGE,
+        nvs_runtime::routes::Refusal::UnknownMethod => Some(refusal::UNKNOWN_METHOD),
+        nvs_runtime::routes::Refusal::Csrf => Some(refusal::CSRF),
+        nvs_runtime::routes::Refusal::BodyTooLarge => Some(refusal::BODY_TOO_LARGE),
+        nvs_runtime::routes::Refusal::Limit => None,
     }
 }
 
@@ -2391,8 +2393,14 @@ fn dispatch(ctx: &mut nvs_runtime::Ctx, gate: Value) -> Result<(), Fault> {
     // Refusal mode: the door refused this request and ran the program only so
     // that the gate answers it. The carrier holds no match, so no handler is
     // reachable from here on any path.
+    // A run the door started again after a limit stopped the first one is the
+    // same mode, answered by `failed` with no route and no error: the first
+    // run's isolate is gone, and the limit is not a throw a program can catch.
     if let Some(refused) = inbound.refusal() {
-        return refuse(ctx, gate, door_refusal(refused), Value::null());
+        return match door_refusal(refused) {
+            Some(reason) => refuse(ctx, gate, reason, Value::null()),
+            None => fail(ctx, gate, Value::null(), Value::null()),
+        };
     }
     let matched = inbound.route().cloned();
     let Some(matched) = matched else {
@@ -2459,11 +2467,16 @@ fn dispatch_matched(
         return Ok(());
     };
     let error = caught(ctx, fault)?;
-    ctx.declare_status(500);
-    let answered =
-        nvs_runtime::call_method(ctx, gate, GATE_FAILED, &[route, error.as_value()], DISPATCH);
+    let answered = fail(ctx, gate, route, error.as_value());
     drop(error);
-    match answered? {
+    answered
+}
+
+/// Sets `500` and calls `failed` with `route` and `error`, each `null` or a
+/// value the caller owns.
+fn fail(ctx: &mut nvs_runtime::Ctx, gate: Value, route: Value, error: Value) -> Result<(), Fault> {
+    ctx.declare_status(500);
+    match nvs_runtime::call_method(ctx, gate, GATE_FAILED, &[route, error], DISPATCH)? {
         Some(answer) => {
             release(answer);
             Ok(())

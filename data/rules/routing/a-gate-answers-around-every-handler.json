@@ -1,6 +1,6 @@
 {
   "title": "`Core\\Router::dispatch` calls the matched method, and one gate answers every request it refuses or that fails",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "routing/matching-is-not-dispatching",
     "routing/a-match-is-not-invocable",

@@ -3,7 +3,7 @@
 
 # Routing
 
-*3 of 29 rules below are **designed** rather than shipped, and are marked where they appear.*
+*2 of 29 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="routing-routes-are-compiled-not-registered"></a>
 
@@ -632,7 +632,7 @@ this list; the server still answers none on its behalf, because which to answer 
 
 <a id="routing-a-gate-answers-around-every-handler"></a>
 
-## `Core\Router::dispatch` calls the matched method, and one gate answers every request it refuses or that fails  *(designed — owned by goal route-dispatch)*
+## `Core\Router::dispatch` calls the matched method, and one gate answers every request it refuses or that fails
 
 `rule:routing/a-gate-answers-around-every-handler`
 
@@ -678,9 +678,10 @@ gate may set another status, headers, the body and a log line. The handler never
 | `BadCapture` | `400` | a capture whose type implements `Parses` threw from `parse` |
 
 A server refusal added later is a new case. **`failed` answers a handler that threw,** and a program
-stopped by its memory or time limit: that one runs in a fresh isolate under the same limits, and if it
-fails too the answer is the empty `500` a failing program has always sent. `dispatch` sets `500`
-before it calls `failed`.
+stopped by its memory or CPU-time limit: that one runs again in a fresh isolate under the same limits,
+with no body, and `failed` is told no route and no error, because the first run's isolate is gone and
+a limit is not a throw. If the second run fails too, the answer is the empty `500` a failing program
+has always sent, and nothing runs a third time. `dispatch` sets `500` before it calls `failed`.
 
 **Refusal mode is how the server's own refusals reach the gate.** The door decides exactly as it does
 for any program. For a request it refused for CSRF, for its body size or for an unknown verb, it then
@@ -702,7 +703,9 @@ already ended. The capacity and drain `503`s and a path no mount covers are answ
 run, so their pages, when they exist, are static and come from the configuration.
 
 - **Memory:** one generated jump entry per route, per program. Nothing per request beyond the isolate
-  the request already has; a refused request that reaches the gate costs what any request costs.
+  the request already has; a refused request that reaches the gate costs what any request costs. A
+  dispatching program's request keeps its head until its run ends, which the door held anyway, and
+  a run a limit stopped pays for one more isolate under the same ceiling.
 
 **Declined:**
 - **A dispatch `switch` every program writes.** It repeats every `#[Route]`, nothing checks it, and an

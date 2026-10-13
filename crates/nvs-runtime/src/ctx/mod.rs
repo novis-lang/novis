@@ -552,6 +552,9 @@ pub struct Ctx {
     /// callable for a request that registers one — O(in-flight requests), per
     /// `rule:programs/memory-priority`.
     limit_handler: Value,
+    /// The first limit that stopped this request — [`Ctx::limit_reached`].
+    /// One word per request.
+    limit_reached: Option<Limit>,
     /// `rule:errors/on-limit`'s
     /// reserved slice, in bytes: what [`Ctx::memory_limit`] was *reduced by* so
     /// that the tier-1 handler has somewhere to run once ordinary execution has

@@ -392,6 +392,12 @@ pub struct Failure {
     /// The message, rendered on the child's side. Copying the exception
     /// *object* across is what `rule:security/isolate-shares-nothing` rejected.
     pub message: String,
+    /// The limit that stopped the child ([`crate::Ctx::limit_reached`]), and
+    /// `None` for every other failure. A served request stopped by its memory
+    /// or CPU-time limit is the one reader: its door may run the gate's
+    /// `failed` in a fresh isolate
+    /// (`rule:routing/a-gate-answers-around-every-handler`).
+    pub limit: Option<crate::Limit>,
 }
 
 /// The media type of an answer whose [`Completion::content_type`] is `None` —

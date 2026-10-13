@@ -440,9 +440,70 @@ pub enum Reply {
     /// match has.
     ///
     Run(Isolate, Option<Supply>, Option<Arc<nvs_config::Snapshot>>),
+    /// [`Reply::Run`] for a program that calls `Core\Router::dispatch`, with
+    /// the [`Rerun`] that builds a second isolate for the request when its
+    /// memory or CPU-time limit stops the first
+    /// (`rule:routing/a-gate-answers-around-every-handler`).
+    Gated(
+        Isolate,
+        Option<Supply>,
+        Option<Arc<nvs_config::Snapshot>>,
+        Rerun,
+    ),
     /// Answer with this, having run nothing: § 4 step 1's `404`, step 3's static
     /// file, and every refusal a mount table can reach before a program exists.
     Done(Response<Answer>),
+}
+
+/// The second run of a request whose first a memory or CPU-time limit stopped:
+/// the same program, the same request with no body, and
+/// `nvs_runtime::routes::Refusal::Limit` on its carrier, so that its gate's
+/// `failed` answers. The door builds it, because the door is what knows how a
+/// carrier is made, and only for a run that has stopped.
+///
+/// **What it spends:** whatever the closure keeps of the request for as long
+/// as the first run lasts — the door keeps the request's head, which it
+/// already held, so a request that is never run again copies nothing.
+pub struct Rerun(Box<dyn FnOnce() -> Isolate>);
+
+impl Rerun {
+    /// The rerun `build` makes when it is asked for.
+    pub fn new(build: impl FnOnce() -> Isolate + 'static) -> Self {
+        Self(Box::new(build))
+    }
+
+    fn build(self) -> Isolate {
+        (self.0)()
+    }
+}
+
+/// The two halves of a [`Reply::Run`] or [`Reply::Gated`], and a
+/// [`Reply::Done`]'s answer as the error.
+type Started = (
+    Isolate,
+    Option<Supply>,
+    Option<Arc<nvs_config::Snapshot>>,
+    Option<Rerun>,
+);
+
+impl Reply {
+    /// What is run for this reply, with the [`Rerun`] a gated one carries, or
+    /// the answer of one that runs nothing.
+    fn started(self) -> Result<Started, Response<Answer>> {
+        match self {
+            Self::Run(isolate, supply, chosen) => Ok((isolate, supply, chosen, None)),
+            Self::Gated(isolate, supply, chosen, rerun) => {
+                Ok((isolate, supply, chosen, Some(rerun)))
+            }
+            Self::Done(response) => Err(response),
+        }
+    }
+}
+
+impl std::fmt::Debug for Rerun {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Rerun")
+    }
 }
 
 /// The publish the door took at this request's start, which a handler takes
@@ -1602,11 +1663,11 @@ where
         // The publish the host's snapshot above came from, for the handler to
         // take the selected entry's snapshot out of ([`published_of`]).
         request.extensions_mut().insert(published);
-        let mut answered = match handler(request, origin) {
+        let mut answered = match handler(request, origin).started() {
             // Already an answer: a mount table's `404`, or a file this server is
             // sending rather than running. Nothing is started for it, so the
             // isolate accounting below does not apply to it either.
-            Reply::Done(response) => response,
+            Err(response) => response,
             // **This future may not run the request; it may only wait for it.**
             // The reason is `hyper`'s dispatcher rather than anything here: its
             // h1 loop runs `poll_read` and `poll_write` in that order on one
@@ -1625,253 +1686,292 @@ where
             // to drive: `crate::body::Supply` holds the `Incoming` the handler
             // could not send to the isolate, and one `pump` per poll reads a
             // chunk for a request that is waiting for one.
-            Reply::Run(isolate, supply, chosen) => {
-                // The label, off the match `crate::route::take` already wrote
-                // onto the carrier — a name out of the compile-time table, which
-                // is the whole of why this reads a match rather than a path. The
-                // one arm that can have one: a `Reply::Done` is a mount table's
-                // `404` or a file, neither of which matched a route, and the
-                // three refusals above it answered before a unit was even
-                // selected.
-                labelled = isolate
-                    .answering_request()
-                    .and_then(crate::route::label)
-                    .map(Box::from);
-                // The status the door refused this request with, where it runs
-                // the program in `rule:routing/a-gate-answers-around-every-handler`'s
-                // refusal mode. A run that fails answers this status with no
-                // body, which is the door's own answer, and never a `500`.
-                let refusal = isolate
-                    .answering_request()
-                    .and_then(nvs_runtime::Inbound::refusal)
-                    .and_then(|refused| StatusCode::from_u16(refused.status()).ok());
-                // `rule:observability/four-kinds-become-a-span`'s root, taken
-                // off the carrier beside the label and at the same last moment,
-                // for the same reason: the trace the door decided rides on the
-                // request ([`crate::trace::take`]), and `Isolate::start` is
-                // about to move that request into a context this loop never
-                // holds. The request line is copied here rather than derived
-                // from the completion, which carries no request.
-                //
-                // Asked under the sampled flag, so an unsampled request pays a
-                // load and a branch and never an allocation: what `spans` would
-                // answer for one is an empty graph, and this is where that is
-                // cheapest to know. The path carries no query string, which is
-                // `rule:observability/trace-events-carry-a-kind`'s rule about
-                // what a trace is a `secret` sink for.
-                let recording = isolate.answering_request().and_then(|request| {
-                    let trace = request.trace_context()?;
-                    trace
-                        .sampled()
-                        .then(|| (format!("{} {}", request.method(), request.path()), trace))
-                });
-                // The offer reaches the program through the carrier the handler
-                // built, which is why it is made here and not above: this loop
-                // never holds an `Inbound`, and `Isolate::offering_upgrade` is
-                // the one point at which the slot and that carrier are in the
-                // same hand. A reply that answers no request is left alone by
-                // it, exactly as `Reply::Done` is by having no arm here at all.
-                let isolate = match offered.as_ref() {
-                    Some((slot, _accept)) => isolate.offering_upgrade(slot.clone()),
-                    None => isolate,
-                };
-                // § 5's cell, offered unconditionally beside it and in the same
-                // hand for the same reason. No `match`, because there is no
-                // question to ask: every request the server runs is offered
-                // one, and a reply that answers no request is left alone by
-                // `Isolate::offering_sse` itself.
-                let isolate = isolate.offering_sse(streaming.clone());
-                // The third cell, offered with no question asked for the reason
-                // the second one is not asked about either: every request the
-                // server runs may answer in pieces, and one that does not
-                // leaves the cell empty.
-                let isolate = isolate.offering_response_stream(opening.clone());
-                // This request's own stop word and deadline, before the line
-                // below arms anything off them: a connection carries any number
-                // of requests and the tree a request is stopped in is that
-                // request's, where a word held for the socket would make the
-                // request after a stopped one a `FATAL` at its first poll.
-                // `Ctx::reroot` owns why the pair is replaced rather than
-                // cleared, and why this is ahead of the arming and not behind
-                // it.
-                ctx.borrow_mut().reroot();
-                // The snapshot the program runs under: the one the handler
-                // chose for its entry, or the host's where it chose none. It is
-                // written to the connection's own context because that context
-                // is this request tree's root — `Ctx::isolate` carries the
-                // configuration down to the child, while the ceiling a watchdog
-                // charges the tree against is read off this one
-                // ([`nvs_host::Isolate::watched_by`]). Every ceiling under
-                // `[limits]` and every capability an entry asks for is this
-                // line: a context nobody configured states no ceiling and
-                // grants nothing.
-                let under = chosen.unwrap_or_else(|| Arc::clone(&snapshot));
-                ctx.borrow_mut().set_config(Arc::clone(&under));
-                // A statement of its own, because the borrow a `match`
-                // scrutinee takes lives to the end of the whole `match` — and
-                // the arm below borrows the same context again to collect.
-                let started = isolate.start(&mut ctx.borrow_mut());
-                match started {
-                    Ok(running) => {
-                        // An unreadable list is one the boot refused, so the
-                        // `false` here is never reached by a request. Read off
-                        // the program's snapshot, because the two keys sit
-                        // under `[limits]` and an `[[app]]` block may write them.
-                        let disconnect =
-                            nvs_config::app::disconnect_for(&under.config, &under.origins).ok();
-                        let mut peer = Peer {
-                            running: Some(running),
-                            supply,
-                            cancels: disconnect
-                                .as_ref()
-                                .is_some_and(|disconnect| disconnect.cancels(verb.as_str())),
-                            grace: disconnect
-                                .map_or(nvs_config::app::DISCONNECT_GRACE, |disconnect| {
-                                    disconnect.grace
-                                }),
-                            tree: ctx.borrow().safepoint_view(),
-                            draining: draining.clone(),
-                            seen: drain_seen.clone(),
-                            period: drain_period,
-                        };
-                        let mut parked = false;
-                        let mut cut = false;
-                        // No waker is registered, and that is the seam rather
-                        // than an omission: what ends this wait is the
-                        // isolate's own end waking the **task** that started it
-                        // (`Isolate::start` takes this connection's `Wake`),
-                        // and `rule:concurrency/one-future-per-connection`'s loop re-polls whatever the task
-                        // was resumed for. A waker stored here would be a
-                        // second route to the same resume.
-                        let opened = std::future::poll_fn(|cx| {
-                            // The one thing this wait does besides ask: a
-                            // request parked on a pull has published that it
-                            // wants a chunk and woken this task, and `cx` is
-                            // the context `hyper`'s `Incoming` has to be
-                            // polled with. Ahead of the question, so that a
-                            // request whose last act is to read its body is
-                            // answered on this poll rather than one later.
-                            if let Some(supply) = peer.supply.as_mut() {
-                                supply.pump(cx);
-                            }
-                            // The head, asked **before** the end below and
-                            // never after it: a request that opened a stream
-                            // and then ended between two polls still answers
-                            // with the head it opened, where the other order
-                            // would answer it with an empty buffered body and
-                            // drop every byte it wrote. This poll's waker goes
-                            // into the cell for the case the wait exists for —
-                            // a program that opens a stream and then parks,
-                            // whose head nothing else would come back to look
-                            // for.
-                            if let Some(head) = opening.take(cx.waker()) {
-                                return Poll::Ready(Some(head));
-                            }
-                            if peer.finished() {
-                                return Poll::Ready(None);
-                            }
-                            // `rule:concurrency/a-drain-closes-a-connection-cleanly`:
-                            // the drain period bounds a request whose program is
-                            // still running, and such a request moves no bytes, so
-                            // no wait of the adapter's ends it. The cut is taken
-                            // here, at the end of the same period the adapter's
-                            // waits end at.
-                            let cut_at = draining
-                                .is_draining()
-                                .then(|| drain_seen.period_ends(drain_period));
-                            if cut_at.is_some_and(|at| at <= Instant::now()) {
-                                cut = true;
-                                return Poll::Ready(None);
-                            }
-                            // The drive files the wake for this instant after
-                            // its pass, for `crate::bounds::wake_at`'s reason.
-                            cut_due.set(cut_at);
-                            parked = true;
-                            Poll::Pending
-                        })
-                        .await;
-                        cut_due.set(None);
-                        // A request that made this future answer `Pending` left
-                        // `hyper`'s read side blocked on the head it speculated
-                        // about while the isolate ran — and a blocked read side
-                        // is the one case `Conn::maybe_notify` skips its
-                        // post-response read in. That read is what ends
-                        // `Phase::Write` and starts the keep-alive clock
-                        // (`crate::io`'s § *The clock*), so without a second
-                        // poll an idle connection would sit under the write
-                        // wait instead of § 5's keep-alive one. One wake is the
-                        // whole fix: `rule:concurrency/a-waker-is-one-permission-to-poll`'s loop re-polls with the
-                        // response written and the dispatcher idle, which is
-                        // where `hyper` reads again.
-                        if parked {
-                            std::future::poll_fn(|cx| {
-                                cx.waker().wake_by_ref();
-                                Poll::Ready(())
+            //
+            // The body is a loop for `rule:routing/a-gate-answers-around-every-handler`'s
+            // limit: a gated run that a memory or CPU-time limit stopped goes
+            // round once more with the isolate its [`Rerun`] builds, which has
+            // no body, and answers with what that one sends.
+            Ok((first, first_supply, chosen, mut rerun)) => {
+                let mut next = Some((first, first_supply));
+                let mut first_run = true;
+                loop {
+                    let Some((isolate, supply)) = next.take() else {
+                        break failed();
+                    };
+                    let rerunning = !std::mem::replace(&mut first_run, false);
+                    let mut by_limit = false;
+                    // The label, off the match `crate::route::take` already wrote
+                    // onto the carrier — a name out of the compile-time table, which
+                    // is the whole of why this reads a match rather than a path. The
+                    // one arm that can have one: a `Reply::Done` is a mount table's
+                    // `404` or a file, neither of which matched a route, and the
+                    // three refusals above it answered before a unit was even
+                    // selected. A rerun's carrier has no match, so the first run's
+                    // label stays.
+                    if !rerunning {
+                        labelled = isolate
+                            .answering_request()
+                            .and_then(crate::route::label)
+                            .map(Box::from);
+                    }
+                    // The status the door refused this request with, where it runs
+                    // the program in `rule:routing/a-gate-answers-around-every-handler`'s
+                    // refusal mode. A run that fails answers this status with no
+                    // body, which is the door's own answer, and never a `500`.
+                    let refusal = isolate
+                        .answering_request()
+                        .and_then(nvs_runtime::Inbound::refusal)
+                        .and_then(|refused| StatusCode::from_u16(refused.status()).ok());
+                    // `rule:observability/four-kinds-become-a-span`'s root, taken
+                    // off the carrier beside the label and at the same last moment,
+                    // for the same reason: the trace the door decided rides on the
+                    // request ([`crate::trace::take`]), and `Isolate::start` is
+                    // about to move that request into a context this loop never
+                    // holds. The request line is copied here rather than derived
+                    // from the completion, which carries no request.
+                    //
+                    // Asked under the sampled flag, so an unsampled request pays a
+                    // load and a branch and never an allocation: what `spans` would
+                    // answer for one is an empty graph, and this is where that is
+                    // cheapest to know. The path carries no query string, which is
+                    // `rule:observability/trace-events-carry-a-kind`'s rule about
+                    // what a trace is a `secret` sink for.
+                    let recording = isolate.answering_request().and_then(|request| {
+                        let trace = request.trace_context()?;
+                        trace
+                            .sampled()
+                            .then(|| (format!("{} {}", request.method(), request.path()), trace))
+                    });
+                    // The offer reaches the program through the carrier the handler
+                    // built, which is why it is made here and not above: this loop
+                    // never holds an `Inbound`, and `Isolate::offering_upgrade` is
+                    // the one point at which the slot and that carrier are in the
+                    // same hand. A reply that answers no request is left alone by
+                    // it, exactly as `Reply::Done` is by having no arm here at all.
+                    // A rerun answers with a page, so it is offered no upgrade.
+                    let isolate = match offered.as_ref().filter(|_| !rerunning) {
+                        Some((slot, _accept)) => isolate.offering_upgrade(slot.clone()),
+                        None => isolate,
+                    };
+                    // § 5's cell, offered unconditionally beside it and in the same
+                    // hand for the same reason. No `match`, because there is no
+                    // question to ask: every request the server runs is offered
+                    // one, and a reply that answers no request is left alone by
+                    // `Isolate::offering_sse` itself.
+                    let isolate = isolate.offering_sse(streaming.clone());
+                    // The third cell, offered with no question asked for the reason
+                    // the second one is not asked about either: every request the
+                    // server runs may answer in pieces, and one that does not
+                    // leaves the cell empty.
+                    let isolate = isolate.offering_response_stream(opening.clone());
+                    // This request's own stop word and deadline, before the line
+                    // below arms anything off them: a connection carries any number
+                    // of requests and the tree a request is stopped in is that
+                    // request's, where a word held for the socket would make the
+                    // request after a stopped one a `FATAL` at its first poll.
+                    // `Ctx::reroot` owns why the pair is replaced rather than
+                    // cleared, and why this is ahead of the arming and not behind
+                    // it.
+                    ctx.borrow_mut().reroot();
+                    // The snapshot the program runs under: the one the handler
+                    // chose for its entry, or the host's where it chose none. It is
+                    // written to the connection's own context because that context
+                    // is this request tree's root — `Ctx::isolate` carries the
+                    // configuration down to the child, while the ceiling a watchdog
+                    // charges the tree against is read off this one
+                    // ([`nvs_host::Isolate::watched_by`]). Every ceiling under
+                    // `[limits]` and every capability an entry asks for is this
+                    // line: a context nobody configured states no ceiling and
+                    // grants nothing.
+                    let under = chosen.clone().unwrap_or_else(|| Arc::clone(&snapshot));
+                    ctx.borrow_mut().set_config(Arc::clone(&under));
+                    // A statement of its own, because the borrow a `match`
+                    // scrutinee takes lives to the end of the whole `match` — and
+                    // the arm below borrows the same context again to collect.
+                    let started = isolate.start(&mut ctx.borrow_mut());
+                    let response = match started {
+                        Ok(running) => {
+                            // An unreadable list is one the boot refused, so the
+                            // `false` here is never reached by a request. Read off
+                            // the program's snapshot, because the two keys sit
+                            // under `[limits]` and an `[[app]]` block may write them.
+                            let disconnect =
+                                nvs_config::app::disconnect_for(&under.config, &under.origins).ok();
+                            let mut peer = Peer {
+                                running: Some(running),
+                                supply,
+                                cancels: disconnect
+                                    .as_ref()
+                                    .is_some_and(|disconnect| disconnect.cancels(verb.as_str())),
+                                grace: disconnect
+                                    .map_or(nvs_config::app::DISCONNECT_GRACE, |disconnect| {
+                                        disconnect.grace
+                                    }),
+                                tree: ctx.borrow().safepoint_view(),
+                                draining: draining.clone(),
+                                seen: drain_seen.clone(),
+                                period: drain_period,
+                            };
+                            let mut parked = false;
+                            let mut cut = false;
+                            // No waker is registered, and that is the seam rather
+                            // than an omission: what ends this wait is the
+                            // isolate's own end waking the **task** that started it
+                            // (`Isolate::start` takes this connection's `Wake`),
+                            // and `rule:concurrency/one-future-per-connection`'s loop re-polls whatever the task
+                            // was resumed for. A waker stored here would be a
+                            // second route to the same resume.
+                            let opened = std::future::poll_fn(|cx| {
+                                // The one thing this wait does besides ask: a
+                                // request parked on a pull has published that it
+                                // wants a chunk and woken this task, and `cx` is
+                                // the context `hyper`'s `Incoming` has to be
+                                // polled with. Ahead of the question, so that a
+                                // request whose last act is to read its body is
+                                // answered on this poll rather than one later.
+                                if let Some(supply) = peer.supply.as_mut() {
+                                    supply.pump(cx);
+                                }
+                                // The head, asked **before** the end below and
+                                // never after it: a request that opened a stream
+                                // and then ended between two polls still answers
+                                // with the head it opened, where the other order
+                                // would answer it with an empty buffered body and
+                                // drop every byte it wrote. This poll's waker goes
+                                // into the cell for the case the wait exists for —
+                                // a program that opens a stream and then parks,
+                                // whose head nothing else would come back to look
+                                // for.
+                                if let Some(head) = opening.take(cx.waker()) {
+                                    return Poll::Ready(Some(head));
+                                }
+                                if peer.finished() {
+                                    return Poll::Ready(None);
+                                }
+                                // `rule:concurrency/a-drain-closes-a-connection-cleanly`:
+                                // the drain period bounds a request whose program is
+                                // still running, and such a request moves no bytes, so
+                                // no wait of the adapter's ends it. The cut is taken
+                                // here, at the end of the same period the adapter's
+                                // waits end at.
+                                let cut_at = draining
+                                    .is_draining()
+                                    .then(|| drain_seen.period_ends(drain_period));
+                                if cut_at.is_some_and(|at| at <= Instant::now()) {
+                                    cut = true;
+                                    return Poll::Ready(None);
+                                }
+                                // The drive files the wake for this instant after
+                                // its pass, for `crate::bounds::wake_at`'s reason.
+                                cut_due.set(cut_at);
+                                parked = true;
+                                Poll::Pending
                             })
                             .await;
+                            cut_due.set(None);
+                            // A request that made this future answer `Pending` left
+                            // `hyper`'s read side blocked on the head it speculated
+                            // about while the isolate ran — and a blocked read side
+                            // is the one case `Conn::maybe_notify` skips its
+                            // post-response read in. That read is what ends
+                            // `Phase::Write` and starts the keep-alive clock
+                            // (`crate::io`'s § *The clock*), so without a second
+                            // poll an idle connection would sit under the write
+                            // wait instead of § 5's keep-alive one. One wake is the
+                            // whole fix: `rule:concurrency/a-waker-is-one-permission-to-poll`'s loop re-polls with the
+                            // response written and the dispatcher idle, which is
+                            // where `hyper` reads again.
+                            if parked {
+                                std::future::poll_fn(|cx| {
+                                    cx.waker().wake_by_ref();
+                                    Poll::Ready(())
+                                })
+                                .await;
+                            }
+                            match opened {
+                                // The head goes out with the request still running,
+                                // so nothing is joined here: the isolate and the
+                                // place it holds move onto the connection, and the
+                                // drive loop at the end of this function collects
+                                // them once the body they are writing has ended.
+                                Some(head) => {
+                                    let head = streamed(
+                                        head,
+                                        DrainCut {
+                                            draining: draining.clone(),
+                                            seen: drain_seen.clone(),
+                                            period: drain_period,
+                                            due: Rc::clone(cut_due),
+                                        },
+                                    );
+                                    *writing.borrow_mut() = Some(Streamed {
+                                        peer,
+                                        _place: place,
+                                        recording,
+                                    });
+                                    break head;
+                                }
+                                // The drain period ended with the program still
+                                // running. The request tree is cancelled and this
+                                // waits for it to end, and the client is told the
+                                // server is going away.
+                                None if cut => {
+                                    peer.cancel();
+                                    cut_by_the_drain()
+                                }
+                                // Nothing left to wait for, so this join does not
+                                // park.
+                                None => {
+                                    peer.collect(&mut ctx.borrow_mut()).map_or_else(
+                                        || refusal.map_or_else(failed, empty),
+                                        |done| {
+                                            // The events the request filed, on the
+                                            // completion because that is the one channel out
+                                            // of a finished isolate
+                                            // (`nvs_runtime::host::Completion::trace`), and
+                                            // derived here because this is where the request
+                                            // has ended and its graph is complete.
+                                            if let Some((request, trace)) = &recording {
+                                                crate::trace::record(request, trace, &done.trace);
+                                            }
+                                            let ok = done.ok;
+                                            // Memory and CPU time are the limits
+                                            // the gate's `failed` answers. A run
+                                            // the door refused keeps its own
+                                            // answer below.
+                                            by_limit = refusal.is_none()
+                                                && done.error.as_ref().is_some_and(|error| {
+                                                    matches!(
+                                                        error.limit,
+                                                        Some(
+                                                            nvs_runtime::Limit::Memory
+                                                                | nvs_runtime::Limit::CpuTime
+                                                        )
+                                                    )
+                                                });
+                                            let response = finished(done, &asked);
+                                            match refusal {
+                                                Some(status) if !ok => empty(status),
+                                                _ => response,
+                                            }
+                                        },
+                                    )
+                                }
+                            }
                         }
-                        match opened {
-                            // The head goes out with the request still running,
-                            // so nothing is joined here: the isolate and the
-                            // place it holds move onto the connection, and the
-                            // drive loop at the end of this function collects
-                            // them once the body they are writing has ended.
-                            Some(head) => {
-                                let head = streamed(
-                                    head,
-                                    DrainCut {
-                                        draining: draining.clone(),
-                                        seen: drain_seen.clone(),
-                                        period: drain_period,
-                                        due: Rc::clone(cut_due),
-                                    },
-                                );
-                                *writing.borrow_mut() = Some(Streamed {
-                                    peer,
-                                    _place: place,
-                                    recording,
-                                });
-                                head
-                            }
-                            // The drain period ended with the program still
-                            // running. The request tree is cancelled and this
-                            // waits for it to end, and the client is told the
-                            // server is going away.
-                            None if cut => {
-                                peer.cancel();
-                                cut_by_the_drain()
-                            }
-                            // Nothing left to wait for, so this join does not
-                            // park.
-                            None => {
-                                peer.collect(&mut ctx.borrow_mut()).map_or_else(
-                                    || refusal.map_or_else(failed, empty),
-                                    |done| {
-                                        // The events the request filed, on the
-                                        // completion because that is the one channel out
-                                        // of a finished isolate
-                                        // (`nvs_runtime::host::Completion::trace`), and
-                                        // derived here because this is where the request
-                                        // has ended and its graph is complete.
-                                        if let Some((request, trace)) = &recording {
-                                            crate::trace::record(request, trace, &done.trace);
-                                        }
-                                        let ok = done.ok;
-                                        let response = finished(done, &asked);
-                                        match refusal {
-                                            Some(status) if !ok => empty(status),
-                                            _ => response,
-                                        }
-                                    },
-                                )
-                            }
-                        }
+                        // The *argument* had no meaning on the other side, so no
+                        // request was ever started. Everywhere else that is the
+                        // parent's to raise; here the parent is a connection with
+                        // nobody to raise it in, so it is one more `500`.
+                        Err(_refused) => failed(),
+                    };
+                    // The first run's answer is dropped unsent: the rerun is what
+                    // answers, and a rerun that fails as well answers the door's
+                    // empty `500` through the carrier's status above.
+                    match rerun.take().filter(|_| by_limit) {
+                        Some(build) => next = Some((build.build(), None)),
+                        None => break response,
                     }
-                    // The *argument* had no meaning on the other side, so no
-                    // request was ever started. Everywhere else that is the
-                    // parent's to raise; here the parent is a connection with
-                    // nobody to raise it in, so it is one more `500`.
-                    Err(_refused) => failed(),
                 }
             }
         };

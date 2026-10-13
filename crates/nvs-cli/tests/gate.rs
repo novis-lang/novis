@@ -2,7 +2,9 @@
 //! outside the process: the built `nvs serve` over a program that calls
 //! `Core\Router::dispatch`, and the door's three refusals — CSRF, a body over
 //! the cap and an unknown verb — answered by the program's gate and never by
-//! its route method.
+//! its route method. And its limit: a run stopped by its memory or CPU-time
+//! limit answered by the gate's `failed`, from a second run under the same
+//! limits.
 //!
 //! [`Server`] starts the binary this test was built beside on a port the
 //! platform chose and reads the port back from the `listening on` line, as
@@ -92,6 +94,11 @@ impl Server {
     /// line within [`BOOT`]; the message carries what it wrote to standard
     /// error.
     fn start(case: &str, program: &str) -> Self {
+        Self::start_with(case, program, "")
+    }
+
+    /// [`Self::start`], with `more` appended to the configuration.
+    fn start_with(case: &str, program: &str, more: &str) -> Self {
         let dir = Path::new(env!("CARGO_TARGET_TMPDIR"))
             .join(format!("gate-{case}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
@@ -99,7 +106,7 @@ impl Server {
         std::fs::write(dir.join("app.nvs"), program).expect("the program is written");
         std::fs::write(
             dir.join("nvs.toml"),
-            "[mode]\ndefault = \"production\"\n\n[server]\nworkers = 1\n",
+            format!("[mode]\ndefault = \"production\"\n\n[server]\nworkers = 1\n{more}"),
         )
         .expect("the configuration is written");
         let data = nvs_repo::scratch_private("nvsdata");
@@ -288,6 +295,97 @@ fn a_gate_that_throws_leaves_the_empty_answer() {
     assert_eq!(server.send("POST", FORGED), (403, String::new()));
     assert_eq!(server.send("POST", OVER_THE_CAP), (413, String::new()));
     assert_eq!(server.send(UNKNOWN, ""), (501, String::new()));
+}
+
+/// A program whose `GET` route method runs `{body}` after it writes a line,
+/// and whose gate's `failed` runs `{failed}` and then prints the route and
+/// the error it was given.
+const OVER: &str = "<?nvs\n\
+class Endless {\n\
+    public static function counter(): Iterator<int> {\n\
+        int $i = 0;\n\
+        while ($i < 4000000) {\n\
+            yield $i;\n\
+            $i = $i + 1;\n\
+        }\n\
+    }\n\
+}\n\
+class Notes {\n\
+    #[Core\\Route(path: \"/notes\", method: Core\\Http\\Method::Get, name: \"list\")]\n\
+    #[Core\\Access(allow: Core\\Audience::Public)]\n\
+    public static function list(): void {\n\
+        echo \"handler started\";\n\
+        {body}\n\
+    }\n\
+}\n\
+class Gate implements Core\\Router\\Gate {\n\
+    public function allows(Core\\Router\\Match $route): bool {\n\
+        return true;\n\
+    }\n\
+    public function refused(Core\\Router\\Refusal $reason, ?Core\\Router\\Match $route): void {\n\
+        echo \"refused\";\n\
+    }\n\
+    public function failed(?Core\\Router\\Match $route, ?Throwable $error): void {\n\
+        {failed}\n\
+        echo \"failed for \", $route?->name() ?? \"no route\";\n\
+        echo \" with \", $error?->message ??\"no error\";\n\
+    }\n\
+}\n\
+Core\\Router::dispatch(new Gate());\n";
+
+/// Builds an array of four million numbers, which is over a 16 MB limit.
+const GROWS: &str = "array<int> $all = Core\\Arr::from(Endless::counter());\n\
+        echo Core\\Arr::count($all);";
+
+/// Counts for as long as it may, and never ends by itself.
+const SPINS: &str = "int $spins = 0;\n\
+        while ($spins >= 0) {\n\
+            $spins = $spins + 1;\n\
+        }";
+
+/// A program whose route method runs `body` and whose `failed` runs `failed`.
+fn over(body: &str, failed: &str) -> String {
+    OVER.replace("{body}", body).replace("{failed}", failed)
+}
+
+#[test]
+fn a_program_over_its_memory_limit_reaches_failed() {
+    let server = Server::start_with("memory", &over(GROWS, ""), "\n[limits]\nmemory = \"16M\"\n");
+    // The first run's line is not sent: the answer is the second run's page.
+    let (status, body) = server.send("GET", "");
+    assert_eq!(
+        (status, body.as_str()),
+        (500, "failed for no route with no error"),
+        "{}",
+        server.said()
+    );
+}
+
+#[test]
+fn a_program_over_its_time_limit_reaches_failed() {
+    let server = Server::start_with(
+        "time",
+        &over(SPINS, ""),
+        "\n[limits]\ncpu_time = \"200ms\"\n",
+    );
+    let (status, body) = server.send("GET", "");
+    assert_eq!(
+        (status, body.as_str()),
+        (500, "failed for no route with no error"),
+        "{}",
+        server.said()
+    );
+}
+
+#[test]
+fn a_failed_page_over_the_limit_leaves_the_empty_500() {
+    let server = Server::start_with(
+        "failed-over",
+        &over(SPINS, SPINS),
+        "\n[limits]\ncpu_time = \"200ms\"\n",
+    );
+    // The second run is stopped too, and nothing is run a third time.
+    assert_eq!(server.send("GET", ""), (500, String::new()));
 }
 
 #[test]

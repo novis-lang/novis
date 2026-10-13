@@ -140,6 +140,7 @@ impl Ctx {
             memory_limit: 0,
             output_limit: 0,
             limit_handler: Value::null(),
+            limit_reached: None,
             fatal_reserve: 0,
             cpu_limit: 0,
             fatal_reserve_time: 0,
