@@ -1747,8 +1747,9 @@ nvs_runtime::nvs_helper! {
     /// [`Ctx::route`](nvs_runtime::Ctx::route) takes of the absent table.
     ///
     /// **Each verb appears once**, because `methods_for` answers verbs rather
-    /// than rows, and an enum case is its ordinal on the way out (`rule:enums/closed-integer-type`) —
-    /// the same crossing `Core\Request::method` makes in the other direction.
+    /// than rows. Each is its ordinal under the enum tag
+    /// (`rule:enums/representation`), because an array element is a tagged
+    /// slot and a callable `Core\Arr` hands it to checks that tag.
     fn nvs_core_router_methods_for(ctx, args: [1]) {
         // Unreachable from source, as every mistyped argument slot is: the
         // row's parameter is `CoreTy::Text(Qual::Neutral)`, so `E0401` refuses
@@ -1765,7 +1766,7 @@ nvs_runtime::nvs_helper! {
         if let Some(table) = ctx.routes() {
             for verb in table.methods_for(path) {
                 if let Some(ordinal) = method_case(verb) {
-                    verbs.append(Value::int(ordinal));
+                    verbs.append(Value::enum_int(ordinal));
                 }
             }
         }

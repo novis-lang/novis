@@ -275,6 +275,24 @@ impl Value {
         Self::new(Tag::Uint, value)
     }
 
+    /// A case of an `int`-backed enum, by its backing value.
+    ///
+    /// Rust code that puts a case into an array, a property or any other
+    /// tagged slot writes it with this, never with [`Self::int`]: a reader
+    /// that checks the tag — a callable's enum parameter, `is`, a condition —
+    /// reads a plain `int` as an `int` (`rule:enums/representation`).
+    #[must_use]
+    pub const fn enum_int(value: i64) -> Self {
+        Self::new(Tag::EnumInt, value.cast_unsigned())
+    }
+
+    /// A case of a `uint`-backed enum, by its backing value. The tagged slots
+    /// that need it are [`Self::enum_int`]'s.
+    #[must_use]
+    pub const fn enum_uint(value: u64) -> Self {
+        Self::new(Tag::EnumUint, value)
+    }
+
     /// A `float`.
     #[must_use]
     pub const fn float(value: f64) -> Self {
