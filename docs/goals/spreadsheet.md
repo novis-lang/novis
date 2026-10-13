@@ -768,11 +768,12 @@ One file set: `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/n
 
 ### State
 
-**Stage 7 has its Novis half for `bytes`.** `Reader::open`, `sheets()` and `rows()` read an xlsx, and `spreadsheet-an-upload-reads-with-row-numbers` is green. `nvs-ext-the-spreadsheet-reader` still lacks six of the test names it lists, the xlsb one among them.
+**Stage 7 reads xlsx and xlsb from `bytes`.** `Reader::open`, `sheets()` and `rows()` read both, and `spreadsheet-an-upload-reads-with-row-numbers` is green. `nvs-ext-the-spreadsheet-reader` still lacks five of the test names it lists, `xlsm_xls_and_ods_are_read_whole` first.
 
-- **Each row is a `Row` with `number` and `values`. The row number is not the `foreach` key**, which the standing decision asked for. A cursor has no key half (`rule:iteration/foreach-subjects`), so a key would be a language change. The user has been told. `rule:core-classes/spreadsheet-reads-as-a-stream` and `rule:core-classes/spreadsheet-roster` say what ships.
-- The WIT resource is `reading` (Novis `Reading`), because a manifest's resource is a class in `Novis\Spreadsheet` and would take the name `Reader`. `template` will meet the same clash with `Template` in Stage 10.
-- `rows` asks for 1,000 rows a call, with `from` one past the last row it got. `header: true` costs one more call, for the number of the first row with a value. A shape union from the manifest cannot be named in Novis, so `Reader.nvs` declares `Read` itself, as `Workbook.nvs` declares `Value`.
+- **xlsb is our own reader, not calamine** (`extensions/spreadsheet/src/read/binary.rs:1`), for the reasons the xlsx reader is: one arena for the shared strings, the cell styles for dates, and a cursor that keeps its place between calls. Its rows are the xlsx cursor's `RawRow`, so one `value` reads both. `rule:core-classes/spreadsheet-evaluation-and-roster` now says calamine reads xls and ods only.
+- An xlsb formula is stored as tokens, so `formulas: true` gives no `Formula` for an xlsb cell. `rule:core-classes/spreadsheet-reads-as-a-stream` says so.
+- **Each row is a `Row` with `number` and `values`. The row number is not the `foreach` key**, which the standing decision asked for. A cursor has no key half (`rule:iteration/foreach-subjects`). The user has been told.
+- The WIT resource is `reading` (Novis `Reading`), because a manifest's resource is a class in `Novis\Spreadsheet`. `template` will meet the same clash with `Template` in Stage 10.
 - Text read from a file is `tainted`. So `formulas: true` gives a `Formula` with a number result only, because `Formula::cached` takes a plain `string`.
 - `bytes` is still copied whole on every reader call (`crossed`), and an open `Core\IO\File` crosses as a class name. The engine then throws "A workbook is read from `bytes`."
 
@@ -786,9 +787,9 @@ One file set: `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/n
 
 ### Backlog
 
-- The reader's extras: `merged` (and `merged: 'fill'`, which renames `empty_rows_and_hidden_rows_follow_their_options` to the check's name), `links`, `notes`, `names`, `tables`, `images`, `properties` and `macros`; then the check's tests for them, for external links, for `tainted` and for xlsb, xlsm, xls and ods (`rule:core-classes/spreadsheet-reads-as-a-stream`). `extensions/spreadsheet/src/lib.rs:1`
-- xlsb, xls and ods through calamine, which the stage keeps for them. `extensions/spreadsheet/src/read/mod.rs:1`
+- xlsm (its data, and `macros()` listing the VBA part), then xls and ods read whole through calamine, for `xlsm_xls_and_ods_are_read_whole` and `xlsm_macros_are_listed_and_never_run` (`rule:core-classes/spreadsheet-reads-as-a-stream`). `extensions/spreadsheet/src/read/mod.rs:1`
+- The reader's extras: `merged` (and `merged: 'fill'`, which renames `empty_rows_and_hidden_rows_follow_their_options` to the check's name), `links`, `notes`, `names`, `tables`, `images` and `properties`; then the check's tests for them, for external links and for `tainted`. `extensions/spreadsheet/src/lib.rs:1`
 - A text result for a `Formula` read with `formulas: true`, which needs `Formula::cached` to take a `tainted` text (`rule:core-classes/spreadsheet-formula-is-a-value`). `extensions/spreadsheet/nvs/Formula.nvs:1`
 - `Cell::rich`, and the shapes of `validate`, `conditional` and `Chart`'s options in `rule:core-classes/spreadsheet-sheet-end-parts`. `extensions/spreadsheet/nvs/Workbook.nvs:537`
-- Stages 8 to 14. `Row` is a new class, so Stage 14's proofs owe it a group too. See `docs/goals/spreadsheet.md`.
-- The flaky `nvs-stdlib` `ldap` test, `nvs-cli`'s `live_edit` swaps, and `looper lint`'s report on `AGENTS.md`'s managed text, none from this goal (`tools/nv/cmd/verify.ts`'s module doc, `AGENTS.md`).
+- Stages 8 to 14. `Row` is a new class, so Stage 14's proofs owe it a group too. Stage 11 owes `an_xlsb_record_whose_length_lies_throws`. See `docs/goals/spreadsheet.md`.
+- The flaky `nvs-stdlib` `ldap` test, `nvs-cli`'s `live_edit` tests (red beside the other binaries again this session), and `looper lint`'s report on `AGENTS.md`'s managed text, none from this goal (`tools/nv/cmd/verify.ts`'s module doc, `AGENTS.md`).
