@@ -247,6 +247,7 @@ describe("what the recording build cannot see", () => {
     try {
       const file = join(dir.root, "select.sqlite");
       const here = new SelectStore(file, "test-os");
+      here.recordRun(SQRT, { def: "", verdict: "green", keys: new Map([["class:core\\math", ""]]) });
       here.markDiverged(SQRT, "stdout differs from the judged run's at line 2");
       here.close();
       const there = new SelectStore(file, "other-os");

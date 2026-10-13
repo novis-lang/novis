@@ -243,4 +243,19 @@ describe("the judged run and the recording run", () => {
       store.close();
     }
   }, 240_000);
+
+  test("a program whose file is gone by its recording run is neither recorded nor marked", async () => {
+    const store = new SelectStore(":memory:", "test-os");
+    const rec = await Recorder.open(store, new Map(), null, "proof-record-test");
+    const gone = "docs/examples/core/Math/sqrt/99-renamed-after-it-was-judged.nvs";
+    try {
+      const dir = join(rec.dir, "proofs");
+      expect(await recordProgram(rec, "no-such-nvs", dir, "examples", gone, { verdict: "ok", why: "", cached: false, ran: ran(0, "a\n") })).toBeNull();
+      expect(store.atom(proofId(gone))).toBeNull();
+      expect(store.verdictsWithPrefix("diverged:").size).toBe(0);
+    } finally {
+      rec.close();
+      store.close();
+    }
+  });
 });

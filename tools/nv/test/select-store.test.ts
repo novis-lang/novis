@@ -102,6 +102,24 @@ describe("the select store", () => {
     expect(s.atomsUnder(["fn:a.rs#f"]).size).toBe(0);
   });
 
+  test("a removed atom takes its divergence mark with it", () => {
+    const s = store();
+    s.recordRun("proof:docs/a.nvs", { def: "", verdict: "green", keys: new Map([["file:docs/a.nvs", ""]]) });
+    s.markDiverged("proof:docs/a.nvs", "exit 1 on the recording run, 0 on the judged run");
+    expect([...s.divergences().keys()]).toEqual(["proof:docs/a.nvs"]);
+    s.removeAtom("proof:docs/a.nvs");
+    expect(s.verdictsWithPrefix("diverged:").size).toBe(0);
+    expect(s.divergences().size).toBe(0);
+  });
+
+  test("a mark whose id is not an atom is not reported", () => {
+    const s = store();
+    s.recordRun("proof:docs/kept.nvs", { def: "", verdict: "green", keys: new Map([["file:docs/kept.nvs", ""]]) });
+    s.markDiverged("proof:docs/kept.nvs", "stdout differs from the judged run's at line 2");
+    s.markDiverged("proof:docs/renamed.nvs", "exit 1 on the recording run, 0 on the judged run");
+    expect([...s.divergences().keys()]).toEqual(["proof:docs/kept.nvs"]);
+  });
+
   test("the base tree, the items and the counts are per platform", () => {
     const s = store();
     s.setBase("abc");

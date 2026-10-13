@@ -35,7 +35,7 @@
 // judges a program, so a change to them does not reach the `nv:` atom of every proofs check. This module,
 // `run.ts` that judges and blesses, and the gate's modules stay in that footprint.
 
-import { writeFileSync } from "node:fs";
+import { existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Options } from "../cmd/scaling.ts";
 import type { Graph } from "../keys/graph.ts";
@@ -97,9 +97,12 @@ export interface Diverged {
 /**
  * Records one judged program: its recording run on `nvs` into `dir`, the keys that run left, and the
  * judged verdict. A recording run that diverged marks the program, and one that agreed clears its mark.
- * Returns why it diverged, or null.
+ * A program whose file is gone by now, renamed or deleted after it was judged, is neither recorded nor
+ * marked: its recording run could only fail, and the next selection drops its atom. Returns why it
+ * diverged, or null.
  */
 export async function recordProgram(rec: Recorder, nvs: string, dir: string, what: What, path: string, result: Result | undefined): Promise<string | null> {
+  if (!existsSync(abs(path))) return null;
   const { proofDef, proofId, recordedIn } = await engine();
   const id = proofId(path);
   const verdict: Verdict = !result || result.verdict === "fail" ? "red" : "green";

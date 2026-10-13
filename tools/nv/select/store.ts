@@ -543,9 +543,10 @@ export class SelectStore {
     return n;
   }
 
-  /** Forgets an atom and its footprint. */
+  /** Forgets an atom, its footprint and its divergence mark. */
   removeAtom(id: string): void {
     this.transaction(() => {
+      this.clearDiverged(id);
       const n = this.atomN(id);
       if (n === null) return;
       const r = this.stmt("SELECT keys FROM atoms WHERE n = ?").get(n) as { keys: Uint8Array | null };
@@ -673,10 +674,16 @@ export class SelectStore {
     this.stmt("DELETE FROM verdicts WHERE slot = ?").run(slot);
   }
 
-  /** Every atom marked diverged on this platform, with why. */
+  /** Every atom marked diverged on this platform, with why. A mark whose id is no longer an atom here
+   * is left out: its program is gone, so nothing can clear it by running. */
   divergences(): Map<string, string> {
     const prefix = divergedSlot(this.platform, "");
-    return new Map([...this.verdictsWithPrefix(prefix)].map(([slot, v]) => [slot.slice(prefix.length), v.verdict]));
+    const out = new Map<string, string>();
+    for (const [slot, v] of this.verdictsWithPrefix(prefix)) {
+      const id = slot.slice(prefix.length);
+      if (this.atomN(id) !== null) out.set(id, v.verdict);
+    }
+    return out;
   }
 
   // ---- counts --------------------------------------------------------------------------------------
