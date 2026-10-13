@@ -1345,12 +1345,13 @@ export async function appsProblems(nvs: string, root: string = ROOT): Promise<st
 async function blessApps(nvs: string, add: string[], root: string = ROOT): Promise<number> {
   const wanted = new Map(appDirs(root).map((dir) => [dir, new Set(appFiles(dir, root))]));
   for (const a of add) {
-    const [dir, file, ...more] = a.split("/");
-    if (!wanted.has(dir) || !file || more.length) {
+    const [dir = "", file, ...more] = a.split("/");
+    const files = wanted.get(dir);
+    if (files === undefined || !file || more.length) {
       console.error(`nv site: ${a} is not APP/FILE for an app under ${APPS}/`);
       return 2;
     }
-    wanted.get(dir)!.add(file);
+    files.add(file);
   }
   let failed = 0;
   for (const [dir, files] of wanted) {
