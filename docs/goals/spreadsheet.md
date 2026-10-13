@@ -768,28 +768,28 @@ One file set: `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/n
 
 ### State
 
-**Stage 7 is done.** The reader reads xlsx, xlsm, xlsb, xls and ods from `bytes`, an upload included, or from an open `Core\IO\File`, and everything it reads is `tainted`. Every extra works: `merged`, `macros`, `links`, `notes`, `names`, `tables`, `images` and `properties`.
+**Stage 8 is mostly on disk and not yet verified.** This session stopped at the hand-off budget before `looper verify` and before the zip-code case finished running.
 
-- **A source is lent by number and never copied as it crosses** (`rule:core-classes/spreadsheet-reads-as-a-stream`). For a `mixed` parameter, `crates/nvs-cli/src/extensions.rs:@lent_source` crosses a `bytes` value or an open `Core\IO\File` as `nvs_ext::convert::Value::Lent { id, size }`. The `value` accessor's `as-bytes` and `range` are async imports (`crates/nvs-ext/src/handle.rs:@bytes_of`) that ask `Budget::read` and wait. `Spent::reads` serves each read between two polls of the call, from the runtime's string or through `nvs_stdlib::extension_file_range`, which puts the handle's position back. This is the pattern outbound HTTP already used.
-- The host gives at most 1 MiB per `range`, and the guest's `Lent::range` asks again until it has the whole length (`extensions/spreadsheet/src/lib.rs`). Before, a whole read of an xls or ods past 1 MiB came back short.
-- A read the host fails (a closed file, an I/O error) traps the call, so the program sees an `ExtensionError` with the reason, and not an `IOError`.
-- `tests/conformance/novis/spreadsheet-reads-an-open-file.nvst` and `a_lent_source_is_read_through_the_budget_a_block_at_a_time` are new, and both are pinned in the Stage 7 checks.
-- Each row is a `Row` with `number` and `values`. The row number is not the `foreach` key (`rule:iteration/foreach-subjects`). The user has been told.
-- calamine is not a dependency, and every format is our own reader (`rule:core-classes/spreadsheet-evaluation-and-roster`).
+- **The renderer** is `extensions/spreadsheet/src/format/` (`mod.rs` sections, lexer and `choose`; `number.rs`; `date.rs`; `locale.rs`). It covers General, `0` `#` `?`, grouping and scaling, percent, scientific, fractions, literals, `@`, conditions, colours (dropped), dates, times, elapsed time, both epochs, the 1900 leap day, built-in ids 0 to 49 and `[$-407]` prefixes. Its module doc says what it does.
+- `extensions/spreadsheet/tests/format.rs` has the six Stage 8 tests, and all six pass. The committed reference table is `extensions/spreadsheet/tests/fixtures/number-formats.txt`, with 120 rows. The rows were written by hand from SSF's rules. They were not checked against Excel and not copied from SSF's files.
+- The locale separators are a CLDR table in `extensions/spreadsheet/src/format/locale.rs`. Each row was checked against `Novis\Intl\NumberFormat::decimal`'s output. The table is not a call into `Novis\Intl`'s data, because the component cannot call another component. Grouping is by three digits in every locale, so `en-IN` is not Indian grouping.
+- `read::format::classify` now uses the renderer's lexer. This fixes a bug: a custom `0.00E+00` read as a date before.
+- **The reader's `text` wiring is written but not verified.** Each style keeps its format code (`read::format::Style`). `Reader::rows` resolves `text` names to columns, header keys first and column letters second (`extensions/spreadsheet/src/read/mod.rs`'s `shown`), and fills `ReadCell::display` (`display`). `Reader.nvs` drops `text` from `firstRow` and `keys` through `with`'s new `$shown` parameter, and takes `$display` as `?tainted string`.
+- `tests/conformance/novis/spreadsheet-a-zip-code-column-reads-as-text.nvst` is new and has never run green. Its error case expects `LogicError`, and that guess is not checked.
 
 ### Next
 
-**Stage 8, the number-format renderer: a cell rendered as Excel displays it, for `{text: [...]}` on read and for auto width on write** (`rule:core-classes/spreadsheet-reads-as-a-stream`'s `text` option, `rule:core-classes/spreadsheet-value-types`). Files: `extensions/spreadsheet/src/format/` (new), `extensions/spreadsheet/src/read/format.rs`, `extensions/spreadsheet/src/read/mod.rs`, `extensions/spreadsheet/tests/format.rs` (new).
+**Stage 8, close it: verify the wiring, then auto width through the renderer.** Files: `extensions/spreadsheet/src/read/mod.rs`, `tests/conformance/novis/spreadsheet-a-zip-code-column-reads-as-text.nvst`, `extensions/spreadsheet/src/width.rs`, `extensions/spreadsheet/src/writer.rs`.
 
-- [ ] **The format language parses**: sections, conditions and colours, `0` `#` `?`, separators and scaling, percent, scientific, fractions, literals, `@`. Start from `extensions/spreadsheet/src/read/format.rs:35`'s `classify`, which reads only the first section today.
-- [ ] **Dates, times and elapsed time render**, with both epochs and the 1900 leap-day bug, and built-in ids 0 to 49 map to their codes (`extensions/spreadsheet/src/read/format.rs:23`'s `builtin`).
-- [ ] **The committed reference table** of code, value and Excel's text, from SheetJS's SSF cases, and `text`/`text_all` read through the renderer (`extensions/spreadsheet/src/read/mod.rs:196`).
+- [ ] **Verify this session's work.** Run `looper verify`, and fix what it names. Then run `looper check --name spreadsheet-a-column-reads-as-text` and `looper check --name spreadsheet-the-number-format-renderer`. Run `cargo test --test spreadsheet_read` too, because the reader's styles changed type (`extensions/spreadsheet/src/read/mod.rs:441`).
+- [ ] **Auto width measures through the renderer** (`rule:core-classes/spreadsheet-styles-and-defaults`). Today `extensions/spreadsheet/src/width.rs:1`'s "Not done yet" measures the stored text. Measure through `crate::format::render` with the column's format code, and remove the "Not shipped" sentence in that fragment.
+- [ ] **Set Stage 8 to `done`** in the front matter (`docs/goals/spreadsheet.md:52`) once both Stage 8 checks pass.
 
 ### Backlog
 
+- Built-in id 14 renders as `m/d/yyyy` and id 22 as `m/d/yyyy h:mm`, which is what Excel shows in en-US. SSF uses `m/d/yy`. `extensions/spreadsheet/src/format/mod.rs:@builtin`
+- An ods cell's `text` uses the default format of its type, not the file's own number style. A merged fill copies no `display`. `extensions/spreadsheet/src/read/ods.rs:1`, `extensions/spreadsheet/src/read/merge.rs:166`
 - The extras from xlsb, xls and ods, which throw naming the format now. `extensions/spreadsheet/src/read/extras.rs:1`
-- A text result for a `Formula` read with `formulas: true` (`rule:core-classes/spreadsheet-formula-is-a-value`). `extensions/spreadsheet/nvs/Formula.nvs:1`
-- Extension contagion does not reach a shape's fields, so an extension returning a shape launders a `tainted` argument (`crates/nvs-types/src/expr/quals.rs:531`'s `tainted_result`, `rule:security/extension-contagion`). A compiler fix, outside this goal.
-- `Cell::rich`, and the shapes of `validate`, `conditional` and `Chart`'s options in `rule:core-classes/spreadsheet-sheet-end-parts`. `extensions/spreadsheet/nvs/Workbook.nvs:537`
-- Stages 9 to 14. `Row` is a new class, so Stage 14's proofs owe it a group. Stage 11 owes `an_xlsb_record_whose_length_lies_throws` and `an_xls_sector_chain_that_loops_is_refused` (`extensions/spreadsheet/src/read/cfb.rs`'s `chain`). See `docs/goals/spreadsheet.md`.
-- The flaky `nvs-stdlib` `ldap` test, `nvs-cli`'s `live_edit` tests (`a_link_switch_during_a_compile_never_builds_a_program_from_both_releases` failed beside the other binaries this session and passed alone), and `looper lint`'s report on `AGENTS.md`'s managed text, none from this goal (`tools/nv/cmd/verify.ts`'s module doc, `AGENTS.md`).
+- Extension contagion does not reach a shape's fields (`crates/nvs-types/src/expr/quals.rs:531`'s `tainted_result`, `rule:security/extension-contagion`). This is a compiler fix, outside this goal.
+- `Cell::rich`, and the shapes of `validate`, `conditional` and `Chart`'s options (`rule:core-classes/spreadsheet-sheet-end-parts`). `extensions/spreadsheet/nvs/Workbook.nvs:537`
+- Stages 9 to 14. Stage 14's proofs owe `Row` a group. Stage 11 owes `an_xlsb_record_whose_length_lies_throws` and `an_xls_sector_chain_that_loops_is_refused` (`extensions/spreadsheet/src/read/cfb.rs`). See `docs/goals/spreadsheet.md`.
