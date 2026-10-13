@@ -185,6 +185,9 @@ export class Index {
     );
     if (this.file !== ":memory:") mkdirSync(dirname(this.file), { recursive: true });
     this.db = this.openFresh(fingerprint);
+    // Several `bun nv` processes refresh one index at once, so a writer waits for another's
+    // transaction instead of failing on it.
+    this.db.exec("PRAGMA busy_timeout = 60000");
   }
 
   private openFresh(fingerprint: string): Database {
@@ -256,22 +259,25 @@ export class Index {
         if (!path.includes("node_modules/") && !want.has(path)) want.set(path, "prose");
       }
     }
-    const known = new Map<string, { size: number; mtime: number; hash: string }>();
-    for (const row of this.stmt("SELECT path, size, mtime, hash FROM files").all() as {
-      path: string;
-      size: number;
-      mtime: number;
-      hash: string;
-    }[]) {
-      known.set(row.path, row);
-    }
     const stats: RefreshStats = { read: 0, unchanged: 0, removed: 0 };
     const upsert = this.stmt("INSERT OR REPLACE INTO files (path, kind, size, mtime, hash) VALUES (?, ?, ?, ?, ?)");
     // `BEGIN` and `COMMIT` by hand: `db.transaction()` keeps prepared statements that outlive
     // `close()`, and on Windows those hold the file open, so a changed declaration could not
-    // delete it.
-    this.db.exec("BEGIN");
+    // delete it. `IMMEDIATE` takes the write lock before the first read, so the busy timeout
+    // covers the wait. A deferred transaction would fail at once when another process commits
+    // between this one's read and its first write. The rows already indexed are read inside
+    // the transaction, so they cannot change before this refresh writes.
+    this.db.exec("BEGIN IMMEDIATE");
     try {
+      const known = new Map<string, { size: number; mtime: number; hash: string }>();
+      for (const row of this.stmt("SELECT path, size, mtime, hash FROM files").all() as {
+        path: string;
+        size: number;
+        mtime: number;
+        hash: string;
+      }[]) {
+        known.set(row.path, row);
+      }
       for (const path of known.keys()) {
         if (!want.has(path)) {
           this.forget(path);

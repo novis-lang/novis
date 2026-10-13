@@ -113,6 +113,46 @@ describe("index", () => {
     index.close();
   });
 
+  test("a refresh waits for another process's write instead of failing on it", async () => {
+    const index = seed();
+    index.refresh();
+    tmp.put("docs/a.md", "# A, edited\n");
+    // The child takes the write lock, says so, and keeps it for a moment.
+    const holder = Bun.spawn(
+      [
+        process.execPath,
+        "-e",
+        `const { Database } = require("bun:sqlite");
+         const db = new Database(process.argv[1]);
+         db.exec("BEGIN IMMEDIATE");
+         db.exec("INSERT OR REPLACE INTO meta (key, value) VALUES ('held', '1')");
+         console.log("locked");
+         Bun.sleepSync(300);
+         db.exec("COMMIT");
+         db.close();`,
+        index.file,
+      ],
+      { stdout: "pipe", stderr: "inherit" },
+    );
+    try {
+      const reader = holder.stdout.getReader();
+      let said = "";
+      while (!said.includes("locked")) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        said += new TextDecoder().decode(value);
+      }
+      expect(said).toContain("locked");
+      expect(index.refresh()).toEqual({ read: 1, unchanged: 3, removed: 0 });
+      expect(await holder.exited).toBe(0);
+    } finally {
+      // Both connections are closed before `afterEach` deletes the directory: Windows does not
+      // delete a file that is still open.
+      await holder.exited;
+      index.close();
+    }
+  });
+
   test("a reference to an undeclared type is refused when the index is built", () => {
     const loose = defineRecord({ name: "loose", dir: "loose", schema: s.object({ to: s.ref("nothing") }) });
     expect(() => new Index({ types: [loose], file: ":memory:" })).toThrow("nothing");
