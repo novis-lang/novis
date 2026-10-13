@@ -1,5 +1,18 @@
 --TEST--
 `add` writes a new entry, `modify` applies `Change::add`, `remove`, `removeAll` and `replace` in one request, `rename` gives the entry a new name below another parent, and `delete` removes it, with an `int`, a `bool` and a `Dn` written in the form they are read — `rule:core-classes/ldap-value-types`
+--SKIPIF--
+<?nvs
+// The case needs the `samba-ad` server from `tests/db/compose.yaml`. Where it
+// does not answer, the case is skipped, unless `NVS_LDAP_SAMBA` is set: CI's
+// Linux leg runs the server and sets it, so a missing server fails there.
+try {
+    Core\Ldap::connect("corp");
+} catch (Core\Ldap\LdapError $down) {
+    if ($down->kind != Core\Ldap\LdapError::Kind::Unavailable || Core\Env::get("NVS_LDAP_SAMBA") != null) {
+        throw $down;
+    }
+    echo "skip - ", $down->message, "\n";
+}
 --FILE--
 <?nvs
 // covers: Core\Ldap\Connection::add, Core\Ldap\Connection::modify, Core\Ldap\Connection::delete

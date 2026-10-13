@@ -1,5 +1,18 @@
 --TEST--
 `Ldap\Entry::int` reads an INTEGER attribute as an `int` and `bool` reads `TRUE`/`FALSE` as a `bool`, and both return `null` for an attribute the entry does not have — `rule:core-classes/ldap-value-types`
+--SKIPIF--
+<?nvs
+// The case needs the `samba-ad` server from `tests/db/compose.yaml`. Where it
+// does not answer, the case is skipped, unless `NVS_LDAP_SAMBA` is set: CI's
+// Linux leg runs the server and sets it, so a missing server fails there.
+try {
+    Core\Ldap::connect("corp");
+} catch (Core\Ldap\LdapError $down) {
+    if ($down->kind != Core\Ldap\LdapError::Kind::Unavailable || Core\Env::get("NVS_LDAP_SAMBA") != null) {
+        throw $down;
+    }
+    echo "skip - ", $down->message, "\n";
+}
 --FILE--
 <?nvs
 var $corp = Core\Ldap::connect("corp");

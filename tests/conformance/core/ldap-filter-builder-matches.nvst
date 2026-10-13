@@ -1,5 +1,18 @@
 --TEST--
 Each `Filter` constructor but `approx`, which the Samba test server does not evaluate, matches the accounts it says it matches on the test directory, `all`, `any` and `not` combine them, and a `tainted` value with `*` in it matches only itself — `rule:core-classes/ldap-filter-is-a-value`
+--SKIPIF--
+<?nvs
+// The case needs the `samba-ad` server from `tests/db/compose.yaml`. Where it
+// does not answer, the case is skipped, unless `NVS_LDAP_SAMBA` is set: CI's
+// Linux leg runs the server and sets it, so a missing server fails there.
+try {
+    Core\Ldap::connect("corp");
+} catch (Core\Ldap\LdapError $down) {
+    if ($down->kind != Core\Ldap\LdapError::Kind::Unavailable || Core\Env::get("NVS_LDAP_SAMBA") != null) {
+        throw $down;
+    }
+    echo "skip - ", $down->message, "\n";
+}
 --FILE--
 <?nvs
 var $corp = Core\Ldap::connect("corp");
