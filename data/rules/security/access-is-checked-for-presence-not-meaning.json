@@ -5,7 +5,8 @@
     "attributes/access-is-a-required-sibling",
     "attributes/access-payload",
     "security/csrf-is-on-by-default",
-    "security/route-capture-is-laundered-by-its-type"
+    "security/route-capture-is-laundered-by-its-type",
+    "routing/a-gate-answers-around-every-handler"
   ],
   "guardedBy": [
     "tests/conformance/reject/a-stray-access-attribute-is-refused.nvst",

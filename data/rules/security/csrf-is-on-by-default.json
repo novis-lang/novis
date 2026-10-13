@@ -4,7 +4,8 @@
   "seeAlso": [
     "security/access-is-checked-for-presence-not-meaning",
     "security/protocol-roster",
-    "attributes/access-payload"
+    "attributes/access-payload",
+    "routing/a-gate-answers-around-every-handler"
   ],
   "guardedBy": [
     "crates/nvs-server/src/route.rs",

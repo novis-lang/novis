@@ -22,9 +22,19 @@ by a bearer token — says so **in its own declaration**, per route, in the attr
 carries: never a group and never a configuration key. Writing it on the route is what keeps the
 exemption reviewable next to the handler it exempts.
 
+**The refusal is the door's, and a program may only answer it.** In a program that calls
+`Core\Router::dispatch`, the refused request still runs the entry, in refusal mode: `route()` answers
+`null`, there is no body, and `dispatch` calls the gate's `refused` with `Refusal::Csrf` after setting
+`403` (`rule:routing/a-gate-answers-around-every-handler`). The gate chooses the page, the status and a
+log line, so a form sent after its session expired can show the user what happened. No handler runs,
+and a gate that throws leaves the empty `403`. A program that does not call `dispatch` gets the empty
+`403`, because it would read the refused request as an ordinary one with no route.
+
 **Declined:**
 - **Enforcing only when a session cookie is present.** It sounds tighter, since forgery can only
   target cookie-authenticated requests, but it makes protection depend on what the client sent rather
   than on what the code says, which is harder to reason about and harder to test.
 - **Tokens available, and enforcement left to the program.** An unprotected state-changing route would
   look the same as a protected one at compile time and at run time.
+- **A gate that lets a refused request through.** The exemption would then live in code a reviewer reads
+  apart from the route. `csrf: false` on the route stays the only opt-out.

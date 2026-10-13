@@ -904,11 +904,11 @@ package name. Its cadence is deliberately slow. The `Core` half versions with th
 every compatibility rule `Core` already carries.
 
 It provides the `Web` namespace, and holds what an application needs and a language should not fix:
-`Web\Controller` and `Web\Middleware`, dispatch and a middleware pipeline over the compile-time route
-table, whose `switch` is generated while compiling so an application never writes one and receives
-typed, laundered parameters directly; `Web\Response`, with `view`, `json`, `redirect`, `file` and
-`stream` constructors over the safe HTTP defaults; `Web\Auth`, **the** enforcer of `#[Access]`, holding
-login, logout, remember-me, password reset, policies and role checks; `Web\Validation`, named rule sets
+`Web\Middleware`, a pipeline a `Core\Router\Gate` runs, since dispatch itself is `Core`'s
+`Core\Router::dispatch` ([`routing/a-gate-answers-around-every-handler`](routing.md#routing-a-gate-answers-around-every-handler)); `Web\Response`, with
+`view`, `json`, `redirect`, `file` and `stream` constructors over the safe HTTP defaults; `Web\Auth`,
+a gate whose `allows` interprets `#[Access]`, holding login, logout, remember-me, password reset,
+policies and role checks; `Web\Validation`, named rule sets
 and form binding over `Core\Validate` — the ergonomics, never the laundering; and `Web\Mail`,
 `Web\I18n`, `Web\Storage`, `Web\Pagination`, `Web\Filter`, `Web\Migration`
 ([`programs/no-migration-runner`](programs.md#programs-no-migration-runner)), `Web\Job`, `Web\Api` and the scaffolding templates.
@@ -919,7 +919,7 @@ would be a second spelling of one job. `Web\Response::view` renders a `.nvs` fil
 
 **Not on disk.** There is no `nvs/web` package and no `Web` namespace.
 
-<sub>See also [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`programs/framework-core-half`](programs.md#programs-framework-core-half), [`programs/no-migration-runner`](programs.md#programs-no-migration-runner).</sub>
+<sub>See also [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`programs/framework-core-half`](programs.md#programs-framework-core-half), [`programs/no-migration-runner`](programs.md#programs-no-migration-runner), [`routing/a-gate-answers-around-every-handler`](routing.md#routing-a-gate-answers-around-every-handler).</sub>
 
 <a id="programs-framework-refusals"></a>
 

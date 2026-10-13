@@ -20,8 +20,8 @@ consequences (`rule:programs/implementing`):
   two files is caught (`rule:routing/routes-are-compiled-not-registered`).
 
 The table is a compile product carried by the unit and installed before the program runs, beside the
-command table and the configuration snapshot; the match against it is taken once at the door and
-nothing dispatches (`rule:routing/matching-is-not-dispatching`). A link to a route declared in another
+command table and the configuration snapshot; the match against it is taken once at the door, and
+the door dispatches nothing (`rule:routing/matching-is-not-dispatching`). A link to a route declared in another
 module needs that module compiled — the consequence `rule:programs/no-runtime-autoload` already
 records for a hard cross-module reference, arriving in a second place.
 

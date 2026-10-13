@@ -1,0 +1,77 @@
+`Core\Router::dispatch(Core\Router\Gate $gate): void` calls the method of the route the server matched,
+and the gate the program passes answers every request that method does not run for.
+
+```nvs
+interface Core\Router\Gate {
+    public function allows(Core\Router\Match $route): bool;
+    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void;
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void;
+}
+```
+
+The compiler generates the jump from the route table it already builds, one entry per route, indexed
+by the matched row, so no program writes or keeps a list of its routes. The jump is code in the unit
+and never a value: the handler's `Class::method` label still does not cross into the program, and the
+match stays not invocable (`rule:routing/a-match-is-not-invocable`). **A handler returns `void`,** and
+is a static method or a method of a class with a no-argument constructor; any other `#[Route]` method
+is a compile error at its attribute, because the jump has no response type to read a value into and no
+arguments to build an instance with.
+
+**`allows` runs before every handler, and the handler runs only when it returns `true`.** A `false` or
+a throw is `Refusal::Denied`. This is the dispatch site that reads `#[Access]` on every route
+(`rule:security/access-is-checked-for-presence-not-meaning`): a route cannot reach its handler around
+it, because the jump is the only call to the handler `dispatch` makes.
+
+**`refused` answers what the table or the server refused, and never overturns it.** `dispatch` sets
+the status before it calls `refused`, so a gate that only renders a page sends the right code, and the
+gate may set another status, headers, the body and a log line. The handler never runs. The cases of
+`Core\Router\Refusal`:
+
+| Case | Status | When |
+|---|---|---|
+| `NotFound` | `404` | no route claims the path |
+| `MethodNotAllowed` | `405`, with `Allow` from `Core\Router::methodsFor` | the path exists under other verbs (`rule:routing/a-refused-verb-is-not-a-missing-path`) |
+| `UnknownMethod` | `501` | the verb is none of `Core\Http\Method`'s cases |
+| `Denied` | `403` | `allows` returned `false` or threw |
+| `Csrf` | `403` | the server refused the request's CSRF token or origin (`rule:security/csrf-is-on-by-default`) |
+| `BodyTooLarge` | `413` | the body is over the cap the server enforces |
+| `BadCapture` | `400` | a capture whose type implements `Parses` threw from `parse` |
+
+A server refusal added later is a new case. **`failed` answers a handler that threw,** and a program
+stopped by its memory or time limit: that one runs in a fresh isolate under the same limits, and if it
+fails too the answer is the empty `500` a failing program has always sent. `dispatch` sets `500`
+before it calls `failed`.
+
+**Refusal mode is how the server's own refusals reach the gate.** The door decides exactly as it does
+for any program. For a request it refused for CSRF, for its body size or for an unknown verb, it then
+runs the entry anyway: `Core\Request::route()` returns `null`, so neither `dispatch` nor a dispatcher a
+program wrote can reach a handler; the request has no body; and `dispatch` reads the refusal off the
+request and calls `refused`. A gate that throws there leaves the empty answer the door would have sent.
+The door chooses the mount before it checks the verb, which moves nothing else because a mount is
+chosen by path, and the in-process door does the same, so `Core\Test::request` exercises it.
+
+**Only a program that calls `Core\Router::dispatch` gets refusal mode.** The compiler sees the call, as
+it sees a link (`rule:routing/link-name-and-params-are-checked`), and marks the unit. A program that
+dispatches by hand keeps the empty answers, because it would read a refused request as an ordinary one
+with no route. `Core\Request::route()` and `Core\Router::match` serve it unchanged.
+
+Some refusals never reach a gate. A CORS preflight's body is never shown by a browser
+(`rule:http-server/a-preflight-is-answered-before-any-code-runs`). Malformed HTTP has no request yet,
+and an unreadable `X-Forwarded-For` is read by a proxy. A socket that is also an event stream has
+already ended. The capacity and drain `503`s and a path no mount covers are answered where no code may
+run, so their pages, when they exist, are static and come from the configuration.
+
+- **Memory:** one generated jump entry per route, per program. Nothing per request beyond the isolate
+  the request already has; a refused request that reaches the gate costs what any request costs.
+
+**Declined:**
+- **A dispatch `switch` every program writes.** It repeats every `#[Route]`, nothing checks it, and an
+  arm that forgets a route serves nothing while one that forgets `accessAs` serves the route unguarded.
+- **A gate that can overturn a refusal.** A refusal would then depend on code a reviewer has to read
+  beside the route. The one opt-out from CSRF stays `csrf: false` on the route itself.
+- **The server calling the matched method.** The program calls `dispatch`, and a program that does not
+  call it is served exactly as before (`rule:routing/the-servers-match-dispatches-nothing`).
+- **Refusal mode for every program.** A hand-written dispatcher would read a refused request as an
+  ordinary request with no route.
+- **A return-value-to-response rule and constructor injection.** Each is a framework opinion, and a
+  `void` handler with a no-argument constructor needs neither.

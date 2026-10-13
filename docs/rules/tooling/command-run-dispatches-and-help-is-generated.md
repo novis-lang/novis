@@ -8,8 +8,9 @@ usage error — the usage line and a non-zero status — not a crash.
 are generated from the same table, for `bash`, `zsh`, `fish` and `pwsh` — the four cases of
 `Command::Shell`, and nothing else. Two artefacts read one table, so neither can disagree with the program.
 
-This is the **one deliberate divergence** from the route table: `rule:routing/matching-is-not-dispatching`
-stops at matching because a web framework must own the pipeline — middleware, controllers, response
-mapping — and baking a convention in would fight it. A CLI has one entry point and no middleware
-question, so the reason the router stops does not exist here, and stopping anyway would copy its
-shape rather than its reasoning.
+This is the **one deliberate divergence** from the route table, whose match is data and whose handler
+runs only when the program calls `Core\Router::dispatch` with a gate
+(`rule:routing/a-gate-answers-around-every-handler`). A web request has refusals a page must answer and
+an access decision to check before every handler, and the gate is where both live. A CLI has one entry
+point and no refusal for a page to answer, so a gate here would copy the router's shape rather than its
+reasoning.

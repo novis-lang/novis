@@ -414,7 +414,10 @@ and errors. `Set-Cookie` is the one field `header` refuses, as `Core\Http\Respon
 because two cookies joined are neither; `cookies` reads it by name, the last value of a name
 winning. The headers are the ones the program's answer carries — its `Content-Type`, or HTML for an
 echo, then every header it declared — and not the ones the server adds for itself. A request whose
-program fails answers `500`, no body and no headers, which is what the server sends. Nothing on the
+program fails answers `500`, no body and no headers, which is what the server sends, unless the
+program calls `Core\Router::dispatch`: then the answer is what its gate's `failed` wrote, and a request
+the door refused is what its gate's `refused` wrote, exactly as the server would send them
+([`routing/a-gate-answers-around-every-handler`](routing.md#routing-a-gate-answers-around-every-handler)). Nothing on the
 response is `tainted`: it is the program's own output.
 
 The synthetic request's parameters arrive **`tainted`**, exactly as a real request's would, so a
@@ -435,7 +438,7 @@ granted — `net.connect` for the host and `net.internal` for loopback
 ([`http-server/allow-url-pins-the-address`](http-server.md#http-server-allow-url-pins-the-address)) — because nothing about the listener being the
 test's own widens that policy.
 
-<sub>See also [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/task-tree-and-virtual-clock`](testing.md#testing-task-tree-and-virtual-clock).</sub>
+<sub>See also [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/task-tree-and-virtual-clock`](testing.md#testing-task-tree-and-virtual-clock), [`routing/a-gate-answers-around-every-handler`](routing.md#routing-a-gate-answers-around-every-handler).</sub>
 
 <a id="testing-an-outbound-call-is-answered-from-a-table"></a>
 

@@ -3,7 +3,8 @@
   "status": "shipped",
   "seeAlso": [
     "testing/isolate-per-test",
-    "testing/task-tree-and-virtual-clock"
+    "testing/task-tree-and-virtual-clock",
+    "routing/a-gate-answers-around-every-handler"
   ],
   "guardedBy": [
     "tests/conformance/core/an-in-process-request-carries-the-compiled-route-tables-own-match.nvst",

@@ -4341,7 +4341,7 @@ surfaced as data and nothing resolved.
 
 `rule:core-classes/spreadsheet-roster`
 
-`Novis\Spreadsheet` is eleven classes and one enum, with `Engine` the manifest class whose static
+`Novis\Spreadsheet` is twelve classes and one enum, with `Engine` the manifest class whose static
 methods are `wit/spreadsheet.wit`'s exports and which no program calls directly:
 
 | Class | What it is | Its members |
@@ -4350,7 +4350,8 @@ methods are `wit/spreadsheet.wit`'s exports and which no program calls directly:
 | `Sheet` | One sheet of a `Workbook`, written row by row | `add(array $row, {…}): Sheet`, `addAll(iterable $rows): Sheet`, `cell(string\|int $column, int $row): string`, `column(string\|int $column): string`, and the sheet-end parts `merge`, `link`, `note`, `validate`, `group`, `table`, `conditional`, `image`, `chart`, `print`, `protect` |
 | `Written` | What `finish()` returns | `rows: array<int>` by sheet name, `size: int`, `bytes: ?bytes` |
 | `Export` | A whole workbook from one call, written where its last call says | `download(string $name): void`, `save(string $path): Written`, `to(Core\IO\File $file): Written`, `bytes(): bytes` |
-| `Reader` | A workbook or CSV being read | `open(Core\IO\File\|bytes $source, {…}): Reader`, `sheets(): array<{…}>`, `rows(string\|int $sheet, {…}): iterable<int, array>`, and the extras `merged`, `links`, `notes`, `names`, `tables`, `images`, `properties`, `macros` |
+| `Reader` | A workbook or CSV being read | `open(Core\IO\File\|bytes $source): Reader`, `sheets(): array<{…}>`, `rows(string\|int $sheet, {…}): Iterator<Row>`, and the extras `merged`, `links`, `notes`, `names`, `tables`, `images`, `properties`, `macros` |
+| `Row` | One row `rows` read | `number: uint`, the row number in the file, and `values: array` by header text or column letter |
 | `Template` | A designed workbook to fill | `open(Core\IO\File\|bytes $source): Template`, `set(string $address, mixed $value): Template`, `fill(array $data): Export` |
 | `Style` | A set of style fields | `of({…}): Style` |
 | `Cell` | One value with its own style, or rich text | `of(mixed $value, Style $style): Cell`, `rich(array<{text: string, style?: Style}> $runs): Cell` |
@@ -4865,19 +4866,22 @@ call. This is chosen against a pull loop in the Novis half, in which the guest w
 needed at offset N, length L" and the Novis code would read them and call again, for two reasons. On
 request latency, the import costs one host call per read-ahead block and runs no Novis code between
 them, where the pull loop costs a guest return, a Novis read and a guest call for every block. And
-the parsers read synchronously from a `Read + Seek`: calamine does, for xlsb and the whole formats,
-and a pull loop would need every parser rewritten as a resumable state machine.
+the parsers read synchronously: calamine does from a `Read + Seek` for the whole formats, and so do
+our xlsx and xlsb readers, and a pull loop would need every parser rewritten as a resumable state machine.
 
 **Formats** are told apart by their bytes: a zip is xlsx, xlsm or ods by its content types, an OLE
 compound file is xls, a zip with `xl/workbook.bin` is xlsb, and anything else is CSV. xls holds at
 most 65,536 rows. An xlsm's macros are listed by `macros()` and never run.
 
-**`rows($sheet, {...})`** takes the sheet by name or position and yields one array per row, keyed by
-the **row number in the file** as the `foreach` key:
+**`rows($sheet, {...})`** takes the sheet by name or by position from 0 and yields one `Row` per row:
+its `number` is the **row number in the file**, and its `values` the row's array. The row number is
+not the `foreach` key, because a cursor carries no key ([`iteration/foreach-subjects`](iteration.md#iteration-foreach-subjects)), and a
+generator yields a class and not a shape. The generator only yields: a batch's shapes are read in an
+ordinary method, which the compiler lowers where it does not yet lower them inside a generator.
 
 | Option | Default | What it does |
 |---|---|---|
-| `header` | `false` | `true` reads the first row read as the header; an `int` names the header's row number. The values are then keyed by header text |
+| `header` | `false` | `true` reads the first row with a value at or after `from` as the header; an `int` names the header's row number. The values are then keyed by header text |
 | `from` | the first row | the first row number to read |
 | `limit` | none | the most rows to yield |
 | `columns` | every column | `['A:C', 'F']` |
@@ -4915,8 +4919,19 @@ spent on the shared strings, which a file may make large, and bounded by the req
   the number formats, and the shared strings of the file being read in one arena; for xlsm, xls and
   ods, the whole file. All of it is inside the request's cap and freed when the request ends.
 
-**Not shipped.** Nothing of `Novis\Spreadsheet` is on disk, and the `value` accessor that reads a
-range is not in `wit/nvs-ext/types.wit`.
+**The Novis half** asks for 1,000 rows a call, with `from` one past the last row it was given.
+`header: true` costs one call more, for the number of the first row with a value. Text read from a
+file is `tainted`, so a `Formula` read with `formulas: true` carries a number result and not a text
+one. The engine's resource is `reading`, because a manifest's resource is a class in
+`Novis\Spreadsheet` and `Reader` is the class over it.
+
+An xlsb stores a formula as parsed tokens and not as text, so with `formulas: true` an xlsb cell
+reads as its stored result and gives no `Formula`.
+
+**Not shipped.** The extras, `merged: 'fill'`, `text`, and the xlsm, xls and ods formats. The
+`value` accessor reads a range of `bytes` and not yet of an open `Core\IO\File`, and each call copies
+a `bytes` source whole as it crosses. `Reader::open`, `sheets()` and `rows()` read an xlsx and an
+xlsb.
 
 **Declined:**
 - **A pull loop in the Novis half.** It costs a guest return and a Novis call per block on the request
@@ -4981,7 +4996,9 @@ produce. ods reads, and writing it is the second wave. Template fill is in the f
 ([`core-classes/spreadsheet-template-fill`](core-classes.md#core-classes-spreadsheet-template-fill)), because it is the workflow behind most real exports.
 
 **The crates**, each pinned and pure Rust, built for `wasm32-wasip2`, on `deny.toml`'s allowlist and
-with no C in the build: `calamine` reads xlsb, xls, ods and the cells of xlsx; `zip` with `deflate`
+with no C in the build: `calamine` reads xls and ods, and xlsx and xlsb are read by our own reader,
+because calamine keeps one `String` per shared string, exposes no cell style, and owns the `Read +
+Seek` a reader resource must keep its place in between calls; `zip` with `deflate`
 only, and `miniz_oxide` or `flate2` on its pure-Rust backend, frame and inflate the archive;
 `crc32fast` checks it; `quick-xml` reads and writes the XML; `itoa` and `ryu` write numbers. The
 writer, the template filler and the number-format renderer are our own. A crate that fails to build

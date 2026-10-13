@@ -1,5 +1,5 @@
 {
-  "title": "The router stops at matching: a match is a name and typed parameters, and nothing here dispatches",
+  "title": "A match is a name and typed parameters, and running a handler is a separate call the program makes",
   "status": "shipped",
   "seeAlso": [
     "routing/link-name-and-params-are-checked",

@@ -644,11 +644,12 @@ usage error — the usage line and a non-zero status — not a crash.
 are generated from the same table, for `bash`, `zsh`, `fish` and `pwsh` — the four cases of
 `Command::Shell`, and nothing else. Two artefacts read one table, so neither can disagree with the program.
 
-This is the **one deliberate divergence** from the route table: [`routing/matching-is-not-dispatching`](routing.md#routing-matching-is-not-dispatching)
-stops at matching because a web framework must own the pipeline — middleware, controllers, response
-mapping — and baking a convention in would fight it. A CLI has one entry point and no middleware
-question, so the reason the router stops does not exist here, and stopping anyway would copy its
-shape rather than its reasoning.
+This is the **one deliberate divergence** from the route table, whose match is data and whose handler
+runs only when the program calls `Core\Router::dispatch` with a gate
+([`routing/a-gate-answers-around-every-handler`](routing.md#routing-a-gate-answers-around-every-handler)). A web request has refusals a page must answer and
+an access decision to check before every handler, and the gate is where both live. A CLI has one entry
+point and no refusal for a page to answer, so a gate here would copy the router's shape rather than its
+reasoning.
 
 <sub>See also [`tooling/commands-are-compiled`](tooling.md#tooling-commands-are-compiled), [`tooling/a-parameter-is-an-argument-unless-it-is-an-option`](tooling.md#tooling-a-parameter-is-an-argument-unless-it-is-an-option), [`routing/matching-is-not-dispatching`](routing.md#routing-matching-is-not-dispatching), [`routing/the-servers-match-dispatches-nothing`](routing.md#routing-the-servers-match-dispatches-nothing), [`statements/exit-is-the-only-termination-keyword`](statements.md#statements-exit-is-the-only-termination-keyword).</sub>
 

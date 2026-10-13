@@ -4,7 +4,8 @@
   "seeAlso": [
     "programs/first-party-framework",
     "programs/framework-core-half",
-    "programs/no-migration-runner"
+    "programs/no-migration-runner",
+    "routing/a-gate-answers-around-every-handler"
   ],
   "guardedBy": [],
   "milestone": "M16"

@@ -19,6 +19,7 @@
     "routing/matched-once-before-the-handler",
     "routing/the-servers-match-dispatches-nothing",
     "routing/a-refused-verb-is-not-a-missing-path",
+    "routing/a-gate-answers-around-every-handler",
     "routing/a-request-reads-its-mount",
     "routing/link-name-and-params-are-checked",
     "routing/link-carries-the-mount-prefix",

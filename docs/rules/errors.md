@@ -163,9 +163,10 @@ the soft limit only. Measured against a 1.32 ns per-call slope it adds ≈0.3 ns
 request making 40,000 calls, and nothing at all in loops and leaf-only code.
 
 This bound is emitted at Novis function entry, so it reaches recursion through Novis frames and only
-those. Request data also recurses through engine frames — a nested document in a decoder, a nested
-value graph in teardown — which are bounded separately by an explicit depth counter and an
-iterative teardown.
+those. Request data also reaches engine walks, which are bounded separately. The JSON parse recurses
+under an explicit depth counter. Building a decoded document's objects steps through heap frames, so
+it takes no native frame per level, and only the constructor call keeps a stack compare. Teardown of
+a nested value graph is iterative.
 
 <sub>See also [`errors/on-limit`](errors.md#errors-on-limit), [`errors/propagation`](errors.md#errors-propagation).</sub>
 

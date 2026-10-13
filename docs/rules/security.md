@@ -2865,14 +2865,24 @@ by a bearer token — says so **in its own declaration**, per route, in the attr
 carries: never a group and never a configuration key. Writing it on the route is what keeps the
 exemption reviewable next to the handler it exempts.
 
+**The refusal is the door's, and a program may only answer it.** In a program that calls
+`Core\Router::dispatch`, the refused request still runs the entry, in refusal mode: `route()` answers
+`null`, there is no body, and `dispatch` calls the gate's `refused` with `Refusal::Csrf` after setting
+`403` ([`routing/a-gate-answers-around-every-handler`](routing.md#routing-a-gate-answers-around-every-handler)). The gate chooses the page, the status and a
+log line, so a form sent after its session expired can show the user what happened. No handler runs,
+and a gate that throws leaves the empty `403`. A program that does not call `dispatch` gets the empty
+`403`, because it would read the refused request as an ordinary one with no route.
+
 **Declined:**
 - **Enforcing only when a session cookie is present.** It sounds tighter, since forgery can only
   target cookie-authenticated requests, but it makes protection depend on what the client sent rather
   than on what the code says, which is harder to reason about and harder to test.
 - **Tokens available, and enforcement left to the program.** An unprotected state-changing route would
   look the same as a protected one at compile time and at run time.
+- **A gate that lets a refused request through.** The exemption would then live in code a reviewer reads
+  apart from the route. `csrf: false` on the route stays the only opt-out.
 
-<sub>See also [`security/access-is-checked-for-presence-not-meaning`](security.md#security-access-is-checked-for-presence-not-meaning), [`security/protocol-roster`](security.md#security-protocol-roster), [`attributes/access-payload`](attributes.md#attributes-access-payload).</sub>
+<sub>See also [`security/access-is-checked-for-presence-not-meaning`](security.md#security-access-is-checked-for-presence-not-meaning), [`security/protocol-roster`](security.md#security-protocol-roster), [`attributes/access-payload`](attributes.md#attributes-access-payload), [`routing/a-gate-answers-around-every-handler`](routing.md#routing-a-gate-answers-around-every-handler).</sub>
 
 <a id="security-access-is-checked-for-presence-not-meaning"></a>
 
@@ -2887,8 +2897,11 @@ sessions. An omission is an error rather than a public default — that half is
 [`attributes/access-payload`](attributes.md#attributes-access-payload).
 
 **Interpretation belongs to whoever dispatches.** The declared name rides on the match the server made
-as uninterpreted data, and the application's own dispatch reads and enforces it, once, above the
-`switch` that calls a handler, so a route whose arm never mentions access is still checked.
+as uninterpreted data, and the application reads and enforces it once, in front of every handler, so
+a route whose handler never mentions access is still checked. Under `Core\Router::dispatch` that place
+is the gate's `allows`, which runs before every handler the generated jump calls
+([`routing/a-gate-answers-around-every-handler`](routing.md#routing-a-gate-answers-around-every-handler)); a hand-written dispatcher checks it above its
+`switch`.
 **A dispatcher compares a case, never text:** `Core\Router\Match::accessAs<E>()` answers the decision
 as a case of the enum `E` and `null` for any other decision, so a renamed case is a compile error at
 the comparison and an admin route never reads as a public one. A case reaching `mixed` is only its
@@ -2904,9 +2917,11 @@ enforcement points is how a route ends up checked twice in development and not a
 so there is one.
 
 **The limit is stated rather than implied: the compiler guarantees the decision was *written*, not
-that it was *honoured*.** An application that hand-rolls dispatch and never reads the access name gets
-no enforcement from anyone. Closing that would require recognising a dispatch site, which is an
-opinion the route table refuses to hold.
+that it was *honoured*.** `Core\Router::dispatch` is the dispatch site that closes this for a program
+that calls it: no handler runs unless `allows` returned `true` for its match, so a gate that reads the
+access decision enforces it on every route. What `allows` concludes stays the application's. An
+application that hand-rolls dispatch and never reads the access name gets no enforcement from anyone,
+because the compiler cannot follow a dispatch table a program builds from data.
 
 Object-level authorisation is outside it too. Most privilege escalation is a request for a row that
 belongs to another user, and no language-level mechanism answers that, because the check needs the
@@ -2927,10 +2942,11 @@ row. The handler that loads the row makes that check.
 - **The decision readable only through `Core\Attributes::get` on the handler.** That call names the
   method, so the check is written once per `switch` arm. An arm that forgets it is an unguarded route,
   and nothing reports the omission.
-- **A compile error where an access decision is never read.** The compiler would have to recognise a
-  dispatch site, and it cannot follow a dispatch table a program builds from data.
+- **A compile error where an access decision is never read.** The compiler recognises `dispatch`, but
+  it cannot follow a dispatch table a program builds from data, and a gate's `allows` may decide on
+  something other than the access name.
 
-<sub>See also [`attributes/access-is-a-required-sibling`](attributes.md#attributes-access-is-a-required-sibling), [`attributes/access-payload`](attributes.md#attributes-access-payload), [`security/csrf-is-on-by-default`](security.md#security-csrf-is-on-by-default), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type).</sub>
+<sub>See also [`attributes/access-is-a-required-sibling`](attributes.md#attributes-access-is-a-required-sibling), [`attributes/access-payload`](attributes.md#attributes-access-payload), [`security/csrf-is-on-by-default`](security.md#security-csrf-is-on-by-default), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type), [`routing/a-gate-answers-around-every-handler`](routing.md#routing-a-gate-answers-around-every-handler).</sub>
 
 <a id="security-bidi-predicate"></a>
 

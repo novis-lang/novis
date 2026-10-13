@@ -2,8 +2,8 @@
 the access decision's name, and nothing invocable: no `->invoke()`, no callable, no class-and-method
 strings, and the handler's `Class::method` label never crosses. A first-class reference to the
 matched method would need `callable` to carry a signature, which `rule:types/grammar` defers — but
-routing is not a forcing case for that deferral, and typed `callable` would not remove the dispatch
-`switch`, for three independent reasons.
+routing is not a forcing case for that deferral, and a typed `callable` on the match would not be the
+way to dispatch, for three independent reasons.
 
 What a match returns beyond its name and captures, and why:
 
@@ -21,17 +21,15 @@ What a match returns beyond its name and captures, and why:
 Routes do not share a signature: `show(uint $id)`, `index()` and `blog(uint $y, uint $m, string $slug)`
 cannot inhabit one `handler` field, and pre-binding the converted parameters into a zero-argument callable
 is dispatch. Handlers have no common return type, and a `callable(): Response` would force one, which is
-a framework opinion `Core` refuses to hold. And the boundary ground survives regardless: invoking would
-be dispatch, which the table refuses on its own account
-(`rule:routing/the-servers-match-dispatches-nothing`).
-
-The ergonomic cost is paid where the framework layer already sits: `Web\Controller` generates the
-`switch` from the route table while compiling (`rule:programs/framework-web-package`), and an application
-declining the framework writes it itself, permanently. The roster of compiler-recognised attributes this
-table draws on has one home (`rule:core-classes/derive-attribute`), and no rule restates its size.
+a framework opinion `Core` refuses to hold. And a callable on the match would be a second way to reach a
+handler, around the gate `Core\Router::dispatch` puts in front of every one
+(`rule:routing/a-gate-answers-around-every-handler`). That call is generated code in the unit, indexed
+by the matched row, so dispatching needs nothing from the match a program could call. The roster of
+compiler-recognised attributes this table draws on has one home
+(`rule:core-classes/derive-attribute`), and no rule restates its size.
 
 **Declined:**
-- **The server calls the matched method.** Calling it would be dispatch
-  (`rule:routing/the-servers-match-dispatches-nothing`).
+- **The server calls the matched method.** The program calls `dispatch`, and a program that does not
+  is served as before (`rule:routing/the-servers-match-dispatches-nothing`).
 - **`params` as a shape per route, narrowed by comparing `name`.** The checker has no such narrowing,
-  and it would save only one `as`. A generated dispatch `switch` binds typed parameters without it.
+  and it would save only one `as`. The generated jump binds typed parameters without it.
