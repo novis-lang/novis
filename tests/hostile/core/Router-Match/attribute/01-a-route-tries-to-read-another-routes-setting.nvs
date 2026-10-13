@@ -1,0 +1,68 @@
+<?nvs
+// Attack: a route tries to get the setting of another route, or a setting with the wrong fields.
+// Each route should only give its own setting, and nothing may crash.
+
+use RuntimeError;
+
+class Site
+{
+    #[Core\Route(path: "/public", method: Core\Http\Method::Get, name: "Site::open")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    #[{seconds: 3600}]
+    public function open(): string
+    { return 'open'; }
+
+    #[Core\Route(path: "/private", method: Core\Http\Method::Get, name: "Site::closed")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    #[{seconds: 0, role: "admin"}]
+    public function closed(): string
+    { return 'closed'; }
+
+    #[Core\Route(path: "/plain", method: Core\Http\Method::Get, name: "Site::plain")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function plain(): string
+    { return 'plain'; }
+
+    // This method has a setting but no route. No match should ever return it.
+    #[{seconds: 99, role: "root"}]
+    public function helper(): string
+    { return 'helper'; }
+}
+
+// 1. Each route is read with two shapes. Each gives only its own values.
+array<string> $paths = ['/public', '/private', '/plain'];
+foreach ($paths as string $path) {
+    try {
+        ?Core\Router\Match $found = Core\Router::match(Core\Http\Method::Get, $path);
+        if ($found == null) {
+            echo $path, ' -> no route', "\n";
+            continue;
+        }
+        ?{seconds: int} $cache = $found->attribute<{seconds: int}>();
+        ?{role: string} $role = $found->attribute<{role: string}>();
+        echo $path,
+            ' seconds=', $cache == null ? 'none' : $cache->seconds as string,
+            ' role=', $role == null ? 'none' : $role->role, "\n";
+    } catch (RuntimeError $e) {
+        echo $path, ' -> error', "\n";
+    }
+}
+
+// 2. A path made to look like the method with no route. No route matches it.
+?Core\Router\Match $helper = Core\Router::match(Core\Http\Method::Get, '/Site::helper');
+echo $helper == null ? 'no route' : 'matched', "\n";
+
+// 3. The public route is read one million times. It never gives the other route's role.
+?Core\Router\Match $open = Core\Router::match(Core\Http\Method::Get, '/public');
+uint $leaked = 0;
+if ($open != null) {
+    Core\Router\Match $route = $open;
+    uint $i = 0;
+    while ($i < 1000000) {
+        if ($route->attribute<{role: string}>() != null) {
+            $leaked = $leaked + 1;
+        }
+        $i = $i + 1;
+    }
+}
+echo $leaked, "\n";

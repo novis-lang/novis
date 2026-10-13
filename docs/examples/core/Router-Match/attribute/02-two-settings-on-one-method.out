@@ -1,0 +1,2 @@
+cache: 30 seconds
+limit: 20 per minute

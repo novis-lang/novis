@@ -1,0 +1,53 @@
+<?nvs
+// Shows a gate that reads the cache setting of each route and sends a `Cache-Control` header.
+
+use Core\Http\Method;
+use Core\Router\Refusal;
+
+class Pages {
+    #[Core\Route(path: "/news", method: Core\Http\Method::Get, name: "Pages::news")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    #[{seconds: 60}]
+    public function news(): void {
+        echo "news";
+    }
+
+    #[Core\Route(path: "/account", method: Core\Http\Method::Get, name: "Pages::account")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function account(): void {
+        echo "account";
+    }
+}
+
+class Gate implements Core\Router\Gate {
+    public function allows(Core\Router\Match $route): bool {
+        // A route with a cache setting may be cached for that many seconds.
+        // A route without one is never cached.
+        ?{seconds: int} $cache = $route->attribute<{seconds: int}>();
+        if ($cache != null) {
+            Core\Response::setHeader("Cache-Control", "max-age=" . $cache->seconds);
+        } else {
+            Core\Response::setHeader("Cache-Control", "no-store");
+        }
+        return true;
+    }
+
+    public function refused(Refusal $reason, ?Core\Router\Match $route): void {
+        echo "no page here";
+    }
+
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void {
+        echo "something went wrong";
+    }
+}
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    Core\Router::dispatch(new Gate());
+} else {
+    // From the command line, this part sends two requests. It needs no server.
+    // This prints `news max-age=60`, then `account no-store`.
+    var $news = Core\Test::request(Method::Get, "/news");
+    echo $news->body(), " ", $news->header("Cache-Control") ?? "", "\n";
+    var $account = Core\Test::request(Method::Get, "/account");
+    echo $account->body(), " ", $account->header("Cache-Control") ?? "", "\n";
+}
