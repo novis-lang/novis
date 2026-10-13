@@ -253,7 +253,11 @@ fn elem_var(interface: &str, interner: &mut TypeInterner) -> TypeId {
 /// entry of `params`: being callable by name is `rule:core-api/shape-rules` R2's rule for
 /// `Core` but the *language's* rule for everything (`rule:types/arrays`), so a
 /// reserved interface is not the one surface a `name:` cannot reach.
-fn bodiless(names: &[&str], params: Vec<TypeId>, return_ty: TypeId) -> MethodSig {
+///
+/// `pub(crate)` for [`crate::core_lib`], whose `Core` interfaces a program
+/// implements (`nvs_stdlib::registry::CoreContract`) are members of exactly
+/// this shape.
+pub(crate) fn bodiless(names: &[&str], params: Vec<TypeId>, return_ty: TypeId) -> MethodSig {
     debug_assert_eq!(
         names.len(),
         params.len(),

@@ -1019,4 +1019,42 @@ mod tests {
             );
         }
     }
+
+    /// The three members of `Core\Router\Gate`, as a program's own class
+    /// writes them — `nvs_stdlib::registry::CoreContract`'s first entry.
+    const GATE_MEMBERS: [&str; 3] = [
+        "public function allows(Core\\Router\\Match $route): bool { return true; }\n",
+        "public function refused(Core\\Router\\Refusal $reason, ?Core\\Router\\Match $route): \
+         void {}\n",
+        "public function failed(?Core\\Router\\Match $route, ?Throwable $error): void {}\n",
+    ];
+
+    /// A `Core` interface a program implements owes each of its members, and
+    /// one implementing all three is clean — including where a parameter typed
+    /// by the interface is handed the class.
+    #[test]
+    fn a_class_implementing_the_gate_owes_its_three_members() {
+        let whole = check_src(&format!(
+            "<?nvs\n\
+             class Shop implements Core\\Router\\Gate {{\n{}{}{}}}\n\
+             class Site {{\n\
+             public static function serve(Core\\Router\\Gate $gate): void {{}}\n\
+             }}\n\
+             Site::serve(new Shop());\n",
+            GATE_MEMBERS[0], GATE_MEMBERS[1], GATE_MEMBERS[2],
+        ));
+        assert!(!whole.has_errors(), "{whole:?}");
+        for left_out in 0..GATE_MEMBERS.len() {
+            let written: String = GATE_MEMBERS
+                .iter()
+                .enumerate()
+                .filter(|(index, _)| *index != left_out)
+                .map(|(_, member)| *member)
+                .collect();
+            let diags = check_src(&format!(
+                "<?nvs\nclass Shop implements Core\\Router\\Gate {{\n{written}}}\n"
+            ));
+            assert!(missing(&diags), "member {left_out} left out: {diags:?}");
+        }
+    }
 }

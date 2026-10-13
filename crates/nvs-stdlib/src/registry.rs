@@ -3158,6 +3158,9 @@ pub const ENUMS: &[CoreEnum] = &[
     crate::env::MODE,
     crate::env::CONTEXT,
     crate::env::PLATFORM,
+    // What `Core\Router\Gate::refused` is told, ahead of the router's other two
+    // because `Core\Router::dispatch` is the member that passes it.
+    crate::router::REFUSAL,
     crate::router::METHOD,
     crate::router::AUDIENCE,
     // The one enum whose case values are not numbered from zero: they are the
@@ -3272,25 +3275,27 @@ pub fn signature_classes(name: &str) -> Vec<&'static str> {
 pub const DERIVE_INTERFACES: &[&str] = &[r"Core\Json\Codec", r"Core\Db\Codec"];
 
 /// Every `Core` name a class may write in an `extends`/`implements` clause:
-/// the classes above and [`DERIVE_INTERFACES`].
+/// the classes above, [`DERIVE_INTERFACES`] and [`CONTRACTS`].
 ///
 /// This is what a front end hands `nvs_hir::CoreRoster::Names`, which is the
 /// only authority on the question — `Core` is compiler-owned, so no source
 /// file declares a name there and no symbol table can answer for one. **A
-/// `Core` interface a future rule lets a program name joins
-/// [`DERIVE_INTERFACES`]**, which is the bound: this function reads the
-/// tables and holds nothing of its own.
+/// `Core` interface a program's class implements is a [`CoreContract`]** when
+/// it has members a `Core` member calls, and joins [`DERIVE_INTERFACES`] when
+/// an attribute stands for it. This function reads the tables and holds
+/// nothing of its own.
 #[must_use]
 pub fn link_targets() -> Vec<&'static str> {
     CLASSES
         .iter()
         .map(|class| class.name)
         .chain(DERIVE_INTERFACES.iter().copied())
+        .chain(CONTRACTS.iter().map(|contract| contract.name))
         .collect()
 }
 
 /// Every `Core` type a program may name where a class, an interface or an
-/// enum goes: the classes, [`DERIVE_INTERFACES`] and the enums.
+/// enum goes: the classes, every interface and the enums.
 ///
 /// This is what a front end hands `nvs_hir::undeclared_name` as the roster a
 /// fix may import from: a bare `Request` that resolved to nothing is offered
@@ -3377,6 +3382,63 @@ pub fn closed_interfaces() -> Vec<&'static str> {
 #[must_use]
 pub fn interface(name: &str) -> Option<&'static CoreInterface> {
     INTERFACES.iter().find(|interface| interface.name == name)
+}
+
+/// A `Core` interface a **program's** class implements, so that a `Core`
+/// member can call back into it: [`CoreInterface`]'s opposite, whose
+/// implementors are a closed list of `Core` classes.
+///
+/// **Its members are signatures and nothing else.** No member has a symbol,
+/// because no `Core` code implements one: `nvs_types::core_lib` seeds each as
+/// a bodiless instance member, which is what makes
+/// `nvs_types::conformance` require all of them of an implementing class and
+/// what makes a call on a value of the interface dispatch on that value's own
+/// class. A native member reaches one through `nvs_runtime::call_method`, by
+/// the name written here.
+///
+/// It is a roster of its own rather than an entry in `nvs_hir::interfaces`'
+/// global one, because the name is under `Core` and a `Core` name is resolved
+/// against the roster [`link_targets`] builds. [`link_targets`] holds every
+/// entry, so `class Shop implements Core\Router\Gate` resolves, and
+/// `nvs_types`' lowering of any `Core` name in a type position makes a
+/// parameter typed by one accept every implementing class.
+///
+/// `$v is Core\Router\Gate` is not answered by this roster: the test folds as
+/// it does for any `Core` name with no descriptor, and nothing needs it yet.
+#[derive(Clone, Copy, Debug)]
+pub struct CoreContract {
+    /// The fully-qualified name, as source writes it.
+    pub name: &'static str,
+    /// The interface's reference card — `rule:core-api/reference-card`.
+    pub doc: Option<&'static ClassDoc>,
+    /// Every member an implementing class must declare.
+    pub members: &'static [ContractMethod],
+}
+
+/// One member of a [`CoreContract`]: an instance method with no default, as
+/// the interface declaration writes it.
+#[derive(Clone, Copy, Debug)]
+pub struct ContractMethod {
+    /// The member's own name.
+    pub name: &'static str,
+    /// The `$name` of each parameter, one per entry of [`Self::params`].
+    pub names: &'static [&'static str],
+    /// Each parameter's declared type.
+    pub params: &'static [CoreTy],
+    /// The declared return type.
+    pub return_ty: CoreTy,
+    /// The member's reference card — `rule:core-api/reference-card`. `ret`
+    /// says what the `Core` member that calls it does with the result.
+    pub doc: Option<&'static MethodDoc>,
+}
+
+/// Every [`CoreContract`].
+pub const CONTRACTS: &[CoreContract] = &[crate::router::GATE];
+
+/// Looks a [`CoreContract`] up by its fully-qualified name.
+#[must_use]
+pub fn contract(name: &str) -> Option<&'static CoreContract> {
+    CONTRACTS.iter().find(|contract| contract.name == name)
 }
 
 /// Whether a `Core`-owned class renders as text —
@@ -6347,6 +6409,46 @@ mod tests {
                 for param in method.params {
                     check(param, &what);
                 }
+            }
+        }
+        for contract in CONTRACTS {
+            for member in contract.members {
+                let what = format!("{}::{}", contract.name, member.name);
+                check(&member.return_ty, &what);
+                for param in member.params {
+                    check(param, &what);
+                }
+            }
+        }
+    }
+
+    /// A [`CoreContract`] is held to [`CoreMethod`]'s two shape rules a
+    /// program reads it by: one name per parameter, and a card on every
+    /// member and on the interface itself.
+    #[test]
+    fn every_contract_member_names_its_parameters_and_carries_a_card() {
+        for contract in CONTRACTS {
+            assert!(
+                contract.doc.is_some_and(|doc| !doc.short.trim().is_empty()),
+                "{} has no card",
+                contract.name
+            );
+            assert!(
+                link_targets().contains(&contract.name),
+                "{} is not a name an `implements` clause resolves",
+                contract.name
+            );
+            for member in contract.members {
+                let what = format!("{}::{}", contract.name, member.name);
+                assert_eq!(member.names.len(), member.params.len(), "{what}");
+                let doc = member.doc.unwrap_or_else(|| panic!("{what} has no card"));
+                assert!(!doc.short.trim().is_empty(), "{what}'s card has no `short`");
+                assert!(!doc.ret.trim().is_empty(), "{what}'s card has no `ret`");
+                let documented: Vec<&str> = doc.params.iter().map(|param| param.name).collect();
+                assert_eq!(
+                    documented, member.names,
+                    "{what}'s card names other parameters"
+                );
             }
         }
     }

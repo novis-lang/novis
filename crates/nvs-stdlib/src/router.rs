@@ -3,7 +3,10 @@
 //! `rule:routing/routes-are-compiled-not-registered`'s router as
 //! exists today, and `Core\Router\Match`, the match
 //! `rule:routing/matched-once-before-the-handler`
-//! has the door take once and `Core\Request::route()` hand back.
+//! has the door take once and `Core\Request::route()` hand back. And
+//! `rule:routing/a-gate-answers-around-every-handler`'s `Core\Router\Gate`,
+//! which a program's own class implements, with the `Core\Router\Refusal` its
+//! `refused` member is told.
 //!
 //! # Why the enum is here rather than in a module of its own
 //!
@@ -743,6 +746,187 @@ const MATCH_ACCESS_AS_DOC: MethodDoc = MethodDoc {
     params: &[],
     ret: "The case of that enum, or `null` when the route's rule is not a case of that enum. \
           Treat `null` as access denied. The type argument must be an enum.",
+    errors: &[],
+};
+
+/// `Core\Router\Refusal`'s fully-qualified name, written once for [`REFUSAL`]'s
+/// row and for the gate's signatures.
+pub(crate) const REFUSAL_NAME: &str = r"Core\Router\Refusal";
+
+/// `rule:routing/a-gate-answers-around-every-handler`'s `Core\Router\Refusal`:
+/// why `Core\Router::dispatch` did not call the matched method, as
+/// `Core\Router\Gate::refused` is told it.
+///
+/// The rule's table is the order, and each case's status is that table's. A
+/// server refusal added later is a new case at the end, so no ordinal a
+/// program has already compiled against moves.
+pub(crate) const REFUSAL: CoreEnum = CoreEnum {
+    name: REFUSAL_NAME,
+    cases: &[
+        ("NotFound", 0),
+        ("MethodNotAllowed", 1),
+        ("UnknownMethod", 2),
+        ("Denied", 3),
+        ("Csrf", 4),
+        ("BodyTooLarge", 5),
+        ("BadCapture", 6),
+    ],
+    doc: Some(&REFUSAL_DOC),
+};
+
+/// [`REFUSAL`]'s reference card — `rule:core-api/reference-card`.
+const REFUSAL_DOC: EnumDoc = EnumDoc {
+    short: "The reason `Core\\Router::dispatch` did not call the method of a route. Your \
+            `Core\\Router\\Gate` gets it in `refused()`. The response already has the status \
+            that each case names.",
+    cases: &[
+        CaseDoc {
+            name: "NotFound",
+            desc: "No route has this path. The status is `404`.",
+        },
+        CaseDoc {
+            name: "MethodNotAllowed",
+            desc: "A route has this path, but not for this HTTP method. The status is `405`. \
+                   The `Allow` header lists the methods that the path accepts.",
+        },
+        CaseDoc {
+            name: "UnknownMethod",
+            desc: "The HTTP method is not a case of `Core\\Http\\Method`. The status is `501`.",
+        },
+        CaseDoc {
+            name: "Denied",
+            desc: "`allows()` returned `false` or threw an error. The status is `403`.",
+        },
+        CaseDoc {
+            name: "Csrf",
+            desc: "The server did not accept the CSRF token or the origin of the request. The \
+                   status is `403`.",
+        },
+        CaseDoc {
+            name: "BodyTooLarge",
+            desc: "The request body is larger than the limit of the server. The status is `413`.",
+        },
+        CaseDoc {
+            name: "BadCapture",
+            desc: "A value in the path cannot be converted to the type of its parameter. For \
+                   example, the `parse` method of its class threw an error. The status is `400`.",
+        },
+    ],
+};
+
+/// `Core\Router\Gate`'s fully-qualified name, written once for [`GATE`]'s row
+/// and for the parameter of `dispatch` that takes one.
+pub(crate) const GATE_NAME: &str = r"Core\Router\Gate";
+
+/// `?Throwable`, as `Core\Router\Gate::failed` is handed the error.
+const THROWABLE_OR_NULL: CoreTy = CoreTy::Nullable(&CoreTy::Instance("Throwable"));
+
+/// `rule:routing/a-gate-answers-around-every-handler`'s `Core\Router\Gate`, the
+/// first `Core` interface a program's own class implements.
+///
+/// It is a [`crate::registry::CoreContract`], whose doc owns how a program's
+/// class comes to implement it and how the checker holds that class to the
+/// three members. What is decided here is the members themselves, written as
+/// the rule writes them, and the names `dispatch` calls them by:
+/// [`GATE_ALLOWS`], [`GATE_REFUSED`] and [`GATE_FAILED`].
+pub(crate) const GATE: crate::registry::CoreContract = crate::registry::CoreContract {
+    name: GATE_NAME,
+    doc: Some(&GATE_CARD),
+    members: &[
+        crate::registry::ContractMethod {
+            name: GATE_ALLOWS,
+            names: &["route"],
+            params: &[CoreTy::Instance(MATCH_NAME)],
+            return_ty: CoreTy::Bool,
+            doc: Some(&GATE_ALLOWS_DOC),
+        },
+        crate::registry::ContractMethod {
+            name: GATE_REFUSED,
+            names: &["reason", "route"],
+            params: &[CoreTy::Enum(REFUSAL_NAME), MATCHED],
+            return_ty: CoreTy::Void,
+            doc: Some(&GATE_REFUSED_DOC),
+        },
+        crate::registry::ContractMethod {
+            name: GATE_FAILED,
+            names: &["route", "error"],
+            params: &[MATCHED, THROWABLE_OR_NULL],
+            return_ty: CoreTy::Void,
+            doc: Some(&GATE_FAILED_DOC),
+        },
+    ],
+};
+
+/// The member `dispatch` asks before every handler.
+pub(crate) const GATE_ALLOWS: &str = "allows";
+/// The member `dispatch` calls when no handler runs.
+pub(crate) const GATE_REFUSED: &str = "refused";
+/// The member `dispatch` calls when the handler threw.
+pub(crate) const GATE_FAILED: &str = "failed";
+
+/// `Core\Router\Gate`'s class card — `rule:core-api/reference-card`.
+const GATE_CARD: ClassDoc = ClassDoc {
+    short: "The interface your class implements to control `Core\\Router::dispatch`. \
+            `allows()` checks each request before the method of its route runs. `refused()` \
+            writes the response when no route method runs, and `failed()` writes it when \
+            the method threw an error.",
+};
+
+/// `Core\Router\Gate::allows`'s reference card — `rule:core-api/reference-card`.
+const GATE_ALLOWS_DOC: MethodDoc = MethodDoc {
+    short: "Checks whether the request may reach the method of its route. \
+            `Core\\Router::dispatch` calls it before every route method. Check the route's \
+            access rule here, for example with `$route->accessAs<App\\Role>()`.",
+    params: &[ParamDoc {
+        name: "route",
+        desc: "The route that the request matched.",
+        shape: &[],
+    }],
+    ret: "`true` to call the method of the route. With `false`, the method does not run, the \
+          status is `403` and `dispatch` calls `refused()` with `Refusal::Denied`. An error \
+          thrown here has the same result.",
+    errors: &[],
+};
+
+/// `Core\Router\Gate::refused`'s reference card — `rule:core-api/reference-card`.
+const GATE_REFUSED_DOC: MethodDoc = MethodDoc {
+    short: "Writes the response for a request that no route method runs for. `dispatch` sets \
+            the status before it calls this method. You can keep that status, or set another \
+            one.",
+    params: &[
+        ParamDoc {
+            name: "reason",
+            desc: "Why no route method runs. Each case of `Core\\Router\\Refusal` names the \
+                   status that is already set.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "route",
+            desc: "The route that the request matched, or `null` when no route matched.",
+            shape: &[],
+        },
+    ],
+    ret: "Nothing. If this method throws an error, `dispatch` throws the same error.",
+    errors: &[],
+};
+
+/// `Core\Router\Gate::failed`'s reference card — `rule:core-api/reference-card`.
+const GATE_FAILED_DOC: MethodDoc = MethodDoc {
+    short: "Writes the response when the method of the route threw an error. `dispatch` sets \
+            the status to `500` before it calls this method.",
+    params: &[
+        ParamDoc {
+            name: "route",
+            desc: "The route whose method threw the error.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "error",
+            desc: "The error that the method threw.",
+            shape: &[],
+        },
+    ],
+    ret: "Nothing. If this method throws an error, `dispatch` throws the same error.",
     errors: &[],
 };
 

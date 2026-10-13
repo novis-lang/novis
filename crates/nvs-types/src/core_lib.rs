@@ -156,6 +156,31 @@ pub(crate) fn seed(table: &mut SignatureTable, interner: &mut TypeInterner) {
             table.seed_implements(QName::parse(implementor), qname.clone(), Vec::new());
         }
     }
+    // `nvs_stdlib::registry::CoreContract`'s roster: the interfaces a program's
+    // own class implements. Each member is bodiless, as a reserved global
+    // interface's are (`crate::iter_lib`), so `crate::conformance` requires it
+    // of every implementing class and a call on the interface dispatches on the
+    // value's class. The edges come from the program's own `implements`
+    // clauses, so none is seeded here.
+    for contract in nvs_stdlib::registry::CONTRACTS {
+        let methods = contract
+            .members
+            .iter()
+            .map(|member| {
+                let params = member
+                    .params
+                    .iter()
+                    .map(|param| lower(param, interner))
+                    .collect();
+                let return_ty = lower(&member.return_ty, interner);
+                (
+                    member.name.to_owned(),
+                    crate::iter_lib::bodiless(member.names, params, return_ty),
+                )
+            })
+            .collect();
+        table.seed_class(QName::parse(contract.name), FxHashMap::default(), methods);
+    }
 }
 
 /// The classes that implement the `Core` interface `qname`, or `None` when

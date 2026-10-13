@@ -1757,6 +1757,11 @@
           "`rule:routing/matching-is-not-dispatching`"
         ],
         [
+          "`Core\\Router\\Gate`",
+          "The interface a program's own class implements for `Core\\Router::dispatch`: `allows(Router\\Match $route): bool`, `refused(Router\\Refusal $reason, ?Router\\Match $route): void` and `failed(?Router\\Match $route, ?Throwable $error): void`, each required of the class. `Router\\Refusal` is `NotFound`, `MethodNotAllowed`, `UnknownMethod`, `Denied`, `Csrf`, `BodyTooLarge` and `BadCapture`, each naming the status `dispatch` sets before it calls `refused`",
+          "`rule:routing/a-gate-answers-around-every-handler`"
+        ],
+        [
           "`Core\\Command`",
           "`run(): uint`, `help(?string): Cli\\Text` and `completions(Command::Shell): string`, over a table built while compiling from `#[Command]`/`#[Option]`/`#[Argument]`. A duplicate command name, two options sharing a spelling and an `#[Option]` on a parameter with no conversion from `string` are compile errors. Unlike `Core\\Router` it dispatches, because a CLI has one entry point and no middleware question",
           "`rule:tooling/commands-are-compiled`"

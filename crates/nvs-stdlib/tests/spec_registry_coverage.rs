@@ -1611,8 +1611,14 @@ fn compiler_facing_members() -> Vec<CompilerFacingMember> {
                 continue;
             }
             any = true;
+            // A `Core` interface a program implements declares its members on
+            // `registry::CONTRACTS` rather than on a class row.
+            let contracted = named.iter().any(|class| {
+                registry::contract(class)
+                    .is_some_and(|contract| contract.members.iter().any(|m| m.name == *name))
+            });
             found.push(CompilerFacingMember {
-                declared: registered(&candidates, name),
+                declared: contracted || registered(&candidates, name),
                 key: format!("§13 {prefix}{name}"),
             });
         }
