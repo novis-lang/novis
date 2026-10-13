@@ -293,7 +293,7 @@ pub(crate) fn eval_param_default(
 ) -> Option<ConstArg> {
     let mut reported = false;
     let value = if matches!(&expr.kind, ExprKind::ClassConstAccess { .. }) {
-        const_reference_default(expr, declared, ctx, &mut reported, env)
+        const_reference_default(expr, declared, ctx, Some(&mut reported), env)
     } else {
         literal_default(expr, declared, env)
     };
@@ -313,6 +313,24 @@ pub(crate) fn eval_param_default(
         );
     }
     value
+}
+
+/// [`eval_param_default`]'s constant, reporting nothing: for a pass that reads
+/// a parameter default a second time, over an expression whose diagnostics
+/// [`crate::signatures`] already made. `crate::derive` is the one caller, and
+/// it needs the named constants as well as the literals, so a derived decoder
+/// fills `Mode $m = Mode::Fast` with the case.
+pub(crate) fn quiet_param_default(
+    expr: &Expr,
+    declared: TypeId,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> Option<ConstArg> {
+    if matches!(&expr.kind, ExprKind::ClassConstAccess { .. }) {
+        const_reference_default(expr, declared, ctx, None, env)
+    } else {
+        literal_default(expr, declared, env)
+    }
 }
 
 /// Evaluates a written `= expr` **property** default against the property's
@@ -346,7 +364,7 @@ pub(crate) fn eval_property_default(
     let value = if empty_array {
         Some(ConstArg::EmptyArray)
     } else if matches!(&expr.kind, ExprKind::ClassConstAccess { .. }) {
-        const_reference_default(expr, declared, ctx, &mut reported, env)
+        const_reference_default(expr, declared, ctx, Some(&mut reported), env)
     } else {
         literal_default(expr, declared, env)
     }
@@ -392,21 +410,25 @@ pub(crate) fn eval_property_default(
 /// ) is refused into a non-`secret` slot with its own `E_TYPE_MISMATCH`,
 /// which is what the qualifier would otherwise be laundered by: the declared
 /// type is the only thing carrying it, and a folded value has already lost it.
-/// `reported` says whether that refusal already spoke, so the caller does not
-/// add a second, vaguer one.
+/// `reported` is set when that refusal or the `static::` one spoke, so the
+/// caller does not add a second, vaguer one. `None` reports nothing at all:
+/// that is [`quiet_param_default`], reading an expression whose diagnostics
+/// [`eval_param_default`] already made.
 fn const_reference_default(
     expr: &Expr,
     declared: TypeId,
     ctx: &Ctx<'_>,
-    reported: &mut bool,
+    reported: Option<&mut bool>,
     env: &mut Env<'_>,
 ) -> Option<ConstArg> {
     let ExprKind::ClassConstAccess { class, name } = &expr.kind else {
         return None;
     };
     if matches!(class.kind, ExprKind::StaticExpr) {
-        report_static_in_constant_expression(expr.span, env);
-        *reported = true;
+        if let Some(reported) = reported {
+            report_static_in_constant_expression(expr.span, env);
+            *reported = true;
+        }
         return None;
     }
     let qname = crate::expr::resolve_class_expr(class, ctx, env)?;
@@ -430,6 +452,7 @@ fn const_reference_default(
         if env.consts.is_secret(&qname, &member, env.graph)
             && !crate::expr::type_is_secret(declared, env.interner)
         {
+            let reported = reported?;
             let want = env.interner.describe(declared);
             env.diags.report(
                 Diagnostic::error(

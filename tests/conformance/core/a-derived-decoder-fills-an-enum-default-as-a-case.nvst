@@ -1,0 +1,70 @@
+--TEST--
+A `Core\Json\Derive` or `Core\Db\Derive` field whose constructor parameter defaults to an enum case is filled with that case when the input leaves it out, on both backings — `rule:core-api/required-optional-and-nullable`, `rule:enums/representation` and `rule:enums/truthiness`
+--FILE--
+<?nvs
+// The default is folded while compiling and carried onto the field, so a
+// decoder that is not a call site can still fill it. It has to arrive as the
+// case, which a 0-backed case shows by being truthy.
+enum Mode: int {
+    Off = 0,
+    On = 5,
+}
+
+enum Size: uint {
+    Small = 0,
+    Large = 40,
+}
+
+#[Core\Json\Derive]
+class Settings {
+    public function constructor(
+        public string $name,
+        public Mode $mode = Mode::Off,
+        public Size $size = Size::Small,
+    ) {}
+}
+
+Settings $s = Core\Json::decodeAs<Settings>("{\"name\":\"n\"}");
+mixed $mode = $s->mode;
+echo "json mode is a Mode: ", ($mode is Mode) ? "yes" : "no", ", truthy: ", $mode ? "yes" : "no", "\n";
+mixed $size = $s->size;
+echo "json size is a Size: ", ($size is Size) ? "yes" : "no", ", truthy: ", $size ? "yes" : "no", "\n";
+echo "json off: ", $s->mode == Mode::Off ? "yes" : "no", ", small: ", $s->size == Size::Small ? "yes" : "no", "\n";
+
+// A key that is present still wins over the default.
+Settings $given = Core\Json::decodeAs<Settings>("{\"name\":\"n\",\"mode\":5,\"size\":40}");
+echo "json given: ", $given->mode == Mode::On ? "On" : "other", " ", $given->size == Size::Large ? "Large" : "other", "\n";
+
+#[Core\Db\Derive]
+class Row {
+    public function constructor(
+        public string $name,
+        public Mode $mode = Mode::Off,
+        public Size $size = Size::Small,
+    ) {}
+}
+
+var $db = Core\Db::connect("main");
+$db->execute("create table rows (name text)", []);
+$db->execute("insert into rows (name) values (?)", ["n"]);
+
+foreach ($db->queryAs<Row>("select name from rows", [])->all() as Row $row) {
+    mixed $rowMode = $row->mode;
+    echo "db mode is a Mode: ", ($rowMode is Mode) ? "yes" : "no", ", truthy: ", $rowMode ? "yes" : "no", "\n";
+    mixed $rowSize = $row->size;
+    echo "db size is a Size: ", ($rowSize is Size) ? "yes" : "no", ", truthy: ", $rowSize ? "yes" : "no", "\n";
+}
+--FILE nvs.toml--
+[capabilities.db]
+connect = ["main"]
+
+[db.main]
+driver = "sqlite"
+path = ":memory:"
+--EXPECT--
+json mode is a Mode: yes, truthy: yes
+json size is a Size: yes, truthy: yes
+json off: yes, small: yes
+json given: On Large
+db mode is a Mode: yes, truthy: yes
+db size is a Size: yes, truthy: yes

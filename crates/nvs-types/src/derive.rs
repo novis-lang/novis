@@ -2297,7 +2297,7 @@ fn check_constructor_parameter(
         default: param
             .default
             .as_ref()
-            .and_then(|expr| crate::defaults::literal_default(expr, param_ty, env)),
+            .and_then(|expr| crate::defaults::quiet_param_default(expr, param_ty, ctx, env)),
     };
     if param_ty == declared {
         return Some(bound);
