@@ -17,7 +17,7 @@ try {
 }
 try {
     array<uint> $noPages = [];
-    echo 'step 1 ran ', Core\Bytes::length(Engine::merge([{data: $good, pages: $noPages}])), "\n";
+    echo 'step 1 ran ', Core\Bytes::length(Engine::merge([{ data: $good, pages: $noPages }])), "\n";
 } catch (Throwable $e) {
     echo "step 1b stopped\n";
 }
@@ -26,7 +26,7 @@ try {
 array<uint> $numbers = [0, 18446744073709551615];
 foreach ($numbers as uint $number) {
     try {
-        echo 'step 2 ran ', Core\Bytes::length(Engine::merge([{data: $good, pages: [$number]}])), "\n";
+        echo 'step 2 ran ', Core\Bytes::length(Engine::merge([{ data: $good, pages: [$number] }])), "\n";
     } catch (Throwable $e) {
         echo "step 2 stopped\n";
     }
@@ -36,9 +36,9 @@ foreach ($numbers as uint $number) {
 try {
     array<{data: bytes, pages: ?array<uint>}> $parts = [];
     for (int $n = 0; $n < 2000; $n++) {
-        $parts[] = {data: $good, pages: null};
+        $parts[] = { data: $good, pages: null };
     }
-    $parts[] = {data: $locked, pages: null};
+    $parts[] = { data: $locked, pages: null };
     echo 'step 3 ran ', Core\Bytes::length(Engine::merge($parts)), "\n";
 } catch (Throwable $e) {
     echo "step 3 stopped\n";
@@ -48,7 +48,7 @@ try {
 array<bytes> $broken = ['' as bytes, "%PDF-1.7\n%%EOF\n" as bytes, Core\Bytes::slice($good, 0, Core\Bytes::length($good) as int - 1)];
 foreach ($broken as bytes $data) {
     try {
-        echo 'step 4 ran ', Core\Bytes::length(Engine::merge([{data: $data, pages: null}])), "\n";
+        echo 'step 4 ran ', Core\Bytes::length(Engine::merge([{ data: $data, pages: null }])), "\n";
     } catch (Throwable $e) {
         echo "step 4 stopped\n";
     }
@@ -61,4 +61,4 @@ array<uint> $same = [];
 for (int $i = 0; $i < 50000; $i++) {
     $same[] = 1;
 }
-echo 'step 5 ran ', Core\Bytes::length(Engine::merge([{data: $good, pages: $same}])), "\n";
+echo 'step 5 ran ', Core\Bytes::length(Engine::merge([{ data: $good, pages: $same }])), "\n";

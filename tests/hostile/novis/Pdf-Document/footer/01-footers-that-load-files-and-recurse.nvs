@@ -11,13 +11,13 @@ class Attack
     public static function attempt(int $step, Core\Html\Markup $markup): void
     {
         try {
-            var $rendered = Document::fromHtml("<h1>Invoice 1042</h1>")
-                ->asset("logo.svg", "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"1\" height=\"1\"/>" as bytes)
-                ->footer(fn(Page $page): Core\Html\Markup => $markup, {height: "3cm"})
+            var $rendered = Document::fromHtml('<h1>Invoice 1042</h1>')
+                ->asset('logo.svg', "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"1\" height=\"1\"/>" as bytes)
+                ->footer(fn(Page $page): Core\Html\Markup => $markup, { height: '3cm' })
                 ->render();
-            echo "step ", $step, " ran ", $rendered->pageCount, "\n";
+            echo 'step ', $step, ' ran ', $rendered->pageCount, "\n";
         } catch (Throwable $e) {
-            echo "step ", $step, " stopped ", $e::class, "\n";
+            echo 'step ', $step, ' stopped ', $e::class, "\n";
         }
     }
 
@@ -25,14 +25,15 @@ class Attack
     public static function nested(int $depth): uint
     {
         if ($depth == 0) {
-            return Document::fromHtml("<p>Blog</p>")->render()->pageCount;
+            return Document::fromHtml('<p>Blog</p>')->render()->pageCount;
         }
-        return Document::fromHtml("<p>Shop</p>")
+        return Document::fromHtml('<p>Shop</p>')
             ->footer(fn(Page $page): Core\Html\Markup => {
                 uint $inner = self::nested($depth - 1);
                 return html`<p>{$inner}</p>`;
             })
-            ->render()->pageCount;
+            ->render()
+            ->pageCount;
     }
 }
 
@@ -55,7 +56,7 @@ Attack::attempt(4, html`<img src="logo.svg" alt="Shop">`);
 // 5. A footer that renders a document whose footer renders another one, 50 levels deep.
 try {
     uint $pages = Attack::nested(50);
-    echo "step 5 ran ", $pages, "\n";
+    echo 'step 5 ran ', $pages, "\n";
 } catch (Throwable $e) {
-    echo "step 5 stopped ", $e::class, "\n";
+    echo 'step 5 stopped ', $e::class, "\n";
 }

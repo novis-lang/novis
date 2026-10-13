@@ -14,9 +14,9 @@ class Attack
                 $document = $document->standard($standard);
             }
             bytes $file = $document->render()->bytes;
-            echo "step ", $step, " ran ", Core\Bytes::contains($file, "/CreationDate" as bytes) ? "dated" : "undated", "\n";
+            echo 'step ', $step, ' ran ', Core\Bytes::contains($file, '/CreationDate' as bytes) ? 'dated' : 'undated', "\n";
         } catch (Throwable $e) {
-            echo "step ", $step, " stopped ", $e::class, "\n";
+            echo 'step ', $step, ' stopped ', $e::class, "\n";
         }
     }
 }
@@ -27,23 +27,23 @@ foreach ($standards as ?Document::Standard $standard) {
     Attack::attempt(1, Core\Time::fromEpoch(-377705023201), $standard);
 
     // 2. The last second there is, in the year 9999, with 999999999 nanoseconds.
-    Attack::attempt(2, Core\Time::fromEpoch(253402207200, {nanos: 999999999}), $standard);
+    Attack::attempt(2, Core\Time::fromEpoch(253402207200, { nanos: 999999999 }), $standard);
 
     // 3. The year 0, which some calendars do not have, and the year 1.
-    Attack::attempt(3, Core\Time::fromIso("0000-01-01T00:00:00Z"), $standard);
-    Attack::attempt(3, Core\Time::fromIso("0001-01-01T00:00:00Z"), $standard);
+    Attack::attempt(3, Core\Time::fromIso('0000-01-01T00:00:00Z'), $standard);
+    Attack::attempt(3, Core\Time::fromIso('0001-01-01T00:00:00Z'), $standard);
 
     // 4. One nanosecond before 1970, and a leap day.
-    Attack::attempt(4, Core\Time::fromEpoch(-1, {nanos: 999999999}), $standard);
-    Attack::attempt(4, Core\Time::fromIso("2024-02-29T23:59:59Z"), $standard);
+    Attack::attempt(4, Core\Time::fromEpoch(-1, { nanos: 999999999 }), $standard);
+    Attack::attempt(4, Core\Time::fromIso('2024-02-29T23:59:59Z'), $standard);
 }
 
 // 5. 1000 renders of one document, each with a different time. Each one must finish.
 uint $dated = 0;
-var $document = Document::fromHtml("<p>Shop</p>");
+var $document = Document::fromHtml('<p>Shop</p>');
 for (int $second = 0; $second < 1000; $second++) {
-    if (Core\Bytes::contains($document->created(Core\Time::fromEpoch($second * 86400))->render()->bytes, "/CreationDate" as bytes)) {
+    if (Core\Bytes::contains($document->created(Core\Time::fromEpoch($second * 86400))->render()->bytes, '/CreationDate' as bytes)) {
         $dated = $dated + 1;
     }
 }
-echo "step 5 ran ", $dated, "\n";
+echo 'step 5 ran ', $dated, "\n";

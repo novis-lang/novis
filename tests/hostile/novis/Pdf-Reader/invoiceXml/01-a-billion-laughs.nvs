@@ -48,7 +48,9 @@ for (int $level = 1; $level <= 10; $level++) {
     string $below = '&lol' . ($level - 1) as string . ';';
     $entities .= "<!ENTITY lol{$level} \"" . Core\Str::repeat($below, 10) . '">';
 }
-string $laughs = '<?xml version="1.0"?><!DOCTYPE rsm:CrossIndustryInvoice [' . $entities . ']>'
+string $laughs = '<?xml version="1.0"?><!DOCTYPE rsm:CrossIndustryInvoice ['
+    . $entities
+    . ']>'
     . '<rsm:CrossIndustryInvoice xmlns:rsm="urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100">&lol10;</rsm:CrossIndustryInvoice>';
 string $external = '<?xml version="1.0"?><!DOCTYPE x [<!ENTITY secret SYSTEM "file:///etc/passwd">]>'
     . '<rsm:CrossIndustryInvoice xmlns:rsm="urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100">&secret;</rsm:CrossIndustryInvoice>';
@@ -59,7 +61,8 @@ try {
         ->standard(Document::Standard::PdfA3b)
         ->created(Core\Time::fromIso('2026-01-01T00:00:00Z'))
         ->invoiceXml($laughs)
-        ->render()->bytes;
+        ->render()
+        ->bytes;
     echo 'step 1 ran ', Core\Bytes::length($rendered), "\n";
 } catch (Throwable $e) {
     echo "step 1 stopped\n";
@@ -71,7 +74,8 @@ try {
         ->standard(Document::Standard::PdfA3b)
         ->created(Core\Time::fromIso('2026-01-01T00:00:00Z'))
         ->invoiceXml($external)
-        ->render()->bytes;
+        ->render()
+        ->bytes;
     echo 'step 2 ran ', Core\Bytes::length($withFile), "\n";
 } catch (Throwable $e) {
     echo "step 2 stopped\n";

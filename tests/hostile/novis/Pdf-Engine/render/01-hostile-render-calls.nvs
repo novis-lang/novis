@@ -10,15 +10,17 @@ for (int $level = 1; $level <= 10; $level++) {
     string $below = '&lol' . ($level - 1) as string . ';';
     $entities .= "<!ENTITY lol{$level} \"" . Core\Str::repeat($below, 10) . '">';
 }
-string $laughs = '<?xml version="1.0"?><!DOCTYPE rsm:CrossIndustryInvoice [' . $entities . ']>'
+string $laughs = '<?xml version="1.0"?><!DOCTYPE rsm:CrossIndustryInvoice ['
+    . $entities
+    . ']>'
     . '<rsm:CrossIndustryInvoice xmlns:rsm="urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100">&lol10;</rsm:CrossIndustryInvoice>';
 string $page = '<html lang="en"><head><title>Shop</title></head><body><p>Invoice</p></body></html>';
 array<{name: string, data: bytes}> $none = [];
 
 // 1. The second pass, which draws headers and footers, with no first pass before it.
 try {
-    array<{header: ?string, footer: ?string, slots: array<{name: string, value: string}>}> $pages = [{header: '<p>Shop</p>', footer: null, slots: []}];
-    echo 'step 1 ran ', Engine::render({pages: $pages})->pageCount, "\n";
+    array<{header: ?string, footer: ?string, slots: array<{name: string, value: string}>}> $pages = [{ header: '<p>Shop</p>', footer: null, slots: [] }];
+    echo 'step 1 ran ', Engine::render({ pages: $pages })->pageCount, "\n";
 } catch (Throwable $e) {
     echo "step 1 stopped\n";
 }
@@ -27,15 +29,15 @@ try {
 try {
     ?string $noFooter = null;
     var $first = Engine::render({
-        document: {html: '<p>Shop</p>', assets: $none, options: {standard: null, password: null, invoiceXml: null, created: null}},
+        document: { html: '<p>Shop</p>', assets: $none, options: { standard: null, password: null, invoiceXml: null, created: null } },
         headerHeight: '2cm',
         footerHeight: $noFooter,
     });
     array<{header: ?string, footer: ?string, slots: array<{name: string, value: string}>}> $many = [];
     for (int $i = 0; $i < 10000; $i++) {
-        $many[] = {header: '<p>Shop</p>', footer: '<p>Page</p>', slots: [{name: 'total', value: '<b>1</b>'}]};
+        $many[] = { header: '<p>Shop</p>', footer: '<p>Page</p>', slots: [{ name: 'total', value: '<b>1</b>' }] };
     }
-    echo 'step 2 ran ', $first->pageCount, ' ', Engine::render({pages: $many})->pageCount, "\n";
+    echo 'step 2 ran ', $first->pageCount, ' ', Engine::render({ pages: $many })->pageCount, "\n";
 } catch (Throwable $e) {
     echo "step 2 stopped\n";
 }
@@ -45,7 +47,7 @@ array<string> $heights = ['-5cm', '99999999999km', 'Shop'];
 foreach ($heights as string $height) {
     try {
         var $odd = Engine::render({
-            document: {html: '<p>Shop</p>', assets: $none, options: {standard: null, password: null, invoiceXml: null, created: null}},
+            document: { html: '<p>Shop</p>', assets: $none, options: { standard: null, password: null, invoiceXml: null, created: null } },
             headerHeight: $height,
             footerHeight: $height,
         });
@@ -73,7 +75,7 @@ try {
 try {
     ?Document::Standard $noStandard = null;
     ?Core\Time\Instant $noTime = null;
-    var $plain = Engine::render({html: $page, assets: $none, options: {standard: $noStandard, password: 'example-password', invoiceXml: $laughs, created: $noTime}});
+    var $plain = Engine::render({ html: $page, assets: $none, options: { standard: $noStandard, password: 'example-password', invoiceXml: $laughs, created: $noTime } });
     echo 'step 5 ran ', Core\Bytes::length($plain->data), "\n";
 } catch (Throwable $e) {
     echo "step 5 stopped\n";
@@ -83,9 +85,9 @@ try {
 try {
     array<{name: string, data: bytes}> $assets = [];
     for (int $n = 0; $n < 10000; $n++) {
-        $assets[] = {name: 'logo.png', data: 'not an image' as bytes};
+        $assets[] = { name: 'logo.png', data: 'not an image' as bytes };
     }
-    var $named = Engine::render({html: '<img src="logo.png"><img src="file:///etc/passwd">', assets: $assets, options: {standard: null, password: null, invoiceXml: null, created: null}});
+    var $named = Engine::render({ html: '<img src="logo.png"><img src="file:///etc/passwd">', assets: $assets, options: { standard: null, password: null, invoiceXml: null, created: null } });
     echo 'step 6 ran ', $named->pageCount, "\n";
 } catch (Throwable $e) {
     echo "step 6 stopped\n";

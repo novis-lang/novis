@@ -14,13 +14,13 @@ class Attack
         try {
             var $rendered = Document::fromHtml("<html lang=\"en\"><head><title>Shop</title></head><body><p>Invoice</p></body></html>")
                 ->standard(Document::Standard::PdfA3b)
-                ->created(Core\Time::fromIso("2026-01-01T00:00:00Z"))
+                ->created(Core\Time::fromIso('2026-01-01T00:00:00Z'))
                 ->invoiceXml($xml)
                 ->render();
             ?string $back = Reader::open($rendered->bytes)->invoiceXml();
-            echo "step ", $step, " ran ", $back == $xml ? "unchanged" : "changed", "\n";
+            echo 'step ', $step, ' ran ', $back == $xml ? 'unchanged' : 'changed', "\n";
         } catch (Throwable $e) {
-            echo "step ", $step, " stopped ", $e::class, "\n";
+            echo 'step ', $step, ' stopped ', $e::class, "\n";
         }
     }
 }
@@ -30,7 +30,7 @@ string $root = "<rsm:CrossIndustryInvoice xmlns:rsm=\"urn:un:unece:uncefact:data
 // 1. Ten levels of entities. Each level repeats the level below ten times.
 string $entities = "<!ENTITY lol0 \"lol\">";
 for (int $level = 1; $level <= 10; $level++) {
-    $entities .= "<!ENTITY lol{$level} \"" . Core\Str::repeat("&lol" . ($level - 1) as string . ";", 10) . "\">";
+    $entities .= "<!ENTITY lol{$level} \"" . Core\Str::repeat('&lol' . ($level - 1) as string . ';', 10) . "\">";
 }
 Attack::attempt(1, "<?xml version=\"1.0\"?><!DOCTYPE rsm:CrossIndustryInvoice [{$entities}]>{$root}&lol10;</rsm:CrossIndustryInvoice>");
 
@@ -42,18 +42,20 @@ Attack::attempt(2, "<?xml version=\"1.0\"?><!DOCTYPE x SYSTEM \"http://169.254.1
 Attack::attempt(3, "<?xml version=\"1.0\"?><!DOCTYPE x [<!ENTITY % a \"<!ENTITY &#37; a 'x'>\"> %a; %a;]>{$root}</rsm:CrossIndustryInvoice>");
 
 // 4. 100000 elements, each inside the one before it.
-Attack::attempt(4, $root . Core\Str::repeat("<a>", 100000) . Core\Str::repeat("</a>", 100000) . "</rsm:CrossIndustryInvoice>");
+Attack::attempt(4, $root . Core\Str::repeat('<a>', 100000) . Core\Str::repeat('</a>', 100000) . '</rsm:CrossIndustryInvoice>');
 
 // 5. A guideline id of 1 MB, which the render reads to find the profile.
-Attack::attempt(5, $root . "<rsm:ExchangedDocumentContext><ram:GuidelineSpecifiedDocumentContextParameter "
+Attack::attempt(5, $root
+    . '<rsm:ExchangedDocumentContext><ram:GuidelineSpecifiedDocumentContextParameter '
     . "xmlns:ram=\"urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100\"><ram:ID>"
-    . Core\Str::repeat("urn:factur-x.eu:", 65536) . "</ram:ID></ram:GuidelineSpecifiedDocumentContextParameter>"
-    . "</rsm:ExchangedDocumentContext></rsm:CrossIndustryInvoice>");
+    . Core\Str::repeat('urn:factur-x.eu:', 65536)
+    . '</ram:ID></ram:GuidelineSpecifiedDocumentContextParameter>'
+    . '</rsm:ExchangedDocumentContext></rsm:CrossIndustryInvoice>');
 
 // 6. An empty string, and XML that ends in the middle of a tag.
-Attack::attempt(6, "");
-Attack::attempt(6, $root . "<rsm:Exch");
+Attack::attempt(6, '');
+Attack::attempt(6, $root . '<rsm:Exch');
 
 // 7. 20 MB of text in one element. The render runs out of memory, so this is the last step.
 echo "step 7\n";
-Attack::attempt(7, $root . Core\Str::repeat("x", 20000000) . "</rsm:CrossIndustryInvoice>");
+Attack::attempt(7, $root . Core\Str::repeat('x', 20000000) . '</rsm:CrossIndustryInvoice>');
