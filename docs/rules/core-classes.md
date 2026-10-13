@@ -4727,12 +4727,30 @@ protection.
 
 Row heights, hidden rows and outline levels are `add`'s options, and hidden columns a column's
 ([`core-classes/spreadsheet-styles-and-defaults`](core-classes.md#core-classes-spreadsheet-styles-and-defaults)), because xlsx writes them with the row or before
-it. `Workbook::define` writes a defined name, and the workbook's `properties` the document properties.
+it. For the same reason a `group` over rows is added before those rows, a `group` over columns and
+`print`'s `fitToPage` before the sheet's first row, and each throws `LogicError` saying so when it
+comes later. **A link goes to `http:`, `https:`, `mailto:` or a cell of the workbook**, and any
+other target, such as `file:` or `javascript:`, throws `LogicError`, so a link built from user data
+opens no local file and runs nothing. `Workbook::define` writes a defined name, and the workbook's
+`properties` the document properties.
 Rich text in one cell is `Cell::rich`. **Sheet protection locks the layout and is not security**: the
 password is a hash any tool removes, which the reference card says.
 
-**An image is its own zip entry**, written as soon as it is added, so a report with many images holds
-none of them. **The chart subset** is column, bar, line, area, pie, doughnut and scatter, and a
+**An image is its own zip entry.** One added before the sheet's first row is written by the call that
+adds it. Once the rows have started, the sheet's own entry is open, and a zip entry cannot be split,
+so the image's bytes wait until the sheet ends. A report with many images adds them before its rows,
+or on a sheet of their own, to hold none of them.
+
+**A table's top row is its header row**, and each column is named by its header cell, which needs a
+name different from the others. Once rows are written only the sheet's header row is kept, so a
+table added after its rows starts at that row, and one added earlier takes its names when the row is
+written. **The totals row is the row after the table**: a table added after its last row writes it
+at once, and one added earlier writes it right after its last row, so the program's next row comes
+after it. A sheet that ends before a table's header row or totals row throws `LogicError`. A total
+is `SUBTOTAL` over the column, which skips the rows a filter hides. `[@qty]` and `[qty]` are
+qualified by the table's name in the totals row and in every row written after the table is added;
+a row written before it keeps its formula text as given. The sheet's default autofilter is left out
+where a table covers it, and a table overlaps no merged range and no other table. **The chart subset** is column, bar, line, area, pie, doughnut and scatter, and a
 combination of two of them, with a title, axis titles, the legend, series colours and data labels. A
 series names its ranges with `$sheet->column($key)`, so a chart over a stream covers every row the
 sheet ends with. Its XML follows `rust_xlsxwriter`'s output for the same chart, ported for the subset
@@ -4743,7 +4761,7 @@ summarise, in the order a program computes them. **Memory:** the parts are held 
 and they are small beside the rows.
 
 - **Memory:** per writing request, each sheet-end part of the open sheet until the sheet is finished,
-  and nothing of an image after the call that adds it.
+  and the bytes of each image added after the sheet's first row, until the sheet is finished.
 
 **Not shipped.** Nothing of `Novis\Spreadsheet` is on disk.
 

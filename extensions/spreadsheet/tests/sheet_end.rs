@@ -4,6 +4,7 @@
 
 use miniz_oxide::inflate::decompress_to_vec;
 use nvs_spreadsheet::drawing::Image;
+use nvs_spreadsheet::table::{Function, Table, Total};
 use nvs_spreadsheet::tail::{
     Group, Link, Margins, Note, Operator, Orientation, Part, Print, Protect, RuleKind, Validation,
 };
@@ -668,6 +669,199 @@ fn cell_and_column_give_a1_text_over_the_rows_written_so_far() {
         .sheet(SheetOptions::named("Blog"), &orders(3))
         .unwrap();
     assert_eq!(plain.column(0).unwrap(), "A1:A3");
+}
+
+fn formula(text: &str) -> Cell {
+    Cell {
+        value: Some(Value::Formula {
+            formula: text.to_owned(),
+            cached_text: None,
+            cached_number: None,
+        }),
+        style: None,
+    }
+}
+
+fn header(names: &[&str]) -> Row {
+    Row {
+        cells: names.iter().map(|name| text(name)).collect(),
+        header: true,
+        ..Row::default()
+    }
+}
+
+fn table(range: &str, totals: Vec<Total>) -> Table {
+    Table {
+        range: range.to_owned(),
+        name: None,
+        style: None,
+        banded: true,
+        filter: true,
+        totals,
+    }
+}
+
+fn total(column: &str, function: Option<Function>, formula: Option<&str>) -> Total {
+    Total {
+        column: column.to_owned(),
+        function,
+        formula: formula.map(str::to_owned),
+    }
+}
+
+#[test]
+fn a_table_with_a_totals_row_and_structured_references_is_written() {
+    // Added before its rows: the header row names the columns, the rows' formulas are qualified,
+    // and the totals row goes right after the last row, inside the batch.
+    let mut writer = writer();
+    let mut out = writer.sheet(SheetOptions::named("Shop"), &[]).unwrap();
+    let mut shop = table(
+        "A1:C4",
+        vec![
+            total("qty", Some(Function::Sum), None),
+            total("total", None, Some("=SUM([total])/2")),
+        ],
+    );
+    shop.name = Some("Orders".to_owned());
+    out.extend(writer.part(Part::Table(shop)).unwrap());
+    let line = |item: &str, qty: f64| row(vec![text(item), number(qty), formula("[@qty]*2")]);
+    out.extend(
+        writer
+            .rows(&[
+                header(&["item", "qty", "total"]),
+                line("Pen", 1.0),
+                line("Ink", 2.0),
+                line("Pad", 3.0),
+                row(vec![text("After")]),
+            ])
+            .unwrap(),
+    );
+    let message = invalid(writer.part(Part::Table(table("C3:D9", Vec::new()))));
+    assert!(message.contains("overlaps the table `Orders`"), "{message}");
+    match writer.define("orders", "Shop!$A$1") {
+        Err(Error::Invalid(message)) => assert!(message.contains("table's name"), "{message}"),
+        other => panic!("a name equal to a table's, not {other:?}"),
+    }
+
+    // Added after its rows: it starts at the header row, and its totals row is written at once.
+    let mut options = SheetOptions::named("Blog");
+    options.header.filter = true;
+    out.extend(
+        writer
+            .sheet(
+                options,
+                &[
+                    header(&["post", "views"]),
+                    row(vec![text("Hello"), number(10.0)]),
+                    row(vec![text("Again"), number(20.0)]),
+                ],
+            )
+            .unwrap(),
+    );
+    out.extend(
+        writer
+            .part(Part::Note(Note {
+                noted: "A1".to_owned(),
+                note: "Every post".to_owned(),
+                author: None,
+            }))
+            .unwrap(),
+    );
+    let message = invalid(writer.part(Part::Table(table(
+        "A1:B2",
+        vec![total("views", Some(Function::Max), None)],
+    ))));
+    assert!(message.contains("row 3 is written already"), "{message}");
+    let mut posts = table("A1:B3", vec![total("views", Some(Function::Average), None)]);
+    posts.style = Some("tablestylelight1".to_owned());
+    posts.banded = false;
+    posts.filter = false;
+    out.extend(writer.part(Part::Table(posts)).unwrap());
+    let book = finish(writer, out);
+
+    let shop = book.sheet(1);
+    assert!(shop.contains("<c r=\"C2\"><f>Orders[[#This Row],[qty]]*2</f></c>"));
+    assert_eq!(
+        between(shop, "<row r=\"5\"", "</row>"),
+        "<row r=\"5\"><c r=\"A5\" t=\"inlineStr\"><is><t>Total</t></is></c>\
+         <c r=\"B5\"><f>SUBTOTAL(109,Orders[qty])</f></c>\
+         <c r=\"C5\"><f>SUM(Orders[total])/2</f></c></row>"
+    );
+    assert!(shop.contains("<row r=\"6\"><c r=\"A6\" t=\"inlineStr\"><is><t>After</t>"));
+    assert!(
+        !shop.contains("<autoFilter"),
+        "the default autofilter overlaps the table, so only the table filters"
+    );
+    assert!(
+        shop.ends_with(
+            "<tableParts count=\"1\"><tablePart r:id=\"rId1\"/></tableParts></worksheet>"
+        )
+    );
+    assert_eq!(
+        book.part("xl/tables/table1.xml"),
+        "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n\
+         <table xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" id=\"1\" name=\"Orders\" displayName=\"Orders\" ref=\"A1:C5\" totalsRowCount=\"1\">\
+         <autoFilter ref=\"A1:C4\"/><tableColumns count=\"3\">\
+         <tableColumn id=\"1\" name=\"item\" totalsRowLabel=\"Total\"/>\
+         <tableColumn id=\"2\" name=\"qty\" totalsRowFunction=\"sum\"/>\
+         <tableColumn id=\"3\" name=\"total\" totalsRowFunction=\"custom\"><totalsRowFormula>SUM(Orders[total])/2</totalsRowFormula></tableColumn>\
+         </tableColumns><tableStyleInfo name=\"TableStyleMedium9\" showFirstColumn=\"0\" showLastColumn=\"0\" showRowStripes=\"1\" showColumnStripes=\"0\"/></table>"
+    );
+    assert!(
+        book.part("xl/worksheets/_rels/sheet1.xml.rels")
+            .contains("<Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/table\" Target=\"../tables/table1.xml\"/>")
+    );
+    assert!(!book.workbook().contains("_xlnm._FilterDatabase"));
+
+    let blog = book.sheet(2);
+    assert!(blog.contains(
+        "<row r=\"4\"><c r=\"A4\" t=\"inlineStr\"><is><t>Total</t></is></c><c r=\"B4\"><f>SUBTOTAL(101,Table2[views])</f></c></row>"
+    ));
+    assert!(blog.ends_with(
+        "<legacyDrawing r:id=\"rId2\"/><tableParts count=\"1\"><tablePart r:id=\"rId3\"/></tableParts></worksheet>"
+    ));
+    let posts = book.part("xl/tables/table2.xml");
+    assert!(posts.contains(
+        "name=\"Table2\" displayName=\"Table2\" ref=\"A1:B4\" totalsRowCount=\"1\"><tableColumns"
+    ));
+    assert!(posts.contains("<tableStyleInfo name=\"TableStyleLight1\" showFirstColumn=\"0\" showLastColumn=\"0\" showRowStripes=\"0\""));
+    assert!(
+        book.part("xl/worksheets/_rels/sheet2.xml.rels")
+            .contains("Id=\"rId3\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/table\" Target=\"../tables/table2.xml\"")
+    );
+    let types = book.part("[Content_Types].xml");
+    for id in [1, 2] {
+        assert!(types.contains(&format!(
+            "<Override PartName=\"/xl/tables/table{id}.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.table+xml\"/>"
+        )));
+    }
+
+    // A header cell with no name, a bad style and a sheet that ends inside a table throw.
+    let mut writer = self::writer();
+    writer.sheet(SheetOptions::named("Shop"), &[]).unwrap();
+    writer
+        .part(Part::Table(table(
+            "A1:B3",
+            vec![total("qty", Some(Function::Sum), None)],
+        )))
+        .unwrap();
+    let message = invalid(writer.rows(&[header(&["item"])]));
+    assert!(message.contains("header cell `B1`"), "{message}");
+    let mut styled = table("D1:E3", Vec::new());
+    styled.style = Some("Shiny".to_owned());
+    assert!(invalid(writer.part(Part::Table(styled))).contains("not a table style"));
+    writer.rows(&[header(&["item", "qty"])]).unwrap();
+    match writer.finish() {
+        Err(Error::Invalid(message)) => {
+            assert!(message.contains("covers rows 1 to 3"), "{message}")
+        }
+        other => panic!(
+            "a sheet ending before a totals row, not {:?}",
+            other.map(|done| done.size)
+        ),
+    }
+    writer.rows(&orders(2)).unwrap();
+    writer.finish().unwrap();
 }
 
 /// The header of a PNG `width` by `height` pixels: its signature and `IHDR` chunk.

@@ -35,6 +35,7 @@
 pub mod cells;
 pub mod drawing;
 pub mod styles;
+pub mod table;
 pub mod tail;
 pub mod width;
 pub mod writer;
@@ -743,11 +744,31 @@ mod guest {
                 offset_x: image.offset_x,
                 offset_y: image.offset_y,
             }),
-            wit::SheetPart::Table(_)
-            | wit::SheetPart::Conditional(_)
-            | wit::SheetPart::Chart(_) => {
+            wit::SheetPart::Table(table) => Part::Table(crate::table::Table {
+                range: table.table,
+                name: table.name,
+                style: table.style,
+                banded: table.banded,
+                filter: table.filter,
+                totals: table
+                    .totals
+                    .into_iter()
+                    .map(|total| crate::table::Total {
+                        column: total.column,
+                        function: total.function.map(|function| match function {
+                            wit::TotalFunction::Sum => crate::table::Function::Sum,
+                            wit::TotalFunction::Average => crate::table::Function::Average,
+                            wit::TotalFunction::Count => crate::table::Function::Count,
+                            wit::TotalFunction::Min => crate::table::Function::Min,
+                            wit::TotalFunction::Max => crate::table::Function::Max,
+                        }),
+                        formula: total.formula,
+                    })
+                    .collect(),
+            }),
+            wit::SheetPart::Conditional(_) | wit::SheetPart::Chart(_) => {
                 return Err(wit::Error::Runtime(
-                    "This version of Novis cannot add tables, conditional formats or charts to a sheet yet."
+                    "This version of Novis cannot add conditional formats or charts to a sheet yet."
                         .to_owned(),
                 ));
             }

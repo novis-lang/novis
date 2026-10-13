@@ -4,11 +4,14 @@
 //! [`Tail`] keeps each part the program adds to the open sheet, checked when it is added, until
 //! the sheet ends. Then [`Tail::write`] writes them after `</sheetData>` in the order the xlsx
 //! schema gives: protection, the autofilter, merged cells, data validation, hyperlinks, the page
-//! margins, the page setup, the header and footer, and the notes' drawing. A part may name any
-//! cell, written or not. A link to a URL or a `mailto:` address and the notes are relationships
-//! of the sheet, which [`Tail::rels`] writes, and the notes are a `comments<n>.xml` beside the VML
-//! drawing Excel still needs to show them ([`Tail::notes`]). The images are the sheet's
-//! `drawing<n>.xml` (`drawing`'s module doc), whose `<drawing>` element comes before the notes'.
+//! margins, the page setup, the header and footer, the images' and the notes' drawings, and the
+//! tables. A part may name any cell, written or not. A link to a URL or a `mailto:` address, the
+//! notes, the images and the tables are relationships of the sheet, which [`Tail::rels`] writes
+//! in that order, and the notes are a `comments<n>.xml` beside the VML drawing Excel still needs
+//! to show them ([`Tail::notes`]). The images are the sheet's `drawing<n>.xml` (`drawing`'s module
+//! doc), whose `<drawing>` element comes before the notes'. Each table is its own
+//! `xl/tables/table<n>.xml` (`table`'s module doc), and no table overlaps a merged range or
+//! another table.
 //!
 //! **Two parts are read before the rows.** An outline group gives each row it covers one more
 //! level, which xlsx writes with the row, and a column group the same for its columns, which xlsx
@@ -29,7 +32,8 @@
 use std::fmt::Write as _;
 
 use crate::drawing::{Drawing, Format, Image};
-use crate::{Error, cells, xml};
+use crate::table::{Placed, Table};
+use crate::{Error, Row, cells, xml};
 
 /// The relationship types and the namespace every part of a sheet uses.
 const MAIN: &str = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
@@ -55,7 +59,7 @@ pub struct Area {
 }
 
 impl Area {
-    fn overlaps(&self, other: &Area) -> bool {
+    pub fn overlaps(&self, other: &Area) -> bool {
         self.left <= other.right
             && other.left <= self.right
             && self.top <= other.bottom
@@ -279,6 +283,7 @@ pub enum Part {
     Print(Print),
     Protect(Protect),
     Image(Image),
+    Table(Table),
 }
 
 /// Excel's 16-bit hash of a sheet's password, as it writes it.
@@ -423,6 +428,7 @@ pub struct Tail {
     print: Option<Print>,
     protect: Option<String>,
     drawing: Drawing,
+    tables: Vec<Placed>,
 }
 
 fn limited(what: &str, text: &Option<String>, max: usize) -> Result<(), Error> {
@@ -473,6 +479,9 @@ impl Tail {
             Part::Image(_) => Err(Error::Runtime(
                 "An image is numbered by the workbook. Add it with `Tail::image`.".to_owned(),
             )),
+            Part::Table(_) => Err(Error::Runtime(
+                "A table is numbered by the workbook. Add it with `Tail::table`.".to_owned(),
+            )),
         }
     }
 
@@ -486,6 +495,12 @@ impl Tail {
         if self.merges.iter().any(|other| other.overlaps(&merged)) {
             return Err(Error::Invalid(format!(
                 "The merged range `{range}` overlaps another merged range of the sheet `{sheet}`."
+            )));
+        }
+        if let Some(table) = self.tables.iter().find(|t| t.whole().overlaps(&merged)) {
+            return Err(Error::Invalid(format!(
+                "The merged range `{range}` overlaps the table `{}`. A table has no merged cells.",
+                table.name
             )));
         }
         self.merges.push(merged);
@@ -735,6 +750,118 @@ impl Tail {
         self.external.len() + if self.has_notes() { 2 } else { 0 } + 1
     }
 
+    /// The `rId` of the table at `at` in the sheet's order: after the drawing.
+    fn table_id(&self, at: usize) -> usize {
+        self.drawing_id() + usize::from(self.has_drawing()) + at
+    }
+
+    /// Keeps `table` when it overlaps no merged range and no other table of the sheet `sheet`.
+    pub fn table(&mut self, table: Placed, sheet: &str) -> Result<(), Error> {
+        self.check_table(&table, sheet)?;
+        self.tables.push(table);
+        Ok(())
+    }
+
+    /// Checks that `table` overlaps no merged range and no other table of the sheet `sheet`.
+    pub fn check_table(&self, table: &Placed, sheet: &str) -> Result<(), Error> {
+        let whole = table.whole();
+        if self.merges.iter().any(|merged| merged.overlaps(&whole)) {
+            return Err(Error::Invalid(format!(
+                "The table `{}` overlaps a merged range of the sheet `{sheet}`. A table has no merged cells.",
+                table.name
+            )));
+        }
+        if let Some(other) = self.tables.iter().find(|t| t.whole().overlaps(&whole)) {
+            return Err(Error::Invalid(format!(
+                "The table `{}` overlaps the table `{}` of the sheet `{sheet}`.",
+                table.name, other.name
+            )));
+        }
+        Ok(())
+    }
+
+    /// Removes the table numbered `id`, whose totals row failed.
+    pub fn forget_table(&mut self, id: usize) {
+        self.tables.retain(|table| table.id != id);
+    }
+
+    /// How many of `count` rows numbered from `next` come before a table's totals row, when one
+    /// falls among them.
+    pub fn totals_due(&self, next: u32, count: usize) -> Option<usize> {
+        self.tables
+            .iter()
+            .filter(|table| table.owes_totals() && table.area.bottom >= next)
+            .map(|table| (table.area.bottom - next) as usize + 1)
+            .filter(|&cut| cut < count + 1)
+            .min()
+    }
+
+    /// The totals row of the table whose last row is the one before `next`, with the table's id.
+    pub fn totals(&self, next: u32) -> Option<(usize, Result<Row, Error>)> {
+        let table = self
+            .tables
+            .iter()
+            .find(|table| table.owes_totals() && table.area.bottom + 1 == next)?;
+        Some((table.id, table.totals_row()))
+    }
+
+    /// Records that the totals row of the table numbered `id` is written.
+    pub fn totaled(&mut self, id: usize) {
+        if let Some(table) = self.tables.iter_mut().find(|table| table.id == id) {
+            table.totaled();
+        }
+    }
+
+    /// Whether the area `at` overlaps a table.
+    pub fn overlaps_table(&self, at: &Area) -> bool {
+        self.tables.iter().any(|table| table.whole().overlaps(at))
+    }
+
+    /// The name of the table whose rows hold the cell at `column` and `row`, if any.
+    pub fn table_at(&self, column: u32, row: u32) -> Option<&str> {
+        self.tables
+            .iter()
+            .find(|table| table.covers(column, row))
+            .map(|table| table.name.as_str())
+    }
+
+    /// Names the columns of each table whose header row is among `rows`, the first of them
+    /// numbered `first`. A header that fails names nothing.
+    pub fn headers(&mut self, rows: &[Row], first: u32) -> Result<(), Error> {
+        let mut named = Vec::new();
+        for (at, table) in self.tables.iter().enumerate() {
+            let Some(offset) = table.area.top.checked_sub(first) else {
+                continue;
+            };
+            if let Some(row) = rows.get(offset as usize)
+                && !table.has_header()
+            {
+                let mut table = table.clone();
+                table.header(row)?;
+                named.push((at, table));
+            }
+        }
+        for (at, table) in named {
+            self.tables[at] = table;
+        }
+        Ok(())
+    }
+
+    /// A table whose header row or totals row is not written yet.
+    pub fn unfinished_table(&self) -> Option<&Placed> {
+        self.tables
+            .iter()
+            .find(|table| !table.has_header() || table.owes_totals())
+    }
+
+    /// The tables' entries, `xl/tables/table<id>.xml`, by name.
+    pub fn tables(&self) -> Vec<(String, String)> {
+        self.tables
+            .iter()
+            .map(|table| (format!("xl/tables/table{}.xml", table.id), table.write()))
+            .collect()
+    }
+
     /// The print area and the rows to repeat, as the names `workbook.xml` defines for the sheet,
     /// each with its reference in the sheet.
     pub fn print_names(&self) -> Vec<(&'static str, String)> {
@@ -862,13 +989,24 @@ impl Tail {
                 self.external.len() + 2
             );
         }
+        if !self.tables.is_empty() {
+            let _ = write!(out, "<tableParts count=\"{}\">", self.tables.len());
+            for at in 0..self.tables.len() {
+                let _ = write!(out, "<tablePart r:id=\"rId{}\"/>", self.table_id(at));
+            }
+            out.push_str("</tableParts>");
+        }
     }
 
     /// The sheet's relationships part, when it has any: the links that leave the workbook, then
     /// the notes and their VML drawing, then the images' drawing. `sheet` is the sheet's number in
     /// its part names.
     pub fn rels(&self, sheet: usize) -> Option<String> {
-        if self.external.is_empty() && !self.has_notes() && !self.has_drawing() {
+        if self.external.is_empty()
+            && !self.has_notes()
+            && !self.has_drawing()
+            && self.tables.is_empty()
+        {
             return None;
         }
         let mut out = String::from(crate::writer::XML_HEAD);
@@ -896,6 +1034,14 @@ impl Tail {
                 out,
                 "<Relationship Id=\"rId{}\" Type=\"{RELS}/drawing\" Target=\"../drawings/drawing{sheet}.xml\"/>",
                 self.drawing_id()
+            );
+        }
+        for (at, table) in self.tables.iter().enumerate() {
+            let _ = write!(
+                out,
+                "<Relationship Id=\"rId{}\" Type=\"{RELS}/table\" Target=\"../tables/table{}.xml\"/>",
+                self.table_id(at),
+                table.id
             );
         }
         out.push_str("</Relationships>");

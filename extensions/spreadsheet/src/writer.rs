@@ -48,17 +48,25 @@
 //! entry has started, the zip entry is still open, and a zip entry cannot be split, so the image's
 //! bytes wait in [`OpenSheet`] until the sheet ends. Memory: per writing request, the images added
 //! to the open sheet after its first row, until the sheet ends.
+//!
+//! **A table** (`table`'s module doc) is numbered across the workbook, and its name is unique
+//! among the tables and the defined names. Its header row names its columns when it is written,
+//! and its totals row is written right after its last row, so [`Writer::rows`] splits a batch
+//! there. A formula written in a table's rows has its structured references qualified. The
+//! sheet's default autofilter is left out when it overlaps a table, and a sheet does not end
+//! while a table's header row or totals row is still to write.
 
 use std::fmt::Write as _;
 
 use crate::cells::{self, Layers};
 use crate::drawing::Format;
 use crate::styles::{Implicit, Styles, argb};
-use crate::tail::{Groups, Part, Tail};
+use crate::table::{Placed, Table, expand};
+use crate::tail::{Groups, Part, Tail, area};
 use crate::zip::Archive;
 use crate::{
-    Clock, Error, Finished, Row, SheetOptions, SheetRows, Style, Visibility, WorkbookOptions,
-    width, xml,
+    Cell, Clock, Error, Finished, Row, SheetOptions, SheetRows, Style, Value, Visibility,
+    WorkbookOptions, width, xml,
 };
 
 /// The declaration every part begins with.
@@ -129,6 +137,8 @@ pub struct Writer {
     /// The media entries written so far, and their formats in order, for the content types.
     media: usize,
     formats: Vec<Format>,
+    /// The names of the tables added so far, the one numbered `n` at `n - 1`.
+    tables: Vec<String>,
     state: State,
 }
 
@@ -246,6 +256,7 @@ impl Writer {
             formulas: false,
             media: 0,
             formats: Vec::new(),
+            tables: Vec::new(),
             state: State::Writing,
         })
     }
@@ -318,6 +329,11 @@ impl Writer {
                 "The name `{name}` is defined twice."
             )));
         }
+        if self.tables.iter().any(|n| n.to_lowercase() == lower) {
+            return Err(Error::Invalid(format!(
+                "The name `{name}` is a table's name already."
+            )));
+        }
         self.names.push((name.to_owned(), reference.to_owned()));
         Ok(())
     }
@@ -342,6 +358,7 @@ impl Writer {
             }
         }
         let header_style = self.header_style(&options)?;
+        self.ready_to_end()?;
         self.archived(|this| this.end_sheet())?;
         let base = options.name.clone();
         self.open_sheet(options, header_style, base, 1);
@@ -441,9 +458,97 @@ impl Writer {
                     });
                 }
             }
+            Part::Table(table) => return self.table(table),
             part => open.tail.add(part, sheet)?,
         }
         Ok(self.archive.take())
+    }
+
+    /// Adds `table` to the open sheet, and writes its totals row when it has totals (`table`'s
+    /// module doc). Returns the bytes ready to leave.
+    fn table(&mut self, table: Table) -> Result<Vec<u8>, Error> {
+        let id = self.tables.len() + 1;
+        let Some(open) = self.open.as_mut() else {
+            unreachable!("`part` checked that a sheet is open");
+        };
+        let sheet = open.options.name.as_str();
+        let mut placed = Placed::new(table, id, sheet)?;
+        let lower = placed.name.to_lowercase();
+        if self.tables.iter().any(|n| n.to_lowercase() == lower)
+            || self.names.iter().any(|(n, _)| n.to_lowercase() == lower)
+        {
+            return Err(Error::Invalid(format!(
+                "The name `{}` is used twice. A table's name is different from every other table and name of the workbook.",
+                placed.name
+            )));
+        }
+        if let Some(range) = &open.options.autofilter
+            && area(range).is_some_and(|filter| filter.overlaps(&placed.area))
+        {
+            return Err(Error::Invalid(format!(
+                "The table `{}` overlaps the autofilter `{range}` of the sheet `{sheet}`. A table has its own filter.",
+                placed.name
+            )));
+        }
+        open.tail.check_table(&placed, sheet)?;
+        if placed.area.top < open.next {
+            match &open.header {
+                Some(header) if placed.area.top == 1 => placed.header(header)?,
+                _ => {
+                    return Err(Error::Invalid(format!(
+                        "The header row {} of the table `{}` is written already. Add a table before its header row, or start it at the sheet's header row.",
+                        placed.area.top, placed.name
+                    )));
+                }
+            }
+        }
+        if placed.has_totals() {
+            if placed.area.bottom + 1 < open.next {
+                return Err(Error::Invalid(format!(
+                    "The table `{}` has a totals row after its last row {}, and row {} is written already. Add the table before that row.",
+                    placed.name,
+                    placed.area.bottom,
+                    placed.area.bottom + 1
+                )));
+            }
+            if placed.area.bottom >= MAX_ROWS {
+                return Err(Error::Invalid(format!(
+                    "The table `{}` ends at the sheet's last row, so it has no room for its totals row.",
+                    placed.name
+                )));
+            }
+            if placed.area.bottom + 1 == open.next {
+                // The header is named, so this checks each total names a column.
+                placed.totals_row()?;
+            }
+        }
+        let name = placed.name.clone();
+        open.tail.table(placed, sheet)?;
+        if let Err(error) = self.append(&[]) {
+            if let Some(open) = self.open.as_mut() {
+                open.tail.forget_table(id);
+            }
+            return Err(error);
+        }
+        self.tables.push(name);
+        Ok(self.archive.take())
+    }
+
+    /// Checks that the open sheet can end: every table's header row and totals row is written.
+    fn ready_to_end(&self) -> Result<(), Error> {
+        if let Some(open) = &self.open
+            && let Some(table) = open.tail.unfinished_table()
+        {
+            return Err(Error::Invalid(format!(
+                "The table `{}` covers rows {} to {}, and the sheet `{}` ends at row {}. Write the table's rows before the sheet ends.",
+                table.name,
+                table.area.top,
+                table.area.bottom,
+                open.options.name,
+                open.next - 1
+            )));
+        }
+        Ok(())
     }
 
     /// The A1 address of the column at `column`, from 0, in the row `row`, such as `C7`
@@ -553,6 +658,24 @@ impl Writer {
                 "No sheet is open. Call `sheet()` before you add rows.".to_owned(),
             ));
         };
+        // A table's totals row goes right after its last row.
+        if let Some((id, totals)) = open.tail.totals(open.next) {
+            let totals = totals?;
+            let mut open = self.open.take().expect("a sheet is open");
+            let out = self.write_batch(&mut open, &[totals]);
+            if out.is_ok() {
+                open.tail.totaled(id);
+            }
+            self.open = Some(open);
+            out?;
+            return self.append(rows);
+        }
+        if let Some(cut) = open.tail.totals_due(open.next, rows.len())
+            && cut < rows.len()
+        {
+            self.append(&rows[..cut])?;
+            return self.append(&rows[cut..]);
+        }
         let room = (MAX_ROWS + 1).saturating_sub(open.next) as usize;
         if rows.len() > room && open.options.new_sheet_on_overflow {
             self.append(&rows[..room])?;
@@ -561,8 +684,13 @@ impl Writer {
         }
         let mut open = self.open.take().expect("a sheet is open");
         let out = self.write_batch(&mut open, rows);
+        let due = open.tail.totals(open.next).is_some();
         self.open = Some(open);
-        out
+        out?;
+        if due && !rows.is_empty() {
+            return self.append(&[]);
+        }
+        Ok(())
     }
 
     /// Ends the open sheet, which is full, and opens the next sheet of its overflow with the same
@@ -605,6 +733,7 @@ impl Writer {
         let mut formulas = false;
         let layers = columns.as_deref().unwrap_or(&open.columns);
         let next = self.batch(open, layers, rows, &mut body, &mut formulas)?;
+        open.tail.headers(rows, open.next)?;
         let part = format!("xl/worksheets/sheet{}.xml", open.index + 1);
         let started = open.started;
         self.archived(|this| {
@@ -701,6 +830,25 @@ impl Writer {
                     column: columns.get(column).copied().flatten(),
                     row: style,
                 };
+                // A formula in a table's rows has its structured references qualified.
+                let qualified = match &cell.value {
+                    Some(Value::Formula {
+                        formula,
+                        cached_text,
+                        cached_number,
+                    }) if formula.contains('[') => {
+                        open.tail.table_at(column as u32, number).map(|table| Cell {
+                            value: Some(Value::Formula {
+                                formula: expand(formula, table),
+                                cached_text: cached_text.clone(),
+                                cached_number: *cached_number,
+                            }),
+                            style: cell.style,
+                        })
+                    }
+                    _ => None,
+                };
+                let cell = qualified.as_ref().unwrap_or(cell);
                 *formulas |=
                     cells::cell(out, &mut self.styles, &layers, column as u32, number, cell)?;
             }
@@ -862,7 +1010,11 @@ impl Writer {
             (None, Some(header)) if open.options.header.filter => {
                 let columns = header.cells.len().max(open.options.columns.len()).max(1);
                 let last = open.next.saturating_sub(1).max(1);
-                Some(format!("A1:{}", cells::reference(columns as u32 - 1, last)))
+                let range = format!("A1:{}", cells::reference(columns as u32 - 1, last));
+                // A table has its own filter, and Excel allows no other over it.
+                area(&range)
+                    .is_some_and(|at| !open.tail.overlaps_table(&at))
+                    .then_some(range)
             }
             _ => None,
         };
@@ -882,6 +1034,7 @@ impl Writer {
         }
         entries.extend(open.tail.notes(number));
         entries.extend(open.tail.drawing(number));
+        entries.extend(open.tail.tables());
         for (name, text) in &entries {
             self.archive.begin(name)?;
             self.archive.write(text.as_bytes())?;
@@ -924,6 +1077,7 @@ impl Writer {
             ));
         };
         // The last sheet ends first, because its autofilter is a defined name in `workbook.xml`.
+        self.ready_to_end()?;
         self.archived(|this| this.end_sheet())?;
         let parts = self.parts(&order, active)?;
         self.archived(|this| {
@@ -1122,6 +1276,12 @@ impl Writer {
                     at + 1
                 );
             }
+        }
+        for id in 1..=self.tables.len() {
+            let _ = write!(
+                types,
+                "<Override PartName=\"/xl/tables/table{id}.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.table+xml\"/>"
+            );
         }
         types.push_str(
             "<Override PartName=\"/xl/styles.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml\"/>\
