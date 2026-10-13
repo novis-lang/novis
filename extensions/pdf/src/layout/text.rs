@@ -870,6 +870,7 @@ impl Cx<'_> {
                                         items.push(Item::Text {
                                             face,
                                             size: run.font_size(),
+                                            descent: font_metrics.descent,
                                             x: start,
                                             y: baseline,
                                             color: span.color,
@@ -1225,11 +1226,12 @@ const ELLIPSIS: &str = "\u{2026}";
 
 /// One character drawn beside a line's text: the hyphen of a line broken at a soft hyphen, the
 /// ellipsis of a line cut at its box, or the character a `leader()` repeats. Its text, face,
-/// size, glyph and advance.
+/// size, descent, glyph and advance.
 struct Mark {
     text: String,
     face: usize,
     size: f32,
+    descent: f32,
     id: u32,
     advance: f32,
 }
@@ -1247,6 +1249,7 @@ impl Mark {
         Item::Text {
             face: self.face,
             size: self.size,
+            descent: self.descent,
             x,
             y,
             color,
@@ -1284,6 +1287,7 @@ fn mark(
         text: text.to_owned(),
         face,
         size: run.font_size(),
+        descent: run.font_metrics().descent,
         id: glyph.id,
         advance: glyph.advance,
     })

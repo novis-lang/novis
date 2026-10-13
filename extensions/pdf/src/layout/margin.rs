@@ -347,17 +347,19 @@ pub(super) fn facts(pages: &mut [Page], strings: &[Set]) {
 /// Draws the first page of `markup`, a document laid out on a page the size of `area`, over the
 /// page at `page` of `laid`: at the area's left edge and top, clipped to the area. Every margin
 /// box of that page whose name starts with `side` is taken off first. Returns whether `markup`
-/// went on past its first page, which is markup taller than the area.
+/// is taller than the area: it went on past its first page, or `below` finds its first page
+/// drawing past the area's bottom, where the clip cuts it off.
 pub fn overlay(laid: &mut Laid, page: usize, side: &str, area: [f32; 4], markup: Laid) -> bool {
     clear(&mut laid.pages[page], side);
     let [x, y, width, height] = area;
     let offset = laid.images.len();
     laid.images.extend(markup.images);
     carry(&mut laid.missing, markup.missing, page as u64 + 1);
-    let over = markup.pages.len() > 1;
+    let mut over = markup.pages.len() > 1;
     let Some(first) = markup.pages.into_iter().next() else {
         return over;
     };
+    over |= below(&first.items, height);
     let items = &mut laid.pages[page].items;
     items.push(Item::Begin {
         opacity: 1.0,
@@ -373,6 +375,36 @@ pub fn overlay(laid: &mut Laid, page: usize, side: &str, area: [f32; 4], markup:
     }));
     items.push(Item::End);
     over
+}
+
+/// Whether a run of text in `items` reaches more than a quarter point below `height`, from its
+/// baseline down by its face's descent, or an image's bottom edge does. A single line taller
+/// than its page stays on that page, so this finds what going on to a second page does not.
+/// Items inside a transformed group are not measured, because their coordinates are not the
+/// page's.
+fn below(items: &[Item], height: f32) -> bool {
+    let limit = height + 0.25;
+    let mut groups: Vec<bool> = Vec::new();
+    for item in items {
+        let bottom = match item {
+            Item::Begin { transform, .. } => {
+                groups.push(transform.is_some());
+                continue;
+            }
+            Item::End => {
+                groups.pop();
+                continue;
+            }
+            _ if groups.contains(&true) => continue,
+            Item::Text { y, descent, .. } => y + descent,
+            Item::Image { y, height, .. } => y + height,
+            _ => continue,
+        };
+        if bottom > limit {
+            return true;
+        }
+    }
+    false
 }
 
 /// Takes the margin boxes whose name starts with `side` off `page`.

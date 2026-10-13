@@ -366,7 +366,7 @@ fn a_slot_in_a_continued_row_is_filled_without_moving_anything() {
         assert_eq!(names, vec![want], "page {p}");
     }
     let before: Vec<_> = (0..pages).map(|p| texts(kept.laid(), p)).collect();
-    let fill = |text: &str| format!("<style>body {{ margin: 0; font-size: 10pt }}</style>{text}");
+    let fill = |text: &str| format!("<style>body {{ font-size: 10pt }}</style>{text}");
     let long = "A total far too long for its cell, so it wraps onto more lines than the row has";
     let markup: Vec<nvs_pdf::Markup> = (0..pages)
         .map(|p| nvs_pdf::Markup {
@@ -397,6 +397,63 @@ fn a_slot_in_a_continued_row_is_filled_without_moving_anything() {
     assert_eq!(overflows.len(), 1, "{overflows:?}");
     assert_eq!(overflows[0].area, "total");
     assert_eq!(overflows[0].page, pages as u64);
+}
+
+/// One row with a `note` slot, laid out by the first pass with no style of its own, and the
+/// slot's area on the page.
+fn one_slot() -> (nvs_pdf::Kept, [f32; 4]) {
+    let document = nvs_pdf::Document {
+        html: "<table><tbody><tr><td>Delivery</td><td><slot name='note'></slot></td></tr></tbody></table>"
+            .to_owned(),
+        ..Default::default()
+    };
+    let (kept, _) = nvs_pdf::first(&document, &nvs_pdf::Heights::default()).unwrap();
+    let area = kept.laid().pages[0].slots[0].1;
+    (kept, area)
+}
+
+/// `kept` with `fill` drawn in its `note` slot on its one page.
+fn fill_note(kept: nvs_pdf::Kept, fill: &str) -> (nvs_pdf::Kept, Vec<nvs_pdf::Overflow>) {
+    let markup = vec![nvs_pdf::Markup {
+        slots: vec![("note".to_owned(), fill.to_owned())],
+        ..Default::default()
+    }];
+    nvs_pdf::draw(kept, &markup).unwrap()
+}
+
+#[test]
+fn a_plain_fill_starts_at_the_top_left_of_its_cell() {
+    let (kept, area) = one_slot();
+    let (kept, overflows) = fill_note(kept, "42");
+    let after = texts(kept.laid(), 0);
+    let at = |text: &str| after.iter().find(|(t, ..)| t == text).cloned();
+    let (_, x, y) = at("42").unwrap_or_else(|| panic!("no fill in {after:?}"));
+    let (_, _, line) = at("Delivery").expect("the row's label");
+    // The fill's body has no margin: its text starts at the content box's left edge, on the
+    // same baseline as the label beside it, and fits the box.
+    assert!((x - area[0]).abs() < 0.5, "{x} against {area:?}");
+    assert!((y - line).abs() < 0.5, "{y} against {line}");
+    assert!(overflows.is_empty(), "{overflows:?}");
+}
+
+#[test]
+fn a_fill_keeps_the_margin_its_own_style_gives_its_body() {
+    let (kept, area) = one_slot();
+    let (kept, _) = fill_note(kept, "<style>body { margin-left: 5pt }</style>42");
+    let after = texts(kept.laid(), 0);
+    let (_, x, _) = after.iter().find(|(t, ..)| t == "42").cloned().unwrap();
+    assert!((x - area[0] - 5.0).abs() < 0.5, "{x} against {area:?}");
+}
+
+#[test]
+fn a_single_line_taller_than_its_cell_is_listed_as_an_overflow() {
+    let (kept, _) = one_slot();
+    let (kept, overflows) = fill_note(kept, "<span style='font-size: 40pt'>42</span>");
+    // The one line cannot go on to a second page, so it stays and is cut off at the cell.
+    assert!(texts(kept.laid(), 0).iter().any(|(t, ..)| t == "42"));
+    assert_eq!(overflows.len(), 1, "{overflows:?}");
+    assert_eq!(overflows[0].area, "note");
+    assert_eq!(overflows[0].page, 1);
 }
 
 #[test]

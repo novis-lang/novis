@@ -3898,7 +3898,10 @@ returns `invalid`.
 **A header never moves the body.** Each margin's height is fixed before the body is laid out, by
 `@page`'s margin or the function's `height` option, so the page breaks the function saw are the page
 breaks of the file. Markup taller than its margin is clipped to it and listed in `Rendered::overflows`
-with its page. A slot keeps its row's height, so filling it moves nothing either. Where a margin box and
+with its page: markup that goes on to a second page of its area, and a run of text or an image that
+reaches below the area's bottom on its one page. A slot keeps its row's height, so filling it moves
+nothing either, and its fill's `body` has no margin unless the fill's own `<style>` gives it one, so
+the fill starts at its content box's top-left corner. Where a margin box and
 a function both fill one margin, the function's markup is drawn.
 
 **`Page`** carries the number, the count, whether it is the first or the last, its named page, its

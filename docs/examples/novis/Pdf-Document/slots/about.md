@@ -9,6 +9,9 @@ Use it for a total carried forward, or a subtotal for each page. `$page->marksUp
 returns the `data-mark="amount:..."` values up to this page, and `$page->marks("amount")` those on
 this page only.
 
+The HTML uses its own styles, not the document's, and starts at the top-left corner of the cell. A
+`<style>` in the HTML can set its font size.
+
 The slot keeps the height of its row, so filling it never moves anything on the page. HTML too tall
 for its cell is cut off, and `Rendered::overflows` lists it with the slot name.
 

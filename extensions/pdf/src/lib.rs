@@ -20,12 +20,16 @@
 //! [`Kept`] beside each page's facts. [`second`] lays each page's header and footer markup out
 //! on its own, as a document whose page is the size of the margin's area, and draws it over that
 //! margin with [`layout::overlay`]: the body does not move, a margin box along that side is not
-//! drawn, and markup taller than the area is clipped and listed in [`Rendered::overflows`]. The
-//! area is the page's content width and the whole margin's height, and the markup is set at its
-//! top. The markup is styled by its own `<style>` and not the document's, and it uses the
-//! document's assets and fonts. Each slot's fill is drawn the same way over every area of the
-//! page whose `<slot>` has its name: its cell's content box, which does not grow, so the fill
-//! moves nothing either. A slot's overflow names the slot. [`draw`] is that half of
+//! drawn, and markup taller than the area is clipped and listed in [`Rendered::overflows`].
+//! Markup is taller than its area when it goes on to a second page, or when a run of text or an
+//! image on its first page reaches below the area's bottom. The area is the page's content width
+//! and the whole margin's height, and the markup is set at its top. The markup is styled by its
+//! own `<style>` and not the document's, and it uses the document's assets and fonts. Each slot's
+//! fill is drawn the same way over every area of the page whose `<slot>` has its name: its cell's
+//! content box, which does not grow, so the fill moves nothing either. A fill's `body` has no
+//! margin unless the fill's own `<style>` gives it one, so a fill starts at the content box's
+//! top-left corner; a header's or footer's `body` keeps the user-agent sheet's margin. A slot's
+//! overflow names the slot. [`draw`] is that half of
 //! [`second`], before the file is written. The guest keeps the [`Kept`] in the instance between
 //! the two calls, and the request's end drops it.
 //!
@@ -339,8 +343,15 @@ pub fn draw(kept: Kept, pages: &[Markup]) -> Result<(Kept, Vec<Overflow>), Error
         for (side, what, html, area) in areas {
             let Some(html) = html else { continue };
             let over = if area[2] > 0.0 && area[3] > 0.0 {
+                // A slot's area is its cell's content box, often one line tall, so its body
+                // has no margin. The fill's own `<style>` comes after this one and can set one.
+                let body = if side == "slot" {
+                    " body { margin: 0 }"
+                } else {
+                    ""
+                };
                 let page = format!(
-                    "<style>@page {{ size: {}pt {}pt; margin: 0 }}</style>",
+                    "<style>@page {{ size: {}pt {}pt; margin: 0 }}{body}</style>",
                     area[2], area[3]
                 );
                 let source = page + html;

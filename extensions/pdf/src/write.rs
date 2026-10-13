@@ -487,6 +487,7 @@ pub fn write(
                     color,
                     glyphs,
                     text,
+                    ..
                 } => {
                     let font = match &faces[*face] {
                         Some(font) => font.clone(),

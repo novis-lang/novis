@@ -20,13 +20,15 @@ var $html = "<style>@page { size: 105mm 148mm; margin: 10mm } body { font-size: 
 
 // The function adds up the amounts on this page and every page before it.
 // It returns the same total for both slots. Each page shows only one of them.
+// A fill has its own styles, so it sets the table's font size to fit the row.
 var $slots = fn(Page $page): array<Core\Html\Markup> => {
     decimal $total = 0.0;
     foreach ($page->marksUpTo("amount") as string $amount) {
         $total = $total + (($amount as ?decimal) ?? 0.0 as decimal);
     }
     echo "page ", $page->number, " of ", $page->count, ": ", Core\Arr::count($page->marks("amount")), " rows, total ", $total, "\n";
-    return ["carried" => html`{$total}`, "total" => html`<b>{$total}</b>`];
+    var $size = html`<style>body { font-size: 10pt }</style>`;
+    return ["carried" => html`{$size}{$total}`, "total" => html`{$size}<b>{$total}</b>`];
 };
 
 var $rendered = Document::fromHtml($html)->slots($slots)->render();

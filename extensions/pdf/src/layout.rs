@@ -217,10 +217,12 @@ pub struct Glyph {
 #[derive(Debug, Clone)]
 pub enum Item {
     /// A run of glyphs in one face, size and colour, its pen starting at `x` on the baseline
-    /// `y`. `face` indexes [`Laid::faces`].
+    /// `y`. `face` indexes [`Laid::faces`], and `descent` is how far the face reaches below the
+    /// baseline at `size`.
     Text {
         face: usize,
         size: f32,
+        descent: f32,
         x: f32,
         y: f32,
         color: Color,
