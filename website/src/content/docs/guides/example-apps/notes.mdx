@@ -5,6 +5,8 @@ description: A small notes app with SQLite, HTML pages, a JSON API, form checks 
 shows: ['Core\Db', 'Core\Request', 'Core\Response', 'Core\Router', 'Core\Html']
 ---
 
+import AppFiles from '@components/AppFiles.astro'
+
 Notes is a small web app. You write a note in a form, and the app saves it in a SQLite database.
 The home page lists every note. The app also has a small JSON API for the same notes.
 
@@ -15,6 +17,12 @@ The app shows how the parts of a Novis project work together:
 - Routes, written as attributes on the methods that handle them.
 - A form that is checked before anything is saved.
 - Tests that send requests to the app without a server.
+
+## The code
+
+Each tab shows one file of the app. These are the same files that you download below.
+
+<AppFiles app="notes" />
 
 ## Get it running
 

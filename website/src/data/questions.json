@@ -151,7 +151,7 @@
   },
   "/guides/example-apps/notes/": {
     "feature": "guides/example-apps/notes.mdx",
-    "hash": "85824858ad34b15d",
+    "hash": "0698ddbbe07384f5",
     "questions": [
       "Example web app with SQLite, HTML pages and a JSON API",
       "How do I download and run the Notes example app?",
@@ -161,7 +161,7 @@
   },
   "/guides/example-apps/paperwork/": {
     "feature": "guides/example-apps/paperwork.mdx",
-    "hash": "a0d4c3ac7d4e3275",
+    "hash": "2d19c3a220365310",
     "questions": [
       "Example app that makes PDF invoices, reports and tickets",
       "See a sample PDF made with Novis",

@@ -5,6 +5,8 @@ description: A small web app that makes three PDF files. They are an invoice, an
 shows: ['Novis\Pdf', 'Novis\Image\QrCode', 'Novis\Image\Barcode']
 ---
 
+import AppFiles from '@components/AppFiles.astro'
+
 Paperwork is a small web app that makes three PDF documents, the way a business needs them.
 Each document is an HTML page with CSS. `Novis\Pdf\Document` turns it into a PDF file.
 
@@ -40,6 +42,12 @@ ticket has its own page, with a QR code and a barcode. The app renders each tick
 file. Then `Pages::merge` joins the five files into one.
 
 [Open the tickets (PDF)](/example-apps/paperwork/tickets.pdf)
+
+## The code
+
+Each tab shows one file of the app. These are the same files that you download below.
+
+<AppFiles app="paperwork" />
 
 ## Get it running
 
