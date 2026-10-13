@@ -81,12 +81,15 @@ fi
 
 # The shape of the message -- `type(scope): subject`, its type list and its length, as `looper.toml`'s
 # `[commits]` sets them -- is looper's check. A contributor to this public repository may not have
-# looper, so without it on PATH the trailer check above is the whole hook. A merge and git's own
-# `fixup!`, `squash!` and `amend!` subjects are not checked for shape: git writes those, and a
-# rebase rewrites the last three away.
+# looper, so without it on PATH the trailer check above is the whole hook. Four subjects are not
+# checked for shape. A merge and git's own `fixup!`, `squash!` and `amend!` are written by git, and
+# a rebase rewrites the last three away. Looper's sweep commit, `wip(loop): the unfinished slice of
+# session NNNN`, is written by looper when a loop session ends with its own files uncommitted, and
+# `wip` is not a type this repository allows. A refused sweep ends the loop's run.
 command -v looper >/dev/null 2>&1 || exit 0
 [ -f "$(git rev-parse --git-path MERGE_HEAD)" ] && exit 0
 case "$(head -n 1 "$msg")" in
     'fixup! '* | 'squash! '* | 'amend! '*) exit 0 ;;
+    'wip(loop): the unfinished slice of session '[0-9][0-9][0-9][0-9]*) exit 0 ;;
 esac
 exec looper hook commit-msg "$msg"
