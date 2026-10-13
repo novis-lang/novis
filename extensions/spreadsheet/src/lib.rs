@@ -23,16 +23,16 @@
 //! ends, and one dropped before `writer-finish` writes an error to the request's log naming the
 //! workbook's `target` ([`writer::unfinished_message`]).
 //!
-//! **Not done yet.** Of `writer-part`'s cases, tables, conditional formats, images and charts
-//! return `runtime`: Stages 5 and 6 of goal `spreadsheet`. The reader and the template exports
-//! return `runtime` too, and are not in `manifest.json`: Stages 7 and 10.
+//! **Not done yet.** The reader and the template exports return `runtime`, and are not in
+//! `manifest.json`: Stages 7 and 10 of goal `spreadsheet`.
 //!
-//! Packed as a `.nvsx` and embedded in every `nvs` binary, the component is 0.49 MiB, built for
+//! Packed as a `.nvsx` and embedded in every `nvs` binary, the component is 0.52 MiB, built for
 //! release as `crates/nvs-ext/build.rs` always builds it. That is the binary's growth for
 //! spreadsheets, and `crates/nvs-ext/tests/builtin.rs` fails when this figure drifts past 5% of
 //! the bytes the binary carries.
 
 pub mod cells;
+pub mod chart;
 pub mod conditional;
 pub mod drawing;
 pub mod styles;
@@ -790,11 +790,47 @@ mod guest {
                     style: rule.style.map(style),
                 })
             }
-            wit::SheetPart::Chart(_) => {
-                return Err(wit::Error::Runtime(
-                    "This version of Novis cannot add charts to a sheet yet.".to_owned(),
-                ));
-            }
+            wit::SheetPart::Chart(chart) => Part::Chart(crate::chart::Chart {
+                placed: chart.placed,
+                layers: chart
+                    .layers
+                    .into_iter()
+                    .map(|layer| crate::chart::Layer {
+                        kind: match layer.kind {
+                            wit::ChartKind::Column => crate::chart::Kind::Column,
+                            wit::ChartKind::Bar => crate::chart::Kind::Bar,
+                            wit::ChartKind::Line => crate::chart::Kind::Line,
+                            wit::ChartKind::Area => crate::chart::Kind::Area,
+                            wit::ChartKind::Pie => crate::chart::Kind::Pie,
+                            wit::ChartKind::Doughnut => crate::chart::Kind::Doughnut,
+                            wit::ChartKind::Scatter => crate::chart::Kind::Scatter,
+                        },
+                        series: layer
+                            .series
+                            .into_iter()
+                            .map(|series| crate::chart::Series {
+                                values: series.values,
+                                categories: series.categories,
+                                name: series.name,
+                                color: series.color,
+                            })
+                            .collect(),
+                    })
+                    .collect(),
+                title: chart.title,
+                x_title: chart.x_title,
+                y_title: chart.y_title,
+                legend: match chart.legend {
+                    wit::Legend::Hidden => crate::chart::Legend::Hidden,
+                    wit::Legend::Top => crate::chart::Legend::Top,
+                    wit::Legend::Right => crate::chart::Legend::Right,
+                    wit::Legend::Bottom => crate::chart::Legend::Bottom,
+                    wit::Legend::Left => crate::chart::Legend::Left,
+                },
+                labels: chart.labels,
+                width: chart.width,
+                height: chart.height,
+            }),
         })
     }
 

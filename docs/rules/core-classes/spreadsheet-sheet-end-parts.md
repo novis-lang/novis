@@ -49,9 +49,12 @@ priority in the order they are added. A rule that formats cells needs a `style`,
 bold, italic, strike, underline and colour, the fill, the border and the format apply; a colour
 scale, a data bar and an icon set take `colors` instead, and a `style` on one throws `LogicError`.
 **The chart subset** is column, bar, line, area, pie, doughnut and scatter, and a
-combination of two of them, with a title, axis titles, the legend, series colours and data labels. A
-series names its ranges with `$sheet->column($key)`, so a chart over a stream covers every row the
-sheet ends with. Its XML follows `rust_xlsxwriter`'s output for the same chart, ported for the subset
+combination of two different types of column, line and area over one pair of axes, with a title,
+axis titles, the legend, series colours and data labels. Any other combination throws `LogicError`.
+A series names its ranges with `$sheet->column($key)`, so a chart over a stream covers every row the
+sheet ends with: the chart is written when the sheet ends, and a range on its own sheet that ends at
+the row `column` gives when the chart is added ends at the sheet's last row. Any other range is
+written as given, and the chart holds no values. Its XML follows `rust_xlsxwriter`'s output for the same chart, ported for the subset
 and attributed in the module that writes it.
 
 The tradeoffs. **Usability:** a report's merges, totals and chart are written after the rows they

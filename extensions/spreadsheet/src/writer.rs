@@ -49,6 +49,10 @@
 //! bytes wait in [`OpenSheet`] until the sheet ends. Memory: per writing request, the images added
 //! to the open sheet after its first row, until the sheet ends.
 //!
+//! **A chart is its own part, `xl/charts/chart<n>.xml`**, numbered across the workbook and written
+//! when its sheet ends, so a range that grows with the sheet ends at the sheet's last row
+//! (`chart`'s module doc).
+//!
 //! **A table** (`table`'s module doc) is numbered across the workbook, and its name is unique
 //! among the tables and the defined names. Its header row names its columns when it is written,
 //! and its totals row is written right after its last row, so [`Writer::rows`] splits a batch
@@ -140,6 +144,8 @@ pub struct Writer {
     formats: Vec<Format>,
     /// The names of the tables added so far, the one numbered `n` at `n - 1`.
     tables: Vec<String>,
+    /// The charts added so far, each numbered across the workbook.
+    charts: usize,
     state: State,
 }
 
@@ -258,6 +264,7 @@ impl Writer {
             media: 0,
             formats: Vec::new(),
             tables: Vec::new(),
+            charts: 0,
             state: State::Writing,
         })
     }
@@ -458,6 +465,12 @@ impl Writer {
                         Ok(writer.archive.take())
                     });
                 }
+            }
+            Part::Chart(chart) => {
+                let first = if open.header.is_some() { 2 } else { 1 };
+                let reach = open.next.saturating_sub(1).max(first);
+                open.tail.chart(&chart, self.charts + 1, sheet, reach)?;
+                self.charts += 1;
             }
             Part::Table(table) => return self.table(table),
             Part::Conditional(rule) => {
@@ -1044,7 +1057,7 @@ impl Writer {
             entries.push((format!("xl/worksheets/_rels/sheet{number}.xml.rels"), rels));
         }
         entries.extend(open.tail.notes(number));
-        entries.extend(open.tail.drawing(number));
+        entries.extend(open.tail.drawing(number, open.next.saturating_sub(1)));
         entries.extend(open.tail.tables());
         for (name, text) in &entries {
             self.archive.begin(name)?;
@@ -1292,6 +1305,12 @@ impl Writer {
             let _ = write!(
                 types,
                 "<Override PartName=\"/xl/tables/table{id}.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.table+xml\"/>"
+            );
+        }
+        for id in 1..=self.charts {
+            let _ = write!(
+                types,
+                "<Override PartName=\"/xl/charts/chart{id}.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.drawingml.chart+xml\"/>"
             );
         }
         types.push_str(

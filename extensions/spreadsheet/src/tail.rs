@@ -9,8 +9,8 @@
 //! tables. A part may name any cell, written or not. A link to a URL or a `mailto:` address, the
 //! notes, the images and the tables are relationships of the sheet, which [`Tail::rels`] writes
 //! in that order, and the notes are a `comments<n>.xml` beside the VML drawing Excel still needs
-//! to show them ([`Tail::notes`]). The images are the sheet's `drawing<n>.xml` (`drawing`'s module
-//! doc), whose `<drawing>` element comes before the notes'. Each table is its own
+//! to show them ([`Tail::notes`]). The images and charts are the sheet's `drawing<n>.xml`
+//! (`drawing`'s module doc), whose `<drawing>` element comes before the notes'. Each table is its own
 //! `xl/tables/table<n>.xml` (`table`'s module doc), and no table overlaps a merged range or
 //! another table.
 //!
@@ -32,6 +32,7 @@
 
 use std::fmt::Write as _;
 
+use crate::chart::Chart;
 use crate::conditional::Conditional;
 use crate::drawing::{Drawing, Format, Image};
 use crate::table::{Placed, Table};
@@ -285,6 +286,7 @@ pub enum Part {
     Print(Print),
     Protect(Protect),
     Image(Image),
+    Chart(Chart),
     Table(Table),
     Conditional(Conditional),
 }
@@ -483,6 +485,9 @@ impl Tail {
             )),
             Part::Image(_) => Err(Error::Runtime(
                 "An image is numbered by the workbook. Add it with `Tail::image`.".to_owned(),
+            )),
+            Part::Chart(_) => Err(Error::Runtime(
+                "A chart is numbered by the workbook. Add it with `Tail::chart`.".to_owned(),
             )),
             Part::Table(_) => Err(Error::Runtime(
                 "A table is numbered by the workbook. Add it with `Tail::table`.".to_owned(),
@@ -752,6 +757,17 @@ impl Tail {
     /// workbook. Returns its format.
     pub fn image(&mut self, image: &Image, media: usize) -> Result<Format, Error> {
         self.drawing.add(image, media)
+    }
+
+    /// Checks `chart` and keeps it with its anchor (`Drawing::chart`).
+    pub fn chart(
+        &mut self,
+        chart: &Chart,
+        number: usize,
+        sheet: &str,
+        reach: u32,
+    ) -> Result<(), Error> {
+        self.drawing.chart(chart, number, sheet, reach)
     }
 
     /// Whether the sheet has notes.
@@ -1070,13 +1086,14 @@ impl Tail {
         Some(out)
     }
 
-    /// The images' two entries, `drawing<sheet>.xml` and its relationships, by name. Empty when
-    /// the sheet has no images.
-    pub fn drawing(&self, sheet: usize) -> Vec<(String, String)> {
+    /// The drawing's entries by name: `drawing<sheet>.xml`, its relationships and each chart
+    /// part, whose growing ranges end at the row `last`. Empty when the sheet has no images and
+    /// no charts.
+    pub fn drawing(&self, sheet: usize, last: u32) -> Vec<(String, String)> {
         if !self.has_drawing() {
             return Vec::new();
         }
-        vec![
+        let mut entries = vec![
             (
                 format!("xl/drawings/drawing{sheet}.xml"),
                 self.drawing.write(),
@@ -1085,7 +1102,9 @@ impl Tail {
                 format!("xl/drawings/_rels/drawing{sheet}.xml.rels"),
                 self.drawing.rels(),
             ),
-        ]
+        ];
+        entries.extend(self.drawing.charts(last));
+        entries
     }
 
     /// The notes' two entries, `comments<sheet>.xml` and the VML drawing, by name. Empty when the
