@@ -615,12 +615,33 @@ pub struct EnumCapture {
 /// is what makes the pair deterministic — a duplicate is always reported at
 /// the row that arrives second, and the load order it arrives in does not
 /// depend on filesystem enumeration (`rule:programs/implementing`).
+///
+/// The table also carries the unit's one mark about how it is served: whether
+/// the program calls `Core\Router::dispatch` anywhere
+/// (`rule:routing/a-gate-answers-around-every-handler`). It is found at the
+/// call site as a link is, and set whatever the call's place in the program,
+/// so a call in a file the entry `require`s marks the unit as well.
 #[derive(Debug, Default)]
 pub struct RouteTable {
     rows: Vec<Route>,
+    dispatches: bool,
 }
 
 impl RouteTable {
+    /// Whether the program calls `Core\Router::dispatch`. Only such a program
+    /// has its gate called for a request the server refused, because a program
+    /// that dispatches by hand would read that request as one with no route.
+    #[must_use]
+    pub fn dispatches(&self) -> bool {
+        self.dispatches
+    }
+
+    /// Records a `Core\Router::dispatch` call site, from
+    /// [`crate::links::is_dispatch`]'s caller.
+    pub(crate) fn mark_dispatch(&mut self) {
+        self.dispatches = true;
+    }
+
     /// Every row, in load order.
     #[must_use]
     pub fn rows(&self) -> &[Route] {

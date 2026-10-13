@@ -147,6 +147,15 @@ pub fn is_link(owner: &QName, member: &str) -> bool {
     owner.to_string() == OWNER && matches!(member, "url" | ABSOLUTE | SIGNED)
 }
 
+/// Whether `owner::member` is `Core\Router::dispatch`, the call that marks the
+/// unit as one whose gate answers the server's refusals
+/// ([`crate::routes::RouteTable::dispatches`]). The same nominal test as
+/// [`is_link`], and recorded beside it, because both ask which `Core\Router`
+/// member a resolved call names and nothing about its arguments.
+pub(crate) fn is_dispatch(owner: &QName, member: &str) -> bool {
+    owner.to_string() == OWNER && member == "dispatch"
+}
+
 /// Records one link site, or nothing where § 4 leaves the call to run time.
 ///
 /// Reports nothing: every refusal this pass makes is a question about the table

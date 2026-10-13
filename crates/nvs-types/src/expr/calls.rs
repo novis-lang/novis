@@ -573,6 +573,13 @@ pub(crate) fn infer_static_call(
         let name = name.clone();
         crate::links::record_site(expr, &name, args, &slots, ctx, env);
     }
+    // `rule:routing/a-gate-answers-around-every-handler`'s mark: a program that
+    // calls `dispatch` anywhere has its gate answer the server's refusals.
+    if let Some((qname, name, _)) = &resolved
+        && crate::links::is_dispatch(qname, name)
+    {
+        env.routes.mark_dispatch();
+    }
     // See [`infer_method_call`]: persisted for `nvs-ir` to read back a resolved
     // static call's target, always as the *substituted* signature.
     //

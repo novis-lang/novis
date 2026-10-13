@@ -332,6 +332,37 @@ fn the_collected_table_crosses_on_the_expression_table() {
 }
 
 #[test]
+fn a_call_to_dispatch_marks_the_unit_and_a_hand_written_dispatcher_does_not() {
+    // `rule:routing/a-gate-answers-around-every-handler`: only a program that
+    // calls `Core\Router::dispatch` has its gate answer the server's refusals,
+    // so the mark is the call itself and not the routes, the gate class or
+    // another `Core\Router` member.
+    const GATE: &str = "class Gate implements Core\\Router\\Gate {\n  \
+                        public function allows(Core\\Router\\Match $route): bool { return true; }\n  \
+                        public function refused(Core\\Router\\Refusal $reason, ?Core\\Router\\Match $route): void {}\n  \
+                        public function failed(?Core\\Router\\Match $route, ?Throwable $error): void {}\n}\n";
+    let routes = route_src(
+        "  #[Route(path: \"/users\", method: Core\\Http\\Method::Get, name: \"users\")]\n  \
+         public function index(): void {}\n",
+    );
+
+    let (diags, exprs) = check_src_table(&format!(
+        "{routes}{GATE}if (Core\\Env::context() == Core\\Env::Context::Request) {{\n  \
+         Core\\Router::dispatch(new Gate());\n}}\n"
+    ));
+    assert!(!diags.has_errors(), "{diags:?}");
+    assert!(exprs.routes().dispatches());
+
+    // A gate class and a link, with no `dispatch` call: dispatched by hand.
+    let (diags, exprs) = check_src_table(&format!(
+        "{routes}{GATE}echo Core\\Router::url(\"users\", []);\n\
+         echo Core\\Request::route()?->name() ?? \"\";\n"
+    ));
+    assert!(!diags.has_errors(), "{diags:?}");
+    assert!(!exprs.routes().dispatches());
+}
+
+#[test]
 fn every_route_on_one_method_becomes_a_row_and_they_may_share_a_name() {
     // `rule:attributes/repeatable`'s repetition, read as `rule:routing/route-attribute` writes it: one method
     // serving three verbs declares three routes rather than one. `rule:routing/repeated-routes-share-a-name-when-they-share-a-path`
