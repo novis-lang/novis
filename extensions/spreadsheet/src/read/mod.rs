@@ -7,6 +7,7 @@
 //! are read here ([`zip`]), the XML is tokenized here ([`xml`]), and a sheet is a [`sheet::Cursor`]
 //! that survives from one call to the next. xlsb is the same package with binary parts, read
 //! the same way by [`binary`]. xlsm is an xlsx with a VBA part, and reads as one.
+//! [`Reader::macros`] lists the VBA project's module names ([`vba`]), and nothing runs them.
 //!
 //! **xls and ods are read whole**, at [`Reader::open`]: [`xls`] over the compound file [`cfb`],
 //! and [`ods`]. Each sheet's rows are kept in its [`Listed`], and a cursor walks them. calamine
@@ -39,6 +40,7 @@ mod cfb;
 pub mod format;
 mod ods;
 pub mod sheet;
+mod vba;
 mod xls;
 pub mod xml;
 pub mod zip;
@@ -295,6 +297,10 @@ pub struct Reader {
     date1904: bool,
     /// Whether the parts are xlsb's records.
     binary: bool,
+    /// Whether the file is a compound file, an xls.
+    compound: bool,
+    /// The VBA project's part, when the package has one.
+    vba_part: Option<String>,
     open: Option<Open>,
 }
 
@@ -457,12 +463,15 @@ impl Reader {
         let head = source.range(0, 8)?;
         if cfb::is_compound(&head) {
             let book = xls::read(&source.range(0, source.size()?)?)?;
-            return Ok(Self::whole(
-                zip::Directory::default(),
-                book.sheets,
-                book.kinds,
-                book.date1904,
-            ));
+            return Ok(Self {
+                compound: true,
+                ..Self::whole(
+                    zip::Directory::default(),
+                    book.sheets,
+                    book.kinds,
+                    book.date1904,
+                )
+            });
         }
         if !head.starts_with(b"PK") {
             return Err(Error::Parse(
@@ -543,14 +552,21 @@ impl Reader {
             Some(entry) => kinds(&zip::whole(source, &entry)?)?,
             None => Vec::new(),
         };
+        // Excel always names the VBA part in the workbook's relationships. A part at the usual
+        // path with no relationship is listed too, so a file never hides a macro.
+        let vba_part = part_of("vbaProject")
+            .or_else(|| Some("xl/vbaProject.bin".to_owned()))
+            .filter(|part| directory.find(part).is_some());
         Ok(Self {
             strings_part: part_of("sharedStrings"),
+            vba_part,
             directory,
             sheets,
             strings: None,
             kinds,
             date1904,
             binary,
+            compound: false,
             open: None,
         })
     }
@@ -570,8 +586,29 @@ impl Reader {
             kinds,
             date1904,
             binary: false,
+            compound: false,
+            vba_part: None,
             open: None,
         }
+    }
+
+    /// The names of the workbook's VBA modules, in the project's order, and none when it has no
+    /// VBA project. An xlsm's project is its VBA part, and an xls's is its `_VBA_PROJECT_CUR`
+    /// storage. Nothing runs them.
+    pub fn macros(&self, source: &dyn Source) -> Result<Vec<String>, Error> {
+        if self.compound {
+            let bytes = source.range(0, source.size()?)?;
+            return vba::modules(&cfb::File::open(&bytes)?, &["_VBA_PROJECT_CUR", "VBA"]);
+        }
+        let Some(entry) = self
+            .vba_part
+            .as_deref()
+            .and_then(|part| self.directory.find(part))
+        else {
+            return Ok(Vec::new());
+        };
+        let bytes = zip::whole(source, entry)?;
+        vba::modules(&cfb::File::open(&bytes)?, &["VBA"])
     }
 
     /// The shared strings, read at the first call that needs them.

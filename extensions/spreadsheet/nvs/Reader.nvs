@@ -31,6 +31,13 @@ final class Reader
         return Engine::readerSheets($this->reader, $this->source);
     }
 
+    /// `macros` returns the names of the macro modules in an xlsm or xls file. The list is empty when the file has no macros.
+    /// Reading a file never runs its macros.
+    public function macros(): array<string>
+    {
+        return Engine::readerMacros($this->reader, $this->source);
+    }
+
     /// `rows` reads the sheet `$sheet`, by name or by position from 0. It gives one `Row` at a time, with its row number in the file.
     /// With `header: true`, the keys are the header cells, and an empty cell is `null`. Without a header, the keys are the column letters.
     public function rows(string|int $sheet, RowOptions $options = null): Iterator<Row>

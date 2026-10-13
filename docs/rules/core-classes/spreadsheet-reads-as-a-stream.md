@@ -19,7 +19,9 @@ need every parser rewritten as a resumable state machine.
 xlsb when it is `xl/workbook.bin`, and ods when it has a `content.xml` and no workbook part. An OLE
 compound file is xls, and anything else is CSV. xls holds at most 65,536 rows, and an xls from
 Excel 95 or earlier, BIFF5 and before, throws naming it. An xlsm's macros are listed by `macros()`
-and never run.
+and never run: the VBA project's `dir` stream is decompressed and its module names read, and no
+module's code is read. An xls's project is its `_VBA_PROJECT_CUR` storage, and an xlsm's is the part
+the workbook's relationships name, or `xl/vbaProject.bin` when none does, so a file never hides one.
 
 **xls and ods are read whole** when the reader opens: the file is held in the guest, and every
 sheet's rows with it. An xls or an ods stores a formula as tokens or as OpenFormula text, so with
@@ -83,7 +85,7 @@ one. The engine's resource is `reading`, because a manifest's resource is a clas
 An xlsb stores a formula as parsed tokens and not as text, so with `formulas: true` an xlsb cell
 reads as its stored result and gives no `Formula`.
 
-**Not shipped.** The extras, `macros()`, `merged: 'fill'` and `text`. The `value` accessor reads a
+**Not shipped.** The extras but `macros()`, `merged: 'fill'` and `text`. The `value` accessor reads a
 range of `bytes` and not yet of an open `Core\IO\File`, and each call copies a `bytes` source whole
 as it crosses. `Reader::open`, `sheets()` and `rows()` read xlsx, xlsm, xlsb, xls and ods.
 

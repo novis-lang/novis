@@ -1,14 +1,18 @@
-//! The compound file (MS-CFB) an xls is: a file of fixed-size sectors, a table that chains the
-//! sectors of each stream, and a directory that names the streams.
+//! The compound file (MS-CFB) an xls and an xlsm's VBA project are: a file of fixed-size sectors,
+//! a table that chains the sectors of each stream, and a directory that names the streams and the
+//! storages that hold them.
 //!
 //! [`File::open`] reads the header, the sector table and the directory of bytes the reader holds
-//! whole, and [`File::stream`] gives one stream's bytes. A stream shorter than the header's
-//! cutoff is kept in the mini stream, in sectors of 64 bytes, and is read through the mini table.
+//! whole. [`File::stream`] gives the bytes of a stream found by its name in any storage, and
+//! [`File::stream_at`] of one found by its path of storages from the root. A stream shorter than
+//! the header's cutoff is kept in the mini stream, in sectors of 64 bytes, and is read through the
+//! mini table.
 //!
 //! **A chain is followed at most once round the table.** A chain longer than the table has
 //! sectors, a sector number past the table, or a stream longer than its chain is
 //! [`Error::Parse`], so a chain that loops back on itself ends the read and is never followed
-//! again.
+//! again. The directory's tree of siblings and children is walked the same way: a walk that
+//! visits more entries than the directory has is [`Error::Parse`].
 
 use crate::Error;
 
@@ -17,6 +21,7 @@ const END_OF_CHAIN: u32 = 0xFFFF_FFFE;
 const FREE: u32 = 0xFFFF_FFFF;
 const HEADER_TABLE: usize = 109;
 const MINI_SECTOR: usize = 64;
+const STORAGE: u8 = 1;
 const STREAM: u8 = 2;
 const ROOT: u8 = 5;
 
@@ -43,13 +48,17 @@ pub fn is_compound(bytes: &[u8]) -> bool {
     bytes.starts_with(&MAGIC)
 }
 
-/// One stream the directory names.
+/// One stream or storage the directory names, with its left and right siblings and, for a
+/// storage, its first child, each an index into the directory or [`FREE`].
 #[derive(Debug)]
 struct Stream {
     name: String,
     kind: u8,
     start: u32,
     size: u64,
+    left: u32,
+    right: u32,
+    child: u32,
 }
 
 /// A compound file being read.
@@ -135,6 +144,9 @@ impl<'a> File<'a> {
                 kind: entry[66],
                 start: u32_at(entry, 116)?,
                 size,
+                left: u32_at(entry, 68)?,
+                right: u32_at(entry, 72)?,
+                child: u32_at(entry, 76)?,
             });
         }
         if let Some(root) = file.streams.iter().find(|s| s.kind == ROOT) {
@@ -207,19 +219,70 @@ impl<'a> File<'a> {
         cut(out, Some(size))
     }
 
-    /// The stream named `name`, compared without case, or `None` when the file has none.
+    /// The stream named `name` in any storage, compared without case, or `None` when the file has
+    /// none.
     pub fn stream(&self, name: &str) -> Result<Option<Vec<u8>>, Error> {
-        let Some(stream) = self
+        match self
             .streams
             .iter()
             .find(|s| s.kind == STREAM && s.name.eq_ignore_ascii_case(name))
-        else {
+        {
+            Some(stream) => self.read(stream).map(Some),
+            None => Ok(None),
+        }
+    }
+
+    /// The stream at `path`, each storage's name and then the stream's, compared without case, or
+    /// `None` when the file has none there.
+    pub fn stream_at(&self, path: &[&str]) -> Result<Option<Vec<u8>>, Error> {
+        let Some(root) = self.streams.iter().find(|s| s.kind == ROOT) else {
             return Ok(None);
         };
+        let mut parent = root;
+        for (at, name) in path.iter().enumerate() {
+            let last = at + 1 == path.len();
+            let Some(found) = self.child(parent, name)? else {
+                return Ok(None);
+            };
+            match found.kind {
+                STREAM if last => return self.read(found).map(Some),
+                STORAGE if !last => parent = found,
+                _ => return Ok(None),
+            }
+        }
+        Ok(None)
+    }
+
+    /// The child of `parent` named `name`, found by walking the tree of its children.
+    fn child(&self, parent: &Stream, name: &str) -> Result<Option<&Stream>, Error> {
+        let mut pending = vec![parent.child];
+        let mut steps = 0;
+        while let Some(id) = pending.pop() {
+            if id == FREE {
+                continue;
+            }
+            steps += 1;
+            if steps > self.streams.len() {
+                return Err(broken("its directory loops"));
+            }
+            let entry = self
+                .streams
+                .get(id as usize)
+                .ok_or_else(|| broken("a directory entry is past the directory"))?;
+            if entry.name.eq_ignore_ascii_case(name) {
+                return Ok(Some(entry));
+            }
+            pending.push(entry.left);
+            pending.push(entry.right);
+        }
+        Ok(None)
+    }
+
+    fn read(&self, stream: &Stream) -> Result<Vec<u8>, Error> {
         if stream.size < self.cutoff {
-            self.mini_chain(stream.start, stream.size).map(Some)
+            self.mini_chain(stream.start, stream.size)
         } else {
-            self.chain(stream.start, Some(stream.size)).map(Some)
+            self.chain(stream.start, Some(stream.size))
         }
     }
 }

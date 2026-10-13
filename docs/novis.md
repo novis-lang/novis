@@ -30230,12 +30230,13 @@ Novis\Spreadsheet\Formula::of(string $text, ?{cached?: string|int|float} $option
 <a id="core-novis-spreadsheet-reader"></a>
 ### `Novis\Spreadsheet\Reader`
 
-Keywords: open, sheets, rows
+Keywords: open, sheets, macros, rows
 
 | Member | Signature |
 |---|---|
 | [`Novis\Spreadsheet\Reader::open`](#core-novis-spreadsheet-reader-open) | `open(bytes\|Core\IO\File $source): Reader` |
 | [`Novis\Spreadsheet\Reader->sheets`](#core-novis-spreadsheet-reader-sheets) | `sheets(): array<SheetInfo>` |
+| [`Novis\Spreadsheet\Reader->macros`](#core-novis-spreadsheet-reader-macros) | `macros(): array<string>` |
 | [`Novis\Spreadsheet\Reader->rows`](#core-novis-spreadsheet-reader-rows) | `rows(string\|int $sheet, RowOptions $options = null): Iterator<Row>` |
 
 <a id="core-novis-spreadsheet-reader-open"></a>
@@ -30246,7 +30247,7 @@ Novis\Spreadsheet\Reader::open(bytes|Core\IO\File $source): Reader
 ```
 
 `Reader::open` opens the workbook in `$source`. The source is the bytes of the file, or a file your program opened.
-This reads the list of sheets and no rows. A file that is not an xlsx file throws an error.
+This reads the list of sheets. An xls or ods file is read whole here. Any other file type throws an error.
 
 **Returns** `Reader`
 
@@ -30260,6 +30261,18 @@ $reader->sheets(): array<SheetInfo>
 `sheets` returns each sheet in tab order, with its name, its position from 0, whether it is hidden, its size and its kind.
 
 **Returns** `array<SheetInfo>`
+
+<a id="core-novis-spreadsheet-reader-macros"></a>
+#### `Novis\Spreadsheet\Reader->macros`
+
+```nvs skip
+$reader->macros(): array<string>
+```
+
+`macros` returns the names of the macro modules in an xlsm or xls file. The list is empty when the file has no macros.
+Reading a file never runs its macros.
+
+**Returns** `array<string>`
 
 <a id="core-novis-spreadsheet-reader-rows"></a>
 #### `Novis\Spreadsheet\Reader->rows`
@@ -30666,7 +30679,7 @@ new Novis\Spreadsheet\Written(array<int> $rows, int $size, ?bytes $bytes)
 <a id="core-novis-spreadsheet-engine"></a>
 ### `Novis\Spreadsheet\Engine`
 
-Keywords: writerOpen, writerStyle, writerSheet, writerRows, writerPart, writerDefine, writerCell, writerColumn, writerFinish, readerOpen, readerSheets, readerHeader, readerRows
+Keywords: writerOpen, writerStyle, writerSheet, writerRows, writerPart, writerDefine, writerCell, writerColumn, writerFinish, readerOpen, readerSheets, readerMacros, readerHeader, readerRows
 
 | Member | Signature |
 |---|---|
@@ -30681,6 +30694,7 @@ Keywords: writerOpen, writerStyle, writerSheet, writerRows, writerPart, writerDe
 | [`Novis\Spreadsheet\Engine::writerFinish`](#core-novis-spreadsheet-engine-writerfinish) | `writerFinish(Writer $writer): {data: bytes, rows: array<{name: string, rows: uint}>, size: uint}` |
 | [`Novis\Spreadsheet\Engine::readerOpen`](#core-novis-spreadsheet-engine-readeropen) | `readerOpen(mixed $source): Reading` |
 | [`Novis\Spreadsheet\Engine::readerSheets`](#core-novis-spreadsheet-engine-readersheets) | `readerSheets(Reading $reader, mixed $source): array<{name: string, position: uint, visibility: Visibility, rows: uint, columns: uint, kind: SheetKind}>` |
+| [`Novis\Spreadsheet\Engine::readerMacros`](#core-novis-spreadsheet-engine-readermacros) | `readerMacros(Reading $reader, mixed $source): array<string>` |
 | [`Novis\Spreadsheet\Engine::readerHeader`](#core-novis-spreadsheet-engine-readerheader) | `readerHeader(Reading $reader, mixed $source, {sheet: string, headerRow: ?uint, from: ?uint, limit: ?uint, columns: array<string>, text: array<string>, textAll: bool, formulas: bool, keepEmptyRows: bool, fillMerged: bool, skipHidden: bool, locale: string} $options): array<string>` |
 | [`Novis\Spreadsheet\Engine::readerRows`](#core-novis-spreadsheet-engine-readerrows) | `readerRows(Reading $reader, mixed $source, {sheet: string, headerRow: ?uint, from: ?uint, limit: ?uint, columns: array<string>, text: array<string>, textAll: bool, formulas: bool, keepEmptyRows: bool, fillMerged: bool, skipHidden: bool, locale: string} $options, uint $max): {rows: array<{number: uint, cells: array<{column: uint, value: ?ReadValue, formula: ?string, display: ?string}>}>, done: bool}` |
 
@@ -30859,6 +30873,22 @@ Returns each sheet of the workbook in tab order. `rows` and `columns` are the si
 | `$source` | `mixed` |  |
 
 **Returns** `array<{name: string, position: uint, visibility: Visibility, rows: uint, columns: uint, kind: SheetKind}>`
+
+<a id="core-novis-spreadsheet-engine-readermacros"></a>
+#### `Novis\Spreadsheet\Engine::readerMacros`
+
+```nvs skip
+Novis\Spreadsheet\Engine::readerMacros(Reading $reader, mixed $source): array<string>
+```
+
+Returns the names of the workbook's macro modules. The list is empty when the workbook has no macros. Nothing runs the macros.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$reader` | `Reading` |  |
+| `$source` | `mixed` |  |
+
+**Returns** `array<string>`
 
 <a id="core-novis-spreadsheet-engine-readerheader"></a>
 #### `Novis\Spreadsheet\Engine::readerHeader`

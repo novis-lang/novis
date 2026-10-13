@@ -1,14 +1,16 @@
 --TEST--
-`Reader` reads an xlsx as typed rows, each with its row number in the file: the header gives every row every key with `null` for an empty cell, a duplicate header is numbered and an empty one is its column letter, empty rows are skipped unless kept, a clock time is placed in `zone`, and `from`, `limit` and `columns` choose the rows and columns: rule:core-classes/spreadsheet-reads-as-a-stream
+`Reader` reads an xlsx as typed rows, each with its row number in the file: the header gives every row every key with `null` for an empty cell, a duplicate header is numbered and an empty one is its column letter, empty rows are skipped unless kept, a clock time is placed in `zone`, `from`, `limit` and `columns` choose the rows and columns, and a workbook with no VBA project lists no macros: rule:core-classes/spreadsheet-reads-as-a-stream
 --FILE--
 <?nvs
 // covers: Novis\Spreadsheet\Reader::open
 // covers: Novis\Spreadsheet\Reader::sheets
 // covers: Novis\Spreadsheet\Reader::rows
+// covers: Novis\Spreadsheet\Reader::macros
 // covers: Novis\Spreadsheet\Engine::readerOpen
 // covers: Novis\Spreadsheet\Engine::readerSheets
 // covers: Novis\Spreadsheet\Engine::readerHeader
 // covers: Novis\Spreadsheet\Engine::readerRows
+// covers: Novis\Spreadsheet\Engine::readerMacros
 use Novis\Spreadsheet\Reader;
 use Novis\Spreadsheet\Row;
 use Novis\Spreadsheet\Workbook;
@@ -72,6 +74,9 @@ foreach ($reader->sheets() as var $info) {
     echo $info->name, " is at position ", $info->position, "\n";
 }
 
+// `macros` lists the macro modules. This workbook has none.
+echo "macros: ", Core\Arr::count($reader->macros()), "\n";
+
 // The key of each value is its header. `Gadget` has no price, so its price is `null`.
 foreach ($reader->rows("Orders", {header: true}) as Row $row) {
     Show::row($row);
@@ -101,6 +106,7 @@ foreach ($named->rows("Names", {header: true}) as Row $row) {
 }
 --EXPECT--
 Orders is at position 0
+macros: 0
 row 2 | Item: string Widget | Price: float 2.5 | Count: int 3 | Paid: bool true | Ordered: DateTime 2024-01-15 09:30 UTC
 row 4 | Item: string Gadget | Price: null | Count: int 4 | Paid: null | Ordered: null
 row 5 | Item: string Gizmo | Price: float 1.25 | Count: int 7 | Paid: bool false | Ordered: null

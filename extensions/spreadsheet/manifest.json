@@ -104,6 +104,15 @@
       "help": "Returns each sheet of the workbook in tab order. `rows` and `columns` are the size the file gives for the sheet, or 0 when it gives none."
     },
     {
+      "name": "readerMacros",
+      "params": [
+        {"name": "reader", "type": "Reading"},
+        {"name": "source", "type": "mixed"}
+      ],
+      "returns": "array<string>",
+      "help": "Returns the names of the workbook's macro modules. The list is empty when the workbook has no macros. Nothing runs the macros."
+    },
+    {
       "name": "readerHeader",
       "params": [
         {"name": "reader", "type": "Reading"},

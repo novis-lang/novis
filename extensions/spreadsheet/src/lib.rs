@@ -1172,10 +1172,15 @@ mod guest {
         }
 
         fn reader_macros(
-            _reader: wit::ReadingBorrow<'_>,
-            _source: &Source,
+            reader: wit::ReadingBorrow<'_>,
+            source: &Source,
         ) -> Result<Vec<String>, wit::Error> {
-            Err(reading())
+            reader
+                .get::<Reader>()
+                .reader
+                .borrow()
+                .macros(&Lent(source))
+                .map_err(error)
         }
 
         fn template_open(_source: &Source) -> Result<wit::Template, wit::Error> {

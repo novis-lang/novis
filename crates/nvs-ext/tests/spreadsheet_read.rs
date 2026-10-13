@@ -1140,17 +1140,70 @@ fn an_xlsb_is_read_through_byte_ranges() {
 /// A compound file of 512-byte sectors holding `streams`. Each stream is padded with zeros to the
 /// 4,096 bytes below which it would be kept in the mini stream.
 fn compound(streams: &[(&str, Vec<u8>)]) -> Vec<u8> {
+    compound_with(streams, false)
+}
+
+/// A compound file of 512-byte sectors holding `streams`, each named by its path: `VBA/dir` is
+/// the stream `dir` in the storage `VBA`. With `mini`, a stream under 4,096 bytes is kept in the
+/// mini stream, as Excel keeps a VBA project's. Every other stream is padded with zeros to 4,096
+/// bytes. A storage's children are chained as right siblings.
+fn compound_with(streams: &[(&str, Vec<u8>)], mini: bool) -> Vec<u8> {
     const END: u32 = 0xFFFF_FFFE;
+    const NONE: u32 = 0xFFFF_FFFF;
+    let small = |data: &Vec<u8>| mini && data.len() < 4096;
+    let chain_of = |table: &mut Vec<u32>, count: usize| {
+        let start = table.len();
+        for n in 0..count {
+            table.push(if n + 1 == count {
+                END
+            } else {
+                u32::try_from(start + n + 1).unwrap()
+            });
+        }
+        u32::try_from(start).unwrap()
+    };
+    let mut mini_table = Vec::new();
+    let mut mini_stream = Vec::new();
+    let mut mini_starts = Vec::new();
+    for (_, data) in streams {
+        if small(data) {
+            let count = data.len().div_ceil(64).max(1);
+            mini_starts.push(chain_of(&mut mini_table, count));
+            let mut data = data.clone();
+            data.resize(count * 64, 0);
+            mini_stream.extend(data);
+        } else {
+            mini_starts.push(END);
+        }
+    }
+    let mut mini_bytes: Vec<u8> = mini_table.iter().flat_map(|id| id.to_le_bytes()).collect();
+    mini_bytes.resize(mini_bytes.len().div_ceil(512) * 512, 0xFF);
+    let mini_size = mini_stream.len();
+    mini_stream.resize(mini_size.div_ceil(512) * 512, 0);
     let padded: Vec<Vec<u8>> = streams
         .iter()
         .map(|(_, data)| {
+            if small(data) {
+                return Vec::new();
+            }
             let mut data = data.clone();
             data.resize(data.len().max(4096).div_ceil(512) * 512, 0);
             data
         })
         .collect();
-    let dir_sectors = (streams.len() + 1).div_ceil(4);
-    let data_sectors: usize = padded.iter().map(|data| data.len() / 512).sum();
+    let mut storages: Vec<&str> = Vec::new();
+    for (path, _) in streams {
+        if let Some((storage, _)) = path.rsplit_once('/') {
+            assert!(!storage.contains('/'), "one level of storages");
+            if !storages.contains(&storage) {
+                storages.push(storage);
+            }
+        }
+    }
+    let entries = 1 + storages.len() + streams.len();
+    let dir_sectors = entries.div_ceil(4);
+    let data_sectors: usize = padded.iter().map(|data| data.len() / 512).sum::<usize>()
+        + (mini_bytes.len() + mini_stream.len()) / 512;
     let mut fat_sectors = 1;
     while fat_sectors * 128 < fat_sectors + dir_sectors + data_sectors {
         fat_sectors += 1;
@@ -1160,24 +1213,50 @@ fn compound(streams: &[(&str, Vec<u8>)]) -> Vec<u8> {
         "the header lists the whole sector table"
     );
     let mut fat = vec![0xFFFF_FFFDu32; fat_sectors];
-    let chain = |fat: &mut Vec<u32>, count: usize| {
-        let start = fat.len();
-        for n in 0..count {
-            fat.push(if n + 1 == count {
-                END
-            } else {
-                u32::try_from(start + n + 1).unwrap()
-            });
-        }
-        u32::try_from(start).unwrap()
+    let dir_start = chain_of(&mut fat, dir_sectors);
+    let (mini_table_start, mini_start) = if mini_size == 0 {
+        (END, END)
+    } else {
+        (
+            chain_of(&mut fat, mini_bytes.len() / 512),
+            chain_of(&mut fat, mini_stream.len() / 512),
+        )
     };
-    let dir_start = chain(&mut fat, dir_sectors);
     let starts: Vec<u32> = padded
         .iter()
-        .map(|data| chain(&mut fat, data.len() / 512))
+        .zip(&mini_starts)
+        .map(|(data, mini)| {
+            if data.is_empty() {
+                *mini
+            } else {
+                chain_of(&mut fat, data.len() / 512)
+            }
+        })
         .collect();
-    fat.resize(fat_sectors * 128, 0xFFFF_FFFF);
-    let entry = |name: &str, kind: u8, start: u32, size: usize| {
+    fat.resize(fat_sectors * 128, NONE);
+    // Each entry's parent: the root is entry 0, and storage `n` is entry `n + 1`.
+    let parent_of = |path: &str| {
+        path.rsplit_once('/').map_or(0, |(storage, _)| {
+            1 + storages.iter().position(|s| *s == storage).unwrap()
+        })
+    };
+    let parents: Vec<usize> = storages
+        .iter()
+        .map(|_| 0)
+        .chain(streams.iter().map(|(path, _)| parent_of(path)))
+        .collect();
+    let next_of = |at: usize| {
+        (at + 1..parents.len())
+            .find(|&later| parents[later] == parents[at])
+            .map_or(NONE, |later| u32::try_from(later + 1).unwrap())
+    };
+    let child_of = |parent: usize| {
+        parents
+            .iter()
+            .position(|&p| p == parent)
+            .map_or(NONE, |at| u32::try_from(at + 1).unwrap())
+    };
+    let entry = |name: &str, kind: u8, start: u32, size: usize, right: u32, child: u32| {
         let mut out = vec![0u8; 128];
         let units: Vec<u16> = name.encode_utf16().chain([0]).collect();
         for (at, unit) in units.iter().enumerate() {
@@ -1185,15 +1264,26 @@ fn compound(streams: &[(&str, Vec<u8>)]) -> Vec<u8> {
         }
         out[64..66].copy_from_slice(&u16::try_from(units.len() * 2).unwrap().to_le_bytes());
         out[66] = kind;
-        // The left sibling, the right sibling and the child: none.
-        out[68..80].fill(0xFF);
+        out[68..72].fill(0xFF);
+        out[72..76].copy_from_slice(&right.to_le_bytes());
+        out[76..80].copy_from_slice(&child.to_le_bytes());
         out[116..120].copy_from_slice(&start.to_le_bytes());
         out[120..124].copy_from_slice(&u32::try_from(size).unwrap().to_le_bytes());
         out
     };
-    let mut directory = entry("Root Entry", 5, END, 0);
-    for ((name, data), start) in streams.iter().zip(&starts) {
-        directory.extend(entry(name, 2, *start, data.len().max(4096)));
+    let mut directory = entry("Root Entry", 5, mini_start, mini_size, NONE, child_of(0));
+    for (at, storage) in storages.iter().enumerate() {
+        directory.extend(entry(storage, 1, 0, 0, next_of(at), child_of(at + 1)));
+    }
+    for (at, ((path, data), start)) in streams.iter().zip(&starts).enumerate() {
+        let name = path.rsplit_once('/').map_or(*path, |(_, name)| name);
+        let size = if small(data) {
+            data.len()
+        } else {
+            data.len().max(4096)
+        };
+        let at = storages.len() + at;
+        directory.extend(entry(name, 2, *start, size, next_of(at), NONE));
     }
     directory.resize(dir_sectors * 512, 0);
     let mut out = vec![0u8; 512];
@@ -1202,8 +1292,8 @@ fn compound(streams: &[(&str, Vec<u8>)]) -> Vec<u8> {
         (44, u32::try_from(fat_sectors).unwrap()),
         (48, dir_start),
         (56, 4096),
-        (60, END),
-        (64, 0),
+        (60, mini_table_start),
+        (64, u32::try_from(mini_bytes.len() / 512).unwrap()),
         (68, END),
         (72, 0),
     ];
@@ -1222,6 +1312,8 @@ fn compound(streams: &[(&str, Vec<u8>)]) -> Vec<u8> {
     }
     out.extend(fat.iter().flat_map(|id| id.to_le_bytes()));
     out.extend(directory);
+    out.extend(mini_bytes);
+    out.extend(mini_stream);
     for data in padded {
         out.extend(data);
     }
@@ -1554,6 +1646,183 @@ fn xlsm_xls_and_ods_are_read_whole() {
             ("Shop".to_owned(), "Visible".to_owned(), 6, 1003),
             ("Lists".to_owned(), "Hidden".to_owned(), 1, 1),
         ]
+    );
+    block_on(read.request.end()).expect("the request ends");
+}
+
+/// `data` compressed as MS-OVBA 2.4.1 compresses a VBA project's `dir` stream: each chunk of
+/// 4,096 bytes is literal bytes and copies of the longest earlier match in the chunk.
+fn ovba(data: &[u8]) -> Vec<u8> {
+    let mut out = vec![1u8];
+    for chunk in data.chunks(4096) {
+        let mut body = Vec::new();
+        let mut at = 0;
+        while at < chunk.len() {
+            let flags = body.len();
+            body.push(0u8);
+            for bit in 0..8 {
+                if at >= chunk.len() {
+                    break;
+                }
+                let bits = if at == 0 {
+                    4
+                } else {
+                    (usize::BITS - (at - 1).leading_zeros()).clamp(4, 12)
+                };
+                let longest = (0xFFFFusize >> bits) + 3;
+                let farthest = 1usize << (16 - bits);
+                let mut best = (0, 0);
+                for offset in 1..=at.min(farthest) {
+                    let mut length = 0;
+                    while length < longest
+                        && at + length < chunk.len()
+                        && chunk[at + length - offset] == chunk[at + length]
+                    {
+                        length += 1;
+                    }
+                    if length > best.1 {
+                        best = (offset, length);
+                    }
+                }
+                if best.1 >= 3 {
+                    let token = ((best.0 - 1) << (16 - bits)) | (best.1 - 3);
+                    body.extend(u16::try_from(token).unwrap().to_le_bytes());
+                    body[flags] |= 1 << bit;
+                    at += best.1;
+                } else {
+                    body.push(chunk[at]);
+                    at += 1;
+                }
+            }
+        }
+        assert!(body.len() <= 4096, "the chunk compresses");
+        let header = 0xB000 | u16::try_from(body.len() - 1).unwrap();
+        out.extend(header.to_le_bytes());
+        out.extend(body);
+    }
+    out
+}
+
+/// One record of a VBA project's `dir` stream: its type, its length and `body`.
+fn dir_record(kind: u16, body: &[u8]) -> Vec<u8> {
+    let mut out = kind.to_le_bytes().to_vec();
+    out.extend(u32::try_from(body.len()).unwrap().to_le_bytes());
+    out.extend(body);
+    out
+}
+
+/// A VBA project whose `dir` stream lists `modules`, each its single-byte name and its UTF-16
+/// name. Each module's own stream is bytes that are not VBA, so reading one would fail.
+fn vba_project(modules: &[(&[u8], &str)]) -> Vec<u8> {
+    let mut dir = [
+        dir_record(0x0001, &3u32.to_le_bytes()),
+        // The version record's length field is 4, and six bytes follow it.
+        [
+            &0x0009u16.to_le_bytes()[..],
+            &4u32.to_le_bytes(),
+            &[0x5E, 0, 0, 0, 3, 0],
+        ]
+        .concat(),
+        dir_record(0x0003, &1252u16.to_le_bytes()),
+        dir_record(0x0004, b"VBAProject"),
+        dir_record(0x000F, &u16::try_from(modules.len()).unwrap().to_le_bytes()),
+        dir_record(0x0013, &0xFFFFu16.to_le_bytes()),
+    ]
+    .concat();
+    let mut streams = vec![(
+        "PROJECT".to_owned(),
+        b"ID=\"{00000000-0000-0000-0000-000000000000}\"".to_vec(),
+    )];
+    for (name, unicode) in modules {
+        let wide: Vec<u8> = unicode.encode_utf16().flat_map(u16::to_le_bytes).collect();
+        dir.extend(dir_record(0x0019, name));
+        dir.extend(dir_record(0x0047, &wide));
+        dir.extend(dir_record(0x001A, name));
+        dir.extend(dir_record(0x0032, &wide));
+        dir.extend(dir_record(0x0031, &0u32.to_le_bytes()));
+        dir.extend(dir_record(0x0021, &[]));
+        dir.extend(dir_record(0x002B, &[]));
+        streams.push((format!("VBA/{unicode}"), b"MsgBox \"never run\"".to_vec()));
+    }
+    dir.extend(dir_record(0x0010, &[]));
+    streams.push(("VBA/dir".to_owned(), ovba(&dir)));
+    let streams: Vec<(&str, Vec<u8>)> = streams
+        .iter()
+        .map(|(path, data)| (path.as_str(), data.clone()))
+        .collect();
+    compound_with(&streams, true)
+}
+
+#[test]
+fn xlsm_macros_are_listed_and_never_run() {
+    let shop = || sheet("Shop", row(1, &[("s", 0, "<v>0</v>"), ("", 0, "<v>3</v>")]));
+    // The `dir` stream and every module are in the mini stream, as Excel keeps them.
+    let vba = vba_project(&[
+        (b"ThisWorkbook", "ThisWorkbook"),
+        (b"Module1", "Module1"),
+        (b"Module2", "Module2"),
+        (b"Mod\xFCl3", "Modül3"),
+    ]);
+    let read = Read::open(package(
+        &[shop()],
+        &["Coffee"],
+        &[("xl/vbaProject.bin", vba)],
+    ));
+    assert_eq!(
+        read.call("readerMacros", vec![]),
+        strings(&["ThisWorkbook", "Module1", "Module2", "Modül3"])
+    );
+    assert_eq!(
+        read.all(&options("Shop"), 10),
+        vec![(1, vec![(1, text("Coffee")), (2, integer(3))])]
+    );
+    block_on(read.request.end()).expect("the request ends");
+
+    // A workbook with no VBA project has no macros.
+    let read = Read::open(xlsx(&[shop()], &["Coffee"]));
+    assert_eq!(read.call("readerMacros", vec![]), strings(&[]));
+    block_on(read.request.end()).expect("the request ends");
+
+    // A `dir` stream that is not compressed as MS-OVBA throws, naming the VBA project.
+    let broken = compound_with(&[("VBA/dir", b"\x00 not compressed".to_vec())], true);
+    let read = Read::open(package(
+        &[shop()],
+        &["Coffee"],
+        &[("xl/vbaProject.bin", broken)],
+    ));
+    let refused = read.failure("readerMacros", vec![]);
+    assert!(refused.contains("VBA project"), "{refused}");
+    block_on(read.request.end()).expect("the request ends");
+}
+
+#[test]
+fn the_header_names_every_key_and_a_missing_cell_is_null() {
+    // The header has an empty cell in B and nothing in D, so B and D are named by their letters.
+    let data = [
+        row(1, &[("inlineStr", 0, "<is><t>Item</t></is>")]),
+        r#"<row r="2"><c r="A2" t="inlineStr"><is><t>Name</t></is></c><c r="B2"/><c r="C2" t="inlineStr"><is><t>Price</t></is></c><c r="E2" t="inlineStr"><is><t>Notes</t></is></c></row>"#.to_owned(),
+        r#"<row r="3"><c r="A3" t="inlineStr"><is><t>Tea</t></is></c><c r="F3"><v>9</v></c></row>"#.to_owned(),
+    ]
+    .concat();
+    let read = Read::open(xlsx(&[sheet("Shop", data)], &[]));
+    let header = Options {
+        header_row: Some(2),
+        ..options("Shop")
+    };
+    assert_eq!(
+        read.call("readerHeader", vec![header.value()]),
+        strings(&["Name", "B", "Price", "D", "Notes"])
+    );
+    // The row gives only the cells it has. The Novis half gives every header key, with `null`
+    // for a key whose cell is missing, and names column F by its letter.
+    assert_eq!(
+        read.all(&header, 10),
+        vec![(3, vec![(1, text("Tea")), (6, integer(9))])]
+    );
+    // With no header row given, the header is the first row with a value in it.
+    assert_eq!(
+        read.call("readerHeader", vec![options("Shop").value()]),
+        strings(&["Item"])
     );
     block_on(read.request.end()).expect("the request ends");
 }
