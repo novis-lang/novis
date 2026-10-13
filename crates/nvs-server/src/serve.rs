@@ -489,6 +489,10 @@ type Started = (
 impl Reply {
     /// What is run for this reply, with the [`Rerun`] a gated one carries, or
     /// the answer of one that runs nothing.
+    #[expect(
+        clippy::result_large_err,
+        reason = "the answer moves once, into the one caller's match; a box would allocate per static answer"
+    )]
     fn started(self) -> Result<Started, Response<Answer>> {
         match self {
             Self::Run(isolate, supply, chosen) => Ok((isolate, supply, chosen, None)),
