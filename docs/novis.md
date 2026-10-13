@@ -248,7 +248,9 @@ Conventions the whole file uses:
 | [`Novis\Pdf\Reader`](#core-novis-pdf-reader) |  |
 | [`Novis\Pdf\Rendered`](#core-novis-pdf-rendered) |  |
 | [`Novis\Pdf\Engine`](#core-novis-pdf-engine) |  |
+| [`Novis\Spreadsheet\Cell`](#core-novis-spreadsheet-cell) |  |
 | [`Novis\Spreadsheet\Export`](#core-novis-spreadsheet-export) |  |
+| [`Novis\Spreadsheet\Formula`](#core-novis-spreadsheet-formula) |  |
 | [`Novis\Spreadsheet\Sheet`](#core-novis-spreadsheet-sheet) |  |
 | [`Novis\Spreadsheet\Style`](#core-novis-spreadsheet-style) |  |
 | [`Novis\Spreadsheet\Workbook`](#core-novis-spreadsheet-workbook) |  |
@@ -29963,6 +29965,36 @@ Returns the text of each page in `pages` of a PDF file. Pages count from 1.
 
 **Returns** `array<string>`
 
+<a id="core-novis-spreadsheet-cell"></a>
+### `Novis\Spreadsheet\Cell`
+
+Keywords: constructor, of
+
+| Member | Signature |
+|---|---|
+| [`Novis\Spreadsheet\Cell::constructor`](#core-novis-spreadsheet-cell-constructor) | `constructor(mixed $value, Style $style)` |
+| [`Novis\Spreadsheet\Cell::of`](#core-novis-spreadsheet-cell-of) | `of(mixed $value, Style $style): Cell` |
+
+<a id="core-novis-spreadsheet-cell-constructor"></a>
+#### `Novis\Spreadsheet\Cell::constructor`
+
+```nvs skip
+new Novis\Spreadsheet\Cell(mixed $value, Style $style)
+```
+
+`new Cell` makes a cell from its values. `Cell::of` makes one for you.
+
+<a id="core-novis-spreadsheet-cell-of"></a>
+#### `Novis\Spreadsheet\Cell::of`
+
+```nvs skip
+Novis\Spreadsheet\Cell::of(mixed $value, Style $style): Cell
+```
+
+`Cell::of` gives `$value` the style `$style`. The cell uses each field of `$style` first, then the fields of its row and its column.
+
+**Returns** `Cell`
+
 <a id="core-novis-spreadsheet-export"></a>
 ### `Novis\Spreadsheet\Export`
 
@@ -30030,25 +30062,70 @@ $export->bytes(): bytes
 
 **Returns** `bytes`
 
-<a id="core-novis-spreadsheet-sheet"></a>
-### `Novis\Spreadsheet\Sheet`
+<a id="core-novis-spreadsheet-formula"></a>
+### `Novis\Spreadsheet\Formula`
 
-Keywords: constructor, add, addAll
+Keywords: constructor, of
 
 | Member | Signature |
 |---|---|
-| [`Novis\Spreadsheet\Sheet::constructor`](#core-novis-spreadsheet-sheet-constructor) | `constructor(uint $index, callable(uint, array<mixed>, RowOptions): void $add)` |
+| [`Novis\Spreadsheet\Formula::constructor`](#core-novis-spreadsheet-formula-constructor) | `constructor(string $text, string\|int\|float\|null $cached)` |
+| [`Novis\Spreadsheet\Formula::of`](#core-novis-spreadsheet-formula-of) | `of(string $text, ?{cached?: string\|int\|float} $options = null): Formula` |
+
+<a id="core-novis-spreadsheet-formula-constructor"></a>
+#### `Novis\Spreadsheet\Formula::constructor`
+
+```nvs skip
+new Novis\Spreadsheet\Formula(string $text, string|int|float|null $cached)
+```
+
+`new Formula` makes a formula from its values. `Formula::of` makes one for you.
+`text` has no `=` at the start. `cached` is the result the file has for a program that does not calculate.
+
+<a id="core-novis-spreadsheet-formula-of"></a>
+#### `Novis\Spreadsheet\Formula::of`
+
+```nvs skip
+Novis\Spreadsheet\Formula::of(string $text, ?{cached?: string|int|float} $options = null): Formula
+```
+
+`Formula::of` makes a formula from its Excel text, such as `'SUM(C2:C9)'`. You can write the text with or without `=` at the start.
+`cached` is the result the file has for a program that does not calculate. Excel calculates every formula again when it opens the file.
+
+**Returns** `Formula`
+
+<a id="core-novis-spreadsheet-sheet"></a>
+### `Novis\Spreadsheet\Sheet`
+
+Keywords: constructor, add, addAll, cell, column, merge, link, note, validate, group, table, conditional, image, print, protect
+
+| Member | Signature |
+|---|---|
+| [`Novis\Spreadsheet\Sheet::constructor`](#core-novis-spreadsheet-sheet-constructor) | `constructor(uint $index, Writer $writer, callable(uint, array<mixed>, RowOptions): void $add, callable(uint, ?uint): void $ready, callable(bytes): void $send, callable(uint, string): uint $position)` |
 | [`Novis\Spreadsheet\Sheet->add`](#core-novis-spreadsheet-sheet-add) | `add(array<mixed> $row, RowOptions $options = null): Sheet` |
 | [`Novis\Spreadsheet\Sheet->addAll`](#core-novis-spreadsheet-sheet-addall) | `addAll(array<array<mixed>>\|Iterable<array<mixed>>\|Iterator<array<mixed>> $rows): Sheet` |
+| [`Novis\Spreadsheet\Sheet->cell`](#core-novis-spreadsheet-sheet-cell) | `cell(string $key, int $row): string` |
+| [`Novis\Spreadsheet\Sheet->column`](#core-novis-spreadsheet-sheet-column) | `column(string $key): string` |
+| [`Novis\Spreadsheet\Sheet->merge`](#core-novis-spreadsheet-sheet-merge) | `merge(string $range): Sheet` |
+| [`Novis\Spreadsheet\Sheet->link`](#core-novis-spreadsheet-sheet-link) | `link(string $cell, string $target, ?{text?: string, tooltip?: string} $options = null): Sheet` |
+| [`Novis\Spreadsheet\Sheet->note`](#core-novis-spreadsheet-sheet-note) | `note(string $cell, string $text, ?{author?: string} $options = null): Sheet` |
+| [`Novis\Spreadsheet\Sheet->validate`](#core-novis-spreadsheet-sheet-validate) | `validate(string $range, Validation $rule): Sheet` |
+| [`Novis\Spreadsheet\Sheet->group`](#core-novis-spreadsheet-sheet-group) | `group(string $rows, ?{collapsed?: bool} $options = null): Sheet` |
+| [`Novis\Spreadsheet\Sheet->table`](#core-novis-spreadsheet-sheet-table) | `table(string $range, TableOptions $options = null): Sheet` |
+| [`Novis\Spreadsheet\Sheet->conditional`](#core-novis-spreadsheet-sheet-conditional) | `conditional(string $range, Conditional $rule): Sheet` |
+| [`Novis\Spreadsheet\Sheet->image`](#core-novis-spreadsheet-sheet-image) | `image(string $cell, bytes $data, ?{width?: float, height?: float, offsetX?: float, offsetY?: float} $options = null): Sheet` |
+| [`Novis\Spreadsheet\Sheet->print`](#core-novis-spreadsheet-sheet-print) | `print(PrintOptions $options): Sheet` |
+| [`Novis\Spreadsheet\Sheet->protect`](#core-novis-spreadsheet-sheet-protect) | `protect(?{password?: string, allow?: array<string>} $options = null): Sheet` |
 
 <a id="core-novis-spreadsheet-sheet-constructor"></a>
 #### `Novis\Spreadsheet\Sheet::constructor`
 
 ```nvs skip
-new Novis\Spreadsheet\Sheet(uint $index, callable(uint, array<mixed>, RowOptions): void $add)
+new Novis\Spreadsheet\Sheet(uint $index, Writer $writer, callable(uint, array<mixed>, RowOptions): void $add, callable(uint, ?uint): void $ready, callable(bytes): void $send, callable(uint, string): uint $position)
 ```
 
-`new Sheet` makes a sheet that gives each row to `$add`. `Workbook::sheet` makes one for you.
+`new Sheet` makes a sheet of a workbook. `Workbook::sheet` makes one for you.
+`$add` adds a row. `$ready` sends the rows that wait and checks that the sheet is still open. `$position` finds the column of a key.
 
 <a id="core-novis-spreadsheet-sheet-add"></a>
 #### `Novis\Spreadsheet\Sheet->add`
@@ -30071,6 +30148,148 @@ $sheet->addAll(array<array<mixed>>|Iterable<array<mixed>>|Iterator<array<mixed>>
 
 `addAll` adds each row of `$rows` in order, as `add` does.
 `$rows` can be an array or a generator, so a long list of rows does not have to be in memory.
+
+**Returns** `Sheet`
+
+<a id="core-novis-spreadsheet-sheet-cell"></a>
+#### `Novis\Spreadsheet\Sheet->cell`
+
+```nvs skip
+$sheet->cell(string $key, int $row): string
+```
+
+`cell` returns the address of the column `$key` in row `$row`, such as `'C7'`.
+`$key` is a column key or a column letter, such as `'qty'` or `'C'`.
+
+**Returns** `string`
+
+<a id="core-novis-spreadsheet-sheet-column"></a>
+#### `Novis\Spreadsheet\Sheet->column`
+
+```nvs skip
+$sheet->column(string $key): string
+```
+
+`column` returns the cells of the column `$key` in the rows added so far, such as `'C2:C1043'`.
+The header row is not in the range. Call it after the last row to get every row.
+
+**Returns** `string`
+
+<a id="core-novis-spreadsheet-sheet-merge"></a>
+#### `Novis\Spreadsheet\Sheet->merge`
+
+```nvs skip
+$sheet->merge(string $range): Sheet
+```
+
+`merge` joins the cells of `$range`, such as `'A1:C1'`, into one cell.
+
+**Returns** `Sheet`
+
+<a id="core-novis-spreadsheet-sheet-link"></a>
+#### `Novis\Spreadsheet\Sheet->link`
+
+```nvs skip
+$sheet->link(string $cell, string $target, ?{text?: string, tooltip?: string} $options = null): Sheet
+```
+
+`link` makes the cell `$cell` a link to `$target`. The target is an `http:` or `https:` address, a `mailto:` address, or a cell such as `'Totals!A1'`.
+`text` is the text the cell shows. `tooltip` is the text a person sees over the link.
+
+**Returns** `Sheet`
+
+<a id="core-novis-spreadsheet-sheet-note"></a>
+#### `Novis\Spreadsheet\Sheet->note`
+
+```nvs skip
+$sheet->note(string $cell, string $text, ?{author?: string} $options = null): Sheet
+```
+
+`note` adds the note `$text` to the cell `$cell`. `author` is the name the note shows.
+
+**Returns** `Sheet`
+
+<a id="core-novis-spreadsheet-sheet-validate"></a>
+#### `Novis\Spreadsheet\Sheet->validate`
+
+```nvs skip
+$sheet->validate(string $range, Validation $rule): Sheet
+```
+
+`validate` checks what a person types into `$range` in Excel. Give one of `list`, `whole`, `decimal`, `date`, `length` or `formula`.
+`min` and `max` are the limits of a number, a date or a length. `input` is a message Excel shows, and `error` the message for a wrong value.
+
+**Returns** `Sheet`
+
+<a id="core-novis-spreadsheet-sheet-group"></a>
+#### `Novis\Spreadsheet\Sheet->group`
+
+```nvs skip
+$sheet->group(string $rows, ?{collapsed?: bool} $options = null): Sheet
+```
+
+`group` puts the rows `$rows`, such as `'5:9'`, or the columns, such as `'B:D'`, in an outline group.
+Add a group of rows before its rows, and a group of columns before the first row. `collapsed` hides the group.
+
+**Returns** `Sheet`
+
+<a id="core-novis-spreadsheet-sheet-table"></a>
+#### `Novis\Spreadsheet\Sheet->table`
+
+```nvs skip
+$sheet->table(string $range, TableOptions $options = null): Sheet
+```
+
+`table` makes the cells of `$range`, such as `'A1:C9'`, an Excel table. Its first row is the header row.
+`totals` adds a row after the table. It maps a header to `'sum'`, `'average'`, `'count'`, `'min'`, `'max'` or a `Formula`.
+
+**Returns** `Sheet`
+
+<a id="core-novis-spreadsheet-sheet-conditional"></a>
+#### `Novis\Spreadsheet\Sheet->conditional`
+
+```nvs skip
+$sheet->conditional(string $range, Conditional $rule): Sheet
+```
+
+`conditional` adds one conditional format to `$range`. `kind` is `'cell'`, `'formula'`, `'colorScale'`, `'dataBar'`, `'iconSet'`, `'top'`, `'bottom'`, `'duplicates'` or `'unique'`.
+`values` are Excel formula text, so a text value has quotes, such as `'"open"'`. `style` is the `Style` of the cells the rule matches.
+
+**Returns** `Sheet`
+
+<a id="core-novis-spreadsheet-sheet-image"></a>
+#### `Novis\Spreadsheet\Sheet->image`
+
+```nvs skip
+$sheet->image(string $cell, bytes $data, ?{width?: float, height?: float, offsetX?: float, offsetY?: float} $options = null): Sheet
+```
+
+`image` puts the PNG, JPEG or GIF image `$data` at the cell `$cell`. Any other format throws a `LogicError`.
+`width` and `height` are in pixels. `offsetX` and `offsetY` move the image from the corner of the cell.
+
+**Returns** `Sheet`
+
+<a id="core-novis-spreadsheet-sheet-print"></a>
+#### `Novis\Spreadsheet\Sheet->print`
+
+```nvs skip
+$sheet->print(PrintOptions $options): Sheet
+```
+
+`print` sets how the sheet is printed. `orientation` is `'portrait'` or `'landscape'`. `fitToPage` sets the number of pages wide and tall.
+`repeatRows`, such as `'1:1'`, prints those rows on every page. `area` is the range to print. Set `fitToPage` before the first row.
+
+**Returns** `Sheet`
+
+<a id="core-novis-spreadsheet-sheet-protect"></a>
+#### `Novis\Spreadsheet\Sheet->protect`
+
+```nvs skip
+$sheet->protect(?{password?: string, allow?: array<string>} $options = null): Sheet
+```
+
+`protect` locks the layout of the sheet, so a person cannot change it in Excel. It is not a security feature: any tool can remove the password.
+`allow` names what a person can still do, such as `'sort'` or `'autoFilter'`.
 
 **Returns** `Sheet`
 
@@ -30109,7 +30328,7 @@ Novis\Spreadsheet\Style::of(Fields $fields): Style
 <a id="core-novis-spreadsheet-workbook"></a>
 ### `Novis\Spreadsheet\Workbook`
 
-Keywords: createForDownload, createForFile, createForStream, createInMemory, fromRows, sheet, finish
+Keywords: createForDownload, createForFile, createForStream, createInMemory, fromRows, sheet, define, finish
 
 | Member | Signature |
 |---|---|
@@ -30119,6 +30338,7 @@ Keywords: createForDownload, createForFile, createForStream, createInMemory, fro
 | [`Novis\Spreadsheet\Workbook::createInMemory`](#core-novis-spreadsheet-workbook-createinmemory) | `createInMemory(Options $options = null): Workbook` |
 | [`Novis\Spreadsheet\Workbook::fromRows`](#core-novis-spreadsheet-workbook-fromrows) | `fromRows(array<array<mixed>>\|Iterable<array<mixed>>\|Iterator<array<mixed>> $rows, ExportOptions $options = null): Export` |
 | [`Novis\Spreadsheet\Workbook->sheet`](#core-novis-spreadsheet-workbook-sheet) | `sheet(string $name, SheetOptions $options = null): Sheet` |
+| [`Novis\Spreadsheet\Workbook->define`](#core-novis-spreadsheet-workbook-define) | `define(string $name, string $reference): Workbook` |
 | [`Novis\Spreadsheet\Workbook->finish`](#core-novis-spreadsheet-workbook-finish) | `finish(): Written` |
 
 <a id="core-novis-spreadsheet-workbook-createfordownload"></a>
@@ -30192,6 +30412,17 @@ When the rows have keys, the first row shows them in bold, with a filter, and st
 
 **Returns** `Sheet`
 
+<a id="core-novis-spreadsheet-workbook-define"></a>
+#### `Novis\Spreadsheet\Workbook->define`
+
+```nvs skip
+$workbook->define(string $name, string $reference): Workbook
+```
+
+`define` gives the cells at `$reference`, such as `'Orders!$C$2:$C$9'`, the name `$name`. A formula can then use the name.
+
+**Returns** `Workbook`
+
 <a id="core-novis-spreadsheet-workbook-finish"></a>
 #### `Novis\Spreadsheet\Workbook->finish`
 
@@ -30225,7 +30456,7 @@ new Novis\Spreadsheet\Written(array<int> $rows, int $size, ?bytes $bytes)
 <a id="core-novis-spreadsheet-engine"></a>
 ### `Novis\Spreadsheet\Engine`
 
-Keywords: writerOpen, writerStyle, writerSheet, writerRows, writerPart, writerDefine, writerFinish
+Keywords: writerOpen, writerStyle, writerSheet, writerRows, writerPart, writerDefine, writerCell, writerColumn, writerFinish
 
 | Member | Signature |
 |---|---|
@@ -30235,6 +30466,8 @@ Keywords: writerOpen, writerStyle, writerSheet, writerRows, writerPart, writerDe
 | [`Novis\Spreadsheet\Engine::writerRows`](#core-novis-spreadsheet-engine-writerrows) | `writerRows(Writer $writer, array<{cells: array<{value: ?CellValue, style: ?uint}>, style: ?uint, height: ?float, hidden: bool, level: uint, header: bool}> $rows): bytes` |
 | [`Novis\Spreadsheet\Engine::writerPart`](#core-novis-spreadsheet-engine-writerpart) | `writerPart(Writer $writer, SheetPart $part): bytes` |
 | [`Novis\Spreadsheet\Engine::writerDefine`](#core-novis-spreadsheet-engine-writerdefine) | `writerDefine(Writer $writer, string $name, string $reference): void` |
+| [`Novis\Spreadsheet\Engine::writerCell`](#core-novis-spreadsheet-engine-writercell) | `writerCell(Writer $writer, uint $column, uint $row): string` |
+| [`Novis\Spreadsheet\Engine::writerColumn`](#core-novis-spreadsheet-engine-writercolumn) | `writerColumn(Writer $writer, uint $column): string` |
 | [`Novis\Spreadsheet\Engine::writerFinish`](#core-novis-spreadsheet-engine-writerfinish) | `writerFinish(Writer $writer): {data: bytes, rows: array<{name: string, rows: uint}>, size: uint}` |
 
 <a id="core-novis-spreadsheet-engine-writeropen"></a>
@@ -30333,6 +30566,39 @@ Gives the cells at `reference`, such as `Sheet1!$A$1:$B$10`, the name `name`. A 
 | `$reference` | `string` |  |
 
 **Returns** `void`
+
+<a id="core-novis-spreadsheet-engine-writercell"></a>
+#### `Novis\Spreadsheet\Engine::writerCell`
+
+```nvs skip
+Novis\Spreadsheet\Engine::writerCell(Writer $writer, uint $column, uint $row): string
+```
+
+Returns the address of one cell, such as `C7`. `column` counts from 0, so column `A` is 0. `row` counts from 1.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$writer` | `Writer` |  |
+| `$column` | `uint` |  |
+| `$row` | `uint` |  |
+
+**Returns** `string`
+
+<a id="core-novis-spreadsheet-engine-writercolumn"></a>
+#### `Novis\Spreadsheet\Engine::writerColumn`
+
+```nvs skip
+Novis\Spreadsheet\Engine::writerColumn(Writer $writer, uint $column): string
+```
+
+Returns the cells of one column in the current sheet, such as `C2:C1043`. The range has the rows written so far, and not the header row. `column` counts from 0.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$writer` | `Writer` |  |
+| `$column` | `uint` |  |
+
+**Returns** `string`
 
 <a id="core-novis-spreadsheet-engine-writerfinish"></a>
 #### `Novis\Spreadsheet\Engine::writerFinish`
