@@ -62,7 +62,9 @@ paragraphs, written down once.
   the request's cap and freed when the request ends. A million rows cost one batch, never the sheet,
   so a large export runs in the request and not in a queue.
 
-**Not shipped.** Nothing of `Novis\Spreadsheet` is on disk.
+**Not shipped.** The component's streaming writer and `Written` are on disk
+(`extensions/spreadsheet/src/writer.rs`). `Workbook`, `Sheet`, `Export`, the four targets and the
+cut-off download are not.
 
 **Declined:**
 - **An in-memory editable mode beside the stream.** Two ways to write is two sets of rules, and the

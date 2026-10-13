@@ -1580,10 +1580,10 @@ under the request's budget (`crates/nvs-ext/tests/call.rs`).
 
 `rule:packaging/the-first-party-components-are-built-in`
 
-The image, intl and PDF components are `.nvsx` bytes embedded in every `nvs` binary and loaded
-before any `[[extension]]` entry. They are always present: a program may `use Novis\Image`,
-`Novis\Intl` or `Novis\Pdf` on any host, in any bundle and under any configuration, and no setting or
-Cargo feature removes them.
+The image, intl, PDF and spreadsheet components are `.nvsx` bytes embedded in every `nvs` binary
+and loaded before any `[[extension]]` entry. They are always present: a program may `use
+Novis\Image`, `Novis\Intl`, `Novis\Pdf` or `Novis\Spreadsheet` on any host, in any bundle and under
+any configuration, and no setting or Cargo feature removes them.
 
 They are still Tier 1. Each call runs in the sandbox with its own instance per request, under the
 request's CPU and memory caps, with an empty WASI and no grant
@@ -1597,7 +1597,8 @@ in a process and stored in the artifact cache like any other module
 ([`packaging/a-wasm-module-cache-reuses-the-artifact-cache`](packaging.md#packaging-a-wasm-module-cache-reuses-the-artifact-cache)). What it spends is the binary's size:
 mostly CLDR data, the codecs and the PDF engine with its fonts, on disk and in the page cache. The intl
 component is ICU4X with every CLDR locale compiled in, and its classes are
-[`core-classes/intl-roster`](core-classes.md#core-classes-intl-roster). The PDF component's classes are [`core-classes/pdf-roster`](core-classes.md#core-classes-pdf-roster).
+[`core-classes/intl-roster`](core-classes.md#core-classes-intl-roster). The PDF component's classes are [`core-classes/pdf-roster`](core-classes.md#core-classes-pdf-roster), and
+the spreadsheet component's are [`core-classes/spreadsheet-roster`](core-classes.md#core-classes-spreadsheet-roster).
 Should that growth make
 the single-file executable impractical for CLI programs, the answer is a smaller locale set, never an
 optional component.
@@ -1609,7 +1610,7 @@ A build script compiles their Rust crates, under `extensions/` and outside the w
 `wasm32-wasip2`, and packs each with the packer `nvs ext build` uses
 ([`packaging/nvs-ext-is-the-authoring-tool`](packaging.md#packaging-nvs-ext-is-the-authoring-tool)). `rust-toolchain.toml` lists the target, so no contributor installs it by hand. Because the
 crates are outside the workspace, the ordinary `cargo build` never resolves them for the host target.
-A clean build compiles all three for wasm, ICU4X's compiled data among them, and an incremental build reuses
+A clean build compiles all four for wasm, ICU4X's compiled data among them, and an incremental build reuses
 their target directory. The one C library is prebuilt
 ([`packaging/a-prebuilt-wasm-library-is-rebuilt-in-ci`](packaging.md#packaging-a-prebuilt-wasm-library-is-rebuilt-in-ci)).
 
@@ -1632,7 +1633,12 @@ with its digest folded in beside the other two. Its manifest class is `Novis\Pdf
 interface `wit/pdf.wit`, and its Novis half is `Novis\Pdf\Document` and `Novis\Pdf\Rendered`
 (`crates/nvs-ext/tests/pdf.rs`, `tests/conformance/novis/pdf-renders-with-no-configuration.nvst`).
 `render`'s `whole` pass is implemented, and the exports [`core-classes/pdf-roster`](core-classes.md#core-classes-pdf-roster) still owes
-return `runtime`.
+return `runtime`. The spreadsheet crate is `extensions/spreadsheet/`, built and embedded the same
+way as `nvs_ext::builtin::SPREADSHEET` with its digest folded in beside the other three. Its
+manifest class is `Novis\Spreadsheet\Engine`, the interface `wit/spreadsheet.wit`, and its Novis
+half so far is `Novis\Spreadsheet\Written` (`crates/nvs-ext/tests/spreadsheet.rs`). The writer's
+exports are implemented; `writer-part`, the reader's and the template's return `runtime` and are
+not in its manifest.
 
 **Declined:**
 - **Embedded, but removable by a setting or a Cargo feature.** Whether `Novis\Image` exists would

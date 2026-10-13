@@ -181,8 +181,12 @@ interface engine {
         created: option<clock-cell>,
     }
 
+    /// `target` names where the bytes go, as the Novis half shows it to a
+    /// person: the download's file name, the file's path, or `memory`. The
+    /// error a writer dropped before `writer-finish` logs names it.
     record workbook-options {
         properties: properties,
+        target: string,
     }
 
     enum visibility {
@@ -431,7 +435,9 @@ interface engine {
     /// (`rule:core-classes/spreadsheet-writes-as-a-stream`).
     resource writer;
 
-    /// Opens a workbook. Nothing is written until the first sheet.
+    /// Opens a workbook. Nothing is written until the first sheet. A writer
+    /// the request drops before `writer-finish` logs an error naming its
+    /// `target`.
     writer-open: func(options: workbook-options) -> result<writer, error>;
     /// The id of a style layer, the same id for an equal style.
     writer-style: func(writer: borrow<writer>, style: style) -> result<u64, error>;

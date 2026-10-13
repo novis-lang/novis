@@ -304,6 +304,21 @@ fn meta_lists_the_built_in_components_classes_and_enums() {
         core_enum(&document, &format!(r"Novis\Image\Image::{name}"));
     }
     core_enum(&document, r"Novis\Image\QrCode::Level");
+    assert_eq!(
+        names(r"Novis\Spreadsheet\Engine"),
+        [
+            "writerOpen",
+            "writerStyle",
+            "writerSheet",
+            "writerRows",
+            "writerDefine",
+            "writerFinish"
+        ]
+    );
+    names(r"Novis\Spreadsheet\Written");
+    for name in ["Line", "Underline", "Align", "Valign", "Visibility"] {
+        core_enum(&document, &format!(r"Novis\Spreadsheet\{name}"));
+    }
 }
 
 /// A built-in member's card is its source's `///` run or its manifest's

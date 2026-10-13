@@ -4269,7 +4269,7 @@ contained trap or a whole page (`crates/nvs-ext/tests/image_decode.rs`). The thr
 
 <a id="core-classes-spreadsheet-has-no-io"></a>
 
-## `NovisSpreadsheet` is a built-in component that never touches disk, fetches nothing and executes nothing it reads  *(designed — owned by goal spreadsheet)*
+## `Novis\Spreadsheet` is a built-in component that never touches disk, fetches nothing and executes nothing it reads  *(designed — owned by goal spreadsheet)*
 
 `rule:core-classes/spreadsheet-has-no-io`
 
@@ -4463,7 +4463,9 @@ paragraphs, written down once.
   the request's cap and freed when the request ends. A million rows cost one batch, never the sheet,
   so a large export runs in the request and not in a queue.
 
-**Not shipped.** Nothing of `Novis\Spreadsheet` is on disk.
+**Not shipped.** The component's streaming writer and `Written` are on disk
+(`extensions/spreadsheet/src/writer.rs`). `Workbook`, `Sheet`, `Export`, the four targets and the
+cut-off download are not.
 
 **Declined:**
 - **An in-memory editable mode beside the stream.** Two ways to write is two sets of rules, and the
@@ -4542,7 +4544,9 @@ The tradeoffs. **Usability:** an import gets an `int` where the sheet has a whol
 where it has a date, with no parse in the program. **Simplicity:** one table per direction, and the
 display text is one option away when the table is not what the program wants.
 
-**Not shipped.** Nothing of `Novis\Spreadsheet` is on disk.
+**Not shipped.** The component writes each `cell-value` case by the write table
+(`extensions/spreadsheet/src/cells.rs`). The Novis half that picks a value's case, and the zone
+rule, are not on disk, and neither is reading.
 
 **Declined:**
 - **A `string` that looks like a number written as a number.** The cell would depend on the content,

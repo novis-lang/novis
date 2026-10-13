@@ -87,6 +87,8 @@ rqrr.workspace = true
 rxing.workspace = true
 # The password check of `pdf_standards` opens the encrypted file with its password.
 hayro-syntax.workspace = true
+# The `spreadsheet` test inflates each entry of a written workbook to read it.
+flate2.workspace = true
 
 # Times both arms of `image_guest` in a release build and, with `--record`,
 # writes `benches/results/image-guest.json`. Its own loop rather than
@@ -110,6 +112,10 @@ required-features = ["engine", "pack"]
 
 [[test]]
 name = "pdf"
+required-features = ["engine", "pack"]
+
+[[test]]
+name = "spreadsheet"
 required-features = ["engine", "pack"]
 
 [[test]]

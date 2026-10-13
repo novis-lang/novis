@@ -134,6 +134,13 @@ const COMPONENTS: &[Component] = &[
         wit: "wit/pdf.wit",
         extra_inputs: &["../fonts"],
     },
+    Component {
+        dir: "spreadsheet",
+        wasm: "nvs_spreadsheet.wasm",
+        name: "spreadsheet",
+        wit: "wit/spreadsheet.wit",
+        extra_inputs: &[],
+    },
 ];
 
 fn main() {

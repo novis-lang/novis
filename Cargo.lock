@@ -3337,6 +3337,7 @@ dependencies = [
 name = "nvs-ext"
 version = "0.0.1"
 dependencies = [
+ "flate2",
  "hayro-syntax",
  "nvs-config",
  "nvs-image",

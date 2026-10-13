@@ -1,5 +1,5 @@
 //! `rule:packaging/the-first-party-components-are-built-in` as `nvs-ext` sees it: the binary
-//! carries the image, intl and PDF components, and the image component loads with no `[[extension]]` entry and no pin, compiles on its
+//! carries the image, intl, PDF and spreadsheet components, and the image component loads with no `[[extension]]` entry and no pin, compiles on its
 //! first use and not before, and an entry declaring a `Novis\` class is still refused. Each
 //! component's module doc states its embedded size, held within 5% of the bytes here.
 
@@ -12,7 +12,8 @@ use std::task::{Context, Poll, Waker};
 use std::time::Duration;
 
 use nvs_ext::builtin::{
-    IMAGE, IMAGE_CLASS, IMAGE_SHA256, INTL, INTL_CLASS, PDF, PDF_CLASS, PDF_SHA256,
+    IMAGE, IMAGE_CLASS, IMAGE_SHA256, INTL, INTL_CLASS, PDF, PDF_CLASS, PDF_SHA256, SPREADSHEET,
+    SPREADSHEET_CLASS, SPREADSHEET_SHA256,
 };
 use nvs_ext::call::{Host, Meter};
 use nvs_ext::convert::{Key, Value};
@@ -164,6 +165,10 @@ fn the_recorded_growth_matches_the_embedded_components() {
         (nvs_repo::path("extensions/intl/src/lib.rs"), INTL),
         (nvs_repo::path("extensions/image/src/lib.rs"), IMAGE),
         (nvs_repo::path("extensions/pdf/src/lib.rs"), PDF),
+        (
+            nvs_repo::path("extensions/spreadsheet/src/lib.rs"),
+            SPREADSHEET,
+        ),
     ];
     for (path, bytes) in docs {
         let recorded = recorded_mib(&path);
@@ -213,10 +218,10 @@ fn a_built_in_component_needs_no_extension_entry_and_no_pin() {
     assert_eq!(extension.grants, nvs_config::extension::Granted::default());
 }
 
-/// The binary carries exactly three components, and the PDF one is pinned by the binary as the
-/// image one is: no `[[extension]]` entry, no memory setting and no grant.
+/// The binary carries exactly four components, and the PDF and spreadsheet ones are pinned by the
+/// binary as the image one is: no `[[extension]]` entry, no memory setting and no grant.
 #[test]
-fn the_pdf_component_is_one_of_three_built_in() {
+fn the_spreadsheet_component_is_one_of_four_built_in() {
     let builtins = Loader::new(&Engine::default())
         .builtins()
         .expect("the built-in components load");
@@ -225,18 +230,28 @@ fn the_pdf_component_is_one_of_three_built_in() {
         .map(|builtin| builtin.manifest().class.clone())
         .collect();
     classes.sort();
-    assert_eq!(classes, [IMAGE_CLASS, INTL_CLASS, PDF_CLASS]);
-    let pdf = builtins
-        .iter()
-        .find(|builtin| builtin.manifest().class == PDF_CLASS)
-        .expect("the PDF component is built in");
-    let digest: String = PDF_SHA256.iter().map(|b| format!("{b:02x}")).collect();
-    assert_eq!(pdf.sha256(), digest);
-    assert_eq!(pdf.sha256(), nvs_ext::load::pin(PDF));
-    let extension = pdf.extension().expect("the PDF component loads");
-    assert_eq!(extension.sha256, digest);
-    assert_eq!(extension.memory, None);
-    assert_eq!(extension.grants, nvs_config::extension::Granted::default());
+    assert_eq!(
+        classes,
+        [IMAGE_CLASS, INTL_CLASS, PDF_CLASS, SPREADSHEET_CLASS]
+    );
+    for (class, bytes, sha256) in [
+        (PDF_CLASS, PDF, PDF_SHA256),
+        (SPREADSHEET_CLASS, SPREADSHEET, SPREADSHEET_SHA256),
+    ] {
+        let builtin = builtins
+            .iter()
+            .find(|builtin| builtin.manifest().class == class)
+            .unwrap_or_else(|| panic!("{class} is built in"));
+        let digest: String = sha256.iter().map(|b| format!("{b:02x}")).collect();
+        assert_eq!(builtin.sha256(), digest);
+        assert_eq!(builtin.sha256(), nvs_ext::load::pin(bytes));
+        let extension = builtin
+            .extension()
+            .unwrap_or_else(|err| panic!("{class} loads: {err:?}"));
+        assert_eq!(extension.sha256, digest);
+        assert_eq!(extension.memory, None);
+        assert_eq!(extension.grants, nvs_config::extension::Granted::default());
+    }
 }
 
 #[test]

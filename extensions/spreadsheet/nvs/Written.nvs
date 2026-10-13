@@ -1,0 +1,14 @@
+<?nvs
+namespace Novis\Spreadsheet;
+
+/// The result of `Workbook::finish`. `rows` has the number of rows of each sheet, by sheet name.
+/// `size` is the size of the file in bytes. `bytes` is the whole file from `createInMemory`, or `null`.
+final class Written
+{
+    /// `new Written` makes a result from its values. `Workbook::finish` makes one for you.
+    public function constructor(
+        public readonly array<int> $rows,
+        public readonly int $size,
+        public readonly ?bytes $bytes,
+    ) {}
+}

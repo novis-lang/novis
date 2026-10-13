@@ -248,6 +248,8 @@ Conventions the whole file uses:
 | [`Novis\Pdf\Reader`](#core-novis-pdf-reader) |  |
 | [`Novis\Pdf\Rendered`](#core-novis-pdf-rendered) |  |
 | [`Novis\Pdf\Engine`](#core-novis-pdf-engine) |  |
+| [`Novis\Spreadsheet\Written`](#core-novis-spreadsheet-written) |  |
+| [`Novis\Spreadsheet\Engine`](#core-novis-spreadsheet-engine) |  |
 | [`Core` enums](#core-enums) | every enum a member takes, with its cases |
 
 ### Part C — The toolchain
@@ -29957,6 +29959,134 @@ Returns the text of each page in `pages` of a PDF file. Pages count from 1.
 
 **Returns** `array<string>`
 
+<a id="core-novis-spreadsheet-written"></a>
+### `Novis\Spreadsheet\Written`
+
+Keywords: constructor
+
+| Member | Signature |
+|---|---|
+| [`Novis\Spreadsheet\Written::constructor`](#core-novis-spreadsheet-written-constructor) | `constructor(array<int> $rows, int $size, ?bytes $bytes)` |
+
+<a id="core-novis-spreadsheet-written-constructor"></a>
+#### `Novis\Spreadsheet\Written::constructor`
+
+```nvs skip
+new Novis\Spreadsheet\Written(array<int> $rows, int $size, ?bytes $bytes)
+```
+
+`new Written` makes a result from its values. `Workbook::finish` makes one for you.
+
+<a id="core-novis-spreadsheet-engine"></a>
+### `Novis\Spreadsheet\Engine`
+
+Keywords: writerOpen, writerStyle, writerSheet, writerRows, writerDefine, writerFinish
+
+| Member | Signature |
+|---|---|
+| [`Novis\Spreadsheet\Engine::writerOpen`](#core-novis-spreadsheet-engine-writeropen) | `writerOpen({properties: {title: ?string, subject: ?string, author: ?string, company: ?string, keywords: ?string, created: ?{day: Core\Time\Date, clock: Core\Time\TimeOfDay}}, target: string} $options): Writer` |
+| [`Novis\Spreadsheet\Engine::writerStyle`](#core-novis-spreadsheet-engine-writerstyle) | `writerStyle(Writer $writer, {font: ?string, size: ?float, bold: ?bool, italic: ?bool, strike: ?bool, underline: ?Underline, color: ?string, fill: ?string, border: ?{top: ?Line, right: ?Line, bottom: ?Line, left: ?Line}, borderColor: ?string, align: ?Align, valign: ?Valign, wrap: ?bool, rotate: ?int, indent: ?uint, format: ?string, locked: ?bool, hideFormula: ?bool} $style): uint` |
+| [`Novis\Spreadsheet\Engine::writerSheet`](#core-novis-spreadsheet-engine-writersheet) | `writerSheet(Writer $writer, {name: string, position: ?uint, visibility: Visibility, columns: array<{width: ?float, auto: bool, style: ?uint, hidden: bool}>, freezeRows: uint, freezeColumns: uint, autofilter: ?string, tabColor: ?string, zoom: ?uint, gridlines: bool, rightToLeft: bool} $options, array<{cells: array<{value: ?CellValue, style: ?uint}>, style: ?uint, height: ?float, hidden: bool, level: uint}> $first): bytes` |
+| [`Novis\Spreadsheet\Engine::writerRows`](#core-novis-spreadsheet-engine-writerrows) | `writerRows(Writer $writer, array<{cells: array<{value: ?CellValue, style: ?uint}>, style: ?uint, height: ?float, hidden: bool, level: uint}> $rows): bytes` |
+| [`Novis\Spreadsheet\Engine::writerDefine`](#core-novis-spreadsheet-engine-writerdefine) | `writerDefine(Writer $writer, string $name, string $reference): void` |
+| [`Novis\Spreadsheet\Engine::writerFinish`](#core-novis-spreadsheet-engine-writerfinish) | `writerFinish(Writer $writer): {data: bytes, rows: array<{name: string, rows: uint}>, size: uint}` |
+
+<a id="core-novis-spreadsheet-engine-writeropen"></a>
+#### `Novis\Spreadsheet\Engine::writerOpen`
+
+```nvs skip
+Novis\Spreadsheet\Engine::writerOpen({properties: {title: ?string, subject: ?string, author: ?string, company: ?string, keywords: ?string, created: ?{day: Core\Time\Date, clock: Core\Time\TimeOfDay}}, target: string} $options): Writer
+```
+
+Starts a new workbook. `target` is where the file goes, such as its file name. The workbook is written when you add a sheet.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$options` | `{properties: {title: ?string, subject: ?string, author: ?string, company: ?string, keywords: ?string, created: ?{day: Core\Time\Date, clock: Core\Time\TimeOfDay}}, target: string}` |  |
+
+**Returns** `Writer`
+
+<a id="core-novis-spreadsheet-engine-writerstyle"></a>
+#### `Novis\Spreadsheet\Engine::writerStyle`
+
+```nvs skip
+Novis\Spreadsheet\Engine::writerStyle(Writer $writer, {font: ?string, size: ?float, bold: ?bool, italic: ?bool, strike: ?bool, underline: ?Underline, color: ?string, fill: ?string, border: ?{top: ?Line, right: ?Line, bottom: ?Line, left: ?Line}, borderColor: ?string, align: ?Align, valign: ?Valign, wrap: ?bool, rotate: ?int, indent: ?uint, format: ?string, locked: ?bool, hideFormula: ?bool} $style): uint
+```
+
+Returns a number for `style`. Two equal styles get the same number. A cell, a row or a column uses this number as its style.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$writer` | `Writer` |  |
+| `$style` | `{font: ?string, size: ?float, bold: ?bool, italic: ?bool, strike: ?bool, underline: ?Underline, color: ?string, fill: ?string, border: ?{top: ?Line, right: ?Line, bottom: ?Line, left: ?Line}, borderColor: ?string, align: ?Align, valign: ?Valign, wrap: ?bool, rotate: ?int, indent: ?uint, format: ?string, locked: ?bool, hideFormula: ?bool}` |  |
+
+**Returns** `uint`
+
+<a id="core-novis-spreadsheet-engine-writersheet"></a>
+#### `Novis\Spreadsheet\Engine::writerSheet`
+
+```nvs skip
+Novis\Spreadsheet\Engine::writerSheet(Writer $writer, {name: string, position: ?uint, visibility: Visibility, columns: array<{width: ?float, auto: bool, style: ?uint, hidden: bool}>, freezeRows: uint, freezeColumns: uint, autofilter: ?string, tabColor: ?string, zoom: ?uint, gridlines: bool, rightToLeft: bool} $options, array<{cells: array<{value: ?CellValue, style: ?uint}>, style: ?uint, height: ?float, hidden: bool, level: uint}> $first): bytes
+```
+
+Finishes the sheet before it, if there is one, and starts a new sheet with the rows in `first`. Returns the bytes of the file that are ready to send.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$writer` | `Writer` |  |
+| `$options` | `{name: string, position: ?uint, visibility: Visibility, columns: array<{width: ?float, auto: bool, style: ?uint, hidden: bool}>, freezeRows: uint, freezeColumns: uint, autofilter: ?string, tabColor: ?string, zoom: ?uint, gridlines: bool, rightToLeft: bool}` |  |
+| `$first` | `array<{cells: array<{value: ?CellValue, style: ?uint}>, style: ?uint, height: ?float, hidden: bool, level: uint}>` |  |
+
+**Returns** `bytes`
+
+<a id="core-novis-spreadsheet-engine-writerrows"></a>
+#### `Novis\Spreadsheet\Engine::writerRows`
+
+```nvs skip
+Novis\Spreadsheet\Engine::writerRows(Writer $writer, array<{cells: array<{value: ?CellValue, style: ?uint}>, style: ?uint, height: ?float, hidden: bool, level: uint}> $rows): bytes
+```
+
+Adds `rows` to the current sheet. Returns the bytes of the file that are ready to send.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$writer` | `Writer` |  |
+| `$rows` | `array<{cells: array<{value: ?CellValue, style: ?uint}>, style: ?uint, height: ?float, hidden: bool, level: uint}>` |  |
+
+**Returns** `bytes`
+
+<a id="core-novis-spreadsheet-engine-writerdefine"></a>
+#### `Novis\Spreadsheet\Engine::writerDefine`
+
+```nvs skip
+Novis\Spreadsheet\Engine::writerDefine(Writer $writer, string $name, string $reference): void
+```
+
+Gives the cells at `reference`, such as `Sheet1!$A$1:$B$10`, the name `name`. A formula can then use the name.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$writer` | `Writer` |  |
+| `$name` | `string` |  |
+| `$reference` | `string` |  |
+
+**Returns** `void`
+
+<a id="core-novis-spreadsheet-engine-writerfinish"></a>
+#### `Novis\Spreadsheet\Engine::writerFinish`
+
+```nvs skip
+Novis\Spreadsheet\Engine::writerFinish(Writer $writer): {data: bytes, rows: array<{name: string, rows: uint}>, size: uint}
+```
+
+Finishes the last sheet and the workbook. Returns the last bytes of the file, the number of rows in each sheet, and the size of the whole file in bytes.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$writer` | `Writer` |  |
+
+**Returns** `{data: bytes, rows: array<{name: string, rows: uint}>, size: uint}`
+
 <a id="core-enums"></a>
 ### `Core` enums
 
@@ -30733,6 +30863,46 @@ The data `Icu::resolveLocales` checks: the rules for sorting, numbers, plurals, 
 #### `Novis\Pdf\Document::Standard`
 
 A PDF standard the file follows. `PdfA2b` and `PdfA3b` are for archiving, and `PdfUa1` is for screen readers.
+
+| Case | Meaning |
+|---|---|
+
+<a id="enum-novis-spreadsheet-line"></a>
+#### `Novis\Spreadsheet\Line`
+
+The kind of line a border has.
+
+| Case | Meaning |
+|---|---|
+
+<a id="enum-novis-spreadsheet-underline"></a>
+#### `Novis\Spreadsheet\Underline`
+
+One or two lines under the text.
+
+| Case | Meaning |
+|---|---|
+
+<a id="enum-novis-spreadsheet-align"></a>
+#### `Novis\Spreadsheet\Align`
+
+Where the text sits from left to right in its cell.
+
+| Case | Meaning |
+|---|---|
+
+<a id="enum-novis-spreadsheet-valign"></a>
+#### `Novis\Spreadsheet\Valign`
+
+Where the text sits from top to bottom in its cell.
+
+| Case | Meaning |
+|---|---|
+
+<a id="enum-novis-spreadsheet-visibility"></a>
+#### `Novis\Spreadsheet\Visibility`
+
+Whether a sheet is shown. A person can show a `Hidden` sheet again in Excel. Only a program can show a `VeryHidden` sheet.
 
 | Case | Meaning |
 |---|---|

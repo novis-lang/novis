@@ -1,0 +1,37 @@
+[package]
+name = "nvs-spreadsheet"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+publish = false
+description = "The spreadsheet component built into every `nvs` binary: `nvs:spreadsheet/engine`, compiled for `wasm32-wasip2`"
+
+# `cdylib` is the wasm file the build packs; `rlib` lets the core's tests run on
+# the host, where the WIT glue is not compiled.
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+# The writer is ours: it frames the zip by hand, so the archive needs only a raw
+# deflate, a CRC-32 and the two number formatters.
+[dependencies]
+# Raw deflate through its core compressor, which takes input as it comes.
+miniz_oxide = { version = "0.9", default-features = false, features = ["with-alloc"] }
+crc32fast = "1.5"
+itoa = "1"
+# The shortest text that reads back as the same `f64`.
+ryu = "1"
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+wit-bindgen = "0.62"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"
+
+# This crate is not a member of the repository's workspace (its `exclude` names
+# `extensions`), and this table makes it a workspace of its own, so `cargo`
+# never resolves it for the host as part of the tree's ordinary build.
+[workspace]
