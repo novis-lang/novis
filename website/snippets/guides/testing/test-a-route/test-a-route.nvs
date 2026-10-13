@@ -6,20 +6,29 @@ use Core\Test;
 class Shop {
     #[Core\Route(path: "/products/{id}", method: Core\Http\Method::Get, name: "Shop::product")]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function product(uint $id): string {
-        return "product";
+    public function product(uint $id): void {
+        echo "product ", $id;
+    }
+}
+
+// The gate checks each request before a route method runs, and it writes the error pages.
+class Gate implements Core\Router\Gate {
+    public function allows(Core\Router\Match $route): bool {
+        return $route->accessAs<Core\Audience>() == Core\Audience::Public;
+    }
+
+    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void {
+        echo "not found";
+    }
+
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void {
+        echo "something went wrong";
     }
 }
 
 if (Core\Env::context() == Core\Env::Context::Request) {
     // This part answers a request. A path with no route gets the status 404.
-    ?Core\Router\Match $matched = Core\Request::route();
-    if ($matched == null) {
-        Core\Response::setStatus(404);
-        echo "not found";
-    } else {
-        echo "product ", $matched->param("id") as string;
-    }
+    Core\Router::dispatch(new Gate());
 } else {
     // From the command line, this part runs. It sends two requests and checks each response.
     var $found = Test::request(Method::Get, "/products/7");

@@ -30,11 +30,21 @@ class Products {
     }
 }
 
-// `Core\Request::route()` returns the route that matches the request, or `null`.
-?Core\Router\Match $matched = Core\Request::route();
-if ($matched == null) {
-    Core\Response::setStatus(404);
-    Core\Response::json({error: "not found"});
-} else {
-    Products::show($matched->param("id") as uint);
+// The gate checks each request before a route method runs, and it writes the errors as JSON.
+class Gate implements Core\Router\Gate {
+    public function allows(Core\Router\Match $route): bool {
+        return $route->accessAs<Core\Audience>() == Core\Audience::Public;
+    }
+
+    // `dispatch` has already set the status, such as 404 for a path with no route.
+    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void {
+        Core\Response::json({error: "not possible"});
+    }
+
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void {
+        Core\Response::json({error: "server error"});
+    }
 }
+
+// `dispatch` finds the route for the request and calls its method.
+Core\Router::dispatch(new Gate());

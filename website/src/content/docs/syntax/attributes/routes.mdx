@@ -1,7 +1,7 @@
 ---
 title: Routes and access
-covers: ['lang:attributes/core-route-and-core-access-the-route-table', 'lang:attributes/core-api-and-the-openapi-document']
-description: How #[Core\Route] and #[Core\Access] declare the URLs of a web app, and how Core\Router builds links and finds the route for a request.
+covers: ['lang:attributes/core-route-and-core-access-the-route-table', 'lang:attributes/core-api-and-the-openapi-document', 'Core\Router::dispatch']
+description: How #[Core\Route] and #[Core\Access] declare the URLs of a web app, and how Core\Router builds links and calls the route method for a request.
 ---
 import Snippet from '@components/Snippet.astro'
 
@@ -50,14 +50,33 @@ not compile. So a public route always says that it is public.
 
 ## Handling a request
 
-`nvs serve` finds the route for each request before your program runs. Your program then gets the
-match from `Core\Request::route()`. The server does not call the route method. Your program calls
-it, usually with one `switch` on the route name.
+`nvs serve` finds the route for each request before your program runs. `Core\Router::dispatch`
+then calls the method of that route. You give `dispatch` a gate. A gate is an object of your own
+class that implements `Core\Router\Gate`.
 
-`Core\Router::match` finds the route for a method and path that you choose. This example uses it,
-so it runs without a server.
+<Snippet src="syntax/routes/02-dispatch.nvs" />
 
-<Snippet src="syntax/routes/02-match.nvs" />
+- `allows` runs before each route method. The method runs only when `allows` returns `true`. This
+  is the place to check the `allow:` value.
+- `refused` runs when no route method can run. `$reason` is a case of `Core\Router\Refusal`, such
+  as `NotFound` or `MethodNotAllowed`. `dispatch` has already set the status, such as `404` or
+  `405`.
+- `failed` runs when the route method throws an error, or when the program uses too much memory or
+  time. The status is `500`.
+- Each capture is converted to the type of its parameter. A capture that cannot be converted gives
+  `Refusal::BadCapture` and the status `400`.
+- A route method is `static`, or its class has a constructor without parameters. `dispatch` does
+  not use the value that the method returns.
+- A request that the server refused, for example in the CSRF check, never reaches a route method.
+  `dispatch` calls `refused` for it.
+
+## Calling the route method yourself
+
+You can also call the route methods yourself. `Core\Request::route()` returns the route that
+matches the request. `Core\Router::match` finds the route for a method and path that you choose.
+This example uses `match`, so it runs without a server.
+
+<Snippet src="syntax/routes/03-match.nvs" />
 
 - `match` returns `null` when no route has this method and path.
 - `Core\Router::methodsFor($path)` returns the methods the path has. An empty array means `404`.
@@ -65,7 +84,7 @@ so it runs without a server.
 - `accessAs<Core\Audience>()` returns the `allow:` value. The server does not check it. Your program
   checks it before it calls the method. Treat `null` as "not allowed".
 - `param("id")` returns the converted capture.
-- The CSRF check is the only check the server does for you.
+- Without `dispatch`, the CSRF check is the only check that runs for you.
 
 ## An OpenAPI document
 
@@ -73,7 +92,7 @@ so it runs without a server.
 details that the code does not have. The `///` comment above the method becomes the summary and the
 description.
 
-<Snippet src="syntax/routes/03-api.nvs" />
+<Snippet src="syntax/routes/04-api.nvs" />
 
 For this file, the document has this operation:
 

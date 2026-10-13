@@ -4,8 +4,9 @@ method is in the array once, in the order the routes are declared.
 
 Use it when a request matches no route, to choose the status of the response. An empty array means
 that no route has this path, so the status is `404 Not Found`. A non-empty array means that the
-path exists for other methods, so the status is `405 Method Not Allowed`, and the array is the list
-for its `Allow` header.
+path exists for other methods, so the status is `405 Method Not Allowed`. The array is then the list
+for its `Allow` header. `Core\Router::dispatch` makes this choice for you. You need `methodsFor`
+when your program calls the route methods itself.
 
 A capture that does not fit its handler parameter does not match. For example, `abc` in the place
 of a `uint $id` gives an empty array. The method never throws an error.

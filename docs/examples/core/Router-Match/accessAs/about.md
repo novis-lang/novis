@@ -5,8 +5,9 @@ and `>`. For a route with `#[Access(allow: App\Role::Admin)]`, `accessAs<App\Rol
 
 If the rule is not a case of that enum, the result is `null`. Treat `null` as "access denied".
 
-The server does not check this rule for you. Your program checks it once, before it calls the
-route's handler, so one check covers every route.
+The server does not check this rule for you. With `Core\Router::dispatch`, the `allows` method of
+your gate checks it before each route method runs. A program that calls the route methods itself
+checks it once, before that call, so one check covers every route.
 
 The compiler checks every comparison with the result. If you rename a case, a comparison with the
 old name does not compile. The type argument must be an enum. A rule that names a class constant

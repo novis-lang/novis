@@ -1,5 +1,5 @@
 <?nvs
-// This program finds the route for a request and calls the method for it.
+// This program finds the route for a request and calls its method without `dispatch`.
 
 class Users {
     #[Core\Route(path: "/users/{id}", method: Core\Http\Method::Get, name: "Users::show")]

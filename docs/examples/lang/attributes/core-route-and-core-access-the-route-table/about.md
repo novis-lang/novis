@@ -9,8 +9,10 @@ Novis collects every route into one table when the program is compiled. `Core\Ro
 link from the name of a route, and the link is checked at the same time. An unknown route name or a
 missing capture is a compile error.
 
-**Good to know:** the server matches each request to a route, and it does not call the method.
-Your entry file reads the match with `Core\Request::route()` and calls the method.
+**Good to know:** the server matches each request to a route before your program runs. Your entry
+file calls `Core\Router::dispatch`, which calls the method of that route. A gate class of your own
+checks each request first and writes the error pages. A program can also read the match with
+`Core\Request::route()` and call the method itself.
 
 **The examples below** show one route and its link, the three kinds of capture, and the links for a
 product list page.

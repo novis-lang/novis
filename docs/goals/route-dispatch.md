@@ -46,7 +46,7 @@ stages:
         shapes: ["An example"]
   - id: 6
     title: the website teaches dispatch
-    status: open
+    status: done
     context: [website/src/content/docs/syntax/attributes/routes.mdx, website/src/content/docs/guides/how-to-use/requests.mdx, website/src/content/docs/guides/simple-programs/json-api.mdx, docs/examples/lang/attributes/core-route-and-core-access-the-route-table/about.md]
     extra:
       context:
@@ -275,12 +275,12 @@ refusal mode, and never a handler.
 
 **Does:** every page that shows routes shows `dispatch` and a gate first.
 
-- [ ] The routes syntax page and its match snippet (`website/src/content/docs/syntax/attributes/routes.mdx:54`, `website/snippets/syntax/routes/02-match.nvs:26`)
-- [ ] The requests guide and its snippet (`website/src/content/docs/guides/how-to-use/requests.mdx:16`, `website/snippets/guides/how-to-use/requests/requests.nvs:12`)
-- [ ] The JSON API guide and its snippet (`website/src/content/docs/guides/simple-programs/json-api.mdx:26`, `website/snippets/guides/simple-programs/json-api/json-api.nvs:33`)
-- [ ] The route-test snippet (`website/snippets/guides/testing/test-a-route/test-a-route.nvs:16`)
-- [ ] The route-table feature's description (`docs/examples/lang/attributes/core-route-and-core-access-the-route-table/about.md:1`)
-- [ ] The hand-written examples still read true beside `dispatch` (`docs/examples/core/Router-Match/name/03-call-the-method-for-each-route.nvs:1`, `docs/examples/core/Router-Match/accessAs/03-one-check-before-every-handler.nvs:1`, `docs/examples/core/Router/methodsFor/03-choose-between-404-and-405.nvs:1`)
+- [x] The routes syntax page and its snippets: `dispatch` first, then the match by hand (`website/src/content/docs/syntax/attributes/routes.mdx:51`, `website/snippets/syntax/routes/02-dispatch.nvs:1`, `website/snippets/syntax/routes/03-match.nvs:1`)
+- [x] The requests guide and its snippet (`website/src/content/docs/guides/how-to-use/requests.mdx:16`, `website/snippets/guides/how-to-use/requests/requests.nvs:30`)
+- [x] The JSON API guide and its snippet (`website/src/content/docs/guides/simple-programs/json-api.mdx:26`, `website/snippets/guides/simple-programs/json-api/json-api.nvs:50`)
+- [x] The route-test snippet (`website/snippets/guides/testing/test-a-route/test-a-route.nvs:30`)
+- [x] The route-table feature's description (`docs/examples/lang/attributes/core-route-and-core-access-the-route-table/about.md:12`)
+- [x] The hand-written examples and their descriptions say they call the method without `dispatch` (`docs/examples/core/Router-Match/name/03-call-the-method-for-each-route.nvs:2`, `docs/examples/core/Router-Match/accessAs/about.md:9`, `docs/examples/core/Router/methodsFor/about.md:9`)
 
 ### 7. the feature proofs
 
@@ -303,14 +303,20 @@ refusal mode, and never a handler.
 
 ### State
 
-Stages 2 to 5 are done, and `rule:routing/a-gate-answers-around-every-handler` is `shipped`.
+Stages 2 to 6 are done, and `rule:routing/a-gate-answers-around-every-handler` is `shipped`.
 `door-refusals` and `limit-failed` pass: `cargo test --test gate`, eight tests over a real `nvs serve`.
-`apps` passes with the current binary: `bun nv site --check apps --nvs target/debug/nvs.exe`.
+`apps`, `guides` and `snippets` pass with the current binary (`bun nv site --check apps guides snippets
+--nvs target/debug/nvs.exe`).
 
-- Both example apps call `Core\Router::dispatch(new <App>\Gate())` from `public/index.nvs`, and their
-  `src/Gate.nvs` checks `Audience::Public` and renders the error pages. Notes' tests cover a 404, a
-  405, a CSRF `403` and a failure `500` (a note number past SQLite's `INTEGER`). Paperwork has no
-  unsafe route and nothing that throws, so its tests cover the 404 and the 405.
+- The website teaches `dispatch` and a gate first: the routes syntax page (`02-dispatch.nvs`, then
+  the hand-written `03-match.nvs`), the requests and JSON API guides and the route-test snippet.
+  The routes page `covers:` `Core\Router::dispatch` and is stamped, so stage 7's `about.md` makes it
+  stale until it is stamped again (`bun nv site --stamp syntax/attributes/routes.mdx`).
+- `bun nv site` serves a snippet under the root `nvs.toml` only after it brought `postgres` up and ran
+  `nvs queue migrate` once, because that file's `[queue]` arms on `[db.main]` and the boot refuses
+  without its tables (`tools/nv/cmd/site.ts:967`). That was the red `snippets` sweep.
+- Both example apps call `Core\Router::dispatch(new <App>\Gate())` from `public/index.nvs`
+  (`apps/notes/src/Gate.nvs:11`).
 - `dispatch` opts a program into the autoload scan, as `route()` does (`crates/nvs-hir/src/requires.rs:853`,
   `rule:routing/table-is-opt-in`). Without it an entry that names only its gate compiled no route.
 - `Core\Test::request` takes the CSRF refusal for a dispatching unit (`crates/nvs-cli/src/runner.rs:642`),
@@ -335,14 +341,12 @@ gets no route and no error after a limit; a run whose head was already streamed 
 
 ### Next
 
-Stage 6, the website's routing pages and their snippets under `website/` (`rule:routing/matching-is-not-dispatching`, § *Text an end user reads*):
+Stage 7, `Core\Router::dispatch`'s feature proofs under `docs/examples/core/Router/dispatch/`, `benches/members/core/Router/` and `tests/hostile/core/Router/` (`rule:testing/feature-proofs`, § *Text an end user reads*). `bun nv proofs --id 'Core\Router::dispatch'` prints what it owes:
 
-- [ ] The routes syntax page and its match snippet (`website/src/content/docs/syntax/attributes/routes.mdx:54`, `website/snippets/syntax/routes/02-match.nvs:26`)
-- [ ] The requests guide and its snippet (`website/src/content/docs/guides/how-to-use/requests.mdx:16`, `website/snippets/guides/how-to-use/requests/requests.nvs:12`)
-- [ ] The JSON API guide and its snippet (`website/src/content/docs/guides/simple-programs/json-api.mdx:26`, `website/snippets/guides/simple-programs/json-api/json-api.nvs:33`)
-- [ ] The route-test snippet (`website/snippets/guides/testing/test-a-route/test-a-route.nvs:16`)
-
-The example apps' `src/Gate.nvs` (`apps/notes/src/Gate.nvs:11`) is the shape a snippet's gate can copy.
+- [ ] Its `about.md` and three examples (`docs/examples/core/Router/dispatch/about.md:1`); `website/snippets/syntax/routes/02-dispatch.nvs:1` is a shape an example can copy
+- [ ] The bench, with its growth against the number of routes (`benches/members/core/Router/dispatch.nvs:1`)
+- [ ] The attack: a refused request tries to reach a handler, including through a gate that throws (`tests/hostile/core/Router/dispatch/01-a-refused-request-tries-to-reach-a-handler.nvs:1`)
+- [ ] Its help in the binary (`crates/nvs-stdlib/src/router.rs:207`), then restamp the routes page
 
 ### Backlog
 
@@ -353,3 +357,4 @@ The example apps' `src/Gate.nvs` (`apps/notes/src/Gate.nvs:11`) is the shape a s
 - The checker does not hold an implementing member's signature to the `Gate` interface's signature, and `$v is Core\Router\Gate` folds to `false` (`crates/nvs-types/src/conformance.rs:1`).
 - `nvs-stdlib`'s ldap tests and `nvs-cli`'s `live_edit` fail beside the other test binaries and pass alone (`crates/nvs-stdlib/tests/ldap.rs:1485`, `crates/nvs-cli/tests/live_edit.rs:1010`).
 - `Core\Test::request` does not rerun a dispatching program after a limit, and takes no CSRF refusal for a program that does not dispatch (`crates/nvs-cli/src/runner.rs:625`).
+- `bun nv site --check reference` names `Core\Router\Refusal` as a class with no Reference page (`website/src/content/docs/reference/`).

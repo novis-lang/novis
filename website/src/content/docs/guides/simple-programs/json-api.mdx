@@ -23,11 +23,16 @@ curl http://127.0.0.1:8000/products/2
 ## How it works
 
 `#[Core\Route]` connects the path `/products/{id}` to the method `Products::show`. `{id}` is a
-part of the path that can change. `Core\Request::route()` returns the route that matches the
-request, or `null` when no route matches.
+part of the path that can change. `Core\Router::dispatch` finds the route that matches the request
+and calls its method.
 
-`$matched->param("id")` returns the number from the path. `as uint` converts it to a whole number
+`dispatch` converts `{id}` to the type of the parameter `$id`. The type is `uint`, a whole number
 that is not negative.
+
+`Gate` is a class of your own. Its method `allows` runs before `Products::show`, and the method runs
+only when `allows` returns `true`. `refused` writes the response when no route method can run, for
+example for a path with no route. `dispatch` has already set the status, such as `404`. `failed`
+writes the response when a route method throws an error.
 
 `#[Core\Json\Derive]` lets Novis turn a `Product` into JSON. `Core\Response::json` sends the JSON
 text as the response.

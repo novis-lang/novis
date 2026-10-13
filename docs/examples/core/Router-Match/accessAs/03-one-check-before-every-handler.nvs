@@ -1,5 +1,5 @@
 <?nvs
-// Shows a front controller that checks the access rule once, before it calls any handler.
+// Shows a program that calls its route methods itself and checks the access rule once, before any of them.
 namespace App;
 
 enum Role { Admin }

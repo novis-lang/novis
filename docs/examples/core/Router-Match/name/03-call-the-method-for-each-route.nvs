@@ -1,5 +1,5 @@
 <?nvs
-// Shows how a program calls the right method for the route that the request matched.
+// Shows how a program calls the method of the matched route itself, without `Core\Router::dispatch`.
 
 class Shop {
     #[Core\Route(path: "/", method: Core\Http\Method::Get, name: "Shop::home")]

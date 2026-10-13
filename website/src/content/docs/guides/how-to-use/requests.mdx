@@ -13,12 +13,19 @@ another request reads.
 ## Find the route
 
 A `#[Core\Route]` attribute on a method connects a path to that method.
-`Core\Request::route()` returns the route that matches the request:
+`Core\Router::dispatch` finds the route that matches the request and calls its method:
 
 <Snippet src="guides/how-to-use/requests/requests.nvs" />
 
-The output above is for the request `GET /products/7`. A path that matches no route gives `null`,
-and the program sets the status `404`.
+The output above is for the request `GET /products/7`. `dispatch` converts `{id}` to the type of
+the parameter `$id`, so `$id` is the number `7`.
+
+`Gate` is a class of your own. Its method `allows` runs before each route method. Its methods
+`refused` and `failed` write the error pages. For a path that matches no route, `dispatch` sets
+the status `404` and calls `refused`.
+
+You can also call the route methods yourself. `Core\Request::route()` returns the route that
+matches the request, or `null`. [Syntax: routes](/syntax/attributes/routes/) shows both ways.
 
 ## Read the request
 
@@ -46,6 +53,7 @@ right prefix when the application is mounted under a path such as `/shop`.
 
 ## Do and don't
 
+- Do write all error pages in one gate class, and call `Core\Router::dispatch` with it.
 - Do give every route a `name`, and build links from the name with `Core\Router::url`.
 - Do read a form or a JSON body into a class with `postAs` or `jsonAs`. Each field is then checked.
 - Do set a status for every error response, such as `404` or `422`.
