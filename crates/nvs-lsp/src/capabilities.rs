@@ -64,8 +64,8 @@ pub const TOKEN_TYPES: &[SemanticTokenType] = &[
 /// (`rule:ide/semantic-tokens-carry-the-qualifiers`): a qualifier travels with
 /// a value through the program, and an editor showing it at every use site is
 /// the cheapest teaching surface the language has. Being non-standard, they
-/// need the client's `semanticTokenScopes` mapping to reach a theme, which is
-/// goal `editor`'s half.
+/// reach a theme through the `semanticTokenScopes` mapping in
+/// `editors/vscode/package.json`.
 pub const TOKEN_MODIFIERS: &[SemanticTokenModifier] = &[
     SemanticTokenModifier::DEFAULT_LIBRARY,
     SemanticTokenModifier::new("tainted"),

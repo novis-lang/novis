@@ -64,6 +64,7 @@ interface Manifest {
     }>;
     configurationDefaults?: Record<string, unknown>;
     themes?: unknown[];
+    semanticTokenScopes?: { language: string; scopes: Record<string, string[]> }[];
     html?: { customData: string[] };
     css?: { customData: string[] };
   };
@@ -450,6 +451,16 @@ describe("the colour the extension does not contribute", () => {
     for (const key of ["tokenColorCustomizations", "semanticTokenColorCustomizations", "colors"]) {
       assert.equal(manifestText.includes(key), false, `the manifest contributes ${key}`);
     }
+  });
+
+  it("maps the two Novis modifiers to scopes a theme already styles", () => {
+    // `tainted` and `secret` are not in LSP's legend, so no theme has a rule for them. Each is mapped
+    // to a standard scope that sets a font style and no colour, and VS Code takes each style property
+    // from the rule that sets it, so the variable keeps the colour its theme gives it
+    // (`rule:ide/novis-ships-names-not-colours`).
+    assert.deepEqual(manifest.contributes.semanticTokenScopes, [
+      { language: "nvs", scopes: { "*.tainted": ["markup.underline"], "*.secret": ["emphasis"] } },
+    ]);
   });
 });
 

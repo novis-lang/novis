@@ -66,6 +66,29 @@ extension `0.4.2` works with `nvs` `0.4.0`, and does not work with `nvs` `0.5.0`
 A change to `nvs.path` or `nvs.lsp.enable` restarts the server. After a change to another setting,
 run **Novis: Restart Language Server**.
 
+## Tainted and secret variables
+
+The language server tells VS Code which variables are `tainted` and which are `secret`. A tainted
+value comes from outside the program, such as a request. This works at every place where you use the
+variable.
+
+Your color theme decides how these variables look. In the themes that come with VS Code, a tainted
+variable is underlined and a secret variable is in italic. Some other themes show no difference.
+
+To choose the style yourself, add this to your `settings.json`:
+
+```json
+"editor.semanticTokenColorCustomizations": {
+  "enabled": true,
+  "rules": {
+    "*.tainted": { "underline": true },
+    "*.secret": { "italic": true }
+  }
+}
+```
+
+`"enabled": true` is needed for a theme that does not use the language server's colors.
+
 ## Commands
 
 Open the command palette and type **Novis**. These are the commands you use most:

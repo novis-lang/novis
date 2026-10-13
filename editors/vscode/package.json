@@ -100,6 +100,19 @@
         }
       }
     ],
+    "semanticTokenScopes": [
+      {
+        "language": "nvs",
+        "scopes": {
+          "*.tainted": [
+            "markup.underline"
+          ],
+          "*.secret": [
+            "emphasis"
+          ]
+        }
+      }
+    ],
     "configuration": {
       "title": "Novis",
       "properties": {
