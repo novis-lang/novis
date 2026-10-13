@@ -105,7 +105,7 @@ stages:
         shapes: []
   - id: 16
     title: the feature proofs
-    status: open
+    status: done
     extra:
       context:
         playbook: ["Tooling > `bun nv proofs --verify --group`*"]
@@ -797,25 +797,30 @@ One file set: `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/n
 
 ### State
 
-**Stage 15 is done: the editor's PDF custom data is generated, contributed and checked, and `vscode-pdf-custom-data-is-current` passes.**
+**Every stage is done, and every acceptance check of Stage 16 passes.** What is left is closing the goal.
 
-- `editors/vscode/scripts/customData.ts` makes both files from the `subset.json` entries marked `"editor": true`; `bun nv pdf-custom-data [--check]` writes them under `editors/vscode/data/`; the contributions suite's *the PDF custom data* block fails when they are stale.
-- `data-repeat` lists `every` too, which `extensions/pdf/src/layout/table.rs:133` reads as the default. What is carried, and why `<slot>` and the value functions are not, is `rule:core-classes/pdf-css-subset-table`.
-- The hovers link no reference page: none exists until Stage 16 writes `docs/reference/novis/` pages for `Novis\Pdf`.
+- Every `Novis\Pdf` member, `Novis\Image\Barcode` and `QrCode`'s `svg` and `giroCode` carry their feature proofs; `Engine` and `Codec::barcode` skip examples and perf in `data/proofs/policy.json`. `bun nv proofs --gate` owes nothing in the whole roster, after the 112 stale `Core` benches were measured again and `PropertyGuard`, `LateInit` and `[limits]` got their proofs.
+- `QrCode::giroCode` throws for a line break in a field, so a payee name cannot put a second IBAN on its own line (`extensions/image/nvs/QrCode.nvs:48`).
+- `docs/reference/novis/Pdf-Document.md` is the class introduction, and every PDF hover in the editor links `/reference/core/novis-pdf-document/`.
+- The re-measured `Core\Str` and `Core\Http` clocks were taken beside another busy process: their counts hold, their `ns_per_op` is noise until `bun nv proofs --record-perf --force` runs again on an idle machine.
 
 ### Next
 
-**Stage 16, the feature proofs.** The file set is `docs/examples/novis/Pdf-*/`, `tests/hostile/novis/Pdf-*/`, `benches/members/novis/Pdf-*/`, `docs/reference/novis/` and `data/proofs/policy.json`. Split it across subagents by class (AGENTS.md rule 12).
+**Close the goal** (AGENTS.md § *In the loop*, "Before `DONE`"). The file set is `docs/rules/core-classes/pdf-*.md` and the module docs under `extensions/pdf/src/`.
 
-- [ ] **`Novis\Pdf\Document`** (`rule:testing/feature-proofs`): `bun nv proofs --id 'Novis\Pdf\Document::fromHtml'` and each member beside it prints what is owed: `about.md`, a Rust `covers:` marker, three examples, a bench, an attack. The attacks and examples the stage's text lists start here (`extensions/pdf/nvs/Document.nvs:28`).
-- [ ] **`Page`, `Rendered`, `Pages`, `Reader`** (`extensions/pdf/nvs/Page.nvs:5`), then **`Engine`** under `Novis\Image\Codec`'s skip rule (`data/proofs/policy.json:41`), then **`Novis\Image\Barcode`** and `QrCode`'s `svg` and `giroCode` (`extensions/image/nvs/Barcode.nvs:1`).
-- [ ] **The reference page** under `docs/reference/novis/` beside `Image-Image.md`, and a `references` link in `editors/vscode/scripts/customData.ts:49` to it, regenerated with `bun nv pdf-custom-data`. Every comment and `about.md` goes through `bun nv proofs --comments` before the wrap.
+- [ ] **The twelve designed rules** that `bun nv owners --closes pdf` lists, `rule:core-classes/pdf-roster` first (`docs/rules/core-classes/pdf-roster.md:1`): mark each shipped, or name the goal that ships what it still lacks. `bun nv verify --doc` already passes.
+- [ ] **The Backlog below**: each gap moves into the module doc of the file it names (`extensions/pdf/src/lib.rs:1`, `extensions/pdf/src/layout/table.rs:1`) or to a goal ahead, so nothing lives only in this file. Then delete this goal's file and claim `DONE`.
 
 ### Backlog
+
+- A `Document::render` inside a header, footer or slot function makes the outer render throw "the second pass needs a first pass in the same request", because the inner render replaces the outer one's kept state (`extensions/pdf/nvs/Document.nvs:107`). It is pinned in `tests/hostile/novis/Pdf-Document/header/`.
+- Depth and memory: tables nested 2000 deep in cells and an invoice XML nested 1000 deep end in `call stack exhausted`, and a 2-million-character word, 100,000 nested `div`s, a 64 MB deflate stream, a 64 MB attachment and a page of 1M `q` operators end in the extension's own memory FATAL, below the request's cap (`extensions/pdf/src/layout.rs`, `extensions/pdf/src/lib.rs`). Each is pinned with `ends-early` under `tests/hostile/novis/Pdf-*`.
+- `Pages::merge` costs 64 ms and 4.4 MB for three small pages, and `Reader::text` copies the whole file across on every call (`extensions/pdf/src/merge.rs`, `extensions/pdf/nvs/Reader.nvs:43`). `Page::string` lowercases the asked name and not the stored ones (`extensions/pdf/nvs/Page.nvs:36`). The barcode errors say "cannot carry" (`extensions/image/src/barcode.rs:305`).
+- One `PerfError` discards a whole `--record-perf` sweep (`tools/nv/proofs/perf.ts:268`), and the `Core\Session` benches need Redis with no `// requires:` line (`benches/members/core/Session/nvs.toml`). `website/src/data/core.json` is not regenerated for `Novis\Pdf` (`bun nv render --website`).
 
 - The PDF component's growth is 14.3 MiB, above the goal writer's 6 to 9 MB, and its fonts are a second 4.3 MiB copy beside the image component's: whether that stands is the user's call (`extensions/pdf/src/lib.rs`).
 - Tables: a cell of a split row is not stretched to the row's height, a `rowspan` piece taller than a page is placed whole, a table without a `width` fills its containing block, a cell's `vertical-align` is `top`, a row's and a group's own background and borders are not drawn, collapsed borders are not resolved by style or width, a `data-mark` or `string-set` inside a cell counts as on the first page, and a `display: table` element directly in a row is a cell whose rows are block boxes (`extensions/pdf/src/layout/table.rs`, `extensions/pdf/src/layout/inline.rs`).
 - Pagination: a `:left` or `:right` page wider or narrower than the first page of its name keeps that page's line widths, a margin box's counter other than `page` and `pages` is 0, a running element or `string-set` inside an inline-block, float or flex item counts as on the first page, and `element()`'s `start` and `first-except` read as `first` (`extensions/pdf/src/layout/margin.rs`). An `id` inside an inline-block, float, flex item, table cell or running element lands on no page, and `target-counter()` reads only `page` (`extensions/pdf/src/layout/inline.rs`). `break-inside: avoid` keeps only block boxes, and `break-after: avoid` and `break-before: avoid` do nothing (`extensions/pdf/src/layout/text.rs`). A link inside a transformed box keeps its box before the transform, and a heading inside an inline-block, float, flex item or table cell has no bookmark (`extensions/pdf/src/write.rs`).
 - Positioning: an absolute box without a `width` is not stretched by `left` with `right`, a percentage `top` or `bottom` of a relative box is 0, an inline element's `position` and `transform` do nothing, and a transformed box is not a containing block (`extensions/pdf/src/layout.rs`, `extensions/pdf/src/layout/block.rs`). Floats: an `<img>` with `float` stays a block, a float in the middle of a paragraph is placed at its top, and a float does not go on to the next page (`extensions/pdf/src/layout/block.rs`). Grid: `calc()` tracks and the `grid-template` and `grid` shorthands (`extensions/pdf/src/layout/grid.rs`). Flex: `::before`, `::after` and `<br>` are not items, baseline alignment and an item's `margin: auto` (`extensions/pdf/src/layout/flex.rs`).
 - Elliptical radii and repeating gradients (`extensions/pdf/src/layout/boxes.rs`), `hyphenate-character` (`extensions/pdf/subset.json`), an inline box in a right-to-left line, an SVG `font-family` of Arial, Helvetica or Courier, which falls back to Liberation Serif instead of mapping as HTML's does (`extensions/pdf/src/fonts.rs`), and Clippy over the component: `large_enum_variant` on `layout::Block` and `inline::Step`, and five small warnings in `extensions/pdf/src/css/value.rs:113` and `extensions/pdf/src/css/mod.rs:294` (`cargo clippy --manifest-path extensions/pdf/Cargo.toml --all-targets`).
-- Header functions: the markup is styled by its own `<style>`, it sits at the top of its area, and `Page::string` has no conformance case (`extensions/pdf/src/lib.rs`, `extensions/pdf/nvs/Page.nvs`). `Document.nvs`'s `invoiceXml` doc names `Standard::PdfA3b` where a program writes `Document::Standard::PdfA3b` (`extensions/pdf/nvs/Document.nvs:52`). The password's user path and `/Perms` checked by a second reader, `hayro`'s `embed-cmaps`, and veraPDF in CI (the user's call) (`extensions/pdf/src/encrypt.rs`).
+- Header functions: the markup is styled by its own `<style>`, and it sits at the top of its area (`extensions/pdf/src/lib.rs`). The password's user path and `/Perms` checked by a second reader, `hayro`'s `embed-cmaps`, and veraPDF in CI (the user's call) (`extensions/pdf/src/encrypt.rs`).
