@@ -954,15 +954,14 @@ jobs:
       - name: Every rendered file matches the records it is rendered from
         run: bun nv render --check
       # The rulebook next, because it is the authority the rest of the tree cites. `--check`
-      # reads every topic JSON against its fragments and resolves every `rule:` citation;
+      # reads every topic JSON against its fragments, resolves every `rule:` citation, and fails
+      # on a decision record directory or a citation of one, since a rule carries its own reasons;
       # `--render --check` fails when a committed generated page — docs/rules/<topic>.md or
       # ground-rules.md — no longer matches what the fragments and the JSON say.
-      - name: Every rule loads, and every `rule:` citation resolves
+      - name: Every rule loads, every `rule:` citation resolves, and no decision record is left
         run: bun nv rules --check
       - name: The generated rulebook pages match the fragments they are rendered from
         run: bun nv rules --render --check
-      - name: Every decision record's field set, heading order, cross-links and derived counters
-        run: bun nv records --check
       - name: Every markdown link resolves, with matching case
         run: bun nv links
       - name: CONTRIBUTING.md's layout listing still describes the tree
