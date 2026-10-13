@@ -20,6 +20,15 @@
 //! | `config\t<path>` | a configuration file was read, and everything in it outside its `[[app]]` blocks was used |
 //! | `app\t<path>` | an `[[app]]` block keyed on this path, in any configuration file read, applies to the entry file being configured |
 //! | `app\t*` | every `[[app]]` block of every configuration file read was used |
+//! | `component\tspreadsheet` | the built-in component `spreadsheet` was called, or a program was compiled against a name in its namespace, found or not |
+//! | `component\t*` | every built-in component was read, as `nvs meta` reads every card |
+//! | `builtins\tread` | the process read the table of built-in components, so it writes a `component` line for each one it uses |
+//!
+//! A component is a line of its own because its code runs as WebAssembly, which coverage does not
+//! see, and its manifest and Novis source are bytes the binary carries rather than files it reads.
+//! Every process that compiles a program reads the table of built-in components, so the table is
+//! not a use of any one of them: the `builtins` line says only that this process names each
+//! component it does use, and a footprint without it was recorded before that was so.
 //!
 //! A card is a line of its own because a card is documentation: an edit to one changes what the
 //! readers of cards print, and no program's behaviour.
@@ -78,6 +87,10 @@ pub enum Kind {
     Config,
     /// A path an `[[app]]` block may be keyed on to apply, or `*` for every block.
     App,
+    /// A built-in component used by name, or `*` for every one.
+    Component,
+    /// The table of built-in components read: the process names each component it uses.
+    Builtins,
 }
 
 impl Kind {
@@ -94,6 +107,8 @@ impl Kind {
             Self::Named => "named",
             Self::Config => "config",
             Self::App => "app",
+            Self::Component => "component",
+            Self::Builtins => "builtins",
         }
     }
 }
@@ -400,9 +415,49 @@ pub fn every_app() {
     }
 }
 
+/// Records that the built-in component `name` was used: called, or named by a program being
+/// compiled.
+pub fn component(name: &str) {
+    if enabled() {
+        write(Kind::Component, name);
+    }
+}
+
+/// Records that every built-in component was read, as a document of every class does.
+pub fn every_component() {
+    component("*");
+}
+
+/// Records that the table of built-in components was read. It is no use of any one of them: every
+/// process that compiles a program reads it, and [`component`] records each one used.
+pub fn builtins() {
+    if enabled() {
+        write(Kind::Builtins, "read");
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_component_use_is_its_own_kind_of_line() {
+        let ((), lines) = capture(|| {
+            builtins();
+            component("spreadsheet");
+            component("spreadsheet");
+            every_component();
+        });
+        assert_eq!(
+            lines,
+            [
+                "builtins\tread",
+                "component\tspreadsheet",
+                "component\tspreadsheet",
+                "component\t*"
+            ]
+        );
+    }
 
     /// A log file in a scratch directory of its own, deleted with the directory when dropped.
     struct Scratch(PathBuf, #[allow(dead_code)] nvs_repo::Scratch);

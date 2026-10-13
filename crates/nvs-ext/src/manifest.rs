@@ -110,6 +110,11 @@ pub struct Manifest {
     /// Novis source under its namespace.
     #[serde(skip)]
     pub source: Vec<crate::source::SourceFile>,
+    /// The name of the built-in component this manifest is, or `None` for an `[[extension]]`
+    /// entry's. The JSON never writes it: [`crate::load::builtin_manifests`] fills it, so a
+    /// compiler that resolves a name into the component's namespace can record that use.
+    #[serde(skip)]
+    pub builtin: Option<String>,
 }
 
 /// A `major.minor.patch` version of the `nvs:ext` world.

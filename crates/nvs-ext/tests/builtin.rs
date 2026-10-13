@@ -254,6 +254,36 @@ fn the_spreadsheet_component_is_one_of_four_built_in() {
     }
 }
 
+/// Each built-in component is named for its crate's directory under `extensions/`, whose
+/// `manifest.json` declares its class, which is how observed selection tells which component a
+/// changed path belongs to. Reading the table records only that it was read, and a use of one
+/// component records that component's name.
+#[test]
+fn a_built_in_component_is_named_for_its_directory_and_records_its_use() {
+    let (builtins, read) = nvs_footprint::capture(|| {
+        Loader::new(&Engine::default())
+            .builtins()
+            .expect("the built-in components load")
+    });
+    assert_eq!(read, ["builtins\tread"]);
+    for builtin in &builtins {
+        let path = nvs_repo::path(&format!("extensions/{}/manifest.json", builtin.name()));
+        let text = std::fs::read_to_string(&path)
+            .unwrap_or_else(|err| panic!("{} reads: {err}", path.display()));
+        let manifest: serde_json::Value = serde_json::from_str(&text).expect("a manifest is JSON");
+        assert_eq!(manifest["class"], builtin.manifest().class.as_str());
+        assert_eq!(builtin.manifest().builtin.as_deref(), Some(builtin.name()));
+    }
+    let pdf = builtins
+        .iter()
+        .find(|builtin| builtin.name() == "pdf")
+        .expect("pdf is built in");
+    let ((), used) = nvs_footprint::capture(|| {
+        pdf.extension().expect("the pdf component loads");
+    });
+    assert_eq!(used, ["component\tpdf"]);
+}
+
 #[test]
 fn a_built_in_component_is_compiled_on_first_use_and_not_before() {
     let cache = Arc::new(Memory::default());

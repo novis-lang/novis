@@ -4,6 +4,7 @@
 //            -> each .rs file: item diff -> reference-graph walk -> fn:, class:, card: keys
 //            -> each build script whose inputs moved: the items that include what it generated
 //            -> every path: file:, config:, tree:, named:, ext:, and exists:/dir: for a path that came or went
+//            -> a path of a built-in component's crate or WIT file: its component: key (`keys.ts`)
 //            -> the repository's nvs.toml: config: and app: for the parts that changed (`config.ts`)
 //     run = atoms never recorded on this platform, last red, or owed from an earlier change
 //         + atoms marked diverged: a recording run that ended differently from the judged run
@@ -39,7 +40,7 @@ import { anchorScan, isAnchorFile } from "../proofs/roster.ts";
 import { blobAt, type Change, changedBetween, changedPaths, commitOf, diskDigest, namedChanges, sinceOverlay, snapshot, treeSig } from "./change.ts";
 import { diffFile, referenceWalk, type ExtraDefines, type ItemChange, type Moved, type Origin, type Scope, Universe } from "./items.ts";
 import { elsewhereOnly, gitTexts, platformOf, profileReader } from "./profile.ts";
-import { ALL_CARDS, ALL_CLASSES, configKey, fileWild, kindOf, pathKeys, pkgTestsKey, PROFILE_ONLY, ROOT_CONFIG, testsKey, WILD } from "./keys.ts";
+import { ALL_CARDS, ALL_CLASSES, ALL_COMPONENTS, BUILTINS_READ, builtinComponents, componentKeys, configKey, fileWild, kindOf, pathKeys, pkgTestsKey, PROFILE_ONLY, ROOT_CONFIG, testsKey, WILD } from "./keys.ts";
 import { blockPaths, configKeys } from "./config.ts";
 import { type AtomKind, kindOfAtom, type Overlay, type RunTree, type SelectStore } from "./store.ts";
 
@@ -264,6 +265,8 @@ export async function computeChange(store: SelectStore, opts: ChangeOptions = {}
   };
   const global = changes.find((c) => isGlobal(c.path))?.path ?? null;
   for (const c of changes) for (const k of pathKeys(c.path, c.status !== "modified")) emit(k, { path: c.path, how: "path" });
+  const components = builtinComponents(root);
+  for (const c of changes) for (const k of componentKeys(c.path, components)) emit(k, { path: c.path, how: "path" });
   for (const k of await rootConfigKeys(overlay, changes, since, until, fromBase, root)) emit(k, { path: ROOT_CONFIG, how: "path" });
   if (global) emit(WILD, { path: global, how: "global" });
   const markers = from ? (from.tree.markers as Record<string, Scanned>) : fromBase ? storedMarkers(store) : {};
@@ -686,6 +689,9 @@ export function query(store: SelectStore, change: ChangeSet, opts: QueryOptions 
   return { change, selected, known, gone, stamps };
 }
 
+/** The prefix of every `fn:` key of the crate that holds the built-in components and loads them. */
+export const BUILTIN_LOADER = "fn:crates/nvs-ext/src/";
+
 /** Selects each atom `accept` takes whose footprint holds a key `change` moved. */
 function byKeys(
   store: SelectStore,
@@ -724,12 +730,17 @@ function byKeys(
       anyCard = true;
       continue;
     }
+    if (key === ALL_COMPONENTS) {
+      for (const [k, n] of store.keysWithPrefix("component:")) exact.set(k, n);
+      continue;
+    }
     if (key.startsWith("class:")) anyClass = true;
     if (key.startsWith("card:")) anyCard = true;
+    if (key.startsWith("component:")) lookup(ALL_COMPONENTS);
     lookup(key);
   }
-  // A footprint that read every class, or every card, is under any one of them; one that could not be
-  // attributed at all is under any change.
+  // A footprint that read every class, every card or every component is under any one of them; one
+  // that could not be attributed at all is under any change.
   if (anyClass) lookup(ALL_CLASSES);
   if (anyCard) lookup(ALL_CARDS);
   lookup(WILD);
@@ -738,15 +749,26 @@ function byKeys(
     if (direct) return direct;
     if (key === ALL_CLASSES) return [...change.moved].find(([k]) => k.startsWith("class:"))![1];
     if (key === ALL_CARDS) return [...change.moved].find(([k]) => k.startsWith("card:"))![1];
+    if (key === ALL_COMPONENTS) return [...change.moved].find(([k]) => k.startsWith("component:"))![1];
     if (key === WILD) return change.moved.values().next().value!;
     if (key.startsWith("class:")) return change.moved.get(ALL_CLASSES)!;
     if (key.startsWith("card:")) return change.moved.get(ALL_CARDS)!;
+    if (key.startsWith("component:")) return change.moved.get(ALL_COMPONENTS)!;
     const prefix = key.startsWith("fn:") ? key.slice(0, key.indexOf("#") + 1) : "";
     return change.moved.get(prefix) ?? { path: "", how: "path" };
   };
   for (const [id, keys] of store.atomsUnderIds(exact)) {
     if (!accept(id)) continue;
     for (const key of keys) add(id, "key", { key, origin: originOf(key) });
+  }
+  // A footprint recorded before `component:` keys existed holds none: one that ran the built-in loader
+  // and holds no `builtins:read` is read as holding them all, until its atom is recorded again.
+  const component = [...change.moved].find(([k]) => k.startsWith("component:"));
+  if (component) {
+    const named = store.atomsUnder([BUILTINS_READ]);
+    for (const id of store.atomsUnderIds(store.keysWithPrefix(BUILTIN_LOADER)).keys()) {
+      if (accept(id) && !named.has(id)) add(id, "key", { key: component[0], origin: component[1] });
+    }
   }
   // A footprint holding its package's one `tests:` key is under an added test only when a binary it runs
   // is one the test is compiled into. Which binaries that is: a test atom is one, a caller may know more

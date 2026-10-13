@@ -37,6 +37,8 @@ pack = ["dep:wit-component", "dep:wit-parser"]
 [dependencies]
 # The entry's grants and the caller's capabilities, which `grants` intersects.
 nvs-config = { workspace = true, optional = true }
+# Records which built-in component a run used, for observed selection.
+nvs-footprint.workspace = true
 rand ={ workspace = true, optional = true }
 serde.workspace = true
 serde_json.workspace = true

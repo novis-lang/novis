@@ -3340,6 +3340,7 @@ dependencies = [
  "flate2",
  "hayro-syntax",
  "nvs-config",
+ "nvs-footprint",
  "nvs-image",
  "nvs-repo",
  "nvs-runtime",

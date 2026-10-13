@@ -83,7 +83,9 @@ impl Resolver {
     /// of these names is the declaration refused.
     pub fn declare_extensions(&mut self, classes: &[ExtensionClass]) {
         for class in classes {
-            self.module.symbols.declare_extension(&class.name);
+            self.module
+                .symbols
+                .declare_extension(&class.name, class.component.as_deref());
         }
     }
 

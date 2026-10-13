@@ -12,7 +12,7 @@
 use std::collections::hash_map::Entry;
 
 use nvs_diagnostics::Span;
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_hash::FxHashMap;
 
 use crate::qname::QName;
 
@@ -60,6 +60,10 @@ pub struct ExtensionClass {
     /// under that namespace to the file its path gives it before it probes
     /// any `autoload` root (`rule:packaging/an-extension-package-carries-two-payloads`).
     pub source: Vec<ExtensionFile>,
+    /// The built-in component that declares it, or `None` for an `[[extension]]` entry's class.
+    /// A lookup of the class, and of any name under its namespace, records that component for
+    /// observed selection (`nvs_footprint::component`).
+    pub component: Option<String>,
 }
 
 /// One source file an extension carries.
@@ -92,8 +96,9 @@ pub struct Symbol {
 #[derive(Debug, Default)]
 pub struct SymbolTable {
     by_name: FxHashMap<String, Symbol>,
-    /// The classes the loaded extension set declares, which have no source.
-    extensions: FxHashSet<String>,
+    /// The classes the loaded extension set declares, which have no source, each with the
+    /// built-in component that declares it.
+    extensions: FxHashMap<String, Option<String>>,
 }
 
 impl SymbolTable {
@@ -126,15 +131,18 @@ impl SymbolTable {
 
     /// Records a class a loaded extension declares. Declared before any source
     /// file is collected, so a source declaration of the same name is the one
-    /// refused ([`Self::is_extension`]).
-    pub fn declare_extension(&mut self, qname: &QName) {
-        self.extensions.insert(qname.to_string());
+    /// refused ([`Self::is_extension`]). `component` is the built-in component
+    /// that declares it, if one does.
+    pub fn declare_extension(&mut self, qname: &QName, component: Option<&str>) {
+        self.extensions
+            .insert(qname.to_string(), component.map(str::to_owned));
     }
 
-    /// Whether a loaded extension declares `qname`.
+    /// Whether a loaded extension declares `qname`. A class a built-in
+    /// component declares is a use of that component.
     #[must_use]
     pub fn is_extension(&self, qname: &QName) -> bool {
-        self.extensions.contains(&qname.to_string())
+        self.extension(&qname.to_string())
     }
 
     /// Whether a declaration exists under this fully-qualified name, in source
@@ -142,7 +150,19 @@ impl SymbolTable {
     #[must_use]
     pub fn contains(&self, qname: &QName) -> bool {
         let name = qname.to_string();
-        self.by_name.contains_key(&name) || self.extensions.contains(&name)
+        self.by_name.contains_key(&name) || self.extension(&name)
+    }
+
+    /// Whether a loaded extension declares `name`, recording the built-in
+    /// component that declares it.
+    fn extension(&self, name: &str) -> bool {
+        let Some(component) = self.extensions.get(name) else {
+            return false;
+        };
+        if let Some(component) = component {
+            nvs_footprint::component(component);
+        }
+        true
     }
 
     /// Every declared symbol, in no particular order.
