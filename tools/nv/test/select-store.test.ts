@@ -150,4 +150,36 @@ describe("the select store", () => {
       t.cleanup();
     }
   });
+
+  test("a transaction that reads and then writes is not undone by another store committing between the two", () => {
+    const t = scratch();
+    const file = join(t.root, "select.sqlite");
+    const a = new SelectStore(file, "test-os");
+    const b = new SelectStore(file, "test-os");
+    try {
+      a.recordRun("case:tests/a.nvst", { def: "d", verdict: "green", keys: new Map([["fn:a.rs#f", "x"]]) });
+      // `b` gives up at once instead of waiting, so a lock `a` holds shows as an error here.
+      b.db.exec("PRAGMA busy_timeout = 0");
+      let blocked = false;
+      // `owe` reads the atom, calls this, and then writes. `b` commits a write in between, or finds the
+      // store locked by `a`'s transaction and writes once `a` commits.
+      const n = a.owe(["case:tests/a.nvst"], () => {
+        try {
+          b.setMeta("other", "1");
+        } catch {
+          blocked = true;
+        }
+        return null;
+      });
+      expect(n).toBe(1);
+      expect(blocked).toBe(true);
+      b.setMeta("other", "1");
+      expect(a.atom("case:tests/a.nvst")?.verdict).toBe("owed");
+      expect(a.meta("other")).toBe("1");
+    } finally {
+      a.close();
+      b.close();
+      t.cleanup();
+    }
+  });
 });

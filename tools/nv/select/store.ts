@@ -153,8 +153,10 @@ export class SelectStore {
     this.platform = platform;
     if (file !== ":memory:") mkdirSync(dirname(file), { recursive: true });
     this.db = new Database(file);
-    // A sweep's own process and the `bun nv` processes it starts write the store at once, so a writer
-    // waits for another's transaction rather than failing on it.
+    // Several processes write the store at once: a sweep and the `bun nv` processes it starts, and
+    // agents verifying side by side. A write waits up to a minute for another's transaction to end.
+    // The wait covers a write lock asked for when there is none yet, which is why `transaction` takes
+    // its lock up front.
     this.db.exec("PRAGMA busy_timeout = 60000");
     this.db.exec("PRAGMA journal_mode = WAL");
     this.db.exec("PRAGMA synchronous = NORMAL");
@@ -251,12 +253,15 @@ export class SelectStore {
     }
   }
 
-  /** Runs `body` in one transaction; inside another, as part of that one. `bun:sqlite`'s own
-   * `transaction` keeps statements it never finalizes, so a closed store's file would stay held, and on
-   * Windows could not be deleted, until the process ends. */
+  /** Runs `body` in one write transaction; inside another, as part of that one. `BEGIN IMMEDIATE` takes
+   * the write lock before `body` reads, waiting out the busy timeout for it. A deferred `BEGIN` would
+   * read first, and in WAL mode a read whose snapshot another process's commit made stale cannot become
+   * a write: SQLite fails it at once, without waiting. Every caller writes, so none loses by the lock.
+   * `bun:sqlite`'s own `transaction` keeps statements it never finalizes, so a closed store's file would
+   * stay held, and on Windows could not be deleted, until the process ends. */
   transaction<T>(body: () => T): T {
     if (this.db.inTransaction) return body();
-    this.db.exec("BEGIN");
+    this.db.exec("BEGIN IMMEDIATE");
     try {
       const out = body();
       this.db.exec("COMMIT");
