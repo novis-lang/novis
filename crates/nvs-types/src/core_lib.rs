@@ -445,10 +445,11 @@ fn lower_const(value: &Const) -> ConstArg {
         Const::Str(s) => ConstArg::Str(s.to_owned()),
         Const::Bytes(b) => ConstArg::Bytes(b.to_vec()),
         Const::EmptyArray => ConstArg::EmptyArray,
-        // `rule:enums/no-class-machinery`: the case *is* its integer constant, so what a call
-        // site materializes is that constant — the same value the enum table
-        // hands `nvs-ir` for a written `Core\Arr::Order::Asc`. Resolved here rather
-        // than written into the row so the two cannot disagree.
+        // A `Core` member's enum default is the case's backing integer, the same value the
+        // enum table hands `nvs-ir` for a written `Core\Arr::Order::Asc`. The call site
+        // emits it under the enum type the parameter declares (`nvs_ir::lower::emit_const_arg`),
+        // so the argument is a case. Resolved here rather than written into the row so the
+        // two cannot disagree.
         Const::EnumCase(name, case) => ConstArg::Int(
             nvs_stdlib::registry::core_enum(name)
                 .and_then(|found| {
