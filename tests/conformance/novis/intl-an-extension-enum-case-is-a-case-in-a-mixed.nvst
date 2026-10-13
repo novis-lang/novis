@@ -1,0 +1,24 @@
+--TEST--
+An enum case an extension returns in a list is written as a case, so a callable declaring the enum accepts it, `is` finds its enum, and a case backed by `0` is truthy: rule:enums/representation
+--FILE--
+<?nvs
+// covers: Novis\Intl\Icu::pluralCategories
+use Novis\Intl\Icu;
+use Novis\Intl\PluralRules;
+
+// Arabic has a form for zero. `Zero` is the first case, so its number is `0`.
+array<PluralRules::Category> $categories = Icu::pluralCategories(["0", "1"], "ar", PluralRules::Kind::Cardinal);
+
+// `Core\Arr::map` calls the function, which checks that each element is a `PluralRules::Category`.
+echo Core\Str::join(Core\Arr::map($categories, fn(PluralRules::Category $c): string => $c == PluralRules::Category::Zero ? "Zero" : "One"), " "), "\n";
+
+// A case in a `mixed` is still a case, it is not an `int`, and it is always truthy.
+mixed $zero = $categories[0];
+echo ($zero is PluralRules::Category) ? "a category" : "not a category", "\n";
+echo ($zero is int) ? "an int" : "not an int", "\n";
+echo $zero ? "truthy" : "falsy", "\n";
+--EXPECT--
+Zero One
+a category
+not an int
+truthy

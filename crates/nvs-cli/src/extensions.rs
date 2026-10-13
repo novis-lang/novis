@@ -763,7 +763,10 @@ fn runtime(
                 Value::array(array)
             }
         },
-        Crossed::Case(name) => Value::int(nvs_ext::convert::case_number(ty, &name)?),
+        // A manifest's enum is `int`-backed (`nvs_types::ext_lib`), so a case is written under
+        // `Tag::EnumInt`: in a list, a map or a shape the tag is all a reader has
+        // (`rule:enums/representation`).
+        Crossed::Case(name) => Value::enum_int(nvs_ext::convert::case_number(ty, &name)?),
         Crossed::Core { class, mut fields } => {
             let record = core_record(&class)?;
             let parts = record
@@ -992,6 +995,43 @@ mod tests {
             .expect("a log line is text");
         assert!(output.contains("tile loaded"), "{output}");
         assert!(output.contains("geo"), "{output}");
+    }
+
+    /// An enum case a guest returns is written under `Tag::EnumInt` as a scalar, a list element
+    /// and a keyed-map value, so a reader that checks the tag finds a case, and the first case is
+    /// `0` (`rule:enums/representation`). A shape field is converted by the same arm.
+    #[test]
+    fn a_returned_enum_case_carries_the_enum_tag_in_every_position() {
+        let ctx = Ctx::buffered();
+        let manifest = Manifest::parse(
+            br#"{"manifest": 1, "world": "1.0.0", "class": "Shop\\Plural", "interface": "shop:plural/api"}"#,
+        )
+        .expect("a manifest");
+        let category = NovisType::Enum {
+            name: "Category".to_owned(),
+            cases: vec!["Zero".to_owned(), "One".to_owned()],
+        };
+        let case = |name: &str| Crossed::Case(name.to_owned());
+
+        let scalar = runtime(&ctx, &manifest, &category, case("Zero")).expect("a case");
+        assert_eq!(scalar.exact_tag(), Some(Tag::EnumInt));
+        assert_eq!(scalar.as_int(), Some(0));
+
+        let list = NovisType::List(Box::new(category.clone()));
+        let entries = vec![(Key::Int(0), case("Zero")), (Key::Int(1), case("One"))];
+        let list = runtime(&ctx, &manifest, &list, Crossed::Array(entries)).expect("a list");
+        let list = list.as_array().expect("an array");
+        let element = list.get_index(1).expect("an element");
+        assert_eq!(element.exact_tag(), Some(Tag::EnumInt));
+        assert_eq!(element.as_int(), Some(1));
+
+        let keyed = NovisType::Keyed(Box::new(NovisType::String), Box::new(category));
+        let entries = vec![(Key::String("first".to_owned()), case("Zero"))];
+        let keyed = runtime(&ctx, &manifest, &keyed, Crossed::Array(entries)).expect("a map");
+        let keyed = keyed.as_array().expect("an array");
+        let value = keyed.get(b"first").expect("a value");
+        assert_eq!(value.exact_tag(), Some(Tag::EnumInt));
+        assert_eq!(value.as_int(), Some(0));
     }
 
     /// A guest's outbound request waits until the call polls it, and is then sent under the
