@@ -2179,17 +2179,20 @@ const ARRAY_ELEMENT_TAG_LEVELS: usize = u64::BITS as usize / 4;
 ///   pointer, so a tag proves objecthood and never the label a named-class
 ///   binding then reads at a *fixed offset*. That is
 ///   [`reject_untestable_object_target`]'s type confusion, one container in.
-/// * An **enum** erases to its backing integer, so a tag would admit any
-///   integer as a case — where `rule:types/conversion`'s own `mixed → EnumName` row
-///   throws for a value no case names.
+/// * An **enum** case carries `Tag::EnumInt` or `Tag::EnumUint`, which names
+///   the backing and no enum (`rule:enums/representation`), so a tag would admit
+///   a case of every enum with that backing — where `rule:types/conversion`'s
+///   own `mixed → EnumName` row checks the value against the enum's cases and
+///   throws for one no case names. The help names that row as the fix.
 /// * A **single-value type** or a **union** (`rule:types/single-value-types`'s closed sets,
 ///   `?T`, `int|string`) admits some values of its representation and not
 ///   others, which is again more than a tag says. `mixed` is not in that list
 ///   and is accepted: it is `rule:types/grammar`'s one unchecked position, so an
 ///   element of it is checked by every reader instead.
 ///
-/// What to write instead is in the help, and it is the same shape either way:
-/// `array<mixed>` converts, and each element is converted where it is read.
+/// What to write instead is in the help, and it is the same shape for every
+/// element type: `array<mixed>` converts, and each element is converted where
+/// it is read.
 fn reject_uncheckable_element_type(to: TypeId, span: Span, env: &mut Env<'_>) {
     let Ty::Array(element) = env.interner.get(to) else {
         return;
@@ -2212,18 +2215,33 @@ fn reject_uncheckable_element_type(to: TypeId, span: Span, env: &mut Env<'_>) {
     }
     let described_from = env.interner.describe(to);
     let described_element = env.interner.describe(element);
+    let checked = "`as` checks each element at run time, and that check only sees what kind of \
+                   value the element is.";
+    let help = match env.interner.get(element) {
+        Ty::Enum(_, backing) => {
+            let backing = match backing {
+                crate::enums::EnumBacking::Int => "int",
+                crate::enums::EnumBacking::Uint => "uint",
+            };
+            format!(
+                "{checked} The cases of every enum backed by `{backing}` are the same kind of \
+                 value, so the check cannot tell `{described_element}` from another enum. \
+                 Convert to `array<mixed>`, then use `as {described_element}` on each element \
+                 you read. That checks the element against the cases of `{described_element}`."
+            )
+        }
+        _ => format!(
+            "{checked} That is not enough to show that a value is a `{described_element}`. \
+             Convert to `array<mixed>`, then convert each element where you read it."
+        ),
+    };
     env.diags.report(
         Diagnostic::error(
             code::E_UNTESTABLE_CONVERSION_TARGET,
             format!("`{described_from}` cannot be an `as` target"),
         )
         .with_primary(span, "converted here")
-        .with_help(format!(
-            "`rule:types/conversion`'s `array<T> as array<U>` row checks every element against `U` as it \
-             walks, and what checks one element is its runtime tag — which `{described_element}` \
-             is not decided by: convert to `array<mixed>` and convert each element where it is \
-             read"
-        )),
+        .with_help(help),
     );
 }
 

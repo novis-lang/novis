@@ -1,5 +1,5 @@
 --TEST--
-An `array<U>` conversion target whose `U` no runtime tag decides is refused where it is written, because the element walk compares tags and nothing wider — `rule:types/conversion`, with `rule:types/conversion` and `rule:types/single-value-types` naming two of the types it cannot check
+An `array<U>` conversion target whose `U` no runtime tag decides is refused where it is written, because the element walk compares tags and nothing wider, and an enum's help names the per-element `as` on either backing — `rule:types/conversion`, with `rule:enums/representation` and `rule:types/single-value-types` naming two of the types it cannot check
 --FILE--
 <?nvs
 class Cell {
@@ -11,14 +11,21 @@ enum Rank: int {
     High = 2,
 }
 
+enum Size: uint {
+    Small = 0,
+    Large = 40,
+}
+
 mixed $m = ["a"];
 // A class label is what four bits have no room for, and what a named-class
 // binding then reads at a fixed offset — the same type confusion `$foo as Bar`
 // is refused for, one container in.
 array<Cell> $cells = $m as array<Cell>;
-// An enum erases to its backing integer, so a tag would admit any integer as a
-// case where `rule:types/conversion`'s own row throws for a value no case names.
+// An enum case's tag names its backing and no enum, so a tag would admit a
+// case of every enum with that backing. `as Rank` on one element checks the
+// value against the cases of `Rank`, and the help says so.
 array<Rank> $ranks = $m as array<Rank>;
+array<Size> $sizes = $m as array<Size>;
 // A union admits some values of its representation and not others, which is
 // again more than a tag says. `mixed` is the one that is accepted, because it
 // admits all of them.
@@ -32,9 +39,15 @@ error[E0711]: `array<Cell>` cannot be an `as` target
 %A
 error[E0711]: `array<Rank>` cannot be an `as` target
 %A
+   = help: `as` checks each element at run time, and that check only sees what kind of value the element is. The cases of every enum backed by `int` are the same kind of value, so the check cannot tell `Rank` from another enum. Convert to `array<mixed>`, then use `as Rank` on each element you read. That checks the element against the cases of `Rank`.
+
+error[E0711]: `array<Size>` cannot be an `as` target
+%A
+   = help: `as` checks each element at run time, and that check only sees what kind of value the element is. The cases of every enum backed by `uint` are the same kind of value, so the check cannot tell `Size` from another enum. Convert to `array<mixed>`, then use `as Size` on each element you read. That checks the element against the cases of `Size`.
+
 error[E0711]: `array<string|null>` cannot be an `as` target
 %A
 error[E0711]: `array<array<Cell>>` cannot be an `as` target
 %A
-error: aborting due to 4 errors
+error: aborting due to 5 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.
