@@ -21,7 +21,7 @@ stages:
         shapes: ["A `.nvst` test case"]
   - id: 4
     title: "columns, styles, defaults and sheets"
-    status: open
+    status: done
     extra:
       context:
         rules: [core-api/options-bag]
@@ -544,7 +544,7 @@ One file set: `extensions/spreadsheet/src/write/` (styles, columns, sheet), `ext
   `'money'`, `'percent'` and `'text'`.
 - **The defaults** whenever a sheet has a header row, in `fromRows` and `sheet()` alike: the header
   bold with a thin bottom border, frozen, with an autofilter, and every column `width: 'auto'`. Each
-  can be turned off (`{freeze: false, autofilter: false, headerStyle: null}`).
+  can be turned off (`{freeze: false, autofilter: false, headerStyle: false}`).
 - **Auto width** measures the header and the rows held before the first chunk leaves (the first
   1,000), or every row when `fromRows` is given an array. Width counts characters as displayed
   through Stage 8's renderer, wide East Asian characters as two, capped at 60. No font metrics.
@@ -767,30 +767,29 @@ One file set: `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/n
 
 ### State
 
-**Stage 4's Rust half is done.** `spreadsheet-columns-styles-defaults-and-sheets` is green (`extensions/spreadsheet/tests/write.rs`, 17 tests). `spreadsheet-an-export-is-styled-by-default` is red, because its two `.nvst` cases and the Novis half are not written. The Stage 3 checks are still green.
+**Stage 4 is done.** `spreadsheet-columns-styles-defaults-and-sheets` and `spreadsheet-an-export-is-styled-by-default` are green, and so are the Stage 3 checks.
 
-- The writer (`extensions/spreadsheet/src/writer.rs` module doc) checks a sheet's options in `sheet()` and starts the sheet's zip entry with its first batch, so auto width measures that batch (`src/width.rs`). A row with `header: true` must be the first row. It gets the `Header` layer (bold and a thin bottom border by default), a frozen pane, an autofilter with its `_xlnm._FilterDatabase` name, and auto width for every column the options do not list. It is not counted in `finish()`'s rows. `new_sheet_on_overflow` goes on to `<name> (2)` and repeats the header row. A text past 32,767 characters throws naming the cell. `Styles::layer` turns the nine format shortcuts into codes, and a `Column`'s `format` becomes a layer over its `style`.
-- `wit/spreadsheet.wit` and `manifest.json` carry the new fields: `row.header`, `column.format`, `sheet-options.header` (`header-options`) and `new-sheet-on-overflow`. `Workbook.nvs` sends fixed values for them for now, so nothing in Novis uses them yet.
-- `extensions/spreadsheet/` is the fourth built-in component, with the class `Novis\Spreadsheet\Engine`, and its packed size is 0.35 MiB. The crate is `src/{lib,zip,xml,cells,styles,width,writer}.rs`. It frames the zip by hand with data descriptors, using `miniz_oxide`, `crc32fast`, `itoa` and `ryu`. Strings are written inline. The output is byte-equal for equal input.
-- The manifest has `writerOpen`, `writerStyle`, `writerSheet`, `writerRows`, `writerDefine` and `writerFinish`. `writer-part`, the reader exports and the template exports return a runtime error, and none of them is in the manifest yet. The enums `Line`, `Underline`, `Align`, `Valign` and `Visibility` are at namespace scope with no owner. The roster wants `Reader::Visibility` and the style enums under `Style`, so moving them is Stage 4 or Stage 7 work, and `crates/nvs-cli/tests/meta.rs` changes with them.
-- `wit/spreadsheet.wit`'s `workbook-options` has a `target` field. The guest logs a writer that is dropped unfinished, naming that target (`extensions/spreadsheet/src/writer.rs:87`).
-- The Novis half is `nvs/Workbook.nvs`, `Sheet.nvs` and `Written.nvs`. It has the four targets, `sheet()`, `add` and `addAll` in batches of 1,000, and `finish()`. The write table and the `zone` rule are in `Workbook::cell`. A string goes through `Core\Taint::assertTrusted`, because the guest always escapes it as an inline text cell. `createForFile` uses `Core\IO::open`, because `writeStream` pulls from an iterable. `Core\IO\File::write` now takes `string|bytes`.
+- The writer (`extensions/spreadsheet/src/writer.rs` module doc) checks a sheet's options in `sheet()` and starts the sheet's zip entry with its first batch, so auto width measures that batch (`src/width.rs`). A first row with `header: true` gets the `Header` layer, a frozen pane, an autofilter and auto width for the columns the options do not list.
+- `extensions/spreadsheet/` is the fourth built-in component, class `Novis\Spreadsheet\Engine`, 0.35 MiB packed. The crate is `src/{lib,zip,xml,cells,styles,width,writer}.rs`. The output is byte-equal for equal input.
+- The manifest has `writerOpen`, `writerStyle`, `writerSheet`, `writerRows`, `writerDefine` and `writerFinish`. `writer-part`, the reader exports and the template exports return a runtime error and are not in the manifest. The enums `Line`, `Underline`, `Align`, `Valign` and `Visibility` are still at namespace scope; the roster wants the style enums under `Style` and `Reader::Visibility`.
+- The Novis half is `nvs/Workbook.nvs`, `Sheet.nvs`, `Written.nvs`, `Style.nvs` and `Export.nvs`. `Workbook::sheet` calls `writerSheet($layout, [])` at once, so a bad name throws there and the open sheet goes on; every batch goes through `writerRows`. The columns are the `columns` option's keys, then the first row's other keys (`Workbook::begin`), and a list row is written by position (`Workbook::arrange`). `Style::of` maps the readable fields to the `writerStyle` record and keeps `key` (`Core\Json::encode` of the fields); `Workbook::styleId` asks the engine once per key. `fromRows` returns an `Export` holding a closure, and an array's rows go in one batch (`$whole`).
+- `headerStyle` is `false` to turn the default off, and a `Style` to replace it (`rule:core-classes/spreadsheet-styles-and-defaults`).
 - **A started download cannot be cut off.** The gap is `data/gaps/nvs-server/a-streamed-body-cannot-be-cut-off.json`. The log line stays.
 - The check's two `an_instant_*` tests were replaced by `a_clock_time_is_its_serial_with_the_date_time_format`. The guest never sees an `Instant`, so `spreadsheet-an-instant-with-no-zone-throws.nvst` pins the zone rule.
 
 ### Next
 
-**Stage 4, the Novis half.** Files: `extensions/spreadsheet/nvs/Workbook.nvs`, `Sheet.nvs`, a new `Style.nvs` and `Export.nvs`, `crates/nvs-cli/tests/meta.rs`, and the two `.nvst` cases. The Rust side is done, so no Rust changes are needed.
+**Stage 5, the Rust half: the sheet tail.** Files: `extensions/spreadsheet/src/writer.rs`, `src/lib.rs`, a new `src/tail.rs`, and a new `extensions/spreadsheet/tests/sheet_end.rs` (the check `spreadsheet-the-sheet-end-parts`). Tables, conditional formats, images and the Novis half are the group after.
 
-- [x] **Rust: columns, format shortcuts, the header defaults, auto width, sheet rules, overflow and the cell length.** `extensions/spreadsheet/src/writer.rs:374`, `extensions/spreadsheet/src/writer.rs:464`
-- [ ] **`Style::of`** in a new `nvs/Style.nvs` (`rule:core-classes/spreadsheet-styles-and-defaults`). It maps the readable fields (`'thin'`, `'center'`, `underline: true`) to the `Line`, `Align`, `Valign` and `Underline` enums of the `writerStyle` record, and keeps a key (`Core\Json::encode` of its fields). `Workbook` turns that key into a `writerStyle` id once per workbook. A row's `style` option goes on `RowOptions` in both `Workbook.nvs` and `Sheet.nvs`. Read optional fields as `$fields?->x ?? null` (playbook). `extensions/spreadsheet/manifest.json:22`, `extensions/spreadsheet/nvs/Sheet.nvs:11`
-- [ ] **Columns and the header in `Workbook`**: call `writerSheet($layout, [])` in `sheet()` itself, so a bad name throws there. Send every later batch with `writerRows`. Take column keys from the `columns` option, then from the first row's keys. When the keys are known and `header` is not `false`, put a header row with `header: true` first. A list row is written by position. A later row with a key that has no column throws. Map `width: 'auto'`, `format`, `style`, `hidden`, `freeze`, `autofilter`, `headerStyle` and `overflow: 'newSheet'` into the layout. `extensions/spreadsheet/nvs/Workbook.nvs:74`, `extensions/spreadsheet/nvs/Workbook.nvs:199`, `extensions/spreadsheet/nvs/Workbook.nvs:228`
-- [ ] **`Workbook::fromRows` and `Export`** (`download`, `save`, `to`, `bytes`), then `tests/conformance/novis/spreadsheet-from-rows-styles-its-header.nvst` and `spreadsheet-sheets-are-written-one-after-another.nvst`. When `fromRows` gets an array, all its rows go in the first batch, so auto width measures every row. Add `fromRows`, `Export` and `Style` to `crates/nvs-cli/tests/meta.rs:318`. `rule:core-classes/spreadsheet-roster`
-- [ ] **Decide on `headerStyle: null`.** An options field that is absent and one that is `null` read the same through `?->x ?? null`. So the rule's `headerStyle: null` probably needs to become `headerStyle: false`, which matches `freeze: false` and `autofilter: false`. If it changes, update `docs/rules/core-classes/spreadsheet-styles-and-defaults.md` and both fragments' "Not shipped" lines too. `docs/rules/core-classes/spreadsheet-writes-as-a-stream.md:65`
+- [ ] **`writer-part` keeps each part of the open sheet until `end_sheet`**, which writes them after `</sheetData>` in xlsx's order (`rule:core-classes/spreadsheet-sheet-end-parts`). A part may name any row already written. `extensions/spreadsheet/src/lib.rs:719`, `extensions/spreadsheet/src/writer.rs:716`, `wit/spreadsheet.wit:428`
+- [ ] **Merges, links, notes, validation, groups, print and protection**, with the tests `merges_links_and_notes_point_at_earlier_rows`, `data_validation_writes_every_rule_kind_and_its_messages`, `hidden_rows_columns_and_sheets_and_outline_groups_are_written`, `page_setup_print_titles_and_print_area_are_written` and `protection_defined_names_and_document_properties_are_written`. `wit/spreadsheet.wit:242`, `wit/spreadsheet.wit:409`, `wit/spreadsheet.wit:420`
+- [ ] **Formulas and rich text**: the `Formula` and `Rich` cell values with the recalculate flag in `workbook.xml`, and `a_formula_carries_its_cached_value_and_the_workbook_recalculates_on_open`, `rich_text_in_one_cell_is_written` (`rule:core-classes/spreadsheet-formula-is-a-value`). `extensions/spreadsheet/src/cells.rs:1`
+- [ ] **Add `writerPart` to `extensions/spreadsheet/manifest.json` and its name to `crates/nvs-cli/tests/meta.rs:308`** in the same slice (playbook).
 
 ### Backlog
 
-- Stages 5 and 6: `writer-part` with the sheet-end parts, `writerDefine` reached from Novis, `Formula`, `Cell::of`, and charts. See `docs/goals/spreadsheet.md`.
+- Stages 5 and 6: tables, conditional formats, images, `writerDefine` reached from Novis, `Formula`, `Cell::of`, a column's `formula`, and charts. See `docs/goals/spreadsheet.md`.
+- The style enums under `Style` (`rule:core-classes/spreadsheet-roster`). Moving them changes `crates/nvs-cli/tests/meta.rs:341` too.
 - Stage 7: the `value` range accessor in `wit/nvs-ext/types.wit`, the reader, and `Reader::Visibility` as an owned enum (`rule:core-classes/spreadsheet-reads-as-a-stream`).
 - Stages 8 to 10: the number-format renderer, CSV through the same API, and template fill. A `'csv'` workbook throws for now.
 - Stages 11 to 14: hostile files, 100 MB and the growth, the comparison with Excel's files, and the feature proofs. `website/src/data/core.json` has no spreadsheet entries yet.
