@@ -6,7 +6,7 @@ context: [docs/rules/routing/matching-is-not-dispatching.md, docs/rules/routing/
 stages:
   - id: 1
     title: the rules
-    status: open
+    status: done
     context: [docs/rules/routing/the-servers-match-dispatches-nothing.md, docs/rules/security/access-is-checked-for-presence-not-meaning.md, docs/rules/security/csrf-is-on-by-default.md, docs/rules/programs/framework-web-package.md, docs/rules/testing/in-process-request.md]
     extra:
       context:
@@ -221,14 +221,14 @@ after it. Every page and comment this goal writes follows AGENTS.md § *Text an 
 
 **Does:** the rulebook states the design above before any code follows it.
 
-- [ ] Rewrite the dispatch decline as dispatch through a gate (`docs/rules/routing/matching-is-not-dispatching.md:1`)
-- [ ] Keep the match not invocable, and drop its "the ergonomic cost is paid by the framework" paragraph (`docs/rules/routing/a-match-is-not-invocable.md:28`)
-- [ ] The server still calls nothing, and the program calls `dispatch` (`docs/rules/routing/the-servers-match-dispatches-nothing.md:1`)
-- [ ] `dispatch` is the dispatch site the limit paragraph says is missing (`docs/rules/security/access-is-checked-for-presence-not-meaning.md:24`)
-- [ ] The refusal reaches a dispatching program's gate (`docs/rules/security/csrf-is-on-by-default.md:1`)
-- [ ] `Web\Controller` no longer owns dispatch (`docs/rules/programs/framework-web-package.md:7`)
-- [ ] A failing program answers through `failed` (`docs/rules/testing/in-process-request.md:26`)
-- [ ] A new fragment for the gate, `Refusal` and refusal mode (`docs/rules/routing/a-gate-answers-around-every-handler.md:1`)
+- [x] Rewrite the dispatch decline as dispatch through a gate (`docs/rules/routing/matching-is-not-dispatching.md:1`)
+- [x] Keep the match not invocable, and drop its "the ergonomic cost is paid by the framework" paragraph (`docs/rules/routing/a-match-is-not-invocable.md:28`)
+- [x] The server still calls nothing, and the program calls `dispatch` (`docs/rules/routing/the-servers-match-dispatches-nothing.md:1`)
+- [x] `dispatch` is the dispatch site the limit paragraph says is missing (`docs/rules/security/access-is-checked-for-presence-not-meaning.md:24`)
+- [x] The refusal reaches a dispatching program's gate (`docs/rules/security/csrf-is-on-by-default.md:1`)
+- [x] `Web\Controller` no longer owns dispatch (`docs/rules/programs/framework-web-package.md:7`)
+- [x] A failing program answers through `failed` (`docs/rules/testing/in-process-request.md:26`)
+- [x] A new fragment for the gate, `Refusal` and refusal mode (`docs/rules/routing/a-gate-answers-around-every-handler.md:1`)
 
 ### 2. `Core\Router::dispatch` and the gate, for what the program decides
 
@@ -300,18 +300,24 @@ refusal mode, and never a handler.
 
 ### State
 
-Nothing is built and no rule has changed. The design is in § *Standing decisions*. Both example
-apps still dispatch by hand (`apps/notes/src/App.nvs:16`, `apps/paperwork/src/App.nvs:16`).
+Stage 1 is done: `rule:routing/a-gate-answers-around-every-handler` states the design as a `designed`
+rule owned by this goal, and the shipped routing, security, testing and tooling fragments point at it.
+No code is built. When stage 2 ships `dispatch`, that rule's `status` turns `shipped`, its `goal` key
+goes, and its `guardedBy` lists the three `dispatch-cases` conformance cases. Both example apps still
+dispatch by hand (`apps/notes/src/App.nvs:16`, `apps/paperwork/src/App.nvs:16`).
 
 ### Next
 
-Stage 1, then stage 2, over the routing rules and the route table:
+Stage 2, over the route table and the router registry (`rule:routing/a-gate-answers-around-every-handler`):
 
-- [ ] Rewrite the routing and security fragments stage 1 lists, and write the new gate fragment (`docs/rules/routing/matching-is-not-dispatching.md:1`)
-- [ ] `Core\Router::dispatch`, `Gate` and `Refusal` in the registry, and the generated jump (`crates/nvs-stdlib/src/router.rs:207`, `crates/nvs-types/src/routes.rs:613`)
+- [ ] `Core\Router::dispatch`, the `Core\Router\Gate` interface and the `Core\Router\Refusal` enum, with reference cards (`crates/nvs-stdlib/src/router.rs:217`)
+- [ ] The generated jump indexed by the matched row, and the unit's "dispatches" mark found as links are (`crates/nvs-types/src/routes.rs:613`, `crates/nvs-types/src/links.rs:146`)
+- [ ] The `void` and no-argument-constructor handler errors at the `#[Route]` (`crates/nvs-types/src/routes.rs:659`)
+- [ ] The three `dispatch-cases` conformance cases (`tests/conformance/core/router-dispatch-calls-the-matched-method.nvst:1`)
 
 ### Backlog
 
 - Static error pages from the configuration for the capacity `503`, the drain `503` and a path no mount covers: a later goal (`crates/nvs-server/src/serve.rs:1499`).
 - The CSRF token from a form field, since the door reads only `X-CSRF-Token` and a plain form cannot send it: a later goal (`crates/nvs-server/src/route.rs:128`).
 - Constructor injection for handler classes: not decided (`docs/rules/routing/a-match-is-not-invocable.md:21`).
+- Whether the generated jump binds `#[Query]` parameters and answers their `400`: not decided, M16 owns it today (`docs/rules/routing/a-bad-query-value-is-a-400.md:20`).
