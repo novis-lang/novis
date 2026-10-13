@@ -1,11 +1,15 @@
 {
   "title": "Existing PDFs are placed, merged and read in `Novis\\Pdf`, and an encrypted source throws",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "core-classes/pdf-page-is-an-image-source",
     "core-classes/pdf-decode-refusals",
     "core-classes/pdf-factur-x-is-the-one-attachment"
   ],
-  "guardedBy": [],
-  "goal": "pdf"
+  "guardedBy": [
+    "crates/nvs-ext/tests/pdf_read.rs",
+    "extensions/pdf/tests/read.rs",
+    "tests/conformance/novis/pdf-merge-takes-chosen-pages.nvst",
+    "tests/conformance/novis/pdf-reader-returns-an-invoice-xml-and-text.nvst"
+  ]
 }

@@ -1,6 +1,6 @@
 {
   "title": "An encrypted document and a detectable omission both throw, and reading and merging are `Novis\\Pdf`'s",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "core-classes/pdf-page-is-an-image-source",
     "core-classes/pdf-reader-and-merge",
@@ -8,6 +8,5 @@
   ],
   "guardedBy": [
     "crates/nvs-ext/tests/image_decode.rs"
-  ],
-  "goal": "pdf"
+  ]
 }

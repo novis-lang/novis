@@ -1,6 +1,6 @@
 {
   "title": "The CSS subset is `extensions/pdf/subset.json`, a table a test reads and the editor's data is generated from",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "core-classes/pdf-css-subset",
     "core-classes/pdf-tables-across-pages",
@@ -9,6 +9,5 @@
   "guardedBy": [
     "extensions/pdf/tests/css.rs",
     "editors/vscode/test/contributions/contributions.test.ts"
-  ],
-  "goal": "pdf"
+  ]
 }

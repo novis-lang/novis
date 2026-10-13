@@ -3,7 +3,7 @@
 
 # The Core classes
 
-*21 of 108 rules below are **designed** rather than shipped, and are marked where they appear.*
+*9 of 108 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="core-classes-cli-arguments"></a>
 
@@ -3600,7 +3600,7 @@ for each in a linked stylesheet, its `url()`s and an SVG `<image>` or `<use>`.
 
 <a id="core-classes-pdf-roster"></a>
 
-## `Novis\Pdf` is `Document`, `Page`, `Rendered`, `Pages` and `Reader`, with `Engine` the manifest class  *(designed — owned by goal pdf)*
+## `Novis\Pdf` is `Document`, `Page`, `Rendered`, `Pages` and `Reader`, with `Engine` the manifest class
 
 `rule:core-classes/pdf-roster`
 
@@ -3660,7 +3660,7 @@ The request's memory cap and deadline end a render that exceeds them as they end
 
 <a id="core-classes-pdf-one-engine"></a>
 
-## The only input language is HTML plus a CSS subset, and one engine of our own over Rust crates renders it  *(designed — owned by goal pdf)*
+## The only input language is HTML plus a CSS subset, and one engine of our own over Rust crates renders it
 
 `rule:core-classes/pdf-one-engine`
 
@@ -3694,12 +3694,11 @@ wholesale and must still meet them.
   milliseconds for an invoice and seconds for a long report, so a bulk or slow render belongs in the
   queue.
 
-**Partly on disk.** `extensions/pdf/` parses with the patched `html5ever` under the same cap,
+**On disk.** `extensions/pdf/` parses with the patched `html5ever` under the same cap,
 computes styles with its cascade over `cssparser` and `selectors`, shapes with `parley`, hyphenates
 with `hypher`, lays out flex and grid with `taffy`, draws inline SVG with `usvg` and `krilla-svg`,
-and writes with `krilla` (`extensions/pdf/Cargo.toml`). Its pagination is the `pdf` goal's Stage 9,
-under way in `extensions/pdf/src/paginate/mod.rs`. `hayro` is not in it: placing an existing PDF's
-page is the goal's Stage 13.
+places existing pages through `krilla`'s `pdf` feature and reads them with `hayro-interpret`, and
+writes with `krilla` (`extensions/pdf/Cargo.toml`). Pagination is `extensions/pdf/src/paginate/`.
 
 **Declined:**
 - **A Novis-side document builder** that appends headings, tables and page breaks and emits HTML. It
@@ -3720,7 +3719,7 @@ page is the goal's Stage 13.
 
 <a id="core-classes-pdf-css-subset"></a>
 
-## The render result lists every declaration and element it dropped, every missing glyph and every overflow  *(designed — owned by goal pdf)*
+## The render result lists every declaration and element it dropped, every missing glyph and every overflow
 
 `rule:core-classes/pdf-css-subset`
 
@@ -3749,13 +3748,12 @@ correct apart from them and a throw would lose the whole file over one character
 The component's fixtures owe a fixture using an unsupported property that renders with that property
 in the dropped list, and a clean fixture whose three lists are empty.
 
-**Partly on disk.** `extensions/pdf/src/css/` is the cascade, and `Rendered::dropped` lists what it
+**On disk.** `extensions/pdf/src/css/` is the cascade, and `Rendered::dropped` lists what it
 drops with its selector and position, and each element the subset does not render as `<name>` at its
 start tag, and `Rendered::missingGlyphs` lists each character no font has
-(`extensions/pdf/tests/layout.rs`). `extensions/pdf/src/layout.rs` lays out block, inline, flex,
-grid, floated and positioned boxes from the computed styles. Tables are the `pdf` goal's Stage 11,
-and `Rendered::overflows` is always empty until its Stage 10 writes the header and footer functions
-(`extensions/pdf/src/lib.rs:237`).
+(`extensions/pdf/tests/layout.rs`). `Rendered::overflows` lists margin, header, footer and slot
+markup taller than its area (`crates/nvs-ext/tests/pdf.rs`). What the layout does not do yet is in
+the module docs of `extensions/pdf/src/layout.rs` and the files under `extensions/pdf/src/layout/`.
 
 **Declined:**
 - **A strict mode that throws on the first dropped declaration.** A test asserting `dropped` is empty
@@ -3765,7 +3763,7 @@ and `Rendered::overflows` is always empty until its Stage 10 writes the header a
 
 <a id="core-classes-pdf-css-subset-table"></a>
 
-## The CSS subset is `extensions/pdf/subset.json`, a table a test reads and the editor's data is generated from  *(designed — owned by goal pdf)*
+## The CSS subset is `extensions/pdf/subset.json`, a table a test reads and the editor's data is generated from
 
 `rule:core-classes/pdf-css-subset-table`
 
@@ -3817,8 +3815,8 @@ for a function, and VS Code's CSS linter does not mark an unknown one.
 equal to the properties `extensions/pdf/src/css/properties.rs` parses.
 `editors/vscode/scripts/customData.ts` makes the editor's two files from it, `bun nv
 pdf-custom-data` writes them under `editors/vscode/data/`, `editors/vscode/package.json` contributes
-them, and the contributions suite fails when either differs from what the generator makes. The
-hovers link no reference page yet.
+them, and the contributions suite fails when either differs from what the generator makes. Every
+hover links the `Novis\Pdf\Document` reference page.
 
 **Declined:**
 - **The subset as prose only.** A list nothing reads drifts from what the engine parses, and the
@@ -3828,7 +3826,7 @@ hovers link no reference page yet.
 
 <a id="core-classes-pdf-tables-across-pages"></a>
 
-## A table across pages keeps its columns, repeats its header and footer, never cuts a line and closes its borders  *(designed — owned by goal pdf)*
+## A table across pages keeps its columns, repeats its header and footer, never cuts a line and closes its borders
 
 `rule:core-classes/pdf-tables-across-pages`
 
@@ -3873,7 +3871,7 @@ page it is drawn on.
 
 <a id="core-classes-pdf-header-is-a-page-function"></a>
 
-## A header, a footer or a slot is a Novis function called once per page, placed by a second call that never moves the body  *(designed — owned by goal pdf)*
+## A header, a footer or a slot is a Novis function called once per page, placed by a second call that never moves the body
 
 `rule:core-classes/pdf-header-is-a-page-function`
 
@@ -3905,7 +3903,7 @@ rounds through a float.
   request's cap, and drops it with the instance. Novis holds one `Page` per page and the markup the
   functions return.
 
-**Partly on disk.** The CSS half is `extensions/pdf/src/layout/margin.rs`, and the two passes are
+**On disk.** The CSS half is `extensions/pdf/src/layout/margin.rs`, and the two passes are
 `first` and `second` in `extensions/pdf/src/lib.rs`, called by `Document::render` in
 `extensions/pdf/nvs/Document.nvs`. A function's `height` is an `@page` rule after the document's
 own, so a `:first`, `:left`, `:right`, `:blank` or named-page rule's margin on that side still wins
@@ -3924,7 +3922,7 @@ content box.
 
 <a id="core-classes-pdf-output-is-inert"></a>
 
-## The writer emits nothing a reader would execute, the invoice XML is its one attachment, and equal input gives byte-equal output  *(designed — owned by goal pdf)*
+## The writer emits nothing a reader would execute, the invoice XML is its one attachment, and equal input gives byte-equal output
 
 `rule:core-classes/pdf-output-is-inert`
 
@@ -3950,10 +3948,11 @@ The component's fixtures owe a scanner over the output of the whole fixture corp
 `/JavaScript`, `/Launch` or `/OpenAction` object and no `/EmbeddedFile` outside the Factur-X fixtures,
 and the same input rendered twice and compared byte for byte, encrypted output among it.
 
-**Partly on disk.** `extensions/pdf/src/write.rs` writes through `krilla` with no creation time
-unless one is passed, and `krilla`'s document id hashes the content. `crates/nvs-ext/tests/pdf.rs`
-compares two renders byte for byte and scans the output for the names above. Links are not written
-yet, and are the `pdf` goal's Stage 9. Encryption and the Factur-X attachment are its Stage 12.
+**On disk.** `extensions/pdf/src/write.rs` writes through `krilla` with no creation time
+unless one is passed, and `krilla`'s document id hashes the content. Each link is a URI or an
+internal annotation the source wrote. `crates/nvs-ext/tests/pdf.rs` compares two renders byte for
+byte and scans the output for the names above, and `crates/nvs-ext/tests/pdf_standards.rs` holds the
+Factur-X file to its one attachment and two encrypted renders to byte equality.
 
 **Declined:**
 - **Any attachment besides the invoice XML.** A program that needs to send several files sends them
@@ -3965,7 +3964,7 @@ yet, and are the `pdf` goal's Stage 9. Encryption and the Factur-X attachment ar
 
 <a id="core-classes-pdf-standards-and-passwords"></a>
 
-## Every PDF is tagged, a chosen PDF/A or PDF/UA standard is validated, and a password encrypts with AES-256 alone  *(designed — owned by goal pdf)*
+## Every PDF is tagged, a chosen PDF/A or PDF/UA standard is validated, and a password encrypts with AES-256 alone
 
 `rule:core-classes/pdf-standards-and-passwords`
 
@@ -4013,7 +4012,7 @@ file with `hayro-syntax`.
 
 <a id="core-classes-pdf-factur-x-is-the-one-attachment"></a>
 
-## A Factur-X XML under PDF/A-3b is the one attachment a rendered PDF carries  *(designed — owned by goal pdf)*
+## A Factur-X XML under PDF/A-3b is the one attachment a rendered PDF carries
 
 `rule:core-classes/pdf-factur-x-is-the-one-attachment`
 
@@ -4052,7 +4051,7 @@ the XMP fields, and its module doc says how.
 
 <a id="core-classes-pdf-reader-and-merge"></a>
 
-## Existing PDFs are placed, merged and read in `Novis\Pdf`, and an encrypted source throws  *(designed — owned by goal pdf)*
+## Existing PDFs are placed, merged and read in `Novis\Pdf`, and an encrypted source throws
 
 `rule:core-classes/pdf-reader-and-merge`
 
@@ -4146,7 +4145,7 @@ the chain, the subsetting and the missing-glyph list.
 
 <a id="core-classes-pdf-page-is-an-image-source"></a>
 
-## A PDF page is a decode-only format of the image component: one page per `open`, priced by the pixel cap  *(designed — owned by goal pdf)*
+## A PDF page is a decode-only format of the image component: one page per `open`, priced by the pixel cap
 
 `rule:core-classes/pdf-page-is-an-image-source`
 
@@ -4215,7 +4214,7 @@ edges of its glyphs, and the image page's byte for byte (`crates/nvs-ext/tests/i
 
 <a id="core-classes-pdf-decode-refusals"></a>
 
-## An encrypted document and a detectable omission both throw, and reading and merging are `Novis\Pdf`'s  *(designed — owned by goal pdf)*
+## An encrypted document and a detectable omission both throw, and reading and merging are `Novis\Pdf`'s
 
 `rule:core-classes/pdf-decode-refusals`
 
@@ -4252,11 +4251,11 @@ An encrypted document is opened with a password nobody sets, so one whose user p
 refused too. A font in an encoding `hayro` cannot draw, and an image that does not decode, throw
 `RuntimeError` naming the page.
 
-**Partly on disk.** `extensions/image/src/pdf.rs` throws `ParseError` for an encrypted document, and
-the bomb corpus ends in a throw, a contained trap or a whole page
-(`crates/nvs-ext/tests/image_decode.rs`). Two fixtures are not written: one carrying an external
-reference, a JavaScript action and an embedded file, and one for each object that throws. The `pdf`
-goal owes both.
+**On disk.** `extensions/image/src/pdf.rs` throws `ParseError` for an encrypted document and
+`RuntimeError` for an image that does not decode, a page carrying a link, a JavaScript and a launch
+action and an embedded file is drawn from its content alone, and the bomb corpus ends in a throw, a
+contained trap or a whole page (`crates/nvs-ext/tests/image_decode.rs`). The throw for a font
+`hayro` cannot draw has no fixture yet.
 
 <sub>See also [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source), [`core-classes/pdf-reader-and-merge`](core-classes.md#core-classes-pdf-reader-and-merge), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused).</sub>
 

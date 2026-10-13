@@ -28,12 +28,11 @@ wholesale and must still meet them.
   milliseconds for an invoice and seconds for a long report, so a bulk or slow render belongs in the
   queue.
 
-**Partly on disk.** `extensions/pdf/` parses with the patched `html5ever` under the same cap,
+**On disk.** `extensions/pdf/` parses with the patched `html5ever` under the same cap,
 computes styles with its cascade over `cssparser` and `selectors`, shapes with `parley`, hyphenates
 with `hypher`, lays out flex and grid with `taffy`, draws inline SVG with `usvg` and `krilla-svg`,
-and writes with `krilla` (`extensions/pdf/Cargo.toml`). Its pagination is the `pdf` goal's Stage 9,
-under way in `extensions/pdf/src/paginate/mod.rs`. `hayro` is not in it: placing an existing PDF's
-page is the goal's Stage 13.
+places existing pages through `krilla`'s `pdf` feature and reads them with `hayro-interpret`, and
+writes with `krilla` (`extensions/pdf/Cargo.toml`). Pagination is `extensions/pdf/src/paginate/`.
 
 **Declined:**
 - **A Novis-side document builder** that appends headings, tables and page breaks and emits HTML. It

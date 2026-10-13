@@ -1,6 +1,6 @@
 {
   "title": "`Novis\\Pdf` is `Document`, `Page`, `Rendered`, `Pages` and `Reader`, with `Engine` the manifest class",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "core-classes/pdf-render-has-no-io",
     "core-classes/pdf-header-is-a-page-function",
@@ -9,6 +9,5 @@
   ],
   "guardedBy": [
     "tests/conformance/novis/pdf-renders-with-no-configuration.nvst"
-  ],
-  "goal": "pdf"
+  ]
 }

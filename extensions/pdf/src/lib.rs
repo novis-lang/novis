@@ -37,6 +37,44 @@
 //! and `crates/nvs-ext/tests/builtin.rs` fails when this figure drifts past 5% of the bytes the
 //! binary carries. The 12 Liberation fonts under `extensions/fonts/` are 4.3 MiB of it, a copy
 //! of their own beside the image component's.
+//!
+//! **Not done yet.** The table gaps are in `layout::table`'s module doc, and these are the rest:
+//!
+//! - A `Document::render` inside a header, footer or slot function replaces the outer render's
+//!   [`Kept`], so the outer second pass returns `invalid` ("the second pass needs a first pass in
+//!   the same request"), pinned in `tests/hostile/novis/Pdf-Document/header/`.
+//! - Tables nested 2000 deep and an invoice XML nested 1000 deep exhaust the call stack, and a
+//!   2-million-character word, 100,000 nested `div`s, a 64 MB deflate stream, a 64 MB attachment
+//!   and a page of a million `q` operators reach the component's own memory limit below the
+//!   request's cap. Each is pinned with `ends-early` under `tests/hostile/novis/Pdf-*`.
+//! - `merge` costs about 64 ms and 4.4 MB for three small pages, `Reader::text` sends the whole
+//!   file across on every call, and `Page::string` lowercases the name it is given and not the
+//!   stored ones (`nvs/Page.nvs`).
+//! - Pagination (`layout::margin`, `layout::inline`, `layout::text`): a `:left` or `:right` page
+//!   of another width than the first page of its name keeps that page's line widths, a margin
+//!   box's counter other than `page` and `pages` is 0, a running element or `string-set` inside an
+//!   inline-block, float or flex item counts as on the first page, and `element()`'s `start` and
+//!   `first-except` read as `first`. An `id` inside an inline-block, float, flex item, table cell
+//!   or running element is on no page, and `target-counter()` reads only `page`.
+//!   `break-inside: avoid` keeps only block boxes, and `break-after: avoid` and
+//!   `break-before: avoid` do nothing.
+//! - Writing (`write`): a link inside a transformed box keeps its untransformed box, and a heading
+//!   inside an inline-block, float, flex item or table cell has no bookmark.
+//! - Layout (`layout`, `layout::block`, `layout::grid`, `layout::flex`, `layout::boxes`): an
+//!   absolute box without a `width` is not stretched by `left` with `right`, a transformed box is
+//!   not a containing block, a float in the middle of a paragraph is placed at its top and does
+//!   not go on to the next page, the `grid-template` and `grid` shorthands are not read, `::before`,
+//!   `::after` and `<br>` are not flex items, flex has no baseline alignment and no `margin: auto`
+//!   on an item, and elliptical radii and repeating gradients are not drawn.
+//! - Text (`fonts`, `layout::inline`): `hyphenate-character` is not in `subset.json`, an inline box
+//!   in a right-to-left line is placed left to right, and an SVG `font-family` of Arial, Helvetica
+//!   or Courier falls back to Liberation Serif, where HTML maps each to its Liberation face.
+//! - Passwords (`encrypt`): only `hayro-syntax` reads the encrypted file back, so the user password
+//!   path and `/Perms` are not checked by a second reader. `hayro`'s `embed-cmaps` is off, and no
+//!   veraPDF run checks the standards in CI.
+//! - `cargo clippy --manifest-path extensions/pdf/Cargo.toml --all-targets` warns of
+//!   `large_enum_variant` on `layout::Block` and `inline::Step`, and of five small lints in
+//!   `css/value.rs` and `css/mod.rs`.
 
 pub mod assets;
 pub mod css;

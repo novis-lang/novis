@@ -1,11 +1,13 @@
 {
   "title": "A Factur-X XML under PDF/A-3b is the one attachment a rendered PDF carries",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "core-classes/pdf-output-is-inert",
     "core-classes/pdf-standards-and-passwords",
     "core-classes/pdf-reader-and-merge"
   ],
-  "guardedBy": [],
-  "goal": "pdf"
+  "guardedBy": [
+    "crates/nvs-ext/tests/pdf_standards.rs",
+    "tests/conformance/novis/pdf-an-e-invoice-renders-as-pdf-a-3b.nvst"
+  ]
 }

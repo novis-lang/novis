@@ -1,6 +1,6 @@
 {
   "title": "The writer emits nothing a reader would execute, the invoice XML is its one attachment, and equal input gives byte-equal output",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "core-classes/pdf-render-has-no-io",
     "core-classes/html-sanitize",
@@ -10,7 +10,7 @@
   ],
   "guardedBy": [
     "crates/nvs-ext/tests/pdf.rs",
-    "extensions/pdf/tests/render.rs"
-  ],
-  "goal": "pdf"
+    "extensions/pdf/tests/render.rs",
+    "crates/nvs-ext/tests/pdf_standards.rs"
+  ]
 }

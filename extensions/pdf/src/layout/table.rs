@@ -59,6 +59,12 @@
 //! together when they fit on a page and not under the last row, and split between rows when
 //! they do not fit on a page.
 //!
+//! **Not done yet.** A `rowspan` piece taller than a page is placed whole. A table without a
+//! `width` fills its containing block. A cell's `vertical-align` is always `top`. A row's and a
+//! group's own background and borders are not drawn. A `data-mark` or `string-set` inside a cell
+//! counts as on the first page. A `display: table` element directly in a row is a cell whose
+//! rows are block boxes.
+//!
 //! Cost: each cell is laid out once at each of its two content widths, once at its column
 //! width and once more when its row is taller or taller than a page. A repeated row's items are
 //! copied on each page.

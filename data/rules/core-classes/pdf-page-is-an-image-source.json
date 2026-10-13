@@ -1,6 +1,6 @@
 {
   "title": "A PDF page is a decode-only format of the image component: one page per `open`, priced by the pixel cap",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "core-classes/image-pixel-cap",
     "core-classes/image-format-roster",
@@ -10,6 +10,5 @@
   "guardedBy": [
     "crates/nvs-ext/tests/image_decode.rs",
     "tests/conformance/novis/image-a-pdf-page-opens-as-an-image.nvst"
-  ],
-  "goal": "pdf"
+  ]
 }

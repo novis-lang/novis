@@ -1,6 +1,6 @@
 {
   "title": "The only input language is HTML plus a CSS subset, and one engine of our own over Rust crates renders it",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "core-classes/pdf-render-has-no-io",
     "core-classes/pdf-css-subset",
@@ -8,7 +8,7 @@
     "core-classes/html-template"
   ],
   "guardedBy": [
-    "crates/nvs-ext/tests/pdf.rs"
-  ],
-  "goal": "pdf"
+    "crates/nvs-ext/tests/pdf.rs",
+    "extensions/pdf/tests/paginate.rs"
+  ]
 }

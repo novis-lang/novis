@@ -26,7 +26,7 @@ rounds through a float.
   request's cap, and drops it with the instance. Novis holds one `Page` per page and the markup the
   functions return.
 
-**Partly on disk.** The CSS half is `extensions/pdf/src/layout/margin.rs`, and the two passes are
+**On disk.** The CSS half is `extensions/pdf/src/layout/margin.rs`, and the two passes are
 `first` and `second` in `extensions/pdf/src/lib.rs`, called by `Document::render` in
 `extensions/pdf/nvs/Document.nvs`. A function's `height` is an `@page` rule after the document's
 own, so a `:first`, `:left`, `:right`, `:blank` or named-page rule's margin on that side still wins

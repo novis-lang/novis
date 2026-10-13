@@ -1,6 +1,6 @@
 {
   "title": "The render result lists every declaration and element it dropped, every missing glyph and every overflow",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "core-classes/pdf-css-subset-table",
     "core-classes/pdf-one-engine",
@@ -8,7 +8,7 @@
   ],
   "guardedBy": [
     "extensions/pdf/tests/css.rs",
-    "extensions/pdf/tests/layout.rs"
-  ],
-  "goal": "pdf"
+    "extensions/pdf/tests/layout.rs",
+    "tests/conformance/novis/pdf-a-render-result-lists-what-it-could-not-draw.nvst"
+  ]
 }

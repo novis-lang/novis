@@ -46,8 +46,8 @@ for a function, and VS Code's CSS linter does not mark an unknown one.
 equal to the properties `extensions/pdf/src/css/properties.rs` parses.
 `editors/vscode/scripts/customData.ts` makes the editor's two files from it, `bun nv
 pdf-custom-data` writes them under `editors/vscode/data/`, `editors/vscode/package.json` contributes
-them, and the contributions suite fails when either differs from what the generator makes. The
-hovers link no reference page yet.
+them, and the contributions suite fails when either differs from what the generator makes. Every
+hover links the `Novis\Pdf\Document` reference page.
 
 **Declined:**
 - **The subset as prose only.** A list nothing reads drifts from what the engine parses, and the
