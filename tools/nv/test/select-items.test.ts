@@ -340,12 +340,21 @@ describe("the item diff and the reference-graph walk", () => {
     expect([...rowClasses([row("1", "A"), row("2", "B")], [row("2", "B"), row("1", "A")])].sort()).toEqual(["A", "B"]);
   });
 
-  /** The keys an edit of `owner` moves over a workspace of one package `w`, which names
-   * `extensions/linked` as a path dependency, with the built-in components `sheet` and `linked`. */
-  function reachedFromOutside(owner: string): string[] {
-    const graph: Graph = new Map([["w", { name: "w", dir: "crates/w", deps: new Map(), linked: ["extensions/linked"], targets: [{ kind: "lib", name: "w", src: "crates/w/src/lib.rs", test: true }] }]]);
+  /** The keys an edit of `owner` moves over a workspace of `w`, which links the crate `img` at
+   * `extensions/image` as a path dependency of kind `link`, and `u`, which depends on `w`, with the
+   * built-in components `sheet` and `image`. */
+  function reachedFromOutside(owner: string, link: "normal" | "dev" = "dev"): string[] {
+    const lib = (name: string) => ({ kind: "lib", name, src: `crates/${name}/src/lib.rs`, test: true });
+    const graph: Graph = new Map([
+      ["w", { name: "w", dir: "crates/w", deps: new Map(), linked: [{ name: "img", dir: "extensions/image", kind: link }], targets: [lib("w"), { kind: "test", name: "guest", src: "crates/w/tests/guest.rs", test: true }] }],
+      ["u", { name: "u", dir: "crates/u", deps: new Map([["w", "normal" as const]]), targets: [lib("u")] }],
+    ]);
     const files = {
-      "crates/w/src/net.rs": "pub fn accept(s: Stream) -> u8 { 0 }\n",
+      "crates/w/src/net.rs": "pub fn accept(s: img::Stream) -> u8 { 0 }\n",
+      "crates/w/tests/guest.rs": "use img::Stream;\n#[test]\nfn decodes() { let _: Option<Stream> = None; }\n",
+      "crates/w/tests/own.rs": "struct Stream;\n#[test]\nfn own() { let _: Option<Stream> = None; }\n",
+      "crates/u/src/lib.rs": "pub fn far(s: img::Stream) -> u8 { 0 }\n",
+      "extensions/image/src/read.rs": "pub fn read(s: Stream) -> u8 { 0 }\n",
       "extensions/sheet/src/read.rs": "pub fn read(s: Stream) -> u8 { 0 }\n",
     };
     for (const [f, text] of Object.entries(files)) tree.put(f, text);
@@ -355,20 +364,38 @@ describe("the item diff and the reference-graph walk", () => {
     tree.put(owner, "pub struct Stream { pub a: u16 }\n");
     const head = scanned(all);
     const d = diffFile(base.get(owner)!, head.get(owner)!);
-    return [...referenceWalk(d.changes, new Universe(head, graphScope(graph, new Set(["sheet", "linked"])))).keys()];
+    return [...referenceWalk(d.changes, new Universe(head, graphScope(graph, new Set(["sheet", "image"])))).keys()];
   }
 
   test("an item of a component's crate no build compiles reaches its own crate and no workspace item", () => {
     const moved = reachedFromOutside("extensions/sheet/src/cfb.rs");
     expect(moved).toContain("fn:extensions/sheet/src/read.rs#read");
     expect(moved).not.toContain("fn:crates/w/src/net.rs#accept");
+    expect(moved).not.toContain("fn:crates/w/tests/guest.rs#decodes");
   });
 
-  test("an item of vendored code, or of a component's crate a package links, still reaches every item that names it", () => {
-    for (const owner of ["vendor/parser/src/lib.rs", "extensions/linked/src/lib.rs"]) {
-      const moved = reachedFromOutside(owner);
-      expect(moved).toContain("fn:crates/w/src/net.rs#accept");
-      expect(moved).toContain("fn:extensions/sheet/src/read.rs#read");
+  test("an item of a crate a member links as a dev-dependency reaches that member's test code that names it, and nothing else outside its crate", () => {
+    const moved = reachedFromOutside("extensions/image/src/lib.rs");
+    expect(moved).toContain("fn:extensions/image/src/read.rs#read");
+    expect(moved).toContain("fn:crates/w/tests/guest.rs#decodes");
+    // Test code with a `Stream` of its own, shipped code of the member, and another package.
+    expect(moved).not.toContain("fn:crates/w/tests/own.rs#own");
+    expect(moved).not.toContain("fn:crates/w/src/net.rs#accept");
+    expect(moved).not.toContain("fn:crates/u/src/lib.rs#far");
+    expect(moved).not.toContain("fn:extensions/sheet/src/read.rs#read");
+  });
+
+  test("an item of a crate a member links as a normal dependency also reaches that member's shipped code that names it", () => {
+    const moved = reachedFromOutside("extensions/image/src/lib.rs", "normal");
+    expect(moved).toContain("fn:crates/w/src/net.rs#accept");
+    expect(moved).toContain("fn:crates/u/src/lib.rs#far");
+    expect(moved).not.toContain("fn:crates/w/tests/own.rs#own");
+  });
+
+  test("an item of vendored code still reaches every item that names it", () => {
+    const moved = reachedFromOutside("vendor/parser/src/lib.rs");
+    for (const reached of ["crates/w/src/net.rs#accept", "crates/w/tests/guest.rs#decodes", "crates/w/tests/own.rs#own", "crates/u/src/lib.rs#far", "extensions/image/src/read.rs#read", "extensions/sheet/src/read.rs#read"]) {
+      expect(moved).toContain(`fn:${reached}`);
     }
   });
 });

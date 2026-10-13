@@ -24,10 +24,19 @@ export interface Package {
   deps: Map<string, DepKind>;
   /** The workspace dependencies its manifest renames: the crate name its code writes, to the package. */
   renames?: Map<string, string>;
-  /** The directories, repo-relative, of the path dependencies it has outside the workspace, of any
-   * kind: crates of another workspace that a build of this one compiles all the same. */
-  linked?: string[];
+  /** The path dependencies it has outside the workspace, of any kind: crates of another workspace that a
+   * build of this one compiles all the same. */
+  linked?: Linked[];
   targets: Target[];
+}
+
+/** A path dependency outside the workspace, as the package that names it depends on it. */
+export interface Linked {
+  /** Its package name. */
+  name: string;
+  /** Its directory, repo-relative. */
+  dir: string;
+  kind: DepKind;
 }
 
 export type Graph = Map<string, Package>;
@@ -66,15 +75,17 @@ export async function metadata(manifest?: string): Promise<Graph | null> {
     if (dir.startsWith("..")) return null;
     const deps = new Map<string, DepKind>();
     const renames = new Map<string, string>();
-    const linked: string[] = [];
+    const linked: Linked[] = [];
     for (const d of p.dependencies) {
+      const kind = (d.kind ?? "normal") as DepKind;
       if (!names.has(d.name)) {
         const at = d.path ? rel(d.path, ROOT) : "";
-        if (at && !at.startsWith("..")) linked.push(at);
+        if (!at || at.startsWith("..")) continue;
+        linked.push({ name: d.name, dir: at, kind });
+        if (d.rename) renames.set(d.rename.replace(/-/g, "_"), d.name);
         continue;
       }
       if (d.rename) renames.set(d.rename.replace(/-/g, "_"), d.name);
-      const kind = (d.kind ?? "normal") as DepKind;
       // One package named twice keeps the kind that reaches furthest.
       if (deps.get(d.name) !== "normal") deps.set(d.name, kind);
     }

@@ -94,17 +94,25 @@ export interface ChangeSet {
 
 /** The workspace graph as the reference walk's scope: a file's package is the one whose directory holds it, a
  * package's crate name is its library target's, and a file under its package's `tests/`, `benches/` or
- * `examples/`, or the root of a target of those kinds, is built only into that dev target. The crate of
- * a built-in component (`components`, `builtinComponents`'s set) that no package names as a path
- * dependency is compiled by no build of the workspace. */
+ * `examples/`, or the root of a target of those kinds, is built only into that dev target. A path
+ * dependency outside the workspace that a member names (`Package.linked`) is a package too, whose crate
+ * name is its package name: a package sees it through its own dependency of that kind, its dev ones only
+ * with `dev`, and through the normal and build ones of each package it depends on. Its own dependencies
+ * are not read, so it sees every package. The crate of a built-in component (`components`,
+ * `builtinComponents`'s set) that no package names as a path dependency is compiled by no build of the
+ * workspace. */
 export function graphScope(graph: Graph | null, components: ReadonlySet<string> = builtinComponents()): Scope {
   if (!graph) return { pkgOf: () => null, sees: () => true, modDir: () => null };
-  const linked = new Set([...graph.values()].flatMap((p) => p.linked ?? []));
-  const guests = [...components].map((c) => `extensions/${c}`).filter((d) => !linked.has(d));
-  const dirs = [...graph.values()].map((p) => [p.dir, p.name] as const).sort((a, b) => b[0].length - a[0].length);
+  const linked = new Map<string, string>();
+  for (const p of graph.values()) for (const l of p.linked ?? []) if (!graph.has(l.name)) linked.set(l.name, l.dir);
+  const linkedDirs = new Set(linked.values());
+  const guests = [...components].map((c) => `extensions/${c}`).filter((d) => !linkedDirs.has(d));
+  const dirOf = new Map([...[...graph.values()].map((p) => [p.name, p.dir] as const), ...linked]);
+  const dirs = [...dirOf].map(([name, dir]) => [dir, name] as const).sort((a, b) => b[0].length - a[0].length);
   const roots = new Set([...graph.values()].flatMap((p) => p.targets.map((t) => t.src)));
   const devRoots = new Set([...graph.values()].flatMap((p) => p.targets.filter((t) => ["test", "bench", "example"].includes(t.kind)).map((t) => t.src)));
-  const crates = new Map([...graph.values()].map((p) => [(p.targets.find((t) => t.kind === "lib")?.name ?? p.name).replace(/-/g, "_"), p.name]));
+  const crates = new Map([...linked.keys()].map((name) => [name.replace(/-/g, "_"), name]));
+  for (const p of graph.values()) crates.set((p.targets.find((t) => t.kind === "lib")?.name ?? p.name).replace(/-/g, "_"), p.name);
   const cache = new Map<string, string | null>();
   const deps = new Map<string, Set<string>>();
   const pkgOf = (file: string): string | null => {
@@ -121,7 +129,7 @@ export function graphScope(graph: Graph | null, components: ReadonlySet<string> 
     devFile(file) {
       if (devRoots.has(file)) return true;
       const pkg = pkgOf(file);
-      const dir = pkg === null ? "" : graph.get(pkg)!.dir;
+      const dir = pkg === null ? "" : dirOf.get(pkg)!;
       const rest = dir === "" || dir === "." ? file : file.slice(dir.length + 1);
       return /^(tests|benches|examples)\//.test(rest);
     },
@@ -131,11 +139,13 @@ export function graphScope(graph: Graph | null, components: ReadonlySet<string> 
     },
     pkgOf,
     sees(user, owner, dev = true) {
-      if (user === owner) return true;
+      if (user === owner || linked.has(user)) return true;
       const key = `${dev ? "dev" : "ship"}\0${user}`;
       let seen = deps.get(key);
       if (!seen) {
         seen = dependencySet(graph, user, dev);
+        for (const l of graph.get(user)?.linked ?? []) if (dev || l.kind !== "dev") seen.add(l.name);
+        for (const d of [...seen]) for (const l of graph.get(d)?.linked ?? []) if (l.kind !== "dev") seen.add(l.name);
         deps.set(key, seen);
       }
       return seen.has(owner);

@@ -29,15 +29,19 @@
 //
 // An item is reached only from where Rust lets its name resolve to the item that moved. A `private`
 // item (`scope`) is named from its own module's files alone, and a `crate` item from its own package;
-// another file's item of the same name is another item. A file of no package (vendored code, a tool
-// with a workspace of its own) names no item of the workspace, except under `fuzz/`, whose targets
-// depend on the workspace's crates. An item of a file of no package reaches every item that names it,
-// since vendored code is built into the workspace's packages without being one, unless its crate is
-// one no build of the workspace compiles (`Scope.unlinked`): a built-in component's crate, which is
-// compiled to WebAssembly alone and is no member's path dependency, reaches only the items of its own
-// crate, and what it changes moves its `component:` key instead (`keys.ts`). Code another package
-// ships sees the packages its build depends on, and its test code (`test`, or a file of a test, bench
-// or example target) its dev-dependencies too.
+// another file's item of the same name is another item. A path dependency outside the workspace that a
+// member names, such as a built-in component's crate a member's tests build natively, is a package of
+// the scope like a member (`select.ts` `graphScope`). Code another package ships sees the packages its
+// build depends on, and its test code (`test`, or a file of a test, bench or example target) its
+// dev-dependencies too.
+//
+// A file of no package names no item of the workspace, except under `fuzz/`, whose targets depend on
+// the workspace's crates. Vendored code is such a file: the root manifest's `[patch.crates-io]` swaps it
+// in for a registry crate, so cargo names no path edge to it, and the workspace may reach its items
+// through a registry crate's re-export that no scan reads. An item of it therefore reaches every item
+// that names it. A built-in component's crate that no member names is compiled to WebAssembly alone
+// (`Scope.unlinked`): an item of it reaches only the items of its own crate. What a component's crate
+// changes, named or not, also moves its `component:` key (`keys.ts`).
 // There it reaches an item only with evidence it names that item and not one of its own spelled the
 // same (`Universe.canName`): its tokens spell a crate name that leads to the item, or a `use` of its
 // file binds the name, a glob or a `_` from such a crate, or from its own modules or an external crate

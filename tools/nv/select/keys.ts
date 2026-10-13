@@ -34,11 +34,12 @@
 // repository root. `config.ts` says which keys an edit of the repository's `nvs.toml` moves.
 //
 // A built-in component's code runs as WebAssembly, which coverage does not see, so a change to its crate
-// moves its `component:` key and no `fn:` key of the workspace. Its name is its crate's directory under
-// `extensions/`, the one `BUILTINS` in `crates/nvs-ext/src/load.rs` gives it, and a directory there is a
-// component when it holds a `manifest.json` (`builtinComponents`). A footprint recorded before the kind
-// existed holds no `component:` key; `select.ts` reads one that ran the built-in loader without holding
-// `builtins:read` as holding every `component:` key.
+// moves its `component:` key. It moves a `fn:` key of the workspace only where a member that builds the
+// crate natively as a path dependency names the item that changed (`items.ts`). Its name is its crate's
+// directory under `extensions/`, the one `BUILTINS` in `crates/nvs-ext/src/load.rs` gives it, and a
+// directory there is a component when it holds a `manifest.json` (`builtinComponents`). A footprint
+// recorded before the kind existed holds no `component:` key; `select.ts` reads one that ran the
+// built-in loader without holding `builtins:read` as holding every `component:` key.
 
 import { closeSync, existsSync, openSync, readdirSync, readSync } from "node:fs";
 import { isAbsolute, join, posix, resolve } from "node:path";
