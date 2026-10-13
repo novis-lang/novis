@@ -38,7 +38,7 @@ stages:
         shapes: []
   - id: 5
     title: the example apps use the gate
-    status: open
+    status: done
     context: [apps/notes/src/App.nvs, apps/notes/public/index.nvs, apps/paperwork/src/App.nvs, apps/paperwork/public/index.nvs, website/src/content/docs/guides/example-apps/notes.mdx, website/src/content/docs/guides/example-apps/paperwork.mdx, tools/nv/cmd/site.ts]
     extra:
       context:
@@ -266,10 +266,10 @@ refusal mode, and never a handler.
 
 **Does:** neither example app has a hand-written dispatcher.
 
-- [ ] Notes: delete `App::handle`, add `src/Gate.nvs` with its error pages, and make `index.nvs` one `dispatch` call (`apps/notes/src/App.nvs:16`, `apps/notes/public/index.nvs:6`)
-- [ ] Notes: the tests cover a 404, a 405, a CSRF refusal and a failure page (`apps/notes/src/AppTest.nvs:1`)
-- [ ] Paperwork: the same (`apps/paperwork/src/App.nvs:16`, `apps/paperwork/public/index.nvs:6`)
-- [ ] Both pages describe the gate and list `Gate.nvs`, and the copies under `website/public/example-apps/` are rewritten (`website/src/content/docs/guides/example-apps/notes.mdx:98`, `website/src/content/docs/guides/example-apps/paperwork.mdx:143`, `tools/nv/cmd/site.ts:28`)
+- [x] Notes: delete `App::handle`, add `src/Gate.nvs` with its error pages, and make `index.nvs` one `dispatch` call (`apps/notes/src/App.nvs:16`, `apps/notes/public/index.nvs:6`)
+- [x] Notes: the tests cover a 404, a 405, a CSRF refusal and a failure page (`apps/notes/src/AppTest.nvs:1`)
+- [x] Paperwork: the same (`apps/paperwork/src/App.nvs:16`, `apps/paperwork/public/index.nvs:6`)
+- [x] Both pages describe the gate and list `Gate.nvs`, and the copies under `website/public/example-apps/` are rewritten (`website/src/content/docs/guides/example-apps/notes.mdx:98`, `website/src/content/docs/guides/example-apps/paperwork.mdx:143`, `tools/nv/cmd/site.ts:28`)
 
 ### 6. the website teaches dispatch
 
@@ -303,9 +303,18 @@ refusal mode, and never a handler.
 
 ### State
 
-Stages 2 to 4 are done, and `rule:routing/a-gate-answers-around-every-handler` is `shipped`.
+Stages 2 to 5 are done, and `rule:routing/a-gate-answers-around-every-handler` is `shipped`.
 `door-refusals` and `limit-failed` pass: `cargo test --test gate`, eight tests over a real `nvs serve`.
+`apps` passes with the current binary: `bun nv site --check apps --nvs target/debug/nvs.exe`.
 
+- Both example apps call `Core\Router::dispatch(new <App>\Gate())` from `public/index.nvs`, and their
+  `src/Gate.nvs` checks `Audience::Public` and renders the error pages. Notes' tests cover a 404, a
+  405, a CSRF `403` and a failure `500` (a note number past SQLite's `INTEGER`). Paperwork has no
+  unsafe route and nothing that throws, so its tests cover the 404 and the 405.
+- `dispatch` opts a program into the autoload scan, as `route()` does (`crates/nvs-hir/src/requires.rs:853`,
+  `rule:routing/table-is-opt-in`). Without it an entry that names only its gate compiled no route.
+- `Core\Test::request` takes the CSRF refusal for a dispatching unit (`crates/nvs-cli/src/runner.rs:642`),
+  pinned by `tests/conformance/core/router-dispatch-a-test-requests-csrf-refusal-reaches-the-gate.nvst`.
 - The carrier's `nvs_runtime::routes::Refusal` has `UnknownMethod`, `Csrf`, `BodyTooLarge` and
   `Limit` (`crates/nvs-runtime/src/routes.rs:707`). `Inbound::route()` is `None` while one is set.
 - A limit's stop is recorded by `Ctx::run_limit_handler` (`crates/nvs-runtime/src/ctx/hooks.rs:518`)
@@ -317,8 +326,8 @@ Stages 2 to 4 are done, and `rule:routing/a-gate-answers-around-every-handler` i
   trace, and `Refusal::Limit`, so a failing rerun answers the empty `500`.
 - `dispatch` answers `Refusal::Limit` with `failed(null, null)` and status `500`
   (`crates/nvs-stdlib/src/router.rs:2319`, `:2477`).
-- The in-process door (`crates/nvs-cli/src/runner.rs:1682`) still returns `Reply::Run`, so
-  `Core\Test::request` does not rerun after a limit.
+- The test listener's door (`crates/nvs-cli/src/runner.rs:1696`) still returns `Reply::Run`, so
+  neither it nor `Core\Test::request` reruns after a limit.
 
 Decisions from stage 2 still open to review: `BadCapture` before `allows` with a `null` route; a throw
 from `allows` is `Denied`; a parameter no capture fills throws `LogicError`. From stage 4: `failed`
@@ -326,11 +335,14 @@ gets no route and no error after a limit; a run whose head was already streamed 
 
 ### Next
 
-Stage 5, the example apps over `apps/*/src/App.nvs` and `apps/*/public/index.nvs` (`rule:routing/a-gate-answers-around-every-handler`):
+Stage 6, the website's routing pages and their snippets under `website/` (`rule:routing/matching-is-not-dispatching`, § *Text an end user reads*):
 
-- [ ] Notes: delete `App::handle`, add `src/Gate.nvs` with its error pages, and make `index.nvs` one `dispatch` call (`apps/notes/src/App.nvs:16`, `apps/notes/public/index.nvs:6`)
-- [ ] Notes: the tests cover a 404, a 405, a CSRF refusal and a failure page (`apps/notes/src/AppTest.nvs:10`)
-- [ ] Paperwork: the same (`apps/paperwork/src/App.nvs:14`, `apps/paperwork/public/index.nvs:6`)
+- [ ] The routes syntax page and its match snippet (`website/src/content/docs/syntax/attributes/routes.mdx:54`, `website/snippets/syntax/routes/02-match.nvs:26`)
+- [ ] The requests guide and its snippet (`website/src/content/docs/guides/how-to-use/requests.mdx:16`, `website/snippets/guides/how-to-use/requests/requests.nvs:12`)
+- [ ] The JSON API guide and its snippet (`website/src/content/docs/guides/simple-programs/json-api.mdx:26`, `website/snippets/guides/simple-programs/json-api/json-api.nvs:33`)
+- [ ] The route-test snippet (`website/snippets/guides/testing/test-a-route/test-a-route.nvs:16`)
+
+The example apps' `src/Gate.nvs` (`apps/notes/src/Gate.nvs:11`) is the shape a snippet's gate can copy.
 
 ### Backlog
 
@@ -340,4 +352,4 @@ Stage 5, the example apps over `apps/*/src/App.nvs` and `apps/*/public/index.nvs
 - Whether the generated jump binds `#[Query]` parameters and answers their `400`: not decided, M16 owns it today (`docs/rules/routing/a-bad-query-value-is-a-400.md:20`).
 - The checker does not hold an implementing member's signature to the `Gate` interface's signature, and `$v is Core\Router\Gate` folds to `false` (`crates/nvs-types/src/conformance.rs:1`).
 - `nvs-stdlib`'s ldap tests and `nvs-cli`'s `live_edit` fail beside the other test binaries and pass alone (`crates/nvs-stdlib/tests/ldap.rs:1485`, `crates/nvs-cli/tests/live_edit.rs:1010`).
-- The in-process door does not rerun a dispatching program after a limit, so `Core\Test::request` cannot test a limit's `failed` page (`crates/nvs-cli/src/runner.rs:1682`).
+- `Core\Test::request` does not rerun a dispatching program after a limit, and takes no CSRF refusal for a program that does not dispatch (`crates/nvs-cli/src/runner.rs:625`).
