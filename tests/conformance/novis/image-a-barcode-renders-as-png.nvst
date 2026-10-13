@@ -2,7 +2,7 @@
 `Novis\Image\Barcode::render` draws a 1D code as bars `height` pixels high and `module` pixels per module inside a `margin`, a DataMatrix as a square, in the format given, and a wrong check digit or a character the symbology cannot carry throws a `LogicError` naming it: rule:core-classes/image-barcode-roster
 --FILE--
 <?nvs
-// covers: Novis\Image\Barcode::render, Novis\Image\Barcode::Symbology
+// covers: Novis\Image\Barcode::render, Novis\Image\Barcode::Symbology, Novis\Image\Codec::barcode
 use Novis\Image\Barcode;
 use Novis\Image\Format;
 use Novis\Image\Image;

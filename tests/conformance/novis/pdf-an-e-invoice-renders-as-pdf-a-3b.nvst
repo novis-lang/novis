@@ -4,6 +4,7 @@ An invoice renders as PDF/A-3b with its Factur-X XML attached as `factur-x.xml` 
 <?nvs
 // covers: Novis\Pdf\Document::invoiceXml
 // covers: Novis\Pdf\Document::standard
+// covers: Novis\Pdf\Document::Standard
 // covers: Novis\Pdf\Document::created
 use Novis\Pdf\Document;
 

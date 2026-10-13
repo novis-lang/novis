@@ -38,6 +38,11 @@
     "Core\\Test::assertCompletes": {
       "perf": "A bench runs under `nvs run`, where no `#[Test(at: ...)]` fixes a clock, so every iteration would measure the `LogicError` thrown before the body runs rather than the check."
     },
+    "Novis\\Image\\Codec::barcode": {
+      "examples": "The manifest export `Barcode::render` and `Barcode::svg` call once after they fill in the options a program left out; a reader learns from their examples, and one here would teach an options record with every key written out.",
+      "perf": "`Barcode::render` is this one crossing plus the options record, so its figure bounds this export's.",
+      "hostile": "`Barcode::render` validates nothing the guest validates, so its attack delivers the same hostile options to this export."
+    },
     "Novis\\Image\\Codec::compare": {
       "examples": "The manifest export `Image::compare` calls once after it encodes an `Image` argument; a reader learns from that member's examples, and one here would teach the raw result shape a program never needs.",
       "perf": "`Image::compare` is this one crossing plus building the `Diff`, so its figure bounds this export's.",
