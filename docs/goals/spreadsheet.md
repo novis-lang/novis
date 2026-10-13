@@ -35,7 +35,7 @@ stages:
         shapes: ["A `.nvst` test case"]
   - id: 6
     title: charts
-    status: open
+    status: done
     extra:
       context:
         rules: []
@@ -767,28 +767,28 @@ One file set: `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/n
 
 ### State
 
-**Stage 5 is done: `spreadsheet-the-sheet-end-parts` and `spreadsheet-a-report-with-totals-runs` both pass.** The Novis half landed: `Sheet::merge`, `link`, `note`, `validate`, `group`, `table`, `conditional`, `image`, `print`, `protect`, `cell` and `column`, `Workbook::define`, `Formula::of`, `Cell::of` and a column's `formula`.
+**Stage 6 is done: `spreadsheet-the-chart-subset` and `spreadsheet-a-report-carries-a-chart` both pass.** `spreadsheet-a-report-with-totals-runs`, which the last sweep reported red as "not written yet", passes on this tree with no change.
 
-- `Sheet` calls `Engine::writerPart` itself. `Workbook` gives it four callables: `queue` adds a row, `ready` sends the rows that wait and checks the sheet is open, `send` sends bytes, `position` finds a column by key or letter (`extensions/spreadsheet/nvs/Workbook.nvs`).
-- **The Novis half numbers rows itself** (`Workbook::claim`), for a column's `formula`. A table with totals records its totals row in `totalsAt`, so a later row skips it, and `overflow: 'newSheet'` restarts the count. It matches `Writer::append` in `extensions/spreadsheet/src/writer.rs`.
-- `writer-cell` and `writer-column` are new WIT exports over `Writer::cell` and `Writer::column`. The component is now 0.49 MiB (`extensions/spreadsheet/src/lib.rs`).
-- A Novis type alias is not reachable from another class, so `Sheet::Part` copies the `sheet-part` shapes, and its conditional style copies `Style::Record`.
-- `validate` takes one of `list`, `whole`, `decimal`, `date`, `length` or `formula`, with `min` and `max` as bounds. `conditional` takes a flat `{kind, operator, values, colors, icons, rank, percent, style}`. The rule's table leaves both shapes open, so neither is written into the rule yet.
-- **Two tests outside this goal failed once under the full gate and passed on the next run.** They are `nvs-stdlib`'s `a_connect_refused_for_one_address_is_asked_again_for_the_next` and `nvs-cli`'s `live_edit` swaps. Each needs a fix in a commit of its own (`docs/agent/playbook/running-things/a-test-verify-py-reports-as-failed-beside-the-other-test.md`).
+- `extensions/spreadsheet/src/chart.rs` writes `xl/charts/chart<n>.xml` for column, bar, line, area, pie, doughnut and scatter, and a combination of two different types of column, line and area. Any other combination throws. The chart XML has no cached values.
+- A chart is a `graphicFrame` in the same `drawing<n>.xml` as the images, anchored at one cell, 480 by 288 pixels by default (`extensions/spreadsheet/src/drawing.rs`). Charts are numbered across the workbook and written when their sheet ends.
+- **A series range grows with the sheet** when it is on its own sheet and ends at the row `Writer::column` gives when the chart is added. The rule's fragment states this now (`rule:core-classes/spreadsheet-sheet-end-parts`).
+- `Chart.nvs` does not change. Each method returns a new `Chart`. `legend` is a string: `'right'` (the default), `'top'`, `'bottom'`, `'left'` or `'hidden'`. `Sheet::chart` sends every layer. The component is 0.52 MiB.
+- Excel has not opened a chart yet. Stage 13 compares the chart XML with Excel-made fixtures.
+- Under `looper verify`, `nvs-stdlib`'s `ldap` test failed when run with the other binaries and passed alone, and six `reject/` conformance cases failed once in `bun nv suite` and passed on the rerun. This change does not reach either.
 
 ### Next
 
-**Stage 6, charts: the Rust chart part, then `Chart.nvs` and `Sheet::chart`.** Files: `extensions/spreadsheet/src/chart.rs` (new, the goal's `src/write/` is the flat `src/`), `src/drawing.rs`, `src/lib.rs`, `extensions/spreadsheet/nvs/Chart.nvs` (new), `nvs/Sheet.nvs`, `extensions/spreadsheet/tests/chart.rs` (new).
+**Stage 7, the reader: the byte-range source, then xlsx rows.** Files: `wit/nvs-ext/types.wit`, `wit/spreadsheet.wit`, `extensions/spreadsheet/src/read/` (new), `extensions/spreadsheet/src/lib.rs`, `crates/nvs-ext/tests/spreadsheet_read.rs` (new).
 
-- [ ] **The chart XML for the subset and the combination** (`rule:core-classes/spreadsheet-sheet-end-parts`), ported from `rust_xlsxwriter` with its attribution, in the drawing part images use. `extensions/spreadsheet/src/drawing.rs:58`, `extensions/spreadsheet/src/lib.rs:793`
-- [ ] **The five tests of `spreadsheet-the-chart-subset`** in `extensions/spreadsheet/tests/chart.rs`, each named as the check names it, after the shape of `extensions/spreadsheet/tests/sheet_end.rs:883`.
-- [ ] **`Chart` and `Sheet::chart`**, then the case `spreadsheet-a-report-carries-a-chart.nvst`. Adding `chart` changes `Sheet`'s list in `crates/nvs-cli/tests/meta.rs:333`. `extensions/spreadsheet/nvs/Sheet.nvs:281`
+- [ ] **The `value` range accessor** that reads a byte range of an open file or of `bytes` (`rule:core-classes/spreadsheet-reads-as-a-stream`). `wit/nvs-ext/types.wit:39`, `wit/spreadsheet.wit:602`
+- [ ] **`reader-open`, `reader-sheets` and `reader-rows` for xlsx**: the zip directory and each part read through the range source, shared strings in one arena, cells by the read table (`rule:core-classes/spreadsheet-reads-as-a-stream`). `extensions/spreadsheet/src/lib.rs:941`, `extensions/spreadsheet/src/lib.rs:960`
+- [ ] **The first tests of `nvs-ext-the-spreadsheet-reader`** in `crates/nvs-ext/tests/spreadsheet_read.rs`, each named as the check names it, after the helpers of `crates/nvs-ext/tests/spreadsheet.rs:27`.
 
 ### Backlog
 
 - `Cell::rich` for rich text in one cell: the engine writes it (`rich_text_in_one_cell_is_written`), and no Novis call reaches it yet (`rule:core-classes/spreadsheet-sheet-end-parts`). `extensions/spreadsheet/nvs/Workbook.nvs:537`
-- Write the shapes of `validate` and `conditional` into `rule:core-classes/spreadsheet-sheet-end-parts`.
-- The style enums under `Style`, and the part enums somewhere better than namespace scope (`rule:core-classes/spreadsheet-roster`). Moving them changes `crates/nvs-cli/tests/meta.rs` too.
-- Stage 7: the `value` range accessor in `wit/nvs-ext/types.wit`, the reader, and `Reader::Visibility` (`rule:core-classes/spreadsheet-reads-as-a-stream`).
+- Write the shapes of `validate`, `conditional` and `Chart`'s options into `rule:core-classes/spreadsheet-sheet-end-parts`.
+- The style enums under `Style`, and the part enums, `ChartKind` and `Legend` included, somewhere better than namespace scope (`rule:core-classes/spreadsheet-roster`). Moving them changes `crates/nvs-cli/tests/meta.rs` too.
 - Stages 8 to 14: the number-format renderer, CSV, template fill, hostile files, 100 MB, the comparison with Excel's files and the feature proofs. See `docs/goals/spreadsheet.md`.
+- The flaky `nvs-stdlib` `ldap` test and `a_connect_refused_for_one_address_is_asked_again_for_the_next`, and `nvs-cli`'s `live_edit` swaps, each need their own fix (`tools/nv/cmd/verify.ts`'s module doc).
 - `looper lint` reports AGENTS.md's managed text as edited by hand, and `AGENTS.md:403` links the missing `docs/decisions/README.md`. Neither came from this goal. See `AGENTS.md`.
