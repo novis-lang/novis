@@ -6358,7 +6358,8 @@ mod tests {
                 CoreTy::Instance(name) => assert!(
                     class(name).is_some()
                         || EXCEPTION_TREE.contains(name)
-                        || GLOBAL_INTERFACES.contains(name),
+                        || GLOBAL_INTERFACES.contains(name)
+                        || contract(name).is_some(),
                     "{what} names the unregistered class `{name}`"
                 ),
                 // The same question, plus the one only this variant can get

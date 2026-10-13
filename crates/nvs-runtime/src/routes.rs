@@ -307,6 +307,7 @@ pub struct Route {
     access: Option<String>,
     csrf: bool,
     slotted: bool,
+    static_handler: bool,
     captures: Vec<Capture>,
     segments: Vec<Seg>,
     rank: Vec<u8>,
@@ -358,6 +359,7 @@ impl Route {
             access,
             csrf,
             slotted: false,
+            static_handler: false,
             captures,
             segments,
             rank,
@@ -405,6 +407,21 @@ impl Route {
     #[must_use]
     pub fn slotted(&self) -> bool {
         self.slotted
+    }
+
+    /// The same row with its handler recorded as a `static` method, which
+    /// `Core\Router::dispatch` calls through the class rather than through an
+    /// instance it builds. A builder for [`Self::with_slotted`]'s reason.
+    #[must_use]
+    pub fn with_static_handler(mut self) -> Self {
+        self.static_handler = true;
+        self
+    }
+
+    /// Whether [`Self::handler`] is a `static` method.
+    #[must_use]
+    pub fn static_handler(&self) -> bool {
+        self.static_handler
     }
 
     /// The `Core\Http\Method` case this route is declared under, by its own

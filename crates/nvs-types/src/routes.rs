@@ -337,6 +337,12 @@ pub struct Route {
     /// `Class::method` the attribute is attached to, rendered as
     /// [`crate::expr_table::ExprTypeTable::method_label`] renders one.
     pub handler: String,
+    /// Whether [`Self::handler`] is a `static` method.
+    /// `rule:routing/a-gate-answers-around-every-handler`'s jump calls a static
+    /// handler through its class and builds an instance for any other, and the
+    /// runtime has no other way to tell the two apart: a class descriptor's
+    /// method row does not say.
+    pub static_handler: bool,
     /// Every parameter this route declares: § 2's path captures in path order
     /// first, then `rule:routing/a-query-parameter-is-declared-like-a-capture`'s `#[Query]` parameters in declaration order.
     ///
@@ -1413,6 +1419,7 @@ fn collect_route(
         path,
         name,
         handler: handler.to_owned(),
+        static_handler: m.modifiers.contains(&nvs_syntax::ast::Modifier::Static),
         params,
         access,
         csrf,

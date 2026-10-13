@@ -204,7 +204,8 @@ const MATCHED: CoreTy = CoreTy::Nullable(&CoreTy::Instance(MATCH_NAME));
 const CARD: ClassDoc = ClassDoc {
     short: "The routes of your program. `url()`, `urlAbsolute()` and `urlSigned()` build a link \
             to a route from its name. `match()` and `methodsFor()` check a path against the \
-            routes, and `signedRoute()` checks the signature of a signed link.",
+            routes, and `signedRoute()` checks the signature of a signed link. `dispatch()` \
+            calls the method of the route that the request matched.",
 };
 
 /// Spec § 15's `Core\Router`, as much of it as `rule:routing/matching-is-not-dispatching`'s link half and
@@ -308,6 +309,15 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             return_ty: METHODS,
             symbol: "nvs_core_router_methods_for",
             doc: Some(&METHODS_FOR_DOC),
+        },
+        CoreMethod {
+            name: "dispatch",
+            names: &["gate"],
+            params: &[CoreTy::Instance(GATE_NAME)],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_router_dispatch",
+            doc: Some(&DISPATCH_DOC),
         },
     ],
     instance: &[],
@@ -490,6 +500,29 @@ const METHODS_FOR_DOC: MethodDoc = MethodDoc {
           `decimal` or `Core\\Uuid` for its handler parameter, or is not one of the values its \
           parameter allows.",
     errors: &[],
+};
+
+/// `Core\Router::dispatch`'s reference card — `rule:core-api/reference-card`.
+const DISPATCH_DOC: MethodDoc = MethodDoc {
+    short: "Calls the method of the route that the request matched. First, `$gate->allows()` \
+            checks the request. When no route method runs, `dispatch` sets the status and calls \
+            `$gate->refused()`. When the method throws an error, `dispatch` sets the status \
+            `500` and calls `$gate->failed()`.",
+    params: &[ParamDoc {
+        name: "gate",
+        desc: "An instance of your class that implements `Core\\Router\\Gate`.",
+        shape: &[],
+    }],
+    ret: "Nothing. The route method or the gate writes the response. Each value captured from \
+          the path goes to the method parameter with the same name. An error that `refused()` \
+          or `failed()` throws is thrown by `dispatch`.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "When the program has no `#[Route]`. When the program is not answering a request, \
+               for example a command-line program, a job or a test. When the route method has a \
+               parameter that no value in the path fills, such as a `#[Query]` parameter or an \
+               optional capture that the path does not have.",
+    }],
 };
 
 /// `Core\Router\Match`'s fully-qualified name, written once so the registry row
@@ -1015,6 +1048,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_router_signed_route" => (nvs_core_router_signed_route as *const ()).cast(),
         "nvs_core_router_match" => (nvs_core_router_match as *const ()).cast(),
         "nvs_core_router_methods_for" => (nvs_core_router_methods_for as *const ()).cast(),
+        "nvs_core_router_dispatch" => (nvs_core_router_dispatch as *const ()).cast(),
         "nvs_core_router_match_name" => (nvs_core_router_match_name as *const ()).cast(),
         "nvs_core_router_match_params" => (nvs_core_router_match_params as *const ()).cast(),
         "nvs_core_router_match_param" => (nvs_core_router_match_param as *const ()).cast(),
@@ -2241,6 +2275,322 @@ nvs_runtime::nvs_helper! {
     }
 }
 
+// ---------------------------------------------------------------- `rule:routing/a-gate-answers-around-every-handler`'s dispatch
+
+/// How `Core\Router::dispatch` names itself in a message and to
+/// [`nvs_runtime::call_method`].
+const DISPATCH: &str = "Core\\Router::dispatch";
+
+/// [`REFUSAL`]'s cases `dispatch` passes, by the ordinal [`REFUSAL`] gives
+/// each. The other three are the server's refusals, which reach a program only
+/// once refusal mode exists, and `dispatch` passes none of them yet.
+mod refusal {
+    /// No route claims the path.
+    pub(super) const NOT_FOUND: i64 = 0;
+    /// The path exists under other verbs.
+    pub(super) const METHOD_NOT_ALLOWED: i64 = 1;
+    /// `allows` returned `false` or threw.
+    pub(super) const DENIED: i64 = 3;
+    /// A capture did not convert to its parameter's type.
+    pub(super) const BAD_CAPTURE: i64 = 6;
+}
+
+/// The status the rule's table gives the [`REFUSAL`] case `ordinal`, which
+/// `dispatch` sets before it calls `refused`.
+fn refusal_status(ordinal: i64) -> u16 {
+    match ordinal {
+        refusal::NOT_FOUND => 404,
+        refusal::METHOD_NOT_ALLOWED => 405,
+        refusal::BAD_CAPTURE => 400,
+        // `Denied`, and `Csrf` when refusal mode passes it.
+        _ => 403,
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Router::dispatch(Core\Router\Gate $gate): void` —
+    /// `rule:routing/a-gate-answers-around-every-handler`'s one call to a
+    /// route's handler.
+    ///
+    /// # The jump is the matched row, resolved through the class descriptor
+    ///
+    /// The rule's jump is indexed by the matched row: the row carries its
+    /// handler's `Class::method` label and whether the method is `static`
+    /// ([`nvs_runtime::routes::Route::static_handler`]), and that label is
+    /// resolved through the class descriptor's method table, which holds every
+    /// compiled method's address. That table is the jump. Nothing new is
+    /// installed per route, and the label never crosses into the program, so
+    /// a match stays not invocable (`rule:routing/a-match-is-not-invocable`).
+    /// A static handler is called through its class, as `nvs_runtime::call_static`
+    /// calls a command's; any other is called on an instance built by its
+    /// constructor with no argument, which is how `Core\Reflect\ClassInfo::construct`
+    /// builds one. Both calls check each argument's tag against the
+    /// parameter's.
+    ///
+    /// # What happens, in order
+    ///
+    /// No match on the request is a `404` or a `405`, from
+    /// [`nvs_runtime::routes::Routes::methods_for`] over the request's path,
+    /// with `Allow` set for the `405`. A match is built into the same
+    /// [`MATCH`] `Core\Request::route()` returns ([`match_value`]). Building
+    /// it converts every capture, so a capture that throws while it converts
+    /// is the `400`, and `refused` is told `null` for the route, because there
+    /// is no match to hand it. Then `allows`, then the handler, then `failed`
+    /// with the handler's throw. Every hook is called after its status is set,
+    /// and whatever a hook throws is thrown by `dispatch`.
+    ///
+    /// # Parameters are bound by name, from the captures only
+    ///
+    /// Each handler parameter is filled by the capture of the same name
+    /// ([`nvs_runtime::MethodRow::param_names`]). A parameter no capture fills
+    /// throws `LogicError` before the handler is called: an absent optional
+    /// capture's declared default and a `#[Query]` parameter's value are not
+    /// on the row, and binding them is a change to what the compiler writes
+    /// into it.
+    ///
+    /// A throw that is not catchable — a fatal, `exit` and
+    /// `Core\Script::finish()` — is never handed to the gate and stops
+    /// `dispatch` as it stops any call.
+    fn nvs_core_router_dispatch(ctx, args: [1]) {
+        dispatch(ctx, args[0])?;
+        Ok(Value::null())
+    }
+}
+
+/// [`nvs_core_router_dispatch`]'s body.
+fn dispatch(ctx: &mut nvs_runtime::Ctx, gate: Value) -> Result<(), Fault> {
+    crate::response::head_open(ctx, DISPATCH)?;
+    if ctx.routes().is_none() {
+        return Err(Fault::thrown_as(
+            nvs_runtime::ThrownClass::Logic,
+            format!(
+                "{DISPATCH}(): this program declares no `#[Route]`, so there is no route \
+                 method to call"
+            ),
+        ));
+    }
+    let inbound = crate::request::served(ctx, DISPATCH)?;
+    let matched = inbound.route().cloned();
+    let Some(matched) = matched else {
+        let path = inbound.path().to_owned();
+        let verbs: Vec<String> = ctx
+            .routes()
+            .map(|table| {
+                table
+                    .methods_for(&path)
+                    .into_iter()
+                    .map(str::to_ascii_uppercase)
+                    .collect()
+            })
+            .unwrap_or_default();
+        if verbs.is_empty() {
+            return refuse(ctx, gate, refusal::NOT_FOUND, Value::null());
+        }
+        ctx.declare_header("Allow", &verbs.join(", "));
+        return refuse(ctx, gate, refusal::METHOD_NOT_ALLOWED, Value::null());
+    };
+    let route = match match_value(ctx, &matched) {
+        Ok(route) => route,
+        Err(fault) => {
+            drop(caught(ctx, fault)?);
+            return refuse(ctx, gate, refusal::BAD_CAPTURE, Value::null());
+        }
+    };
+    let outcome = dispatch_matched(ctx, gate, matched.route(), route);
+    #[expect(
+        unsafe_code,
+        reason = "`match_value` handed this frame the match's one reference, and every \
+                  call above retained its own"
+    )]
+    unsafe {
+        route.release();
+    }
+    outcome
+}
+
+/// `allows`, the handler and `failed`, over the [`MATCH`] `route` the caller
+/// still owns.
+fn dispatch_matched(
+    ctx: &mut nvs_runtime::Ctx,
+    gate: Value,
+    row: &nvs_runtime::routes::Route,
+    route: Value,
+) -> Result<(), Fault> {
+    let allowed = match nvs_runtime::call_method(ctx, gate, GATE_ALLOWS, &[route], DISPATCH) {
+        Ok(Some(answer)) => {
+            let allowed = answer.as_bool() == Some(true);
+            release(answer);
+            allowed
+        }
+        Ok(None) => return Err(no_gate_member(GATE_ALLOWS)),
+        Err(fault) => {
+            drop(caught(ctx, fault)?);
+            false
+        }
+    };
+    if !allowed {
+        return refuse(ctx, gate, refusal::DENIED, route);
+    }
+    let Err(fault) = call_handler(ctx, row, route)? else {
+        return Ok(());
+    };
+    let error = caught(ctx, fault)?;
+    ctx.declare_status(500);
+    let answered =
+        nvs_runtime::call_method(ctx, gate, GATE_FAILED, &[route, error.as_value()], DISPATCH);
+    drop(error);
+    match answered? {
+        Some(answer) => {
+            release(answer);
+            Ok(())
+        }
+        None => Err(no_gate_member(GATE_FAILED)),
+    }
+}
+
+/// Sets the status of the [`REFUSAL`] case `ordinal` and calls `refused`
+/// with it and `route`, which is `null` or a [`MATCH`] the caller owns.
+fn refuse(
+    ctx: &mut nvs_runtime::Ctx,
+    gate: Value,
+    ordinal: i64,
+    route: Value,
+) -> Result<(), Fault> {
+    ctx.declare_status(refusal_status(ordinal));
+    let reason = Value::enum_int(ordinal);
+    match nvs_runtime::call_method(ctx, gate, GATE_REFUSED, &[reason, route], DISPATCH)? {
+        Some(answer) => {
+            release(answer);
+            Ok(())
+        }
+        None => Err(no_gate_member(GATE_REFUSED)),
+    }
+}
+
+/// Calls the handler `row` names, with its parameters bound from `route`'s
+/// captures.
+///
+/// The outer `Result` is what `dispatch` throws: an engine fault, or a
+/// parameter no capture fills. The inner one is the handler's own outcome,
+/// which `failed` is told.
+fn call_handler(
+    ctx: &mut nvs_runtime::Ctx,
+    row: &nvs_runtime::routes::Route,
+    route: Value,
+) -> Result<Result<(), Fault>, Fault> {
+    let label = row.handler();
+    // Unreachable from source: the compiler writes every label as the method
+    // it read the `#[Route]` off, and that method is in the unit's own table.
+    let missing = || Fault::fatal(format!("internal error: `{label}` is not in this program"));
+    let (class, method) = label.rsplit_once("::").ok_or_else(missing)?;
+    let desc = ctx.class_desc(class).ok_or_else(missing)?;
+    #[expect(
+        unsafe_code,
+        reason = "`Ctx::class_desc` answers out of the compiled unit's own class table, which \
+                  the context shares ownership of for its whole life"
+    )]
+    let names = unsafe { &*desc }
+        .method_row(method)
+        .ok_or_else(missing)?
+        .param_names
+        .clone();
+    let captures = crate::instance::slot(
+        crate::instance::receiver(route, &MATCH, "dispatch")?,
+        MATCH_PARAMS,
+    );
+    // Unreachable from source: [`match_value`] is the only writer of the slot,
+    // and it always writes an array.
+    let captures = captures
+        .array_ptr()
+        .ok_or_else(|| Fault::fatal("internal error: a match holds no capture array"))?;
+    let captures = crate::arr::borrowed(captures);
+    let mut args = Vec::with_capacity(names.len());
+    for name in &names {
+        let Some(value) = captures.get(name.as_bytes()) else {
+            return Err(Fault::thrown_as(
+                nvs_runtime::ThrownClass::Logic,
+                format!(
+                    "{DISPATCH}(): the route method `{label}` has the parameter `${name}`, and the \
+                     path has no value for it. `dispatch` fills a parameter only from a value \
+                     in the path"
+                ),
+            ));
+        };
+        args.push(value);
+    }
+    let answered = if row.static_handler() {
+        match nvs_runtime::call_static_bound(ctx, label, &mut args) {
+            Ok(Some(answer)) => Ok(answer),
+            Ok(None) => return Err(missing()),
+            Err(fault) => Err(fault),
+        }
+    } else {
+        #[expect(
+            unsafe_code,
+            reason = "`class_desc` answers with a pointer into the compiled unit's class table, \
+                      which outlives this context and is never rewritten while a member of it is \
+                      running"
+        )]
+        let built = unsafe { nvs_runtime::construct_erased_from(ctx, desc, &[], Some(class)) };
+        match built {
+            Ok(handler) => {
+                let answered =
+                    nvs_runtime::call_erased_method_from(ctx, handler, method, &args, Some(class));
+                release(handler);
+                answered
+            }
+            Err(fault) => Err(fault),
+        }
+    };
+    Ok(answered.map(release))
+}
+
+/// Releases a value a call handed this frame.
+fn release(value: Value) {
+    #[expect(
+        unsafe_code,
+        reason = "every caller passes a fresh reference a call returned to this frame"
+    )]
+    unsafe {
+        value.release();
+    }
+}
+
+/// `fault` as the `Throwable` a `catch` would bind, or `fault` itself where no
+/// `catch` sees it: a fatal, `exit` and `Core\Script::finish()`.
+fn caught(ctx: &mut nvs_runtime::Ctx, fault: Fault) -> Result<nvs_runtime::Thrown, Fault> {
+    match fault {
+        Fault::Thrown(class, message) => ctx.set_pending_as(class, message),
+        Fault::ThrownWithSlots(class, message, slots) => {
+            #[expect(
+                unsafe_code,
+                reason = "the fault transferred these references, and `raise_with_slots` \
+                          transfers each on into the exception object's slot or releases it"
+            )]
+            unsafe {
+                ctx.raise_with_slots(class, &message, &slots);
+            }
+        }
+        Fault::Pending(status)
+            if status == nvs_runtime::THROWN
+                && !ctx
+                    .pending_class()
+                    .as_deref()
+                    .is_some_and(nvs_runtime::is_finish) => {}
+        other => return Err(other),
+    }
+    Ok(ctx.take_thrown())
+}
+
+/// The fault for a gate whose class declares no `member`.
+fn no_gate_member(member: &str) -> Fault {
+    // Unreachable from source: `E0449` refuses a class that implements the
+    // gate and leaves a member out, and the parameter takes nothing else.
+    Fault::fatal(format!(
+        "internal error: the `{GATE_NAME}` handed to {DISPATCH} has no `{member}` method"
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use nvs_runtime::routes::Param;
@@ -3302,5 +3652,385 @@ mod tests {
         );
 
         dropped(ring);
+    }
+
+    /// `Core\Router::dispatch` over a hand-built unit: a gate, a handler
+    /// class and a `Parses` class, each method a fake compiled function that
+    /// writes what it was handed into [`HEARD`].
+    mod dispatching {
+        use std::cell::{Cell, RefCell};
+        use std::sync::Arc;
+
+        use nvs_runtime::routes::{Capture, CaptureConv, Route, Routes};
+        use nvs_runtime::{
+            ClassTable, Ctx, ErrorClass, Inbound, MethodRow, NvsFn, NvsObj, OK, OutputSink, THROWN,
+            Tag, ThrownClass, Value,
+        };
+
+        /// What the fake `allows` does.
+        #[derive(Clone, Copy)]
+        enum Allows {
+            Yes,
+            No,
+            Throws,
+        }
+
+        thread_local! {
+            /// Every call a fake received, in order.
+            static HEARD: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
+            /// What the gate's `allows` does on this thread.
+            static ALLOWS: Cell<Allows> = const { Cell::new(Allows::Yes) };
+            /// Whether a handler throws on this thread.
+            static HANDLER_THROWS: Cell<bool> = const { Cell::new(false) };
+        }
+
+        fn heard(line: String) {
+            HEARD.with_borrow_mut(|lines| lines.push(line));
+        }
+
+        /// `null`, an object, or something else, as a fake logs an argument.
+        fn shape(value: Value) -> &'static str {
+            if value.tag() == Some(Tag::Null) {
+                "null"
+            } else if value.obj_ptr().is_some() {
+                "object"
+            } else {
+                "other"
+            }
+        }
+
+        /// Releases the `count` slots a compiled function owns.
+        #[expect(
+            unsafe_code,
+            reason = "each fake is handed `count` live values it owns, as compiled code is"
+        )]
+        unsafe fn release_all(args: *const Value, count: usize) {
+            for index in 0..count {
+                unsafe { (*args.add(index)).release() };
+            }
+        }
+
+        #[expect(
+            unsafe_code,
+            reason = "compiled code's own signature: two live values and a live result slot"
+        )]
+        unsafe extern "C" fn gate_allows(
+            ctx: *mut Ctx,
+            args: *const Value,
+            out: *mut Value,
+        ) -> i32 {
+            heard(format!("allows {}", shape(unsafe { *args.add(1) })));
+            unsafe { release_all(args, 2) };
+            match ALLOWS.get() {
+                Allows::Yes => unsafe { *out = Value::bool(true) },
+                Allows::No => unsafe { *out = Value::bool(false) },
+                Allows::Throws => {
+                    unsafe { (*ctx).set_pending("not today") };
+                    return THROWN;
+                }
+            }
+            OK
+        }
+
+        #[expect(
+            unsafe_code,
+            reason = "compiled code's own signature: three live values and a live result slot"
+        )]
+        unsafe extern "C" fn gate_refused(
+            _ctx: *mut Ctx,
+            args: *const Value,
+            out: *mut Value,
+        ) -> i32 {
+            let (reason, route) = unsafe { (*args.add(1), *args.add(2)) };
+            heard(format!("refused {} {}", reason.bits(), shape(route)));
+            unsafe {
+                release_all(args, 3);
+                *out = Value::null();
+            }
+            OK
+        }
+
+        #[expect(
+            unsafe_code,
+            reason = "compiled code's own signature: three live values and a live result slot"
+        )]
+        unsafe extern "C" fn gate_failed(
+            _ctx: *mut Ctx,
+            args: *const Value,
+            out: *mut Value,
+        ) -> i32 {
+            let (route, error) = unsafe { (*args.add(1), *args.add(2)) };
+            heard(format!("failed {} {}", shape(route), shape(error)));
+            unsafe {
+                release_all(args, 3);
+                *out = Value::null();
+            }
+            OK
+        }
+
+        /// One handler body, logged under `name` with the capture it was given.
+        #[expect(
+            unsafe_code,
+            reason = "compiled code's own signature: two live values and a live result slot"
+        )]
+        unsafe fn handler(name: &str, ctx: *mut Ctx, args: *const Value, out: *mut Value) -> i32 {
+            let (this, id) = unsafe { (*args, *args.add(1)) };
+            heard(format!("{name} {} {:?}", shape(this), id.as_int()));
+            unsafe { release_all(args, 2) };
+            if HANDLER_THROWS.get() {
+                unsafe { (*ctx).set_pending("the shop is closed") };
+                return THROWN;
+            }
+            unsafe { *out = Value::null() };
+            OK
+        }
+
+        #[expect(unsafe_code, reason = "as `handler`")]
+        unsafe extern "C" fn shop_show(ctx: *mut Ctx, args: *const Value, out: *mut Value) -> i32 {
+            unsafe { handler("show", ctx, args, out) }
+        }
+
+        #[expect(unsafe_code, reason = "as `handler`")]
+        unsafe extern "C" fn shop_edit(ctx: *mut Ctx, args: *const Value, out: *mut Value) -> i32 {
+            unsafe { handler("edit", ctx, args, out) }
+        }
+
+        /// A `Parses` class's `parse` that throws, as `refusing_parse` above.
+        #[expect(unsafe_code, reason = "as `gate_allows`")]
+        unsafe extern "C" fn slug_parse(
+            ctx: *mut Ctx,
+            args: *const Value,
+            _out: *mut Value,
+        ) -> i32 {
+            unsafe {
+                release_all(args, 2);
+                (*ctx).set_pending("a slug is lower case and digits");
+            }
+            THROWN
+        }
+
+        fn row(name: &str, code: NvsFn, params: &[&str]) -> MethodRow {
+            MethodRow {
+                name: name.to_owned(),
+                code: code as *const u8,
+                arity: u32::try_from(params.len()).expect("a handful"),
+                // Every nibble is "any", so no argument is refused on its tag.
+                param_tags: u64::MAX,
+                param_names: params.iter().map(|param| (*param).to_owned()).collect(),
+                param_types: Vec::new(),
+                public: true,
+                protected: false,
+                native: false,
+            }
+        }
+
+        /// The route table every case below uses.
+        fn table() -> Routes {
+            let id = || {
+                vec![Capture {
+                    name: "id".to_owned(),
+                    conv: CaptureConv::Int,
+                }]
+            };
+            Routes::new(vec![
+                Route::new("Get", "/shop/{id}", None, "App\\Shop::show", None, id())
+                    .with_static_handler(),
+                Route::new("Post", "/shop/{id}", None, "App\\Shop::edit", None, id()),
+                Route::new("Get", "/page/{id}", None, "App\\Shop::list", None, id())
+                    .with_static_handler(),
+                Route::new(
+                    "Get",
+                    "/deploy/{id}",
+                    None,
+                    "App\\Shop::show",
+                    None,
+                    vec![Capture {
+                        name: "id".to_owned(),
+                        conv: CaptureConv::Parses("App\\Slug".to_owned()),
+                    }],
+                )
+                .with_static_handler(),
+            ])
+        }
+
+        /// A context answering `verb path` with the door's match, plus the
+        /// gate to hand `dispatch`. `HEARD` starts empty and `allows` says yes.
+        fn serving(verb: &str, path: &str) -> (Ctx, Value) {
+            HEARD.with_borrow_mut(Vec::clear);
+            ALLOWS.set(Allows::Yes);
+            HANDLER_THROWS.set(false);
+            let mut classes = ClassTable::new();
+            let error = classes.define(
+                "RuntimeError",
+                &["message", "previous", "backtrace", "location"],
+                &[],
+            );
+            let gate = classes.define("App\\Gate", &[] as &[&str], &[]);
+            let shop = classes.define("App\\Shop", &[] as &[&str], &[]);
+            let slug = classes.define("App\\Slug", &[] as &[&str], &[]);
+            classes.set_methods(
+                gate,
+                vec![
+                    row("allows", gate_allows, &["route"]),
+                    row("refused", gate_refused, &["reason", "route"]),
+                    row("failed", gate_failed, &["route", "error"]),
+                ],
+            );
+            classes.set_methods(
+                shop,
+                vec![
+                    row("show", shop_show, &["id"]),
+                    row("edit", shop_edit, &["id"]),
+                    row("list", shop_show, &["page"]),
+                ],
+            );
+            classes.set_methods(slug, vec![row("parse", slug_parse, &["s"])]);
+            let routes = table();
+            let mut inbound = Inbound::new(verb, path, "");
+            if let Some(matched) = routes.match_request(verb, path) {
+                inbound.set_route(matched);
+            }
+            let mut ctx = Ctx::new(OutputSink::Sink);
+            ctx.set_runtime_error_class(ErrorClass::new(Arc::new(classes), error));
+            ctx.set_routes(Arc::new(routes));
+            ctx.set_inbound(inbound);
+            let desc = ctx.class_desc("App\\Gate").expect("the gate class");
+            #[expect(
+                unsafe_code,
+                reason = "the descriptor is the table's, which the context holds"
+            )]
+            let gate = Value::object(unsafe { NvsObj::new(desc) });
+            (ctx, gate)
+        }
+
+        /// `dispatch($gate)`, then what the fakes heard and the status set.
+        fn dispatched(
+            ctx: &mut Ctx,
+            gate: Value,
+        ) -> (Result<(), String>, Vec<String>, Option<u16>) {
+            let outcome = nvs_runtime::call(super::super::nvs_core_router_dispatch, ctx, &[gate])
+                .map(|_| ())
+                .map_err(|_| ctx.take_pending().unwrap_or_default().into_owned());
+            #[expect(unsafe_code, reason = "this frame built the gate and owns it")]
+            unsafe {
+                gate.release();
+            }
+            (
+                outcome,
+                HEARD.with_borrow_mut(std::mem::take),
+                ctx.take_status(),
+            )
+        }
+
+        // covers: Core\Router::dispatch
+        #[test]
+        fn a_path_no_route_claims_is_a_404_and_one_under_another_verb_is_a_405() {
+            let (mut ctx, gate) = serving("GET", "/nowhere");
+            let (outcome, heard, status) = dispatched(&mut ctx, gate);
+            assert_eq!(outcome, Ok(()));
+            assert_eq!(heard, ["refused 0 null"]);
+            assert_eq!(status, Some(404));
+            assert!(ctx.take_headers().is_empty(), "a `404` names no verbs");
+
+            let (mut ctx, gate) = serving("DELETE", "/shop/7");
+            let (outcome, heard, status) = dispatched(&mut ctx, gate);
+            assert_eq!(outcome, Ok(()));
+            assert_eq!(heard, ["refused 1 null"]);
+            assert_eq!(status, Some(405));
+            let headers = ctx.take_headers();
+            assert_eq!(headers.len(), 1);
+            assert_eq!(
+                (&*headers[0].name, &*headers[0].value),
+                ("Allow", "GET, POST")
+            );
+        }
+
+        #[test]
+        fn a_static_handler_runs_after_allows_with_its_capture_bound_by_name() {
+            let (mut ctx, gate) = serving("GET", "/shop/7");
+            let (outcome, heard, status) = dispatched(&mut ctx, gate);
+            assert_eq!(outcome, Ok(()));
+            // A static method's slot 0 is the called class, which reads as
+            // `null` and not as an object.
+            assert_eq!(heard, ["allows object", "show null Some(7)"]);
+            assert_eq!(status, None, "a handler that runs sets its own status");
+        }
+
+        #[test]
+        fn an_instance_handler_runs_on_an_instance_built_with_no_argument() {
+            let (mut ctx, gate) = serving("POST", "/shop/7");
+            let (outcome, heard, _) = dispatched(&mut ctx, gate);
+            assert_eq!(outcome, Ok(()));
+            assert_eq!(heard, ["allows object", "edit object Some(7)"]);
+        }
+
+        #[test]
+        fn allows_answering_false_or_throwing_is_a_403_and_the_handler_never_runs() {
+            for allows in [Allows::No, Allows::Throws] {
+                let (mut ctx, gate) = serving("GET", "/shop/7");
+                ALLOWS.set(allows);
+                let (outcome, heard, status) = dispatched(&mut ctx, gate);
+                assert_eq!(outcome, Ok(()));
+                assert_eq!(heard, ["allows object", "refused 3 object"]);
+                assert_eq!(status, Some(403));
+                assert!(
+                    ctx.pending().is_none(),
+                    "the throw from `allows` was handled"
+                );
+            }
+        }
+
+        #[test]
+        fn a_capture_whose_class_throws_is_a_400_before_allows() {
+            let (mut ctx, gate) = serving("GET", "/deploy/PROD");
+            let (outcome, heard, status) = dispatched(&mut ctx, gate);
+            assert_eq!(outcome, Ok(()));
+            assert_eq!(heard, ["refused 6 null"]);
+            assert_eq!(status, Some(400));
+        }
+
+        #[test]
+        fn a_handler_that_throws_is_a_500_and_failed_gets_the_error() {
+            let (mut ctx, gate) = serving("GET", "/shop/7");
+            HANDLER_THROWS.set(true);
+            let (outcome, heard, status) = dispatched(&mut ctx, gate);
+            assert_eq!(outcome, Ok(()));
+            assert_eq!(
+                heard,
+                ["allows object", "show null Some(7)", "failed object object"]
+            );
+            assert_eq!(status, Some(500));
+        }
+
+        #[test]
+        fn a_parameter_no_capture_fills_throws_and_the_handler_never_runs() {
+            let (mut ctx, gate) = serving("GET", "/page/2");
+            let (outcome, heard, _) = dispatched(&mut ctx, gate);
+            let said = outcome.expect_err("`$page` has no capture");
+            assert!(said.contains("`$page`"), "{said}");
+            assert_eq!(heard, ["allows object"]);
+        }
+
+        #[test]
+        fn a_program_with_no_routes_or_no_request_throws_a_logic_error() {
+            let mut no_routes = Ctx::new(OutputSink::Sink);
+            no_routes.set_inbound(Inbound::new("GET", "/shop/7", ""));
+            let mut no_request = Ctx::new(OutputSink::Sink);
+            no_request.set_routes(Arc::new(table()));
+            for ctx in [&mut no_routes, &mut no_request] {
+                assert!(
+                    nvs_runtime::call(
+                        super::super::nvs_core_router_dispatch,
+                        ctx,
+                        &[Value::null()]
+                    )
+                    .is_err()
+                );
+                assert_eq!(
+                    ctx.pending_class().as_deref(),
+                    Some(ThrownClass::Logic.name())
+                );
+            }
+        }
     }
 }

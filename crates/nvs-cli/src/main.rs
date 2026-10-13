@@ -2890,6 +2890,11 @@ pub(crate) fn runtime_routes(exprs: &nvs_types::ExprTypeTable) -> nvs_runtime::r
                 } else {
                     route.without_csrf()
                 };
+                let route = if row.static_handler {
+                    route.with_static_handler()
+                } else {
+                    route
+                };
                 if row.slotted {
                     route.with_slotted()
                 } else {

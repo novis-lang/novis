@@ -1753,7 +1753,7 @@
         ],
         [
           "`Core\\Router`",
-          "`match(Http\\Method $method, tainted string $path): ?Router\\Match`, `methodsFor(tainted string $path): array<Http\\Method>` (empty ⇒ 404, else 405 + `Allow:`), `url(string $name, array<string, mixed> $params): string` (**launder**, URL path), `urlAbsolute(...)` (**launder**, URL — prepends the mount's configured `origin`) and `urlSigned(..., {keys: array<secret bytes>, until: ?Time\\Instant} $settings): string` (`url` with a `_sig` parameter over the route's *name* and `$params`, so a link survives a remount — `rule:core-classes/router-signed-url`), over a table built while compiling from `#[Route]`. The server matches once per request and `Core\\Request::route()` is that match. A duplicate route, a `{param}` with no matching method parameter, an unknown literal `url()` name and a `url()` key that is neither a capture nor a declared `#[Query]` parameter are compile errors",
+          "`match(Http\\Method $method, tainted string $path): ?Router\\Match`, `methodsFor(tainted string $path): array<Http\\Method>` (empty ⇒ 404, else 405 + `Allow:`), `dispatch(Router\\Gate $gate): void` (calls the matched route's method, the gate answering every request that method does not run for — `rule:routing/a-gate-answers-around-every-handler`), `url(string $name, array<string, mixed> $params): string` (**launder**, URL path), `urlAbsolute(...)` (**launder**, URL — prepends the mount's configured `origin`) and `urlSigned(..., {keys: array<secret bytes>, until: ?Time\\Instant} $settings): string` (`url` with a `_sig` parameter over the route's *name* and `$params`, so a link survives a remount — `rule:core-classes/router-signed-url`), over a table built while compiling from `#[Route]`. The server matches once per request and `Core\\Request::route()` is that match. A duplicate route, a `{param}` with no matching method parameter, an unknown literal `url()` name and a `url()` key that is neither a capture nor a declared `#[Query]` parameter are compile errors",
           "`rule:routing/matching-is-not-dispatching`"
         ],
         [
@@ -1763,7 +1763,7 @@
         ],
         [
           "`Core\\Command`",
-          "`run(): uint`, `help(?string): Cli\\Text` and `completions(Command::Shell): string`, over a table built while compiling from `#[Command]`/`#[Option]`/`#[Argument]`. A duplicate command name, two options sharing a spelling and an `#[Option]` on a parameter with no conversion from `string` are compile errors. Unlike `Core\\Router` it dispatches, because a CLI has one entry point and no middleware question",
+          "`run(): uint`, `help(?string): Cli\\Text` and `completions(Command::Shell): string`, over a table built while compiling from `#[Command]`/`#[Option]`/`#[Argument]`. A duplicate command name, two options sharing a spelling and an `#[Option]` on a parameter with no conversion from `string` are compile errors. `run()` calls the matched handler itself, because a CLI has one entry point and no middleware question",
           "`rule:tooling/commands-are-compiled`"
         ],
         [
