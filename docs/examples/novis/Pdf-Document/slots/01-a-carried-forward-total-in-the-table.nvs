@@ -16,13 +16,19 @@ var $html = "<style>@page { size: 105mm 148mm; margin: 10mm } body { font-size: 
     . "<tr data-repeat=\"last\"><td>Total</td><td><slot name=\"total\"></slot></td></tr></tfoot></table>";
 
 // The function returns the HTML for each slot name. Each page shows only one of the two rows.
+// A fill does not use the styles of the document, so it sets the font size of the table.
 var $slots = fn(Page $page): array<Core\Html\Markup> => {
     decimal $total = 0.0;
     foreach ($page->marksUpTo("amount") as string $amount) {
         $total = $total + (($amount as ?decimal) ?? 0.0 as decimal);
     }
     echo "page ", $page->number, " of ", $page->count, ": ", $total, "\n";
-    return ["carried" => html`{$total}`, "total" => html`<b>{$total}</b>`];
+    return [
+        "carried" => html`<style>body { font-size: 10pt }</style>{$total}`,
+        "total" => html`<style>body { font-size: 10pt }</style><b>{$total}</b>`,
+    ];
 };
 
-Document::fromHtml($html)->slots($slots)->render();
+// Every fill fits in its cell, so this prints `0`.
+var $rendered = Document::fromHtml($html)->slots($slots)->render();
+echo "fills that do not fit: ", Core\Arr::count($rendered->overflows), "\n";
