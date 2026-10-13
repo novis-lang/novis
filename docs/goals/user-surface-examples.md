@@ -66,7 +66,7 @@ checks:
   - id: reference-pages
     stage: 3
     name: "every Reference page shows every example of every feature on it"
-    run: [bun, nv, site, --nvs, target/debug/nvs.exe, --check, reference]
+    run: [bun, nv, site, --check, reference]
   - id: cli-examples
     stage: 4
     name: "`nvs info` and `nvs agent init` owe nothing, with no examples skip"
