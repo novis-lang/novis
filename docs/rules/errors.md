@@ -154,8 +154,9 @@ safe because [`errors/propagation`](errors.md#errors-propagation) pops frames as
 so the handler runs with a shallow stack again. A non-catchable `FATAL` at the true limit is the
 floor beneath it and reaches [`errors/on-limit`](errors.md#errors-on-limit) like any other resource limit.
 
-The ceiling is **8 MB of reserved address space per coroutine**, about 65,000 frames, of which only
-touched pages are resident. The check is a comparison of the stack pointer against a `stack_limit`
+The ceiling is **the task's own stack**, whose width [`concurrency/a-task-stack-is-reserved-wide-and-pooled`](concurrency.md#concurrency-a-task-stack-is-reserved-wide-and-pooled)
+sets and whose bounds arm the limit ([`concurrency/a-tasks-recursion-limit-comes-from-its-own-stack`](concurrency.md#concurrency-a-tasks-recursion-limit-comes-from-its-own-stack));
+only its touched pages are resident. The check is a comparison of the stack pointer against a `stack_limit`
 field in `Ctx`'s existing hot cache line, emitted where the safepoint poll already loads that line,
 and elided in a leaf function whose frame fits the reserved slack. The fast path compares against
 the soft limit only. Measured against a 1.32 ns per-call slope it adds ≈0.3 ns — ≈0.06% on a
