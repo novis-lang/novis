@@ -336,6 +336,12 @@ fn meta_lists_the_built_in_components_classes_and_enums() {
             "readerSheets",
             "readerMacros",
             "readerMerged",
+            "readerLinks",
+            "readerNotes",
+            "readerNames",
+            "readerTables",
+            "readerImages",
+            "readerProperties",
             "readerHeader",
             "readerRows"
         ]
@@ -344,7 +350,19 @@ fn meta_lists_the_built_in_components_classes_and_enums() {
     names(r"Novis\Spreadsheet\Row");
     assert_eq!(
         names(r"Novis\Spreadsheet\Reader"),
-        ["open", "sheets", "macros", "merged", "rows"]
+        [
+            "open",
+            "sheets",
+            "macros",
+            "merged",
+            "links",
+            "notes",
+            "names",
+            "tables",
+            "images",
+            "properties",
+            "rows"
+        ]
     );
     assert_eq!(
         names(r"Novis\Spreadsheet\Workbook"),

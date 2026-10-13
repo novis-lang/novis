@@ -23,11 +23,11 @@
 //! ends, and one dropped before `writer-finish` writes an error to the request's log naming the
 //! workbook's `target` ([`writer::unfinished_message`]).
 //!
-//! **Reading** is `read`'s module doc: `reader-open`, `reader-sheets`, `reader-header` and
-//! `reader-rows` read an xlsx through the `range` of the source each call is lent.
+//! **Reading** is `read`'s module doc: every `reader-` export reads the workbook through the
+//! `range` of the source its call is lent.
 //!
-//! **Not done yet.** The reader's extras, the other formats and the template exports return
-//! `runtime`, and are not in `manifest.json`: Stages 7 and 10 of goal `spreadsheet`.
+//! **Not done yet.** The template exports return `runtime`, and are not in `manifest.json`:
+//! Stage 10 of goal `spreadsheet`.
 //!
 //! Packed as a `.nvsx` and embedded in every `nvs` binary, the component is 0.70 MiB, built for
 //! release as `crates/nvs-ext/build.rs` always builds it. That is the binary's growth for
@@ -614,10 +614,6 @@ mod guest {
 
     impl GuestTemplate for Template {}
 
-    fn reading() -> wit::Error {
-        wit::Error::Runtime("This version of Novis cannot read workbooks yet.".to_owned())
-    }
-
     fn filling() -> wit::Error {
         wit::Error::Runtime("This version of Novis cannot fill templates yet.".to_owned())
     }
@@ -1132,49 +1128,133 @@ mod guest {
         }
 
         fn reader_links(
-            _reader: wit::ReadingBorrow<'_>,
-            _source: &Source,
-            _sheet: String,
+            reader: wit::ReadingBorrow<'_>,
+            source: &Source,
+            sheet: String,
         ) -> Result<Vec<wit::LinkInfo>, wit::Error> {
-            Err(reading())
+            let links = reader
+                .get::<Reader>()
+                .reader
+                .borrow()
+                .links(&Lent(source), &sheet)
+                .map_err(error)?;
+            Ok(links
+                .into_iter()
+                .map(|link| wit::LinkInfo {
+                    anchor: link.anchor,
+                    target: link.target,
+                    text: link.text,
+                    tooltip: link.tooltip,
+                    external: link.external,
+                })
+                .collect())
         }
 
         fn reader_notes(
-            _reader: wit::ReadingBorrow<'_>,
-            _source: &Source,
-            _sheet: String,
+            reader: wit::ReadingBorrow<'_>,
+            source: &Source,
+            sheet: String,
         ) -> Result<Vec<wit::NoteInfo>, wit::Error> {
-            Err(reading())
+            let notes = reader
+                .get::<Reader>()
+                .reader
+                .borrow()
+                .notes(&Lent(source), &sheet)
+                .map_err(error)?;
+            Ok(notes
+                .into_iter()
+                .map(|note| wit::NoteInfo {
+                    noted: note.noted,
+                    note: note.note,
+                    author: note.author,
+                })
+                .collect())
         }
 
         fn reader_names(
-            _reader: wit::ReadingBorrow<'_>,
-            _source: &Source,
+            reader: wit::ReadingBorrow<'_>,
+            source: &Source,
         ) -> Result<Vec<wit::NameInfo>, wit::Error> {
-            Err(reading())
+            let names = reader
+                .get::<Reader>()
+                .reader
+                .borrow()
+                .names(&Lent(source))
+                .map_err(error)?;
+            Ok(names
+                .into_iter()
+                .map(|name| wit::NameInfo {
+                    name: name.name,
+                    reference: name.reference,
+                    sheet: name.sheet,
+                })
+                .collect())
         }
 
         fn reader_tables(
-            _reader: wit::ReadingBorrow<'_>,
-            _source: &Source,
-            _sheet: String,
+            reader: wit::ReadingBorrow<'_>,
+            source: &Source,
+            sheet: String,
         ) -> Result<Vec<wit::TableInfo>, wit::Error> {
-            Err(reading())
+            let tables = reader
+                .get::<Reader>()
+                .reader
+                .borrow()
+                .tables(&Lent(source), &sheet)
+                .map_err(error)?;
+            Ok(tables
+                .into_iter()
+                .map(|table| wit::TableInfo {
+                    table: table.table,
+                    name: table.name,
+                    sheet: table.sheet,
+                })
+                .collect())
         }
 
         fn reader_images(
-            _reader: wit::ReadingBorrow<'_>,
-            _source: &Source,
-            _sheet: String,
+            reader: wit::ReadingBorrow<'_>,
+            source: &Source,
+            sheet: String,
         ) -> Result<Vec<wit::ImageInfo>, wit::Error> {
-            Err(reading())
+            let images = reader
+                .get::<Reader>()
+                .reader
+                .borrow()
+                .images(&Lent(source), &sheet)
+                .map_err(error)?;
+            Ok(images
+                .into_iter()
+                .map(|image| wit::ImageInfo {
+                    at: image.at,
+                    image: image.image,
+                    format: image.format,
+                    link: image.link,
+                })
+                .collect())
         }
 
         fn reader_properties(
-            _reader: wit::ReadingBorrow<'_>,
-            _source: &Source,
+            reader: wit::ReadingBorrow<'_>,
+            source: &Source,
         ) -> Result<wit::Properties, wit::Error> {
-            Err(reading())
+            let properties = reader
+                .get::<Reader>()
+                .reader
+                .borrow()
+                .properties(&Lent(source))
+                .map_err(error)?;
+            Ok(wit::Properties {
+                title: properties.title,
+                subject: properties.subject,
+                author: properties.author,
+                company: properties.company,
+                keywords: properties.keywords,
+                created: properties.created.map(|clock| wit::ClockCell {
+                    day: wit_date(clock.day),
+                    clock: wit_time(clock.clock),
+                }),
+            })
         }
 
         fn reader_macros(

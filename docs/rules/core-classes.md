@@ -4924,7 +4924,12 @@ all `string`.
 and `columns` as the file declares them, and `kind` (`'worksheet'` or `'chartsheet'`). **The extras
 read on request**, each for one sheet or the workbook: `merged`, `links`, `notes`, `names`, `tables`,
 `images` (as bytes with their anchor), `properties` and `macros`. An external link, a linked image or a
-data connection reads as data and is never followed ([`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io)).
+data connection reads as data and is never followed ([`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io)): a
+hyperlink is its target's text with `external` set, a linked picture has no bytes and its target's
+text in `link`, and a defined name over another workbook is its reference's text. A picture is listed
+at the top-left cell of its anchor, and one anchored to no cell is not listed. `properties()` gives
+`created` as an `Instant`. Hyperlinks are read from the sheet's part to its end, as `merged` is, and
+the other extras from parts small enough to read whole.
 
 **Shared strings are kept in one arena** with `u32` offsets, never one allocation per entry, and the
 reader reads `styles.xml`'s number formats and each cell's style index, which the read table's date
@@ -4951,7 +4956,9 @@ one. The engine's resource is `reading`, because a manifest's resource is a clas
 An xlsb stores a formula as parsed tokens and not as text, so with `formulas: true` an xlsb cell
 reads as its stored result and gives no `Formula`.
 
-**Not shipped.** The extras but `macros()` and `merged()`, and `text`. The `value` accessor reads a
+**Not shipped.** `links`, `notes`, `names`, `tables` and `images` from an xlsb, xls or ods file, and
+`properties` from an xls or ods file: each throws naming the format. `text`. `Reader::open` does not
+take `tainted bytes`, so an upload does not compile as its source. The `value` accessor reads a
 range of `bytes` and not yet of an open `Core\IO\File`, and each call copies a `bytes` source whole
 as it crosses. `Reader::open`, `sheets()` and `rows()` read xlsx, xlsm, xlsb, xls and ods.
 

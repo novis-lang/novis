@@ -32,6 +32,9 @@
 //! gives each cell of a range the range's top-left value ([`merge`]). A read without it gives the
 //! value in the top-left cell only.
 //!
+//! **The other extras**, a sheet's hyperlinks, notes, tables and images and the workbook's names
+//! and properties, are [`extras`]' module doc.
+//!
 //! **Time values.** A serial is rounded to the millisecond, the precision Excel shows. In the 1900
 //! system a serial below 61 is one day later than its count, because Excel counts the day
 //! 1900-02-29, which did not exist. Serial 60 reads as 1900-03-01.
@@ -43,6 +46,7 @@
 
 pub mod binary;
 mod cfb;
+pub mod extras;
 pub mod format;
 pub mod merge;
 mod ods;
@@ -300,6 +304,8 @@ struct Listed {
 pub struct Reader {
     directory: zip::Directory,
     sheets: Vec<Listed>,
+    /// The workbook part of a zip package: an xlsx, xlsm or xlsb.
+    workbook: Option<String>,
     strings_part: Option<String>,
     strings: Option<Strings>,
     /// The read type each cell style index gives a number.
@@ -573,6 +579,7 @@ impl Reader {
         Ok(Self {
             strings_part: part_of("sharedStrings"),
             vba_part,
+            workbook: Some(workbook),
             directory,
             sheets,
             strings: None,
@@ -594,6 +601,7 @@ impl Reader {
         Self {
             directory,
             sheets,
+            workbook: None,
             strings_part: None,
             strings: None,
             kinds,

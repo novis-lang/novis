@@ -10,6 +10,12 @@ final class Reader
 {
     type RowOptions = ?{header?: bool|int, from?: uint, limit?: uint, columns?: array<string>, zone?: string, text?: bool|array<string>, formulas?: bool, emptyRows?: string, merged?: string, hidden?: string, locale?: string};
     type SheetInfo = {name: string, position: uint, visibility: Visibility, rows: uint, columns: uint, kind: SheetKind};
+    type Link = {anchor: string, target: string, text: ?string, tooltip: ?string, external: bool};
+    type Note = {noted: string, note: string, author: ?string};
+    type Name = {name: string, reference: string, sheet: ?string};
+    type Table = {table: string, name: string, sheet: string};
+    type Image = {at: string, image: bytes, format: string, link: ?string};
+    type Properties = {title: ?string, subject: ?string, author: ?string, company: ?string, keywords: ?string, created: ?Core\Time\Instant};
     type Read = {text: string}|{integer: int}|{number: float}|{boolean: bool}|{day: Core\Time\Date, clock: Core\Time\TimeOfDay}|{date: Core\Time\Date}|{time: Core\Time\TimeOfDay}|{duration: Core\Time\Duration}|{error: CellError};
     type Asked = {sheet: string, headerRow: ?uint, from: ?uint, limit: ?uint, columns: array<string>, text: array<string>, textAll: bool, formulas: bool, keepEmptyRows: bool, fillMerged: bool, skipHidden: bool, locale: string};
 
@@ -43,6 +49,59 @@ final class Reader
     public function merged(string|int $sheet): array<string>
     {
         return Engine::readerMerged($this->reader, $this->source, $this->sheetName($sheet));
+    }
+
+    /// `links` returns the hyperlinks of the sheet `$sheet`. `anchor` is the cell, such as `"B2"`, and `target` is where the link goes.
+    /// `external` is `true` for a URL or a file. Reading a file never opens its links.
+    public function links(string|int $sheet): array<Link>
+    {
+        return Engine::readerLinks($this->reader, $this->source, $this->sheetName($sheet));
+    }
+
+    /// `notes` returns the notes of the sheet `$sheet`. Each one has its cell in `noted`, its text in `note`, and its `author`.
+    public function notes(string|int $sheet): array<Note>
+    {
+        return Engine::readerNotes($this->reader, $this->source, $this->sheetName($sheet));
+    }
+
+    /// `names` returns the defined names of the workbook. `reference` is the text of the name, such as `"Shop!$A$1:$C$9"`.
+    /// `sheet` is `null` for a name the whole workbook can use.
+    public function names(): array<Name>
+    {
+        return Engine::readerNames($this->reader, $this->source);
+    }
+
+    /// `tables` returns the Excel tables of the sheet `$sheet`. `table` is the range, such as `"A1:C10"`, and `name` is the table name.
+    public function tables(string|int $sheet): array<Table>
+    {
+        return Engine::readerTables($this->reader, $this->source, $this->sheetName($sheet));
+    }
+
+    /// `images` returns the pictures of the sheet `$sheet`. `at` is the top-left cell, and `image` is the bytes of the picture.
+    /// A linked picture has empty `image` bytes, and `link` is its target. Reading a file never fetches a link.
+    public function images(string|int $sheet): array<Image>
+    {
+        return Engine::readerImages($this->reader, $this->source, $this->sheetName($sheet));
+    }
+
+    /// `properties` returns the title, subject, author, company and keywords of the workbook, and the time it was created.
+    /// A property the file does not have is `null`. An xls or ods file throws an error.
+    public function properties(): Properties
+    {
+        var $found = Engine::readerProperties($this->reader, $this->source);
+        ?Core\Time\Instant $created = null;
+        var $at = $found->created;
+        if ($at != null) {
+            $created = Core\Time::parse($at->day->format("yyyy-MM-dd"), "yyyy-MM-dd", Core\Time\Zone::of("UTC"))->withTime($at->clock)->toInstant();
+        }
+        return {
+            title: $found->title,
+            subject: $found->subject,
+            author: $found->author,
+            company: $found->company,
+            keywords: $found->keywords,
+            created: $created,
+        };
     }
 
     /// `rows` reads the sheet `$sheet`, by name or by position from 0. It gives one `Row` at a time, with its row number in the file.

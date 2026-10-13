@@ -123,6 +123,64 @@
       "help": "Returns the merged cells of the sheet `sheet`. Each one is a range such as `A1:C2`."
     },
     {
+      "name": "readerLinks",
+      "params": [
+        {"name": "reader", "type": "Reading"},
+        {"name": "source", "type": "mixed"},
+        {"name": "sheet", "type": "string"}
+      ],
+      "returns": "array<{anchor: string, target: string, text: ?string, tooltip: ?string, external: bool}>",
+      "help": "Returns the hyperlinks of the sheet `sheet`. `external` is `true` for a link to a URL or a file. Nothing opens the link."
+    },
+    {
+      "name": "readerNotes",
+      "params": [
+        {"name": "reader", "type": "Reading"},
+        {"name": "source", "type": "mixed"},
+        {"name": "sheet", "type": "string"}
+      ],
+      "returns": "array<{noted: string, note: string, author: ?string}>",
+      "help": "Returns the notes of the sheet `sheet`, each with its cell, its text and its author."
+    },
+    {
+      "name": "readerNames",
+      "params": [
+        {"name": "reader", "type": "Reading"},
+        {"name": "source", "type": "mixed"}
+      ],
+      "returns": "array<{name: string, reference: string, sheet: ?string}>",
+      "help": "Returns the defined names of the workbook, each with its reference as text. `sheet` is the sheet a local name belongs to."
+    },
+    {
+      "name": "readerTables",
+      "params": [
+        {"name": "reader", "type": "Reading"},
+        {"name": "source", "type": "mixed"},
+        {"name": "sheet", "type": "string"}
+      ],
+      "returns": "array<{table: string, name: string, sheet: string}>",
+      "help": "Returns the Excel tables of the sheet `sheet`, each with its range, such as `A1:C10`, and its name."
+    },
+    {
+      "name": "readerImages",
+      "params": [
+        {"name": "reader", "type": "Reading"},
+        {"name": "source", "type": "mixed"},
+        {"name": "sheet", "type": "string"}
+      ],
+      "returns": "array<{at: string, image: bytes, format: string, link: ?string}>",
+      "help": "Returns the pictures of the sheet `sheet`, each with its top-left cell, its bytes and its format. A linked picture has no bytes, and `link` is its target. Nothing fetches it."
+    },
+    {
+      "name": "readerProperties",
+      "params": [
+        {"name": "reader", "type": "Reading"},
+        {"name": "source", "type": "mixed"}
+      ],
+      "returns": "{title: ?string, subject: ?string, author: ?string, company: ?string, keywords: ?string, created: ?{day: Core\\Time\\Date, clock: Core\\Time\\TimeOfDay}}",
+      "help": "Returns the document properties of the workbook. `created` is the time it was created, in UTC."
+    },
+    {
       "name": "readerHeader",
       "params": [
         {"name": "reader", "type": "Reading"},

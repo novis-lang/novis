@@ -179,6 +179,16 @@ fn xlsx(sheets: &[Sheet<'_>], shared: &[&str]) -> Vec<u8> {
 
 /// The package [`xlsx`] makes, with the parts `extra` added.
 fn package(sheets: &[Sheet<'_>], shared: &[&str], extra: &[(&str, Vec<u8>)]) -> Vec<u8> {
+    package_with(sheets, shared, extra, "")
+}
+
+/// The package [`package`] makes, with `book_tail` written in the workbook part after its sheets.
+fn package_with(
+    sheets: &[Sheet<'_>],
+    shared: &[&str],
+    extra: &[(&str, Vec<u8>)],
+    book_tail: &str,
+) -> Vec<u8> {
     let main = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
     let rel = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
     let mut book =
@@ -213,7 +223,9 @@ fn package(sheets: &[Sheet<'_>], shared: &[&str], extra: &[(&str, Vec<u8>)]) -> 
             .into_bytes(),
         ));
     }
-    book.push_str("</sheets></workbook>");
+    book.push_str("</sheets>");
+    book.push_str(book_tail);
+    book.push_str("</workbook>");
     rels.push_str(&format!(
         r#"<Relationship Id="rIdS" Type="{rel}/styles" Target="styles.xml"/><Relationship Id="rIdT" Type="{rel}/sharedStrings" Target="/xl/sharedStrings.xml"/></Relationships>"#
     ));
@@ -1938,6 +1950,290 @@ fn the_header_names_every_key_and_a_missing_cell_is_null() {
     assert_eq!(
         read.call("readerHeader", vec![options("Shop").value()]),
         strings(&["Item"])
+    );
+    block_on(read.request.end()).expect("the request ends");
+}
+
+fn string(text: &str) -> Value {
+    Value::String(text.to_owned())
+}
+
+/// A relationships part of `(id, type, target, external)` entries.
+fn rels(entries: &[(&str, &str, &str, bool)]) -> Vec<u8> {
+    let rel = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+    let mut out = String::from(
+        r#"<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">"#,
+    );
+    for (id, kind, target, external) in entries {
+        let mode = if *external {
+            r#" TargetMode="External""#
+        } else {
+            ""
+        };
+        out.push_str(&format!(
+            r#"<Relationship Id="{id}" Type="{rel}/{kind}" Target="{target}"{mode}/>"#
+        ));
+    }
+    out.push_str("</Relationships>");
+    out.into_bytes()
+}
+
+/// A drawing part with one anchor per `(anchor, from, blip attributes)`; an `absoluteAnchor` has
+/// no `from`.
+fn drawing(anchors: &[(&str, Option<(u32, u32)>, &str)]) -> Vec<u8> {
+    let mut out = String::from(
+        r#"<?xml version="1.0"?><xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">"#,
+    );
+    for (anchor, from, blip) in anchors {
+        out.push_str(&format!("<xdr:{anchor}>"));
+        if let Some((column, row)) = from {
+            out.push_str(&format!(
+                "<xdr:from><xdr:col>{column}</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>{row}</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from>"
+            ));
+        }
+        out.push_str(&format!(
+            r#"<xdr:pic><xdr:blipFill><a:blip {blip}/></xdr:blipFill></xdr:pic><xdr:clientData/></xdr:{anchor}>"#
+        ));
+    }
+    out.push_str("</xdr:wsDr>");
+    out.into_bytes()
+}
+
+/// The bytes of a PNG file's signature and the start of its header: what an image part holds.
+const PNG: &[u8] = b"\x89PNG\r\n\x1a\n\x00\x00\x00\x0dIHDR";
+
+#[test]
+fn the_extras_read_on_request() {
+    let shop = Sheet {
+        tail: r#"<hyperlinks><hyperlink ref="A1" r:id="rIdL" display="Shop site" tooltip="Open the shop"/><hyperlink ref="B1:B2" location="'Blog'!A1"/></hyperlinks><drawing r:id="rIdD"/>"#.to_owned(),
+        ..sheet("Shop", row(1, &[("s", 0, "<v>0</v>"), ("", 0, "<v>3</v>")]))
+    };
+    let blog = sheet("Blog", row(1, &[("", 0, "<v>1</v>")]));
+    let comments = r#"<?xml version="1.0"?><comments xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><authors><author>Ann</author><author>Bo &amp; Co</author></authors><commentList><comment ref="A1" authorId="1"><text><r><t>Bo:</t></r><r><t xml:space="preserve"> check the price</t></r></text></comment><comment ref="B2" authorId="0"><text><t>Plain</t></text></comment></commentList></comments>"#;
+    let table = r#"<?xml version="1.0"?><table xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" id="1" name="Table1" displayName="Prices" ref="A1:B3"><autoFilter ref="A1:B3"/></table>"#;
+    let core = r#"<?xml version="1.0"?><cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><dc:title>Prices</dc:title><dc:subject>Coffee &amp; tea</dc:subject><dc:creator>Shop</dc:creator><cp:keywords>prices, shop</cp:keywords><dcterms:created xsi:type="dcterms:W3CDTF">2024-03-05T15:30:09+01:00</dcterms:created></cp:coreProperties>"#;
+    let app = r#"<?xml version="1.0"?><Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties"><Application>Microsoft Excel</Application><Company>Example</Company></Properties>"#;
+    let names = r#"<definedNames><definedName name="Prices">Shop!$A$1:$B$3</definedName><definedName name="_xlnm.Print_Area" localSheetId="1">Blog!$A$1:$C$9</definedName></definedNames>"#;
+    let read = Read::open(package_with(
+        &[shop, blog],
+        &["Coffee"],
+        &[
+            (
+                "xl/worksheets/_rels/sheet1.xml.rels",
+                rels(&[
+                    ("rIdL", "hyperlink", "https://example.com/shop", true),
+                    ("rIdC", "comments", "../comments1.xml", false),
+                    ("rIdT", "table", "../tables/table1.xml", false),
+                    ("rIdD", "drawing", "../drawings/drawing1.xml", false),
+                ]),
+            ),
+            ("xl/comments1.xml", comments.as_bytes().to_vec()),
+            ("xl/tables/table1.xml", table.as_bytes().to_vec()),
+            (
+                "xl/drawings/drawing1.xml",
+                drawing(&[
+                    ("twoCellAnchor", Some((2, 4)), r#"r:embed="rIdP""#),
+                    ("absoluteAnchor", None, r#"r:embed="rIdP""#),
+                ]),
+            ),
+            (
+                "xl/drawings/_rels/drawing1.xml.rels",
+                rels(&[("rIdP", "image", "../media/image1.png", false)]),
+            ),
+            ("xl/media/image1.png", PNG.to_vec()),
+            ("docProps/core.xml", core.as_bytes().to_vec()),
+            ("docProps/app.xml", app.as_bytes().to_vec()),
+        ],
+        names,
+    ));
+
+    let links = read.call("readerLinks", vec![string("Shop")]);
+    let links = entries(&links);
+    assert_eq!(links.len(), 2);
+    assert_eq!(field(links[0], "anchor"), &string("A1"));
+    assert_eq!(
+        field(links[0], "target"),
+        &string("https://example.com/shop")
+    );
+    assert_eq!(field(links[0], "text"), &string("Shop site"));
+    assert_eq!(field(links[0], "tooltip"), &string("Open the shop"));
+    assert_eq!(field(links[0], "external"), &Value::Bool(true));
+    // A link to a place in the workbook is its location, and is not external.
+    assert_eq!(field(links[1], "anchor"), &string("B1:B2"));
+    assert_eq!(field(links[1], "target"), &string("'Blog'!A1"));
+    assert_eq!(field(links[1], "text"), &Value::Null);
+    assert_eq!(field(links[1], "external"), &Value::Bool(false));
+
+    // A note's text is every run of it, and its author is named by the authors list.
+    let notes = read.call("readerNotes", vec![string("Shop")]);
+    let notes = entries(&notes);
+    assert_eq!(notes.len(), 2);
+    assert_eq!(field(notes[0], "noted"), &string("A1"));
+    assert_eq!(field(notes[0], "note"), &string("Bo: check the price"));
+    assert_eq!(field(notes[0], "author"), &string("Bo & Co"));
+    assert_eq!(field(notes[1], "noted"), &string("B2"));
+    assert_eq!(field(notes[1], "author"), &string("Ann"));
+
+    let names = read.call("readerNames", vec![]);
+    let names = entries(&names);
+    assert_eq!(names.len(), 2);
+    assert_eq!(field(names[0], "name"), &string("Prices"));
+    assert_eq!(field(names[0], "reference"), &string("Shop!$A$1:$B$3"));
+    assert_eq!(field(names[0], "sheet"), &Value::Null);
+    assert_eq!(field(names[1], "name"), &string("_xlnm.Print_Area"));
+    assert_eq!(field(names[1], "sheet"), &string("Blog"));
+
+    let tables = read.call("readerTables", vec![string("Shop")]);
+    let tables = entries(&tables);
+    assert_eq!(tables.len(), 1);
+    assert_eq!(field(tables[0], "table"), &string("A1:B3"));
+    assert_eq!(field(tables[0], "name"), &string("Prices"));
+    assert_eq!(field(tables[0], "sheet"), &string("Shop"));
+
+    // The picture is at the cell its anchor starts in, C5, and one anchored to no cell is not
+    // listed.
+    let images = read.call("readerImages", vec![string("Shop")]);
+    let images = entries(&images);
+    assert_eq!(images.len(), 1);
+    assert_eq!(field(images[0], "at"), &string("C5"));
+    assert_eq!(field(images[0], "image"), &Value::Bytes(PNG.to_vec()));
+    assert_eq!(field(images[0], "format"), &string("png"));
+    assert_eq!(field(images[0], "link"), &Value::Null);
+
+    // The creation time is in UTC.
+    let properties = read.call("readerProperties", vec![]);
+    assert_eq!(field(&properties, "title"), &string("Prices"));
+    assert_eq!(field(&properties, "subject"), &string("Coffee & tea"));
+    assert_eq!(field(&properties, "author"), &string("Shop"));
+    assert_eq!(field(&properties, "company"), &string("Example"));
+    assert_eq!(field(&properties, "keywords"), &string("prices, shop"));
+    let created = field(&properties, "created");
+    assert_eq!(field(created, "day"), &date(2024, 3, 5));
+    assert_eq!(field(created, "clock"), &time(14, 30, 9));
+
+    // A sheet with none of them gives empty lists, and a sheet the workbook lacks throws.
+    for method in ["readerLinks", "readerNotes", "readerTables", "readerImages"] {
+        assert_eq!(
+            read.call(method, vec![string("Blog")]),
+            strings(&[]),
+            "{method}"
+        );
+    }
+    let missing = read.failure("readerLinks", vec![string("Prices")]);
+    assert!(missing.contains("no sheet named `Prices`"), "{missing}");
+    block_on(read.request.end()).expect("the request ends");
+
+    // A workbook with no properties part gives `null` for each.
+    let read = Read::open(xlsx(&[sheet("Shop", String::new())], &[]));
+    let properties = read.call("readerProperties", vec![]);
+    assert_eq!(field(&properties, "title"), &Value::Null);
+    assert_eq!(field(&properties, "created"), &Value::Null);
+    assert_eq!(read.call("readerNames", vec![]), strings(&[]));
+    block_on(read.request.end()).expect("the request ends");
+
+    // An ods file throws naming its format, so an empty list always means the file has none.
+    let read = Read::open(ods());
+    let refused = read.failure("readerNotes", vec![string("Shop")]);
+    assert!(refused.contains("an ods file"), "{refused}");
+    block_on(read.request.end()).expect("the request ends");
+}
+
+#[test]
+fn an_external_link_or_connection_reads_as_data_and_is_never_followed() {
+    // Every target names a file that exists on this machine. Following one would put its bytes
+    // in the result.
+    let manifest = nvs_repo::path("Cargo.toml");
+    let file = format!(
+        "file:///{}",
+        manifest.display().to_string().replace('\\', "/")
+    );
+    let file = file.as_str();
+    let shop = Sheet {
+        tail: r#"<hyperlinks><hyperlink ref="A1" r:id="rIdL"/></hyperlinks><drawing r:id="rIdD"/>"#
+            .to_owned(),
+        ..sheet(
+            "Shop",
+            r#"<row r="1"><c r="A1"><f>[1]Prices!A1</f><v>42</v></c></row>"#,
+        )
+    };
+    let link = r#"<?xml version="1.0"?><externalLink xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><externalBook r:id="rId1"><sheetNames><sheetName val="Prices"/></sheetNames></externalBook></externalLink>"#;
+    let connections = format!(
+        r#"<?xml version="1.0"?><connections xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><connection id="1" name="Shop" type="4" refreshOnLoad="1"><webPr url="{file}"/></connection></connections>"#
+    );
+    let read = Read::open(package_with(
+        &[shop],
+        &[],
+        &[
+            (
+                "xl/worksheets/_rels/sheet1.xml.rels",
+                rels(&[
+                    ("rIdL", "hyperlink", file, true),
+                    ("rIdD", "drawing", "../drawings/drawing1.xml", false),
+                ]),
+            ),
+            (
+                "xl/drawings/drawing1.xml",
+                drawing(&[("oneCellAnchor", Some((0, 0)), r#"r:link="rIdP""#)]),
+            ),
+            (
+                "xl/drawings/_rels/drawing1.xml.rels",
+                rels(&[("rIdP", "image", file, true)]),
+            ),
+            (
+                "xl/externalLinks/externalLink1.xml",
+                link.as_bytes().to_vec(),
+            ),
+            (
+                "xl/externalLinks/_rels/externalLink1.xml.rels",
+                rels(&[("rId1", "externalLinkPath", file, true)]),
+            ),
+            ("xl/connections.xml", connections.into_bytes()),
+        ],
+        r#"<definedNames><definedName name="Remote">[1]Prices!$A$1</definedName></definedNames>"#,
+    ));
+
+    // The hyperlink is its target's text.
+    let links = read.call("readerLinks", vec![string("Shop")]);
+    let links = entries(&links);
+    assert_eq!(field(links[0], "target"), &string(file));
+    assert_eq!(field(links[0], "external"), &Value::Bool(true));
+
+    // The linked picture is its target's text, with no bytes.
+    let images = read.call("readerImages", vec![string("Shop")]);
+    let images = entries(&images);
+    assert_eq!(images.len(), 1);
+    assert_eq!(field(images[0], "at"), &string("A1"));
+    assert_eq!(field(images[0], "image"), &Value::Bytes(Vec::new()));
+    assert_eq!(field(images[0], "link"), &string(file));
+
+    // A formula over another workbook reads as its stored result, and its text is data.
+    let rows = read.all(
+        &Options {
+            formulas: true,
+            ..options("Shop")
+        },
+        10,
+    );
+    assert_eq!(rows, vec![(1, vec![(1, integer(42))])]);
+    let batch = read.batch(
+        Options {
+            formulas: true,
+            ..options("Shop")
+        }
+        .value(),
+        10,
+    );
+    let row = entries(field(&batch, "rows"))[0];
+    assert_eq!(
+        field(entries(field(row, "cells"))[0], "formula"),
+        &string("[1]Prices!A1")
+    );
+
+    // A defined name over another workbook is its reference's text.
+    let names = read.call("readerNames", vec![]);
+    assert_eq!(
+        field(entries(&names)[0], "reference"),
+        &string("[1]Prices!$A$1")
     );
     block_on(read.request.end()).expect("the request ends");
 }

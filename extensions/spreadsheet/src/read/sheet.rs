@@ -187,15 +187,33 @@ impl Cursor {
 
 /// The merged ranges of the sheet whose part is `entry`, read a block at a time to the part's end.
 pub fn merged(source: &dyn Source, entry: &Entry) -> Result<Vec<Merge>, Error> {
+    let mut ranges = Vec::new();
+    scan(source, entry, |name, attrs| {
+        if name == b"mergeCell"
+            && let Some(reference) = xml::attr(attrs, b"ref")
+        {
+            ranges.push(Merge::parse(reference)?);
+        }
+        Ok(())
+    })?;
+    Ok(ranges)
+}
+
+/// Calls `each` with the local name and the attributes of every start tag of the part `entry`,
+/// read a block at a time to the part's end, so the part is never held whole.
+pub fn scan(
+    source: &dyn Source,
+    entry: &Entry,
+    mut each: impl FnMut(&[u8], &[u8]) -> Result<(), Error>,
+) -> Result<(), Error> {
     let mut part = Part::open(source, entry)?;
     let mut buf = Vec::new();
     let mut at = 0;
     let mut eof = false;
-    let mut ranges = Vec::new();
     loop {
         let Some((token, size)) = xml::next(&buf[at..])? else {
             if eof {
-                return Ok(ranges);
+                return Ok(());
             }
             buf.drain(..at);
             at = 0;
@@ -203,11 +221,8 @@ pub fn merged(source: &dyn Source, entry: &Entry) -> Result<Vec<Merge>, Error> {
             continue;
         };
         at += size;
-        if let Token::Open { name, attrs, .. } = token
-            && xml::local(name) == b"mergeCell"
-            && let Some(reference) = xml::attr(attrs, b"ref")
-        {
-            ranges.push(Merge::parse(reference)?);
+        if let Token::Open { name, attrs, .. } = token {
+            each(xml::local(name), attrs)?;
         }
     }
 }
