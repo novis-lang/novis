@@ -102,12 +102,15 @@ interface engine {
         style: option<u64>,
     }
 
+    /// A `header` row is the sheet's header row, which only its first row can
+    /// be. It gets the sheet's `header-options`.
     record row {
         cells: list<cell>,
         style: option<u64>,
         height: option<f64>,
         hidden: bool,
         level: u64,
+        header: bool,
     }
 
     // ---- styles ----
@@ -148,7 +151,7 @@ interface engine {
     }
 
     /// The style fields of `rule:core-classes/spreadsheet-styles-and-defaults`,
-    /// one layer of them. A format shortcut is already its code.
+    /// one layer of them. `format` is a format code or one of the shortcuts.
     record style {
         font: option<string>,
         size: option<f64>,
@@ -196,14 +199,30 @@ interface engine {
     }
 
     /// A column, in header order. An absent `width` with `auto` measures
-    /// the sheet's first rows.
+    /// the sheet's first batch of rows. A column past the list has `auto`
+    /// when the sheet has a header row. `format` is a format code or a
+    /// shortcut, over the column's `style`.
     record column {
         width: option<f64>,
         auto: bool,
         style: option<u64>,
+        format: option<string>,
         hidden: bool,
     }
 
+    /// What a header row gets: `default-style` is bold with a thin bottom
+    /// border, with `style` over it, or `style` alone when it is off.
+    /// `freeze` freezes the header and `filter` puts an autofilter over it
+    /// and the rows below.
+    record header-options {
+        default-style: bool,
+        style: option<u64>,
+        freeze: bool,
+        filter: bool,
+    }
+
+    /// `new-sheet-on-overflow` goes on to a sheet named `<name> (2)`, with
+    /// the header row repeated, at the end of the grid.
     record sheet-options {
         name: string,
         position: option<u64>,
@@ -216,6 +235,8 @@ interface engine {
         zoom: option<u64>,
         gridlines: bool,
         right-to-left: bool,
+        header: header-options,
+        new-sheet-on-overflow: bool,
     }
 
     record merge-part {

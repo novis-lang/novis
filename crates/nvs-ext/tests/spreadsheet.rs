@@ -140,6 +140,7 @@ fn row(cells: Vec<Value>) -> Value {
         ("height", Value::Null),
         ("hidden", Value::Bool(false)),
         ("level", Value::Uint(0)),
+        ("header", Value::Bool(false)),
     ])
 }
 
@@ -173,6 +174,16 @@ fn sheet(name: &str) -> Value {
         ("zoom", Value::Null),
         ("gridlines", Value::Bool(true)),
         ("rightToLeft", Value::Bool(false)),
+        (
+            "header",
+            shape(vec![
+                ("defaultStyle", Value::Bool(true)),
+                ("style", Value::Null),
+                ("freeze", Value::Bool(true)),
+                ("filter", Value::Bool(true)),
+            ]),
+        ),
+        ("newSheetOnOverflow", Value::Bool(false)),
     ])
 }
 

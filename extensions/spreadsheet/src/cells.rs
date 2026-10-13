@@ -10,7 +10,7 @@
 //! **The 1900 date system** counts days from 1899-12-30, and Excel counts 1900-02-29, a day that
 //! does not exist, so a date before 1900-03-01 is one day less. A date before 1900-01-01 or after
 //! 9999-12-31 has no serial and is a [`Error::Invalid`] naming the cell, and so is a number that
-//! is NaN or infinite.
+//! is NaN or infinite, and a text past Excel's 32,767 characters.
 
 use std::fmt::Write as _;
 
@@ -19,6 +19,9 @@ use crate::{Cell, Clock, Date, Error, TimeOfDay, Value, xml};
 
 /// Nanoseconds in a day.
 const DAY_NANOS: f64 = 86_400_000_000_000.0;
+
+/// The most characters Excel keeps in one cell.
+const MAX_TEXT: usize = 32_767;
 
 /// Appends the letters of the column at `index`, counted from 0.
 pub fn column_letters(out: &mut String, index: u32) {
@@ -155,6 +158,16 @@ fn finite(at: &str, value: f64) -> Result<f64, Error> {
     }
 }
 
+/// `text`, when its `count` characters fit in one cell.
+fn length<'a>(at: &str, text: &'a str, count: usize) -> Result<&'a str, Error> {
+    if count > MAX_TEXT {
+        return Err(Error::Invalid(format!(
+            "The cell `{at}` has {count} characters. A cell has at most 32,767 characters."
+        )));
+    }
+    Ok(text)
+}
+
 fn clock_serial(at: &str, clock: &Clock) -> Result<f64, Error> {
     let day = date_serial(&clock.day).ok_or_else(|| date_error(at, &clock.day))?;
     if !valid_time(&clock.clock) {
@@ -204,7 +217,7 @@ pub fn cell(
             out.push_str("/>");
             return Ok(false);
         }
-        Some(Value::Text(text)) => Written::Text(text),
+        Some(Value::Text(text)) => Written::Text(length(&at, text, text.chars().count())?),
         Some(Value::Number(value)) => Written::Number(finite(&at, *value)?, Implicit::None),
         Some(Value::Integer(value)) => {
             let text = integer.format(*value);
@@ -249,7 +262,11 @@ pub fn cell(
             let number = cached_number.map(|n| finite(&at, n)).transpose()?;
             Written::Formula(formula, cached_text.as_deref(), number)
         }
-        Some(Value::Rich(runs)) => Written::Rich(runs),
+        Some(Value::Rich(runs)) => {
+            let count = runs.iter().map(|run| run.text.chars().count()).sum();
+            length(&at, "", count)?;
+            Written::Rich(runs)
+        }
     };
     let implicit = match written {
         Written::Number(_, implicit) => implicit,

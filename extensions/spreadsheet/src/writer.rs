@@ -1,15 +1,29 @@
 //! The workbook writer: sheets one after another, rows in batches, and the parts `finish` adds
 //! (`rule:core-classes/spreadsheet-writes-as-a-stream`).
 //!
-//! [`Writer::sheet`] ends the open sheet and starts the next one's zip entry with what xlsx writes
-//! before the rows: the tab color, the sheet view with its frozen pane, gridlines, direction and
-//! zoom, and the columns. [`Writer::rows`] writes a batch into `<sheetData>`. A batch is built as
-//! text first and goes into the compressor only once every cell of it has been written, so a batch
-//! that fails leaves the sheet as it was and the guest keeps no row of it. [`Writer::finish`] ends
-//! the last sheet with its autofilter and writes `styles.xml`, `workbook.xml` with the sheets in
-//! tab order, the relationships, the document properties, the content types and the zip
-//! directory. Each call returns the archive's bytes produced so far, so the writer holds nothing
-//! it has already given out.
+//! [`Writer::sheet`] checks the sheet's options, ends the open sheet and opens the next one. The
+//! new sheet's zip entry starts with its first batch of rows, or when it ends with none, with
+//! what xlsx writes before the rows: the tab color, the sheet view with its frozen pane,
+//! gridlines, direction and zoom, and the columns. Waiting for the first batch lets auto width
+//! measure it. [`Writer::rows`] writes a batch into `<sheetData>`. A batch is built as text first
+//! and goes into the compressor only once every cell of it has been written, so a batch that
+//! fails leaves the sheet as it was and the guest keeps no row of it. [`Writer::finish`] ends the
+//! last sheet with its autofilter and writes `styles.xml`, `workbook.xml` with the sheets in tab
+//! order, the relationships, the document properties, the content types and the zip directory.
+//! Each call returns the archive's bytes produced so far, so the writer holds nothing it has
+//! already given out.
+//!
+//! **The header row** (`rule:core-classes/spreadsheet-styles-and-defaults`) is a first row whose
+//! `header` is set, and only the first row can be one. It gets the [`Header`] layer as its row
+//! style, the rows above the second are frozen, an autofilter covers the header and every row
+//! below it with the hidden `_xlnm._FilterDatabase` name Excel writes beside one, and every column
+//! the options do not list has auto width. It is not counted in the sheet's rows. **Auto width**
+//! measures the first batch, header included (`width`'s module doc): the Novis half sends 1,000
+//! rows in it, or every row of an array.
+//!
+//! **The grid is Excel's.** A row past 1,048,576 is an error naming the limit, unless
+//! `new_sheet_on_overflow` is set: then the rows that fit end the sheet, and the rest go on a
+//! sheet with the same options named `<name> (2)`, then `(3)`, its header row repeated.
 //!
 //! The tab order is the sheets with a `position` by that position, then the others in the order
 //! they were written. A sheet's part is named by the order it was written in, whatever its tab.
@@ -20,19 +34,20 @@
 //!
 //! A call that fails in the archive (a part past 4 GB) stops the writer, and every later call
 //! returns an error. A call that fails on its input (a bad sheet name, a NaN) changes nothing,
-//! and the program may go on.
+//! and the program may go on. The one exception is [`Writer::sheet`] given first rows that fail:
+//! the sheet is open by then, and stays open with no rows.
 //!
-//! **Not done yet.** Auto width writes no width, the sheet-end parts (`writer-part`) return an
-//! error, and a sheet with a header row gets no default style: Stages 4 and 5 of goal
+//! **Not done yet.** The sheet-end parts (`writer-part`) return an error: Stage 5 of goal
 //! `spreadsheet`.
 
 use std::fmt::Write as _;
 
 use crate::cells::{self, Layers};
-use crate::styles::{Styles, argb};
+use crate::styles::{Implicit, Styles, argb};
 use crate::zip::Archive;
 use crate::{
-    Clock, Error, Finished, Row, SheetOptions, SheetRows, Style, Visibility, WorkbookOptions, xml,
+    Clock, Error, Finished, Row, SheetOptions, SheetRows, Style, Visibility, WorkbookOptions,
+    width, xml,
 };
 
 /// The declaration every part begins with.
@@ -46,20 +61,30 @@ const MAIN: &str = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
 const RELS: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
 const PACKAGE_RELS: &str = "http://schemas.openxmlformats.org/package/2006/relationships";
 
-/// A sheet already started.
+/// A sheet already started. `filter` is the absolute range of its autofilter, once it ends.
 struct Sheet {
     name: String,
     position: Option<u64>,
     visibility: Visibility,
     rows: u64,
+    filter: Option<String>,
 }
 
 /// The sheet whose rows are being written.
 struct OpenSheet {
     /// The sheet's index in [`Writer::sheets`].
     index: usize,
+    options: SheetOptions,
+    /// The layer of its header row.
+    header_style: Option<u64>,
+    /// Whether its zip entry has started.
+    started: bool,
     columns: Vec<Option<u64>>,
-    autofilter: Option<String>,
+    /// Its header row, kept to repeat on the next sheet when it overflows.
+    header: Option<Row>,
+    /// The name the overflow sheets count from, and the number of this one, from 1.
+    base: String,
+    part: u32,
     /// The number the next row gets, from 1.
     next: u32,
 }
@@ -134,6 +159,34 @@ fn is_range(text: &str) -> bool {
         Some((from, to)) => cell(from) && cell(to),
         None => cell(text),
     }
+}
+
+/// `range` with every row and column fixed, as `$A$1:$C$10`.
+fn absolute(range: &str) -> String {
+    let fixed = |cell: &str| {
+        let cell = cell.replace('$', "");
+        let letters = cell.bytes().take_while(u8::is_ascii_alphabetic).count();
+        format!("${}${}", &cell[..letters], &cell[letters..])
+    };
+    match range.split_once(':') {
+        Some((from, to)) => format!("{}:{}", fixed(from), fixed(to)),
+        None => fixed(range),
+    }
+}
+
+/// The name of the sheet number `part` of an overflow from `base`, as `Orders (2)`, with `base`
+/// shortened to keep it within 31 characters.
+fn continued(base: &str, part: u32) -> String {
+    let suffix = format!(" ({part})");
+    let keep = 31 - suffix.chars().count();
+    let mut name: String = base.chars().take(keep).collect();
+    name.push_str(&suffix);
+    name
+}
+
+/// `name` quoted for a reference, as `'Shop orders'`.
+fn quoted(name: &str) -> String {
+    format!("'{}'", name.replace('\'', "''"))
 }
 
 fn clock_text(clock: &Clock) -> Result<String, Error> {
@@ -243,10 +296,82 @@ impl Writer {
         Ok(())
     }
 
-    /// Ends the open sheet, if any, starts the next one and writes its first rows. Returns the
+    /// Ends the open sheet, if any, opens the next one and writes its first rows. Returns the
     /// bytes ready to leave.
-    pub fn sheet(&mut self, options: SheetOptions, first: &[Row]) -> Result<Vec<u8>, Error> {
+    pub fn sheet(&mut self, mut options: SheetOptions, first: &[Row]) -> Result<Vec<u8>, Error> {
         self.writing()?;
+        self.check_options(&options)?;
+        // A column's format becomes a layer over its style, so a cell layers one column style.
+        for column in &mut options.columns {
+            if let Some(format) = column.format.take() {
+                let base = match column.style {
+                    Some(id) => self.styles.get(id)?.clone(),
+                    None => Style::default(),
+                };
+                let style = Style {
+                    format: Some(format),
+                    ..base
+                };
+                column.style = Some(self.styles.layer(style)?);
+            }
+        }
+        let header_style = self.header_style(&options)?;
+        self.archived(|this| this.end_sheet())?;
+        let base = options.name.clone();
+        self.open_sheet(options, header_style, base, 1);
+        if first.is_empty() {
+            return Ok(self.archive.take());
+        }
+        self.rows(first)
+    }
+
+    /// The layer of a header row under `options`, or `None` for an unstyled one.
+    fn header_style(&mut self, options: &SheetOptions) -> Result<Option<u64>, Error> {
+        let header = options.header;
+        if !header.default_style {
+            if let Some(id) = header.style {
+                self.styles.get(id)?;
+            }
+            return Ok(header.style);
+        }
+        let base = crate::styles::header();
+        let style = match header.style {
+            Some(id) => self.styles.get(id)?.over(&base),
+            None => base,
+        };
+        self.styles.layer(style).map(Some)
+    }
+
+    fn open_sheet(
+        &mut self,
+        options: SheetOptions,
+        header_style: Option<u64>,
+        base: String,
+        part: u32,
+    ) {
+        let index = self.sheets.len();
+        self.sheets.push(Sheet {
+            name: options.name.clone(),
+            position: options.position,
+            visibility: options.visibility,
+            rows: 0,
+            filter: None,
+        });
+        self.open = Some(OpenSheet {
+            index,
+            options,
+            header_style,
+            started: false,
+            columns: Vec::new(),
+            header: None,
+            base,
+            part,
+            next: 1,
+        });
+    }
+
+    /// Checks a sheet's options against Excel's rules and the sheets already started.
+    fn check_options(&self, options: &SheetOptions) -> Result<(), Error> {
         check_sheet_name(&options.name, &self.sheets)?;
         if options.columns.len() > MAX_COLUMNS {
             return Err(Error::Invalid(format!(
@@ -277,80 +402,154 @@ impl Writer {
                 "The autofilter range `{range}` is not a range of cells, such as `A1:D1`."
             )));
         }
-        let mut head = String::new();
-        self.sheet_head(&options, &mut head)?;
-        let mut open = OpenSheet {
-            index: self.sheets.len(),
-            columns: options.columns.iter().map(|column| column.style).collect(),
-            autofilter: options.autofilter.clone(),
-            next: 1,
-        };
-        let mut body = String::new();
-        let mut formulas = false;
-        let next = self.batch(&options.name, &open, first, &mut body, &mut formulas)?;
-        open.next = next;
-        let part = format!("xl/worksheets/sheet{}.xml", open.index + 1);
-        self.archived(|this| {
-            this.end_sheet()?;
-            this.archive.begin(&part)?;
-            this.archive.write(head.as_bytes())?;
-            this.archive.write(body.as_bytes())
-        })?;
-        self.formulas |= formulas;
-        self.sheets.push(Sheet {
-            name: options.name,
-            position: options.position,
-            visibility: options.visibility,
-            rows: first.len() as u64,
-        });
-        self.open = Some(open);
-        Ok(self.archive.take())
+        if let Some(color) = &options.tab_color {
+            argb(color)?;
+        }
+        for (at, column) in options.columns.iter().enumerate() {
+            if let Some(width) = column.width
+                && !(0.0..=255.0).contains(&width)
+            {
+                return Err(Error::Invalid(format!(
+                    "Column {} of the sheet `{}` has the width {width}. A column width is from 0 to 255.",
+                    at + 1,
+                    options.name
+                )));
+            }
+            if let Some(style) = column.style {
+                self.styles.get(style)?;
+            }
+        }
+        Ok(())
     }
 
     /// Writes a batch of rows to the open sheet. Returns the bytes ready to leave.
     pub fn rows(&mut self, rows: &[Row]) -> Result<Vec<u8>, Error> {
+        if self.state == State::Finished
+            && let Some(last) = self.sheets.last()
+        {
+            return Err(Error::Invalid(format!(
+                "The sheet `{}` is finished, because the workbook is finished. `finish()` is the last call on a workbook.",
+                last.name
+            )));
+        }
         self.writing()?;
-        let Some(mut open) = self.open.take() else {
+        // A part that fails after another was written leaves its bytes in the archive, and they
+        // leave with the next call that succeeds.
+        self.append(rows)?;
+        Ok(self.archive.take())
+    }
+
+    /// Writes `rows` to the open sheet, and goes on to the next sheet at the end of the grid when
+    /// the sheet's options say so.
+    fn append(&mut self, rows: &[Row]) -> Result<(), Error> {
+        let Some(open) = &self.open else {
             return Err(Error::Invalid(
                 "No sheet is open. Call `sheet()` before you add rows.".to_owned(),
             ));
         };
-        let index = open.index;
-        let name = self.sheets[index].name.clone();
-        let mut body = String::new();
-        let mut formulas = false;
-        let written = self.batch(&name, &open, rows, &mut body, &mut formulas);
-        let out = match written {
-            Ok(next) => {
-                open.next = next;
-                self.archived(|this| this.archive.write(body.as_bytes()))
-            }
-            Err(err) => Err(err),
-        };
+        let room = (MAX_ROWS + 1).saturating_sub(open.next) as usize;
+        if rows.len() > room && open.options.new_sheet_on_overflow {
+            self.append(&rows[..room])?;
+            self.overflow()?;
+            return self.append(&rows[room..]);
+        }
+        let mut open = self.open.take().expect("a sheet is open");
+        let out = self.write_batch(&mut open, rows);
         self.open = Some(open);
-        out?;
-        self.formulas |= formulas;
-        self.sheets[index].rows += rows.len() as u64;
-        Ok(self.archive.take())
+        out
     }
 
-    /// Writes `rows` of the sheet `name` as `<row>` elements into `out`, and returns the number
-    /// the next row gets.
+    /// Ends the open sheet, which is full, and opens the next sheet of its overflow with the same
+    /// options and its header row.
+    fn overflow(&mut self) -> Result<(), Error> {
+        let Some(open) = &self.open else {
+            return Ok(());
+        };
+        let mut options = open.options.clone();
+        let (base, header, header_style) =
+            (open.base.clone(), open.header.clone(), open.header_style);
+        let mut part = open.part + 1;
+        options.name = continued(&base, part);
+        while check_sheet_name(&options.name, &self.sheets).is_err() {
+            part += 1;
+            options.name = continued(&base, part);
+        }
+        options.position = None;
+        self.archived(|this| this.end_sheet())?;
+        self.open_sheet(options, header_style, base, part);
+        match header {
+            Some(header) => self.append(&[header]),
+            None => Ok(()),
+        }
+    }
+
+    /// Writes `rows` to `open`, starting its zip entry with the first of them.
+    fn write_batch(&mut self, open: &mut OpenSheet, rows: &[Row]) -> Result<(), Error> {
+        let Some(first) = rows.first() else {
+            return Ok(());
+        };
+        let header = (open.next == 1 && first.header).then(|| first.clone());
+        let mut head = String::new();
+        let columns = if open.started {
+            None
+        } else {
+            Some(self.sheet_head(open, header.is_some(), rows, &mut head)?)
+        };
+        let mut body = String::new();
+        let mut formulas = false;
+        let layers = columns.as_deref().unwrap_or(&open.columns);
+        let next = self.batch(open, layers, rows, &mut body, &mut formulas)?;
+        let part = format!("xl/worksheets/sheet{}.xml", open.index + 1);
+        let started = open.started;
+        self.archived(|this| {
+            if !started {
+                this.archive.begin(&part)?;
+                this.archive.write(head.as_bytes())?;
+            }
+            this.archive.write(body.as_bytes())
+        })?;
+        if let Some(columns) = columns {
+            open.columns = columns;
+            open.started = true;
+        }
+        let counted = rows.len() - usize::from(header.is_some());
+        if header.is_some() {
+            open.header = header;
+        }
+        open.next = next;
+        self.formulas |= formulas;
+        self.sheets[open.index].rows += counted as u64;
+        Ok(())
+    }
+
+    /// Writes `rows` of the sheet `open` as `<row>` elements into `out`, each cell over its
+    /// column's layer in `columns`, and returns the number the next row gets.
     fn batch(
         &mut self,
-        name: &str,
         open: &OpenSheet,
+        columns: &[Option<u64>],
         rows: &[Row],
         out: &mut String,
         formulas: &mut bool,
     ) -> Result<u32, Error> {
+        let name = open.options.name.as_str();
         let mut number = open.next;
         for row in rows {
             if number > MAX_ROWS {
                 return Err(Error::Invalid(format!(
-                    "The sheet `{name}` is full. A sheet has at most 1,048,576 rows."
+                    "The sheet `{name}` is full. A sheet has at most 1,048,576 rows. To go on, set the sheet option `overflow: 'newSheet'`."
                 )));
             }
+            if row.header && number != 1 {
+                return Err(Error::Invalid(format!(
+                    "Row {number} of the sheet `{name}` is a header row. Only the first row of a sheet can be its header row."
+                )));
+            }
+            let style = if row.header {
+                open.header_style.or(row.style)
+            } else {
+                row.style
+            };
             if row.cells.len() > MAX_COLUMNS {
                 return Err(Error::Invalid(format!(
                     "Row {number} of the sheet `{name}` has {} cells. A row has at most 16,384 cells.",
@@ -358,10 +557,8 @@ impl Writer {
                 )));
             }
             let _ = write!(out, "<row r=\"{number}\"");
-            if let Some(style) = row.style {
-                let xf = self
-                    .styles
-                    .xf(None, Some(style), None, crate::styles::Implicit::None)?;
+            if let Some(style) = style {
+                let xf = self.styles.xf(None, Some(style), None, Implicit::None)?;
                 if xf != 0 {
                     let _ = write!(out, " s=\"{xf}\" customFormat=\"1\"");
                 }
@@ -391,8 +588,8 @@ impl Writer {
             out.push('>');
             for (column, cell) in row.cells.iter().enumerate() {
                 let layers = Layers {
-                    column: open.columns.get(column).copied().flatten(),
-                    row: row.style,
+                    column: columns.get(column).copied().flatten(),
+                    row: style,
                 };
                 *formulas |=
                     cells::cell(out, &mut self.styles, &layers, column as u32, number, cell)?;
@@ -403,7 +600,17 @@ impl Writer {
         Ok(number)
     }
 
-    fn sheet_head(&mut self, options: &SheetOptions, out: &mut String) -> Result<(), Error> {
+    /// Writes what the sheet `open` has before its rows into `out`, measuring `first` for auto
+    /// width, and returns the columns' layers. `header` says whether `first` starts with the
+    /// header row.
+    fn sheet_head(
+        &mut self,
+        open: &OpenSheet,
+        header: bool,
+        first: &[Row],
+        out: &mut String,
+    ) -> Result<Vec<Option<u64>>, Error> {
+        let options = &open.options;
         out.push_str(XML_HEAD);
         let _ = write!(out, "<worksheet xmlns=\"{MAIN}\" xmlns:r=\"{RELS}\">");
         if let Some(color) = &options.tab_color {
@@ -424,7 +631,12 @@ impl Writer {
             let _ = write!(out, " zoomScale=\"{zoom}\" zoomScaleNormal=\"{zoom}\"");
         }
         out.push_str(" workbookViewId=\"0\"");
-        let (rows, columns) = (options.freeze_rows, options.freeze_columns);
+        let rows = if header && options.header.freeze {
+            options.freeze_rows.max(1)
+        } else {
+            options.freeze_rows
+        };
+        let columns = options.freeze_columns;
         if rows == 0 && columns == 0 {
             out.push_str("/>");
         } else {
@@ -448,27 +660,39 @@ impl Writer {
             );
         }
         out.push_str("</sheetViews><sheetFormatPr defaultRowHeight=\"15\"/>");
+        // A column the options do not list has auto width under a header row.
+        let count = if header {
+            let widest = first.iter().map(|row| row.cells.len()).max().unwrap_or(0);
+            widest.max(options.columns.len())
+        } else {
+            options.columns.len()
+        };
         let mut cols = String::new();
-        for (at, column) in options.columns.iter().enumerate() {
-            let xf = match column.style {
-                Some(style) => {
-                    self.styles
-                        .xf(Some(style), None, None, crate::styles::Implicit::None)?
-                }
+        for at in 0..count {
+            let column = options.columns.get(at);
+            let xf = match column.and_then(|column| column.style) {
+                Some(style) => self.styles.xf(Some(style), None, None, Implicit::None)?,
                 None => 0,
             };
-            if column.width.is_none() && xf == 0 && !column.hidden {
+            let hidden = column.is_some_and(|column| column.hidden);
+            let width = match column.and_then(|column| column.width) {
+                Some(width) => Some(width),
+                None if column.map_or(header, |column| column.auto) => {
+                    let widest = first
+                        .iter()
+                        .filter_map(|row| row.cells.get(at)?.value.as_ref())
+                        .map(width::value)
+                        .max()
+                        .unwrap_or(0);
+                    width::column(widest)
+                }
+                None => None,
+            };
+            if width.is_none() && xf == 0 && !hidden {
                 continue;
             }
             let _ = write!(cols, "<col min=\"{0}\" max=\"{0}\"", at + 1);
-            if let Some(width) = column.width {
-                if !(0.0..=255.0).contains(&width) {
-                    return Err(Error::Invalid(format!(
-                        "Column {} of the sheet `{}` has the width {width}. A column width is from 0 to 255.",
-                        at + 1,
-                        options.name
-                    )));
-                }
+            if let Some(width) = width {
                 cols.push_str(" width=\"");
                 cells::number(&mut cols, width);
                 cols.push_str("\" customWidth=\"1\"");
@@ -476,7 +700,7 @@ impl Writer {
             if xf != 0 {
                 let _ = write!(cols, " style=\"{xf}\"");
             }
-            if column.hidden {
+            if hidden {
                 cols.push_str(" hidden=\"1\"");
             }
             cols.push_str("/>");
@@ -485,17 +709,34 @@ impl Writer {
             let _ = write!(out, "<cols>{cols}</cols>");
         }
         out.push_str("<sheetData>");
-        Ok(())
+        Ok(options.columns.iter().map(|column| column.style).collect())
     }
 
-    /// Ends the open sheet's part.
+    /// Ends the open sheet's part, starting it first when no row was written to it.
     fn end_sheet(&mut self) -> Result<(), Error> {
         let Some(open) = self.open.take() else {
             return Ok(());
         };
+        if !open.started {
+            let mut head = String::new();
+            self.sheet_head(&open, false, &[], &mut head)?;
+            self.archive
+                .begin(&format!("xl/worksheets/sheet{}.xml", open.index + 1))?;
+            self.archive.write(head.as_bytes())?;
+        }
         let mut tail = String::from("</sheetData>");
-        if let Some(range) = &open.autofilter {
+        let filter = match (&open.options.autofilter, &open.header) {
+            (Some(range), _) => Some(range.clone()),
+            (None, Some(header)) if open.options.header.filter => {
+                let columns = header.cells.len().max(open.options.columns.len()).max(1);
+                let last = open.next.saturating_sub(1).max(1);
+                Some(format!("A1:{}", cells::reference(columns as u32 - 1, last)))
+            }
+            _ => None,
+        };
+        if let Some(range) = &filter {
             let _ = write!(tail, "<autoFilter ref=\"{range}\"/>");
+            self.sheets[open.index].filter = Some(absolute(range));
         }
         tail.push_str("</worksheet>");
         self.archive.write(tail.as_bytes())?;
@@ -528,9 +769,10 @@ impl Writer {
                     .to_owned(),
             ));
         };
+        // The last sheet ends first, because its autofilter is a defined name in `workbook.xml`.
+        self.archived(|this| this.end_sheet())?;
         let parts = self.parts(&order, active)?;
         self.archived(|this| {
-            this.end_sheet()?;
             for (name, text) in &parts {
                 this.archive.begin(name)?;
                 this.archive.write(text.as_bytes())?;
@@ -577,8 +819,25 @@ impl Writer {
             let _ = write!(workbook, " r:id=\"rId{}\"/>", at + 1);
         }
         workbook.push_str("</sheets>");
-        if !self.names.is_empty() {
+        let filters: Vec<(usize, String)> = order
+            .iter()
+            .enumerate()
+            .filter_map(|(tab, &at)| {
+                let sheet = &self.sheets[at];
+                let range = sheet.filter.as_ref()?;
+                Some((tab, format!("{}!{range}", quoted(&sheet.name))))
+            })
+            .collect();
+        if !self.names.is_empty() || !filters.is_empty() {
             workbook.push_str("<definedNames>");
+            for (tab, reference) in &filters {
+                let _ = write!(
+                    workbook,
+                    "<definedName name=\"_xlnm._FilterDatabase\" localSheetId=\"{tab}\" hidden=\"1\">"
+                );
+                xml::text(&mut workbook, reference);
+                workbook.push_str("</definedName>");
+            }
             for (name, reference) in &self.names {
                 workbook.push_str("<definedName name=\"");
                 xml::attr(&mut workbook, name);

@@ -26,8 +26,8 @@
       "name": "writerSheet",
       "params": [
         {"name": "writer", "type": "Writer"},
-        {"name": "options", "type": "{name: string, position: ?uint, visibility: Visibility, columns: array<{width: ?float, auto: bool, style: ?uint, hidden: bool}>, freezeRows: uint, freezeColumns: uint, autofilter: ?string, tabColor: ?string, zoom: ?uint, gridlines: bool, rightToLeft: bool}"},
-        {"name": "first", "type": "array<{cells: array<{value: ?CellValue, style: ?uint}>, style: ?uint, height: ?float, hidden: bool, level: uint}>"}
+        {"name": "options", "type": "{name: string, position: ?uint, visibility: Visibility, columns: array<{width: ?float, auto: bool, style: ?uint, format: ?string, hidden: bool}>, freezeRows: uint, freezeColumns: uint, autofilter: ?string, tabColor: ?string, zoom: ?uint, gridlines: bool, rightToLeft: bool, header: {defaultStyle: bool, style: ?uint, freeze: bool, filter: bool}, newSheetOnOverflow: bool}"},
+        {"name": "first", "type": "array<{cells: array<{value: ?CellValue, style: ?uint}>, style: ?uint, height: ?float, hidden: bool, level: uint, header: bool}>"}
       ],
       "returns": "bytes",
       "help": "Finishes the sheet before it, if there is one, and starts a new sheet with the rows in `first`. Returns the bytes of the file that are ready to send."
@@ -36,7 +36,7 @@
       "name": "writerRows",
       "params": [
         {"name": "writer", "type": "Writer"},
-        {"name": "rows", "type": "array<{cells: array<{value: ?CellValue, style: ?uint}>, style: ?uint, height: ?float, hidden: bool, level: uint}>"}
+        {"name": "rows", "type": "array<{cells: array<{value: ?CellValue, style: ?uint}>, style: ?uint, height: ?float, hidden: bool, level: uint, header: bool}>"}
       ],
       "returns": "bytes",
       "help": "Adds `rows` to the current sheet. Returns the bytes of the file that are ready to send."

@@ -1,6 +1,7 @@
 //! Style layers, the cell formats they combine into, and `xl/styles.xml`.
 //!
-//! [`Styles::layer`] checks a [`Style`] and gives it an id, the same id for an equal layer. A
+//! [`Styles::layer`] checks a [`Style`], turns a format shortcut such as `'money'` into its code,
+//! and gives the layer an id, the same id for an equal layer. A
 //! cell's format is its column's layer, then its row's, then its own, each field of a later layer
 //! replacing the earlier one's (`rule:core-classes/spreadsheet-styles-and-defaults`), with the
 //! format the write table gives its value when no layer sets `format`
@@ -123,9 +124,41 @@ fn check(style: &Style) -> Result<(), Error> {
     Ok(())
 }
 
+/// The code a format shortcut stands for.
+fn shortcut(format: &str) -> Option<&'static str> {
+    Some(match format {
+        "date" => "yyyy-mm-dd",
+        "datetime" => "yyyy-mm-dd hh:mm",
+        "time" => "hh:mm:ss",
+        "duration" => "[h]:mm:ss",
+        "integer" => "0",
+        "decimal" => "0.00",
+        "money" => "#,##0.00",
+        "percent" => "0%",
+        "text" => "@",
+        _ => return None,
+    })
+}
+
+/// The layer every header row has by default: bold, with a thin bottom border.
+pub fn header() -> Style {
+    Style {
+        bold: Some(true),
+        border: Some(crate::Border {
+            bottom: Some(Line::Thin),
+            ..crate::Border::default()
+        }),
+        ..Style::default()
+    }
+}
+
 impl Styles {
-    /// The id of `style`, the same id for an equal style.
-    pub fn layer(&mut self, style: Style) -> Result<u64, Error> {
+    /// The id of `style`, the same id for an equal style. A format shortcut becomes its code
+    /// here, so `'money'` and `'#,##0.00'` are the same layer.
+    pub fn layer(&mut self, mut style: Style) -> Result<u64, Error> {
+        if let Some(code) = style.format.as_deref().and_then(shortcut) {
+            style.format = Some(code.to_owned());
+        }
         check(&style)?;
         let key = format!("{style:?}");
         if let Some(&id) = self.layer_ids.get(&key) {

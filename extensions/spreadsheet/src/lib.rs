@@ -27,13 +27,14 @@
 //! sheet-end parts are Stage 5 of goal `spreadsheet`, the reader Stage 7 and template fill
 //! Stage 10, and none of them is in `manifest.json` yet.
 //!
-//! Packed as a `.nvsx` and embedded in every `nvs` binary, the component is 0.32 MiB, built for
+//! Packed as a `.nvsx` and embedded in every `nvs` binary, the component is 0.35 MiB, built for
 //! release as `crates/nvs-ext/build.rs` always builds it. That is the binary's growth for
 //! spreadsheets, and `crates/nvs-ext/tests/builtin.rs` fails when this figure drifts past 5% of
 //! the bytes the binary carries.
 
 pub mod cells;
 pub mod styles;
+pub mod width;
 pub mod writer;
 pub mod xml;
 pub mod zip;
@@ -110,7 +111,8 @@ pub struct Cell {
     pub style: Option<u64>,
 }
 
-/// One row and what xlsx writes with it.
+/// One row and what xlsx writes with it. A `header` row is the sheet's header row, which only the
+/// sheet's first row can be (`writer`'s module doc).
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Row {
     pub cells: Vec<Cell>,
@@ -118,6 +120,7 @@ pub struct Row {
     pub height: Option<f64>,
     pub hidden: bool,
     pub level: u64,
+    pub header: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -161,8 +164,8 @@ pub enum Valign {
     Bottom,
 }
 
-/// One style layer (`rule:core-classes/spreadsheet-styles-and-defaults`). A format shortcut is
-/// already its code.
+/// One style layer (`rule:core-classes/spreadsheet-styles-and-defaults`). `format` is a format
+/// code or one of the shortcuts, which [`styles::Styles::layer`] turns into its code.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Style {
     pub font: Option<String>,
@@ -251,16 +254,43 @@ pub enum Visibility {
     VeryHidden,
 }
 
-/// A column, in header order.
+/// A column, in header order. `format` is a format code or a shortcut over the column's `style`.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Column {
     pub width: Option<f64>,
     pub auto: bool,
     pub style: Option<u64>,
+    pub format: Option<String>,
     pub hidden: bool,
 }
 
-/// What `writer-sheet` takes beside the first rows.
+/// What a sheet's header row gets, when its first row is one. `default_style` is bold with a thin
+/// bottom border, and `style` is a layer over it, or the whole style when `default_style` is
+/// off. `freeze` freezes the rows above the second, and `filter` puts an autofilter over the
+/// header and every row below it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Header {
+    pub default_style: bool,
+    pub style: Option<u64>,
+    pub freeze: bool,
+    pub filter: bool,
+}
+
+impl Default for Header {
+    /// The defaults of a sheet with a header row: every one on.
+    fn default() -> Self {
+        Self {
+            default_style: true,
+            style: None,
+            freeze: true,
+            filter: true,
+        }
+    }
+}
+
+/// What `writer-sheet` takes beside the first rows. A column past `columns` has auto width when
+/// the sheet has a header row, and no width otherwise. `new_sheet_on_overflow` continues a sheet
+/// that reaches the last row of the grid on a new sheet.
 #[derive(Debug, Clone, PartialEq)]
 pub struct SheetOptions {
     pub name: String,
@@ -274,10 +304,12 @@ pub struct SheetOptions {
     pub zoom: Option<u64>,
     pub gridlines: bool,
     pub right_to_left: bool,
+    pub header: Header,
+    pub new_sheet_on_overflow: bool,
 }
 
 impl SheetOptions {
-    /// A visible sheet named `name`, with gridlines and nothing else set.
+    /// A visible sheet named `name`, with gridlines, the header defaults, and nothing else set.
     pub fn named(name: &str) -> Self {
         Self {
             name: name.to_owned(),
@@ -291,6 +323,8 @@ impl SheetOptions {
             zoom: None,
             gridlines: true,
             right_to_left: false,
+            header: Header::default(),
+            new_sheet_on_overflow: false,
         }
     }
 }
@@ -531,6 +565,7 @@ mod guest {
                 height: row.height,
                 hidden: row.hidden,
                 level: row.level,
+                header: row.header,
             })
             .collect()
     }
@@ -603,6 +638,7 @@ mod guest {
                     width: column.width,
                     auto: column.auto,
                     style: column.style,
+                    format: column.format,
                     hidden: column.hidden,
                 })
                 .collect(),
@@ -613,6 +649,13 @@ mod guest {
             zoom: options.zoom,
             gridlines: options.gridlines,
             right_to_left: options.right_to_left,
+            header: crate::Header {
+                default_style: options.header.default_style,
+                style: options.header.style,
+                freeze: options.header.freeze,
+                filter: options.header.filter,
+            },
+            new_sheet_on_overflow: options.new_sheet_on_overflow,
         }
     }
 

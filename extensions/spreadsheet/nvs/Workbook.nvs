@@ -12,8 +12,8 @@ final class Workbook
     type RowOptions = ?{height?: float, hidden?: bool, level?: uint};
     type Value = {text: string}|{number: float}|{integer: int}|{decimal: string}|{boolean: bool}|{date: Core\Time\Date}|{time: Core\Time\TimeOfDay}|{duration: Core\Time\Duration}|{day: Core\Time\Date, clock: Core\Time\TimeOfDay};
     type Entry = {value: ?Value, style: ?uint};
-    type Row = {cells: array<Entry>, style: ?uint, height: ?float, hidden: bool, level: uint};
-    type Layout = {name: string, position: ?uint, visibility: Visibility, columns: array<{width: ?float, auto: bool, style: ?uint, hidden: bool}>, freezeRows: uint, freezeColumns: uint, autofilter: ?string, tabColor: ?string, zoom: ?uint, gridlines: bool, rightToLeft: bool};
+    type Row = {cells: array<Entry>, style: ?uint, height: ?float, hidden: bool, level: uint, header: bool};
+    type Layout = {name: string, position: ?uint, visibility: Visibility, columns: array<{width: ?float, auto: bool, style: ?uint, format: ?string, hidden: bool}>, freezeRows: uint, freezeColumns: uint, autofilter: ?string, tabColor: ?string, zoom: ?uint, gridlines: bool, rightToLeft: bool, header: {defaultStyle: bool, style: ?uint, freeze: bool, filter: bool}, newSheetOnOverflow: bool};
 
     private ?Core\Response\Stream $response = null;
     private ?Core\IO\File $file = null;
@@ -96,6 +96,8 @@ final class Workbook
             zoom: $options?->zoom ?? null,
             gridlines: $options?->gridlines ?? true,
             rightToLeft: $options?->rightToLeft ?? false,
+            header: {defaultStyle: true, style: null, freeze: true, filter: true},
+            newSheetOnOverflow: false,
         };
         $this->opened = false;
         $this->sheets = $this->sheets + 1;
@@ -215,6 +217,7 @@ final class Workbook
             height: $options?->height ?? null,
             hidden: $options?->hidden ?? false,
             level: $options?->level ?? 0,
+            header: false,
         };
         // A batch of 1,000 rows goes to the engine in one call.
         if (Core\Arr::count($this->pending) >= 1000) {
