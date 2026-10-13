@@ -1,0 +1,103 @@
+--TEST--
+`Core\Router::dispatch` sets the status and calls `refused` for a missing path, a wrong verb, a denied route and a capture that does not parse, and calls `failed` when the route method throws — `rule:routing/a-gate-answers-around-every-handler`
+--FILE--
+<?nvs
+// Each request below is one that no route method can answer.
+// `dispatch` sets the status first, and then it calls the gate.
+
+// `parse` throws an error for the text `bad`.
+class Tag implements Parses {
+    public tainted string $text = "";
+
+    public function constructor(tainted string $text) {
+        $this->text = $text;
+    }
+
+    public static function parse(tainted string $s): static {
+        if ($s == "bad") {
+            throw new ParseError("not a tag");
+        }
+        return new static($s);
+    }
+}
+
+class Pages {
+    #[Core\Route(path: "/items", method: Core\Http\Method::Get, name: "items")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function items(): void {
+        echo "items ran\n";
+    }
+
+    #[Core\Route(path: "/admin", method: Core\Http\Method::Get, name: "admin")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function admin(): void {
+        echo "admin ran\n";
+    }
+
+    #[Core\Route(path: "/tags/{tag}", method: Core\Http\Method::Get, name: "tag")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function tag(Tag $tag): void {
+        echo "tag ran\n";
+    }
+
+    #[Core\Route(path: "/boom", method: Core\Http\Method::Get, name: "boom")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function boom(): void {
+        throw new RuntimeError("the method failed");
+    }
+}
+
+// This gate allows every route except the one named `admin`.
+// It prints what it receives.
+class Gate implements Core\Router\Gate {
+    public function allows(Core\Router\Match $route): bool {
+        return $route->name() != "admin";
+    }
+
+    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void {
+        string $why = match ($reason) {
+            Core\Router\Refusal::NotFound => "NotFound",
+            Core\Router\Refusal::MethodNotAllowed => "MethodNotAllowed",
+            Core\Router\Refusal::Denied => "Denied",
+            Core\Router\Refusal::BadCapture => "BadCapture",
+            default => "other",
+        };
+        echo "refused ", $why, " for ", $route?->name() ?? "no route", "\n";
+    }
+
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void {
+        echo "failed ", $route?->name() ?? "no route", ": ", $error?->message ?? "no error", "\n";
+    }
+}
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    Core\Router::dispatch(new Gate());
+} else {
+    var $missing = Core\Test::request(Core\Http\Method::Get, "/nowhere");
+    echo $missing->status(), " ", $missing->body();
+
+    // `/items` has only a `GET` route. The `Allow` header lists the verbs it has.
+    var $verb = Core\Test::request(Core\Http\Method::Delete, "/items");
+    echo $verb->status(), " Allow: ", $verb->header("allow") ?? "none", " ", $verb->body();
+
+    // The gate returns `false`, so `admin` does not run.
+    var $denied = Core\Test::request(Core\Http\Method::Get, "/admin");
+    echo $denied->status(), " ", $denied->body();
+
+    var $tag = Core\Test::request(Core\Http\Method::Get, "/tags/bad");
+    echo $tag->status(), " ", $tag->body();
+
+    var $boom = Core\Test::request(Core\Http\Method::Get, "/boom");
+    echo $boom->status(), " ", $boom->body();
+
+    // A request the gate allows runs the method as usual.
+    var $items = Core\Test::request(Core\Http\Method::Get, "/items");
+    echo $items->status(), " ", $items->body();
+}
+--EXPECT--
+404 refused NotFound for no route
+405 Allow: GET refused MethodNotAllowed for no route
+403 refused Denied for admin
+400 refused BadCapture for no route
+500 failed boom: the method failed
+200 items ran
