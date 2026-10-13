@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { join } from "node:path";
-import { builtUrls, DOCS, errVerdict, FRONT_PAGE, GUIDE_SECTIONS, guidesProblems, IN_DEPTH_SECTIONS, inDepthProblems, paragraphs, parseRequest, proseProblems, serveRun, snippetOutputs, snippetRun, snippetShape, stamp, staleness, syntaxProblems, type Served, type World } from "../cmd/site.ts";
+import { join, relative } from "node:path";
+import { APP_FILES, appFileProblem, appFiles, binary, builtUrls, DOCS, errVerdict, FRONT_PAGE, GUIDE_SECTIONS, guidesProblems, IN_DEPTH_SECTIONS, inDepthProblems, paragraphs, parseRequest, proseProblems, serveRun, snippetOutputs, snippetRun, snippetShape, stamp, staleness, syntaxProblems, type Served, type World } from "../cmd/site.ts";
 import type { Entry } from "../proofs/roster.ts";
 import { scratch, type Scratch } from "./scratch.ts";
 
@@ -314,5 +314,33 @@ describe("nv site --check prose", () => {
 
   test("a code span counts as one word", () => {
     expect(proseProblems(`\`${"a ".repeat(40)}\` is fine.`)).toEqual([]);
+  });
+});
+
+describe("nv site --check apps: an app's copies", () => {
+  const bytes = (text: string) => new TextEncoder().encode(text);
+
+  test("the files in an app's directory are its copies, and a nested directory is not one", () => {
+    site();
+    s.put(`${APP_FILES}/shop/report.pdf`, "%PDF-2");
+    s.put(`${APP_FILES}/shop/invoice.pdf`, "%PDF-1");
+    s.put(`${APP_FILES}/shop/old/x.pdf`, "%PDF-0");
+    expect(appFiles("shop", s.root)).toEqual(["invoice.pdf", "report.pdf"]);
+    expect(appFiles("blog", s.root)).toEqual([]);
+  });
+
+  test("a copy matches byte for byte, and other bytes or a status other than 200 are named", () => {
+    expect(appFileProblem("shop", "a.pdf", 200, bytes("%PDF"), bytes("%PDF"))).toBeNull();
+    expect(appFileProblem("shop", "a.pdf", 200, bytes("%PDF2"), bytes("%PDF"))).toBe(`\`${APP_FILES}/shop/a.pdf\` is not what \`GET /a.pdf\` returns now: run \`bun nv site --bless-apps\``);
+    expect(appFileProblem("shop", "a.pdf", 404, bytes(""), bytes("%PDF"))).toBe(`\`${APP_FILES}/shop/a.pdf\`: \`GET /a.pdf\` returned 404`);
+    expect(appFileProblem("shop", "a.pdf", 0, bytes(""), bytes("%PDF"))).toBe(`\`${APP_FILES}/shop/a.pdf\`: \`GET /a.pdf\` returned no response`);
+  });
+
+  test("a relative --nvs becomes an absolute path, so an app's own directory does not change it", () => {
+    site();
+    s.put("bin/nvs.exe", "");
+    const relativePath = relative(process.cwd(), join(s.root, "bin/nvs.exe"));
+    expect(binary(relativePath)).toBe(join(s.root, "bin/nvs.exe"));
+    expect(binary("no/such/nvs.exe")).toBeNull();
   });
 });

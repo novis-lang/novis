@@ -8,6 +8,10 @@
 //     bun nv site --bless SNIPPET...       write each snippet's `.out`, `.http.out` or `.err` from what the
 //                                          binary does and show it, and delete an output file it no longer
 //                                          needs
+//     bun nv site --bless-apps [APP/FILE...]
+//                                          write each example app's copies under `website/public/
+//                                          example-apps/` from what its server returns now, and add each
+//                                          named `APP/FILE`
 //     bun nv site --build                  the Astro build, and `site: built` when it succeeds
 //     bun nv site --questions --status     `questions <area>: <n> owed, <n> stale` per area, exit 0
 //     bun nv site --questions --owed [AREA] [--limit N]
@@ -17,8 +21,14 @@
 //                                          record each entry's feature and hash, after its questions were
 //                                          written or reread
 //
-// `--nvs PATH` names the binary that reads the roster and runs the snippets. Without it, the first built
-// of `target/release` and the `covws` debug build is used.
+// `--nvs PATH` names the binary that reads the roster and runs the snippets and the apps. A relative path
+// is resolved against the directory `nv` runs in, before any command runs in another one. Without it,
+// the first built of `target/release` and the `covws` debug build is used.
+//
+// **An app's copies** are the files under `website/public/example-apps/<app>/`, which its page shows and
+// links. Each is what the app's server returns for `GET /<file name>`. The files on disk are the list,
+// so no second list names them: `--bless-apps paperwork/invoice.pdf` adds one, and deleting a file drops
+// it. `--check apps` fails on a copy whose bytes differ or whose `GET` does not return a `200`.
 //
 // **A snippet** is a `.nvs` file under `website/snippets/` that a page shows with `<Snippet src="..."/>`,
 // `src` first. Beside it is a `.err`, or one or both of `.out` and `.http.out`, and each is compared
@@ -91,11 +101,11 @@
 // since their wording is the law's.
 
 import { createHash } from "node:crypto";
-import { existsSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { request as httpRequest } from "node:http";
 import { createServer } from "node:net";
 import { availableParallelism } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { COVWS_TARGET, hostTriple } from "../lib/covws.ts";
 import { rel, ROOT } from "../lib/paths.ts";
 import { run as runProc } from "../lib/proc.ts";
@@ -105,7 +115,7 @@ import { ABOUT, EXAMPLES, examplesDir, metaJson, roster, RosterError, type Entry
 import { DATA_FILE, renderWebsiteCore } from "../renderers/website-core.ts";
 import { REFERENCE_FILE, type Page as RefPage } from "../renderers/website-reference.ts";
 
-export const summary = "the website's stale guard, checks and build: nv site --stale | --stamp PAGE... | --check [PART...] | --bless SNIPPET... | --build | --questions --status | --owed [AREA] | --stamp URL...";
+export const summary = "the website's stale guard, checks and build: nv site --stale | --stamp PAGE... | --check [PART...] | --bless SNIPPET... | --bless-apps [APP/FILE...] | --build | --questions --status | --owed [AREA] | --stamp URL...";
 
 export const DOCS = "website/src/content/docs";
 export const SNIPPETS = "website/snippets";
@@ -1067,8 +1077,9 @@ export function proseProblems(body: string): string[] {
   return problems;
 }
 
-function binary(explicit: string | undefined): string | null {
-  if (explicit !== undefined) return existsSync(explicit) ? explicit : null;
+/** The `nvs` binary as an absolute path, since the apps and the snippets run it from other directories. */
+export function binary(explicit: string | undefined): string | null {
+  if (explicit !== undefined) return existsSync(explicit) ? resolve(explicit) : null;
   const exe = process.platform === "win32" ? "nvs.exe" : "nvs";
   for (const p of [`target/release/${exe}`, `${COVWS_TARGET}/${hostTriple()}/debug/${exe}`].map((x) => join(ROOT, x))) {
     if (existsSync(p)) return p;
@@ -1220,51 +1231,153 @@ function freePort(): Promise<number> {
   });
 }
 
+/** Where an app's copies are, one directory per app: see § *An app's copies* in the head comment. */
+export const APP_FILES = "website/public/example-apps";
+
+/** Each app's directory name under `APPS`, sorted. */
+function appDirs(root: string): string[] {
+  const dirs = existsSync(join(root, APPS)) ? readdirSync(join(root, APPS)).filter((d) => statSync(join(root, APPS, d)).isDirectory()) : [];
+  return dirs.sort(comparePaths);
+}
+
+/** The names of an app's copies, the files directly in `APP_FILES/<app>/`, sorted. */
+export function appFiles(app: string, root: string = ROOT): string[] {
+  const dir = join(root, APP_FILES, app);
+  return existsSync(dir) ? readdirSync(dir).filter((f) => statSync(join(dir, f)).isFile()).sort(comparePaths) : [];
+}
+
+/** The problem with one copy, given the status and body the app's `GET /<file>` returned and the bytes on
+ * disk, or null when they are the same. */
+export function appFileProblem(app: string, file: string, status: number, body: Uint8Array, stored: Uint8Array): string | null {
+  const at = `${APP_FILES}/${app}/${file}`;
+  if (status !== 200) return `\`${at}\`: \`GET /${file}\` returned ${status || "no response"}`;
+  if (Buffer.compare(body, stored) !== 0) return `\`${at}\` is not what \`GET /${file}\` returns now: run \`bun nv site --bless-apps\``;
+  return null;
+}
+
+/** Runs `body` with the app's directory, and then deletes every file the run left there that was not
+ * there before (the app's database). */
+async function inApp<T>(root: string, app: string, body: (cwd: string) => Promise<T>): Promise<T> {
+  const before = new Set(filesUnder(root, app));
+  try {
+    return await body(join(root, app));
+  } finally {
+    for (const f of filesUnder(root, app)) if (!before.has(f)) rmSync(join(root, f), { force: true });
+  }
+}
+
 /**
- * The `apps` part: every app under `APPS` passes `nvs test .`, and `nvs serve public/index.nvs`
- * answers `GET /` with a `200` within `BOOT_MS`. Both run in the app's own directory, as its page tells
- * a reader to, and every file the run left there that was not there before (the app's database) is
- * deleted afterwards.
+ * Starts `nvs serve public/index.nvs` in `cwd` on a free port, waits until it answers `GET /` with a `200`
+ * within `BOOT_MS`, runs `use` with the port, and stops the server. Returns why the server did not
+ * answer, or null when it did and `use` ran.
+ */
+async function withServer(nvs: string, cwd: string, use: (port: number) => Promise<void>): Promise<string | null> {
+  const port = await freePort();
+  const stop = new AbortController();
+  const serve = runProc([nvs, "serve", "public/index.nvs", "--port", String(port)], { cwd, signal: stop.signal, env: { NOVIS_NO_INIT: "1" } });
+  let status = 0;
+  let exited = false;
+  void serve.then(() => (exited = true));
+  const until = Date.now() + BOOT_MS;
+  while (status !== 200 && !exited && Date.now() < until) {
+    try {
+      status = (await fetch(`http://127.0.0.1:${port}/`, { redirect: "manual" })).status;
+    } catch {
+      await Bun.sleep(250);
+    }
+  }
+  try {
+    if (status === 200) await use(port);
+  } finally {
+    stop.abort();
+  }
+  const served = await serve;
+  if (status === 200) return null;
+  return exited && !served.aborted ? `the server exited ${served.code}: ${served.stderr.trim().split("\n").slice(-5).join(" / ")}` : status ? `\`/\` returned ${status}` : `no answer within ${BOOT_MS / 1000} s`;
+}
+
+/** The status and body of `GET /<file>` on a running app, and status 0 when the connection failed. */
+async function getFile(port: number, file: string): Promise<{ status: number; body: Uint8Array }> {
+  try {
+    const res = await fetch(`http://127.0.0.1:${port}/${encodeURIComponent(file)}`, { redirect: "manual" });
+    return { status: res.status, body: new Uint8Array(await res.arrayBuffer()) };
+  } catch {
+    return { status: 0, body: new Uint8Array() };
+  }
+}
+
+const serveFailed = (app: string, why: string) => `${app}: \`nvs serve public/index.nvs\` did not answer \`GET /\` with 200: ${why}`;
+
+/**
+ * The `apps` part: every app under `APPS` passes `nvs test .`, `nvs serve public/index.nvs` answers
+ * `GET /` with a `200` within `BOOT_MS`, and each of its copies is what the server returns now
+ * (`appFileProblem`). Both run in the app's own directory, as its page tells a reader to.
  */
 export async function appsProblems(nvs: string, root: string = ROOT): Promise<string[]> {
   const problems: string[] = [];
-  const dirs = existsSync(join(root, APPS)) ? readdirSync(join(root, APPS)).filter((d) => statSync(join(root, APPS, d)).isDirectory()) : [];
+  const dirs = appDirs(root);
   if (dirs.length === 0) return [`${APPS}/: no app`];
-  for (const dir of dirs.sort(comparePaths)) {
+  for (const dir of dirs) {
     const app = `${APPS}/${dir}`;
-    const cwd = join(root, app);
-    const before = new Set(filesUnder(root, app));
-    try {
+    await inApp(root, app, async (cwd) => {
       const test = await runProc([nvs, "test", "."], { cwd, timeoutMs: 10 * 60_000, env: { NOVIS_NO_INIT: "1" } });
       if (test.code !== 0) {
         const tail = (test.stdout + test.stderr).trim().split("\n").slice(-15);
         problems.push(`${app}: \`nvs test .\` exited ${test.code}`, ...tail.map((l) => `  ${l}`));
       }
-      const port = await freePort();
-      const stop = new AbortController();
-      const serve = runProc([nvs, "serve", "public/index.nvs", "--port", String(port)], { cwd, signal: stop.signal, env: { NOVIS_NO_INIT: "1" } });
-      let status = 0;
-      let exited = false;
-      void serve.then(() => (exited = true));
-      const until = Date.now() + BOOT_MS;
-      while (status !== 200 && !exited && Date.now() < until) {
-        try {
-          status = (await fetch(`http://127.0.0.1:${port}/`, { redirect: "manual" })).status;
-        } catch {
-          await Bun.sleep(250);
+      const why = await withServer(nvs, cwd, async (port) => {
+        for (const file of appFiles(dir, root)) {
+          const got = await getFile(port, file);
+          const problem = appFileProblem(dir, file, got.status, got.body, readFileSync(join(root, APP_FILES, dir, file)));
+          if (problem) problems.push(problem);
         }
-      }
-      stop.abort();
-      const served = await serve;
-      if (status !== 200) {
-        const why = exited && !served.aborted ? `the server exited ${served.code}: ${served.stderr.trim().split("\n").slice(-5).join(" / ")}` : status ? `\`/\` returned ${status}` : `no answer within ${BOOT_MS / 1000} s`;
-        problems.push(`${app}: \`nvs serve public/index.nvs\` did not answer \`GET /\` with 200: ${why}`);
-      }
-    } finally {
-      for (const f of filesUnder(root, app)) if (!before.has(f)) rmSync(join(root, f), { force: true });
-    }
+      });
+      if (why) problems.push(serveFailed(app, why));
+    });
   }
   return problems;
+}
+
+/**
+ * `--bless-apps [APP/FILE...]`: writes each app's copies, and each named `APP/FILE` beside them, from
+ * what the app's server returns now. A file whose `GET` does not return a `200` is named and not written.
+ */
+async function blessApps(nvs: string, add: string[], root: string = ROOT): Promise<number> {
+  const wanted = new Map(appDirs(root).map((dir) => [dir, new Set(appFiles(dir, root))]));
+  for (const a of add) {
+    const [dir, file, ...more] = a.split("/");
+    if (!wanted.has(dir) || !file || more.length) {
+      console.error(`nv site: ${a} is not APP/FILE for an app under ${APPS}/`);
+      return 2;
+    }
+    wanted.get(dir)!.add(file);
+  }
+  let failed = 0;
+  for (const [dir, files] of wanted) {
+    if (files.size === 0) continue;
+    const app = `${APPS}/${dir}`;
+    const why = await inApp(root, app, (cwd) =>
+      withServer(nvs, cwd, async (port) => {
+        for (const file of [...files].sort(comparePaths)) {
+          const at = `${APP_FILES}/${dir}/${file}`;
+          const got = await getFile(port, file);
+          if (got.status !== 200) {
+            failed++;
+            console.log(`nv site: \`GET /${file}\` on ${app} returned ${got.status || "no response"}, so ${at} is not written`);
+            continue;
+          }
+          mkdirSync(dirname(join(root, at)), { recursive: true });
+          writeFileSync(join(root, at), got.body);
+          console.log(`nv site: wrote ${at} (${got.body.length} bytes)`);
+        }
+      }),
+    );
+    if (why) {
+      failed++;
+      console.log(`nv site: ${serveFailed(app, why)}`);
+    }
+  }
+  return failed ? 1 : 0;
 }
 
 async function world(nvs: string): Promise<World> {
@@ -1388,6 +1501,13 @@ export async function run(args: string[]): Promise<number> {
         return 1;
       }
       return await blessSnippets(nvs, operands.map((p) => rel(resolve(p))));
+    }
+    if (mode === "--bless-apps") {
+      if (nvs === null) {
+        console.error("nv site: no `nvs` binary: build one, or pass --nvs");
+        return 1;
+      }
+      return await blessApps(nvs, operands);
     }
     if (mode === "--check") {
       const unknown = operands.filter((p) => !(PARTS as readonly string[]).includes(p));
