@@ -41,8 +41,10 @@ of plain lists have no keys, so they have no header and no defaults.
 **The defaults, whenever a sheet has a header row**, in `fromRows` and `sheet()` alike: the header row
 bold with a thin bottom border (`headerStyle`), frozen below it (`freeze`), with an autofilter over the
 header (`autofilter`), and every column `width: 'auto'`. Each turns off on its own:
-`{freeze: false, autofilter: false, headerStyle: null}`, or a column's own `width`. `header: false`
-writes no header row, and so none of these.
+`{freeze: false, autofilter: false, headerStyle: false}`, or a column's own `width`. `headerStyle` is
+`false` and not `null`, the way `freeze` and `autofilter` are, because an options field set to `null`
+reads the same as one left out. `headerStyle: Style::of({...})` replaces the default style. `header:
+false` writes no header row, and so none of these.
 
 **Auto width** measures the header and the rows the Novis half holds before the first chunk leaves —
 the first 1,000 — or every row when `fromRows` is given an array. A cell's width is its text as Excel
@@ -57,7 +59,11 @@ a sheet.
 - **Memory:** per writing request, one entry per distinct style combination until `finish()`, and the
   auto-width window of at most 1,000 rows before the first chunk leaves.
 
-**Not shipped.** Nothing of `Novis\Spreadsheet` is on disk.
+**Not shipped.** `Style::of`, the row's `style`, `columns` with `header`, `width`, `format`, `style`
+and `hidden`, the header row and its four defaults, and auto width are on disk
+(`extensions/spreadsheet/nvs/Workbook.nvs`, `Style.nvs`, `extensions/spreadsheet/src/width.rs`). Until the
+number-format renderer exists, auto width measures a number as the text the engine stores and a date
+by the length of its default format, not through the column's format code. Not on disk: a column's `formula`, `Cell::of`, and the style enums under `Style`.
 
 **Declined:**
 - **A style as an options bag on every call, with no value.** A report repeats the same few styles on

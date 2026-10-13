@@ -4381,8 +4381,10 @@ a lying record length, a bomb — throws `ParseError`. Anything else the compone
 `RuntimeError`. A trap throws `ExtensionError`, and the request's memory or CPU cap ends the request
 ([`packaging/a-guest-crash-throws`](packaging.md#packaging-a-guest-crash-throws)).
 
-**Not shipped.** `Engine`, `Written`, `Sheet`'s `add` and `addAll`, and `Workbook`'s four targets,
-`sheet` and `finish` are on disk. The other members and classes are not.
+**Not shipped.** `Engine`, `Written`, `Export`, `Style::of`, `Sheet`'s `add` and `addAll`, and
+`Workbook`'s four targets, `fromRows`, `sheet` and `finish` are on disk. A `Style` also has the
+readonly `fields` and `key` that `Workbook` reads, and the style enums are at namespace scope. The
+other members and classes are not.
 
 **Declined:**
 - **One `Spreadsheet` class with every member.** Writing, reading and filling share no state, and a
@@ -4465,12 +4467,11 @@ paragraphs, written down once.
   so a large export runs in the request and not in a queue.
 
 **Not shipped.** The streaming writer (`extensions/spreadsheet/src/writer.rs`), the four targets,
-`sheet`, `finish`, `Written`, and `Sheet`'s `add` and `addAll` in batches of 1,000 rows are on disk
-(`extensions/spreadsheet/nvs/Workbook.nvs`, `Sheet.nvs`). The sheet options are `position`,
-`hidden`, `tabColor`, `zoom`, `gridlines` and `rightToLeft`, and the row options `height`, `hidden`
-and `level`. Not on disk: `columns`, `header`, `freeze`, `autofilter`, `headerStyle` and `overflow`,
-a row's `style`, the sheet-name rules, `fromRows` and `Export`, `define`, CSV, and the cut-off
-download, which the server cannot do yet (`data/gaps/nvs-server/a-streamed-body-cannot-be-cut-off.json`).
+`sheet`, `finish`, `Written`, `Sheet`'s `add` and `addAll` in batches of 1,000 rows, `fromRows` and
+`Export` are on disk (`extensions/spreadsheet/nvs/Workbook.nvs`, `Sheet.nvs`, `Export.nvs`), with
+every sheet option above, the sheet-name rules, and the row options `height`, `hidden`, `level` and
+`style`. Not on disk: `define`, CSV, and the cut-off download, which the server cannot do yet
+(`data/gaps/nvs-server/a-streamed-body-cannot-be-cut-off.json`).
 
 **Declined:**
 - **An in-memory editable mode beside the stream.** Two ways to write is two sets of rules, and the
@@ -4662,8 +4663,10 @@ of plain lists have no keys, so they have no header and no defaults.
 **The defaults, whenever a sheet has a header row**, in `fromRows` and `sheet()` alike: the header row
 bold with a thin bottom border (`headerStyle`), frozen below it (`freeze`), with an autofilter over the
 header (`autofilter`), and every column `width: 'auto'`. Each turns off on its own:
-`{freeze: false, autofilter: false, headerStyle: null}`, or a column's own `width`. `header: false`
-writes no header row, and so none of these.
+`{freeze: false, autofilter: false, headerStyle: false}`, or a column's own `width`. `headerStyle` is
+`false` and not `null`, the way `freeze` and `autofilter` are, because an options field set to `null`
+reads the same as one left out. `headerStyle: Style::of({...})` replaces the default style. `header:
+false` writes no header row, and so none of these.
 
 **Auto width** measures the header and the rows the Novis half holds before the first chunk leaves —
 the first 1,000 — or every row when `fromRows` is given an array. A cell's width is its text as Excel
@@ -4678,7 +4681,11 @@ a sheet.
 - **Memory:** per writing request, one entry per distinct style combination until `finish()`, and the
   auto-width window of at most 1,000 rows before the first chunk leaves.
 
-**Not shipped.** Nothing of `Novis\Spreadsheet` is on disk.
+**Not shipped.** `Style::of`, the row's `style`, `columns` with `header`, `width`, `format`, `style`
+and `hidden`, the header row and its four defaults, and auto width are on disk
+(`extensions/spreadsheet/nvs/Workbook.nvs`, `Style.nvs`, `extensions/spreadsheet/src/width.rs`). Until the
+number-format renderer exists, auto width measures a number as the text the engine stores and a date
+by the length of its default format, not through the column's format code. Not on disk: a column's `formula`, `Cell::of`, and the style enums under `Style`.
 
 **Declined:**
 - **A style as an options bag on every call, with no value.** A report repeats the same few styles on

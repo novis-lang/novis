@@ -1,0 +1,46 @@
+<?nvs
+namespace Novis\Spreadsheet;
+
+/// A whole workbook from `Workbook::fromRows`. The method you call on it sets where the file goes.
+final class Export
+{
+    type Options = ?{zone?: string, format?: string, properties?: {title?: string, subject?: string, author?: string, company?: string, keywords?: string, created?: Core\Time\Instant}};
+
+    /// `new Export` makes an export that adds its rows with `$write`. `Workbook::fromRows` makes one for you.
+    public function constructor(
+        private readonly callable(Workbook): void $write,
+        private readonly Options $options,
+    ) {}
+
+    /// `download` sends the file to the browser as a download named `$name`.
+    public function download(string $name): void
+    {
+        $this->run(Workbook::createForDownload($name, $this->options));
+    }
+
+    /// `save` writes the file to `$path` and returns the row counts and the size.
+    /// The path needs the `fs.write` capability in `nvs.toml`.
+    public function save(#[Core\Path] string $path): Written
+    {
+        return $this->run(Workbook::createForFile($path, $this->options));
+    }
+
+    /// `to` writes the file to `$file`, a file that your program opened for writing. It does not close `$file`.
+    public function to(Core\IO\File $file): Written
+    {
+        return $this->run(Workbook::createForStream($file, $this->options));
+    }
+
+    /// `bytes` returns the whole file.
+    public function bytes(): bytes
+    {
+        return $this->run(Workbook::createInMemory($this->options))->bytes ?? Core\Bytes::fill(0, 0);
+    }
+
+    private function run(Workbook $book): Written
+    {
+        callable(Workbook): void $write = $this->write;
+        $write($book);
+        return $book->finish();
+    }
+}

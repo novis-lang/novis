@@ -8,7 +8,7 @@ use Iterator;
 /// A row is written once and cannot be changed after that.
 final class Sheet
 {
-    type RowOptions = ?{height?: float, hidden?: bool, level?: uint};
+    type RowOptions = ?{height?: float, hidden?: bool, level?: uint, style?: Style};
 
     /// `new Sheet` makes a sheet that gives each row to `$add`. `Workbook::sheet` makes one for you.
     public function constructor(
@@ -16,8 +16,8 @@ final class Sheet
         private readonly callable(uint, array<mixed>, RowOptions): void $add,
     ) {}
 
-    /// `add` adds one row to the end of the sheet. Each value of `$row` is one cell, from column `A`.
-    /// `height` sets the row height in points. `hidden` hides the row. `level` puts the row in an outline group.
+    /// `add` adds one row to the end of the sheet. A value goes to the column of its key, or by position from column `A`.
+    /// `height` is the row height in points. `hidden` hides the row. `level` puts it in an outline group. `style` is its `Style`.
     public function add(array<mixed> $row, RowOptions $options = null): Sheet
     {
         callable(uint, array<mixed>, RowOptions): void $add = $this->add;

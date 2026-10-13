@@ -1,0 +1,65 @@
+--TEST--
+A second `sheet` finishes the first, so adding a row to the first throws naming it; a bad sheet name throws in `sheet` and the open sheet goes on; `position` sets the tab order; a row's `style` is a `Style` the workbook writes once; and `finish` counts the rows of each sheet: rule:core-classes/spreadsheet-writes-as-a-stream
+--FILE--
+<?nvs
+// covers: Novis\Spreadsheet\Workbook::sheet
+// covers: Novis\Spreadsheet\Sheet::add
+// covers: Novis\Spreadsheet\Style::of
+use Novis\Spreadsheet\Style;
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $bold = Style::of({bold: true, border: "thin", align: "center"});
+var $orders = $book->sheet("Orders");
+$orders->add(["Widget", 3], {style: $bold});
+$orders->add(["Gadget", 4], {style: $bold});
+
+// `Totals` comes first in the tabs, and starting it finishes `Orders`.
+var $totals = $book->sheet("Totals", {position: 0});
+$totals->add(["Sum", 7]);
+try {
+    $orders->add(["Gizmo", 5]);
+    echo "not reached\n";
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+
+// A sheet name cannot have `/`. `Totals` is still open after the error.
+try {
+    $book->sheet("Shop/Orders");
+    echo "not reached\n";
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+$totals->add(["Count", 2]);
+
+// A style with a value that does not exist throws when you make it.
+try {
+    Style::of({border: "wavy"});
+    echo "not reached\n";
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+
+var $written = $book->finish();
+echo "Orders: ", $written->rows["Orders"], ", Totals: ", $written->rows["Totals"], "\n";
+
+bytes $file = $written->bytes ?? Core\Bytes::fill(0, 0);
+var $workbook = Core\Zip::read($file, "xl/workbook.xml") as string;
+echo Core\Str::contains($workbook, "<sheet name=\"Totals\" sheetId=\"2\" r:id=\"rId2\"/><sheet name=\"Orders\"") ? "Totals is the first tab" : "Orders is the first tab", "\n";
+
+// Both rows use the same style, so `styles.xml` has it once.
+var $sheet = Core\Zip::read($file, "xl/worksheets/sheet1.xml") as string;
+echo Core\Str::contains($sheet, "<row r=\"1\" s=\"1\" customFormat=\"1\">") ? "row 1 has the style" : "row 1 has no style", "\n";
+echo Core\Str::contains($sheet, "<row r=\"2\" s=\"1\" customFormat=\"1\">") ? "row 2 has the same style" : "row 2 has another style", "\n";
+var $styles = Core\Zip::read($file, "xl/styles.xml") as string;
+echo Core\Str::contains($styles, "<cellXfs count=\"2\">") ? "one style and the default" : "another number of styles", "\n";
+--EXPECT--
+The sheet `Orders` is finished, so you cannot add rows to it. A sheet is finished when the workbook starts the next sheet.
+The sheet name `Shop/Orders` has the character `/`. A sheet name cannot have `: \ / ? * [ ]`.
+The style field `border` is `'thin'`, `'medium'`, `'thick'`, `'dashed'`, `'dotted'` or `'double'`. It has `'wavy'`.
+Orders: 2, Totals: 2
+Totals is the first tab
+row 1 has the style
+row 2 has the same style
+one style and the default

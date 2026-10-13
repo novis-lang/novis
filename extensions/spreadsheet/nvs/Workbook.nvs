@@ -1,6 +1,8 @@
 <?nvs
 namespace Novis\Spreadsheet;
 
+use Iterable;
+use Iterator;
 use LogicError;
 
 /// An Excel file (xlsx) that your program writes row by row.
@@ -8,8 +10,10 @@ use LogicError;
 final class Workbook
 {
     type Options = ?{zone?: string, format?: string, properties?: {title?: string, subject?: string, author?: string, company?: string, keywords?: string, created?: Core\Time\Instant}};
-    type SheetOptions = ?{position?: uint, hidden?: bool|string, tabColor?: string, zoom?: uint, gridlines?: bool, rightToLeft?: bool};
-    type RowOptions = ?{height?: float, hidden?: bool, level?: uint};
+    type Column = {header?: string, width?: int|float|string, format?: string, style?: Style, hidden?: bool};
+    type SheetOptions = ?{columns?: array<Column>, header?: bool, freeze?: bool, autofilter?: bool, headerStyle?: Style|bool, overflow?: string, position?: uint, hidden?: bool|string, tabColor?: string, zoom?: uint, gridlines?: bool, rightToLeft?: bool};
+    type ExportOptions = ?{sheet?: string, zone?: string, format?: string, properties?: {title?: string, subject?: string, author?: string, company?: string, keywords?: string, created?: Core\Time\Instant}, columns?: array<Column>, header?: bool, freeze?: bool, autofilter?: bool, headerStyle?: Style|bool, overflow?: string, position?: uint, hidden?: bool|string, tabColor?: string, zoom?: uint, gridlines?: bool, rightToLeft?: bool};
+    type RowOptions = ?{height?: float, hidden?: bool, level?: uint, style?: Style};
     type Value = {text: string}|{number: float}|{integer: int}|{decimal: string}|{boolean: bool}|{date: Core\Time\Date}|{time: Core\Time\TimeOfDay}|{duration: Core\Time\Duration}|{day: Core\Time\Date, clock: Core\Time\TimeOfDay};
     type Entry = {value: ?Value, style: ?uint};
     type Row = {cells: array<Entry>, style: ?uint, height: ?float, hidden: bool, level: uint, header: bool};
@@ -20,8 +24,13 @@ final class Workbook
     private bool $closeFile = false;
     private bool $keep = false;
     private array<bytes> $kept = [];
-    private ?Layout $layout = null;
-    private bool $opened = false;
+    private bool $open = false;
+    private bool $started = false;
+    private bool $wantHeader = true;
+    private ?array<uint> $positions = null;
+    private array<string> $headers = [];
+    private bool $whole = false;
+    private array<uint> $styles = [];
     private array<Row> $pending = [];
     private uint $sheets = 0;
     private array<string> $names = [];
@@ -69,12 +78,68 @@ final class Workbook
         return $book;
     }
 
+    /// `Workbook::fromRows` makes a workbook with one sheet that has every row of `$rows`. Call `download`, `save`, `to` or `bytes` on the result to write it.
+    /// `$options` has the workbook options and the sheet options. `sheet` is the name of the sheet, and the default is `'Sheet1'`.
+    public static function fromRows(array<array<mixed>>|Iterable<array<mixed>>|Iterator<array<mixed>> $rows, ExportOptions $options = null): Export
+    {
+        return new Export(fn (Workbook $book): void => {
+            var $sheet = $book->sheet($options?->sheet ?? "Sheet1", $options);
+            // All rows of an array go to the engine in one call, so the width of each column fits every row.
+            if ($rows is array<array<mixed>>) {
+                $book->whole = true;
+            }
+            $sheet->addAll($rows);
+        }, $options);
+    }
+
     /// `sheet` starts a new sheet named `$name` and returns it. The sheet before it is finished, and you cannot add rows to it after this.
-    /// `position` sets the place of the tab, from `0`. `hidden` is `true` or `'very'`. `zoom` is a percentage from 10 to 400.
+    /// When the rows have keys, the first row shows them in bold, with a filter, and stays at the top. `header`, `headerStyle`, `freeze` and `autofilter` change this.
     public function sheet(string $name, SheetOptions $options = null): Sheet
     {
         $this->checkOpen();
-        $this->closeSheet();
+        $this->flushSheet();
+        bool $wantHeader = $options?->header ?? true;
+        ?array<uint> $known = null;
+        array<string> $headers = [];
+        array<{width: ?float, auto: bool, style: ?uint, format: ?string, hidden: bool}> $columns = [];
+        ?array<Column> $named = $options?->columns ?? null;
+        if ($named != null && Core\Arr::count($named) > 0) {
+            array<uint> $positions = [];
+            foreach ($named as tainted string $tainted => Column $column) {
+                string $key = self::key($tainted);
+                $positions[$key] = Core\Arr::count($columns);
+                $headers[] = $column->header ?? $key;
+                int|float|string|null $width = $column->width ?? null;
+                ?float $fixed = null;
+                bool $auto = $wantHeader;
+                if ($width is string) {
+                    if ($width != "auto") {
+                        throw new LogicError("The column `{$key}` has the width `'{$width}'`. A width is a number of characters or `'auto'`.");
+                    }
+                    $auto = true;
+                } elseif ($width != null) {
+                    $fixed = $width as float;
+                    $auto = false;
+                }
+                $columns[] = {
+                    width: $fixed,
+                    auto: $auto,
+                    style: $this->styleId($column->style ?? null),
+                    format: $column->format ?? null,
+                    hidden: $column->hidden ?? false,
+                };
+            }
+            $known = $positions;
+        }
+        Style|bool $headerStyle = $options?->headerStyle ?? true;
+        ?uint $headerId = null;
+        if ($headerStyle is Style) {
+            $headerId = $this->styleId($headerStyle);
+        }
+        ?string $overflow = $options?->overflow ?? null;
+        if ($overflow != null && $overflow != "newSheet") {
+            throw new LogicError("The sheet option `overflow` is `'newSheet'`. The sheet `{$name}` has `'{$overflow}'`.");
+        }
         Visibility $visibility = Visibility::Visible;
         bool|string|null $hidden = $options?->hidden ?? null;
         if ($hidden == "very") {
@@ -84,11 +149,11 @@ final class Workbook
         } elseif ($hidden is string) {
             throw new LogicError("The sheet option `hidden` is `true`, `false` or `'very'`. The sheet `{$name}` has `'{$hidden}'`.");
         }
-        $this->layout = {
+        Layout $layout = {
             name: $name,
             position: $options?->position ?? null,
             visibility: $visibility,
-            columns: [],
+            columns: $columns,
             freezeRows: 0,
             freezeColumns: 0,
             autofilter: null,
@@ -96,10 +161,23 @@ final class Workbook
             zoom: $options?->zoom ?? null,
             gridlines: $options?->gridlines ?? true,
             rightToLeft: $options?->rightToLeft ?? false,
-            header: {defaultStyle: true, style: null, freeze: true, filter: true},
-            newSheetOnOverflow: false,
+            header: {
+                defaultStyle: $headerStyle is bool && $headerStyle,
+                style: $headerId,
+                freeze: $options?->freeze ?? true,
+                filter: $options?->autofilter ?? true,
+            },
+            newSheetOnOverflow: $overflow == "newSheet",
         };
-        $this->opened = false;
+        // The engine checks the name and the options here, so a bad one throws in `sheet`.
+        // The sheet before stays open until the engine starts this one.
+        $this->send(Engine::writerSheet($this->writer, $layout, []));
+        $this->open = true;
+        $this->started = false;
+        $this->whole = false;
+        $this->wantHeader = $wantHeader;
+        $this->positions = $known;
+        $this->headers = $headers;
         $this->sheets = $this->sheets + 1;
         $this->names[] = $name;
         return new Sheet($this->sheets, $this->queue(...));
@@ -110,7 +188,7 @@ final class Workbook
     public function finish(): Written
     {
         $this->checkOpen();
-        $this->closeSheet();
+        $this->flushSheet();
         $this->finished = true;
         var $last = Engine::writerFinish($this->writer);
         $this->send($last->data);
@@ -205,50 +283,110 @@ final class Workbook
         if ($sheet != $this->sheets) {
             throw new LogicError("The sheet `{$name}` is finished, so you cannot add rows to it. A sheet is finished when the workbook starts the next sheet.");
         }
+        if (!$this->started) {
+            $this->begin($row);
+        }
         array<Entry> $cells = [];
         uint $at = 0;
-        foreach ($row as mixed $value) {
+        foreach ($this->arrange($row, $name) as mixed $value) {
             $cells[] = {value: self::cell($value, $at, $this->zone), style: null};
             $at = $at + 1;
         }
         $this->pending[] = {
             cells: $cells,
-            style: null,
+            style: $this->styleId($options?->style ?? null),
             height: $options?->height ?? null,
             hidden: $options?->hidden ?? false,
             level: $options?->level ?? 0,
             header: false,
         };
         // A batch of 1,000 rows goes to the engine in one call.
-        if (Core\Arr::count($this->pending) >= 1000) {
+        if (!$this->whole && Core\Arr::count($this->pending) >= 1000) {
             $this->flush();
         }
     }
 
-    private function closeSheet(): void
+    // Sets the columns from the first row's keys, after the ones the `columns` option names, and adds the header row.
+    private function begin(array<mixed> $row): void
     {
-        if ($this->layout != null) {
-            if (!$this->opened || Core\Arr::count($this->pending) > 0) {
-                $this->flush();
+        $this->started = true;
+        if (!Core\Arr::isList($row)) {
+            array<uint> $positions = $this->positions ?? [];
+            foreach ($row as tainted string $tainted => mixed $value) {
+                string $key = self::key($tainted);
+                if (!Core\Arr::hasKey($positions, $key)) {
+                    $positions[$key] = Core\Arr::count($positions);
+                    $this->headers[] = $key;
+                }
             }
-            $this->layout = null;
+            $this->positions = $positions;
+        }
+        if ($this->positions != null && $this->wantHeader) {
+            array<Entry> $cells = [];
+            foreach ($this->headers as string $text) {
+                $cells[] = {value: {text: $text}, style: null};
+            }
+            $this->pending[] = {cells: $cells, style: null, height: null, hidden: false, level: 0, header: true};
+        }
+    }
+
+    // Puts the values of a row with keys in the order of the columns. A list is written by position.
+    private function arrange(array<mixed> $row, string $name): array<mixed>
+    {
+        if (Core\Arr::isList($row)) {
+            return $row;
+        }
+        array<uint> $positions = $this->positions ?? [];
+        if (Core\Arr::count($positions) == 0) {
+            return $row;
+        }
+        mixed $empty = null;
+        array<mixed> $values = Core\Arr::fill(Core\Arr::count($positions), $empty);
+        foreach ($row as tainted string $tainted => mixed $value) {
+            string $key = self::key($tainted);
+            if (!Core\Arr::hasKey($positions, $key)) {
+                throw new LogicError("A row of the sheet `{$name}` has the key `{$key}`, and the sheet has no column for it. The columns are the keys of the `columns` option and of the first row.");
+            }
+            $values[$positions[$key] as int] = $value;
+        }
+        return $values;
+    }
+
+    private static function key(tainted string $key): string
+    {
+        return Core\Taint::assertTrusted($key, "a key finds the column of a value, and the engine escapes it as the header text");
+    }
+
+    private function styleId(?Style $style): ?uint
+    {
+        if ($style == null) {
+            return null;
+        }
+        if (!Core\Arr::hasKey($this->styles, $style->key)) {
+            $this->styles[$style->key] = Engine::writerStyle($this->writer, $style->fields);
+        }
+        return $this->styles[$style->key];
+    }
+
+    // Sends the rows the open sheet still has, and its header row when it has no other rows.
+    private function flushSheet(): void
+    {
+        if ($this->open) {
+            if (!$this->started) {
+                $this->begin([]);
+            }
+            $this->flush();
         }
     }
 
     private function flush(): void
     {
-        ?Layout $layout = $this->layout;
-        if ($layout == null) {
+        if (Core\Arr::count($this->pending) == 0) {
             return;
         }
         array<Row> $rows = $this->pending;
         $this->pending = [];
-        if ($this->opened) {
-            $this->send(Engine::writerRows($this->writer, $rows));
-            return;
-        }
-        $this->opened = true;
-        $this->send(Engine::writerSheet($this->writer, $layout, $rows));
+        $this->send(Engine::writerRows($this->writer, $rows));
     }
 
     private function send(bytes $chunk): void

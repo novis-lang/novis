@@ -41,8 +41,10 @@ a lying record length, a bomb — throws `ParseError`. Anything else the compone
 `RuntimeError`. A trap throws `ExtensionError`, and the request's memory or CPU cap ends the request
 (`rule:packaging/a-guest-crash-throws`).
 
-**Not shipped.** `Engine`, `Written`, `Sheet`'s `add` and `addAll`, and `Workbook`'s four targets,
-`sheet` and `finish` are on disk. The other members and classes are not.
+**Not shipped.** `Engine`, `Written`, `Export`, `Style::of`, `Sheet`'s `add` and `addAll`, and
+`Workbook`'s four targets, `fromRows`, `sheet` and `finish` are on disk. A `Style` also has the
+readonly `fields` and `key` that `Workbook` reads, and the style enums are at namespace scope. The
+other members and classes are not.
 
 **Declined:**
 - **One `Spreadsheet` class with every member.** Writing, reading and filling share no state, and a

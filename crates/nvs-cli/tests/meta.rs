@@ -323,6 +323,7 @@ fn meta_lists_the_built_in_components_classes_and_enums() {
             "createForFile",
             "createForStream",
             "createInMemory",
+            "fromRows",
             "sheet",
             "finish"
         ]
@@ -331,6 +332,11 @@ fn meta_lists_the_built_in_components_classes_and_enums() {
         names(r"Novis\Spreadsheet\Sheet"),
         ["constructor", "add", "addAll"]
     );
+    assert_eq!(
+        names(r"Novis\Spreadsheet\Export"),
+        ["constructor", "download", "save", "to", "bytes"]
+    );
+    assert_eq!(names(r"Novis\Spreadsheet\Style"), ["constructor", "of"]);
     for name in ["Line", "Underline", "Align", "Valign", "Visibility"] {
         core_enum(&document, &format!(r"Novis\Spreadsheet\{name}"));
     }

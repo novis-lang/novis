@@ -1,0 +1,148 @@
+<?nvs
+namespace Novis\Spreadsheet;
+
+use LogicError;
+
+/// A set of style fields for a cell, a row, a column or a header row. Make one with `Style::of`.
+/// A cell uses each field from its own style first, then from its row, then from its column.
+final class Style
+{
+    type Lines = {top?: string, right?: string, bottom?: string, left?: string};
+    type Fields = {font?: string, size?: float, bold?: bool, italic?: bool, strike?: bool, underline?: bool|string, color?: string, fill?: string, border?: string|Lines, borderColor?: string, align?: string, valign?: string, wrap?: bool, rotate?: int, indent?: uint, format?: string, locked?: bool, hideFormula?: bool};
+    type Record = {font: ?string, size: ?float, bold: ?bool, italic: ?bool, strike: ?bool, underline: ?Underline, color: ?string, fill: ?string, border: ?{top: ?Line, right: ?Line, bottom: ?Line, left: ?Line}, borderColor: ?string, align: ?Align, valign: ?Valign, wrap: ?bool, rotate: ?int, indent: ?uint, format: ?string, locked: ?bool, hideFormula: ?bool};
+
+    /// `new Style` makes a style from its values. `Style::of` makes one for you.
+    /// `fields` has the fields as `Engine::writerStyle` takes them. Two styles with equal fields have the same `key`.
+    public function constructor(
+        public readonly Record $fields,
+        public readonly string $key,
+    ) {}
+
+    /// `Style::of` makes a style from `$fields`. A field you leave out comes from the row or the column.
+    /// `border` is a line, such as `'thin'`. `align` is a place, such as `'center'`. `format` is a format code or a name, such as `'money'`.
+    public static function of(Fields $fields): Style
+    {
+        ?{top: ?Line, right: ?Line, bottom: ?Line, left: ?Line} $border = null;
+        string|Lines|null $lines = $fields->border ?? null;
+        if ($lines is string) {
+            Line $line = self::line($lines);
+            $border = {top: $line, right: $line, bottom: $line, left: $line};
+        } elseif ($lines is Lines) {
+            $border = {
+                top: self::side($lines->top ?? null),
+                right: self::side($lines->right ?? null),
+                bottom: self::side($lines->bottom ?? null),
+                left: self::side($lines->left ?? null),
+            };
+        }
+        Record $record = {
+            font: $fields->font ?? null,
+            size: $fields->size ?? null,
+            bold: $fields->bold ?? null,
+            italic: $fields->italic ?? null,
+            strike: $fields->strike ?? null,
+            underline: self::underline($fields->underline ?? null),
+            color: $fields->color ?? null,
+            fill: $fields->fill ?? null,
+            border: $border,
+            borderColor: $fields->borderColor ?? null,
+            align: self::align($fields->align ?? null),
+            valign: self::valign($fields->valign ?? null),
+            wrap: $fields->wrap ?? null,
+            rotate: $fields->rotate ?? null,
+            indent: $fields->indent ?? null,
+            format: $fields->format ?? null,
+            locked: $fields->locked ?? null,
+            hideFormula: $fields->hideFormula ?? null,
+        };
+        return new Style($record, Core\Json::encode($fields));
+    }
+
+    private static function side(?string $name): ?Line
+    {
+        if ($name == null) {
+            return null;
+        }
+        return self::line($name);
+    }
+
+    private static function line(string $name): Line
+    {
+        if ($name == "thin") {
+            return Line::Thin;
+        }
+        if ($name == "medium") {
+            return Line::Medium;
+        }
+        if ($name == "thick") {
+            return Line::Thick;
+        }
+        if ($name == "dashed") {
+            return Line::Dashed;
+        }
+        if ($name == "dotted") {
+            return Line::Dotted;
+        }
+        if ($name == "double") {
+            return Line::Double;
+        }
+        throw new LogicError("The style field `border` is `'thin'`, `'medium'`, `'thick'`, `'dashed'`, `'dotted'` or `'double'`. It has `'{$name}'`.");
+    }
+
+    private static function underline(bool|string|null $value): ?Underline
+    {
+        if ($value is bool) {
+            return $value ? Underline::Single : null;
+        }
+        if ($value == null) {
+            return null;
+        }
+        if ($value == "single") {
+            return Underline::Single;
+        }
+        if ($value == "double") {
+            return Underline::Double;
+        }
+        throw new LogicError("The style field `underline` is `true`, `'single'` or `'double'`. It has `'{$value}'`.");
+    }
+
+    private static function align(?string $name): ?Align
+    {
+        if ($name == null) {
+            return null;
+        }
+        if ($name == "left") {
+            return Align::Left;
+        }
+        if ($name == "center") {
+            return Align::Center;
+        }
+        if ($name == "right") {
+            return Align::Right;
+        }
+        if ($name == "fill") {
+            return Align::Fill;
+        }
+        if ($name == "justify") {
+            return Align::Justify;
+        }
+        throw new LogicError("The style field `align` is `'left'`, `'center'`, `'right'`, `'fill'` or `'justify'`. It has `'{$name}'`.");
+    }
+
+    private static function valign(?string $name): ?Valign
+    {
+        if ($name == null) {
+            return null;
+        }
+        if ($name == "top") {
+            return Valign::Top;
+        }
+        if ($name == "center") {
+            return Valign::Center;
+        }
+        if ($name == "bottom") {
+            return Valign::Bottom;
+        }
+        throw new LogicError("The style field `valign` is `'top'`, `'center'` or `'bottom'`. It has `'{$name}'`.");
+    }
+}

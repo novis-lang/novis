@@ -248,7 +248,9 @@ Conventions the whole file uses:
 | [`Novis\Pdf\Reader`](#core-novis-pdf-reader) |  |
 | [`Novis\Pdf\Rendered`](#core-novis-pdf-rendered) |  |
 | [`Novis\Pdf\Engine`](#core-novis-pdf-engine) |  |
+| [`Novis\Spreadsheet\Export`](#core-novis-spreadsheet-export) |  |
 | [`Novis\Spreadsheet\Sheet`](#core-novis-spreadsheet-sheet) |  |
+| [`Novis\Spreadsheet\Style`](#core-novis-spreadsheet-style) |  |
 | [`Novis\Spreadsheet\Workbook`](#core-novis-spreadsheet-workbook) |  |
 | [`Novis\Spreadsheet\Written`](#core-novis-spreadsheet-written) |  |
 | [`Novis\Spreadsheet\Engine`](#core-novis-spreadsheet-engine) |  |
@@ -29961,6 +29963,73 @@ Returns the text of each page in `pages` of a PDF file. Pages count from 1.
 
 **Returns** `array<string>`
 
+<a id="core-novis-spreadsheet-export"></a>
+### `Novis\Spreadsheet\Export`
+
+Keywords: constructor, download, save, to, bytes
+
+| Member | Signature |
+|---|---|
+| [`Novis\Spreadsheet\Export::constructor`](#core-novis-spreadsheet-export-constructor) | `constructor(callable(Workbook): void $write, Options $options)` |
+| [`Novis\Spreadsheet\Export->download`](#core-novis-spreadsheet-export-download) | `download(string $name): void` |
+| [`Novis\Spreadsheet\Export->save`](#core-novis-spreadsheet-export-save) | `save(string $path): Written` |
+| [`Novis\Spreadsheet\Export->to`](#core-novis-spreadsheet-export-to) | `to(Core\IO\File $file): Written` |
+| [`Novis\Spreadsheet\Export->bytes`](#core-novis-spreadsheet-export-bytes) | `bytes(): bytes` |
+
+<a id="core-novis-spreadsheet-export-constructor"></a>
+#### `Novis\Spreadsheet\Export::constructor`
+
+```nvs skip
+new Novis\Spreadsheet\Export(callable(Workbook): void $write, Options $options)
+```
+
+`new Export` makes an export that adds its rows with `$write`. `Workbook::fromRows` makes one for you.
+
+<a id="core-novis-spreadsheet-export-download"></a>
+#### `Novis\Spreadsheet\Export->download`
+
+```nvs skip
+$export->download(string $name): void
+```
+
+`download` sends the file to the browser as a download named `$name`.
+
+**Returns** `void`
+
+<a id="core-novis-spreadsheet-export-save"></a>
+#### `Novis\Spreadsheet\Export->save`
+
+```nvs skip
+$export->save(string $path): Written
+```
+
+`save` writes the file to `$path` and returns the row counts and the size.
+The path needs the `fs.write` capability in `nvs.toml`.
+
+**Returns** `Written`
+
+<a id="core-novis-spreadsheet-export-to"></a>
+#### `Novis\Spreadsheet\Export->to`
+
+```nvs skip
+$export->to(Core\IO\File $file): Written
+```
+
+`to` writes the file to `$file`, a file that your program opened for writing. It does not close `$file`.
+
+**Returns** `Written`
+
+<a id="core-novis-spreadsheet-export-bytes"></a>
+#### `Novis\Spreadsheet\Export->bytes`
+
+```nvs skip
+$export->bytes(): bytes
+```
+
+`bytes` returns the whole file.
+
+**Returns** `bytes`
+
 <a id="core-novis-spreadsheet-sheet"></a>
 ### `Novis\Spreadsheet\Sheet`
 
@@ -29988,8 +30057,8 @@ new Novis\Spreadsheet\Sheet(uint $index, callable(uint, array<mixed>, RowOptions
 $sheet->add(array<mixed> $row, RowOptions $options = null): Sheet
 ```
 
-`add` adds one row to the end of the sheet. Each value of `$row` is one cell, from column `A`.
-`height` sets the row height in points. `hidden` hides the row. `level` puts the row in an outline group.
+`add` adds one row to the end of the sheet. A value goes to the column of its key, or by position from column `A`.
+`height` is the row height in points. `hidden` hides the row. `level` puts it in an outline group. `style` is its `Style`.
 
 **Returns** `Sheet`
 
@@ -30005,10 +30074,42 @@ $sheet->addAll(array<array<mixed>>|Iterable<array<mixed>>|Iterator<array<mixed>>
 
 **Returns** `Sheet`
 
+<a id="core-novis-spreadsheet-style"></a>
+### `Novis\Spreadsheet\Style`
+
+Keywords: constructor, of
+
+| Member | Signature |
+|---|---|
+| [`Novis\Spreadsheet\Style::constructor`](#core-novis-spreadsheet-style-constructor) | `constructor(Record $fields, string $key)` |
+| [`Novis\Spreadsheet\Style::of`](#core-novis-spreadsheet-style-of) | `of(Fields $fields): Style` |
+
+<a id="core-novis-spreadsheet-style-constructor"></a>
+#### `Novis\Spreadsheet\Style::constructor`
+
+```nvs skip
+new Novis\Spreadsheet\Style(Record $fields, string $key)
+```
+
+`new Style` makes a style from its values. `Style::of` makes one for you.
+`fields` has the fields as `Engine::writerStyle` takes them. Two styles with equal fields have the same `key`.
+
+<a id="core-novis-spreadsheet-style-of"></a>
+#### `Novis\Spreadsheet\Style::of`
+
+```nvs skip
+Novis\Spreadsheet\Style::of(Fields $fields): Style
+```
+
+`Style::of` makes a style from `$fields`. A field you leave out comes from the row or the column.
+`border` is a line, such as `'thin'`. `align` is a place, such as `'center'`. `format` is a format code or a name, such as `'money'`.
+
+**Returns** `Style`
+
 <a id="core-novis-spreadsheet-workbook"></a>
 ### `Novis\Spreadsheet\Workbook`
 
-Keywords: createForDownload, createForFile, createForStream, createInMemory, sheet, finish
+Keywords: createForDownload, createForFile, createForStream, createInMemory, fromRows, sheet, finish
 
 | Member | Signature |
 |---|---|
@@ -30016,6 +30117,7 @@ Keywords: createForDownload, createForFile, createForStream, createInMemory, she
 | [`Novis\Spreadsheet\Workbook::createForFile`](#core-novis-spreadsheet-workbook-createforfile) | `createForFile(string $path, Options $options = null): Workbook` |
 | [`Novis\Spreadsheet\Workbook::createForStream`](#core-novis-spreadsheet-workbook-createforstream) | `createForStream(Core\IO\File $file, Options $options = null): Workbook` |
 | [`Novis\Spreadsheet\Workbook::createInMemory`](#core-novis-spreadsheet-workbook-createinmemory) | `createInMemory(Options $options = null): Workbook` |
+| [`Novis\Spreadsheet\Workbook::fromRows`](#core-novis-spreadsheet-workbook-fromrows) | `fromRows(array<array<mixed>>\|Iterable<array<mixed>>\|Iterator<array<mixed>> $rows, ExportOptions $options = null): Export` |
 | [`Novis\Spreadsheet\Workbook->sheet`](#core-novis-spreadsheet-workbook-sheet) | `sheet(string $name, SheetOptions $options = null): Sheet` |
 | [`Novis\Spreadsheet\Workbook->finish`](#core-novis-spreadsheet-workbook-finish) | `finish(): Written` |
 
@@ -30066,6 +30168,18 @@ Novis\Spreadsheet\Workbook::createInMemory(Options $options = null): Workbook
 
 **Returns** `Workbook`
 
+<a id="core-novis-spreadsheet-workbook-fromrows"></a>
+#### `Novis\Spreadsheet\Workbook::fromRows`
+
+```nvs skip
+Novis\Spreadsheet\Workbook::fromRows(array<array<mixed>>|Iterable<array<mixed>>|Iterator<array<mixed>> $rows, ExportOptions $options = null): Export
+```
+
+`Workbook::fromRows` makes a workbook with one sheet that has every row of `$rows`. Call `download`, `save`, `to` or `bytes` on the result to write it.
+`$options` has the workbook options and the sheet options. `sheet` is the name of the sheet, and the default is `'Sheet1'`.
+
+**Returns** `Export`
+
 <a id="core-novis-spreadsheet-workbook-sheet"></a>
 #### `Novis\Spreadsheet\Workbook->sheet`
 
@@ -30074,7 +30188,7 @@ $workbook->sheet(string $name, SheetOptions $options = null): Sheet
 ```
 
 `sheet` starts a new sheet named `$name` and returns it. The sheet before it is finished, and you cannot add rows to it after this.
-`position` sets the place of the tab, from `0`. `hidden` is `true` or `'very'`. `zoom` is a percentage from 10 to 400.
+When the rows have keys, the first row shows them in bold, with a filter, and stays at the top. `header`, `headerStyle`, `freeze` and `autofilter` change this.
 
 **Returns** `Sheet`
 
@@ -30117,8 +30231,8 @@ Keywords: writerOpen, writerStyle, writerSheet, writerRows, writerDefine, writer
 |---|---|
 | [`Novis\Spreadsheet\Engine::writerOpen`](#core-novis-spreadsheet-engine-writeropen) | `writerOpen({properties: {title: ?string, subject: ?string, author: ?string, company: ?string, keywords: ?string, created: ?{day: Core\Time\Date, clock: Core\Time\TimeOfDay}}, target: string} $options): Writer` |
 | [`Novis\Spreadsheet\Engine::writerStyle`](#core-novis-spreadsheet-engine-writerstyle) | `writerStyle(Writer $writer, {font: ?string, size: ?float, bold: ?bool, italic: ?bool, strike: ?bool, underline: ?Underline, color: ?string, fill: ?string, border: ?{top: ?Line, right: ?Line, bottom: ?Line, left: ?Line}, borderColor: ?string, align: ?Align, valign: ?Valign, wrap: ?bool, rotate: ?int, indent: ?uint, format: ?string, locked: ?bool, hideFormula: ?bool} $style): uint` |
-| [`Novis\Spreadsheet\Engine::writerSheet`](#core-novis-spreadsheet-engine-writersheet) | `writerSheet(Writer $writer, {name: string, position: ?uint, visibility: Visibility, columns: array<{width: ?float, auto: bool, style: ?uint, hidden: bool}>, freezeRows: uint, freezeColumns: uint, autofilter: ?string, tabColor: ?string, zoom: ?uint, gridlines: bool, rightToLeft: bool} $options, array<{cells: array<{value: ?CellValue, style: ?uint}>, style: ?uint, height: ?float, hidden: bool, level: uint}> $first): bytes` |
-| [`Novis\Spreadsheet\Engine::writerRows`](#core-novis-spreadsheet-engine-writerrows) | `writerRows(Writer $writer, array<{cells: array<{value: ?CellValue, style: ?uint}>, style: ?uint, height: ?float, hidden: bool, level: uint}> $rows): bytes` |
+| [`Novis\Spreadsheet\Engine::writerSheet`](#core-novis-spreadsheet-engine-writersheet) | `writerSheet(Writer $writer, {name: string, position: ?uint, visibility: Visibility, columns: array<{width: ?float, auto: bool, style: ?uint, format: ?string, hidden: bool}>, freezeRows: uint, freezeColumns: uint, autofilter: ?string, tabColor: ?string, zoom: ?uint, gridlines: bool, rightToLeft: bool, header: {defaultStyle: bool, style: ?uint, freeze: bool, filter: bool}, newSheetOnOverflow: bool} $options, array<{cells: array<{value: ?CellValue, style: ?uint}>, style: ?uint, height: ?float, hidden: bool, level: uint, header: bool}> $first): bytes` |
+| [`Novis\Spreadsheet\Engine::writerRows`](#core-novis-spreadsheet-engine-writerrows) | `writerRows(Writer $writer, array<{cells: array<{value: ?CellValue, style: ?uint}>, style: ?uint, height: ?float, hidden: bool, level: uint, header: bool}> $rows): bytes` |
 | [`Novis\Spreadsheet\Engine::writerDefine`](#core-novis-spreadsheet-engine-writerdefine) | `writerDefine(Writer $writer, string $name, string $reference): void` |
 | [`Novis\Spreadsheet\Engine::writerFinish`](#core-novis-spreadsheet-engine-writerfinish) | `writerFinish(Writer $writer): {data: bytes, rows: array<{name: string, rows: uint}>, size: uint}` |
 
@@ -30157,7 +30271,7 @@ Returns a number for `style`. Two equal styles get the same number. A cell, a ro
 #### `Novis\Spreadsheet\Engine::writerSheet`
 
 ```nvs skip
-Novis\Spreadsheet\Engine::writerSheet(Writer $writer, {name: string, position: ?uint, visibility: Visibility, columns: array<{width: ?float, auto: bool, style: ?uint, hidden: bool}>, freezeRows: uint, freezeColumns: uint, autofilter: ?string, tabColor: ?string, zoom: ?uint, gridlines: bool, rightToLeft: bool} $options, array<{cells: array<{value: ?CellValue, style: ?uint}>, style: ?uint, height: ?float, hidden: bool, level: uint}> $first): bytes
+Novis\Spreadsheet\Engine::writerSheet(Writer $writer, {name: string, position: ?uint, visibility: Visibility, columns: array<{width: ?float, auto: bool, style: ?uint, format: ?string, hidden: bool}>, freezeRows: uint, freezeColumns: uint, autofilter: ?string, tabColor: ?string, zoom: ?uint, gridlines: bool, rightToLeft: bool, header: {defaultStyle: bool, style: ?uint, freeze: bool, filter: bool}, newSheetOnOverflow: bool} $options, array<{cells: array<{value: ?CellValue, style: ?uint}>, style: ?uint, height: ?float, hidden: bool, level: uint, header: bool}> $first): bytes
 ```
 
 Finishes the sheet before it, if there is one, and starts a new sheet with the rows in `first`. Returns the bytes of the file that are ready to send.
@@ -30165,8 +30279,8 @@ Finishes the sheet before it, if there is one, and starts a new sheet with the r
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$writer` | `Writer` |  |
-| `$options` | `{name: string, position: ?uint, visibility: Visibility, columns: array<{width: ?float, auto: bool, style: ?uint, hidden: bool}>, freezeRows: uint, freezeColumns: uint, autofilter: ?string, tabColor: ?string, zoom: ?uint, gridlines: bool, rightToLeft: bool}` |  |
-| `$first` | `array<{cells: array<{value: ?CellValue, style: ?uint}>, style: ?uint, height: ?float, hidden: bool, level: uint}>` |  |
+| `$options` | `{name: string, position: ?uint, visibility: Visibility, columns: array<{width: ?float, auto: bool, style: ?uint, format: ?string, hidden: bool}>, freezeRows: uint, freezeColumns: uint, autofilter: ?string, tabColor: ?string, zoom: ?uint, gridlines: bool, rightToLeft: bool, header: {defaultStyle: bool, style: ?uint, freeze: bool, filter: bool}, newSheetOnOverflow: bool}` |  |
+| `$first` | `array<{cells: array<{value: ?CellValue, style: ?uint}>, style: ?uint, height: ?float, hidden: bool, level: uint, header: bool}>` |  |
 
 **Returns** `bytes`
 
@@ -30174,7 +30288,7 @@ Finishes the sheet before it, if there is one, and starts a new sheet with the r
 #### `Novis\Spreadsheet\Engine::writerRows`
 
 ```nvs skip
-Novis\Spreadsheet\Engine::writerRows(Writer $writer, array<{cells: array<{value: ?CellValue, style: ?uint}>, style: ?uint, height: ?float, hidden: bool, level: uint}> $rows): bytes
+Novis\Spreadsheet\Engine::writerRows(Writer $writer, array<{cells: array<{value: ?CellValue, style: ?uint}>, style: ?uint, height: ?float, hidden: bool, level: uint, header: bool}> $rows): bytes
 ```
 
 Adds `rows` to the current sheet. Returns the bytes of the file that are ready to send.
@@ -30182,7 +30296,7 @@ Adds `rows` to the current sheet. Returns the bytes of the file that are ready t
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$writer` | `Writer` |  |
-| `$rows` | `array<{cells: array<{value: ?CellValue, style: ?uint}>, style: ?uint, height: ?float, hidden: bool, level: uint}>` |  |
+| `$rows` | `array<{cells: array<{value: ?CellValue, style: ?uint}>, style: ?uint, height: ?float, hidden: bool, level: uint, header: bool}>` |  |
 
 **Returns** `bytes`
 

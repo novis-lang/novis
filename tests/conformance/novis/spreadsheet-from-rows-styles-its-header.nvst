@@ -1,0 +1,113 @@
+--TEST--
+`Workbook::fromRows` writes rows with keys under a header row that is bold, has a thin bottom border, is frozen and has an autofilter, with every column as wide as its text; each default turns off, `columns` sets a column's header, width and format, `header: false` writes no header row, a key with no column throws, and `download` sends the bytes `bytes` returns: rule:core-classes/spreadsheet-styles-and-defaults
+--FILE--
+<?nvs
+// covers: Novis\Spreadsheet\Workbook::fromRows
+// covers: Novis\Spreadsheet\Export::bytes
+// covers: Novis\Spreadsheet\Export::download
+// covers: Novis\Spreadsheet\Engine::writerStyle
+// covers: Novis\Spreadsheet\Engine::writerRows
+use Novis\Spreadsheet\Workbook;
+
+final class Xml
+{
+    public static function sheet(bytes $file): tainted string
+    {
+        return Core\Zip::read($file, "xl/worksheets/sheet1.xml") as string;
+    }
+
+    public static function show(tainted string $xml, array<string> $parts): void
+    {
+        foreach ($parts as string $part) {
+            echo Core\Str::contains($xml, $part) ? "has " : "lacks ", $part, "\n";
+        }
+    }
+}
+
+array<array<mixed>> $rows = [
+    ["name" => "Widget", "price" => 2.5],
+    ["name" => "Gadget with a long name", "price" => 10.0],
+];
+
+// The keys of the first row are the header row. It has the style `s="1"`.
+echo "== the defaults\n";
+bytes $file = Workbook::fromRows($rows)->bytes();
+Xml::show(Xml::sheet($file), [
+    "<row r=\"1\" s=\"1\" customFormat=\"1\"><c r=\"A1\" s=\"1\" t=\"inlineStr\"><is><t>name</t></is></c>",
+    "<pane ySplit=\"1\" topLeftCell=\"A2\" activePane=\"bottomLeft\" state=\"frozen\"/>",
+    "<autoFilter ref=\"A1:B3\"/>",
+    "<col min=\"1\" max=\"1\" width=\"24\" customWidth=\"1\"/>",
+    "<col min=\"2\" max=\"2\" width=\"6\" customWidth=\"1\"/>",
+]);
+Xml::show(Core\Zip::read($file, "xl/styles.xml") as string, ["<b/>", "<bottom style=\"thin\">"]);
+Xml::show(Core\Zip::read($file, "xl/workbook.xml") as string, ["<sheet name=\"Sheet1\"", "_xlnm._FilterDatabase"]);
+
+// Each default turns off on its own.
+echo "== the defaults turned off\n";
+var $plain = Xml::sheet(Workbook::fromRows($rows, {sheet: "Plain", freeze: false, autofilter: false, headerStyle: false})->bytes());
+Xml::show($plain, ["<row r=\"1\"><c r=\"A1\" t=\"inlineStr\"><is><t>name</t></is></c>", "<pane", "<autoFilter"]);
+
+// `columns` comes first in the order it names. The key it does not name comes after it.
+echo "== columns\n";
+var $priced = Xml::sheet(Workbook::fromRows($rows, {columns: ["price" => {header: "Price", format: "money", width: 12}]})->bytes());
+Xml::show($priced, [
+    "<col min=\"1\" max=\"1\" width=\"12\" customWidth=\"1\" style=\"1\"/>",
+    "<t>Price</t></is></c><c r=\"B1\" s=\"2\" t=\"inlineStr\"><is><t>name</t>",
+    "<c r=\"A2\" s=\"1\"><v>2.5</v></c>",
+]);
+
+// With `header: false`, the first row of the sheet is the first row of data.
+echo "== no header\n";
+var $bare = Xml::sheet(Workbook::fromRows($rows, {header: false})->bytes());
+Xml::show($bare, ["<c r=\"A1\" t=\"inlineStr\"><is><t>Widget</t></is></c>", "<pane", "<autoFilter"]);
+
+// A list of lists has no keys, so it has no header row.
+echo "== a list of lists\n";
+var $lists = Xml::sheet(Workbook::fromRows([["Widget", 2.5], ["Gadget", 10.0]])->bytes());
+Xml::show($lists, ["<c r=\"A1\" t=\"inlineStr\"><is><t>Widget</t></is></c>", "<pane"]);
+
+// The columns come from the first row, so a later key has no column.
+echo "== a new key\n";
+try {
+    Workbook::fromRows([["name" => "Widget"], ["name" => "Gadget", "colour" => "red"]])->bytes();
+    echo "not reached\n";
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+
+// `download` sends the same bytes.
+echo "== download\n";
+var $sent = Core\Out::capture(fn (): void => {
+    Workbook::fromRows($rows)->download("Prices.xlsx");
+});
+echo ($sent as string as bytes) == $file ? "the download is the same file" : "the download is different", "\n";
+--EXPECT--
+== the defaults
+has <row r="1" s="1" customFormat="1"><c r="A1" s="1" t="inlineStr"><is><t>name</t></is></c>
+has <pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/>
+has <autoFilter ref="A1:B3"/>
+has <col min="1" max="1" width="24" customWidth="1"/>
+has <col min="2" max="2" width="6" customWidth="1"/>
+has <b/>
+has <bottom style="thin">
+has <sheet name="Sheet1"
+has _xlnm._FilterDatabase
+== the defaults turned off
+has <row r="1"><c r="A1" t="inlineStr"><is><t>name</t></is></c>
+lacks <pane
+lacks <autoFilter
+== columns
+has <col min="1" max="1" width="12" customWidth="1" style="1"/>
+has <t>Price</t></is></c><c r="B1" s="2" t="inlineStr"><is><t>name</t>
+has <c r="A2" s="1"><v>2.5</v></c>
+== no header
+has <c r="A1" t="inlineStr"><is><t>Widget</t></is></c>
+lacks <pane
+lacks <autoFilter
+== a list of lists
+has <c r="A1" t="inlineStr"><is><t>Widget</t></is></c>
+lacks <pane
+== a new key
+A row of the sheet `Sheet1` has the key `colour`, and the sheet has no column for it. The columns are the keys of the `columns` option and of the first row.
+== download
+the download is the same file
