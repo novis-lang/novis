@@ -3,7 +3,7 @@
 
 # Routing
 
-*2 of 29 rules below are **designed** rather than shipped, and are marked where they appear.*
+*2 of 30 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="routing-routes-are-compiled-not-registered"></a>
 
@@ -452,6 +452,7 @@ Core\Router\Match::param(string $name): ?(tainted string|int|uint|decimal|Core\U
 Core\Router\Match::method(): Http\Method;
 Core\Router\Match::access(): ?string;                                   // the resolved name of `allow:`
 Core\Router\Match::accessAs<E>(): ?E;                                   // `allow:` as a case of enum E
+Core\Router\Match::attribute<T>(): ?T;                                  // the method's payload of shape T
 ```
 
 The server matches a request once, before any application code, and `Core\Request::route()` is that
@@ -518,8 +519,12 @@ What a match returns beyond its name and captures, and why:
   `name` when they share a path, so only the verb tells a `Get` match from a `Post` match.
 - **The handler's `Class::method` label stays off the match**, because it is the one field of the row
   a program could turn into a call.
+- **`attribute<T>()` returns the matched method's attribute payload of the shape `T`**, folded while
+  compiling and looked up by the label on the runtime's side, so the label still does not cross
+  ([`routing/a-match-reads-an-attribute-as-data`](routing.md#routing-a-match-reads-an-attribute-as-data)).
 - **Memory:** each read of `Core\Request::route()` or `Core\Router::match` holds one string, the length
-  of the decision's name, and one integer. A program that never reads a match pays nothing.
+  of the decision's name, and two integers, the verb and the row's place in the table. A program that
+  never reads a match pays nothing.
 
 Routes do not share a signature: `show(uint $id)`, `index()` and `blog(uint $y, uint $m, string $slug)`
 cannot inhabit one `handler` field, and pre-binding the converted parameters into a zero-argument callable
@@ -538,6 +543,47 @@ compiler-recognised attributes this table draws on has one home
   and it would save only one `as`. The generated jump binds typed parameters without it.
 
 <sub>See also [`routing/the-servers-match-dispatches-nothing`](routing.md#routing-the-servers-match-dispatches-nothing), [`types/grammar`](types.md#types-grammar), [`routing/a-gate-answers-around-every-handler`](routing.md#routing-a-gate-answers-around-every-handler), [`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute), [`routing/matching-is-not-dispatching`](routing.md#routing-matching-is-not-dispatching).</sub>
+
+<a id="routing-a-match-reads-an-attribute-as-data"></a>
+
+## `Core\Router\Match::attribute<T>()` returns the one attribute payload on the matched route's method that satisfies the shape `T`, folded while compiling
+
+`rule:routing/a-match-reads-an-attribute-as-data`
+
+`$match->attribute<T>()` returns the one attribute payload on the matched route's method that satisfies
+the shape `T`, or `null` where none does. It is the payload `Core\Attributes::get<T>(Class::method(...))`
+returns for that method ([`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval)), so a gate reads a per-route option such
+as `#[{seconds: 60}]` with `$route->attribute<{seconds: int}>()` and keeps no table of routes of its
+own.
+
+The payload is data folded while compiling ([`attributes/retrieval-folds-while-checking`](attributes.md#attributes-retrieval-folds-while-checking)). At each
+call site the compiler folds `T` once for every method that carries a `#[Route]`, and the call is handed
+those payloads keyed by each method's `Class::method` label. The matched row's label is read on the
+runtime's side and the entry under it is returned, so the label never becomes a value the program holds
+and the payload, a shape of constants, has nothing on it to call ([`routing/a-match-is-not-invocable`](routing.md#routing-a-match-is-not-invocable)).
+A routed method with no payload of the shape has no entry, and the call returns `null` for it.
+
+The refusals are the retrieval's own, reported at the call:
+
+- **`T` that is not a shape** is `E0729`. A payload matches by its fields, so only a shape can select one.
+- **Two payloads of the shape on one routed method** is `E0728`, naming that `Class::method`. Any route
+  may be the one that matched, so every routed method is held to the one-match rule `get<T>` holds its
+  target to.
+- **A matching payload with a value that has no constant form** is `E0731`, as it is for `get<T>`.
+
+- **Memory:** each match holds one more integer, its row's place in the table. Each call builds one
+  array and one payload object per routed method that matches `T`, and frees all of them but the one
+  it returns when it returns. A program that never calls `attribute` pays the integer only.
+
+**Declined:**
+- **Options keyed by route name.** A route need not have a name, and one method may serve two routes,
+  so the method is what carries an option.
+- **Returning the handler label, so a program looks the payload up itself.** The label is the one field
+  of a row a program could turn into a call ([`routing/a-match-is-not-invocable`](routing.md#routing-a-match-is-not-invocable)).
+- **A reflection table read at run time.** Retrieval has an answer before the program starts, and a
+  compiled unit carries no reflection table ([`attributes/retrieval-folds-while-checking`](attributes.md#attributes-retrieval-folds-while-checking)).
+
+<sub>See also [`routing/a-match-is-not-invocable`](routing.md#routing-a-match-is-not-invocable), [`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval), [`attributes/retrieval-folds-while-checking`](attributes.md#attributes-retrieval-folds-while-checking), [`routing/a-gate-answers-around-every-handler`](routing.md#routing-a-gate-answers-around-every-handler).</sub>
 
 <a id="routing-matched-once-before-the-handler"></a>
 
@@ -900,10 +946,11 @@ consequences ([`programs/implementing`](programs.md#programs-implementing)):
 
 - **A program containing no call to a member whose answer comes from the table performs no scan of
   the autoload roots**, the identical opt-in rule a discovery query has, and any one of them alone
-  opts it in. Those members are `Core\Request::route()` and `Core\Router`'s `match`, `methodsFor`,
-  `url`, `urlAbsolute`, `urlSigned` and `signedRoute`. `route()` and `signedRoute` read the match the
-  door took, and that match is taken against the table, so without the scan a front controller
-  reading `route()` over autoloaded routes would get `null` on every request. `Core\Request::mount()`
+  opts it in. Those members are `Core\Request::route()` and `Core\Router`'s `dispatch`, `match`,
+  `methodsFor`, `url`, `urlAbsolute`, `urlSigned` and `signedRoute`. `route()`, `signedRoute` and
+  `dispatch` read the match the door took, and that match is taken against the table, so without the
+  scan a front controller reading `route()` over autoloaded routes would get `null` on every request,
+  and an entry whose only call is `dispatch` would compile none of the classes it dispatches to. `Core\Request::mount()`
   reads the mount table and does not opt in. A program with no `#[Route]` anywhere pays nothing,
   including no pass. A running program with no table matches nothing and serves the request however
   it likes. The table still holds every `#[Route]` of every class the program compiles, named or
