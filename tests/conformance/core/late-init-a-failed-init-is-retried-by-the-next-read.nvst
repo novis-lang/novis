@@ -2,7 +2,7 @@
 An `initProperty` that throws or is cancelled leaves the property uninitialized, and the next read calls it again, a waiting task's read included — `rule:classes/late-init-initializes-on-the-first-read`
 --FILE--
 <?nvs
-// covers: lang:classes/lateinit
+// covers: lang:classes/lateinit, LateInit
 final class Log {
     public array<string> $lines = [];
 }

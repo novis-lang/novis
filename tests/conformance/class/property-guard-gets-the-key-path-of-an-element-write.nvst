@@ -2,7 +2,7 @@
 An element write calls `beforePropertySet` with the new element and its key path: the append's next index, every level of a nested write, an `int` key as a string; a throw stops the write and the array keeps its entries
 --FILE--
 <?nvs
-// covers: lang:classes/propertyguard
+// covers: lang:classes/propertyguard, PropertyGuard
 final class Sheet implements PropertyGuard {
     public array<string> $tags = [];
     public array<array<string>> $cells = [];

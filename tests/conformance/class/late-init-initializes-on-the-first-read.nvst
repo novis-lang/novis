@@ -2,7 +2,7 @@
 A class that implements `LateInit` runs `initProperty` on the first read of an uninitialized `lateinit` property, once per property, and a read through `mixed` does the same — `rule:classes/late-init-initializes-on-the-first-read`
 --FILE--
 <?nvs
-// covers: lang:classes/lateinit
+// covers: lang:classes/lateinit, LateInit
 class Author {
     public function constructor(public string $name) {}
 }

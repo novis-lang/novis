@@ -2,7 +2,7 @@
 `unset` of an element calls `beforePropertyUnset` with its key path before the entry is removed; a throw stops the removal and the entry stays
 --FILE--
 <?nvs
-// covers: lang:classes/propertyguard
+// covers: lang:classes/propertyguard, PropertyGuard
 final class Settings implements PropertyGuard {
     public array<string> $values = [];
     public array<array<string>> $groups = [];

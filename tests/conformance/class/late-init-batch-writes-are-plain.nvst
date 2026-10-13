@@ -2,7 +2,7 @@
 While `initProperty` runs, a write that initializes a `lateinit` property is plain: no `onPropertySet`, on this object or another one, and through `mixed` too. Every other write is told to the observer — `rule:classes/late-init-initializes-on-the-first-read`
 --FILE--
 <?nvs
-// covers: lang:classes/lateinit
+// covers: lang:classes/lateinit, LateInit
 final class Comment implements PropertyObserver {
     public lateinit string $body;
 

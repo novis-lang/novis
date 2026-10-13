@@ -2,7 +2,7 @@
 An `initProperty` that leaves the property uninitialized makes the read throw a `LogicError`, and a class without `LateInit` throws on the first read — `rule:classes/late-init-initializes-on-the-first-read`, `rule:classes/an-unwritten-property-read-throws`
 --FILE--
 <?nvs
-// covers: lang:classes/lateinit
+// covers: lang:classes/lateinit, LateInit
 final class Post implements LateInit {
     public lateinit string $author;
     public lateinit string $title;

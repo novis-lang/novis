@@ -2,7 +2,7 @@
 A task that reads a property while another task's `initProperty` initializes it waits for that call, and never calls `initProperty` a second time — `rule:classes/late-init-initializes-on-the-first-read`
 --FILE--
 <?nvs
-// covers: lang:classes/lateinit
+// covers: lang:classes/lateinit, LateInit
 final class Log {
     public array<string> $lines = [];
 }

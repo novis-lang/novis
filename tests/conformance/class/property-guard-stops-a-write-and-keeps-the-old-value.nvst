@@ -2,7 +2,7 @@
 `beforePropertySet` runs before every whole write, in the constructor too and before a `set` hook with the caller's value, with `$keys` `[]`; a throw stops the write, so the old value stays and no observer runs
 --FILE--
 <?nvs
-// covers: lang:classes/propertyguard
+// covers: lang:classes/propertyguard, PropertyGuard
 final class Account implements PropertyGuard, PropertyObserver {
     public int $balance;
     public string $owner {

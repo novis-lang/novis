@@ -1,22 +1,15 @@
-`[limits]` sets the limits that each request starts with, and `[limits.hard]` sets the highest
-value that a request may raise each limit to.
+`[limits]` sets the limits that each request starts with. `[limits.hard]` sets the highest value
+that a request may raise each limit to, with `Core\Config::set`.
 
 The main keys are `memory`, `cpu_time`, `wall_time`, `max_tasks`, `max_output` and
-`max_regex_steps`. `cpu_time` is the processor time that the request uses for computing. Time spent
-waiting for a database or a socket does not count. `wall_time` is the elapsed time, waiting
-included. A program raises its own limit with `Core\Config::set`. When `[limits.hard]` does not
-set a key, its ceiling is the value in `[limits]`. A program can lower that limit, but it cannot
-raise it.
+`max_regex_steps`. `cpu_time` counts only computing time. `wall_time` counts waiting too. When
+`[limits.hard]` does not set a key, a program can lower that limit but cannot raise it.
 
-When `nvs.toml` does not set them, `memory` is `128M`. `cpu_time` is `30s` for a request and for other server work.
-`nvs run` and `nvs test` have no `cpu_time` limit unless you set one. `false` removes a limit.
+By default, `memory` is `128M` and a request has `30s` of `cpu_time`. `nvs run` and `nvs test`
+have no `cpu_time` limit unless you set one. `false` removes a limit.
 
-When a request reaches a limit, Novis stops the request. This is not an exception, so `catch` does
-not catch it. The function registered with `Core\Fatal::onLimit` runs, `FATAL: …` is written to
-standard error, and `nvs run` exits with status `1`. Output that was already written stays.
+When a request reaches a limit, Novis stops it. This is not an exception, so `catch` does not catch
+it. The function given to `Core\Fatal::onLimit` runs, and `nvs run` exits with status `1`.
 
-**In plain words:** `[limits]` is a spending limit that you may raise yourself. `[limits.hard]` is
-the limit that the bank sets, and you cannot raise yours above it.
-
-**Good to know:** in this version, `nvs run` enforces `memory` and `cpu_time`. It stores
-`wall_time`, `max_tasks` and `max_output`, and it does not stop a program that exceeds them.
+**Good to know:** in this version, `nvs run` enforces `memory` and `cpu_time`. It does not stop a
+program that exceeds `wall_time`, `max_tasks` or `max_output`.
