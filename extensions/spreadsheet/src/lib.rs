@@ -27,7 +27,7 @@
 //! return `runtime`: Stages 5 and 6 of goal `spreadsheet`. The reader and the template exports
 //! return `runtime` too, and are not in `manifest.json`: Stages 7 and 10.
 //!
-//! Packed as a `.nvsx` and embedded in every `nvs` binary, the component is 0.41 MiB, built for
+//! Packed as a `.nvsx` and embedded in every `nvs` binary, the component is 0.49 MiB, built for
 //! release as `crates/nvs-ext/build.rs` always builds it. That is the binary's growth for
 //! spreadsheets, and `crates/nvs-ext/tests/builtin.rs` fails when this figure drifts past 5% of
 //! the bytes the binary carries.
@@ -869,6 +869,21 @@ mod guest {
             reference: String,
         ) -> Result<(), wit::Error> {
             with(writer, |writer| writer.define(&name, &reference))
+        }
+
+        fn writer_cell(
+            writer: wit::WriterBorrow<'_>,
+            column: u64,
+            row: u64,
+        ) -> Result<String, wit::Error> {
+            let column = u32::try_from(column).unwrap_or(u32::MAX);
+            let row = u32::try_from(row).unwrap_or(u32::MAX);
+            with(writer, |writer| writer.cell(column, row))
+        }
+
+        fn writer_column(writer: wit::WriterBorrow<'_>, column: u64) -> Result<String, wit::Error> {
+            let column = u32::try_from(column).unwrap_or(u32::MAX);
+            with(writer, |writer| writer.column(column))
         }
 
         fn writer_finish(writer: wit::WriterBorrow<'_>) -> Result<wit::Finished, wit::Error> {

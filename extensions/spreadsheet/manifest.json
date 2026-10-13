@@ -60,6 +60,25 @@
       "help": "Gives the cells at `reference`, such as `Sheet1!$A$1:$B$10`, the name `name`. A formula can then use the name."
     },
     {
+      "name": "writerCell",
+      "params": [
+        {"name": "writer", "type": "Writer"},
+        {"name": "column", "type": "uint"},
+        {"name": "row", "type": "uint"}
+      ],
+      "returns": "string",
+      "help": "Returns the address of one cell, such as `C7`. `column` counts from 0, so column `A` is 0. `row` counts from 1."
+    },
+    {
+      "name": "writerColumn",
+      "params": [
+        {"name": "writer", "type": "Writer"},
+        {"name": "column", "type": "uint"}
+      ],
+      "returns": "string",
+      "help": "Returns the cells of one column in the current sheet, such as `C2:C1043`. The range has the rows written so far, and not the header row. `column` counts from 0."
+    },
+    {
       "name": "writerFinish",
       "params": [
         {"name": "writer", "type": "Writer"}

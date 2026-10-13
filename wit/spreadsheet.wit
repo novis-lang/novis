@@ -473,6 +473,12 @@ interface engine {
     writer-part: func(writer: borrow<writer>, part: sheet-part) -> result<list<u8>, error>;
     /// A defined name over a reference.
     writer-define: func(writer: borrow<writer>, name: string, reference: string) -> result<_, error>;
+    /// The A1 address of the column `column`, from 0, in the row `row`, such
+    /// as `C7` (`rule:core-classes/spreadsheet-formula-is-a-value`).
+    writer-cell: func(writer: borrow<writer>, column: u64, row: u64) -> result<string, error>;
+    /// The open sheet's data range in the column `column`, from 0, over the
+    /// rows written so far, such as `C2:C1043`.
+    writer-column: func(writer: borrow<writer>, column: u64) -> result<string, error>;
     /// Finishes the open sheet and the workbook.
     writer-finish: func(writer: borrow<writer>) -> result<finished, error>;
 

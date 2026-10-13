@@ -313,6 +313,8 @@ fn meta_lists_the_built_in_components_classes_and_enums() {
             "writerRows",
             "writerPart",
             "writerDefine",
+            "writerCell",
+            "writerColumn",
             "writerFinish"
         ]
     );
@@ -326,13 +328,32 @@ fn meta_lists_the_built_in_components_classes_and_enums() {
             "createInMemory",
             "fromRows",
             "sheet",
+            "define",
             "finish"
         ]
     );
     assert_eq!(
         names(r"Novis\Spreadsheet\Sheet"),
-        ["constructor", "add", "addAll"]
+        [
+            "constructor",
+            "add",
+            "addAll",
+            "cell",
+            "column",
+            "merge",
+            "link",
+            "note",
+            "validate",
+            "group",
+            "table",
+            "conditional",
+            "image",
+            "print",
+            "protect"
+        ]
     );
+    assert_eq!(names(r"Novis\Spreadsheet\Formula"), ["constructor", "of"]);
+    assert_eq!(names(r"Novis\Spreadsheet\Cell"), ["constructor", "of"]);
     assert_eq!(
         names(r"Novis\Spreadsheet\Export"),
         ["constructor", "download", "save", "to", "bytes"]

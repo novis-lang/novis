@@ -1,0 +1,54 @@
+--TEST--
+A table added after its rows writes its totals row at once, a formula row after it sums the range `column` gave, a string beginning `=` stays text, and a total that is not a function throws: rule:core-classes/spreadsheet-sheet-end-parts
+--FILE--
+<?nvs
+// covers: Novis\Spreadsheet\Sheet::table
+// covers: Novis\Spreadsheet\Sheet::column
+// covers: Novis\Spreadsheet\Sheet::cell
+// covers: Novis\Spreadsheet\Formula::of
+// covers: Novis\Spreadsheet\Engine::writerPart
+// covers: Novis\Spreadsheet\Engine::writerColumn
+// covers: Novis\Spreadsheet\Engine::writerCell
+use Novis\Spreadsheet\Formula;
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $orders = $book->sheet("Orders");
+$orders->add(["item" => "Tea", "qty" => 3]);
+$orders->add(["item" => "Cake", "qty" => 4]);
+$orders->add(["item" => "=1+1", "qty" => 5]);
+
+// The header is row 1, so the data is in rows 2 to 4.
+string $range = $orders->column("qty");
+echo $range, " ", $orders->cell("qty", 7), "\n";
+
+try {
+    $orders->table("A1:B4", {totals: ["qty" => "median"]});
+    echo "not reached\n";
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+
+// The totals row is row 5, so the next row is row 6.
+$orders->table("A1:B4", {name: "Orders", totals: ["qty" => "sum"]});
+$orders->add(["item" => "Check", "qty" => Formula::of("=SUM({$range})", {cached: 12})]);
+
+var $written = $book->finish();
+bytes $file = $written->bytes ?? Core\Bytes::fill(0, 0);
+var $sheet = Core\Zip::read($file, "xl/worksheets/sheet1.xml") as string;
+var $table = Core\Zip::read($file, "xl/tables/table1.xml") as string;
+echo Core\Str::contains($sheet, "<c r=\"A4\" t=\"inlineStr\"><is><t>=1+1</t></is></c>") ? "=1+1 is text" : "=1+1 is not text", "\n";
+echo Core\Str::contains($sheet, "<c r=\"B5\"><f>SUBTOTAL(109,Orders[qty])</f></c>") ? "row 5 sums the table" : "row 5 has no total", "\n";
+echo Core\Str::contains($sheet, "<c r=\"B6\"><f>SUM(B2:B4)</f><v>12</v></c>") ? "row 6 sums B2:B4" : "row 6 has no formula", "\n";
+echo Core\Str::contains($table, "ref=\"A1:B5\" totalsRowCount=\"1\"") ? "the table has a totals row" : "the table has no totals row", "\n";
+echo Core\Str::contains($table, "<tableColumn id=\"2\" name=\"qty\" totalsRowFunction=\"sum\"/>") ? "qty is summed" : "qty is not summed", "\n";
+echo "Orders: ", $written->rows["Orders"], "\n";
+--EXPECT--
+B2:B4 B7
+The total of `qty` is `'sum'`, `'average'`, `'count'`, `'min'`, `'max'` or a `Formula`. It has `'median'`.
+=1+1 is text
+row 5 sums the table
+row 6 sums B2:B4
+the table has a totals row
+qty is summed
+Orders: 5

@@ -1,0 +1,46 @@
+--TEST--
+An image whose bytes are not PNG, JPEG or GIF throws `LogicError` naming its cell, the sheet goes on, and a PNG added after it is the first image of the sheet: rule:core-classes/spreadsheet-sheet-end-parts
+--FILE--
+<?nvs
+// covers: Novis\Spreadsheet\Sheet::image
+// covers: Novis\Spreadsheet\Sheet::merge
+// covers: Novis\Spreadsheet\Sheet::link
+// covers: Novis\Spreadsheet\Sheet::note
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet("Blog");
+$sheet->add(["title" => "Hello", "views" => 10]);
+
+try {
+    $sheet->image("C2", Core\Encoding::encodeText("GIF? no, a text file", Core\Charset::Utf8));
+    echo "not reached\n";
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+
+// A link to a local file throws too.
+try {
+    $sheet->link("A2", "file:///etc/passwd");
+    echo "not reached\n";
+} catch (LogicError $e) {
+    echo "a file link throws\n";
+}
+
+// A PNG of one pixel.
+bytes $png = Core\Encoding::fromBase64("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==");
+$sheet->image("C2", $png)->merge("A3:B3")->note("A2", "The first post")->link("A2", "https://example.com/hello");
+$sheet->add(["title" => "Again", "views" => 20]);
+
+var $written = $book->finish();
+bytes $file = $written->bytes ?? Core\Bytes::fill(0, 0);
+echo Core\Zip::read($file, "xl/media/image1.png") == $png ? "the PNG is image1.png" : "image1.png differs", "\n";
+var $xml = Core\Zip::read($file, "xl/worksheets/sheet1.xml") as string;
+echo Core\Str::contains($xml, "<mergeCell ref=\"A3:B3\"/>") ? "A3:B3 is merged" : "nothing is merged", "\n";
+echo "Blog: ", $written->rows["Blog"], "\n";
+--EXPECT--
+The image at `C2` is not a PNG, JPEG or GIF file. Convert it to one of these formats first.
+a file link throws
+the PNG is image1.png
+A3:B3 is merged
+Blog: 2

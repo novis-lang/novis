@@ -3,17 +3,38 @@ namespace Novis\Spreadsheet;
 
 use Iterable;
 use Iterator;
+use LogicError;
 
-/// One sheet of a `Workbook`. Add its rows in order with `add` or `addAll`.
-/// A row is written once and cannot be changed after that.
+/// One sheet of a `Workbook`. Add its rows in order with `add` or `addAll`, and a row cannot be changed after that.
+/// The other methods add merged cells, links, notes, tables and more. They can use any row you already added.
 final class Sheet
 {
     type RowOptions = ?{height?: float, hidden?: bool, level?: uint, style?: Style};
+    type Bounds = {min?: int|float|string, max?: int|float|string};
+    type Validation = {list?: array<string>, whole?: Bounds, decimal?: Bounds, date?: Bounds, length?: Bounds, formula?: string, input?: string, inputTitle?: string, error?: string, errorTitle?: string, allowEmpty?: bool};
+    type TableOptions = ?{name?: string, style?: string, banded?: bool, filter?: bool, totals?: array<string|Formula>};
+    type Conditional = {kind: string, operator?: string, values?: array<string>, colors?: array<string>, icons?: string, rank?: uint, percent?: bool, style?: Style};
+    type Part = {merge: string}
+        |{anchor: string, target: string, text: ?string, tooltip: ?string}
+        |{noted: string, note: string, author: ?string}
+        |{validated: string, kind: RuleKind, operator: ?Operator, values: array<string>, inputTitle: ?string, inputMessage: ?string, errorTitle: ?string, errorMessage: ?string, allowEmpty: bool}
+        |{grouped: string, collapsed: bool}
+        |{table: string, name: ?string, style: ?string, banded: bool, filter: bool, totals: array<{column: string, function: ?TotalFunction, formula: ?string}>}
+        |{formatted: string, kind: ConditionalKind, operator: ?Operator, values: array<string>, colors: array<string>, icons: ?string, rank: ?uint, percent: bool, style: ?{font: ?string, size: ?float, bold: ?bool, italic: ?bool, strike: ?bool, underline: ?Underline, color: ?string, fill: ?string, border: ?{top: ?Line, right: ?Line, bottom: ?Line, left: ?Line}, borderColor: ?string, align: ?Align, valign: ?Valign, wrap: ?bool, rotate: ?int, indent: ?uint, format: ?string, locked: ?bool, hideFormula: ?bool}}
+        |{at: string, image: bytes, width: ?float, height: ?float, offsetX: ?float, offsetY: ?float}
+        |{orientation: ?Orientation, fitWidth: ?uint, fitHeight: ?uint, margins: ?{top: float, right: float, bottom: float, left: float}, header: ?string, footer: ?string, repeatRows: ?string, area: ?string}
+        |{password: ?string, allow: array<string>};
+    type PrintOptions ={orientation?: string, fitToPage?: {width?: uint, height?: uint}, margins?: {top: float, right: float, bottom: float, left: float}, header?: string, footer?: string, repeatRows?: string, area?: string};
 
-    /// `new Sheet` makes a sheet that gives each row to `$add`. `Workbook::sheet` makes one for you.
+    /// `new Sheet` makes a sheet of a workbook. `Workbook::sheet` makes one for you.
+    /// `$add` adds a row. `$ready` sends the rows that wait and checks that the sheet is still open. `$position` finds the column of a key.
     public function constructor(
         private readonly uint $index,
+        private readonly Writer $writer,
         private readonly callable(uint, array<mixed>, RowOptions): void $add,
+        private readonly callable(uint, ?uint): void $ready,
+        private readonly callable(bytes): void $send,
+        private readonly callable(uint, string): uint $position,
     ) {}
 
     /// `add` adds one row to the end of the sheet. A value goes to the column of its key, or by position from column `A`.
@@ -44,5 +65,341 @@ final class Sheet
             }
         }
         return $this;
+    }
+
+    /// `cell` returns the address of the column `$key` in row `$row`, such as `'C7'`.
+    /// `$key` is a column key or a column letter, such as `'qty'` or `'C'`.
+    public function cell(string $key, int $row): string
+    {
+        if ($row < 1) {
+            throw new LogicError("The row number is {$row}. The first row of a sheet is 1.");
+        }
+        return Engine::writerCell($this->writer, $this->at($key), $row as uint);
+    }
+
+    /// `column` returns the cells of the column `$key` in the rows added so far, such as `'C2:C1043'`.
+    /// The header row is not in the range. Call it after the last row to get every row.
+    public function column(string $key): string
+    {
+        uint $at = $this->at($key);
+        $this->ready(null);
+        return Engine::writerColumn($this->writer, $at);
+    }
+
+    /// `merge` joins the cells of `$range`, such as `'A1:C1'`, into one cell.
+    public function merge(string $range): Sheet
+    {
+        return $this->part({merge: $range});
+    }
+
+    /// `link` makes the cell `$cell` a link to `$target`. The target is an `http:` or `https:` address, a `mailto:` address, or a cell such as `'Totals!A1'`.
+    /// `text` is the text the cell shows. `tooltip` is the text a person sees over the link.
+    public function link(string $cell, string $target, ?{text?: string, tooltip?: string} $options = null): Sheet
+    {
+        return $this->part({anchor: $cell, target: $target, text: $options?->text ?? null, tooltip: $options?->tooltip ?? null});
+    }
+
+    /// `note` adds the note `$text` to the cell `$cell`. `author` is the name the note shows.
+    public function note(string $cell, string $text, ?{author?: string} $options = null): Sheet
+    {
+        return $this->part({noted: $cell, note: $text, author: $options?->author ?? null});
+    }
+
+    /// `validate` checks what a person types into `$range` in Excel. Give one of `list`, `whole`, `decimal`, `date`, `length` or `formula`.
+    /// `min` and `max` are the limits of a number, a date or a length. `input` is a message Excel shows, and `error` the message for a wrong value.
+    public function validate(string $range, Validation $rule): Sheet
+    {
+        RuleKind $kind = RuleKind::List;
+        array<string> $values = [];
+        ?Operator $operator = null;
+        uint $kinds = 0;
+        ?array<string> $list = $rule->list ?? null;
+        if ($list != null) {
+            $kinds = $kinds + 1;
+            $values = $list;
+        }
+        ?string $formula = $rule->formula ?? null;
+        if ($formula != null) {
+            $kinds = $kinds + 1;
+            $kind = RuleKind::Formula;
+            $values = [$formula];
+        }
+        ?Bounds $bounds = null;
+        ?Bounds $whole = $rule->whole ?? null;
+        if ($whole != null) {
+            $kinds = $kinds + 1;
+            $kind = RuleKind::Whole;
+            $bounds = $whole;
+        }
+        ?Bounds $decimal = $rule->decimal ?? null;
+        if ($decimal != null) {
+            $kinds = $kinds + 1;
+            $kind = RuleKind::Decimal;
+            $bounds = $decimal;
+        }
+        ?Bounds $date = $rule->date ?? null;
+        if ($date != null) {
+            $kinds = $kinds + 1;
+            $kind = RuleKind::Date;
+            $bounds = $date;
+        }
+        ?Bounds $length = $rule->length ?? null;
+        if ($length != null) {
+            $kinds = $kinds + 1;
+            $kind = RuleKind::Length;
+            $bounds = $length;
+        }
+        if ($kinds != 1) {
+            throw new LogicError("The validation of `{$range}` needs one of `list`, `whole`, `decimal`, `date`, `length` or `formula`. It has {$kinds}.");
+        }
+        if ($bounds != null) {
+            int|float|string|null $min = $bounds->min ?? null;
+            int|float|string|null $max = $bounds->max ?? null;
+            if ($min != null && $max != null) {
+                $operator = Operator::Between;
+                $values = [$min as string, $max as string];
+            } elseif ($min != null) {
+                $operator = Operator::GreaterOrEqual;
+                $values = [$min as string];
+            } elseif ($max != null) {
+                $operator = Operator::LessOrEqual;
+                $values = [$max as string];
+            } else {
+                throw new LogicError("The validation of `{$range}` needs `min`, `max` or both.");
+            }
+        }
+        return $this->part({
+            validated: $range,
+            kind: $kind,
+            operator: $operator,
+            values: $values,
+            inputTitle: $rule->inputTitle ?? null,
+            inputMessage: $rule->input ?? null,
+            errorTitle: $rule->errorTitle ?? null,
+            errorMessage: $rule->error ?? null,
+            allowEmpty: $rule->allowEmpty ?? true,
+        });
+    }
+
+    /// `group` puts the rows `$rows`, such as `'5:9'`, or the columns, such as `'B:D'`, in an outline group.
+    /// Add a group of rows before its rows, and a group of columns before the first row. `collapsed` hides the group.
+    public function group(string $rows, ?{collapsed?: bool} $options = null): Sheet
+    {
+        return $this->part({grouped: $rows, collapsed: $options?->collapsed ?? false});
+    }
+
+    /// `table` makes the cells of `$range`, such as `'A1:C9'`, an Excel table. Its first row is the header row.
+    /// `totals` adds a row after the table. It maps a header to `'sum'`, `'average'`, `'count'`, `'min'`, `'max'` or a `Formula`.
+    public function table(string $range, TableOptions $options = null): Sheet
+    {
+        array<{column: string, function: ?TotalFunction, formula: ?string}> $totals = [];
+        array<string|Formula> $asked = $options?->totals ?? [];
+        foreach ($asked as tainted string $tainted => string|Formula $total) {
+            string $column = Core\Taint::assertTrusted($tainted, "a header name finds the column of a total, and the engine escapes it");
+            if ($total is Formula) {
+                $totals[] = {column: $column, function: null, formula: $total->text};
+            } elseif ($total is string) {
+                $totals[] = {column: $column, function: self::total($column, $total), formula: null};
+            }
+        }
+        ?uint $after = null;
+        if (Core\Arr::count($totals) > 0) {
+            $after = self::lastRow($range) + 1;
+        }
+        $this->ready($after);
+        return $this->send({
+            table: $range,
+            name: $options?->name ?? null,
+            style: $options?->style ?? null,
+            banded: $options?->banded ?? true,
+            filter: $options?->filter ?? true,
+            totals: $totals,
+        });
+    }
+
+    /// `conditional` adds one conditional format to `$range`. `kind` is `'cell'`, `'formula'`, `'colorScale'`, `'dataBar'`, `'iconSet'`, `'top'`, `'bottom'`, `'duplicates'` or `'unique'`.
+    /// `values` are Excel formula text, so a text value has quotes, such as `'"open"'`. `style` is the `Style` of the cells the rule matches.
+    public function conditional(string $range, Conditional $rule): Sheet
+    {
+        ?string $operator = $rule->operator ?? null;
+        ?Style $style = $rule->style ?? null;
+        return $this->part({
+            formatted: $range,
+            kind: self::conditionalKind($rule->kind),
+            operator: $operator == null ? null : self::operator($operator),
+            values: $rule->values ?? [],
+            colors: $rule->colors ?? [],
+            icons: $rule->icons ?? null,
+            rank: $rule->rank ?? null,
+            percent: $rule->percent ?? false,
+            style: $style?->fields,
+        });
+    }
+
+    /// `image` puts the PNG, JPEG or GIF image `$data` at the cell `$cell`. Any other format throws a `LogicError`.
+    /// `width` and `height` are in pixels. `offsetX` and `offsetY` move the image from the corner of the cell.
+    public function image(string $cell, bytes $data, ?{width?: float, height?: float, offsetX?: float, offsetY?: float} $options = null): Sheet
+    {
+        return $this->part({
+            at: $cell,
+            image: $data,
+            width: $options?->width ?? null,
+            height: $options?->height ?? null,
+            offsetX: $options?->offsetX ?? null,
+            offsetY: $options?->offsetY ?? null,
+        });
+    }
+
+    /// `print` sets how the sheet is printed. `orientation` is `'portrait'` or `'landscape'`. `fitToPage` sets the number of pages wide and tall.
+    /// `repeatRows`, such as `'1:1'`, prints those rows on every page. `area` is the range to print. Set `fitToPage` before the first row.
+    public function print(PrintOptions $options): Sheet
+    {
+        ?Orientation $orientation = null;
+        ?string $named = $options->orientation ?? null;
+        if ($named == "portrait") {
+            $orientation = Orientation::Portrait;
+        } elseif ($named == "landscape") {
+            $orientation = Orientation::Landscape;
+        } elseif ($named != null) {
+            throw new LogicError("The print option `orientation` is `'portrait'` or `'landscape'`. It has `'{$named}'`.");
+        }
+        var $fit = $options->fitToPage ?? null;
+        return $this->part({
+            orientation: $orientation,
+            fitWidth: $fit?->width ?? null,
+            fitHeight: $fit?->height ?? null,
+            margins: $options->margins ?? null,
+            header: $options->header ?? null,
+            footer: $options->footer ?? null,
+            repeatRows: $options->repeatRows ?? null,
+            area: $options->area ?? null,
+        });
+    }
+
+    /// `protect` locks the layout of the sheet, so a person cannot change it in Excel. It is not a security feature: any tool can remove the password.
+    /// `allow` names what a person can still do, such as `'sort'` or `'autoFilter'`.
+    public function protect(?{password?: string, allow?: array<string>} $options = null): Sheet
+    {
+        return $this->part({password: $options?->password ?? null, allow: $options?->allow ?? []});
+    }
+
+    private function part(Part $part): Sheet
+    {
+        $this->ready(null);
+        return $this->send($part);
+    }
+
+    private function send(Part $part): Sheet
+    {
+        callable(bytes): void $send = $this->send;
+        $send(Engine::writerPart($this->writer, $part));
+        return $this;
+    }
+
+    private function ready(?uint $totals): void
+    {
+        callable(uint, ?uint): void $ready = $this->ready;
+        $ready($this->index, $totals);
+    }
+
+    private function at(string $key): uint
+    {
+        callable(uint, string): uint $position = $this->position;
+        return $position($this->index, $key);
+    }
+
+    // The number of the last row of a range such as `A1:C9`: the digits after the last `:`.
+    private static function lastRow(string $range): uint
+    {
+        uint $row = 0;
+        foreach (Core\Str::codePoints($range) as uint $code) {
+            if ($code == 58) {
+                $row = 0;
+            } elseif ($code >= 48 && $code <= 57) {
+                $row = $row * 10 + ($code - 48);
+            }
+        }
+        return $row;
+    }
+
+    private static function total(string $column, string $name): TotalFunction
+    {
+        if ($name == "sum") {
+            return TotalFunction::Sum;
+        }
+        if ($name == "average") {
+            return TotalFunction::Average;
+        }
+        if ($name == "count") {
+            return TotalFunction::Count;
+        }
+        if ($name == "min") {
+            return TotalFunction::Min;
+        }
+        if ($name == "max") {
+            return TotalFunction::Max;
+        }
+        throw new LogicError("The total of `{$column}` is `'sum'`, `'average'`, `'count'`, `'min'`, `'max'` or a `Formula`. It has `'{$name}'`.");
+    }
+
+    private static function conditionalKind(string $name): ConditionalKind
+    {
+        if ($name == "cell") {
+            return ConditionalKind::Cell;
+        }
+        if ($name == "formula") {
+            return ConditionalKind::Formula;
+        }
+        if ($name == "colorScale") {
+            return ConditionalKind::ColorScale;
+        }
+        if ($name == "dataBar") {
+            return ConditionalKind::DataBar;
+        }
+        if ($name == "iconSet") {
+            return ConditionalKind::IconSet;
+        }
+        if ($name == "top") {
+            return ConditionalKind::Top;
+        }
+        if ($name == "bottom") {
+            return ConditionalKind::Bottom;
+        }
+        if ($name == "duplicates") {
+            return ConditionalKind::Duplicates;
+        }
+        if ($name == "unique") {
+            return ConditionalKind::Unique;
+        }
+        throw new LogicError("The conditional format `kind` is `'cell'`, `'formula'`, `'colorScale'`, `'dataBar'`, `'iconSet'`, `'top'`, `'bottom'`, `'duplicates'` or `'unique'`. It has `'{$name}'`.");
+    }
+
+    private static function operator(string $name): Operator
+    {
+        if ($name == "between") {
+            return Operator::Between;
+        }
+        if ($name == "notBetween") {
+            return Operator::NotBetween;
+        }
+        if ($name == "equal") {
+            return Operator::Equal;
+        }
+        if ($name == "notEqual") {
+            return Operator::NotEqual;
+        }
+        if ($name == "greater") {
+            return Operator::Greater;
+        }
+        if ($name == "greaterOrEqual") {
+            return Operator::GreaterOrEqual;
+        }
+        if ($name == "less") {
+            return Operator::Less;
+        }
+        if ($name == "lessOrEqual") {
+            return Operator::LessOrEqual;
+        }
+        throw new LogicError("The `operator` is `'between'`, `'notBetween'`, `'equal'`, `'notEqual'`, `'greater'`, `'greaterOrEqual'`, `'less'` or `'lessOrEqual'`. It has `'{$name}'`.");
     }
 }

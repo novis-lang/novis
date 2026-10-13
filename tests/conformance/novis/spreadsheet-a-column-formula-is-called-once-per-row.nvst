@@ -1,0 +1,55 @@
+--TEST--
+A column's `formula` is called once per row with that row's number, a table added before its rows writes its totals row after its last row and the numbers skip it, and `Cell::of` styles one cell: rule:core-classes/spreadsheet-formula-is-a-value
+--FILE--
+<?nvs
+// covers: Novis\Spreadsheet\Workbook::sheet
+// covers: Novis\Spreadsheet\Cell::of
+// covers: Novis\Spreadsheet\Formula::of
+use Novis\Spreadsheet\Cell;
+use Novis\Spreadsheet\Formula;
+use Novis\Spreadsheet\Style;
+use Novis\Spreadsheet\Workbook;
+
+final class Tally
+{
+    public array<int> $rows = [];
+}
+
+var $tally = new Tally();
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet("Shop", {columns: [
+    "qty" => {header: "Qty"},
+    "price" => {header: "Price"},
+    "total" => {header: "Total", formula: fn (int $row): Formula => {
+        $tally->rows[] = $row;
+        return Formula::of("A{$row}*B{$row}");
+    }},
+]});
+
+// The table covers rows 1 to 3, so its totals row is row 4 and the third row is row 5.
+$sheet->table("A1:C3", {name: "Lines", totals: ["Total" => "sum"]});
+$sheet->add(["qty" => 2, "price" => 1.5]);
+$sheet->add(["qty" => 3, "price" => 2.0]);
+$sheet->add(["qty" => Cell::of(4, Style::of({bold: true})), "price" => 0.5]);
+
+var $written = $book->finish();
+foreach ($tally->rows as int $row) {
+    echo "called for row ", $row, "\n";
+}
+bytes $file = $written->bytes ?? Core\Bytes::fill(0, 0);
+var $xml = Core\Zip::read($file, "xl/worksheets/sheet1.xml") as string;
+array<string> $parts = ["<c r=\"C2\"><f>A2*B2</f></c>", "<c r=\"C3\"><f>A3*B3</f></c>", "<c r=\"C4\"><f>SUBTOTAL(109,Lines[Total])</f></c>", "<c r=\"C5\"><f>A5*B5</f></c>", "<c r=\"A5\" s=\"2\"><v>4</v></c>"];
+foreach ($parts as string $part) {
+    echo Core\Str::contains($xml, $part) ? "has " : "lacks ", $part, "\n";
+}
+echo "Shop: ", $written->rows["Shop"], "\n";
+--EXPECT--
+called for row 2
+called for row 3
+called for row 5
+has <c r="C2"><f>A2*B2</f></c>
+has <c r="C3"><f>A3*B3</f></c>
+has <c r="C4"><f>SUBTOTAL(109,Lines[Total])</f></c>
+has <c r="C5"><f>A5*B5</f></c>
+has <c r="A5" s="2"><v>4</v></c>
+Shop: 4

@@ -1204,6 +1204,8 @@ const SPREADSHEET_EXPORTS: &[&str] = &[
     "writer-rows",
     "writer-part",
     "writer-define",
+    "writer-cell",
+    "writer-column",
     "writer-finish",
     "reader-open",
     "reader-sheets",

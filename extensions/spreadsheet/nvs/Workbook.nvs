@@ -10,11 +10,11 @@ use LogicError;
 final class Workbook
 {
     type Options = ?{zone?: string, format?: string, properties?: {title?: string, subject?: string, author?: string, company?: string, keywords?: string, created?: Core\Time\Instant}};
-    type Column = {header?: string, width?: int|float|string, format?: string, style?: Style, hidden?: bool};
+    type Column = {header?: string, width?: int|float|string, format?: string, style?: Style, hidden?: bool, formula?: callable(int): Formula};
     type SheetOptions = ?{columns?: array<Column>, header?: bool, freeze?: bool, autofilter?: bool, headerStyle?: Style|bool, overflow?: string, position?: uint, hidden?: bool|string, tabColor?: string, zoom?: uint, gridlines?: bool, rightToLeft?: bool};
     type ExportOptions = ?{sheet?: string, zone?: string, format?: string, properties?: {title?: string, subject?: string, author?: string, company?: string, keywords?: string, created?: Core\Time\Instant}, columns?: array<Column>, header?: bool, freeze?: bool, autofilter?: bool, headerStyle?: Style|bool, overflow?: string, position?: uint, hidden?: bool|string, tabColor?: string, zoom?: uint, gridlines?: bool, rightToLeft?: bool};
     type RowOptions = ?{height?: float, hidden?: bool, level?: uint, style?: Style};
-    type Value = {text: string}|{number: float}|{integer: int}|{decimal: string}|{boolean: bool}|{date: Core\Time\Date}|{time: Core\Time\TimeOfDay}|{duration: Core\Time\Duration}|{day: Core\Time\Date, clock: Core\Time\TimeOfDay};
+    type Value = {text: string}|{number: float}|{integer: int}|{decimal: string}|{boolean: bool}|{date: Core\Time\Date}|{time: Core\Time\TimeOfDay}|{duration: Core\Time\Duration}|{day: Core\Time\Date, clock: Core\Time\TimeOfDay}|{formula: string, cachedText: ?string, cachedNumber: ?float};
     type Entry = {value: ?Value, style: ?uint};
     type Row = {cells: array<Entry>, style: ?uint, height: ?float, hidden: bool, level: uint, header: bool};
     type Layout = {name: string, position: ?uint, visibility: Visibility, columns: array<{width: ?float, auto: bool, style: ?uint, format: ?string, hidden: bool}>, freezeRows: uint, freezeColumns: uint, autofilter: ?string, tabColor: ?string, zoom: ?uint, gridlines: bool, rightToLeft: bool, header: {defaultStyle: bool, style: ?uint, freeze: bool, filter: bool}, newSheetOnOverflow: bool};
@@ -35,6 +35,11 @@ final class Workbook
     private uint $sheets = 0;
     private array<string> $names = [];
     private bool $finished = false;
+    private array<{at: uint, make: callable(int): Formula}> $formulas = [];
+    private bool $overflow = false;
+    // The number the open sheet's next row gets, and the rows a table's totals row takes.
+    private uint $row = 1;
+    private array<uint> $totalsAt = [];
 
     private function constructor(
         private readonly Writer $writer,
@@ -102,6 +107,7 @@ final class Workbook
         ?array<uint> $known = null;
         array<string> $headers = [];
         array<{width: ?float, auto: bool, style: ?uint, format: ?string, hidden: bool}> $columns = [];
+        array<{at: uint, make: callable(int): Formula}> $formulas = [];
         ?array<Column> $named = $options?->columns ?? null;
         if ($named != null && Core\Arr::count($named) > 0) {
             array<uint> $positions = [];
@@ -120,6 +126,10 @@ final class Workbook
                 } elseif ($width != null) {
                     $fixed = $width as float;
                     $auto = false;
+                }
+                ?callable(int): Formula $formula = $column->formula ?? null;
+                if ($formula != null) {
+                    $formulas[] = {at: Core\Arr::count($columns), make: $formula};
                 }
                 $columns[] = {
                     width: $fixed,
@@ -178,9 +188,21 @@ final class Workbook
         $this->wantHeader = $wantHeader;
         $this->positions = $known;
         $this->headers = $headers;
+        $this->formulas = $formulas;
+        $this->overflow = $overflow == "newSheet";
+        $this->row = 1;
+        $this->totalsAt = [];
         $this->sheets = $this->sheets + 1;
         $this->names[] = $name;
-        return new Sheet($this->sheets, $this->queue(...));
+        return new Sheet($this->sheets, $this->writer, $this->queue(...), $this->ready(...), $this->send(...), $this->position(...));
+    }
+
+    /// `define` gives the cells at `$reference`, such as `'Orders!$C$2:$C$9'`, the name `$name`. A formula can then use the name.
+    public function define(string $name, string $reference): Workbook
+    {
+        $this->checkOpen();
+        Engine::writerDefine($this->writer, $name, $reference);
+        return $this;
     }
 
     /// `finish` writes the end of the file and sends the last part. Call it once, after the last row.
@@ -274,22 +296,43 @@ final class Workbook
         }
     }
 
-    private function queue(uint $sheet, array<mixed> $row, RowOptions $options): void
+    private function openSheet(uint $sheet, string $what): string
     {
         string $name = $this->names[($sheet as int) - 1];
         if ($this->finished) {
             throw new LogicError("The sheet `{$name}` is finished, because the workbook is finished. `finish` is the last call on a workbook.");
         }
         if ($sheet != $this->sheets) {
-            throw new LogicError("The sheet `{$name}` is finished, so you cannot add rows to it. A sheet is finished when the workbook starts the next sheet.");
+            throw new LogicError("The sheet `{$name}` is finished, so you cannot add {$what} to it. A sheet is finished when the workbook starts the next sheet.");
         }
+        return $name;
+    }
+
+    private function queue(uint $sheet, array<mixed> $row, RowOptions $options): void
+    {
+        string $name = $this->openSheet($sheet, "rows");
         if (!$this->started) {
             $this->begin($row);
         }
+        int $number = $this->claim() as int;
+        array<mixed> $values = $this->arrange($row, $name);
+        foreach ($this->formulas as var $formula) {
+            callable(int): Formula $make = $formula->make;
+            int $place = $formula->at as int;
+            mixed $empty = null;
+            while (Core\Arr::count($values) <= $place) {
+                $values[] = $empty;
+            }
+            $values[$place] = $make($number);
+        }
         array<Entry> $cells = [];
         uint $at = 0;
-        foreach ($this->arrange($row, $name) as mixed $value) {
-            $cells[] = {value: self::cell($value, $at, $this->zone), style: null};
+        foreach ($values as mixed $value) {
+            if ($value is Cell) {
+                $cells[] = {value: self::cell($value->value, $at, $this->zone), style: $this->styleId($value->style)};
+            } else {
+                $cells[] = {value: self::cell($value, $at, $this->zone), style: null};
+            }
             $at = $at + 1;
         }
         $this->pending[] = {
@@ -327,7 +370,54 @@ final class Workbook
                 $cells[] = {value: {text: $text}, style: null};
             }
             $this->pending[] = {cells: $cells, style: null, height: null, hidden: false, level: 0, header: true};
+            $this->claim();
         }
+    }
+
+    // Gives the next row its number. A table's totals row takes its number first, and a full sheet goes on to the next one.
+    private function claim(): uint
+    {
+        while (Core\Arr::contains($this->totalsAt, $this->row)) {
+            $this->row = $this->row + 1;
+        }
+        if ($this->overflow && $this->row > 1048576) {
+            $this->row = $this->positions != null && $this->wantHeader ? 2 : 1;
+            $this->totalsAt = [];
+        }
+        uint $number = $this->row;
+        $this->row = $this->row + 1;
+        return $number;
+    }
+
+    // Sends the rows that wait, so a part of the open sheet can use them. `$totals` is the row a table's totals row takes.
+    private function ready(uint $sheet, ?uint $totals): void
+    {
+        $this->openSheet($sheet, "parts");
+        $this->flush();
+        if ($totals != null) {
+            $this->totalsAt[] = $totals;
+        }
+    }
+
+    // The column of `$key`: a key of the sheet's columns, or a column letter such as `C`.
+    private function position(uint $sheet, string $key): uint
+    {
+        string $name = $this->openSheet($sheet, "parts");
+        array<uint> $positions = $this->positions ?? [];
+        if (Core\Arr::hasKey($positions, $key)) {
+            return $positions[$key];
+        }
+        uint $at = 0;
+        foreach (Core\Str::codePoints(Core\Str::upper($key)) as uint $code) {
+            if ($code < 65 || $code > 90 || $at > 16384) {
+                throw new LogicError("The sheet `{$name}` has no column `{$key}`. Give a key of its columns or a column letter, such as `C`.");
+            }
+            $at = $at * 26 + ($code - 64);
+        }
+        if ($at == 0) {
+            throw new LogicError("The sheet `{$name}` has no column `{$key}`. Give a key of its columns or a column letter, such as `C`.");
+        }
+        return $at - 1;
     }
 
     // Puts the values of a row with keys in the order of the columns. A list is written by position.
@@ -443,6 +533,16 @@ final class Workbook
             }
             var $local = $value->in($zone);
             return {day: $local->date(), clock: $local->timeOfDay()};
+        }
+        if ($value is Formula) {
+            string|int|float|null $cached = $value->cached;
+            if ($cached is string) {
+                return {formula: $value->text, cachedText: $cached, cachedNumber: null};
+            }
+            if ($cached is int || $cached is float) {
+                return {formula: $value->text, cachedText: null, cachedNumber: $cached as float};
+            }
+            return {formula: $value->text, cachedText: null, cachedNumber: null};
         }
         string $column = self::column($at);
         throw new LogicError("The column `{$column}` has a value that a cell cannot contain. A cell can contain a `string`, a number, a `bool`, `null`, or a date, a time or a duration from `Core\\Time`.");
