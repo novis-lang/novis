@@ -75,13 +75,13 @@
 use nvs_diagnostics::{Diagnostic, SourceFile, code};
 use nvs_hir::QName;
 use nvs_syntax::ast::{
-    Attribute, AttributeGroup, CallArgs, ClassMember, ClassMemberKind, Expr, ExprKind, MemberName,
-    NamespaceDecl, Stmt, StmtKind,
+    AnonObjectField, Attribute, AttributeGroup, CallArgs, ClassMember, ClassMemberKind, Expr,
+    ExprKind, MemberName, NamespaceDecl, Stmt, StmtKind,
 };
 use rustc_hash::FxHashMap;
 
 use crate::defaults::ConstArg;
-use crate::expr::{check_anon_object, is_assignable, resolve_class_expr};
+use crate::expr::{check_anon_object, check_expr, field_fits, is_assignable, resolve_class_expr};
 use crate::expr_table::ExprInfo;
 use crate::locals::{Live, LocalScope};
 use crate::signatures::{resolve_method, resolve_property};
@@ -527,12 +527,104 @@ pub(crate) fn matching<'a>(sites: &[Site<'a>], want: TypeId, env: &mut Env<'a>) 
         let scope = LocalScope::new();
         let written = site_ctx(&table.scopes[site.scope]);
         let actual = check_anon_object(&site.attr.fields, None, &mut live, &scope, &written, env);
+        let actual = with_requested_arrays(
+            &site.attr.fields,
+            actual,
+            want,
+            &mut live,
+            &scope,
+            &written,
+            env,
+        );
         if is_assignable(actual, want, env.interner, env.graph, env.signatures) {
             matched.push(*site);
         }
     }
     env.src = outer;
     matched
+}
+
+/// `actual`, the payload's inferred shape, with each array-literal field
+/// retyped to the type `want` requests for that field, where every element of
+/// the literal fits it.
+///
+/// [`check_anon_object`] has no expectation here, and an array literal with
+/// none is an `array<mixed>`, which satisfies a requested `array<mixed>` and
+/// nothing narrower. Each element is a constant that still names what it is,
+/// so `[Mode::Off, Mode::On]` is checked element by element against a
+/// requested `array<Mode>` and satisfies it, while a case of another enum in
+/// the same array keeps it from doing so. Elements are compared with
+/// [`field_fits`], which has no `int` → `float` row, because [`fold_payload`]
+/// stores each element as written and converts none of them.
+///
+/// The elements were already checked once by [`check_anon_object`], so the
+/// diagnostics this second check reports are withdrawn.
+fn with_requested_arrays(
+    fields: &[AnonObjectField],
+    actual: TypeId,
+    want: TypeId,
+    live: &mut Live,
+    scope: &LocalScope,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> TypeId {
+    let want = env.interner.without_null(want);
+    let Ty::Shape(requested) = env.interner.get(want).clone() else {
+        return actual;
+    };
+    let Ty::Shape(mut inferred) = env.interner.get(actual).clone() else {
+        return actual;
+    };
+    let before = env.diags.len();
+    let mut retyped = false;
+    for field in fields {
+        if !matches!(field.value.kind, ExprKind::ArrayLiteral(_)) {
+            continue;
+        }
+        let name = span_text(env.src, field.name).to_owned();
+        let Some(target) = requested.iter().find(|f| f.name == name).map(|f| f.ty) else {
+            continue;
+        };
+        if !literal_fits(&field.value, target, live, scope, ctx, env) {
+            continue;
+        }
+        if let Some(slot) = inferred.iter_mut().find(|f| f.name == name) {
+            slot.ty = target;
+            retyped = true;
+        }
+    }
+    env.diags.truncate(before);
+    if retyped {
+        env.interner.shape(inferred)
+    } else {
+        actual
+    }
+}
+
+/// Whether the payload constant `value` fits `want` in place: an array literal
+/// at an `array<T>` when each element fits `T`, nested literals included, and
+/// any other value by its own inferred type. A spread fits nothing, since a
+/// payload has no binding to spread.
+fn literal_fits(
+    value: &Expr,
+    want: TypeId,
+    live: &mut Live,
+    scope: &LocalScope,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> bool {
+    if let ExprKind::ArrayLiteral(items) = &value.kind {
+        let base = env.interner.without_null(want);
+        if let Ty::Array(element) = *env.interner.get(base) {
+            return items.iter().all(|item| {
+                !item.spread
+                    && !item.by_ref
+                    && literal_fits(&item.value, element, live, scope, ctx, env)
+            });
+        }
+    }
+    let ty = check_expr(value, None, live, scope, ctx, env);
+    field_fits(ty, want, env.interner, env.graph, env.signatures)
 }
 
 /// One matched payload as the constant § 5 replaces the call with, or `None`
