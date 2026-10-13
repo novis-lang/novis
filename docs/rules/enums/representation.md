@@ -8,7 +8,7 @@ case takes an **enum tag of its own**, one per backing type: `EnumInt` over an `
 `EnumUint` over a `uint` one. A condition, a type test, an anonymous function parameter's check and a declared
 slot's write check read that tag, so a case in a `mixed` is always truthy (`rule:enums/truthiness`),
 `is int` is `false` for it and `is` an enum is `false` for a plain integer. Every reader that only
-decodes the value — printing, conversion, comparison, `===` — reads it as its backing integer. The tag
+decodes the value — printing, conversion and the `==` comparison — reads it as its backing integer. The tag
 names no enum, so two enums with the same backing are not told apart in a `mixed`. `Core\Serialize`
 writes a case as a node kind of its own over the same payload, so a case read back from it, from
 `Core\Cache`, from a session, from a topic or from a placed task is still a case.
@@ -18,8 +18,8 @@ One tag per backing keeps the payload's signedness with the value, so nothing re
 is materialized into a tagged value, so a statically typed enum still costs nothing. An anonymous
 function's enum parameter accepts a case of an enum with its backing and throws `LogicError` for an
 `int`, and an `int` or `float` parameter throws for a case. An `array<T>` element-tag walk reads the
-enum tag too. `===` and the hash beside it read the backing integer, so a case in a `mixed` is
-identical there to an integer of the same value, and the two agree. `$any as Rank` still converts an
+enum tag too. The `==` comparison and the hash beside it read the backing integer, so a case in a
+`mixed` is equal there to an integer of the same value, and the two agree. `$any as Rank` still converts an
 integer to a case, because the conversion reads the payload, and `Core\Reflect`'s type kind reports a
 case in a `mixed` as `int` or `uint`.
 
