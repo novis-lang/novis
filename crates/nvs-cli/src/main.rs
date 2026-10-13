@@ -316,7 +316,9 @@ fn log_like_a_service() {
 
 /// Whether a service manager started this process: systemd's `$NOTIFY_SOCKET`
 /// on Unix, which is also where `service::Notify::from_env` reports, and the
-/// SCM on Windows, known only once [`dispatch::serving`] runs the server.
+/// SCM on Windows, known only once `dispatch::serving` runs the server. That
+/// function is compiled on Windows alone, so the name is not a doc link: on
+/// every other target it would have nothing to resolve to.
 fn started_by_a_manager() -> bool {
     #[cfg(unix)]
     {
