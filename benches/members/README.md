@@ -124,9 +124,9 @@ names the two answers, the second being a `// proof: gap` marker on the bench.
   Unix, so `--record-perf` leaves it out on Windows. The ledger is measured on Windows, so such a
   member's perf proof is a `skip` entry in `data/proofs/policy.json` naming that reason, and the
   bench on disk is what a Unix sweep measures.
-- **`// requires: samba-ad`** — the bench talks to the directory in `tests/db/compose.yaml`, and
-  the runner brings that service up before it runs, as it does for an example
-  ([docs/examples/README.md](../../docs/examples/README.md) has the rule).
+- **`// requires: <service>`** — the bench talks to that service of `tests/db/compose.yaml`, such
+  as `samba-ad` or `redis`, and the runner brings it up before the bench runs, as it does for an
+  example ([docs/examples/README.md](../../docs/examples/README.md) has the rule).
 
 ## What the numbers mean
 

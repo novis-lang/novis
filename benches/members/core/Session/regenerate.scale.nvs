@@ -2,6 +2,7 @@
 // Measures `Core\Session::regenerate` on one session, at growing lengths of the value in the session.
 // bench: start 256
 // bench: max 4096
+// requires: redis
 
 class Bench
 {

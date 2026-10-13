@@ -1,5 +1,6 @@
 <?nvs
 // Shows a sign-in that saves the user's refresh token from a login service in the session.
+// requires: redis
 
 class Login {
     // A real program gets this token from the login service.

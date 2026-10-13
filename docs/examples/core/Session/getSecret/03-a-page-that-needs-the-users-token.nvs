@@ -1,5 +1,6 @@
 <?nvs
 // Shows a page that calls a service with the user's access token, or asks the user to sign in.
+// requires: redis
 
 class Calendar {
     public static function page(array<secret bytes> $keys): string {

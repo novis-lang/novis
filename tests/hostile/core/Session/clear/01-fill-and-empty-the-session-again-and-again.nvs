@@ -2,6 +2,7 @@
 // Attack: a request fills its session with many large values and empties it
 // again, many times. The memory must be freed each time, and nothing may crash.
 // hostile: timeout-ms 60000
+// requires: redis
 
 // 1. The request empties a session it never started. This throws a `RuntimeError`.
 try {

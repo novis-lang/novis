@@ -2,6 +2,7 @@
 // Attack: a request sends session identifiers that are very long, empty, or contain a
 // store command, and opens many sessions. Each should give a new, empty session or an error.
 // hostile: timeout-ms 60000
+// requires: redis
 
 // 1. The identifier is 10 million characters long. The result is a new, empty session.
 Core\Session::start(Core\Str::repeat('A', 10000000));

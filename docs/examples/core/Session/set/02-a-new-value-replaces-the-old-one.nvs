@@ -1,5 +1,6 @@
 <?nvs
 // Shows that saving under a key that already has a value replaces that value.
+// requires: redis
 
 Core\Session::start();
 Core\Session::set("language", "en");

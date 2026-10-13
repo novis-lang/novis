@@ -5,6 +5,7 @@
 // scaling: start 16
 // scaling: max 512
 // scaling: expect linear
+// requires: redis
 
 class Shop {
     #[Core\Route(path: "/", method: Core\Http\Method::Get, name: "Shop::index")]

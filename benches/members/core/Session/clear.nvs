@@ -2,6 +2,7 @@
 // Empties a session that has one value, as a form with several steps does when the user starts over.
 // bench: iterations 256
 // bench: complexity constant
+// requires: redis
 
 class Bench {
     public static function run(uint $rounds): uint {

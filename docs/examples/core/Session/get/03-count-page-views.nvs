@@ -1,5 +1,6 @@
 <?nvs
 // Shows a counter of how many pages a visitor has opened in this session.
+// requires: redis
 
 Core\Session::start();
 

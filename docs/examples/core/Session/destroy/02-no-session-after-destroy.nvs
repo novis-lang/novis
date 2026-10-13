@@ -1,5 +1,6 @@
 <?nvs
 // Shows that the session methods throw an error after `destroy()`.
+// requires: redis
 
 Core\Session::start();
 Core\Session::set("cart", 3);

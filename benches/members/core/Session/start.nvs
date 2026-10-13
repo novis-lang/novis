@@ -2,6 +2,7 @@
 // Opens a new session and ends it again, as the first visit to a site does.
 // bench: iterations 256
 // bench: complexity constant
+// requires: redis
 
 class Bench {
     public static function run(uint $rounds): uint {

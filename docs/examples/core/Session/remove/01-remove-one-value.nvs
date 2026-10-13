@@ -1,5 +1,6 @@
 <?nvs
 // Shows how to delete one value from the session and keep the others.
+// requires: redis
 
 Core\Session::start();
 Core\Session::set("user", "ada");

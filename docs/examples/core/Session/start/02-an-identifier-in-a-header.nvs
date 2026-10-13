@@ -1,5 +1,6 @@
 <?nvs
 // Shows how to open a session when the client sends its identifier in a header, not in a cookie.
+// requires: redis
 
 // A mobile app sends the identifier in the `X-Session` header.
 // `start()` opens the session with that identifier.

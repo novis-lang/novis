@@ -2,6 +2,7 @@
 // Measures `Core\Session::set` on a session with one long value, at growing value lengths.
 // bench: start 256
 // bench: max 4096
+// requires: redis
 
 class Bench
 {

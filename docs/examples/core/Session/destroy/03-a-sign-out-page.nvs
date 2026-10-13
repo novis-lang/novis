@@ -1,5 +1,6 @@
 <?nvs
 // Shows a sign-out page that says goodbye and then ends the session.
+// requires: redis
 
 // The sign-in page saved the user's name in the session. This line shows that.
 Core\Session::start();

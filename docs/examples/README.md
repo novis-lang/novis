@@ -237,9 +237,12 @@ not keep, such as `Core\Os::loadAverage`'s. It runs everywhere else, and `--bles
 on a host that skips it: its `.out` is written on Linux, where it runs. An example that only shows
 the grant being refused prints the same on both, so it carries no such line and runs everywhere.
 
-## `// requires: samba-ad`
+## `// requires: <service>`
 
-An example that talks to a directory carries that line. Before the first such program in a run, the
-runner brings up the `samba-ad` service of `tests/db/compose.yaml` with `docker compose up -d
---wait`, once, and leaves it running. Where that fails, as on a host with no Docker, every program
-carrying the line fails with the reason. A program without the line never touches Docker.
+An example that talks to a service of `tests/db/compose.yaml` names it on that line: `// requires:
+samba-ad` for the directory, `// requires: redis` for the shared store a session or
+`Core\Cache::shared()` uses. A program needing two services carries two lines. Before the first
+program in a run that names a service, the runner brings it up with `docker compose up -d --wait
+<service>`, once, and leaves it running. Where that fails, as on a host with no Docker, every program
+naming it fails with the reason. A name the compose file does not declare fails the program too. A
+program without such a line never touches Docker. The same line works in an attack and a bench.

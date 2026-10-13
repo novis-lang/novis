@@ -2,6 +2,7 @@
 // Attack: a request reads its session with strange keys, and reads a large value
 // many times. Every read must free its memory, and nothing may crash.
 // hostile: timeout-ms 60000
+// requires: redis
 
 // 1. The request reads a session it never started. This throws a `RuntimeError`.
 try {

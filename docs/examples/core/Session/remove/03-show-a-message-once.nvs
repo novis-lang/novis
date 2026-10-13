@@ -1,5 +1,6 @@
 <?nvs
 // Shows a message that a page displays one time, for example after a form is saved.
+// requires: redis
 
 class Notice {
     // Reads the message and deletes it, so the next page does not show it again.

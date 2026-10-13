@@ -1,5 +1,6 @@
 <?nvs
 // Shows how to replace an encryption key and still read the secrets the old key encrypted.
+// requires: redis
 
 secret bytes $oldKey = Core\Crypto::generateKey();
 secret bytes $newKey = Core\Crypto::generateKey();

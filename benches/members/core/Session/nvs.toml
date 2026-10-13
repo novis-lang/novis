@@ -1,6 +1,5 @@
 # The session benches use the Redis server on this computer at port 16379 as
-# the session store, and allow the program to use it. No `// requires:` value
-# names Redis yet, so a sweep on a computer without it fails these benches.
+# the session store, and allow the program to use it.
 [capabilities.cache]
 shared = true
 

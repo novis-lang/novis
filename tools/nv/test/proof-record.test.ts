@@ -6,7 +6,7 @@ import { covwsNvs } from "../lib/covws.ts";
 import { abs } from "../lib/paths.ts";
 import { run } from "../lib/proc.ts";
 import { ENV as READS_ENV, readModules } from "../lib/reads.ts";
-import { divergence, HANG_FACTOR, hostileLimitMs, PROOF_BINARY, PROOF_BUILD, RECORD_ENV, type Ran, proofRecording, recordingLimitMs, recordName, type Result, servicesFor, spawnProof, timedOut } from "../proofs/run.ts";
+import { divergence, HANG_FACTOR, hostileLimitMs, PROOF_BINARY, PROOF_BUILD, RECORD_ENV, type Ran, proofRecording, recordingLimitMs, recordName, type Result, composeServices, requiredServices, servicesFor, spawnProof, timedOut } from "../proofs/run.ts";
 import { judgeThenRecord, longestFirst, recordProgram } from "../proofs/select.ts";
 import { proofId } from "../select/atoms.ts";
 import { Recorder } from "../select/record.ts";
@@ -161,6 +161,17 @@ describe("the judged run and the recording run", () => {
   test("a program without a `requires:` service marker needs no service and never touches Docker", async () => {
     expect(await servicesFor("<?nvs\n// requires: unix\necho 1;\n")).toBeNull();
     expect(await servicesFor("<?nvs\n// Shows a samba-ad search.\necho 1;\n")).toBeNull();
+  });
+
+  test("`requires:` names any compose service, and a name the compose file does not declare fails the program", async () => {
+    expect(composeServices().has("redis")).toBe(true);
+    expect(composeServices().has("samba-ad")).toBe(true);
+    expect(requiredServices("<?nvs\n// requires: unix\n// requires: redis\n// requires: samba-ad\n// requires: redis\n")).toEqual(["redis", "samba-ad"]);
+    expect(requiredServices("<?nvs\n// requires: unimplemented\n")).toEqual([]);
+    // The name is checked before Docker is reached, so this needs no Docker.
+    const why = await servicesFor("<?nvs\n// requires: redis\n// requires: no-such-store\necho 1;\n", new Set(["redis", "samba-ad"]));
+    expect(why).toContain("`requires: no-such-store`");
+    expect(why).toContain("no service in tests/db/compose.yaml");
   });
 
   test("an unlogged judged run drops the footprint log it would inherit, and a recorded run keeps its own", async () => {

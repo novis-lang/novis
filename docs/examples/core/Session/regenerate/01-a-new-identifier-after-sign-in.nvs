@@ -1,5 +1,6 @@
 <?nvs
 // Shows how to give the session a new identifier when a user signs in.
+// requires: redis
 
 Core\Session::start();
 

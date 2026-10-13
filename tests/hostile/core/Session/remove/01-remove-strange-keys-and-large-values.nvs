@@ -2,6 +2,7 @@
 // Attack: a request removes strange keys, and removes large values many times.
 // Every removed value must be freed, and nothing may crash.
 // hostile: timeout-ms 60000
+// requires: redis
 
 // 1. The request removes a key from a session it never started. This throws a `RuntimeError`.
 try {

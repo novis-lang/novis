@@ -72,31 +72,62 @@ const UNIMPL_RE = /^(?:\/\/|#)\s*requires:\s*unimplemented/m;
 /** `// requires: unix`: the program needs what this build has only on Unix — a Unix-domain socket, or a load average. */
 const UNIX_RE = /^(?:\/\/|#)\s*requires:\s*unix\b/m;
 
-/** `// requires: samba-ad`: the program talks to the Samba AD directory in `tests/db/compose.yaml`. */
+/** `// requires: samba-ad`: the program talks to the Samba AD directory in `tests/db/compose.yaml`, and
+ * runs in one of the `SAMBA_AD_JOBS` slots. */
 const SAMBA_AD_RE = /^(?:\/\/|#)\s*requires:\s*samba-ad\b/m;
-const COMPOSE = "tests/db/compose.yaml";
-/** A cold Samba provisions its domain before it reports healthy. */
+/** Every `// requires: <name>` line, with its name. */
+const REQUIRES_RE = /^(?:\/\/|#)\s*requires:\s*(\S+)/gm;
+/** The `requires:` names that say where a program runs, and name no service. */
+const HOST_MARKERS = new Set(["unimplemented", "unix"]);
+export const COMPOSE = "tests/db/compose.yaml";
+/** A cold Samba provisions its domain before it reports healthy, the slowest service to come up. */
 const SERVICE_UP_TIMEOUT_MS = 600_000;
 /** Each service's `up -d --wait`, started once per process by the first program that names it: null
  * when it came up healthy, and the failure otherwise, which every program that names it then carries. */
 const servicesUp = new Map<string, Promise<string | null>>();
+let declared: Set<string> | null = null;
 
-/** Brings up what `source` says it requires, and says why it could not; null when it needs nothing or
- * everything it needs is up. A program without a `requires:` service marker never touches Docker. */
-export function servicesFor(source: string): Promise<string | null> {
-  if (!SAMBA_AD_RE.test(source)) return Promise.resolve(null);
-  const service = "samba-ad";
-  let up = servicesUp.get(service);
-  if (!up) {
-    progress(`proofs: bringing up \`${service}\` (a cold first boot takes about half a minute)`);
-    const argv = ["docker", "compose", "-f", COMPOSE, "up", "-d", "--wait", service];
-    up = runProc(argv, { cwd: ROOT, timeoutMs: SERVICE_UP_TIMEOUT_MS }).then(
-      (r) => (r.code === 0 ? null : `needs \`${service}\`, and \`${argv.join(" ")}\` failed (exit ${r.code}): ${r.stderr.trim().split(/\r?\n/).at(-1) ?? ""}`),
-      (e) => `needs \`${service}\`, and Docker could not be started: ${e instanceof Error ? e.message : String(e)}`,
-    );
-    servicesUp.set(service, up);
+/** The services `tests/db/compose.yaml` declares, read once per process; empty when it does not parse. */
+export function composeServices(): Set<string> {
+  if (declared) return declared;
+  try {
+    const doc = Bun.YAML.parse(readFileSync(abs(COMPOSE), "utf8")) as { services?: Record<string, unknown> } | null;
+    declared = new Set(Object.keys(doc?.services ?? {}));
+  } catch {
+    declared = new Set();
   }
-  return up;
+  return declared;
+}
+
+/** The services `source`'s `requires:` lines name, in order and once each. */
+export function requiredServices(source: string): string[] {
+  const names = [...source.matchAll(REQUIRES_RE)].map((m) => m[1]!).filter((n) => !HOST_MARKERS.has(n));
+  return [...new Set(names)];
+}
+
+/** Brings up each `tests/db/compose.yaml` service `source` names in a `requires:` line, and says why it
+ * could not; null when it needs none or every one it needs is up. A name the compose file does not
+ * declare is a failure, never a line read past. A program without a `requires:` service line never
+ * touches Docker. `services` is what the compose file declares. */
+export async function servicesFor(source: string, services: Set<string> = composeServices()): Promise<string | null> {
+  const wanted = requiredServices(source);
+  const unknown = wanted.filter((s) => !services.has(s));
+  if (unknown.length > 0) return `is marked \`requires: ${unknown[0]}\`, which is no service in ${COMPOSE} (it declares ${[...services].sort().join(", ")})`;
+  for (const service of wanted) {
+    let up = servicesUp.get(service);
+    if (!up) {
+      progress(`proofs: bringing up \`${service}\` (a cold first boot can take half a minute)`);
+      const argv = ["docker", "compose", "-f", COMPOSE, "up", "-d", "--wait", service];
+      up = runProc(argv, { cwd: ROOT, timeoutMs: SERVICE_UP_TIMEOUT_MS }).then(
+        (r) => (r.code === 0 ? null : `needs \`${service}\`, and \`${argv.join(" ")}\` failed (exit ${r.code}): ${r.stderr.trim().split(/\r?\n/).at(-1) ?? ""}`),
+        (e) => `needs \`${service}\`, and Docker could not be started: ${e instanceof Error ? e.message : String(e)}`,
+      );
+      servicesUp.set(service, up);
+    }
+    const why = await up;
+    if (why) return why;
+  }
+  return null;
 }
 
 /** Why a program is not run on this host, or null when it is. A skip is never remembered as green. */
@@ -227,8 +258,8 @@ export function proofRecording(proof: string, dir: string | undefined = process.
  * it where its reader sees it; every other proof runs under the repository root's. `record` names the
  * directory the run is recorded into, which defaults to `NV_PROOF_RECORD`, and variables its processes
  * get beside the recording's. With `unlogged` and no record directory, the run writes no footprint log,
- * not even the one this process inherited. A proof marked `requires: samba-ad` runs once that service is
- * up (`servicesFor`), and throws the reason when it cannot be brought up. */
+ * not even the one this process inherited. A proof marked `requires: <service>` runs once that service
+ * of `tests/db/compose.yaml` is up (`servicesFor`), and throws the reason when it cannot be brought up. */
 export async function spawnProof(argv: string[], proof: string, timeoutMs: number, record?: { dir?: string; env?: Record<string, string>; unlogged?: boolean }): Promise<Ran> {
   const source = existsSync(abs(proof)) ? readFileSync(abs(proof), "utf8") : "";
   const missing = await servicesFor(source);

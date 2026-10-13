@@ -3,6 +3,7 @@
 // Each round saves a message and then removes it.
 // bench: start 256
 // bench: max 4096
+// requires: redis
 
 class Bench
 {

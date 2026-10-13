@@ -2,6 +2,7 @@
 // Attack: a request saves a callable, deeply nested arrays and large values in its
 // session. Saving a callable must throw a `LogicError`, and nothing may crash or leak.
 // hostile: timeout-ms 60000
+// requires: redis
 
 // 1. The request saves a value in a session it never started. This throws a `RuntimeError`.
 try {

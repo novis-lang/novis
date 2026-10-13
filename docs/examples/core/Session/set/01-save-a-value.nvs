@@ -1,5 +1,6 @@
 <?nvs
 // Shows how to save values in the session and read them back.
+// requires: redis
 
 Core\Session::start();
 

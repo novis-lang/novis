@@ -1,5 +1,6 @@
 <?nvs
 // Shows how to save a secret in the session and read it back.
+// requires: redis
 
 // A real program loads its keys from its configuration. This example creates one.
 secret bytes $key = Core\Crypto::generateKey();

@@ -1,5 +1,6 @@
 <?nvs
 // Shows how to read a value that was saved in the session.
+// requires: redis
 
 Core\Session::start();
 Core\Session::set("language", "de");

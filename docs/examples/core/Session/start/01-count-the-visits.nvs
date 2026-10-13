@@ -1,5 +1,6 @@
 <?nvs
 // Shows how to open the session of a request and save a number in it.
+// requires: redis
 
 // `start()` opens the session. Call it before any other method of `Core\Session`.
 Core\Session::start();

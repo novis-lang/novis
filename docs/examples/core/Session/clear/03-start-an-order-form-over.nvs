@@ -1,5 +1,6 @@
 <?nvs
 // Shows a "Start over" button for an order form that has several steps.
+// requires: redis
 
 // The form saves each step in the session. These two lines show what the
 // earlier steps saved.

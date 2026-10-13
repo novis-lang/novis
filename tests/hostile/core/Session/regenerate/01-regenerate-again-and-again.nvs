@@ -2,6 +2,7 @@
 // Attack: a request changes its session identifier many times, with a large session
 // and after the session has ended. Nothing may crash or leak, and no value may be lost.
 // hostile: timeout-ms 60000
+// requires: redis
 
 // 1. The request changes the identifier of a session it never started. This throws a `RuntimeError`.
 try {

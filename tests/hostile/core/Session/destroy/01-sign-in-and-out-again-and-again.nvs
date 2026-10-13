@@ -2,6 +2,7 @@
 // Attack: a request signs in and out many times, with large session values.
 // Each session must be deleted and its memory freed, and nothing may crash.
 // hostile: timeout-ms 60000
+// requires: redis
 
 // 1. The request ends a session it never started. This throws a `RuntimeError`.
 try {

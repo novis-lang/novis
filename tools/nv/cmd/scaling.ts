@@ -134,7 +134,7 @@ import { fixed } from "../lib/py.ts";
 import { gapTitle, knownGap } from "../proofs/collect.ts";
 import { countProgram, COUNTS, firstLine, PerfError, ProgramFailed } from "../proofs/perf.ts";
 import { read } from "../proofs/roster.ts";
-import { releaseBinary, skipReason, spawnProof } from "../proofs/run.ts";
+import { releaseBinary, servicesFor, skipReason, spawnProof } from "../proofs/run.ts";
 import { freePort, hammer, HttpConn, type HttpShape, Server } from "./bench.ts";
 
 export const summary = "how fast a program's cost grows with its size: nv scaling [--iterations] [--check] [path-filter...] | --areas [--reviewed]";
@@ -949,6 +949,10 @@ export function proposed(j: Judged, ladder: Ladder): Judged {
  * and judges the ramp against `bounds`. */
 async function rampAt(judged: Judged, source: string, literal: number, sizes: number[], bounds: Bounds, measure: Measure, opts: Options): Promise<Judged> {
   const bench = judged.bench;
+  // A `serve` ladder boots `nvs serve` itself, so the services its `requires:` lines name are brought
+  // up here, for every kind, before the first size runs.
+  const missing = await servicesFor(source);
+  if (missing) throw new PerfError(`${bench} ${missing}`);
   const copy = copyBench(bench, join(opts.scratch, bench.replace(/[\\/]/g, "~")));
   const batches: Batch[] = [];
   const write = (size: number) => writeFileSync(abs(copy), measure.rewrites ? withBatch(source, literal, size)! : source);

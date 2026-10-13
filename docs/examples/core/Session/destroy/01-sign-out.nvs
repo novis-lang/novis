@@ -1,5 +1,6 @@
 <?nvs
 // Shows how to end a session, as a program does when a user signs out.
+// requires: redis
 
 Core\Session::start();
 Core\Session::set("user", "ada");

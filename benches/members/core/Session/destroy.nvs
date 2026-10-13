@@ -2,6 +2,7 @@
 // Ends a session that has one value, as a sign-out page does.
 // bench: iterations 256
 // bench: complexity constant
+// requires: redis
 
 class Bench {
     public static function run(uint $rounds): uint {

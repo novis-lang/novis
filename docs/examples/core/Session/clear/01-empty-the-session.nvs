@@ -1,5 +1,6 @@
 <?nvs
 // Shows how to remove every value from a session at once.
+// requires: redis
 
 Core\Session::start();
 Core\Session::set("theme", "dark");

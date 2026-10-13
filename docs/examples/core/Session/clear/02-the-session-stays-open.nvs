@@ -1,5 +1,6 @@
 <?nvs
 // Shows that the session is still open after `clear()`.
+// requires: redis
 
 Core\Session::start();
 Core\Session::set("visits", 3);

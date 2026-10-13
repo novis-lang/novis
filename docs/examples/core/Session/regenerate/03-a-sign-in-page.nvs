@@ -1,5 +1,6 @@
 <?nvs
 // Shows a sign-in page that gives the session a new identifier only when the password is right.
+// requires: redis
 
 class Login {
     public static function signIn(string $user, string $password): string {

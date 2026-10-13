@@ -1,5 +1,6 @@
 <?nvs
 // Shows a shopping cart that is saved in the session, so every page can show it.
+// requires: redis
 
 Core\Session::start();
 
