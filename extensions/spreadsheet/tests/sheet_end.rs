@@ -3,6 +3,7 @@
 //! `rule:core-classes/spreadsheet-formula-is-a-value`).
 
 use miniz_oxide::inflate::decompress_to_vec;
+use nvs_spreadsheet::conditional::{Conditional, Kind};
 use nvs_spreadsheet::drawing::Image;
 use nvs_spreadsheet::table::{Function, Table, Total};
 use nvs_spreadsheet::tail::{
@@ -862,6 +863,140 @@ fn a_table_with_a_totals_row_and_structured_references_is_written() {
     }
     writer.rows(&orders(2)).unwrap();
     writer.finish().unwrap();
+}
+
+fn conditional(range: &str, kind: Kind) -> Conditional {
+    Conditional {
+        formatted: range.to_owned(),
+        kind,
+        operator: None,
+        values: Vec::new(),
+        colors: Vec::new(),
+        icons: None,
+        rank: None,
+        percent: false,
+        style: None,
+    }
+}
+
+#[test]
+fn every_conditional_format_kind_is_written_with_its_style() {
+    let red = Style {
+        color: Some("#9C0006".to_owned()),
+        fill: Some("#FFC7CE".to_owned()),
+        ..Style::default()
+    };
+    let bold = Style {
+        bold: Some(true),
+        format: Some("money".to_owned()),
+        border: Some(nvs_spreadsheet::Border {
+            bottom: Some(nvs_spreadsheet::Line::Thin),
+            ..Default::default()
+        }),
+        ..Style::default()
+    };
+    let styled = |mut rule: Conditional, style: &Style| {
+        rule.style = Some(style.clone());
+        rule
+    };
+    let mut cell = styled(conditional("B1:B9", Kind::Cell), &red);
+    cell.operator = Some(Operator::Between);
+    cell.values = vec!["1".to_owned(), "=$D$1".to_owned()];
+    let mut expression = styled(conditional("A1:B9", Kind::Formula), &bold);
+    expression.values = vec!["=$B1>5".to_owned()];
+    let mut scale = conditional("B1:B9", Kind::ColorScale);
+    scale.colors = vec!["#FFFFFF".to_owned(), "#00FF00".to_owned()];
+    let mut bar = conditional("B1:B9", Kind::DataBar);
+    bar.colors = vec!["#0000FF".to_owned()];
+    let mut icons = conditional("B1:B9", Kind::IconSet);
+    icons.icons = Some("4Rating".to_owned());
+    let mut top = styled(conditional("B1:B9", Kind::Top), &red);
+    top.rank = Some(3);
+    let mut bottom = styled(conditional("B1:B9", Kind::Bottom), &red);
+    bottom.percent = true;
+    let rules = [
+        cell,
+        expression,
+        scale,
+        conditional("B1:B9", Kind::ColorScale),
+        bar,
+        icons,
+        top,
+        bottom,
+        styled(conditional("A1:A9 C1:C9", Kind::Duplicates), &bold),
+        styled(conditional("A1:A9", Kind::Unique), &red),
+    ];
+
+    let mut writer = writer();
+    let mut out = writer
+        .sheet(SheetOptions::named("Shop"), &orders(9))
+        .unwrap();
+    out.extend(writer.part(Part::Merge("D1:E1".to_owned())).unwrap());
+    for rule in rules {
+        out.extend(writer.part(Part::Conditional(rule)).unwrap());
+    }
+
+    // Each kind that needs something throws without it, and adds no rule.
+    let mut no_operator = styled(conditional("B1:B9", Kind::Cell), &red);
+    no_operator.values = vec!["1".to_owned()];
+    let mut one_bound = no_operator.clone();
+    one_bound.operator = Some(Operator::Between);
+    let mut bad_icons = conditional("B1:B9", Kind::IconSet);
+    bad_icons.icons = Some("3Stars".to_owned());
+    let mut bad_rank = styled(conditional("B1:B9", Kind::Top), &red);
+    bad_rank.rank = Some(101);
+    bad_rank.percent = true;
+    let mut bad_color = conditional("B1:B9", Kind::DataBar);
+    bad_color.colors = vec!["blue".to_owned()];
+    for (rule, says) in [
+        (conditional("B1:B9", Kind::Unique), "needs a `style`"),
+        (
+            styled(conditional("B1:B9", Kind::DataBar), &red),
+            "no `style`",
+        ),
+        (
+            styled(conditional("B0", Kind::Unique), &red),
+            "range of cells",
+        ),
+        (no_operator, "needs an operator"),
+        (one_bound, "has 1 values. The operator `between` needs 2."),
+        (bad_icons, "4Rating"),
+        (bad_rank, "from 1 to 100"),
+        (bad_color, "is not a color"),
+    ] {
+        let message = invalid(writer.part(Part::Conditional(rule)));
+        assert!(message.contains(says), "{message}");
+    }
+    let book = finish(writer, out);
+
+    let sheet = book.sheet(1);
+    let rules = between(sheet, "<conditionalFormatting", "</worksheet>");
+    let rules = &rules[..rules.rfind("</conditionalFormatting>").unwrap() + 24];
+    assert_eq!(
+        rules,
+        "<conditionalFormatting sqref=\"B1:B9\"><cfRule type=\"cellIs\" dxfId=\"0\" priority=\"1\" operator=\"between\"><formula>1</formula><formula>$D$1</formula></cfRule></conditionalFormatting>\
+         <conditionalFormatting sqref=\"A1:B9\"><cfRule type=\"expression\" dxfId=\"1\" priority=\"2\"><formula>$B1&gt;5</formula></cfRule></conditionalFormatting>\
+         <conditionalFormatting sqref=\"B1:B9\"><cfRule type=\"colorScale\" priority=\"3\"><colorScale><cfvo type=\"min\"/><cfvo type=\"max\"/><color rgb=\"FFFFFFFF\"/><color rgb=\"FF00FF00\"/></colorScale></cfRule></conditionalFormatting>\
+         <conditionalFormatting sqref=\"B1:B9\"><cfRule type=\"colorScale\" priority=\"4\"><colorScale><cfvo type=\"min\"/><cfvo type=\"percentile\" val=\"50\"/><cfvo type=\"max\"/><color rgb=\"FFF8696B\"/><color rgb=\"FFFFEB84\"/><color rgb=\"FF63BE7B\"/></colorScale></cfRule></conditionalFormatting>\
+         <conditionalFormatting sqref=\"B1:B9\"><cfRule type=\"dataBar\" priority=\"5\"><dataBar><cfvo type=\"min\"/><cfvo type=\"max\"/><color rgb=\"FF0000FF\"/></dataBar></cfRule></conditionalFormatting>\
+         <conditionalFormatting sqref=\"B1:B9\"><cfRule type=\"iconSet\" priority=\"6\"><iconSet iconSet=\"4Rating\"><cfvo type=\"percent\" val=\"0\"/><cfvo type=\"percent\" val=\"25\"/><cfvo type=\"percent\" val=\"50\"/><cfvo type=\"percent\" val=\"75\"/></iconSet></cfRule></conditionalFormatting>\
+         <conditionalFormatting sqref=\"B1:B9\"><cfRule type=\"top10\" dxfId=\"0\" priority=\"7\" rank=\"3\"/></conditionalFormatting>\
+         <conditionalFormatting sqref=\"B1:B9\"><cfRule type=\"top10\" dxfId=\"0\" priority=\"8\" rank=\"10\" percent=\"1\" bottom=\"1\"/></conditionalFormatting>\
+         <conditionalFormatting sqref=\"A1:A9 C1:C9\"><cfRule type=\"duplicateValues\" dxfId=\"1\" priority=\"9\"/></conditionalFormatting>\
+         <conditionalFormatting sqref=\"A1:A9\"><cfRule type=\"uniqueValues\" dxfId=\"0\" priority=\"10\"/></conditionalFormatting>"
+    );
+    assert!(
+        sheet.contains("</mergeCells><conditionalFormatting"),
+        "the rules come after the merged cells"
+    );
+    let styles = book.part("xl/styles.xml");
+    assert!(styles.contains(
+        "<dxfs count=\"2\">\
+         <dxf><font><color rgb=\"FF9C0006\"/></font><fill><patternFill><bgColor rgb=\"FFFFC7CE\"/></patternFill></fill></dxf>\
+         <dxf><font><b/></font><numFmt numFmtId=\"4\" formatCode=\"#,##0.00\"/>\
+         <border><left/><right/><top/><bottom style=\"thin\"><color auto=\"1\"/></bottom><diagonal/></border></dxf>\
+         </dxfs>"
+    ), "{styles}");
 }
 
 /// The header of a PNG `width` by `height` pixels: its signature and `IHDR` chunk.

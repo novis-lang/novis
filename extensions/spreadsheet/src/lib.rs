@@ -33,6 +33,7 @@
 //! the bytes the binary carries.
 
 pub mod cells;
+pub mod conditional;
 pub mod drawing;
 pub mod styles;
 pub mod table;
@@ -766,10 +767,32 @@ mod guest {
                     })
                     .collect(),
             }),
-            wit::SheetPart::Conditional(_) | wit::SheetPart::Chart(_) => {
+            wit::SheetPart::Conditional(rule) => {
+                Part::Conditional(crate::conditional::Conditional {
+                    formatted: rule.formatted,
+                    kind: match rule.kind {
+                        wit::ConditionalKind::Cell => crate::conditional::Kind::Cell,
+                        wit::ConditionalKind::Formula => crate::conditional::Kind::Formula,
+                        wit::ConditionalKind::ColorScale => crate::conditional::Kind::ColorScale,
+                        wit::ConditionalKind::DataBar => crate::conditional::Kind::DataBar,
+                        wit::ConditionalKind::IconSet => crate::conditional::Kind::IconSet,
+                        wit::ConditionalKind::Top => crate::conditional::Kind::Top,
+                        wit::ConditionalKind::Bottom => crate::conditional::Kind::Bottom,
+                        wit::ConditionalKind::Duplicates => crate::conditional::Kind::Duplicates,
+                        wit::ConditionalKind::Unique => crate::conditional::Kind::Unique,
+                    },
+                    operator: rule.operator.map(operator),
+                    values: rule.values,
+                    colors: rule.colors,
+                    icons: rule.icons,
+                    rank: rule.rank,
+                    percent: rule.percent,
+                    style: rule.style.map(style),
+                })
+            }
+            wit::SheetPart::Chart(_) => {
                 return Err(wit::Error::Runtime(
-                    "This version of Novis cannot add conditional formats or charts to a sheet yet."
-                        .to_owned(),
+                    "This version of Novis cannot add charts to a sheet yet.".to_owned(),
                 ));
             }
         })

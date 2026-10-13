@@ -3,7 +3,8 @@
 //!
 //! [`Tail`] keeps each part the program adds to the open sheet, checked when it is added, until
 //! the sheet ends. Then [`Tail::write`] writes them after `</sheetData>` in the order the xlsx
-//! schema gives: protection, the autofilter, merged cells, data validation, hyperlinks, the page
+//! schema gives: protection, the autofilter, merged cells, conditional formats (`conditional`'s
+//! module doc), data validation, hyperlinks, the page
 //! margins, the page setup, the header and footer, the images' and the notes' drawings, and the
 //! tables. A part may name any cell, written or not. A link to a URL or a `mailto:` address, the
 //! notes, the images and the tables are relationships of the sheet, which [`Tail::rels`] writes
@@ -31,6 +32,7 @@
 
 use std::fmt::Write as _;
 
+use crate::conditional::Conditional;
 use crate::drawing::{Drawing, Format, Image};
 use crate::table::{Placed, Table};
 use crate::{Error, Row, cells, xml};
@@ -165,7 +167,7 @@ pub enum Operator {
 }
 
 impl Operator {
-    fn name(self) -> &'static str {
+    pub(crate) fn name(self) -> &'static str {
         match self {
             Operator::Between => "between",
             Operator::NotBetween => "notBetween",
@@ -178,7 +180,7 @@ impl Operator {
         }
     }
 
-    fn operands(self) -> usize {
+    pub(crate) fn operands(self) -> usize {
         match self {
             Operator::Between | Operator::NotBetween => 2,
             _ => 1,
@@ -284,6 +286,7 @@ pub enum Part {
     Protect(Protect),
     Image(Image),
     Table(Table),
+    Conditional(Conditional),
 }
 
 /// Excel's 16-bit hash of a sheet's password, as it writes it.
@@ -429,6 +432,8 @@ pub struct Tail {
     protect: Option<String>,
     drawing: Drawing,
     tables: Vec<Placed>,
+    /// Each conditional format's `<conditionalFormatting>` element.
+    conditionals: Vec<String>,
 }
 
 fn limited(what: &str, text: &Option<String>, max: usize) -> Result<(), Error> {
@@ -482,7 +487,21 @@ impl Tail {
             Part::Table(_) => Err(Error::Runtime(
                 "A table is numbered by the workbook. Add it with `Tail::table`.".to_owned(),
             )),
+            Part::Conditional(_) => Err(Error::Runtime(
+                "A conditional format's style is the workbook's. Add it with `Tail::conditional`."
+                    .to_owned(),
+            )),
         }
+    }
+
+    /// The priority the next conditional format takes: the sheet's rules counted from 1.
+    pub fn next_priority(&self) -> usize {
+        self.conditionals.len() + 1
+    }
+
+    /// Keeps a conditional format written by `conditional::write`.
+    pub fn conditional(&mut self, written: String) {
+        self.conditionals.push(written);
     }
 
     fn merge(&mut self, range: &str, sheet: &str) -> Result<(), Error> {
@@ -911,6 +930,9 @@ impl Tail {
                 );
             }
             out.push_str("</mergeCells>");
+        }
+        for conditional in &self.conditionals {
+            out.push_str(conditional);
         }
         if !self.validations.is_empty() {
             let _ = write!(

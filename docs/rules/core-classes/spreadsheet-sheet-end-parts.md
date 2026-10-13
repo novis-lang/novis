@@ -42,7 +42,13 @@ after it. A sheet that ends before a table's header row or totals row throws `Lo
 is `SUBTOTAL` over the column, which skips the rows a filter hides. `[@qty]` and `[qty]` are
 qualified by the table's name in the totals row and in every row written after the table is added;
 a row written before it keeps its formula text as given. The sheet's default autofilter is left out
-where a table covers it, and a table overlaps no merged range and no other table. **The chart subset** is column, bar, line, area, pie, doughnut and scatter, and a
+where a table covers it, and a table overlaps no merged range and no other table.
+
+**A conditional format's values are formula text**, so a text value is quoted. Its rules take
+priority in the order they are added. A rule that formats cells needs a `style`, of which the font's
+bold, italic, strike, underline and colour, the fill, the border and the format apply; a colour
+scale, a data bar and an icon set take `colors` instead, and a `style` on one throws `LogicError`.
+**The chart subset** is column, bar, line, area, pie, doughnut and scatter, and a
 combination of two of them, with a title, axis titles, the legend, series colours and data labels. A
 series names its ranges with `$sheet->column($key)`, so a chart over a stream covers every row the
 sheet ends with. Its XML follows `rust_xlsxwriter`'s output for the same chart, ported for the subset

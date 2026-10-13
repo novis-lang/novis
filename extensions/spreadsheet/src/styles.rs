@@ -18,6 +18,10 @@
 //! custom `numFmt` from id 164. The first two fills are the `none` and `gray125` fills Excel
 //! requires.
 //!
+//! [`Styles::dxf`] keeps the style of a conditional format as a `dxf`, the differential format
+//! `styles.xml` lists after the cell formats. Equal styles share one, and its number format is
+//! one of the same `numFmt` entries the cell formats use.
+//!
 //! The maps here are for lookup only. Nothing is written in a map's order.
 
 use std::collections::HashMap;
@@ -66,6 +70,8 @@ pub struct Styles {
     xfs: Vec<Style>,
     xf_ids: HashMap<String, u32>,
     cache: HashMap<XfKey, u32>,
+    dxfs: Vec<Style>,
+    dxf_ids: HashMap<String, u32>,
 }
 
 /// `'#RRGGBB'` as the ARGB text `styles.xml` writes.
@@ -252,6 +258,24 @@ impl Styles {
         Ok(())
     }
 
+    /// The `dxfs` index of `style` as a conditional format applies it, the same index for an
+    /// equal style. A `dxf` has the font's bold, italic, strike, underline and colour, the fill,
+    /// the border and the format, and the style's other fields are not written.
+    pub fn dxf(&mut self, mut style: Style) -> Result<u32, Error> {
+        if let Some(code) = style.format.as_deref().and_then(shortcut) {
+            style.format = Some(code.to_owned());
+        }
+        check(&style)?;
+        let key = format!("{style:?}");
+        if let Some(&id) = self.dxf_ids.get(&key) {
+            return Ok(id);
+        }
+        let id = self.dxfs.len() as u32;
+        self.dxf_ids.insert(key, id);
+        self.dxfs.push(style);
+        Ok(id)
+    }
+
     /// Writes `xl/styles.xml`.
     pub fn write(&self, out: &mut String) -> Result<(), Error> {
         let mut formats = Shared::default();
@@ -318,6 +342,42 @@ impl Styles {
                 entries.push_str("</xf>");
             }
         }
+        let mut dxfs = String::new();
+        for style in &self.dxfs {
+            dxfs.push_str("<dxf>");
+            if style.color.is_some()
+                || style.underline.is_some()
+                || [style.bold, style.italic, style.strike].contains(&Some(true))
+            {
+                dxfs.push_str("<font>");
+                flags(&mut dxfs, style);
+                underline(&mut dxfs, style);
+                if let Some(color) = &style.color {
+                    let _ = write!(dxfs, "<color rgb=\"{}\"/>", argb(color)?);
+                }
+                dxfs.push_str("</font>");
+            }
+            if let Some(code) = &style.format {
+                let id = match builtin_format(code) {
+                    Some(id) => id,
+                    None => formats.id(code.clone()) + 164,
+                };
+                let _ = write!(dxfs, "<numFmt numFmtId=\"{id}\" formatCode=\"");
+                xml::attr(&mut dxfs, code);
+                dxfs.push_str("\"/>");
+            }
+            if let Some(color) = &style.fill {
+                let _ = write!(
+                    dxfs,
+                    "<fill><patternFill><bgColor rgb=\"{}\"/></patternFill></fill>",
+                    argb(color)?
+                );
+            }
+            if style.border.is_some() {
+                dxfs.push_str(&border(style)?);
+            }
+            dxfs.push_str("</dxf>");
+        }
         out.push_str(crate::writer::XML_HEAD);
         out.push_str(
             "<styleSheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\">",
@@ -345,9 +405,15 @@ impl Styles {
         out.push_str(&entries);
         out.push_str("</cellXfs>");
         out.push_str(
-            "<cellStyles count=\"1\"><cellStyle name=\"Normal\" xfId=\"0\" builtinId=\"0\"/></cellStyles>\
-             <dxfs count=\"0\"/>\
-             <tableStyles count=\"0\" defaultTableStyle=\"TableStyleMedium9\" defaultPivotStyle=\"PivotStyleLight16\"/>\
+            "<cellStyles count=\"1\"><cellStyle name=\"Normal\" xfId=\"0\" builtinId=\"0\"/></cellStyles>",
+        );
+        if self.dxfs.is_empty() {
+            out.push_str("<dxfs count=\"0\"/>");
+        } else {
+            let _ = write!(out, "<dxfs count=\"{}\">{dxfs}</dxfs>", self.dxfs.len());
+        }
+        out.push_str(
+            "<tableStyles count=\"0\" defaultTableStyle=\"TableStyleMedium9\" defaultPivotStyle=\"PivotStyleLight16\"/>\
              </styleSheet>",
         );
         Ok(())

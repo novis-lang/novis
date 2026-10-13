@@ -59,6 +59,7 @@
 use std::fmt::Write as _;
 
 use crate::cells::{self, Layers};
+use crate::conditional;
 use crate::drawing::Format;
 use crate::styles::{Implicit, Styles, argb};
 use crate::table::{Placed, Table, expand};
@@ -459,6 +460,16 @@ impl Writer {
                 }
             }
             Part::Table(table) => return self.table(table),
+            Part::Conditional(rule) => {
+                conditional::check(&rule)?;
+                let dxf = rule
+                    .style
+                    .clone()
+                    .map(|style| self.styles.dxf(style))
+                    .transpose()?;
+                let written = conditional::write(&rule, dxf, open.tail.next_priority());
+                open.tail.conditional(written);
+            }
             part => open.tail.add(part, sheet)?,
         }
         Ok(self.archive.take())
