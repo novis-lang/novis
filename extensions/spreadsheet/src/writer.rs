@@ -42,10 +42,17 @@
 //! goes to the sheet that is open when it is added, so a part added after an overflow goes to the
 //! sheet the overflow opened. The print area and the rows to repeat are names `workbook.xml`
 //! defines for the sheet, beside its autofilter's.
+//!
+//! **An image is its own entry, `xl/media/image<n>.<ext>`**, numbered across the workbook. Added
+//! before the sheet's first row, it is written by the call that adds it. Once the sheet's own
+//! entry has started, the zip entry is still open, and a zip entry cannot be split, so the image's
+//! bytes wait in [`OpenSheet`] until the sheet ends. Memory: per writing request, the images added
+//! to the open sheet after its first row, until the sheet ends.
 
 use std::fmt::Write as _;
 
 use crate::cells::{self, Layers};
+use crate::drawing::Format;
 use crate::styles::{Implicit, Styles, argb};
 use crate::tail::{Groups, Part, Tail};
 use crate::zip::Archive;
@@ -66,7 +73,8 @@ const RELS: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relati
 const PACKAGE_RELS: &str = "http://schemas.openxmlformats.org/package/2006/relationships";
 
 /// A sheet already started. `names` are the names `workbook.xml` defines for it, each with its
-/// reference in the sheet, and `notes` whether it has a comments part; both are set when it ends.
+/// reference in the sheet, `notes` whether it has a comments part and `drawing` whether it has
+/// images; all three are set when it ends.
 struct Sheet {
     name: String,
     position: Option<u64>,
@@ -74,6 +82,7 @@ struct Sheet {
     rows: u64,
     names: Vec<(&'static str, String)>,
     notes: bool,
+    drawing: bool,
 }
 
 /// The sheet whose rows are being written.
@@ -97,6 +106,8 @@ struct OpenSheet {
     tail: Tail,
     groups: Groups,
     fit: bool,
+    /// The media entries added after its own entry started, by name, until it ends.
+    waiting: Vec<(String, Vec<u8>)>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -115,6 +126,9 @@ pub struct Writer {
     open: Option<OpenSheet>,
     names: Vec<(String, String)>,
     formulas: bool,
+    /// The media entries written so far, and their formats in order, for the content types.
+    media: usize,
+    formats: Vec<Format>,
     state: State,
 }
 
@@ -230,6 +244,8 @@ impl Writer {
             open: None,
             names: Vec::new(),
             formulas: false,
+            media: 0,
+            formats: Vec::new(),
             state: State::Writing,
         })
     }
@@ -367,6 +383,7 @@ impl Writer {
             rows: 0,
             names: Vec::new(),
             notes: false,
+            drawing: false,
         });
         self.open = Some(OpenSheet {
             index,
@@ -381,6 +398,7 @@ impl Writer {
             tail: Tail::default(),
             groups: Groups::default(),
             fit: false,
+            waiting: Vec::new(),
         });
     }
 
@@ -403,6 +421,25 @@ impl Writer {
                 }
                 open.fit |= print.fits();
                 open.tail.add(Part::Print(print), sheet)?;
+            }
+            Part::Image(image) => {
+                let format = open.tail.image(&image, self.media + 1)?;
+                self.media += 1;
+                if !self.formats.contains(&format) {
+                    self.formats.push(format);
+                    self.formats.sort();
+                }
+                let name = format!("xl/media/image{}.{}", self.media, format.extension());
+                if open.started {
+                    open.waiting.push((name, image.image));
+                } else {
+                    return self.archived(|writer| {
+                        writer.archive.begin(&name)?;
+                        writer.archive.write(&image.image)?;
+                        writer.archive.end()?;
+                        Ok(writer.archive.take())
+                    });
+                }
             }
             part => open.tail.add(part, sheet)?,
         }
@@ -833,12 +870,18 @@ impl Writer {
         tail.push_str("</worksheet>");
         self.archive.write(tail.as_bytes())?;
         self.archive.end()?;
+        for (name, bytes) in &open.waiting {
+            self.archive.begin(name)?;
+            self.archive.write(bytes)?;
+            self.archive.end()?;
+        }
         let number = open.index + 1;
         let mut entries = Vec::new();
         if let Some(rels) = open.tail.rels(number) {
             entries.push((format!("xl/worksheets/_rels/sheet{number}.xml.rels"), rels));
         }
         entries.extend(open.tail.notes(number));
+        entries.extend(open.tail.drawing(number));
         for (name, text) in &entries {
             self.archive.begin(name)?;
             self.archive.write(text.as_bytes())?;
@@ -850,6 +893,7 @@ impl Writer {
         }
         sheet.names.extend(open.tail.print_names());
         sheet.notes = open.tail.has_notes();
+        sheet.drawing = open.tail.has_drawing();
         Ok(())
     }
 
@@ -1047,6 +1091,14 @@ impl Writer {
                 "<Default Extension=\"vml\" ContentType=\"application/vnd.openxmlformats-officedocument.vmlDrawing\"/>",
             );
         }
+        for format in &self.formats {
+            let _ = write!(
+                types,
+                "<Default Extension=\"{}\" ContentType=\"{}\"/>",
+                format.extension(),
+                format.content_type()
+            );
+        }
         types.push_str(
             "<Override PartName=\"/xl/workbook.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml\"/>",
         );
@@ -1060,6 +1112,13 @@ impl Writer {
                 let _ = write!(
                     types,
                     "<Override PartName=\"/xl/comments{}.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.comments+xml\"/>",
+                    at + 1
+                );
+            }
+            if self.sheets[at].drawing {
+                let _ = write!(
+                    types,
+                    "<Override PartName=\"/xl/drawings/drawing{}.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.drawing+xml\"/>",
                     at + 1
                 );
             }

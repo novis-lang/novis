@@ -33,6 +33,7 @@
 //! the bytes the binary carries.
 
 pub mod cells;
+pub mod drawing;
 pub mod styles;
 pub mod tail;
 pub mod width;
@@ -734,12 +735,19 @@ mod guest {
                 password: protect.password,
                 allow: protect.allow,
             }),
+            wit::SheetPart::Image(image) => Part::Image(crate::drawing::Image {
+                at: image.at,
+                image: image.image,
+                width: image.width,
+                height: image.height,
+                offset_x: image.offset_x,
+                offset_y: image.offset_y,
+            }),
             wit::SheetPart::Table(_)
             | wit::SheetPart::Conditional(_)
-            | wit::SheetPart::Image(_)
             | wit::SheetPart::Chart(_) => {
                 return Err(wit::Error::Runtime(
-                    "This version of Novis cannot add tables, conditional formats, images or charts to a sheet yet."
+                    "This version of Novis cannot add tables, conditional formats or charts to a sheet yet."
                         .to_owned(),
                 ));
             }

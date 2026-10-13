@@ -3,6 +3,7 @@
 //! `rule:core-classes/spreadsheet-formula-is-a-value`).
 
 use miniz_oxide::inflate::decompress_to_vec;
+use nvs_spreadsheet::drawing::Image;
 use nvs_spreadsheet::tail::{
     Group, Link, Margins, Note, Operator, Orientation, Part, Print, Protect, RuleKind, Validation,
 };
@@ -45,16 +46,20 @@ fn writer() -> Writer {
 
 /// A finished workbook: every part by name.
 struct Book {
-    parts: Vec<(String, String)>,
+    parts: Vec<(String, Vec<u8>)>,
 }
 
 impl Book {
-    fn part(&self, name: &str) -> &str {
+    fn bytes(&self, name: &str) -> &[u8] {
         self.parts
             .iter()
             .find(|(part, _)| part == name)
-            .map(|(_, text)| text.as_str())
+            .map(|(_, bytes)| bytes.as_slice())
             .unwrap_or_else(|| panic!("the archive has {name}"))
+    }
+
+    fn part(&self, name: &str) -> &str {
+        std::str::from_utf8(self.bytes(name)).unwrap()
     }
 
     fn has(&self, name: &str) -> bool {
@@ -80,7 +85,7 @@ fn finish(mut writer: Writer, mut out: Vec<u8>) -> Book {
 
 /// The entries of the zip archive `archive`, each name with its inflated text, read through the
 /// central directory.
-fn entries(archive: &[u8]) -> Vec<(String, String)> {
+fn entries(archive: &[u8]) -> Vec<(String, Vec<u8>)> {
     let u16_at = |at: usize| usize::from(u16::from_le_bytes([archive[at], archive[at + 1]]));
     let u32_at = |at: usize| u32::from_le_bytes(archive[at..at + 4].try_into().unwrap());
     let end = archive.len() - 22;
@@ -99,8 +104,10 @@ fn entries(archive: &[u8]) -> Vec<(String, String)> {
         let local = u32_at(at + 42) as usize;
         let name = String::from_utf8(archive[at + 46..at + 46 + name_len].to_vec()).unwrap();
         let data = local + 30 + u16_at(local + 26) + u16_at(local + 28);
-        let inflated = decompress_to_vec(&archive[data..data + packed]).unwrap();
-        out.push((name, String::from_utf8(inflated).unwrap()));
+        out.push((
+            name,
+            decompress_to_vec(&archive[data..data + packed]).unwrap(),
+        ));
         at += 46 + name_len + u16_at(at + 30) + u16_at(at + 32);
     }
     out
@@ -650,7 +657,8 @@ fn cell_and_column_give_a1_text_over_the_rows_written_so_far() {
     );
     let book = finish(writer, out);
     assert!(
-        book.sheet(1).contains("<c r=\"B1044\"><f>SUM(B2:B1043)</f></c>"),
+        book.sheet(1)
+            .contains("<c r=\"B1044\"><f>SUM(B2:B1043)</f></c>"),
         "the totals row sums every data row"
     );
 
@@ -660,4 +668,105 @@ fn cell_and_column_give_a1_text_over_the_rows_written_so_far() {
         .sheet(SheetOptions::named("Blog"), &orders(3))
         .unwrap();
     assert_eq!(plain.column(0).unwrap(), "A1:A3");
+}
+
+/// The header of a PNG `width` by `height` pixels: its signature and `IHDR` chunk.
+fn png(width: u32, height: u32) -> Vec<u8> {
+    let mut bytes = b"\x89PNG\r\n\x1a\n\x00\x00\x00\x0dIHDR".to_vec();
+    bytes.extend(width.to_be_bytes());
+    bytes.extend(height.to_be_bytes());
+    bytes.extend([8, 6, 0, 0, 0]);
+    bytes
+}
+
+fn image(at: &str, bytes: Vec<u8>) -> Image {
+    Image {
+        at: at.to_owned(),
+        image: bytes,
+        width: None,
+        height: None,
+        offset_x: None,
+        offset_y: None,
+    }
+}
+
+#[test]
+fn an_image_is_its_own_entry_anchored_to_its_cell() {
+    let mut writer = writer();
+    let mut out = writer.sheet(SheetOptions::named("Shop"), &[]).unwrap();
+    let logo = png(2, 1);
+    let written = writer.part(Part::Image(image("A1", logo.clone()))).unwrap();
+    assert!(
+        !written.is_empty(),
+        "an image added before the first row is written at once"
+    );
+    out.extend(written);
+    out.extend(writer.rows(&orders(10)).unwrap());
+    let gif = b"GIF89a\x04\x00\x03\x00\x00\x00\x00;".to_vec();
+    let mut product = image("B5", gif.clone());
+    product.width = Some(40.0);
+    product.offset_x = Some(3.0);
+    product.offset_y = Some(2.0);
+    assert!(
+        writer.part(Part::Image(product)).unwrap().is_empty(),
+        "an image added while the sheet's entry is open waits for it to end"
+    );
+    let book = finish(writer, out);
+
+    assert_eq!(book.bytes("xl/media/image1.png"), logo.as_slice());
+    assert_eq!(book.bytes("xl/media/image2.gif"), gif.as_slice());
+    let sheet = book.sheet(1);
+    assert!(sheet.contains("<drawing r:id=\"rId1\"/></worksheet>"));
+    let rels = book.part("xl/worksheets/_rels/sheet1.xml.rels");
+    assert!(rels.contains("Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing\" Target=\"../drawings/drawing1.xml\""));
+
+    let drawing = book.part("xl/drawings/drawing1.xml");
+    assert_eq!(drawing.matches("<xdr:oneCellAnchor>").count(), 2);
+    assert!(drawing.contains(
+        "<xdr:from><xdr:col>0</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>0</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from><xdr:ext cx=\"19050\" cy=\"9525\"/>"
+    ), "the logo is its own size at A1: {drawing}");
+    assert!(drawing.contains(
+        "<xdr:from><xdr:col>1</xdr:col><xdr:colOff>28575</xdr:colOff><xdr:row>4</xdr:row><xdr:rowOff>19050</xdr:rowOff></xdr:from><xdr:ext cx=\"381000\" cy=\"285750\"/>"
+    ), "a width alone scales the height by the image's ratio");
+    let drawing_rels = book.part("xl/drawings/_rels/drawing1.xml.rels");
+    assert!(drawing_rels.contains("Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/image\" Target=\"../media/image1.png\""));
+    assert!(drawing_rels.contains("Id=\"rId2\""));
+    assert!(drawing_rels.contains("Target=\"../media/image2.gif\""));
+
+    let types = book.part("[Content_Types].xml");
+    assert!(types.contains("<Default Extension=\"png\" ContentType=\"image/png\"/><Default Extension=\"gif\" ContentType=\"image/gif\"/>"));
+    assert!(types.contains("<Override PartName=\"/xl/drawings/drawing1.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.drawing+xml\"/>"));
+}
+
+#[test]
+fn an_image_that_is_not_png_jpeg_or_gif_throws() {
+    let mut writer = writer();
+    let mut out = writer
+        .sheet(SheetOptions::named("Shop"), &orders(2))
+        .unwrap();
+    for bytes in [
+        b"BM\x36\x00\x00\x00".to_vec(),
+        b"<svg xmlns=\"http://www.w3.org/2000/svg\"/>".to_vec(),
+        png(2, 1)[..18].to_vec(),
+        png(0, 1),
+        Vec::new(),
+    ] {
+        let message = invalid(writer.part(Part::Image(image("C3", bytes))));
+        assert!(
+            message.contains("`C3`") && message.contains("PNG, JPEG or GIF"),
+            "{message}"
+        );
+    }
+    let message = invalid(writer.part(Part::Image(image("C0", png(2, 1)))));
+    assert!(message.contains("`C0`"), "{message}");
+    let mut huge = image("C3", png(2, 1));
+    huge.width = Some(f64::NAN);
+    assert!(invalid(writer.part(Part::Image(huge))).contains("width"));
+
+    out.extend(writer.part(Part::Image(image("C3", png(2, 1)))).unwrap());
+    let book = finish(writer, out);
+    assert!(
+        book.has("xl/media/image1.png"),
+        "an image that throws takes no number"
+    );
 }

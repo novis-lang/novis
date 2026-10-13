@@ -28,8 +28,10 @@ opens no local file and runs nothing. `Workbook::define` writes a defined name, 
 Rich text in one cell is `Cell::rich`. **Sheet protection locks the layout and is not security**: the
 password is a hash any tool removes, which the reference card says.
 
-**An image is its own zip entry**, written as soon as it is added, so a report with many images holds
-none of them. **The chart subset** is column, bar, line, area, pie, doughnut and scatter, and a
+**An image is its own zip entry.** One added before the sheet's first row is written by the call that
+adds it. Once the rows have started, the sheet's own entry is open, and a zip entry cannot be split,
+so the image's bytes wait until the sheet ends. A report with many images adds them before its rows,
+or on a sheet of their own, to hold none of them. **The chart subset** is column, bar, line, area, pie, doughnut and scatter, and a
 combination of two of them, with a title, axis titles, the legend, series colours and data labels. A
 series names its ranges with `$sheet->column($key)`, so a chart over a stream covers every row the
 sheet ends with. Its XML follows `rust_xlsxwriter`'s output for the same chart, ported for the subset
@@ -40,7 +42,7 @@ summarise, in the order a program computes them. **Memory:** the parts are held 
 and they are small beside the rows.
 
 - **Memory:** per writing request, each sheet-end part of the open sheet until the sheet is finished,
-  and nothing of an image after the call that adds it.
+  and the bytes of each image added after the sheet's first row, until the sheet is finished.
 
 **Not shipped.** Nothing of `Novis\Spreadsheet` is on disk.
 

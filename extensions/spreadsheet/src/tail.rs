@@ -7,7 +7,8 @@
 //! margins, the page setup, the header and footer, and the notes' drawing. A part may name any
 //! cell, written or not. A link to a URL or a `mailto:` address and the notes are relationships
 //! of the sheet, which [`Tail::rels`] writes, and the notes are a `comments<n>.xml` beside the VML
-//! drawing Excel still needs to show them ([`Tail::notes`]).
+//! drawing Excel still needs to show them ([`Tail::notes`]). The images are the sheet's
+//! `drawing<n>.xml` (`drawing`'s module doc), whose `<drawing>` element comes before the notes'.
 //!
 //! **Two parts are read before the rows.** An outline group gives each row it covers one more
 //! level, which xlsx writes with the row, and a column group the same for its columns, which xlsx
@@ -27,6 +28,7 @@
 
 use std::fmt::Write as _;
 
+use crate::drawing::{Drawing, Format, Image};
 use crate::{Error, cells, xml};
 
 /// The relationship types and the namespace every part of a sheet uses.
@@ -113,7 +115,7 @@ fn bad_range(what: &str, range: &str) -> Error {
     ))
 }
 
-fn bad_cell(what: &str, cell: &str) -> Error {
+pub(crate) fn bad_cell(what: &str, cell: &str) -> Error {
     Error::Invalid(format!(
         "The {what} cell `{cell}` is not a cell reference, such as `B7`."
     ))
@@ -276,6 +278,7 @@ pub enum Part {
     Group(Group),
     Print(Print),
     Protect(Protect),
+    Image(Image),
 }
 
 /// Excel's 16-bit hash of a sheet's password, as it writes it.
@@ -419,6 +422,7 @@ pub struct Tail {
     validations: Vec<String>,
     print: Option<Print>,
     protect: Option<String>,
+    drawing: Drawing,
 }
 
 fn limited(what: &str, text: &Option<String>, max: usize) -> Result<(), Error> {
@@ -465,6 +469,9 @@ impl Tail {
             Part::Protect(protect) => self.protection(&protect),
             Part::Group(_) => Err(Error::Runtime(
                 "An outline group is kept with the rows, not the sheet's tail.".to_owned(),
+            )),
+            Part::Image(_) => Err(Error::Runtime(
+                "An image is numbered by the workbook. Add it with `Tail::image`.".to_owned(),
             )),
         }
     }
@@ -707,9 +714,25 @@ impl Tail {
         Ok(())
     }
 
+    /// Checks `image` and keeps its anchor, `media` being the number its entry takes in the
+    /// workbook. Returns its format.
+    pub fn image(&mut self, image: &Image, media: usize) -> Result<Format, Error> {
+        self.drawing.add(image, media)
+    }
+
     /// Whether the sheet has notes.
     pub fn has_notes(&self) -> bool {
         !self.notes.is_empty()
+    }
+
+    /// Whether the sheet has images.
+    pub fn has_drawing(&self) -> bool {
+        !self.drawing.is_empty()
+    }
+
+    /// The `rId` of the drawing: after the links that leave the workbook and the notes' two.
+    fn drawing_id(&self) -> usize {
+        self.external.len() + if self.has_notes() { 2 } else { 0 } + 1
     }
 
     /// The print area and the rows to repeat, as the names `workbook.xml` defines for the sheet,
@@ -829,6 +852,9 @@ impl Tail {
                 out.push_str("</headerFooter>");
             }
         }
+        if self.has_drawing() {
+            let _ = write!(out, "<drawing r:id=\"rId{}\"/>", self.drawing_id());
+        }
         if self.has_notes() {
             let _ = write!(
                 out,
@@ -839,9 +865,10 @@ impl Tail {
     }
 
     /// The sheet's relationships part, when it has any: the links that leave the workbook, then
-    /// the notes and their drawing. `sheet` is the sheet's number in its part names.
+    /// the notes and their VML drawing, then the images' drawing. `sheet` is the sheet's number in
+    /// its part names.
     pub fn rels(&self, sheet: usize) -> Option<String> {
-        if self.external.is_empty() && !self.has_notes() {
+        if self.external.is_empty() && !self.has_notes() && !self.has_drawing() {
             return None;
         }
         let mut out = String::from(crate::writer::XML_HEAD);
@@ -864,8 +891,33 @@ impl Tail {
                 next + 1
             );
         }
+        if self.has_drawing() {
+            let _ = write!(
+                out,
+                "<Relationship Id=\"rId{}\" Type=\"{RELS}/drawing\" Target=\"../drawings/drawing{sheet}.xml\"/>",
+                self.drawing_id()
+            );
+        }
         out.push_str("</Relationships>");
         Some(out)
+    }
+
+    /// The images' two entries, `drawing<sheet>.xml` and its relationships, by name. Empty when
+    /// the sheet has no images.
+    pub fn drawing(&self, sheet: usize) -> Vec<(String, String)> {
+        if !self.has_drawing() {
+            return Vec::new();
+        }
+        vec![
+            (
+                format!("xl/drawings/drawing{sheet}.xml"),
+                self.drawing.write(),
+            ),
+            (
+                format!("xl/drawings/_rels/drawing{sheet}.xml.rels"),
+                self.drawing.rels(),
+            ),
+        ]
     }
 
     /// The notes' two entries, `comments<sheet>.xml` and the VML drawing, by name. Empty when the
