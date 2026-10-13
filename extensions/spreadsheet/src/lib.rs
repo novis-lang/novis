@@ -487,20 +487,34 @@ mod guest {
 
     impl GuestReading for Reader {}
 
-    /// The source a reader call was lent, read through the host's `range`.
+    /// The source a reader call was lent, `bytes` or an open file, read through the host's
+    /// `range`. The host gives at most one block per `range`, so a longer read asks again from
+    /// where the last block ended, until it has `length` bytes or the source ends.
     struct Lent<'a>(&'a Source);
 
-    fn not_bytes() -> crate::Error {
-        crate::Error::Invalid("A workbook is read from `bytes`.".to_owned())
+    fn not_a_source() -> crate::Error {
+        crate::Error::Invalid("A workbook is read from `bytes` or an open `Core\\IO\\File`.".to_owned())
     }
 
     impl crate::read::Source for Lent<'_> {
         fn size(&self) -> Result<u64, crate::Error> {
-            self.0.size().ok_or_else(not_bytes)
+            self.0.size().ok_or_else(not_a_source)
         }
 
         fn range(&self, offset: u64, length: u64) -> Result<Vec<u8>, crate::Error> {
-            self.0.range(offset, length).ok_or_else(not_bytes)
+            let mut read = self.0.range(offset, length).ok_or_else(not_a_source)?;
+            while (read.len() as u64) < length {
+                let got = read.len() as u64;
+                let block = self
+                    .0
+                    .range(offset.saturating_add(got), length - got)
+                    .ok_or_else(not_a_source)?;
+                if block.is_empty() {
+                    break;
+                }
+                read.extend_from_slice(&block);
+            }
+            Ok(read)
         }
     }
 

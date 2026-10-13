@@ -7,13 +7,14 @@
 use std::future::Future;
 use std::io::Write as _;
 use std::pin::pin;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll, Waker};
 use std::time::Duration;
 
 use nvs_ext::builtin::SPREADSHEET_CLASS;
-use nvs_ext::call::{Host, Meter, Request};
+use nvs_ext::call::{Budget, Host, Lending, Level, Meter, Request};
 use nvs_ext::convert::{Key, Value};
+use nvs_ext::handle::RANGE_MOST;
 use nvs_ext::load::{Extension, Loader};
 
 /// `future` polled on this thread until it finishes. A guest call yields at every epoch tick, and
@@ -483,6 +484,114 @@ fn an_xlsx_is_read_through_byte_ranges_and_never_whole() {
         "the guest grew to {charged} bytes reading a file of {size}"
     );
     block_on(read.request.end()).expect("the request ends");
+}
+
+/// A budget that lends one source, as the host lends a `bytes` argument or an open file, and
+/// keeps the offset and length of every read the guest makes of it.
+struct Lends {
+    meter: Meter,
+    source: Vec<u8>,
+    reads: Mutex<Vec<(u64, u64)>>,
+}
+
+impl Budget for Lends {
+    fn cpu_spent(&self) -> bool {
+        self.meter.cpu_spent()
+    }
+
+    fn charge(&self, bytes: i64) -> bool {
+        self.meter.charge(bytes)
+    }
+
+    fn log(&self, level: Level, channel: &str, message: &str) {
+        self.meter.log(level, channel, message);
+    }
+
+    fn wall_clock(&self) -> Duration {
+        self.meter.wall_clock()
+    }
+
+    fn monotonic_clock(&self) -> u64 {
+        self.meter.monotonic_clock()
+    }
+
+    fn random(&self, out: &mut [u8]) {
+        self.meter.random(out);
+    }
+
+    fn setting(&self, block: &str, key: &str) -> Option<serde_json::Value> {
+        self.meter.setting(block, key)
+    }
+
+    fn read(&self, id: u64, offset: u64, length: u64) -> Lending {
+        assert_eq!(id, 0, "the guest reads the one source it was lent");
+        self.reads.lock().unwrap().push((offset, length));
+        let start = usize::try_from(offset).unwrap().min(self.source.len());
+        let end = start
+            .saturating_add(usize::try_from(length).unwrap())
+            .min(self.source.len());
+        Lending::ready(Ok(self.source[start..end].to_vec()))
+    }
+}
+
+#[test]
+fn a_lent_source_is_read_through_the_budget_a_block_at_a_time() {
+    // The sheet is stored, so the file is about 2 MB, more than one block of the host's.
+    let mut data = String::new();
+    for n in 1..=20_000u64 {
+        data.push_str(&row(n, &[("", 0, &format!("<v>{n}</v>"))]));
+    }
+    let bytes = xlsx(&[sheet("Shop", data)], &[]);
+    let size = bytes.len() as u64;
+    assert!(size > RANGE_MOST as u64);
+    let host = Host::new(2, |_| Ok(())).expect("the host starts");
+    let extension = spreadsheet(&host);
+    let lends = Arc::new(Lends {
+        meter: Meter::new(Duration::from_secs(60), None),
+        source: bytes,
+        reads: Mutex::new(Vec::new()),
+    });
+    let request = host.request(lends.clone());
+    let source = Value::Lent { id: 0, size };
+    let reader = block_on(request.call_values(&extension, "readerOpen", vec![source.clone()]))
+        .unwrap_or_else(|err| panic!("`readerOpen` answers: {err}"))
+        .unwrap();
+    let mut from = None;
+    let mut count = 0u64;
+    loop {
+        let asked = Options {
+            from,
+            ..options("Shop")
+        };
+        let args = vec![
+            reader.clone(),
+            source.clone(),
+            asked.value(),
+            Value::Uint(5_000),
+        ];
+        let batch = block_on(request.call_values(&extension, "readerRows", args))
+            .unwrap_or_else(|err| panic!("`readerRows` answers: {err}"))
+            .unwrap();
+        for read in entries(field(&batch, "rows")) {
+            let Value::Uint(number) = field(read, "number") else {
+                panic!("a row number is a uint");
+            };
+            count += 1;
+            assert_eq!(*number, count);
+            from = Some(number + 1);
+        }
+        if field(&batch, "done") == &Value::Bool(true) {
+            break;
+        }
+    }
+    assert_eq!(count, 20_000);
+    let reads = lends.reads.lock().unwrap().clone();
+    assert!(reads.len() > 2, "the guest read {} ranges", reads.len());
+    assert!(
+        reads.iter().all(|(_, length)| *length <= RANGE_MOST as u64),
+        "no read is longer than one block: {reads:?}"
+    );
+    block_on(request.end()).expect("the request ends");
 }
 
 #[test]

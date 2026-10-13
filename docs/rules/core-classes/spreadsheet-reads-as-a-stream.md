@@ -4,7 +4,10 @@ and ods are read whole, and CSV goes to `Core\Csv`.
 
 **How the guest reads a range.** Every reader call lends the source as a `mixed` value, and the guest
 reads ranges of it through a host import, an accessor of the `value` handle that returns the bytes at
-an offset and length of a `bytes` value or of an open `Core\IO\File`. The guest keeps a read-ahead
+an offset and length of a `bytes` value or of an open `Core\IO\File`. The source is lent by number
+and never copied as it crosses: the host serves each range from the program's own `bytes`, or
+reads it from the file and puts the handle's position back, between two polls of the call, and
+gives at most 1 MiB per range. The guest keeps a read-ahead
 buffer, reads the zip directory from the end, and inflates each part as it parses it. The import
 grants nothing: it reads only what the program lent to this call, and the handle stops being valid
 when the call returns (`rule:packaging/values-cross-as-handles`), so the source is lent again on every
@@ -103,10 +106,8 @@ An xlsb stores a formula as parsed tokens and not as text, so with `formulas: tr
 reads as its stored result and gives no `Formula`.
 
 **Not shipped.** `links`, `notes`, `names`, `tables` and `images` from an xlsb, xls or ods file, and
-`properties` from an xls or ods file: each throws naming the format. `text`. `Reader::open` does not
-take `tainted bytes`, so an upload does not compile as its source. The `value` accessor reads a
-range of `bytes` and not yet of an open `Core\IO\File`, and each call copies a `bytes` source whole
-as it crosses. `Reader::open`, `sheets()` and `rows()` read xlsx, xlsm, xlsb, xls and ods.
+`properties` from an xls or ods file: each throws naming the format. `text`. `Reader::open`,
+`sheets()` and `rows()` read xlsx, xlsm, xlsb, xls and ods, from `bytes` or an open `Core\IO\File`.
 
 **Declined:**
 - **A pull loop in the Novis half.** It costs a guest return and a Novis call per block on the request

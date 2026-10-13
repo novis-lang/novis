@@ -30946,7 +30946,7 @@ Finishes the last sheet and the workbook. Returns the last bytes of the file, th
 Novis\Spreadsheet\Engine::readerOpen(mixed $source): Reading
 ```
 
-Opens the workbook in `source`, which is `bytes`. This reads the list of sheets and no rows.
+Opens the workbook in `source`, which is `bytes` or an open `Core\IO\File`. This reads the list of sheets and no rows.
 
 | Parameter | Type | Meaning |
 |---|---|---|

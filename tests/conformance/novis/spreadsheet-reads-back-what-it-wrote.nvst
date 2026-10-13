@@ -43,7 +43,7 @@ final class Show
             return "Duration " . ($value->toSeconds() as string) . "s";
         }
         if ($value is Formula) {
-            return "Formula " . $value->text . " = " . ($value->cached as string);
+            return "Formula " . Core\Taint::assertTrusted($value->text, "the test prints what it wrote") . " = " . ($value->cached as string);
         }
         return "another value";
     }

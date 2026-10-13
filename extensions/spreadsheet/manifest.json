@@ -92,7 +92,7 @@
         {"name": "source", "type": "mixed"}
       ],
       "returns": "Reading",
-      "help": "Opens the workbook in `source`, which is `bytes`. This reads the list of sheets and no rows."
+      "help": "Opens the workbook in `source`, which is `bytes` or an open `Core\\IO\\File`. This reads the list of sheets and no rows."
     },
     {
       "name": "readerSheets",

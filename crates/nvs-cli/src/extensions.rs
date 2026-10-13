@@ -86,8 +86,8 @@ use nvs_config::tree::{Config, Extension};
 use nvs_config::value::{Quantity, Unit};
 use nvs_diagnostics::{Diagnostic, SourceMap};
 use nvs_ext::call::{
-    Answer, Budget, Host, Incoming, Level, Limit, Meter, Outbound, Outcome, Outgoing, Request,
-    Unsent,
+    Answer, Budget, Host, Incoming, Lender, Lending, Level, Limit, Meter, Outbound, Outcome,
+    Outgoing, Request, Unsent,
 };
 use nvs_ext::convert::{Key, Value as Crossed, fits};
 use nvs_ext::grants::Caller;
@@ -376,6 +376,7 @@ impl Calls {
                 seed: Mutex::new(None),
                 lines: Mutex::new(Vec::new()),
                 outbound: Mutex::new(Vec::new()),
+                reads: Mutex::new(Vec::new()),
             });
             (host.request(spent.clone()), spent)
         }))
@@ -405,9 +406,15 @@ impl Drop for Calls {
 /// `nvs_stdlib::extension_send`. The task parks on the socket as a `Core\Http\Client` call does,
 /// so the other tasks on its core run while the guest waits.
 ///
+/// A guest's read of a lent source waits in [`Spent`] the same way, and [`Spent::reads`] serves
+/// it from the call's own arguments (`rule:core-classes/spreadsheet-reads-as-a-stream`): a range
+/// of a `bytes` argument is copied from the runtime's string, and a range of an open
+/// `Core\IO\File` is read through `nvs_stdlib::extension_file_range`. So a source is never copied
+/// whole as it crosses, and only the ranges the guest reads leave the program's memory.
+///
 /// What it spends: one `Arc` of the request's snapshot, the `grants:` list of the isolate that
-/// made the request, each logged line until the call that wrote it returns, and each outbound
-/// request until it is sent.
+/// made the request, each logged line until the call that wrote it returns, each outbound
+/// request until it is sent, and each read until it is served.
 pub(crate) struct Spent {
     meter: Meter,
     snapshot: Option<Arc<nvs_config::Snapshot>>,
@@ -416,6 +423,7 @@ pub(crate) struct Spent {
     seed: Mutex<Option<u64>>,
     lines: Mutex<Vec<(Level, String, String)>>,
     outbound: Mutex<Vec<(Outgoing, Answer)>>,
+    reads: Mutex<Vec<(u64, u64, u64, Lender)>>,
 }
 
 impl Spent {
@@ -455,6 +463,33 @@ impl Spent {
         let any = !queued.is_empty();
         for (request, answer) in queued {
             answer.fill(sent(ctx, request));
+        }
+        any
+    }
+
+    /// Serves every read a guest has made of a source in `lent` since the last poll, with `ctx`.
+    /// Returns whether there was one, so the call is polled again at once.
+    fn reads(&self, ctx: &mut Ctx, lent: &[Value]) -> bool {
+        let queued =
+            std::mem::take(&mut *self.reads.lock().unwrap_or_else(PoisonError::into_inner));
+        let any = !queued.is_empty();
+        for (id, offset, length, lender) in queued {
+            let source = usize::try_from(id)
+                .ok()
+                .and_then(|id| lent.get(id).copied());
+            lender.fill(match source {
+                None => Err(format!("no source was lent to this call as {id}")),
+                Some(source) => match source.as_bytes() {
+                    Some(bytes) => {
+                        let start =
+                            usize::try_from(offset).map_or(bytes.len(), |at| at.min(bytes.len()));
+                        let take = usize::try_from(length).unwrap_or(usize::MAX);
+                        Ok(bytes[start..start.saturating_add(take).min(bytes.len())].to_vec())
+                    }
+                    None => nvs_stdlib::extension_file_range(ctx, source, offset, length)
+                        .map_err(fault_text),
+                },
+            });
         }
         any
     }
@@ -541,6 +576,16 @@ impl Budget for Spent {
         outbound
     }
 
+    /// Queues the read for [`Spent::reads`], which the call that runs the guest serves.
+    fn read(&self, id: u64, offset: u64, length: u64) -> Lending {
+        let (lending, lender) = Lending::pair();
+        self.reads
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .push((id, offset, length, lender));
+        lending
+    }
+
     /// The value at `ext.<block>.<key>` in the request's snapshot, as JSON.
     fn setting(&self, block: &str, key: &str) -> Option<serde_json::Value> {
         let value = self
@@ -585,11 +630,27 @@ impl nvs_runtime::extension::Extensions for Calls {
                 .ok_or_else(|| refused("the extension is not loaded".to_owned()))?
                 .map_err(&refused)?,
         };
-        let mut args = args
+        let manifest = &extension.manifest;
+        let declared = manifest
+            .methods
             .iter()
-            .map(|arg| crossed(*arg))
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(refused)?;
+            .find(|declared| declared.name == method);
+        let mut lent = Vec::new();
+        let mut crossing = Vec::with_capacity(args.len());
+        for (at, arg) in args.iter().enumerate() {
+            let mixed = declared
+                .and_then(|declared| declared.params.get(at))
+                .is_some_and(|param| {
+                    matches!(manifest.novis_type(&param.ty), Ok(NovisType::Mixed))
+                });
+            let lending = if mixed {
+                lent_source(ctx, *arg, &mut lent)
+            } else {
+                None
+            };
+            crossing.push(lending.unwrap_or_else(|| crossed(*arg)).map_err(&refused)?);
+        }
+        let mut args = crossing;
         let in_force = ctx
             .config()
             .map_or(nvs_config::image::DEFAULT, nvs_config::image::in_force);
@@ -597,7 +658,8 @@ impl nvs_runtime::extension::Extensions for Calls {
         let (request, spent) = self.request(ctx)?;
         spent.enter(ctx);
         let called = drive(request.call_values(extension, method, args), || {
-            spent.sends(ctx)
+            let sent = spent.sends(ctx);
+            spent.reads(ctx, &lent) || sent
         });
         spent.leave(ctx);
         match called {
@@ -642,6 +704,33 @@ impl nvs_runtime::extension::Extensions for Calls {
 /// import's wake, which reaches the core from any thread.
 fn drive<T>(call: impl Future<Output = T>, between: impl FnMut() -> bool) -> T {
     nvs_host::block_on::block_on_yielding(call, between)
+}
+
+/// `value` lent to a guest by its number in `lent`, when it is a source the guest reads a range at
+/// a time: a `bytes` value or an open `Core\IO\File` (`rule:core-classes/spreadsheet-reads-as-a-stream`).
+/// `None` for any other value, which crosses as [`crossed`] gives it.
+fn lent_source(
+    ctx: &mut Ctx,
+    value: Value,
+    lent: &mut Vec<Value>,
+) -> Option<Result<Crossed, String>> {
+    let size = match value.as_bytes() {
+        Some(bytes) => Ok(u64::try_from(bytes.len()).unwrap_or(u64::MAX)),
+        None => nvs_stdlib::extension_file_size(ctx, value)?.map_err(fault_text),
+    };
+    Some(size.map(|size| {
+        let id = u64::try_from(lent.len()).unwrap_or(u64::MAX);
+        lent.push(value);
+        Crossed::Lent { id, size }
+    }))
+}
+
+/// The message of `fault`, for a guest that is told why a read of its source failed.
+fn fault_text(fault: Fault) -> String {
+    match fault {
+        Fault::Thrown(_, message) => message.into_owned(),
+        other => format!("{other:?}"),
+    }
 }
 
 /// `value` as it crosses into a guest.
@@ -783,6 +872,7 @@ fn runtime(
             return nvs_stdlib::ext_record::built(&class, parts);
         }
         Crossed::Object(class) => return Err(format!("a `{class}` object does not cross back")),
+        Crossed::Lent { .. } => return Err("a lent source does not cross back".to_owned()),
         Crossed::Resource { name, id } => nvs_stdlib::ext_record::resource(
             &nvs_types::ext_lib::declared_name(manifest, &name).to_string(),
             id,
@@ -974,6 +1064,7 @@ mod tests {
             seed: Mutex::new(None),
             lines: Mutex::new(Vec::new()),
             outbound: Mutex::new(Vec::new()),
+            reads: Mutex::new(Vec::new()),
         };
 
         spent.enter(&ctx);
@@ -1047,6 +1138,7 @@ mod tests {
             seed: Mutex::new(None),
             lines: Mutex::new(Vec::new()),
             outbound: Mutex::new(Vec::new()),
+            reads: Mutex::new(Vec::new()),
         };
         let outbound = spent.send(Outgoing {
             method: "GET".to_owned(),

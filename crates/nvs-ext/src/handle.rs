@@ -9,6 +9,11 @@
 //! traps the call. `range` copies at most [`RANGE_MOST`] bytes of a byte string, so a guest reads
 //! a large one a block at a time (`rule:core-classes/spreadsheet-reads-as-a-stream`).
 //!
+//! **A lent source** ([`Value::Lent`]) is a `bytes` value or an open file the host keeps and lends
+//! by number. It reads as `bytes`, and `size` is its length. `as-bytes` and `range` on it are async
+//! imports: each asks [`crate::call::Budget::read`] for the bytes, and the guest's call waits,
+//! pending, until the host serves the read where it holds the source.
+//!
 //! **A handle lives for one call.** The call's arguments are the table's roots, and a handle is a
 //! root and the path of positions to the entry under it, so reading an element copies nothing until
 //! the guest asks for a scalar, a string or a byte string. When the call returns, every root and
@@ -198,7 +203,7 @@ pub(crate) fn link(linker: &mut Linker<Guest>) -> wasmtime::Result<()> {
             Value::Uint(_) => "uint",
             Value::Float(_) => "float",
             Value::String(_) => "string",
-            Value::Bytes(_) => "bytes",
+            Value::Bytes(_) | Value::Lent { .. } => "bytes",
             Value::Array(_) => "array",
             Value::Case(_) | Value::Core { .. } | Value::Object(_) | Value::Resource { .. } => {
                 "object"
@@ -254,13 +259,11 @@ pub(crate) fn link(linker: &mut Linker<Guest>) -> wasmtime::Result<()> {
             },))
         },
     )?;
-    types.func_wrap(
+    types.func_wrap_async(
         "[method]value.as-bytes",
         |store, (this,): (Resource<Handle>,)| {
-            Ok((match read(&store, &this)? {
-                Value::Bytes(bytes) => Some(bytes.clone()),
-                _ => None,
-            },))
+            let read = bytes_of(&store, &this, 0, None);
+            Box::new(async move { Ok((read?.await?,)) })
         },
     )?;
     types.func_wrap(
@@ -268,17 +271,16 @@ pub(crate) fn link(linker: &mut Linker<Guest>) -> wasmtime::Result<()> {
         |store, (this,): (Resource<Handle>,)| {
             Ok((match read(&store, &this)? {
                 Value::Bytes(bytes) => u64::try_from(bytes.len()).ok(),
+                Value::Lent { size, .. } => Some(*size),
                 _ => None,
             },))
         },
     )?;
-    types.func_wrap(
+    types.func_wrap_async(
         "[method]value.range",
         |store, (this, offset, length): (Resource<Handle>, u64, u64)| {
-            Ok((match read(&store, &this)? {
-                Value::Bytes(bytes) => Some(range(bytes, offset, length).to_vec()),
-                _ => None,
-            },))
+            let read = bytes_of(&store, &this, offset, Some(length));
+            Box::new(async move { Ok((read?.await?,)) })
         },
     )?;
     types.func_wrap(
@@ -335,6 +337,41 @@ fn read<'s>(
         .handles
         .get(this.rep())
         .map_err(|err| wasmtime::format_err!("{err}"))
+}
+
+/// What `as-bytes` gives, for `length` `None`, or `range` gives: bytes copied out of a `bytes`
+/// value at once, or a read of a lent source that the host serves while the guest waits, and
+/// `None` for any other value. A read the host fails traps the call with its reason.
+fn bytes_of(
+    store: &StoreContextMut<'_, Guest>,
+    this: &Resource<Handle>,
+    offset: u64,
+    length: Option<u64>,
+) -> wasmtime::Result<impl Future<Output = wasmtime::Result<Option<Vec<u8>>>> + Send + 'static> {
+    let (copied, lent) = match read(store, this)? {
+        Value::Bytes(bytes) => (
+            Some(length.map_or_else(
+                || bytes.clone(),
+                |length| range(bytes, offset, length).to_vec(),
+            )),
+            None,
+        ),
+        Value::Lent { id, size } => {
+            let most = u64::try_from(RANGE_MOST).unwrap_or(u64::MAX);
+            let length = length.map_or(*size, |length| length.min(most));
+            (None, Some(store.data().budget().read(*id, offset, length)))
+        }
+        _ => (None, None),
+    };
+    Ok(async move {
+        match lent {
+            Some(lending) => lending
+                .await
+                .map(Some)
+                .map_err(|err| wasmtime::format_err!("{err}")),
+            None => Ok(copied),
+        }
+    })
 }
 
 /// The part of `bytes` that `range` gives: at most [`RANGE_MOST`] bytes from `offset`, clipped at

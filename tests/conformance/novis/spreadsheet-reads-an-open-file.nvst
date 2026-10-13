@@ -1,0 +1,51 @@
+--TEST--
+`Reader::open` reads a workbook from a `Core\IO\File` the program opened, through ranges of the file, over more rows than one batch, and the handle's position is where it was before: rule:core-classes/spreadsheet-reads-as-a-stream
+--FILE--
+<?nvs
+// covers: Novis\Spreadsheet\Reader::open
+// covers: Novis\Spreadsheet\Reader::sheets
+// covers: Novis\Spreadsheet\Reader::rows
+// covers: Novis\Spreadsheet\Engine::readerRows
+// covers: Core\IO\File::read
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Row;
+use Novis\Spreadsheet\Workbook;
+
+// This writes a sheet of 2,500 orders to a file.
+var $book = Workbook::createForFile("orders.xlsx");
+var $orders = $book->sheet("Orders", {header: true});
+$orders->add(["Order", "Total"]);
+int $n = 1;
+while ($n <= 2500) {
+    $orders->add([$n, $n * 2]);
+    $n = $n + 1;
+}
+$book->finish();
+
+// The reader reads the open file. Every row comes back once, in order.
+Core\IO\File $file = Core\IO::open("orders.xlsx", Core\IO::FileMode::Read);
+var $reader = Reader::open($file);
+foreach ($reader->sheets() as var $sheet) {
+    echo Core\Taint::assertTrusted($sheet->name, "the test wrote this name"), "\n";
+}
+int $expected = 1;
+bool $inOrder = true;
+foreach ($reader->rows("Orders", {header: true}) as Row $row) {
+    if ($row->values["Order"] != $expected || $row->values["Total"] != $expected * 2) {
+        $inOrder = false;
+    }
+    $expected = $expected + 1;
+}
+echo $expected - 1, " rows, ", $inOrder ? "in order" : "out of order", "\n";
+
+// Reading the workbook does not move the file's position, so `read` starts at the first byte.
+echo $file->read(2), "\n";
+$file->close();
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+Orders
+2500 rows, in order
+PK
