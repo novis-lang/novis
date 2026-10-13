@@ -339,6 +339,38 @@ describe("the item diff and the reference-graph walk", () => {
     expect([...rowClasses([row("1", "A"), row("2", "B"), row("3", "C")], [row("1", "A"), row("3", "C")])]).toEqual(["B"]);
     expect([...rowClasses([row("1", "A"), row("2", "B")], [row("2", "B"), row("1", "A")])].sort()).toEqual(["A", "B"]);
   });
+
+  /** The keys an edit of `owner` moves over a workspace of one package `w`, which names
+   * `extensions/linked` as a path dependency, with the built-in components `sheet` and `linked`. */
+  function reachedFromOutside(owner: string): string[] {
+    const graph: Graph = new Map([["w", { name: "w", dir: "crates/w", deps: new Map(), linked: ["extensions/linked"], targets: [{ kind: "lib", name: "w", src: "crates/w/src/lib.rs", test: true }] }]]);
+    const files = {
+      "crates/w/src/net.rs": "pub fn accept(s: Stream) -> u8 { 0 }\n",
+      "extensions/sheet/src/read.rs": "pub fn read(s: Stream) -> u8 { 0 }\n",
+    };
+    for (const [f, text] of Object.entries(files)) tree.put(f, text);
+    const all = [owner, ...Object.keys(files)];
+    tree.put(owner, "pub struct Stream { pub a: u8 }\n");
+    const base = scanned(all);
+    tree.put(owner, "pub struct Stream { pub a: u16 }\n");
+    const head = scanned(all);
+    const d = diffFile(base.get(owner)!, head.get(owner)!);
+    return [...referenceWalk(d.changes, new Universe(head, graphScope(graph, new Set(["sheet", "linked"])))).keys()];
+  }
+
+  test("an item of a component's crate no build compiles reaches its own crate and no workspace item", () => {
+    const moved = reachedFromOutside("extensions/sheet/src/cfb.rs");
+    expect(moved).toContain("fn:extensions/sheet/src/read.rs#read");
+    expect(moved).not.toContain("fn:crates/w/src/net.rs#accept");
+  });
+
+  test("an item of vendored code, or of a component's crate a package links, still reaches every item that names it", () => {
+    for (const owner of ["vendor/parser/src/lib.rs", "extensions/linked/src/lib.rs"]) {
+      const moved = reachedFromOutside(owner);
+      expect(moved).toContain("fn:crates/w/src/net.rs#accept");
+      expect(moved).toContain("fn:extensions/sheet/src/read.rs#read");
+    }
+  });
 });
 
 describe("paths and build scripts", () => {

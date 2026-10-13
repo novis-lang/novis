@@ -24,6 +24,9 @@ export interface Package {
   deps: Map<string, DepKind>;
   /** The workspace dependencies its manifest renames: the crate name its code writes, to the package. */
   renames?: Map<string, string>;
+  /** The directories, repo-relative, of the path dependencies it has outside the workspace, of any
+   * kind: crates of another workspace that a build of this one compiles all the same. */
+  linked?: string[];
   targets: Target[];
 }
 
@@ -39,7 +42,7 @@ interface RawTarget {
 interface RawPackage {
   name: string;
   manifest_path: string;
-  dependencies: { name: string; kind: string | null; rename?: string | null }[];
+  dependencies: { name: string; kind: string | null; rename?: string | null; path?: string | null }[];
   targets: RawTarget[];
 }
 
@@ -63,8 +66,13 @@ export async function metadata(manifest?: string): Promise<Graph | null> {
     if (dir.startsWith("..")) return null;
     const deps = new Map<string, DepKind>();
     const renames = new Map<string, string>();
+    const linked: string[] = [];
     for (const d of p.dependencies) {
-      if (!names.has(d.name)) continue;
+      if (!names.has(d.name)) {
+        const at = d.path ? rel(d.path, ROOT) : "";
+        if (at && !at.startsWith("..")) linked.push(at);
+        continue;
+      }
       if (d.rename) renames.set(d.rename.replace(/-/g, "_"), d.name);
       const kind = (d.kind ?? "normal") as DepKind;
       // One package named twice keeps the kind that reaches furthest.
@@ -76,7 +84,7 @@ export async function metadata(manifest?: string): Promise<Graph | null> {
       src: rel(t.src_path, ROOT),
       test: t.test !== false,
     }));
-    out.set(p.name, { name: p.name, dir, deps, ...(renames.size > 0 ? { renames } : {}), targets });
+    out.set(p.name, { name: p.name, dir, deps, ...(renames.size > 0 ? { renames } : {}), ...(linked.length > 0 ? { linked } : {}), targets });
   }
   return out;
 }

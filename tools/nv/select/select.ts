@@ -94,9 +94,13 @@ export interface ChangeSet {
 
 /** The workspace graph as the reference walk's scope: a file's package is the one whose directory holds it, a
  * package's crate name is its library target's, and a file under its package's `tests/`, `benches/` or
- * `examples/`, or the root of a target of those kinds, is built only into that dev target. */
-export function graphScope(graph: Graph | null): Scope {
+ * `examples/`, or the root of a target of those kinds, is built only into that dev target. The crate of
+ * a built-in component (`components`, `builtinComponents`'s set) that no package names as a path
+ * dependency is compiled by no build of the workspace. */
+export function graphScope(graph: Graph | null, components: ReadonlySet<string> = builtinComponents()): Scope {
   if (!graph) return { pkgOf: () => null, sees: () => true, modDir: () => null };
+  const linked = new Set([...graph.values()].flatMap((p) => p.linked ?? []));
+  const guests = [...components].map((c) => `extensions/${c}`).filter((d) => !linked.has(d));
   const dirs = [...graph.values()].map((p) => [p.dir, p.name] as const).sort((a, b) => b[0].length - a[0].length);
   const roots = new Set([...graph.values()].flatMap((p) => p.targets.map((t) => t.src)));
   const devRoots = new Set([...graph.values()].flatMap((p) => p.targets.filter((t) => ["test", "bench", "example"].includes(t.kind)).map((t) => t.src)));
@@ -135,6 +139,10 @@ export function graphScope(graph: Graph | null): Scope {
         deps.set(key, seen);
       }
       return seen.has(owner);
+    },
+    unlinked(file) {
+      if (pkgOf(file) !== null) return null;
+      return guests.find((d) => file.startsWith(`${d}/`)) ?? null;
     },
   };
 }
@@ -273,7 +281,7 @@ export async function computeChange(store: SelectStore, opts: ChangeOptions = {}
   for (const [k, origin] of await scanKeys(changes, since, until, fromBase ? overlay : {}, markers, root)) emit(k, origin);
 
   const graph = opts.graph === undefined ? await metadata() : opts.graph;
-  const scope = graphScope(graph);
+  const scope = graphScope(graph, components);
   const stored = from ? from.view : store.allItems();
   // Every Rust file's items as the store last scanned them, or every Rust file as it is now when the
   // store holds no scan.
