@@ -19,7 +19,12 @@ protection.
 
 Row heights, hidden rows and outline levels are `add`'s options, and hidden columns a column's
 (`rule:core-classes/spreadsheet-styles-and-defaults`), because xlsx writes them with the row or before
-it. `Workbook::define` writes a defined name, and the workbook's `properties` the document properties.
+it. For the same reason a `group` over rows is added before those rows, a `group` over columns and
+`print`'s `fitToPage` before the sheet's first row, and each throws `LogicError` saying so when it
+comes later. **A link goes to `http:`, `https:`, `mailto:` or a cell of the workbook**, and any
+other target, such as `file:` or `javascript:`, throws `LogicError`, so a link built from user data
+opens no local file and runs nothing. `Workbook::define` writes a defined name, and the workbook's
+`properties` the document properties.
 Rich text in one cell is `Cell::rich`. **Sheet protection locks the layout and is not security**: the
 password is a hash any tool removes, which the reference card says.
 

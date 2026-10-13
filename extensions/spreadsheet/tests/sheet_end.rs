@@ -1,0 +1,612 @@
+//! The parts a sheet writes after its rows, formulas and rich text, read back from the written
+//! archive (`rule:core-classes/spreadsheet-sheet-end-parts`,
+//! `rule:core-classes/spreadsheet-formula-is-a-value`).
+
+use miniz_oxide::inflate::decompress_to_vec;
+use nvs_spreadsheet::tail::{
+    Group, Link, Margins, Note, Operator, Orientation, Part, Print, Protect, RuleKind, Validation,
+};
+use nvs_spreadsheet::{
+    Cell, Clock, Column, Date, Error, Properties, RichRun, Row, SheetOptions, Style, TimeOfDay,
+    Value, Visibility, WorkbookOptions, Writer,
+};
+
+fn text(value: &str) -> Cell {
+    Cell {
+        value: Some(Value::Text(value.to_owned())),
+        style: None,
+    }
+}
+
+fn number(value: f64) -> Cell {
+    Cell {
+        value: Some(Value::Number(value)),
+        style: None,
+    }
+}
+
+fn row(cells: Vec<Cell>) -> Row {
+    Row {
+        cells,
+        ..Row::default()
+    }
+}
+
+/// `count` rows of a name and a quantity.
+fn orders(count: usize) -> Vec<Row> {
+    (0..count)
+        .map(|at| row(vec![text(&format!("Order {at}")), number(at as f64)]))
+        .collect()
+}
+
+fn writer() -> Writer {
+    Writer::open(WorkbookOptions::default()).unwrap()
+}
+
+/// A finished workbook: every part by name.
+struct Book {
+    parts: Vec<(String, String)>,
+}
+
+impl Book {
+    fn part(&self, name: &str) -> &str {
+        self.parts
+            .iter()
+            .find(|(part, _)| part == name)
+            .map(|(_, text)| text.as_str())
+            .unwrap_or_else(|| panic!("the archive has {name}"))
+    }
+
+    fn has(&self, name: &str) -> bool {
+        self.parts.iter().any(|(part, _)| part == name)
+    }
+
+    fn sheet(&self, at: usize) -> &str {
+        self.part(&format!("xl/worksheets/sheet{at}.xml"))
+    }
+
+    fn workbook(&self) -> &str {
+        self.part("xl/workbook.xml")
+    }
+}
+
+/// Finishes `writer` and reads back what it wrote, `out` being every byte returned before.
+fn finish(mut writer: Writer, mut out: Vec<u8>) -> Book {
+    out.extend(writer.finish().unwrap().data);
+    Book {
+        parts: entries(&out),
+    }
+}
+
+/// The entries of the zip archive `archive`, each name with its inflated text, read through the
+/// central directory.
+fn entries(archive: &[u8]) -> Vec<(String, String)> {
+    let u16_at = |at: usize| usize::from(u16::from_le_bytes([archive[at], archive[at + 1]]));
+    let u32_at = |at: usize| u32::from_le_bytes(archive[at..at + 4].try_into().unwrap());
+    let end = archive.len() - 22;
+    assert_eq!(
+        u32_at(end),
+        0x0605_4b50,
+        "the archive ends in its end record"
+    );
+    let count = u16_at(end + 10);
+    let mut at = u32_at(end + 16) as usize;
+    let mut out = Vec::new();
+    for _ in 0..count {
+        assert_eq!(u32_at(at), 0x0201_4b50, "a directory entry");
+        let packed = u32_at(at + 20) as usize;
+        let name_len = u16_at(at + 28);
+        let local = u32_at(at + 42) as usize;
+        let name = String::from_utf8(archive[at + 46..at + 46 + name_len].to_vec()).unwrap();
+        let data = local + 30 + u16_at(local + 26) + u16_at(local + 28);
+        let inflated = decompress_to_vec(&archive[data..data + packed]).unwrap();
+        out.push((name, String::from_utf8(inflated).unwrap()));
+        at += 46 + name_len + u16_at(at + 30) + u16_at(at + 32);
+    }
+    out
+}
+
+/// The text of `xml` from `from` up to the end of the first `to` after it.
+fn between<'a>(xml: &'a str, from: &str, to: &str) -> &'a str {
+    let start = xml
+        .find(from)
+        .unwrap_or_else(|| panic!("{from} is in {xml}"));
+    let end = start + xml[start..].find(to).expect("the end tag") + to.len();
+    &xml[start..end]
+}
+
+fn invalid(result: Result<Vec<u8>, Error>) -> String {
+    match result {
+        Err(Error::Invalid(message)) => message,
+        other => panic!("an invalid part, not {other:?}"),
+    }
+}
+
+fn validation(range: &str, kind: RuleKind, values: &[&str]) -> Validation {
+    Validation {
+        validated: range.to_owned(),
+        kind,
+        operator: None,
+        values: values.iter().map(|&value| value.to_owned()).collect(),
+        input_title: None,
+        input_message: None,
+        error_title: None,
+        error_message: None,
+        allow_empty: false,
+    }
+}
+
+#[test]
+fn merges_links_and_notes_point_at_earlier_rows() {
+    let mut writer = writer();
+    let mut out = writer
+        .sheet(SheetOptions::named("Shop"), &orders(3))
+        .unwrap();
+    out.extend(writer.rows(&orders(500)).unwrap());
+    for part in [
+        Part::Merge("A1:B1".to_owned()),
+        Part::Merge("$A$2:$A$4".to_owned()),
+        Part::Link(Link {
+            anchor: "A2".to_owned(),
+            target: "https://example.com/orders?id=1&page=2".to_owned(),
+            text: Some("Order 1".to_owned()),
+            tooltip: Some("Open the order".to_owned()),
+        }),
+        Part::Link(Link {
+            anchor: "A5".to_owned(),
+            target: "mailto:shop@example.com".to_owned(),
+            text: None,
+            tooltip: None,
+        }),
+        Part::Link(Link {
+            anchor: "A6".to_owned(),
+            target: "'Shop totals'!B2".to_owned(),
+            text: None,
+            tooltip: None,
+        }),
+        Part::Note(Note {
+            noted: "B3".to_owned(),
+            note: "Checked by hand".to_owned(),
+            author: Some("Blog".to_owned()),
+        }),
+        Part::Note(Note {
+            noted: "B7".to_owned(),
+            note: "A <second> note".to_owned(),
+            author: None,
+        }),
+    ] {
+        assert!(writer.part(part).unwrap().is_empty());
+    }
+
+    // A merge that overlaps one already added, a second link on a cell, and a link to another
+    // scheme are errors, and the sheet goes on.
+    assert!(
+        invalid(writer.part(Part::Merge("B1:C2".to_owned())))
+            .contains("overlaps another merged range")
+    );
+    assert!(invalid(writer.part(Part::Merge("A9".to_owned()))).contains("is one cell"));
+    let link = |target: &str| {
+        Part::Link(Link {
+            anchor: "C9".to_owned(),
+            target: target.to_owned(),
+            text: None,
+            tooltip: None,
+        })
+    };
+    for target in ["file:///etc/passwd", "javascript:alert(1)", "example.com"] {
+        assert!(
+            invalid(writer.part(link(target))).contains("is not allowed"),
+            "{target}"
+        );
+    }
+    assert!(
+        invalid(writer.part(Part::Link(Link {
+            anchor: "A2".to_owned(),
+            target: "https://example.com".to_owned(),
+            text: None,
+            tooltip: None,
+        })))
+        .contains("has a link already")
+    );
+    let book = finish(writer, out);
+
+    let sheet = book.sheet(1);
+    let tail = &sheet[sheet.find("</sheetData>").unwrap()..];
+    assert_eq!(
+        between(tail, "<mergeCells", "</mergeCells>"),
+        "<mergeCells count=\"2\"><mergeCell ref=\"A1:B1\"/><mergeCell ref=\"A2:A4\"/></mergeCells>"
+    );
+    assert_eq!(
+        between(tail, "<hyperlinks>", "</hyperlinks>"),
+        "<hyperlinks><hyperlink ref=\"A2\" r:id=\"rId1\" tooltip=\"Open the order\" display=\"Order 1\"/>\
+         <hyperlink ref=\"A5\" r:id=\"rId2\"/>\
+         <hyperlink ref=\"A6\" location=\"'Shop totals'!B2\"/></hyperlinks>"
+    );
+    assert!(tail.ends_with("<legacyDrawing r:id=\"rId4\"/></worksheet>"));
+    assert!(tail.find("<mergeCells").unwrap() < tail.find("<hyperlinks>").unwrap());
+
+    let rels = book.part("xl/worksheets/_rels/sheet1.xml.rels");
+    assert!(rels.contains(
+        "<Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink\" \
+         Target=\"https://example.com/orders?id=1&amp;page=2\" TargetMode=\"External\"/>"
+    ));
+    assert!(rels.contains("Id=\"rId2\"") && rels.contains("Target=\"mailto:shop@example.com\""));
+    assert!(rels.contains("Id=\"rId3\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments\" Target=\"../comments1.xml\""));
+    assert!(rels.contains("Id=\"rId4\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/vmlDrawing\" Target=\"../drawings/vmlDrawing1.vml\""));
+
+    let comments = book.part("xl/comments1.xml");
+    assert!(comments.contains("<authors><author>Blog</author><author></author></authors>"));
+    assert!(comments.contains(
+        "<comment ref=\"B3\" authorId=\"0\"><text><r><t>Checked by hand</t></r></text></comment>"
+    ));
+    assert!(comments.contains(
+        "<comment ref=\"B7\" authorId=\"1\"><text><r><t>A &lt;second&gt; note</t></r></text></comment>"
+    ));
+    let vml = book.part("xl/drawings/vmlDrawing1.vml");
+    assert_eq!(vml.matches("<x:ClientData ObjectType=\"Note\">").count(), 2);
+    assert!(vml.contains("<x:Row>2</x:Row><x:Column>1</x:Column>"));
+    assert!(vml.contains("<x:Row>6</x:Row><x:Column>1</x:Column>"));
+
+    let types = book.part("[Content_Types].xml");
+    assert!(types.contains("<Default Extension=\"vml\""));
+    assert!(types.contains("<Override PartName=\"/xl/comments1.xml\""));
+}
+
+#[test]
+fn data_validation_writes_every_rule_kind_and_its_messages() {
+    let mut writer = writer();
+    let out = writer
+        .sheet(SheetOptions::named("Shop"), &orders(9))
+        .unwrap();
+    let mut list = validation("A2:A9", RuleKind::List, &["new", "paid", "sent"]);
+    list.input_title = Some("Status".to_owned());
+    list.input_message = Some("Pick a status".to_owned());
+    list.error_title = Some("Wrong status".to_owned());
+    list.error_message = Some("Use a status from the list".to_owned());
+    list.allow_empty = true;
+    let mut whole = validation("B2:B9", RuleKind::Whole, &["1", "100"]);
+    whole.operator = Some(Operator::NotBetween);
+    let mut decimal = validation("C2:C9", RuleKind::Decimal, &["0.5"]);
+    decimal.operator = Some(Operator::GreaterOrEqual);
+    let date = validation("D2:D9", RuleKind::Date, &["2024-01-01", "2024-12-31"]);
+    let mut length = validation("E2:E9", RuleKind::Length, &["20"]);
+    length.operator = Some(Operator::LessOrEqual);
+    for part in [
+        list,
+        validation("F2:F9", RuleKind::List, &["=$H$1:$H$4"]),
+        whole,
+        decimal,
+        date,
+        length,
+        validation("G2:G9", RuleKind::Formula, &["=ISNUMBER(G2)"]),
+    ] {
+        writer.part(Part::Validation(part)).unwrap();
+    }
+
+    let message = invalid(writer.part(Part::Validation(validation(
+        "A2:A9",
+        RuleKind::List,
+        &["a,b"],
+    ))));
+    assert!(message.contains("has a `,`"), "{message}");
+    let message = invalid(writer.part(Part::Validation(validation(
+        "B2:B9",
+        RuleKind::Whole,
+        &["1"],
+    ))));
+    assert!(message.contains("needs 2 value(s) and has 1"), "{message}");
+    let long = "x".repeat(200);
+    let message = invalid(writer.part(Part::Validation(validation(
+        "A2:A9",
+        RuleKind::List,
+        &[&long, &long],
+    ))));
+    assert!(message.contains("at most 255"), "{message}");
+    let book = finish(writer, out);
+
+    let rules = between(book.sheet(1), "<dataValidations", "</dataValidations>");
+    assert!(rules.starts_with("<dataValidations count=\"7\">"));
+    for expected in [
+        "<dataValidation type=\"list\" allowBlank=\"1\" showInputMessage=\"1\" showErrorMessage=\"1\" \
+         errorTitle=\"Wrong status\" error=\"Use a status from the list\" promptTitle=\"Status\" \
+         prompt=\"Pick a status\" sqref=\"A2:A9\"><formula1>\"new,paid,sent\"</formula1></dataValidation>",
+        "<dataValidation type=\"list\" showInputMessage=\"1\" showErrorMessage=\"1\" sqref=\"F2:F9\"><formula1>$H$1:$H$4</formula1></dataValidation>",
+        "<dataValidation type=\"whole\" operator=\"notBetween\" showInputMessage=\"1\" showErrorMessage=\"1\" sqref=\"B2:B9\"><formula1>1</formula1><formula2>100</formula2></dataValidation>",
+        "<dataValidation type=\"decimal\" operator=\"greaterThanOrEqual\" showInputMessage=\"1\" showErrorMessage=\"1\" sqref=\"C2:C9\"><formula1>0.5</formula1></dataValidation>",
+        "<dataValidation type=\"date\" showInputMessage=\"1\" showErrorMessage=\"1\" sqref=\"D2:D9\"><formula1>45292</formula1><formula2>45657</formula2></dataValidation>",
+        "<dataValidation type=\"textLength\" operator=\"lessThanOrEqual\" showInputMessage=\"1\" showErrorMessage=\"1\" sqref=\"E2:E9\"><formula1>20</formula1></dataValidation>",
+        "<dataValidation type=\"custom\" showInputMessage=\"1\" showErrorMessage=\"1\" sqref=\"G2:G9\"><formula1>ISNUMBER(G2)</formula1></dataValidation>",
+    ] {
+        assert!(rules.contains(expected), "{expected}\nin {rules}");
+    }
+}
+
+#[test]
+fn hidden_rows_columns_and_sheets_and_outline_groups_are_written() {
+    let mut writer = writer();
+    let options = SheetOptions {
+        columns: vec![
+            Column::default(),
+            Column {
+                hidden: true,
+                ..Column::default()
+            },
+        ],
+        ..SheetOptions::named("Shop")
+    };
+    let mut out = writer.sheet(options, &[]).unwrap();
+    for grouped in ["2:5", "3:4", "C:D"] {
+        writer
+            .part(Part::Group(Group {
+                grouped: grouped.to_owned(),
+                collapsed: grouped == "3:4",
+            }))
+            .unwrap();
+    }
+    let mut rows = orders(7);
+    rows[5].hidden = true;
+    out.extend(writer.rows(&rows).unwrap());
+
+    // A group over a written row, a column group after the first row, and a group that is not
+    // one are errors.
+    let group = |grouped: &str| {
+        Part::Group(Group {
+            grouped: grouped.to_owned(),
+            collapsed: false,
+        })
+    };
+    assert!(invalid(writer.part(group("6:9"))).contains("already written"));
+    assert!(invalid(writer.part(group("E:F"))).contains("after its first row"));
+    assert!(invalid(writer.part(group("A1:B2"))).contains("not a range of rows or columns"));
+    writer.part(group("20:30")).unwrap();
+
+    out.extend(
+        writer
+            .sheet(
+                SheetOptions {
+                    visibility: Visibility::Hidden,
+                    ..SheetOptions::named("Shop data")
+                },
+                &orders(1),
+            )
+            .unwrap(),
+    );
+    let book = finish(writer, out);
+
+    let sheet = book.sheet(1);
+    assert!(sheet.contains(
+        "<sheetFormatPr defaultRowHeight=\"15\" outlineLevelRow=\"2\" outlineLevelCol=\"1\"/>"
+    ));
+    assert!(sheet.contains(
+        "<cols><col min=\"2\" max=\"2\" hidden=\"1\"/><col min=\"3\" max=\"3\" outlineLevel=\"1\"/><col min=\"4\" max=\"4\" outlineLevel=\"1\"/></cols>"
+    ));
+    assert!(sheet.contains("<row r=\"1\">"));
+    assert!(sheet.contains("<row r=\"2\" outlineLevel=\"1\">"));
+    assert!(sheet.contains("<row r=\"3\" hidden=\"1\" outlineLevel=\"2\">"));
+    assert!(sheet.contains("<row r=\"4\" hidden=\"1\" outlineLevel=\"2\">"));
+    assert!(sheet.contains("<row r=\"5\" outlineLevel=\"1\" collapsed=\"1\">"));
+    assert!(sheet.contains("<row r=\"6\" hidden=\"1\">"));
+    assert!(sheet.contains("<row r=\"7\">"));
+    assert!(
+        book.workbook()
+            .contains("<sheet name=\"Shop data\" sheetId=\"2\" state=\"hidden\" r:id=\"rId2\"/>")
+    );
+}
+
+#[test]
+fn page_setup_print_titles_and_print_area_are_written() {
+    let mut writer = writer();
+    let mut out = writer
+        .sheet(SheetOptions::named("Shop orders"), &[])
+        .unwrap();
+    writer
+        .part(Part::Print(Print {
+            orientation: Some(Orientation::Landscape),
+            fit_width: Some(1),
+            fit_height: None,
+            margins: Some(Margins {
+                top: 1.0,
+                right: 0.5,
+                bottom: 1.0,
+                left: 0.5,
+            }),
+            header: Some("&CShop orders".to_owned()),
+            footer: Some("&RPage &P of &N".to_owned()),
+            repeat_rows: Some("1:2".to_owned()),
+            area: Some("A1:B9".to_owned()),
+        }))
+        .unwrap();
+    out.extend(writer.rows(&orders(9)).unwrap());
+    let fit = Part::Print(Print {
+        fit_height: Some(2),
+        ..Print::default()
+    });
+    assert!(invalid(writer.part(fit)).contains("after its first row"));
+    let bad = Part::Print(Print {
+        repeat_rows: Some("A:B".to_owned()),
+        ..Print::default()
+    });
+    assert!(invalid(writer.part(bad)).contains("not a range of rows"));
+    let book = finish(writer, out);
+
+    let sheet = book.sheet(1);
+    assert!(sheet.contains("<sheetPr><pageSetUpPr fitToPage=\"1\"/></sheetPr>"));
+    assert!(sheet.ends_with(
+        "</sheetData><pageMargins left=\"0.5\" right=\"0.5\" top=\"1\" bottom=\"1\" header=\"0.3\" footer=\"0.3\"/>\
+         <pageSetup orientation=\"landscape\" fitToWidth=\"1\" fitToHeight=\"0\"/>\
+         <headerFooter><oddHeader>&amp;CShop orders</oddHeader><oddFooter>&amp;RPage &amp;P of &amp;N</oddFooter></headerFooter></worksheet>"
+    ));
+    let names = between(book.workbook(), "<definedNames>", "</definedNames>");
+    assert_eq!(
+        names,
+        "<definedNames><definedName name=\"_xlnm.Print_Area\" localSheetId=\"0\">'Shop orders'!$A$1:$B$9</definedName>\
+         <definedName name=\"_xlnm.Print_Titles\" localSheetId=\"0\">'Shop orders'!$1:$2</definedName></definedNames>"
+    );
+}
+
+#[test]
+fn protection_defined_names_and_document_properties_are_written() {
+    let mut writer = Writer::open(WorkbookOptions {
+        properties: Properties {
+            title: Some("Orders".to_owned()),
+            subject: Some("Shop orders".to_owned()),
+            author: Some("Shop".to_owned()),
+            company: Some("Example & Co".to_owned()),
+            keywords: Some("orders, shop".to_owned()),
+            created: Some(Clock {
+                day: Date {
+                    year: 2024,
+                    month: 3,
+                    day: 1,
+                },
+                clock: TimeOfDay {
+                    hour: 9,
+                    minute: 30,
+                    second: 0,
+                    nanos: 0,
+                },
+            }),
+        },
+        target: "orders.xlsx".to_owned(),
+    })
+    .unwrap();
+    let out = writer
+        .sheet(SheetOptions::named("Shop"), &orders(3))
+        .unwrap();
+    writer
+        .part(Part::Protect(Protect {
+            password: Some("password".to_owned()),
+            allow: vec![
+                "formatColumns".to_owned(),
+                "sort".to_owned(),
+                "objects".to_owned(),
+            ],
+        }))
+        .unwrap();
+    let message = invalid(writer.part(Part::Protect(Protect {
+        password: None,
+        allow: vec!["everything".to_owned()],
+    })));
+    assert!(
+        message.contains("`everything` is not something"),
+        "{message}"
+    );
+    writer.define("Quantities", "Shop!$B$1:$B$3").unwrap();
+    let book = finish(writer, out);
+
+    let sheet = book.sheet(1);
+    assert!(sheet.contains(
+        "</sheetData><sheetProtection password=\"83AF\" sheet=\"1\" scenarios=\"1\" formatColumns=\"0\" sort=\"0\"/></worksheet>"
+    ));
+    assert!(book.workbook().contains(
+        "<definedNames><definedName name=\"Quantities\">Shop!$B$1:$B$3</definedName></definedNames>"
+    ));
+    let core = book.part("docProps/core.xml");
+    for expected in [
+        "<dc:title>Orders</dc:title>",
+        "<dc:subject>Shop orders</dc:subject>",
+        "<dc:creator>Shop</dc:creator>",
+        "<cp:keywords>orders, shop</cp:keywords>",
+        "<dcterms:created xsi:type=\"dcterms:W3CDTF\">2024-03-01T09:30:00Z</dcterms:created>",
+    ] {
+        assert!(core.contains(expected), "{expected}");
+    }
+    assert!(
+        book.part("docProps/app.xml")
+            .contains("<Company>Example &amp; Co</Company>")
+    );
+    assert!(!book.has("xl/worksheets/_rels/sheet1.xml.rels"));
+}
+
+#[test]
+fn rich_text_in_one_cell_is_written() {
+    let mut writer = writer();
+    let bold = writer
+        .style(Style {
+            bold: Some(true),
+            ..Style::default()
+        })
+        .unwrap();
+    let red = writer
+        .style(Style {
+            color: Some("#FF0000".to_owned()),
+            italic: Some(true),
+            ..Style::default()
+        })
+        .unwrap();
+    let rich = Cell {
+        value: Some(Value::Rich(vec![
+            RichRun {
+                text: "Total: ".to_owned(),
+                style: Some(bold),
+            },
+            RichRun {
+                text: "late".to_owned(),
+                style: Some(red),
+            },
+            RichRun {
+                text: " & paid".to_owned(),
+                style: None,
+            },
+        ])),
+        style: None,
+    };
+    let out = writer
+        .sheet(SheetOptions::named("Shop"), &[row(vec![rich])])
+        .unwrap();
+    let book = finish(writer, out);
+
+    let cell = between(book.sheet(1), "<c r=\"A1\"", "</c>");
+    assert_eq!(
+        cell,
+        "<c r=\"A1\" t=\"inlineStr\"><is>\
+         <r><rPr><b/></rPr><t xml:space=\"preserve\">Total: </t></r>\
+         <r><rPr><i/><color rgb=\"FFFF0000\"/></rPr><t>late</t></r>\
+         <r><t xml:space=\"preserve\"> &amp; paid</t></r></is></c>"
+    );
+}
+
+#[test]
+fn a_formula_carries_its_cached_value_and_the_workbook_recalculates_on_open() {
+    let formula = |text: &str, cached_text: Option<&str>, cached_number: Option<f64>| Cell {
+        value: Some(Value::Formula {
+            formula: text.to_owned(),
+            cached_text: cached_text.map(str::to_owned),
+            cached_number,
+        }),
+        style: None,
+    };
+    // Without a formula, a workbook is not flagged.
+    let mut plain = writer();
+    let out = plain
+        .sheet(SheetOptions::named("Shop"), &orders(2))
+        .unwrap();
+    assert!(!finish(plain, out).workbook().contains("<calcPr"));
+
+    let mut writer = writer();
+    let mut out = writer
+        .sheet(SheetOptions::named("Shop"), &orders(3))
+        .unwrap();
+    out.extend(
+        writer
+            .rows(&[row(vec![
+                text("=SUM(B1:B3)"),
+                formula("SUM(B1:B3)", None, Some(3.0)),
+                formula("IF(B4>2,\"many\",\"few\")", Some("many"), None),
+                formula("NOW()", None, None),
+            ])])
+            .unwrap(),
+    );
+    let book = finish(writer, out);
+
+    let sheet = book.sheet(1);
+    let row = between(sheet, "<row r=\"4\">", "</row>");
+    assert_eq!(
+        row,
+        "<row r=\"4\"><c r=\"A4\" t=\"inlineStr\"><is><t>=SUM(B1:B3)</t></is></c>\
+         <c r=\"B4\"><f>SUM(B1:B3)</f><v>3</v></c>\
+         <c r=\"C4\" t=\"str\"><f>IF(B4&gt;2,\"many\",\"few\")</f><v>many</v></c>\
+         <c r=\"D4\"><f>NOW()</f></c></row>"
+    );
+    assert!(book.workbook().contains("<calcPr fullCalcOnLoad=\"1\"/>"));
+}

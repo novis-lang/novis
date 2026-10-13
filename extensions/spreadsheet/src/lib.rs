@@ -23,17 +23,18 @@
 //! ends, and one dropped before `writer-finish` writes an error to the request's log naming the
 //! workbook's `target` ([`writer::unfinished_message`]).
 //!
-//! **Not done yet.** `writer-part`, the reader and the template exports return `runtime`: the
-//! sheet-end parts are Stage 5 of goal `spreadsheet`, the reader Stage 7 and template fill
-//! Stage 10, and none of them is in `manifest.json` yet.
+//! **Not done yet.** Of `writer-part`'s cases, tables, conditional formats, images and charts
+//! return `runtime`: Stages 5 and 6 of goal `spreadsheet`. The reader and the template exports
+//! return `runtime` too, and are not in `manifest.json`: Stages 7 and 10.
 //!
-//! Packed as a `.nvsx` and embedded in every `nvs` binary, the component is 0.35 MiB, built for
+//! Packed as a `.nvsx` and embedded in every `nvs` binary, the component is 0.41 MiB, built for
 //! release as `crates/nvs-ext/build.rs` always builds it. That is the binary's growth for
 //! spreadsheets, and `crates/nvs-ext/tests/builtin.rs` fails when this figure drifts past 5% of
 //! the bytes the binary carries.
 
 pub mod cells;
 pub mod styles;
+pub mod tail;
 pub mod width;
 pub mod writer;
 pub mod xml;
@@ -445,6 +446,7 @@ mod guest {
 
     use std::cell::RefCell;
 
+    use crate::tail;
     use exports::nvs::spreadsheet::engine as wit;
     use exports::nvs::spreadsheet::engine::{Guest, GuestReader, GuestTemplate, GuestWriter};
     use nvs::ext::log;
@@ -659,6 +661,91 @@ mod guest {
         }
     }
 
+    fn operator(operator: wit::Operator) -> tail::Operator {
+        match operator {
+            wit::Operator::Between => tail::Operator::Between,
+            wit::Operator::NotBetween => tail::Operator::NotBetween,
+            wit::Operator::Equal => tail::Operator::Equal,
+            wit::Operator::NotEqual => tail::Operator::NotEqual,
+            wit::Operator::Greater => tail::Operator::Greater,
+            wit::Operator::GreaterOrEqual => tail::Operator::GreaterOrEqual,
+            wit::Operator::Less => tail::Operator::Less,
+            wit::Operator::LessOrEqual => tail::Operator::LessOrEqual,
+        }
+    }
+
+    /// The part `part` is, or `runtime` for a kind this version does not write yet.
+    fn sheet_part(part: wit::SheetPart) -> Result<tail::Part, wit::Error> {
+        use tail::Part;
+        Ok(match part {
+            wit::SheetPart::Merge(merge) => Part::Merge(merge.merge),
+            wit::SheetPart::Link(link) => Part::Link(tail::Link {
+                anchor: link.anchor,
+                target: link.target,
+                text: link.text,
+                tooltip: link.tooltip,
+            }),
+            wit::SheetPart::Note(note) => Part::Note(tail::Note {
+                noted: note.noted,
+                note: note.note,
+                author: note.author,
+            }),
+            wit::SheetPart::Validation(rule) => Part::Validation(tail::Validation {
+                validated: rule.validated,
+                kind: match rule.kind {
+                    wit::RuleKind::List => tail::RuleKind::List,
+                    wit::RuleKind::Whole => tail::RuleKind::Whole,
+                    wit::RuleKind::Decimal => tail::RuleKind::Decimal,
+                    wit::RuleKind::Date => tail::RuleKind::Date,
+                    wit::RuleKind::Length => tail::RuleKind::Length,
+                    wit::RuleKind::Formula => tail::RuleKind::Formula,
+                },
+                operator: rule.operator.map(operator),
+                values: rule.values,
+                input_title: rule.input_title,
+                input_message: rule.input_message,
+                error_title: rule.error_title,
+                error_message: rule.error_message,
+                allow_empty: rule.allow_empty,
+            }),
+            wit::SheetPart::Group(group) => Part::Group(tail::Group {
+                grouped: group.grouped,
+                collapsed: group.collapsed,
+            }),
+            wit::SheetPart::Print(print) => Part::Print(tail::Print {
+                orientation: print.orientation.map(|orientation| match orientation {
+                    wit::Orientation::Portrait => tail::Orientation::Portrait,
+                    wit::Orientation::Landscape => tail::Orientation::Landscape,
+                }),
+                fit_width: print.fit_width,
+                fit_height: print.fit_height,
+                margins: print.margins.map(|margins| tail::Margins {
+                    top: margins.top,
+                    right: margins.right,
+                    bottom: margins.bottom,
+                    left: margins.left,
+                }),
+                header: print.header,
+                footer: print.footer,
+                repeat_rows: print.repeat_rows,
+                area: print.area,
+            }),
+            wit::SheetPart::Protect(protect) => Part::Protect(tail::Protect {
+                password: protect.password,
+                allow: protect.allow,
+            }),
+            wit::SheetPart::Table(_)
+            | wit::SheetPart::Conditional(_)
+            | wit::SheetPart::Image(_)
+            | wit::SheetPart::Chart(_) => {
+                return Err(wit::Error::Runtime(
+                    "This version of Novis cannot add tables, conditional formats, images or charts to a sheet yet."
+                        .to_owned(),
+                ));
+            }
+        })
+    }
+
     fn with<T>(
         writer: wit::WriterBorrow<'_>,
         call: impl FnOnce(&mut crate::Writer) -> Result<T, crate::Error>,
@@ -717,13 +804,11 @@ mod guest {
         }
 
         fn writer_part(
-            _writer: wit::WriterBorrow<'_>,
-            _part: wit::SheetPart,
+            writer: wit::WriterBorrow<'_>,
+            part: wit::SheetPart,
         ) -> Result<Vec<u8>, wit::Error> {
-            Err(wit::Error::Runtime(
-                "This version of Novis cannot add merged cells, links, notes, tables or charts to a sheet yet."
-                    .to_owned(),
-            ))
+            let part = sheet_part(part)?;
+            with(writer, |writer| writer.part(part))
         }
 
         fn writer_define(

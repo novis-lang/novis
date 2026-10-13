@@ -37,13 +37,17 @@
 //! and the program may go on. The one exception is [`Writer::sheet`] given first rows that fail:
 //! the sheet is open by then, and stays open with no rows.
 //!
-//! **Not done yet.** The sheet-end parts (`writer-part`) return an error: Stage 5 of goal
-//! `spreadsheet`.
+//! **The sheet-end parts** ([`Writer::part`]) are kept by the open sheet until it ends, and then
+//! written after its rows, with the entries of its own they need (`tail`'s module doc). A part
+//! goes to the sheet that is open when it is added, so a part added after an overflow goes to the
+//! sheet the overflow opened. The print area and the rows to repeat are names `workbook.xml`
+//! defines for the sheet, beside its autofilter's.
 
 use std::fmt::Write as _;
 
 use crate::cells::{self, Layers};
 use crate::styles::{Implicit, Styles, argb};
+use crate::tail::{Groups, Part, Tail};
 use crate::zip::Archive;
 use crate::{
     Clock, Error, Finished, Row, SheetOptions, SheetRows, Style, Visibility, WorkbookOptions,
@@ -61,13 +65,15 @@ const MAIN: &str = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
 const RELS: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
 const PACKAGE_RELS: &str = "http://schemas.openxmlformats.org/package/2006/relationships";
 
-/// A sheet already started. `filter` is the absolute range of its autofilter, once it ends.
+/// A sheet already started. `names` are the names `workbook.xml` defines for it, each with its
+/// reference in the sheet, and `notes` whether it has a comments part; both are set when it ends.
 struct Sheet {
     name: String,
     position: Option<u64>,
     visibility: Visibility,
     rows: u64,
-    filter: Option<String>,
+    names: Vec<(&'static str, String)>,
+    notes: bool,
 }
 
 /// The sheet whose rows are being written.
@@ -87,6 +93,10 @@ struct OpenSheet {
     part: u32,
     /// The number the next row gets, from 1.
     next: u32,
+    /// Its sheet-end parts, its outline groups, and whether its head fits it to pages.
+    tail: Tail,
+    groups: Groups,
+    fit: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -355,7 +365,8 @@ impl Writer {
             position: options.position,
             visibility: options.visibility,
             rows: 0,
-            filter: None,
+            names: Vec::new(),
+            notes: false,
         });
         self.open = Some(OpenSheet {
             index,
@@ -367,7 +378,35 @@ impl Writer {
             base,
             part,
             next: 1,
+            tail: Tail::default(),
+            groups: Groups::default(),
+            fit: false,
         });
+    }
+
+    /// Adds a sheet-end part to the open sheet. Returns the bytes ready to leave.
+    pub fn part(&mut self, part: Part) -> Result<Vec<u8>, Error> {
+        self.writing()?;
+        let Some(open) = self.open.as_mut() else {
+            return Err(Error::Invalid(
+                "No sheet is open. Call `sheet()` before you add to it.".to_owned(),
+            ));
+        };
+        let sheet = open.options.name.as_str();
+        match part {
+            Part::Group(group) => open.groups.add(&group, sheet, open.next, open.started)?,
+            Part::Print(print) => {
+                if print.fits() && open.started {
+                    return Err(Error::Invalid(format!(
+                        "The sheet `{sheet}` cannot be fitted to pages after its first row. Set the fit before you add rows."
+                    )));
+                }
+                open.fit |= print.fits();
+                open.tail.add(Part::Print(print), sheet)?;
+            }
+            part => open.tail.add(part, sheet)?,
+        }
+        Ok(self.archive.take())
     }
 
     /// Checks a sheet's options against Excel's rules and the sheets already started.
@@ -550,6 +589,7 @@ impl Writer {
             } else {
                 row.style
             };
+            let outline = open.groups.row(number);
             if row.cells.len() > MAX_COLUMNS {
                 return Err(Error::Invalid(format!(
                     "Row {number} of the sheet `{name}` has {} cells. A row has at most 16,384 cells.",
@@ -573,17 +613,20 @@ impl Writer {
                 cells::number(out, height);
                 out.push_str("\" customHeight=\"1\"");
             }
-            if row.hidden {
+            if row.hidden || outline.hidden {
                 out.push_str(" hidden=\"1\"");
             }
-            if row.level > 7 {
+            let level = row.level + outline.level;
+            if level > 7 {
                 return Err(Error::Invalid(format!(
-                    "Row {number} of the sheet `{name}` has the outline level {}. The level is from 0 to 7.",
-                    row.level
+                    "Row {number} of the sheet `{name}` has the outline level {level}, counting its groups. The level is from 0 to 7."
                 )));
             }
-            if row.level > 0 {
-                let _ = write!(out, " outlineLevel=\"{}\"", row.level);
+            if level > 0 {
+                let _ = write!(out, " outlineLevel=\"{level}\"");
+            }
+            if outline.collapsed {
+                out.push_str(" collapsed=\"1\"");
             }
             out.push('>');
             for (column, cell) in row.cells.iter().enumerate() {
@@ -613,12 +656,15 @@ impl Writer {
         let options = &open.options;
         out.push_str(XML_HEAD);
         let _ = write!(out, "<worksheet xmlns=\"{MAIN}\" xmlns:r=\"{RELS}\">");
-        if let Some(color) = &options.tab_color {
-            let _ = write!(
-                out,
-                "<sheetPr><tabColor rgb=\"{}\"/></sheetPr>",
-                argb(color)?
-            );
+        if options.tab_color.is_some() || open.fit {
+            out.push_str("<sheetPr>");
+            if let Some(color) = &options.tab_color {
+                let _ = write!(out, "<tabColor rgb=\"{}\"/>", argb(color)?);
+            }
+            if open.fit {
+                out.push_str("<pageSetUpPr fitToPage=\"1\"/>");
+            }
+            out.push_str("</sheetPr>");
         }
         out.push_str("<sheetViews><sheetView");
         if !options.gridlines {
@@ -659,7 +705,17 @@ impl Writer {
                  <selection pane=\"{pane}\" activeCell=\"{top_left}\" sqref=\"{top_left}\"/></sheetView>"
             );
         }
-        out.push_str("</sheetViews><sheetFormatPr defaultRowHeight=\"15\"/>");
+        out.push_str("</sheetViews><sheetFormatPr defaultRowHeight=\"15\"");
+        let (row_depth, column_depth) = open.groups.depth();
+        let first_depth = first.iter().map(|row| row.level).max().unwrap_or(0);
+        let row_depth = (row_depth + first_depth).min(7);
+        if row_depth > 0 {
+            let _ = write!(out, " outlineLevelRow=\"{row_depth}\"");
+        }
+        if column_depth > 0 {
+            let _ = write!(out, " outlineLevelCol=\"{}\"", column_depth.min(7));
+        }
+        out.push_str("/>");
         // A column the options do not list has auto width under a header row.
         let count = if header {
             let widest = first.iter().map(|row| row.cells.len()).max().unwrap_or(0);
@@ -667,6 +723,7 @@ impl Writer {
         } else {
             options.columns.len()
         };
+        let count = count.max(open.groups.columns_reached());
         let mut cols = String::new();
         for at in 0..count {
             let column = options.columns.get(at);
@@ -674,7 +731,8 @@ impl Writer {
                 Some(style) => self.styles.xf(Some(style), None, None, Implicit::None)?,
                 None => 0,
             };
-            let hidden = column.is_some_and(|column| column.hidden);
+            let outline = open.groups.column(at as u32);
+            let hidden = column.is_some_and(|column| column.hidden) || outline.hidden;
             let width = match column.and_then(|column| column.width) {
                 Some(width) => Some(width),
                 None if column.map_or(header, |column| column.auto) => {
@@ -688,7 +746,7 @@ impl Writer {
                 }
                 None => None,
             };
-            if width.is_none() && xf == 0 && !hidden {
+            if width.is_none() && xf == 0 && !hidden && outline == Default::default() {
                 continue;
             }
             let _ = write!(cols, "<col min=\"{0}\" max=\"{0}\"", at + 1);
@@ -703,6 +761,12 @@ impl Writer {
             if hidden {
                 cols.push_str(" hidden=\"1\"");
             }
+            if outline.level > 0 {
+                let _ = write!(cols, " outlineLevel=\"{}\"", outline.level.min(7));
+            }
+            if outline.collapsed {
+                cols.push_str(" collapsed=\"1\"");
+            }
             cols.push_str("/>");
         }
         if !cols.is_empty() {
@@ -712,7 +776,8 @@ impl Writer {
         Ok(options.columns.iter().map(|column| column.style).collect())
     }
 
-    /// Ends the open sheet's part, starting it first when no row was written to it.
+    /// Ends the open sheet's part, starting it first when no row was written to it, and writes
+    /// the entries its sheet-end parts need.
     fn end_sheet(&mut self) -> Result<(), Error> {
         let Some(open) = self.open.take() else {
             return Ok(());
@@ -734,13 +799,28 @@ impl Writer {
             }
             _ => None,
         };
-        if let Some(range) = &filter {
-            let _ = write!(tail, "<autoFilter ref=\"{range}\"/>");
-            self.sheets[open.index].filter = Some(absolute(range));
-        }
+        open.tail.write(&mut tail, filter.as_deref());
         tail.push_str("</worksheet>");
         self.archive.write(tail.as_bytes())?;
-        self.archive.end()
+        self.archive.end()?;
+        let number = open.index + 1;
+        let mut entries = Vec::new();
+        if let Some(rels) = open.tail.rels(number) {
+            entries.push((format!("xl/worksheets/_rels/sheet{number}.xml.rels"), rels));
+        }
+        entries.extend(open.tail.notes(number));
+        for (name, text) in &entries {
+            self.archive.begin(name)?;
+            self.archive.write(text.as_bytes())?;
+            self.archive.end()?;
+        }
+        let sheet = &mut self.sheets[open.index];
+        if let Some(range) = &filter {
+            sheet.names.push(("_xlnm._FilterDatabase", absolute(range)));
+        }
+        sheet.names.extend(open.tail.print_names());
+        sheet.notes = open.tail.has_notes();
+        Ok(())
     }
 
     /// The sheets' indexes in tab order.
@@ -819,21 +899,27 @@ impl Writer {
             let _ = write!(workbook, " r:id=\"rId{}\"/>", at + 1);
         }
         workbook.push_str("</sheets>");
-        let filters: Vec<(usize, String)> = order
+        let local: Vec<(usize, &str, String)> = order
             .iter()
             .enumerate()
-            .filter_map(|(tab, &at)| {
+            .flat_map(|(tab, &at)| {
                 let sheet = &self.sheets[at];
-                let range = sheet.filter.as_ref()?;
-                Some((tab, format!("{}!{range}", quoted(&sheet.name))))
+                sheet.names.iter().map(move |(name, range)| {
+                    (tab, *name, format!("{}!{range}", quoted(&sheet.name)))
+                })
             })
             .collect();
-        if !self.names.is_empty() || !filters.is_empty() {
+        if !self.names.is_empty() || !local.is_empty() {
             workbook.push_str("<definedNames>");
-            for (tab, reference) in &filters {
+            for (tab, name, reference) in &local {
+                let hidden = if *name == "_xlnm._FilterDatabase" {
+                    " hidden=\"1\""
+                } else {
+                    ""
+                };
                 let _ = write!(
                     workbook,
-                    "<definedName name=\"_xlnm._FilterDatabase\" localSheetId=\"{tab}\" hidden=\"1\">"
+                    "<definedName name=\"{name}\" localSheetId=\"{tab}\"{hidden}>"
                 );
                 xml::text(&mut workbook, reference);
                 workbook.push_str("</definedName>");
@@ -924,8 +1010,15 @@ impl Writer {
         types.push_str(
             "<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\">\
              <Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/>\
-             <Default Extension=\"xml\" ContentType=\"application/xml\"/>\
-             <Override PartName=\"/xl/workbook.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml\"/>",
+             <Default Extension=\"xml\" ContentType=\"application/xml\"/>",
+        );
+        if self.sheets.iter().any(|sheet| sheet.notes) {
+            types.push_str(
+                "<Default Extension=\"vml\" ContentType=\"application/vnd.openxmlformats-officedocument.vmlDrawing\"/>",
+            );
+        }
+        types.push_str(
+            "<Override PartName=\"/xl/workbook.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml\"/>",
         );
         for at in 0..count {
             let _ = write!(
@@ -933,6 +1026,13 @@ impl Writer {
                 "<Override PartName=\"/xl/worksheets/sheet{}.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml\"/>",
                 at + 1
             );
+            if self.sheets[at].notes {
+                let _ = write!(
+                    types,
+                    "<Override PartName=\"/xl/comments{}.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.comments+xml\"/>",
+                    at + 1
+                );
+            }
         }
         types.push_str(
             "<Override PartName=\"/xl/styles.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml\"/>\
