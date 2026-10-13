@@ -33,9 +33,19 @@ final class Pages {
         return Pages::layout($title, html`<h1>{$title}</h1><p>{$body}</p><p><a href="/">All notes</a></p>`);
     }
 
-    // The page for a path that has no route.
+    // The page for a path that has no route, or for a note that does not exist.
     public static function notFound(): Markup {
-        return Pages::layout("Not found", html`<h1>Not found</h1><p><a href="/">All notes</a></p>`);
+        return Pages::problem("Not found", "There is no page at this address.");
+    }
+
+    // The page for an error in the app.
+    public static function failed(): Markup {
+        return Pages::problem("Something went wrong", "Please try again later.");
+    }
+
+    // A page with a title, one sentence and a link to the home page.
+    public static function problem(string $title, string $text): Markup {
+        return Pages::layout($title, html`<h1>{$title}</h1><p>{$text}</p><p><a href="/">All notes</a></p>`);
     }
 
     // Returns a list of the problems, or nothing when there are none.

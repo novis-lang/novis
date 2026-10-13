@@ -90,6 +90,7 @@ The tests open each finished PDF file with `Novis\Pdf\Reader` and check the text
     ✓ theHomePageLinksEachDocument     0.7 ms
     ✓ eachDocumentIsSentAsAPdf         589.4 ms
     ✓ anUnknownPathIsNotFound          0.3 ms
+    ✓ aWrongMethodIsNotAllowed         0.2 ms
   Paperwork\InvoiceTest
     ✓ theTotalsAddUp                   0.5 ms
     ✓ theLastPageShowsTheTotal         172.7 ms
@@ -108,7 +109,7 @@ The tests open each finished PDF file with `Novis\Pdf\Reader` and check the text
     ✓ eachTicketPageHasItsAttendee     297.2 ms
     ✓ nothingIsDroppedOrCutOff         248.1 ms
 
-  0 failed, 17 passed, 0 skipped, 0 flaky in 3305 ms
+  0 failed, 18 passed, 0 skipped, 0 flaky in 3305 ms
 ```
 
 ## What each file does
@@ -126,7 +127,8 @@ paperwork/
     Brand.nvs          the logo, the colours and the money format of all three documents
     Chart.nvs          draws the charts of the report as SVG images
     FacturX.nvs        writes the XML of the electronic invoice
-    Home.nvs           the HTML page with a link to each document
+    Gate.nvs           decides which routes may run, and shows the error pages
+    Home.nvs           the HTML pages: a link to each document, and the error pages
     Invoice.nvs        the invoice
     InvoiceTest.nvs    tests the totals, the pages and the XML of the invoice
     Report.nvs         the quarterly report
@@ -140,8 +142,16 @@ paperwork/
 `nvs.toml` has one section. `[capabilities.fs]` allows the app to read the file `assets/logo.svg`.
 The app cannot read any other file, and it cannot write a file.
 
+`public/index.nvs` calls `Core\Router::dispatch(new Paperwork\Gate())`. `dispatch` finds the route
+that matches the request and calls its method.
+
 `src/App.nvs` has one method for each route. `send()` sets the header
 `content-disposition: inline`, so the browser shows the PDF file. Then it sends the bytes with `Core\Response::bytes`.
+
+`src/Gate.nvs` is the gate, and `dispatch` calls it for every request. `allows` runs before each
+route method. `refused` shows a page when no route can handle the request, such as a path with no
+route (`404`) or a wrong HTTP method (`405`). `failed` shows a page when a route method throws an error (`500`). `dispatch` sets the
+status code first, so the gate only shows the page.
 
 `Invoice.nvs`, `Report.nvs` and `Tickets.nvs` each build the HTML of their document with an `html`
 template, which escapes every value. `Document::fromHtml` reads that HTML. Each method call after it
@@ -212,7 +222,7 @@ The tests:
 
 1. Copy the folder `apps/paperwork` and give it the name of your app.
 2. Choose a namespace for your app, for example `Shop`. Change `namespace Paperwork;` in each file
-   under `src/`, and the `autoload` line in `public/index.nvs`.
+   under `src/`, and the `autoload` line and `Paperwork\Gate` in `public/index.nvs`.
 3. Keep the document that is closest to yours, for example `Invoice.nvs`, and its test. Delete the
    other documents, their tests and their routes in `src/App.nvs`.
 4. Replace `Sample.nvs` with your own data. Then change the HTML and the CSS. Run `nvs test .` after

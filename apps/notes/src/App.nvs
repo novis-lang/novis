@@ -10,33 +10,9 @@ use Core\Response;
 use Core\Route;
 use ParseError;
 
-// The routes of the app. Each method with a `Route` answers one kind of request.
+// The routes of the app. Each method with a `Route` handles one kind of request.
+// `Core\Router::dispatch` in `public/index.nvs` calls the method of the route that matches.
 final class App {
-    // Answers one request. `public/index.nvs` calls this for every request.
-    public static function handle(): void {
-        // `route()` returns the route that matches the method and the path, or `null`.
-        ?Core\Router\Match $matched = Request::route();
-        if ($matched == null) {
-            Response::setStatus(404);
-            Response::html(Pages::notFound());
-            return;
-        }
-        string $name = $matched->name() ?? "";
-        if ($name == "App::home") {
-            App::home();
-        } else if ($name == "App::save") {
-            App::save();
-        } else if ($name == "App::show") {
-            App::show($matched->param("id") as uint);
-        } else if ($name == "App::apiList") {
-            App::apiList();
-        } else if ($name == "App::apiShow") {
-            App::apiShow($matched->param("id") as uint);
-        } else if ($name == "App::apiAdd") {
-            App::apiAdd();
-        }
-    }
-
     // Shows the form and every note.
     #[Route(path: "/", method: Method::Get, name: "App::home")]
     #[Access(allow: Audience::Public)]

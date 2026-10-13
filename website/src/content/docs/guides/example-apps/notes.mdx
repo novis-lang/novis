@@ -59,6 +59,9 @@ nvs test .
     ✓ aFormWithNoTitleShowsTheProblem  0.5 ms
     ✓ theApiChecksTheJson              0.2 ms
     ✓ aMissingNoteIsNotFound           0.4 ms
+    ✓ anErrorShowsTheFailurePage       0.4 ms
+    ✓ aWrongMethodIsNotAllowed         0.2 ms
+    ✓ aFormFromAnotherSiteIsRefused    0.2 ms
   Notes\DraftTest
     ✓ aTitleAndATextAreValid           0.1 ms
     ✓ aTitleWithOnlySpacesIsNotValid   0.1 ms
@@ -69,7 +72,7 @@ nvs test .
     ✓ theNewestNoteIsFirst             0.3 ms
     ✓ aMissingNoteIsNull               0.2 ms
 
-  0 failed, 11 passed, 0 skipped, 0 flaky in 16 ms
+  0 failed, 14 passed, 0 skipped, 0 flaky in 16 ms
 ```
 
 ## What each file does
@@ -80,10 +83,11 @@ notes/
   public/
     index.nvs          the entry file: every request starts here
   src/
-    App.nvs            the routes, and the method that sends each request to its route
+    App.nvs            the routes: one method for each kind of request
     AppTest.nvs        sends requests to the app and checks the responses
     Draft.nvs          a note from the form or the API, and the checks on it
     DraftTest.nvs      tests the checks on a new note
+    Gate.nvs           decides which routes may run, and shows the error pages
     Note.nvs           a saved note
     Pages.nvs          the HTML pages
     Store.nvs          reads and saves notes in the database
@@ -95,11 +99,21 @@ memory, and only the tests use it. The section `[capabilities.db]` allows the ap
 databases. A database that is not in this list cannot be opened.
 
 `public/index.nvs` has two lines. The `autoload` line reads each class `Notes\...` from the folder
-`src`. Then it calls `Notes\App::handle()`.
+`src`. Then it calls `Core\Router::dispatch(new Notes\Gate())`. `dispatch` finds the route that
+matches the request and calls its method.
 
 `src/App.nvs` has one method for each route. A `#[Core\Route]` attribute gives the path and the
-HTTP method. `handle()` calls `Core\Request::route()` to find the route that matches the request.
-Then it calls the method of that route. A path with no route gets the status `404`.
+HTTP method. A `#[Core\Access]` attribute says who may use the route. Every route of this app is
+public.
+
+`src/Gate.nvs` is the gate. `dispatch` calls it for every request, and it has three methods:
+
+- `allows` runs before each route method. The route method runs only when `allows` returns `true`.
+- `refused` shows a page when no route method can handle the request. Examples are a path with no
+  route (`404`), a wrong HTTP method (`405`) and a form sent from another website (`403`).
+- `failed` shows a page when a route method throws an error. The status is `500`.
+
+`dispatch` sets the status code before it calls `refused` or `failed`, so the gate only shows the page.
 
 `src/Draft.nvs` is a note that is not saved yet. The form and the JSON API both create a `Draft`.
 Its text came from the user, so it is `tainted string`. `problems()` returns one message for each
@@ -133,7 +147,7 @@ curl http://127.0.0.1:8000/api/notes
 
 1. Copy the folder `apps/notes` and give it the name of your app.
 2. Choose a namespace for your app, for example `Shop`. Change `namespace Notes;` in each file
-   under `src/`, and the `autoload` line in `public/index.nvs`.
+   under `src/`, and the `autoload` line and `Notes\Gate` in `public/index.nvs`.
 3. In `nvs.toml`, rename the database `notes` and its file. Change the name in
    `[capabilities.db]` and in the call to `Core\Db::connect` in `src/App.nvs`.
 4. Delete the classes you do not need, and their tests. Run `nvs test .` after each change.

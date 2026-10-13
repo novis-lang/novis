@@ -3,4 +3,6 @@
 // The `autoload` line reads each class `Notes\...` from the folder `src`.
 autoload 'Notes' from '../src';
 
-Notes\App::handle();
+// `dispatch` finds the route for the request and calls its method.
+// `Notes\Gate` decides if the method may run, and it shows the error pages.
+Core\Router::dispatch(new Notes\Gate());

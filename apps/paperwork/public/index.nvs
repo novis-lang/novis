@@ -3,4 +3,6 @@
 // The `autoload` line reads each class `Paperwork\...` from the folder `src`.
 autoload 'Paperwork' from '../src';
 
-Paperwork\App::handle();
+// `dispatch` finds the route for the request and calls its method.
+// `Paperwork\Gate` decides if the method may run, and it shows the error pages.
+Core\Router::dispatch(new Paperwork\Gate());

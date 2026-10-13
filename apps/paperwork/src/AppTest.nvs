@@ -30,7 +30,17 @@ final class AppTest {
 
     #[Test]
     public function anUnknownPathIsNotFound(): void {
-        Test::assertEquals(Test::request(Method::Get, "/no-such-page")->status(), 404);
-        Test::assertEquals(Test::request(Method::Post, "/invoice.pdf")->status(), 404);
+        var $response = Test::request(Method::Get, "/no-such-page");
+        Test::assertEquals($response->status(), 404);
+        Test::assertTrue(Str::contains($response->body(), "There is no page at this address."));
+    }
+
+    #[Test]
+    public function aWrongMethodIsNotAllowed(): void {
+        // The documents have only `GET` routes. The `allow` header lists the methods a path has.
+        var $response = Test::request(Method::Post, "/invoice.pdf");
+        Test::assertEquals($response->status(), 405);
+        Test::assertEquals($response->header("allow"), "GET");
+        Test::assertTrue(Str::contains($response->body(), "This address only opens a document."));
     }
 }

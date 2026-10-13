@@ -4,33 +4,12 @@ namespace Paperwork;
 use Core\Access;
 use Core\Audience;
 use Core\Http\Method;
-use Core\Request;
 use Core\Response;
 use Core\Route;
 
 // The routes of the app. Each method with a `Route` handles one kind of request.
+// `Core\Router::dispatch` in `public/index.nvs` calls the method of the route that matches.
 final class App {
-    // Handles one request. `public/index.nvs` calls this for every request.
-    public static function handle(): void {
-        // `route()` returns the route that matches the method and the path, or `null`.
-        ?Core\Router\Match $matched = Request::route();
-        if ($matched == null) {
-            Response::setStatus(404);
-            Response::html(Home::notFound());
-            return;
-        }
-        string $name = $matched->name() ?? "";
-        if ($name == "App::home") {
-            App::home();
-        } else if ($name == "App::invoice") {
-            App::invoice();
-        } else if ($name == "App::report") {
-            App::report();
-        } else if ($name == "App::tickets") {
-            App::tickets();
-        }
-    }
-
     // Shows a link to each document.
     #[Route(path: "/", method: Method::Get, name: "App::home")]
     #[Access(allow: Audience::Public)]
