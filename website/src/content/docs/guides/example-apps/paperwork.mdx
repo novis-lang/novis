@@ -5,12 +5,10 @@ description: A small web app that makes three PDF files. They are an invoice, an
 shows: ['Novis\Pdf', 'Novis\Image\QrCode', 'Novis\Image\Barcode']
 ---
 
-import PdfPreview from '@components/PdfPreview.astro'
-
 Paperwork is a small web app that makes three PDF documents, the way a business needs them.
 Each document is an HTML page with CSS. `Novis\Pdf\Document` turns it into a PDF file.
 
-The three files on this page are the files the app returns. You can look at them before you install
+The links below open the files that the app returns. You can look at them before you install
 anything.
 
 ## The invoice
@@ -22,7 +20,7 @@ The file follows PDF/A-3b, the standard for archived files. It also contains the
 in the Factur-X format. An accounting program reads this XML, so nobody needs to type the invoice
 again.
 
-<PdfPreview src="/example-apps/paperwork/invoice.pdf" title="the invoice" />
+[Open the invoice (PDF)](/example-apps/paperwork/invoice.pdf)
 
 ## The quarterly report
 
@@ -33,7 +31,7 @@ report.
 The file follows PDF/UA-1, the standard for accessible files. A screen reader can read it aloud, and
 each chart has a text that describes it.
 
-<PdfPreview src="/example-apps/paperwork/report.pdf" title="the report" />
+[Open the report (PDF)](/example-apps/paperwork/report.pdf)
 
 ## The event tickets
 
@@ -41,7 +39,7 @@ This file is for the person who bought four tickets. Page 1 is a summary of the 
 ticket has its own page, with a QR code and a barcode. The app renders each ticket as its own PDF
 file. Then `Pages::merge` joins the five files into one.
 
-<PdfPreview src="/example-apps/paperwork/tickets.pdf" title="the tickets" />
+[Open the tickets (PDF)](/example-apps/paperwork/tickets.pdf)
 
 ## Get it running
 

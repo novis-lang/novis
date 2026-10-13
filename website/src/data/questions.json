@@ -161,7 +161,7 @@
   },
   "/guides/example-apps/paperwork/": {
     "feature": "guides/example-apps/paperwork.mdx",
-    "hash": "a3966ebcf3fd5dcc",
+    "hash": "a0d4c3ac7d4e3275",
     "questions": [
       "Example app that makes PDF invoices, reports and tickets",
       "See a sample PDF made with Novis",
