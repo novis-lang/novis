@@ -1,0 +1,71 @@
+--TEST--
+`Core\Router::dispatch` discards the value a route method returns: the response is only what the method wrote, the status stays `200`, and the gate's `failed` does not run — `rule:routing/a-gate-answers-around-every-handler`
+--FILE--
+<?nvs
+// A route method may declare any return type.
+// `dispatch` ignores the value, so only what the method writes is sent.
+
+class Item {
+    public string $title = "";
+
+    public function constructor(string $title) {
+        $this->title = $title;
+    }
+}
+
+class Pages {
+    #[Core\Route(path: "/text", method: Core\Http\Method::Get, name: "text")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function text(): string {
+        echo "text ran\n";
+        return "this string is not sent";
+    }
+
+    #[Core\Route(path: "/count/{n}", method: Core\Http\Method::Get, name: "count")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function count(uint $n): uint {
+        echo "count ran\n";
+        return $n + 1;
+    }
+}
+
+// An instance method works the same way.
+class Items {
+    #[Core\Route(path: "/item", method: Core\Http\Method::Get, name: "item")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function item(): Item {
+        echo "item ran\n";
+        return new Item("this object is not sent");
+    }
+}
+
+class Gate implements Core\Router\Gate {
+    public function allows(Core\Router\Match $route): bool {
+        return true;
+    }
+
+    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void {
+        echo "refused\n";
+    }
+
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void {
+        echo "failed\n";
+    }
+}
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    Core\Router::dispatch(new Gate());
+} else {
+    var $text = Core\Test::request(Core\Http\Method::Get, "/text");
+    echo $text->status(), " ", $text->body();
+
+    var $count = Core\Test::request(Core\Http\Method::Get, "/count/41");
+    echo $count->status(), " ", $count->body();
+
+    var $item = Core\Test::request(Core\Http\Method::Get, "/item");
+    echo $item->status(), " ", $item->body();
+}
+--EXPECT--
+200 text ran
+200 count ran
+200 item ran
