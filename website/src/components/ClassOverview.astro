@@ -5,7 +5,8 @@
  * src/data/core.json, which holds implemented members only. An enum with a
  * Types page links to it.
  */
-import { findClass, typeLink } from '~/lib/core'
+import { findClass, shapeAnchor, typeLink } from '~/lib/core'
+import { shapeLines } from '~/lib/shape'
 
 interface Props {
   id: string
@@ -22,9 +23,6 @@ const enumPage = (name: string) => {
   const url = typeLink(name, cls.name)
   return url && !url.endsWith('#enums') ? url : null
 }
-
-/** A shape type on one line: `{format: Format, width: uint}`. */
-const oneLine = (type: string) => type.replace(/\s+/g, ' ').replace(/\{ /g, '{').replace(/,? \}/g, '}')
 ---
 
 <div class="class-overview">
@@ -106,16 +104,18 @@ const oneLine = (type: string) => type.replace(/\s+/g, ' ').replace(/\{ /g, '{')
     cls.types.length > 0 && (
       <>
         <h2 id="types">Shape types</h2>
-        <ul class="nv-param-docs">
-          {cls.types.map((t) => (
-            <li>
-              <span class="nv-param-head">
-                <code class="nv-param-name">{t.name}</code>
-              </span>
-              <code>{oneLine(t.type)}</code>
-            </li>
-          ))}
-        </ul>
+        {cls.types.map((t) => (
+          <>
+            <h3 id={shapeAnchor(t.name)}>
+              <code>{t.name}</code>
+            </h3>
+            <div class="method-signature shape-type not-content">
+              <div class="method-signature-decl-row">
+                <pre class="method-signature-decl"><code>{shapeLines(t.name, t.type, cls.name).map((html) => <span class="sig-line"><span class="sig-code" set:html={html} /><span class="sig-comment" /></span>)}</code></pre>
+              </div>
+            </div>
+          </>
+        ))}
       </>
     )
   }

@@ -153,7 +153,7 @@ export function findMember(id: string): { cls: CoreClass; member: CoreMember } |
  * `Core\Regex\Match`, and `Time\Date` in a Core class is `Core\Time\Date`.
  *
  * A class goes to its page, an enum, exception or interface to its Types
- * page, and a shape type to its class page's `#types` section. A spec enum
+ * page, and a shape type to its own heading on its class page. A spec enum
  * with no Types page goes to its class page's `#enums` section. A name that is
  * the last segment of exactly one of these is the last resort, and a built-in
  * scalar goes to the Syntax page. A name in `NO_PAGE` has no link, and any
@@ -161,6 +161,9 @@ export function findMember(id: string): { cls: CoreClass; member: CoreMember } |
  * not describe it.
  */
 const SYNTAX_PAGE = withBase('/syntax/')
+
+/** The id of a shape type's heading on its class page: `type-info` for `Info`. */
+export const shapeAnchor = (name: string) => `type-${name.toLowerCase()}`
 
 const BUILTIN_TYPES = new Set([
   'string', 'int', 'uint', 'float', 'decimal', 'bool', 'bytes', 'mixed', 'void', 'null', 'never',
@@ -171,7 +174,7 @@ const BUILTIN_TYPES = new Set([
 const pageOf = new Map<string, string>()
 for (const cls of classes) pageOf.set(cls.name, cls.url)
 for (const page of refPages) if (page.area === 'types' && page.intro) pageOf.set(page.intro.id, page.url)
-for (const cls of classes) for (const t of cls.types) pageOf.set(`${cls.name}::${t.name}`, `${cls.url}#types`)
+for (const cls of classes) for (const t of cls.types) pageOf.set(`${cls.name}::${t.name}`, `${cls.url}#${shapeAnchor(t.name)}`)
 
 /** The fully qualified names `name` may mean inside `owner`, most specific first. */
 function candidates(name: string, owner: string | undefined): string[] {
@@ -220,11 +223,10 @@ function declaredNearby(name: string, owner: string | undefined): string | undef
 
 /**
  * Names a signature uses that have no page anywhere, so they are shown without
- * a link. The first four are stated only in the spec's prose, and the rest are
- * internal types of a component's engine that the binary does not list. A name
- * is added here only when there is nothing to link it to.
+ * a link. Each is stated only in the spec's prose, and the binary does not
+ * list it. A name is added here only when there is nothing to link it to.
  */
-const NO_PAGE = new Set(['Db\\Settings', 'StrongDigest', 'Sink', 'method', 'Source', 'Pass', 'CellValue', 'SheetPart'])
+const NO_PAGE = new Set(['Db\\Settings', 'StrongDigest', 'Sink', 'method'])
 
 /**
  * The page a type name in a signature of `owner` links to; `null` for a

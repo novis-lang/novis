@@ -28031,7 +28031,12 @@
       "summary": "The functions that decode, change and encode images. `Novis\\Image\\Image` calls them for you, so most programs use `Image` instead.",
       "surface": "",
       "enums": [],
-      "types": [],
+      "types": [
+        {
+          "name": "Source",
+          "type": "{data: bytes, autoOrient: bool, toSrgb: bool, maxPixels?: uint, page?: uint, dpi?: float} | {width: uint, height: uint, fill: {r: uint, g: uint, b: uint, alpha: float}} | {width: uint, height: uint, pixels: bytes} | {text: string, font: bytes, size: float, maxWidth: ?uint, align: ?Align}"
+        }
+      ],
       "constants": [],
       "members": [
         {
@@ -32130,7 +32135,12 @@
       "summary": "The functions that render, merge and read PDF files. `Novis\\Pdf\\Document` calls them for you, so most programs use `Document` instead.",
       "surface": "",
       "enums": [],
-      "types": [],
+      "types": [
+        {
+          "name": "Pass",
+          "type": "{html: string, assets: array<{name: string, data: bytes}>, options: {standard: ?Standard, password: ?string, invoiceXml: ?string, created: ?Core\\Time\\Instant}} | {document: {html: string, assets: array<{name: string, data: bytes}>, options: {standard: ?Standard, password: ?string, invoiceXml: ?string, created: ?Core\\Time\\Instant}}, headerHeight: ?string, footerHeight: ?string} | {pages: array<{header: ?string, footer: ?string, slots: array<{name: string, value: string}>}>}"
+        }
+      ],
       "constants": [],
       "members": [
         {
@@ -32914,7 +32924,16 @@
       "summary": "The functions that write spreadsheet files. `Novis\\Spreadsheet\\Workbook` calls them for you, so most programs use `Workbook` instead.",
       "surface": "",
       "enums": [],
-      "types": [],
+      "types": [
+        {
+          "name": "CellValue",
+          "type": "{text: string} | {number: float} | {integer: int} | {decimal: string} | {boolean: bool} | {date: Core\\Time\\Date} | {time: Core\\Time\\TimeOfDay} | {duration: Core\\Time\\Duration} | {day: Core\\Time\\Date, clock: Core\\Time\\TimeOfDay} | {formula: string, cachedText: ?string, cachedNumber: ?float} | {runs: array<{text: string, style: ?uint}>}"
+        },
+        {
+          "name": "SheetPart",
+          "type": "{merge: string} | {anchor: string, target: string, text: ?string, tooltip: ?string} | {noted: string, note: string, author: ?string} | {validated: string, kind: RuleKind, operator: ?Operator, values: array<string>, inputTitle: ?string, inputMessage: ?string, errorTitle: ?string, errorMessage: ?string, allowEmpty: bool} | {grouped: string, collapsed: bool} | {table: string, name: ?string, style: ?string, banded: bool, filter: bool, totals: array<{column: string, function: ?TotalFunction, formula: ?string}>} | {formatted: string, kind: ConditionalKind, operator: ?Operator, values: array<string>, colors: array<string>, icons: ?string, rank: ?uint, percent: bool, style: ?{font: ?string, size: ?float, bold: ?bool, italic: ?bool, strike: ?bool, underline: ?Underline, color: ?string, fill: ?string, border: ?{top: ?Line, right: ?Line, bottom: ?Line, left: ?Line}, borderColor: ?string, align: ?Align, valign: ?Valign, wrap: ?bool, rotate: ?int, indent: ?uint, format: ?string, locked: ?bool, hideFormula: ?bool}} | {at: string, image: bytes, width: ?float, height: ?float, offsetX: ?float, offsetY: ?float} | {placed: string, layers: array<{kind: ChartKind, series: array<{values: string, categories: ?string, name: ?string, color: ?string}>}>, title: ?string, xTitle: ?string, yTitle: ?string, legend: Legend, labels: bool, width: ?float, height: ?float} | {orientation: ?Orientation, fitWidth: ?uint, fitHeight: ?uint, margins: ?{top: float, right: float, bottom: float, left: float}, header: ?string, footer: ?string, repeatRows: ?string, area: ?string} | {password: ?string, allow: array<string>}"
+        }
+      ],
       "constants": [],
       "members": [
         {

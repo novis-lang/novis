@@ -231,8 +231,8 @@ fn every_enum_and_constant_carries_a_doc_key() {
 /// The built-in image component's classes follow the registry's in `classes`:
 /// `Novis\Image\Image` and `Novis\Image\Color` from its Novis source with their
 /// public members only, and `Novis\Image\Codec` from its manifest with every
-/// export `static`. Its enums follow the registry's in `enums`, under the
-/// export class's namespace, with their cases.
+/// export `static` and its unions under `types`. Its enums follow the
+/// registry's in `enums`, under the export class's namespace, with their cases.
 // covers: tools:cli/nvs-meta-json
 #[test]
 fn meta_lists_the_built_in_components_classes_and_enums() {
@@ -304,6 +304,22 @@ fn meta_lists_the_built_in_components_classes_and_enums() {
         core_enum(&document, &format!(r"Novis\Image\Image::{name}"));
     }
     core_enum(&document, r"Novis\Image\QrCode::Level");
+    let codec = document["classes"]
+        .as_array()
+        .expect("`classes` is an array")
+        .iter()
+        .find(|c| c["name"] == r"Novis\Image\Codec")
+        .expect("Codec is in the document");
+    let source = codec["types"]
+        .as_array()
+        .expect("the export class lists its manifest's unions under `types`")
+        .iter()
+        .find(|t| t["name"] == r"Novis\Image\Codec::Source")
+        .expect("the union `Source` is listed under the export class");
+    assert!(
+        source["type"].as_str().is_some_and(|t| t.contains(" | ")),
+        "a union's type is its cases' shapes joined by `|`: {source}"
+    );
     assert_eq!(
         names(r"Novis\Spreadsheet\Engine"),
         [
