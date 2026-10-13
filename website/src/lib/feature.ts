@@ -4,8 +4,8 @@
  *
  * A feature's directory is its `examples` field in core.json or
  * reference.json, which is its feature path in the proofs roster
- * (`core/Time-Date/at`, `config/limits-hard`), so no page splits an id into a
- * path by hand.
+ * (`core/Time-Date/at`, `novis/Pdf-Document/standard`, `types/Arr-Order`,
+ * `config/limits-hard`), so no page splits an id into a path by hand.
  *
  * `about.md` is plain paragraphs and `-` lists with inline code, bold,
  * italics and links, which is all the about pages use. Its last line may be
@@ -30,12 +30,12 @@ export function changesFor(id: string): Change[] {
 // The globs are relative to this file, so their keys start with this prefix.
 const ROOT = '../../../docs/examples/'
 
-const abouts = import.meta.glob('../../../docs/examples/{core,config,tools}/**/about.md', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
-const sources = import.meta.glob('../../../docs/examples/{core,config,tools}/**/*.nvs', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
-const outputs = import.meta.glob('../../../docs/examples/{core,config,tools}/**/*.out', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
+const abouts = import.meta.glob('../../../docs/examples/{core,novis,types,config,tools}/**/about.md', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
+const sources = import.meta.glob('../../../docs/examples/{core,novis,types,config,tools}/**/*.nvs', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
+const outputs = import.meta.glob('../../../docs/examples/{core,novis,types,config,tools}/**/*.out', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
 const tomls = import.meta.glob('../../../docs/examples/{config,tools}/**/nvs.toml', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
 
-/** Anything with a directory under `docs/examples/`: a Core member, a configuration key, a CLI section. */
+/** Anything with a directory under `docs/examples/`: a class member, a type, a configuration key, a CLI section. */
 export interface Feature {
   examples: string
 }

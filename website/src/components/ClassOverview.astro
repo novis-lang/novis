@@ -1,10 +1,11 @@
 ---
 /**
  * The tool-owned body of a Core class page: what the spec says about the
- * class, the member table, enums and constants. Renders from
- * src/data/core.json, which holds implemented members only.
+ * class, the member table, enums, shape types and constants. Renders from
+ * src/data/core.json, which holds implemented members only. An enum with a
+ * Types page links to it.
  */
-import { findClass } from '~/lib/core'
+import { findClass, typeLink } from '~/lib/core'
 
 interface Props {
   id: string
@@ -15,6 +16,15 @@ const cls = findClass(id)
 if (!cls) throw new Error(`ClassOverview: unknown class id "${id}" — run \`npm run sync:render\`?`)
 
 const clsExtra = cls as typeof cls & { summaryHtml?: string; surfaceHtml?: string }
+
+/** The enum's own Types page, or `null` when this page's `#enums` section is all there is. */
+const enumPage = (name: string) => {
+  const url = typeLink(name, cls.name)
+  return url && !url.endsWith('#enums') ? url : null
+}
+
+/** A shape type on one line: `{format: Format, width: uint}`. */
+const oneLine = (type: string) => type.replace(/\s+/g, ' ').replace(/\{ /g, '{').replace(/,? \}/g, '}')
 ---
 
 <div class="class-overview">
@@ -64,7 +74,13 @@ const clsExtra = cls as typeof cls & { summaryHtml?: string; surfaceHtml?: strin
           {cls.enums.map((e) => (
             <li>
               <span class="nv-param-head">
-                <code class="nv-param-name">{e.raw}</code>
+                {enumPage(e.name) ? (
+                  <a href={enumPage(e.name)}>
+                    <code class="nv-param-name">{e.raw}</code>
+                  </a>
+                ) : (
+                  <code class="nv-param-name">{e.raw}</code>
+                )}
               </span>
               {e.doc?.shortHtml && <span class="nv-param-desc" set:html={e.doc.shortHtml} />}
               {e.doc?.cases && e.doc.cases.length > 0 && (
@@ -79,6 +95,24 @@ const clsExtra = cls as typeof cls & { summaryHtml?: string; surfaceHtml?: strin
                   ))}
                 </ul>
               )}
+            </li>
+          ))}
+        </ul>
+      </>
+    )
+  }
+
+  {
+    cls.types.length > 0 && (
+      <>
+        <h2 id="types">Shape types</h2>
+        <ul class="nv-param-docs">
+          {cls.types.map((t) => (
+            <li>
+              <span class="nv-param-head">
+                <code class="nv-param-name">{t.name}</code>
+              </span>
+              <code>{oneLine(t.type)}</code>
             </li>
           ))}
         </ul>

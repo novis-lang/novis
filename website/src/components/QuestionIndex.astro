@@ -69,13 +69,13 @@ for (const cls of classes) {
   for (const member of cls.members) add(member.url, { title: `${cls.name}::${member.name}`, code: true, area: 'reference', group })
 }
 
-const REF_AREAS = { config: 'Configuration', cli: 'CLI commands' } as const
+const REF_AREAS = { config: 'Configuration', cli: 'CLI commands', types: 'Types' } as const
 for (const [area, title] of Object.entries(REF_AREAS)) {
   groupTitle.set(`ref:${area}`, { title, code: false })
   add(withBase(`/reference/${area}/`), { title, code: false, area: 'reference', group: `ref:${area}` })
 }
 for (const page of refPages) {
-  add(page.url, { title: page.title.replace(/`/g, ''), code: page.area === 'config', area: 'reference', group: `ref:${page.area}` })
+  add(page.url, { title: page.title.replace(/`/g, ''), code: page.area !== 'cli', area: 'reference', group: `ref:${page.area}` })
 }
 
 interface Entry {

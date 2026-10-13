@@ -1,5 +1,5 @@
 /**
- * Typed access to the generated Configuration and CLI reference data
+ * Typed access to the generated Configuration, CLI and Types reference data
  * (src/data/reference.json), which `bun nv render --website` writes from the
  * proofs roster. tools/nv/renderers/website-reference.ts says how the pages
  * are grouped.
@@ -20,7 +20,7 @@ export interface RefDirective extends RefFeature {
 }
 
 export interface RefPage {
-  area: 'config' | 'cli'
+  area: 'config' | 'cli' | 'types'
   slug: string
   url: string
   title: string

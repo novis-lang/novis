@@ -15,12 +15,12 @@ const core = JSON.parse(fs.readFileSync('./src/data/core.json', 'utf8')) as {
   }[]
 }
 
-// Configuration and CLI pages, from src/data/reference.json, one sidebar
+// Configuration, CLI and Types pages, from src/data/reference.json, one sidebar
 // group per page group in the order the data lists them.
 const reference = JSON.parse(fs.readFileSync('./src/data/reference.json', 'utf8')) as {
-  pages: { area: 'config' | 'cli'; url: string; title: string; group: string }[]
+  pages: { area: 'config' | 'cli' | 'types'; url: string; title: string; group: string }[]
 }
-const referenceSidebar = (area: 'config' | 'cli') => {
+const referenceSidebar = (area: 'config' | 'cli' | 'types') => {
   const groups = new Map<string, { label: string; link: string }[]>()
   for (const p of reference.pages.filter((p) => p.area === area)) {
     if (!groups.has(p.group)) groups.set(p.group, [])
@@ -394,6 +394,10 @@ export default defineConfig({
             {
               label: 'CLI commands',
               items: [{ label: 'All commands', link: '/reference/cli/' }, ...referenceSidebar('cli')],
+            },
+            {
+              label: 'Types',
+              items: [{ label: 'All types', link: '/reference/types/' }, ...referenceSidebar('types')],
             },
           ],
         },

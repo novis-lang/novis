@@ -75,7 +75,7 @@ describe("nv site --questions", () => {
     expect(questionProblems(world(), root)[0]).toBe("broken: /reference/core/str/gone/: no page has this URL");
     expect(stampQuestions(world(), ["/reference/core/str/gone/"], root)).toEqual(["/reference/core/str/gone/: no built page has this URL"]);
     expect(stampQuestions(world(), [STR], root)).toEqual([`${STR}: has no questions to stamp`]);
-    expect(questionCounts(world(), root)).toEqual(["questions core: 1 owed, 1 stale", "questions config: 1 owed, 0 stale", "questions cli: 0 owed, 0 stale", "questions pages: 1 owed, 0 stale"]);
+    expect(questionCounts(world(), root)).toEqual(["questions core: 1 owed, 1 stale", "questions config: 1 owed, 0 stale", "questions cli: 0 owed, 0 stale", "questions types: 0 owed, 0 stale", "questions pages: 1 owed, 0 stale"]);
   });
 
   test("an owed page fails, and so do too few questions, a long one, a word from the table and a repeat", () => {

@@ -7,7 +7,9 @@ import { coreMembers, specTables } from "../renderers/spec-tables.ts";
 import { recordFiles, SCHEMA_DIR } from "../lib/store.ts";
 import { recordSchemas, renderRecordSchemas } from "../renderers/record-schemas.ts";
 import { RECORDS } from "../schema/index.ts";
-import { parseSignature } from "../renderers/website-core.ts";
+import { addRegistryMembers, parseSignature } from "../renderers/website-core.ts";
+import { referenceData } from "../renderers/website-reference.ts";
+import type { Entry } from "../proofs/roster.ts";
 import { renderWebsiteCompare } from "../renderers/website-compare.ts";
 import { EDITOR_GRAMMAR, renderWebsiteGrammar } from "../renderers/website-grammar.ts";
 import { scratch, type Scratch } from "./scratch.ts";
@@ -92,6 +94,46 @@ describe("render", () => {
     expect(sig.options).toEqual([{ name: "utc", type: "bool" }]);
     expect(sig.returnType).toBe("DateTime");
     expect(parseSignature("not a signature")).toBeNull();
+  });
+
+  test("a class the spec does not name takes its members, shape types and owned enums from the registry", () => {
+    const reg = {
+      classes: [
+        {
+          name: "Novis\\Pdf\\Document",
+          short: "A PDF document.",
+          members: [{ name: "standard", kind: "instance", signature: "standard(Standard $standard): Document" }],
+          types: [{ name: "Asset", type: "{path: string, bytes: bytes}" }],
+        },
+      ],
+      enums: [
+        { name: "Novis\\Pdf\\Document::Standard", cases: ["PdfA2b", "PdfUa1"] },
+        { name: "Novis\\Image\\Format", cases: ["Png"] },
+      ],
+    };
+    const [cls] = addRegistryMembers([], reg, {});
+    expect(cls!.members.map((m) => m.signature)).toEqual(["standard(Standard $standard): Document"]);
+    expect(cls!.types).toEqual([{ name: "Asset", type: "{path: string, bytes: bytes}" }]);
+    // A namespace's own enum has no class to sit on, so it is a Types page alone.
+    expect(cls!.enums).toEqual([{ name: "Standard", cases: ["PdfA2b", "PdfUa1"], raw: "Standard { PdfA2b, PdfUa1 }" }]);
+  });
+
+  test("every enum, exception and interface in the roster is a Types page, grouped by kind", () => {
+    const entry = (id: string, kind: Entry["kind"], path: string): Entry => ({ id, kind, group: `types:${kind}`, path, anchor: "", summary: "", help: "" });
+    const pages = referenceData(
+      [
+        entry("Throwable", "exception", "types/Throwable"),
+        entry("Novis\\Pdf\\Document::Standard", "enum", "types/Novis-Pdf-Document-Standard"),
+        entry("Core\\Arr::Order", "enum", "types/Arr-Order"),
+        entry("Core\\Str::length", "member", "core/Str/length"),
+      ],
+      [],
+    );
+    expect(pages.map((p) => [p.area, p.group, p.url, p.intro?.examples])).toEqual([
+      ["types", "Enums", "/reference/types/arr-order/", "types/Arr-Order"],
+      ["types", "Enums", "/reference/types/novis-pdf-document-standard/", "types/Novis-Pdf-Document-Standard"],
+      ["types", "Exceptions", "/reference/types/throwable/", "types/Throwable"],
+    ]);
   });
 
 

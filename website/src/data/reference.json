@@ -1154,6 +1154,1345 @@
         "examples": "tools/agents/a-worked-session"
       },
       "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "arr-order",
+      "url": "/reference/types/arr-order/",
+      "title": "Core\\Arr::Order",
+      "group": "Enums",
+      "intro": {
+        "id": "Core\\Arr::Order",
+        "title": "Core\\Arr::Order",
+        "examples": "types/Arr-Order"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "arr-seton",
+      "url": "/reference/types/arr-seton/",
+      "title": "Core\\Arr::SetOn",
+      "group": "Enums",
+      "intro": {
+        "id": "Core\\Arr::SetOn",
+        "title": "Core\\Arr::SetOn",
+        "examples": "types/Arr-SetOn"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "audience",
+      "url": "/reference/types/audience/",
+      "title": "Core\\Audience",
+      "group": "Enums",
+      "intro": {
+        "id": "Core\\Audience",
+        "title": "Core\\Audience",
+        "examples": "types/Audience"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "charset",
+      "url": "/reference/types/charset/",
+      "title": "Core\\Charset",
+      "group": "Enums",
+      "intro": {
+        "id": "Core\\Charset",
+        "title": "Core\\Charset",
+        "examples": "types/Charset"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "cldr-pluralcategory",
+      "url": "/reference/types/cldr-pluralcategory/",
+      "title": "Core\\Cldr::PluralCategory",
+      "group": "Enums",
+      "intro": {
+        "id": "Core\\Cldr::PluralCategory",
+        "title": "Core\\Cldr::PluralCategory",
+        "examples": "types/Cldr-PluralCategory"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "cli-colordepth",
+      "url": "/reference/types/cli-colordepth/",
+      "title": "Core\\Cli::ColorDepth",
+      "group": "Enums",
+      "intro": {
+        "id": "Core\\Cli::ColorDepth",
+        "title": "Core\\Cli::ColorDepth",
+        "examples": "types/Cli-ColorDepth"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "cli-stream",
+      "url": "/reference/types/cli-stream/",
+      "title": "Core\\Cli::Stream",
+      "group": "Enums",
+      "intro": {
+        "id": "Core\\Cli::Stream",
+        "title": "Core\\Cli::Stream",
+        "examples": "types/Cli-Stream"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "command-shell",
+      "url": "/reference/types/command-shell/",
+      "title": "Core\\Command::Shell",
+      "group": "Enums",
+      "intro": {
+        "id": "Core\\Command::Shell",
+        "title": "Core\\Command::Shell",
+        "examples": "types/Command-Shell"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "compress-codec",
+      "url": "/reference/types/compress-codec/",
+      "title": "Core\\Compress::Codec",
+      "group": "Enums",
+      "intro": {
+        "id": "Core\\Compress::Codec",
+        "title": "Core\\Compress::Codec",
+        "examples": "types/Compress-Codec"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "crypto-cipher",
+      "url": "/reference/types/crypto-cipher/",
+      "title": "Core\\Crypto::Cipher",
+      "group": "Enums",
+      "intro": {
+        "id": "Core\\Crypto::Cipher",
+        "title": "Core\\Crypto::Cipher",
+        "examples": "types/Crypto-Cipher"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "crypto-keykind",
+      "url": "/reference/types/crypto-keykind/",
+      "title": "Core\\Crypto\\KeyKind",
+      "group": "Enums",
+      "intro": {
+        "id": "Core\\Crypto\\KeyKind",
+        "title": "Core\\Crypto\\KeyKind",
+        "examples": "types/Crypto-KeyKind"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "crypto-publickey-format",
+      "url": "/reference/types/crypto-publickey-format/",
+      "title": "Core\\Crypto\\PublicKey::Format",
+      "group": "Enums",
+      "intro": {
+        "id": "Core\\Crypto\\PublicKey::Format",
+        "title": "Core\\Crypto\\PublicKey::Format",
+        "examples": "types/Crypto-PublicKey-Format"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "db-tls",
+      "url": "/reference/types/db-tls/",
+      "title": "Core\\Db::Tls",
+      "group": "Enums",
+      "intro": {
+        "id": "Core\\Db::Tls",
+        "title": "Core\\Db::Tls",
+        "examples": "types/Db-Tls"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "db-column-type",
+      "url": "/reference/types/db-column-type/",
+      "title": "Core\\Db\\Column::Type",
+      "group": "Enums",
+      "intro": {
+        "id": "Core\\Db\\Column::Type",
+        "title": "Core\\Db\\Column::Type",
+        "examples": "types/Db-Column-Type"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "db-dberror-kind",
+      "url": "/reference/types/db-dberror-kind/",
+      "title": "Core\\Db\\DbError::Kind",
+      "group": "Enums",
+      "intro": {
+        "id": "Core\\Db\\DbError::Kind",
+        "title": "Core\\Db\\DbError::Kind",
+        "examples": "types/Db-DbError-Kind"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "db-driver",
+      "url": "/reference/types/db-driver/",
+      "title": "Core\\Db\\Driver",
+      "group": "Enums",
+      "intro": {
+        "id": "Core\\Db\\Driver",
+        "title": "Core\\Db\\Driver",
+        "examples": "types/Db-Driver"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "db-isolation",
+      "url": "/reference/types/db-isolation/",
+      "title": "Core\\Db\\Isolation",
+      "group": "Enums",
+      "intro": {
+        "id": "Core\\Db\\Isolation",
+        "title": "Core\\Db\\Isolation",
+        "examples": "types/Db-Isolation"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "db-plan-step-grade",
+      "url": "/reference/types/db-plan-step-grade/",
+      "title": "Core\\Db\\Plan\\Step::Grade",
+      "group": "Enums",
+      "intro": {
+        "id": "Core\\Db\\Plan\\Step::Grade",
+        "title": "Core\\Db\\Plan\\Step::Grade",
+        "examples": "types/Db-Plan-Step-Grade"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "env-context",
+      "url": "/reference/types/env-context/",
+      "title": "Core\\Env::Context",
+      "group": "Enums",
+      "intro": {
+        "id": "Core\\Env::Context",
+        "title": "Core\\Env::Context",
+        "examples": "types/Env-Context"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "env-mode",
+      "url": "/reference/types/env-mode/",
+      "title": "Core\\Env::Mode",
+      "group": "Enums",
+      "intro": {
+        "id": "Core\\Env::Mode",
+        "title": "Core\\Env::Mode",
+        "examples": "types/Env-Mode"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "env-platform",
+      "url": "/reference/types/env-platform/",
+      "title": "Core\\Env::Platform",
+      "group": "Enums",
+      "intro": {
+        "id": "Core\\Env::Platform",
+        "title": "Core\\Env::Platform",
+        "examples": "types/Env-Platform"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "hash-digest",
+      "url": "/reference/types/hash-digest/",
+      "title": "Core\\Hash::Digest",
+      "group": "Enums",
+      "intro": {
+        "id": "Core\\Hash::Digest",
+        "title": "Core\\Hash::Digest",
+        "examples": "types/Hash-Digest"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "http-method",
+      "url": "/reference/types/http-method/",
+      "title": "Core\\Http\\Method",
+      "group": "Enums",
+      "intro": {
+        "id": "Core\\Http\\Method",
+        "title": "Core\\Http\\Method",
+        "examples": "types/Http-Method"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "io-filemode",
+      "url": "/reference/types/io-filemode/",
+      "title": "Core\\IO::FileMode",
+      "group": "Enums",
+      "intro": {
+        "id": "Core\\IO::FileMode",
+        "title": "Core\\IO::FileMode",
+        "examples": "types/IO-FileMode"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "ldap-tls",
+      "url": "/reference/types/ldap-tls/",
+      "title": "Core\\Ldap::Tls",
+      "group": "Enums",
+      "intro": {
+        "id": "Core\\Ldap::Tls",
+        "title": "Core\\Ldap::Tls",
+        "examples": "types/Ldap-Tls"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "ldap-connection-scope",
+      "url": "/reference/types/ldap-connection-scope/",
+      "title": "Core\\Ldap\\Connection::Scope",
+      "group": "Enums",
+      "intro": {
+        "id": "Core\\Ldap\\Connection::Scope",
+        "title": "Core\\Ldap\\Connection::Scope",
+        "examples": "types/Ldap-Connection-Scope"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "ldap-entry-accounttype",
+      "url": "/reference/types/ldap-entry-accounttype/",
+      "title": "Core\\Ldap\\Entry::AccountType",
+      "group": "Enums",
+      "intro": {
+        "id": "Core\\Ldap\\Entry::AccountType",
+        "title": "Core\\Ldap\\Entry::AccountType",
+        "examples": "types/Ldap-Entry-AccountType"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "ldap-ldaperror-kind",
+      "url": "/reference/types/ldap-ldaperror-kind/",
+      "title": "Core\\Ldap\\LdapError::Kind",
+      "group": "Enums",
+      "intro": {
+        "id": "Core\\Ldap\\LdapError::Kind",
+        "title": "Core\\Ldap\\LdapError::Kind",
+        "examples": "types/Ldap-LdapError-Kind"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "log-level",
+      "url": "/reference/types/log-level/",
+      "title": "Core\\Log::Level",
+      "group": "Enums",
+      "intro": {
+        "id": "Core\\Log::Level",
+        "title": "Core\\Log::Level",
+        "examples": "types/Log-Level"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "mime-type",
+      "url": "/reference/types/mime-type/",
+      "title": "Core\\Mime::Type",
+      "group": "Enums",
+      "intro": {
+        "id": "Core\\Mime::Type",
+        "title": "Core\\Mime::Type",
+        "examples": "types/Mime-Type"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "queue-state",
+      "url": "/reference/types/queue-state/",
+      "title": "Core\\Queue::State",
+      "group": "Enums",
+      "intro": {
+        "id": "Core\\Queue::State",
+        "title": "Core\\Queue::State",
+        "examples": "types/Queue-State"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "reflect-typekind",
+      "url": "/reference/types/reflect-typekind/",
+      "title": "Core\\Reflect::TypeKind",
+      "group": "Enums",
+      "intro": {
+        "id": "Core\\Reflect::TypeKind",
+        "title": "Core\\Reflect::TypeKind",
+        "examples": "types/Reflect-TypeKind"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "response-redirect",
+      "url": "/reference/types/response-redirect/",
+      "title": "Core\\Response::Redirect",
+      "group": "Enums",
+      "intro": {
+        "id": "Core\\Response::Redirect",
+        "title": "Core\\Response::Redirect",
+        "examples": "types/Response-Redirect"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "response-samesite",
+      "url": "/reference/types/response-samesite/",
+      "title": "Core\\Response::SameSite",
+      "group": "Enums",
+      "intro": {
+        "id": "Core\\Response::SameSite",
+        "title": "Core\\Response::SameSite",
+        "examples": "types/Response-SameSite"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "roundmode",
+      "url": "/reference/types/roundmode/",
+      "title": "Core\\RoundMode",
+      "group": "Enums",
+      "intro": {
+        "id": "Core\\RoundMode",
+        "title": "Core\\RoundMode",
+        "examples": "types/RoundMode"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "script-exitreport-reason",
+      "url": "/reference/types/script-exitreport-reason/",
+      "title": "Core\\Script\\ExitReport::Reason",
+      "group": "Enums",
+      "intro": {
+        "id": "Core\\Script\\ExitReport::Reason",
+        "title": "Core\\Script\\ExitReport::Reason",
+        "examples": "types/Script-ExitReport-Reason"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "str-normalform",
+      "url": "/reference/types/str-normalform/",
+      "title": "Core\\Str::NormalForm",
+      "group": "Enums",
+      "intro": {
+        "id": "Core\\Str::NormalForm",
+        "title": "Core\\Str::NormalForm",
+        "examples": "types/Str-NormalForm"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "time-datetime-weekday",
+      "url": "/reference/types/time-datetime-weekday/",
+      "title": "Core\\Time\\DateTime::Weekday",
+      "group": "Enums",
+      "intro": {
+        "id": "Core\\Time\\DateTime::Weekday",
+        "title": "Core\\Time\\DateTime::Weekday",
+        "examples": "types/Time-DateTime-Weekday"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "unit",
+      "url": "/reference/types/unit/",
+      "title": "Core\\Unit",
+      "group": "Enums",
+      "intro": {
+        "id": "Core\\Unit",
+        "title": "Core\\Unit",
+        "examples": "types/Unit"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "xml-node-kind",
+      "url": "/reference/types/xml-node-kind/",
+      "title": "Core\\Xml\\Node::Kind",
+      "group": "Enums",
+      "intro": {
+        "id": "Core\\Xml\\Node::Kind",
+        "title": "Core\\Xml\\Node::Kind",
+        "examples": "types/Xml-Node-Kind"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "novis-image-barcode-symbology",
+      "url": "/reference/types/novis-image-barcode-symbology/",
+      "title": "Novis\\Image\\Barcode::Symbology",
+      "group": "Enums",
+      "intro": {
+        "id": "Novis\\Image\\Barcode::Symbology",
+        "title": "Novis\\Image\\Barcode::Symbology",
+        "examples": "types/Novis-Image-Barcode-Symbology"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "novis-image-format",
+      "url": "/reference/types/novis-image-format/",
+      "title": "Novis\\Image\\Format",
+      "group": "Enums",
+      "intro": {
+        "id": "Novis\\Image\\Format",
+        "title": "Novis\\Image\\Format",
+        "examples": "types/Novis-Image-Format"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "novis-image-image-align",
+      "url": "/reference/types/novis-image-image-align/",
+      "title": "Novis\\Image\\Image::Align",
+      "group": "Enums",
+      "intro": {
+        "id": "Novis\\Image\\Image::Align",
+        "title": "Novis\\Image\\Image::Align",
+        "examples": "types/Novis-Image-Image-Align"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "novis-image-image-axis",
+      "url": "/reference/types/novis-image-image-axis/",
+      "title": "Novis\\Image\\Image::Axis",
+      "group": "Enums",
+      "intro": {
+        "id": "Novis\\Image\\Image::Axis",
+        "title": "Novis\\Image\\Image::Axis",
+        "examples": "types/Novis-Image-Image-Axis"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "novis-image-image-blend",
+      "url": "/reference/types/novis-image-image-blend/",
+      "title": "Novis\\Image\\Image::Blend",
+      "group": "Enums",
+      "intro": {
+        "id": "Novis\\Image\\Image::Blend",
+        "title": "Novis\\Image\\Image::Blend",
+        "examples": "types/Novis-Image-Image-Blend"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "novis-image-image-filter",
+      "url": "/reference/types/novis-image-image-filter/",
+      "title": "Novis\\Image\\Image::Filter",
+      "group": "Enums",
+      "intro": {
+        "id": "Novis\\Image\\Image::Filter",
+        "title": "Novis\\Image\\Image::Filter",
+        "examples": "types/Novis-Image-Image-Filter"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "novis-image-image-fit",
+      "url": "/reference/types/novis-image-image-fit/",
+      "title": "Novis\\Image\\Image::Fit",
+      "group": "Enums",
+      "intro": {
+        "id": "Novis\\Image\\Image::Fit",
+        "title": "Novis\\Image\\Image::Fit",
+        "examples": "types/Novis-Image-Image-Fit"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "novis-image-image-gravity",
+      "url": "/reference/types/novis-image-image-gravity/",
+      "title": "Novis\\Image\\Image::Gravity",
+      "group": "Enums",
+      "intro": {
+        "id": "Novis\\Image\\Image::Gravity",
+        "title": "Novis\\Image\\Image::Gravity",
+        "examples": "types/Novis-Image-Image-Gravity"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "novis-image-image-hashkind",
+      "url": "/reference/types/novis-image-image-hashkind/",
+      "title": "Novis\\Image\\Image::HashKind",
+      "group": "Enums",
+      "intro": {
+        "id": "Novis\\Image\\Image::HashKind",
+        "title": "Novis\\Image\\Image::HashKind",
+        "examples": "types/Novis-Image-Image-HashKind"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "novis-image-image-output",
+      "url": "/reference/types/novis-image-image-output/",
+      "title": "Novis\\Image\\Image::Output",
+      "group": "Enums",
+      "intro": {
+        "id": "Novis\\Image\\Image::Output",
+        "title": "Novis\\Image\\Image::Output",
+        "examples": "types/Novis-Image-Image-Output"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "novis-image-image-placeholderkind",
+      "url": "/reference/types/novis-image-image-placeholderkind/",
+      "title": "Novis\\Image\\Image::PlaceholderKind",
+      "group": "Enums",
+      "intro": {
+        "id": "Novis\\Image\\Image::PlaceholderKind",
+        "title": "Novis\\Image\\Image::PlaceholderKind",
+        "examples": "types/Novis-Image-Image-PlaceholderKind"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "novis-image-qrcode-level",
+      "url": "/reference/types/novis-image-qrcode-level/",
+      "title": "Novis\\Image\\QrCode::Level",
+      "group": "Enums",
+      "intro": {
+        "id": "Novis\\Image\\QrCode::Level",
+        "title": "Novis\\Image\\QrCode::Level",
+        "examples": "types/Novis-Image-QrCode-Level"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "novis-intl-collator-casefirst",
+      "url": "/reference/types/novis-intl-collator-casefirst/",
+      "title": "Novis\\Intl\\Collator::CaseFirst",
+      "group": "Enums",
+      "intro": {
+        "id": "Novis\\Intl\\Collator::CaseFirst",
+        "title": "Novis\\Intl\\Collator::CaseFirst",
+        "examples": "types/Novis-Intl-Collator-CaseFirst"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "novis-intl-collator-strength",
+      "url": "/reference/types/novis-intl-collator-strength/",
+      "title": "Novis\\Intl\\Collator::Strength",
+      "group": "Enums",
+      "intro": {
+        "id": "Novis\\Intl\\Collator::Strength",
+        "title": "Novis\\Intl\\Collator::Strength",
+        "examples": "types/Novis-Intl-Collator-Strength"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "novis-intl-dateformat-length",
+      "url": "/reference/types/novis-intl-dateformat-length/",
+      "title": "Novis\\Intl\\DateFormat::Length",
+      "group": "Enums",
+      "intro": {
+        "id": "Novis\\Intl\\DateFormat::Length",
+        "title": "Novis\\Intl\\DateFormat::Length",
+        "examples": "types/Novis-Intl-DateFormat-Length"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "novis-intl-dateformat-zonestyle",
+      "url": "/reference/types/novis-intl-dateformat-zonestyle/",
+      "title": "Novis\\Intl\\DateFormat::ZoneStyle",
+      "group": "Enums",
+      "intro": {
+        "id": "Novis\\Intl\\DateFormat::ZoneStyle",
+        "title": "Novis\\Intl\\DateFormat::ZoneStyle",
+        "examples": "types/Novis-Intl-DateFormat-ZoneStyle"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "novis-intl-listformat-type",
+      "url": "/reference/types/novis-intl-listformat-type/",
+      "title": "Novis\\Intl\\ListFormat::Type",
+      "group": "Enums",
+      "intro": {
+        "id": "Novis\\Intl\\ListFormat::Type",
+        "title": "Novis\\Intl\\ListFormat::Type",
+        "examples": "types/Novis-Intl-ListFormat-Type"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "novis-intl-locale-service",
+      "url": "/reference/types/novis-intl-locale-service/",
+      "title": "Novis\\Intl\\Locale::Service",
+      "group": "Enums",
+      "intro": {
+        "id": "Novis\\Intl\\Locale::Service",
+        "title": "Novis\\Intl\\Locale::Service",
+        "examples": "types/Novis-Intl-Locale-Service"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "novis-intl-numberformat-compactdisplay",
+      "url": "/reference/types/novis-intl-numberformat-compactdisplay/",
+      "title": "Novis\\Intl\\NumberFormat::CompactDisplay",
+      "group": "Enums",
+      "intro": {
+        "id": "Novis\\Intl\\NumberFormat::CompactDisplay",
+        "title": "Novis\\Intl\\NumberFormat::CompactDisplay",
+        "examples": "types/Novis-Intl-NumberFormat-CompactDisplay"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "novis-intl-numberformat-currencydisplay",
+      "url": "/reference/types/novis-intl-numberformat-currencydisplay/",
+      "title": "Novis\\Intl\\NumberFormat::CurrencyDisplay",
+      "group": "Enums",
+      "intro": {
+        "id": "Novis\\Intl\\NumberFormat::CurrencyDisplay",
+        "title": "Novis\\Intl\\NumberFormat::CurrencyDisplay",
+        "examples": "types/Novis-Intl-NumberFormat-CurrencyDisplay"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "novis-intl-numberformat-style",
+      "url": "/reference/types/novis-intl-numberformat-style/",
+      "title": "Novis\\Intl\\NumberFormat::Style",
+      "group": "Enums",
+      "intro": {
+        "id": "Novis\\Intl\\NumberFormat::Style",
+        "title": "Novis\\Intl\\NumberFormat::Style",
+        "examples": "types/Novis-Intl-NumberFormat-Style"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "novis-intl-pluralrules-category",
+      "url": "/reference/types/novis-intl-pluralrules-category/",
+      "title": "Novis\\Intl\\PluralRules::Category",
+      "group": "Enums",
+      "intro": {
+        "id": "Novis\\Intl\\PluralRules::Category",
+        "title": "Novis\\Intl\\PluralRules::Category",
+        "examples": "types/Novis-Intl-PluralRules-Category"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "novis-intl-pluralrules-kind",
+      "url": "/reference/types/novis-intl-pluralrules-kind/",
+      "title": "Novis\\Intl\\PluralRules::Kind",
+      "group": "Enums",
+      "intro": {
+        "id": "Novis\\Intl\\PluralRules::Kind",
+        "title": "Novis\\Intl\\PluralRules::Kind",
+        "examples": "types/Novis-Intl-PluralRules-Kind"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "novis-intl-relativetime-numeric",
+      "url": "/reference/types/novis-intl-relativetime-numeric/",
+      "title": "Novis\\Intl\\RelativeTime::Numeric",
+      "group": "Enums",
+      "intro": {
+        "id": "Novis\\Intl\\RelativeTime::Numeric",
+        "title": "Novis\\Intl\\RelativeTime::Numeric",
+        "examples": "types/Novis-Intl-RelativeTime-Numeric"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "novis-intl-relativetime-unit",
+      "url": "/reference/types/novis-intl-relativetime-unit/",
+      "title": "Novis\\Intl\\RelativeTime::Unit",
+      "group": "Enums",
+      "intro": {
+        "id": "Novis\\Intl\\RelativeTime::Unit",
+        "title": "Novis\\Intl\\RelativeTime::Unit",
+        "examples": "types/Novis-Intl-RelativeTime-Unit"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "novis-intl-width",
+      "url": "/reference/types/novis-intl-width/",
+      "title": "Novis\\Intl\\Width",
+      "group": "Enums",
+      "intro": {
+        "id": "Novis\\Intl\\Width",
+        "title": "Novis\\Intl\\Width",
+        "examples": "types/Novis-Intl-Width"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "novis-pdf-document-standard",
+      "url": "/reference/types/novis-pdf-document-standard/",
+      "title": "Novis\\Pdf\\Document::Standard",
+      "group": "Enums",
+      "intro": {
+        "id": "Novis\\Pdf\\Document::Standard",
+        "title": "Novis\\Pdf\\Document::Standard",
+        "examples": "types/Novis-Pdf-Document-Standard"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "novis-spreadsheet-align",
+      "url": "/reference/types/novis-spreadsheet-align/",
+      "title": "Novis\\Spreadsheet\\Align",
+      "group": "Enums",
+      "intro": {
+        "id": "Novis\\Spreadsheet\\Align",
+        "title": "Novis\\Spreadsheet\\Align",
+        "examples": "types/Novis-Spreadsheet-Align"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "novis-spreadsheet-chartkind",
+      "url": "/reference/types/novis-spreadsheet-chartkind/",
+      "title": "Novis\\Spreadsheet\\ChartKind",
+      "group": "Enums",
+      "intro": {
+        "id": "Novis\\Spreadsheet\\ChartKind",
+        "title": "Novis\\Spreadsheet\\ChartKind",
+        "examples": "types/Novis-Spreadsheet-ChartKind"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "novis-spreadsheet-conditionalkind",
+      "url": "/reference/types/novis-spreadsheet-conditionalkind/",
+      "title": "Novis\\Spreadsheet\\ConditionalKind",
+      "group": "Enums",
+      "intro": {
+        "id": "Novis\\Spreadsheet\\ConditionalKind",
+        "title": "Novis\\Spreadsheet\\ConditionalKind",
+        "examples": "types/Novis-Spreadsheet-ConditionalKind"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "novis-spreadsheet-legend",
+      "url": "/reference/types/novis-spreadsheet-legend/",
+      "title": "Novis\\Spreadsheet\\Legend",
+      "group": "Enums",
+      "intro": {
+        "id": "Novis\\Spreadsheet\\Legend",
+        "title": "Novis\\Spreadsheet\\Legend",
+        "examples": "types/Novis-Spreadsheet-Legend"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "novis-spreadsheet-line",
+      "url": "/reference/types/novis-spreadsheet-line/",
+      "title": "Novis\\Spreadsheet\\Line",
+      "group": "Enums",
+      "intro": {
+        "id": "Novis\\Spreadsheet\\Line",
+        "title": "Novis\\Spreadsheet\\Line",
+        "examples": "types/Novis-Spreadsheet-Line"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "novis-spreadsheet-operator",
+      "url": "/reference/types/novis-spreadsheet-operator/",
+      "title": "Novis\\Spreadsheet\\Operator",
+      "group": "Enums",
+      "intro": {
+        "id": "Novis\\Spreadsheet\\Operator",
+        "title": "Novis\\Spreadsheet\\Operator",
+        "examples": "types/Novis-Spreadsheet-Operator"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "novis-spreadsheet-orientation",
+      "url": "/reference/types/novis-spreadsheet-orientation/",
+      "title": "Novis\\Spreadsheet\\Orientation",
+      "group": "Enums",
+      "intro": {
+        "id": "Novis\\Spreadsheet\\Orientation",
+        "title": "Novis\\Spreadsheet\\Orientation",
+        "examples": "types/Novis-Spreadsheet-Orientation"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "novis-spreadsheet-rulekind",
+      "url": "/reference/types/novis-spreadsheet-rulekind/",
+      "title": "Novis\\Spreadsheet\\RuleKind",
+      "group": "Enums",
+      "intro": {
+        "id": "Novis\\Spreadsheet\\RuleKind",
+        "title": "Novis\\Spreadsheet\\RuleKind",
+        "examples": "types/Novis-Spreadsheet-RuleKind"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "novis-spreadsheet-totalfunction",
+      "url": "/reference/types/novis-spreadsheet-totalfunction/",
+      "title": "Novis\\Spreadsheet\\TotalFunction",
+      "group": "Enums",
+      "intro": {
+        "id": "Novis\\Spreadsheet\\TotalFunction",
+        "title": "Novis\\Spreadsheet\\TotalFunction",
+        "examples": "types/Novis-Spreadsheet-TotalFunction"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "novis-spreadsheet-underline",
+      "url": "/reference/types/novis-spreadsheet-underline/",
+      "title": "Novis\\Spreadsheet\\Underline",
+      "group": "Enums",
+      "intro": {
+        "id": "Novis\\Spreadsheet\\Underline",
+        "title": "Novis\\Spreadsheet\\Underline",
+        "examples": "types/Novis-Spreadsheet-Underline"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "novis-spreadsheet-valign",
+      "url": "/reference/types/novis-spreadsheet-valign/",
+      "title": "Novis\\Spreadsheet\\Valign",
+      "group": "Enums",
+      "intro": {
+        "id": "Novis\\Spreadsheet\\Valign",
+        "title": "Novis\\Spreadsheet\\Valign",
+        "examples": "types/Novis-Spreadsheet-Valign"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "novis-spreadsheet-visibility",
+      "url": "/reference/types/novis-spreadsheet-visibility/",
+      "title": "Novis\\Spreadsheet\\Visibility",
+      "group": "Enums",
+      "intro": {
+        "id": "Novis\\Spreadsheet\\Visibility",
+        "title": "Novis\\Spreadsheet\\Visibility",
+        "examples": "types/Novis-Spreadsheet-Visibility"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "arithmeticerror",
+      "url": "/reference/types/arithmeticerror/",
+      "title": "ArithmeticError",
+      "group": "Exceptions",
+      "intro": {
+        "id": "ArithmeticError",
+        "title": "ArithmeticError",
+        "examples": "types/ArithmeticError"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "cli-notinteractive",
+      "url": "/reference/types/cli-notinteractive/",
+      "title": "Core\\Cli\\NotInteractive",
+      "group": "Exceptions",
+      "intro": {
+        "id": "Core\\Cli\\NotInteractive",
+        "title": "Core\\Cli\\NotInteractive",
+        "examples": "types/Cli-NotInteractive"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "db-dberror",
+      "url": "/reference/types/db-dberror/",
+      "title": "Core\\Db\\DbError",
+      "group": "Exceptions",
+      "intro": {
+        "id": "Core\\Db\\DbError",
+        "title": "Core\\Db\\DbError",
+        "examples": "types/Db-DbError"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "db-rolledback",
+      "url": "/reference/types/db-rolledback/",
+      "title": "Core\\Db\\RolledBack",
+      "group": "Exceptions",
+      "intro": {
+        "id": "Core\\Db\\RolledBack",
+        "title": "Core\\Db\\RolledBack",
+        "examples": "types/Db-RolledBack"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "deprecatederror",
+      "url": "/reference/types/deprecatederror/",
+      "title": "Core\\DeprecatedError",
+      "group": "Exceptions",
+      "intro": {
+        "id": "Core\\DeprecatedError",
+        "title": "Core\\DeprecatedError",
+        "examples": "types/DeprecatedError"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "ldap-ldaperror",
+      "url": "/reference/types/ldap-ldaperror/",
+      "title": "Core\\Ldap\\LdapError",
+      "group": "Exceptions",
+      "intro": {
+        "id": "Core\\Ldap\\LdapError",
+        "title": "Core\\Ldap\\LdapError",
+        "examples": "types/Ldap-LdapError"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "script-finished",
+      "url": "/reference/types/script-finished/",
+      "title": "Core\\Script\\Finished",
+      "group": "Exceptions",
+      "intro": {
+        "id": "Core\\Script\\Finished",
+        "title": "Core\\Script\\Finished",
+        "examples": "types/Script-Finished"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "test-failure",
+      "url": "/reference/types/test-failure/",
+      "title": "Core\\Test\\Failure",
+      "group": "Exceptions",
+      "intro": {
+        "id": "Core\\Test\\Failure",
+        "title": "Core\\Test\\Failure",
+        "examples": "types/Test-Failure"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "extensionerror",
+      "url": "/reference/types/extensionerror/",
+      "title": "ExtensionError",
+      "group": "Exceptions",
+      "intro": {
+        "id": "ExtensionError",
+        "title": "ExtensionError",
+        "examples": "types/ExtensionError"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "ioerror",
+      "url": "/reference/types/ioerror/",
+      "title": "IOError",
+      "group": "Exceptions",
+      "intro": {
+        "id": "IOError",
+        "title": "IOError",
+        "examples": "types/IOError"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "logicerror",
+      "url": "/reference/types/logicerror/",
+      "title": "LogicError",
+      "group": "Exceptions",
+      "intro": {
+        "id": "LogicError",
+        "title": "LogicError",
+        "examples": "types/LogicError"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "parseerror",
+      "url": "/reference/types/parseerror/",
+      "title": "ParseError",
+      "group": "Exceptions",
+      "intro": {
+        "id": "ParseError",
+        "title": "ParseError",
+        "examples": "types/ParseError"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "recursionerror",
+      "url": "/reference/types/recursionerror/",
+      "title": "RecursionError",
+      "group": "Exceptions",
+      "intro": {
+        "id": "RecursionError",
+        "title": "RecursionError",
+        "examples": "types/RecursionError"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "runtimeerror",
+      "url": "/reference/types/runtimeerror/",
+      "title": "RuntimeError",
+      "group": "Exceptions",
+      "intro": {
+        "id": "RuntimeError",
+        "title": "RuntimeError",
+        "examples": "types/RuntimeError"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "throwable",
+      "url": "/reference/types/throwable/",
+      "title": "Throwable",
+      "group": "Exceptions",
+      "intro": {
+        "id": "Throwable",
+        "title": "Throwable",
+        "examples": "types/Throwable"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "timeouterror",
+      "url": "/reference/types/timeouterror/",
+      "title": "TimeoutError",
+      "group": "Exceptions",
+      "intro": {
+        "id": "TimeoutError",
+        "title": "TimeoutError",
+        "examples": "types/TimeoutError"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "comparable",
+      "url": "/reference/types/comparable/",
+      "title": "Comparable",
+      "group": "Interfaces",
+      "intro": {
+        "id": "Comparable",
+        "title": "Comparable",
+        "examples": "types/Comparable"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "iterable",
+      "url": "/reference/types/iterable/",
+      "title": "Iterable",
+      "group": "Interfaces",
+      "intro": {
+        "id": "Iterable",
+        "title": "Iterable",
+        "examples": "types/Iterable"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "iterator",
+      "url": "/reference/types/iterator/",
+      "title": "Iterator",
+      "group": "Interfaces",
+      "intro": {
+        "id": "Iterator",
+        "title": "Iterator",
+        "examples": "types/Iterator"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "lateinit",
+      "url": "/reference/types/lateinit/",
+      "title": "LateInit",
+      "group": "Interfaces",
+      "intro": {
+        "id": "LateInit",
+        "title": "LateInit",
+        "examples": "types/LateInit"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "parses",
+      "url": "/reference/types/parses/",
+      "title": "Parses",
+      "group": "Interfaces",
+      "intro": {
+        "id": "Parses",
+        "title": "Parses",
+        "examples": "types/Parses"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "propertyguard",
+      "url": "/reference/types/propertyguard/",
+      "title": "PropertyGuard",
+      "group": "Interfaces",
+      "intro": {
+        "id": "PropertyGuard",
+        "title": "PropertyGuard",
+        "examples": "types/PropertyGuard"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "propertyobserver",
+      "url": "/reference/types/propertyobserver/",
+      "title": "PropertyObserver",
+      "group": "Interfaces",
+      "intro": {
+        "id": "PropertyObserver",
+        "title": "PropertyObserver",
+        "examples": "types/PropertyObserver"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "stringable",
+      "url": "/reference/types/stringable/",
+      "title": "Stringable",
+      "group": "Interfaces",
+      "intro": {
+        "id": "Stringable",
+        "title": "Stringable",
+        "examples": "types/Stringable"
+      },
+      "keys": []
     }
   ]
 }

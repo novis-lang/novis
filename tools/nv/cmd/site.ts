@@ -339,8 +339,8 @@ export interface QuestionEntry {
 
 export type Questions = Record<string, QuestionEntry>;
 
-/** The four areas `--questions --status` counts. */
-export const QUESTION_AREAS = ["core", "config", "cli", "pages"] as const;
+/** The areas `--questions --status` counts. */
+export const QUESTION_AREAS = ["core", "config", "cli", "types", "pages"] as const;
 export type QuestionArea = (typeof QUESTION_AREAS)[number];
 
 /** What one built page's questions are written from: its feature, and that feature's hash now. */
@@ -1076,10 +1076,11 @@ function binary(explicit: string | undefined): string | null {
   return null;
 }
 
-/** A roster feature Reference owes a page: a Core member, a directive, a `tools:config` section, or a
- * section of the `cli`, `editor` or `agents` chapter or an `nvs …` section of `server`. */
+/** A roster feature Reference owes a page: a class member, an enum, exception or interface, a
+ * directive, a `tools:config` section, or a section of the `cli`, `editor` or `agents` chapter or an
+ * `nvs …` section of `server`. */
 function referenceOwes(e: Entry): boolean {
-  if (e.kind === "member" || e.kind === "directive") return true;
+  if (["member", "directive", "enum", "exception", "interface"].includes(e.kind)) return true;
   const m = /^tools:([^/]+)\/(.+)$/.exec(e.id);
   if (!m) return false;
   return ["config", "cli", "editor", "agents"].includes(m[1]!) || (m[1] === "server" && m[2]!.startsWith("nvs-"));

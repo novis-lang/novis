@@ -7,8 +7,10 @@
 // as the page's introduction, the `tools:config` or `tools:server` chapter section whose title opens
 // with that block in brackets (`` `[limits]` and `[limits.hard]` ``). A `tools:config` section that
 // names no block is a page of its own. CLI is one page per section of the `cli`, `server` (`nvs …`
-// sections only), `editor` and `agents` chapters. `website-core.ts` calls `referenceData` with the
-// roster it has already read, so this file runs no binary.
+// sections only), `editor` and `agents` chapters. Types is one page per enum, exception and
+// interface, grouped by kind: every name a signature uses that is not a class has a page here.
+// `website-core.ts` calls `referenceData` with the roster it has already read, so this file runs no
+// binary.
 
 import type { Entry } from "../proofs/roster.ts";
 
@@ -29,7 +31,7 @@ export interface Directive extends Feature {
 }
 
 export interface Page {
-  area: "config" | "cli";
+  area: "config" | "cli" | "types";
   slug: string;
   url: string;
   title: string;
@@ -49,6 +51,13 @@ const CLI_CHAPTERS: [string, string][] = [
   ["agents", "Coding agents"],
 ];
 
+/** The sidebar group of each roster kind that is a Types page, in the order the sidebar lists them. */
+const TYPE_KINDS: [Entry["kind"], string][] = [
+  ["enum", "Enums"],
+  ["exception", "Exceptions"],
+  ["interface", "Interfaces"],
+];
+
 /** The chapter id and section slug of a `tools:<chapter>/<slug>` id. */
 function chapterOf(id: string): { chapter: string; slug: string } | null {
   const m = /^tools:([^/]+)\/(.+)$/.exec(id);
@@ -63,13 +72,14 @@ function blockNamed(title: string): { block: string; written: string } | null {
 
 const feature = (e: Entry, title: string): Feature => ({ id: e.id, title, examples: e.path });
 
-/** Every Configuration and CLI page, from the roster and the binary's directive list. A feature the
- * roster names in either area that no page shows throws, and so does a slug two pages share. */
+/** Every Configuration, CLI and Types page, from the roster and the binary's directive list. A slug
+ * two pages share throws. */
 export function referenceData(entries: Entry[], directives: { key: string; class: string; apply: string }[]): Page[] {
   const meta = new Map(directives.map((d) => [d.key, d]));
   const blocks = new Map<string, Page>();
   const topics: Page[] = [];
   const cli = new Map<string, Page[]>(CLI_CHAPTERS.map(([c]) => [c, []]));
+  const types = new Map<string, Page[]>(TYPE_KINDS.map(([k]) => [k, []]));
 
   const blockPage = (block: string): Page => {
     let page = blocks.get(block);
@@ -85,6 +95,13 @@ export function referenceData(entries: Entry[], directives: { key: string; class
       const key = e.id.slice("directive:".length);
       const d = meta.get(key);
       blockPage(key.split(".")[0]!).keys.push({ ...feature(e, key), key, class: d?.class ?? "", apply: d?.apply ?? "" });
+      continue;
+    }
+    const kind = TYPE_KINDS.find(([k]) => k === e.kind);
+    if (kind) {
+      // `types/Novis-Pdf-Document-Standard` -> `novis-pdf-document-standard`.
+      const slug = e.path.slice("types/".length).toLowerCase();
+      types.get(kind[0])!.push({ area: "types", slug, url: `/reference/types/${slug}/`, title: e.id, group: kind[1], intro: feature(e, e.id), keys: [] });
       continue;
     }
     const at = e.kind === "tool" ? chapterOf(e.id) : null;
@@ -103,7 +120,8 @@ export function referenceData(entries: Entry[], directives: { key: string; class
   }
 
   for (const page of blocks.values()) page.keys.sort((a, b) => (a.key === page.slug ? -1 : b.key === page.slug ? 1 : 0));
-  const pages = [...[...blocks.values()].sort((a, b) => a.slug.localeCompare(b.slug)), ...topics, ...[...cli.values()].flat()];
+  const typePages = [...types.values()].flatMap((list) => list.sort((a, b) => a.title.localeCompare(b.title)));
+  const pages = [...[...blocks.values()].sort((a, b) => a.slug.localeCompare(b.slug)), ...topics, ...[...cli.values()].flat(), ...typePages];
   const seen = new Set<string>();
   for (const p of pages) {
     if (seen.has(p.url)) throw new Error(`two reference pages share the URL ${p.url}`);

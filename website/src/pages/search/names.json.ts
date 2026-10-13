@@ -1,6 +1,6 @@
 /**
  * /search/names.json — every page a reader can reach by its name: each Core
- * class and member, each `nvs.toml` key and block, each CLI page. The search
+ * class and member, each `nvs.toml` key and block, each CLI page, each type. The search
  * dialog (src/components/Search.astro) loads it the first time it opens and
  * matches the typed words against the names on every keystroke, so a name
  * search needs no request after that one. Pagefind still searches the text.
@@ -14,7 +14,7 @@ import { classes } from '~/lib/core'
 import { pages } from '~/lib/reference'
 import { aboutFor } from '~/lib/feature'
 
-type Kind = 'class' | 'method' | 'setting' | 'command'
+type Kind = 'class' | 'method' | 'setting' | 'command' | 'type'
 type Entry = [name: string, url: string, summary: string, kind: Kind]
 
 const plain = (html: string) =>
@@ -35,7 +35,7 @@ export const GET: APIRoute = () => {
   }
   for (const page of pages) {
     const intro = page.intro ? aboutFor(page.intro) : null
-    const kind: Kind = page.area === 'config' ? 'setting' : 'command'
+    const kind: Kind = page.area === 'config' ? 'setting' : page.area === 'types' ? 'type' : 'command'
     // A block with a key of its own name, like `[limits]` and `limits`, is listed once, under the key.
     const block = page.title.replace(/[^a-z0-9.]/gi, '')
     const own = page.keys.find((key) => key.key === block)

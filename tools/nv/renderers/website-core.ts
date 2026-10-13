@@ -16,13 +16,14 @@
 // registry carries a card field it wins; where it lacks one, the website's `Method*` components fall
 // back to the spec at build time, so this file only attaches what the registry reported.
 //
-// Each member carries `examples`, its feature path in the proofs roster (`core/Time-Date/at`), and
-// nothing else from `docs/examples/`: the route reads the member's `about.md` and examples in place
-// under `docs/examples/<examples>/` (`rule:testing/examples-live-in-the-repository`).
+// Each member carries `examples`, its feature path in the proofs roster (`core/Time-Date/at`, and
+// `novis/Pdf-Document/standard` for a built-in component), and nothing else from `docs/examples/`: the
+// route reads the member's `about.md` and examples in place under `docs/examples/<examples>/`
+// (`rule:testing/examples-live-in-the-repository`).
 //
 // The registry comes from a built binary, so this renderer is in `--website` alone. CI's docs job runs
 // `nv render --check` without building one, and its `reference` job builds one and runs
-// `nv render --website --check`. It also writes the Configuration and CLI reference data,
+// `nv render --website --check`. It also writes the Configuration, CLI and Types reference data,
 // `website-reference.ts`, from the proofs roster over the same `nvs meta --json`.
 
 import { spawnSync } from "node:child_process";
@@ -30,7 +31,7 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import { join, posix } from "node:path";
 import type { Output, Renderer } from "../lib/render.ts";
 import { load } from "../lib/store.ts";
-import { classTail, roster, type Meta } from "../proofs/roster.ts";
+import { memberPath, roster, type Meta } from "../proofs/roster.ts";
 import { REFERENCE_FILE, referenceData } from "./website-reference.ts";
 import { specCoreMembers } from "../schema/spec.ts";
 import { CORE as SPEC, SEPARATOR } from "./spec-tables.ts";
@@ -56,8 +57,12 @@ interface RegistryMember {
 interface Registry {
   /** Class name to the names of its registered members. */
   implemented: Map<string, string[]>;
-  /** Every registered class in the binary's order, with its class card's one sentence and its members. */
-  classes: { name: string; short: string; members: RegistryMember[] }[];
+  /** Every registered class in the binary's order, with its class card's one sentence, its members and
+   * the shape types it declares (`Info` for `Novis\Image\Image::Info`). */
+  classes: { name: string; short: string; members: RegistryMember[]; types: ShapeType[] }[];
+  /** Every registered enum by its full name (`Novis\Pdf\Document::Standard`, `Core\Charset`), with the
+   * cases the binary lists, which may be none. */
+  enums: { name: string; cases: string[] }[];
   /** `Core\Str::length` to that member's card. */
   docs: Map<string, MemberCard>;
   /** `Core\Arr::Order` to its short card and each case's description. */
@@ -89,18 +94,20 @@ function registry(root: string): Registry {
   const run = spawnSync(nvs, ["meta", "--json"], { encoding: "utf8", timeout: 60_000, maxBuffer: 256 * 1024 * 1024 });
   if (run.error || run.status !== 0) throw new Error(`${nvs} meta --json failed: ${run.error?.message ?? run.stderr}`);
   const parsed = JSON.parse(run.stdout);
-  const out: Registry = { implemented: new Map(), classes: [], docs: new Map(), enumDocs: new Map(), constDocs: new Map(), meta: parsed };
+  const out: Registry = { implemented: new Map(), classes: [], enums: [], docs: new Map(), enumDocs: new Map(), constDocs: new Map(), meta: parsed };
   for (const cls of parsed.classes ?? []) {
     out.implemented.set(cls.name, (cls.members ?? []).map((m: { name: string }) => m.name));
     out.classes.push({
       name: cls.name,
       short: typeof cls.doc?.short === "string" ? cls.doc.short : "",
       members: (cls.members ?? []).map((m: RegistryMember) => ({ name: m.name, kind: m.kind, signature: m.signature })),
+      types: (cls.types ?? []).map((t: { name: string; type: string }) => ({ name: t.name.slice(t.name.lastIndexOf("::") + 2), type: t.type })),
     });
     for (const m of cls.members ?? []) if (m.doc) out.docs.set(`${cls.name}::${m.name}`, m.doc);
     for (const c of cls.constants ?? []) if (typeof c.doc === "string" && c.doc) out.constDocs.set(`${cls.name}::${c.name}`, c.doc);
   }
   for (const e of parsed.enums ?? []) {
+    out.enums.push({ name: e.name, cases: (e.cases ?? []).map((c: { name: string }) => c.name) });
     if (!e.doc) continue;
     const cases = new Map<string, string>();
     for (const c of e.doc.cases ?? []) if (typeof c.desc === "string" && c.desc) cases.set(c.name, c.desc);
@@ -305,6 +312,12 @@ interface Overrides {
   classes?: Record<string, { summary?: string; hide?: boolean; constants?: string[]; enums?: SpecEnum[] }>;
 }
 
+/** A named shape a class declares: `Info` and `{format: Format, width: uint, …}`. */
+interface ShapeType {
+  name: string;
+  type: string;
+}
+
 interface SpecEnum {
   name: string;
   cases: string[];
@@ -342,6 +355,8 @@ interface Class {
   summary: string;
   surface: string;
   enums: SpecEnum[];
+  /** The shape types the class declares, by the name its signatures use. */
+  types: ShapeType[];
   constants: (string | { name: string; descHtml: string })[];
   members: Member[];
   unparsed: { memberCell: string; signatureCell: string; section: string }[];
@@ -374,7 +389,7 @@ export function parseSpec(text: string, tables: SpecTable[], overrides: Override
     const full = clean.startsWith("Core\\") ? clean : `Core\\${clean}`;
     let rec = classes.get(full);
     if (!rec) {
-      rec = { id: classIdOf(full), name: full, section: "", summary: "", surface: "", enums: [], constants: [], members: [], unparsed: [] };
+      rec = { id: classIdOf(full), name: full, section: "", summary: "", surface: "", enums: [], types: [], constants: [], members: [], unparsed: [] };
       classes.set(full, rec);
     }
     return rec;
@@ -625,17 +640,22 @@ export function parseSpec(text: string, tables: SpecTable[], overrides: Override
  * registry's own signature. The proofs roster counts every registered member as a feature, and each
  * one gets a page. An instance member's receiver is its class's last segment, `$bigInt`. A class the
  * spec names but the overrides hide stays hidden.
+ *
+ * Each class also takes the shape types the registry declares on it, and every registered enum it
+ * owns (`Novis\Pdf\Document::Standard`) that the spec's `Enums:` lines do not name, with the cases the
+ * registry lists.
  */
-export function addRegistryMembers(classes: Class[], reg: Pick<Registry, "classes">, overrides: Overrides): Class[] {
+export function addRegistryMembers(classes: Class[], reg: Pick<Registry, "classes" | "enums">, overrides: Overrides): Class[] {
   const byName = new Map(classes.map((c) => [c.name, c]));
   const hidden = new Set(Object.entries(overrides.classes ?? {}).filter(([, v]) => v.hide).map(([k]) => (k.startsWith("Core\\") ? k : `Core\\${k}`)));
   for (const rc of reg.classes) {
     if (hidden.has(rc.name) || rc.name === "Core\\Unknown") continue;
     let cls = byName.get(rc.name);
     if (!cls) {
-      cls = { id: classIdOf(rc.name), name: rc.name, section: "", summary: rc.short, surface: "", enums: [], constants: [], members: [], unparsed: [] };
+      cls = { id: classIdOf(rc.name), name: rc.name, section: "", summary: rc.short, surface: "", enums: [], types: [], constants: [], members: [], unparsed: [] };
       byName.set(rc.name, cls);
     }
+    cls.types = rc.types;
     const last = rc.name.slice(rc.name.lastIndexOf("\\") + 1);
     const receiver = last.charAt(0).toLowerCase() + last.slice(1);
     for (const rm of rc.members) {
@@ -658,6 +678,13 @@ export function addRegistryMembers(classes: Class[], reg: Pick<Registry, "classe
         section: cls.section,
       });
     }
+  }
+  for (const e of reg.enums) {
+    const at = e.name.lastIndexOf("::");
+    const owner = at < 0 ? undefined : byName.get(e.name.slice(0, at));
+    const name = e.name.slice(at + 2);
+    if (!owner || owner.enums.some((x) => x.name === name)) continue;
+    owner.enums.push({ name, cases: e.cases, raw: e.cases.length > 0 ? `${name} { ${e.cases.join(", ")} }` : name });
   }
   return [...byName.values()].sort((a, b) => a.id.localeCompare(b.id));
 }
@@ -734,7 +761,8 @@ export async function renderWebsiteCore(root: string): Promise<Output[]> {
     cls.members = cls.members.filter((m) => m.implemented);
     cls.unparsed = [];
   }
-  const published = classes.filter((c) => c.members.length > 0);
+  // A registered class with no members, such as `Core\Db\InList`, still has a page: signatures name it.
+  const published = classes.filter((c) => c.members.length > 0 || c.implemented);
   for (const cls of published) {
     cls.slug = cls.id.toLowerCase().replace(/\./g, "-");
     cls.url = `/reference/core/${cls.slug}/`;
@@ -743,7 +771,7 @@ export async function renderWebsiteCore(root: string): Promise<Output[]> {
     for (const m of cls.members) {
       m.slug = m.name.toLowerCase();
       m.url = `/reference/core/${cls.slug}/${m.slug}/`;
-      m.examples = `core/${classTail(cls.name)}/${m.name}`;
+      m.examples = memberPath(cls.name, m.name);
     }
   }
 

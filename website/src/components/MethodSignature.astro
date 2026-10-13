@@ -36,7 +36,7 @@ const generics = new Set((member.generics ?? '').match(/[A-Za-z_][A-Za-z0-9_]*/g
 function nameHtml(name: string): string {
   if (generics.has(name)) return span('sig-generic', name)
   if (name === 'secret' || name === 'tainted') return span('sig-keyword', name)
-  const href = typeLink(name)
+  const href = typeLink(name, cls.name)
   if (!href) return span('sig-generic', name)
   return `<a class="sig-type sig-link" href="${escape(href)}">${escape(name)}</a>`
 }

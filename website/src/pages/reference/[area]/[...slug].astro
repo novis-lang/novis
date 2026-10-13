@@ -1,6 +1,6 @@
 ---
 /**
- * Every Configuration and CLI page, and the landing page of each area,
+ * Every Configuration, CLI and Types page, and the landing page of each area,
  * generated from src/data/reference.json and each feature's `about.md`,
  * examples and `nvs.toml` (src/lib/feature.ts). Nothing here is edited per
  * page. A block's page opens with the chapter section that introduces the
@@ -19,16 +19,17 @@ import { APPLIED_AT, CHANGED_BY, pages, type RefPage } from '~/lib/reference'
 const AREAS = {
   config: { title: 'Configuration', description: 'Every block of `nvs.toml`, and each of its keys.' },
   cli: { title: 'CLI commands', description: 'Every `nvs` command, and what it does.' },
+  types: { title: 'Types', description: 'Every enum, exception and interface, and what each one is for.' },
 } as const
 
 export const getStaticPaths = (() =>
-  (['config', 'cli'] as const).flatMap((area) => [
+  (['config', 'cli', 'types'] as const).flatMap((area) => [
     { params: { area, slug: undefined }, props: { area, page: null } },
     ...pages.filter((p) => p.area === area).map((page) => ({ params: { area, slug: page.slug }, props: { area, page } })),
   ])) satisfies GetStaticPaths
 
 interface Props {
-  area: 'config' | 'cli'
+  area: 'config' | 'cli' | 'types'
   page: RefPage | null
 }
 
