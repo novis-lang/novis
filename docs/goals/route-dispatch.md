@@ -22,7 +22,7 @@ stages:
         shapes: ["A `Core` member", "A `.nvst` test case", A diagnostic]
   - id: 3
     title: "the server's refusals reach the gate"
-    status: open
+    status: done
     context: [crates/nvs-cli/src/serve.rs, crates/nvs-cli/src/runner.rs, crates/nvs-server/src/route.rs, crates/nvs-runtime/src/ctx/inbound.rs]
     extra:
       context:
@@ -249,10 +249,10 @@ after it. Every page and comment this goal writes follows AGENTS.md § *Text an 
 **Does:** CSRF, body-too-large and unknown-method refusals reach a dispatching program's gate in
 refusal mode, and never a handler.
 
-- [ ] The refusal on the carrier, and `route()` returning `null` under it (`crates/nvs-runtime/src/ctx/inbound.rs:716`)
-- [ ] The served door: unknown method after mount selection, and CSRF and the body cap as refusal mode (`crates/nvs-cli/src/serve.rs:927`)
-- [ ] The in-process door, the same (`crates/nvs-cli/src/runner.rs:1595`)
-- [ ] The Rust tests the `door-refusals` check names (`crates/nvs-cli/tests/gate.rs:1`)
+- [x] The refusal on the carrier, and `route()` returning `null` under it (`crates/nvs-runtime/src/ctx/inbound.rs:716`)
+- [x] The served door: unknown method after mount selection, and CSRF and the body cap as refusal mode (`crates/nvs-cli/src/serve.rs:927`)
+- [x] The in-process door, the same (`crates/nvs-cli/src/runner.rs:1595`)
+- [x] The Rust tests the `door-refusals` check names (`crates/nvs-cli/tests/gate.rs:1`)
 
 ### 4. `failed` after a memory or time limit
 
@@ -303,46 +303,38 @@ refusal mode, and never a handler.
 
 ### State
 
-Stage 2 is done:
+Stages 2 and 3 are done. `door-refusals` passes: `cargo test --test gate`, five tests over a real
+`nvs serve`.
 
-- `Core\Router::dispatch` (`crates/nvs-stdlib/src/router.rs:2354`) calls the matched row's handler.
-  - A static handler goes through `call_static_bound`.
-  - An instance handler is built with no argument and called through its class.
-  - The route row's `static_handler` flag tells the two apart.
-- The gate gets `NotFound`, `MethodNotAllowed` (with `Allow`), `Denied`, `BadCapture` and a handler's
-  throw (`failed`, `500`). The three cases the `dispatch-cases` check names all pass. The third,
-  `tests/conformance/core/router-dispatch-discards-a-handlers-return-value.nvst`, pins that a
-  returned string, `uint` or object is not sent and `failed` does not run.
-- The unit's mark is `RouteTable::dispatches()` (`crates/nvs-types/src/routes.rs:635`). It is set where
-  the call is checked (`crates/nvs-types/src/expr/calls.rs:579`), and
-  `a_call_to_dispatch_marks_the_unit_and_a_hand_written_dispatcher_does_not` in
-  `crates/nvs-types/tests/routes.rs` pins it. Nothing reads the mark yet. It does not cross to the
-  runtime table.
-- `Core\Router\Gate` is a new registry roster of contracts a program implements (`CONTRACTS` in
-  `crates/nvs-stdlib/src/registry.rs`).
-- `E0855` refuses an instance handler whose class cannot be built with no argument.
+- The checker's mark crosses as `Routes::dispatches()` (`crates/nvs-runtime/src/routes.rs:796`), set
+  in `runtime_routes` (`crates/nvs-cli/src/main.rs:2920`).
+- The carrier holds `nvs_runtime::routes::Refusal` (`UnknownMethod`, `Csrf`, `BodyTooLarge`,
+  `crates/nvs-runtime/src/routes.rs:696`). `Inbound::route()` is `None` while one is set
+  (`crates/nvs-runtime/src/ctx/inbound.rs:731`).
+- Both doors (`crates/nvs-cli/src/serve.rs:1015`, `crates/nvs-cli/src/runner.rs:1598`) set it for a
+  dispatching unit, with no match and no body, and keep the empty answers for every other unit. The
+  unknown-verb check runs after mount selection. Health, a path no mount covers and a static file
+  still answer `501` for an unknown verb.
+- `dispatch` reads the refusal first and calls `refused` with a `null` route
+  (`crates/nvs-stdlib/src/router.rs:2394`).
+- A refused run that fails answers the door's status with no body, never a `500`
+  (`crates/nvs-server/src/serve.rs:1644`, `:1862`). A run whose head was already streamed is not
+  covered, since it never reaches that arm.
 
-Decisions made here, each open to review:
+Decisions from stage 2 still open to review: `BadCapture` before `allows` with a `null` route; a throw
+from `allows` is `Denied`; a parameter no capture fills throws `LogicError`.
 
-- `BadCapture` is decided before `allows`, with a `null` route, because the `Match` converts every
-  capture as it is built.
-- A throw from `allows` is `Denied`. A constructor throw is a handler failure.
-- A parameter no capture fills, such as an absent optional capture or a `#[Query]`, throws a
-  `LogicError` before the handler runs. Defaults are on neither the route row nor `MethodRow`.
-
-The rule's `guardedBy` lists the three cases and the mark's test. **The rule stays `designed`,
-against the last handoff's plan to ship it now.** Its fragment also states refusal mode and `failed`
-after a limit, which stages 3 and 4 still owe, and `docs/novis.md` prints only `shipped` rules. Ship it
-when stage 4 is done. Both apps still dispatch by hand (`apps/notes/src/App.nvs:16`).
+The rule stays `designed` until stage 4 is done, because its fragment also states `failed` after a
+limit. Its `guardedBy` now lists `crates/nvs-cli/tests/gate.rs`. Both apps still dispatch by hand
+(`apps/notes/src/App.nvs:16`).
 
 ### Next
 
-Stage 3, over the doors and the carrier (`rule:routing/a-gate-answers-around-every-handler` § *Refusal mode*):
+Stage 4, over the accept loop's completion arm (`rule:routing/a-gate-answers-around-every-handler` § *A limit*):
 
-- [ ] Carry the mark onto the runtime table where the rows cross (`crates/nvs-cli/src/main.rs:2859`, `crates/nvs-runtime/src/routes.rs:686`)
-- [ ] The refusal on the carrier, and `route()` returning `null` under it (`crates/nvs-runtime/src/ctx/inbound.rs:716`)
-- [ ] The served door: unknown method after mount selection, and CSRF and the body cap as refusal mode (`crates/nvs-cli/src/serve.rs:927`)
-- [ ] The in-process door, the same, with the `door-refusals` tests (`crates/nvs-cli/src/runner.rs:1595`, `crates/nvs-cli/tests/gate.rs:1`)
+- [ ] Find how a memory or time limit's stop reaches the completion: `done.ok` alone, or a cause on it (`crates/nvs-server/src/serve.rs:1862`, `crates/nvs-runtime/src/host.rs:418`)
+- [ ] Run the gate's `failed` in a fresh isolate under the same limits, with the empty `500` as fallback (`crates/nvs-server/src/serve.rs:2459`)
+- [ ] The two `limit-failed` tests beside the five in `crates/nvs-cli/tests/gate.rs:1`
 
 ### Backlog
 
