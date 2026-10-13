@@ -1,5 +1,5 @@
 --TEST--
-A document that hydrates a class holding itself checks the call-stack limit at every object it enters, so a chain decoded with little stack left throws a catchable `RecursionError` and never runs past the floor `rule:errors/on-limit`
+A document that hydrates a class holding itself checks the call-stack limit before every constructor it runs, so a chain decoded with little stack left throws a catchable `RecursionError` and never runs past the floor `rule:errors/on-limit`
 --FILE--
 <?nvs
 #[Core\Json\Derive]
@@ -13,10 +13,9 @@ class Node {
 
 class Descent {
     // Each level hydrates the whole chain again, one frame further down, so
-    // some level runs out of stack inside the walk itself. The walk's objects
-    // are native frames with no compiled prologue between them, and the
-    // constructors run only on the way back up: the walk's own compare is the
-    // one that throws there.
+    // some level runs out of stack. The walk keeps its objects on the heap,
+    // so the throw comes from this method's own entry or from the compare the
+    // walk makes before it runs a constructor.
     public static function at(string $text, uint $level): uint {
         Node $chain = Core\Json::decodeAs<Node>($text);
         if ($chain->n == null || $level > 1000000) {
