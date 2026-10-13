@@ -1590,9 +1590,13 @@ fn answer_on_the_wire(
     request: nvs_server::Request<nvs_server::Incoming>,
     origin: nvs_server::Origin,
 ) -> nvs_server::Reply {
-    // Ahead of everything, and asked of `nvs_stdlib::request` for `crate::serve`'s
-    // reason: the roster of verbs has one home and the door does not keep a list.
-    if !nvs_stdlib::request::is_known_verb(request.method().as_str()) {
+    // Asked of `nvs_stdlib::request` for `crate::serve`'s reason: the roster of
+    // verbs has one home and the door does not keep a list. A program that calls
+    // `Core\Router::dispatch` answers it in refusal mode, as `crate::serve`'s
+    // door does, and every other program gets the door's `501`.
+    let unknown_verb = !nvs_stdlib::request::is_known_verb(request.method().as_str());
+    let refusal_mode = routes.dispatches();
+    if unknown_verb && !refusal_mode {
         return nvs_server::Reply::not_implemented();
     }
     let Some(unit) = held.upgrade() else {
@@ -1619,19 +1623,32 @@ fn answer_on_the_wire(
     // `rule:routing/matched-once-before-the-handler`'s one match, taken here for the reason `crate::serve` takes
     // it here: the request and the unit that will answer it are both in hand,
     // and no application code has run.
-    nvs_server::route::take(routes, &mut inbound);
+    if unknown_verb {
+        inbound.set_refusal(nvs_runtime::routes::Refusal::UnknownMethod);
+    } else {
+        nvs_server::route::take(routes, &mut inbound);
+    }
     // And the refusal over it, for `crate::serve`'s reason and in the same place:
     // `rule:testing/in-process-request` has a test's request cross this door the
     // way one off the wire does, so a case that asserts a `403` on a forged write
     // is asserting the server's own answer.
-    if nvs_server::route::csrf(&inbound, door.key.as_deref(), &door.cookie)
-        == nvs_server::route::Csrf::Refused
+    if inbound.refusal().is_none()
+        && nvs_server::route::csrf(&inbound, door.key.as_deref(), &door.cookie)
+            == nvs_server::route::Csrf::Refused
     {
-        return nvs_server::Reply::forbidden();
+        if !refusal_mode {
+            return nvs_server::Reply::forbidden();
+        }
+        inbound.set_refusal(nvs_runtime::routes::Refusal::Csrf);
     }
     let (head, incoming) = request.into_parts();
     let supply = match nvs_server::body::of(&head.headers, incoming) {
+        _ if inbound.refusal().is_some() => None,
         nvs_server::Arrived::Absent => None,
+        nvs_server::Arrived::TooLarge if refusal_mode => {
+            inbound.set_refusal(nvs_runtime::routes::Refusal::BodyTooLarge);
+            None
+        }
         nvs_server::Arrived::TooLarge => return nvs_server::Reply::too_large(),
         nvs_server::Arrived::Streaming(supply, pull) => {
             inbound.set_body(pull);

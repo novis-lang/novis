@@ -919,14 +919,14 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
         // exactly as [`Scheduled`] reads a fire's tree per fire.
         let current = Arc::clone(&current);
         move |request: Request<Incoming>, origin: Origin| {
-            // Ahead of the table, because a verb `Core\Http\Method` does not
-            // carry names no application on this server rather than none at
-            // this path: `Reply::not_implemented` owns why that is a `501` and
-            // not the route table's `405`. Asked of `nvs_stdlib::request`,
-            // which is the roster's one home — the door does not keep a list.
-            if !nvs_stdlib::request::is_known_verb(request.method().as_str()) {
-                return Reply::not_implemented();
-            }
+            // A verb `Core\Http\Method` does not carry names no application on
+            // this server rather than none at this path:
+            // `Reply::not_implemented` owns why that is a `501` and not the
+            // route table's `405`. Asked of `nvs_stdlib::request`, which is the
+            // roster's one home — the door does not keep a list. It is answered
+            // once the mount is chosen, which is by path alone, because a
+            // program that calls `Core\Router::dispatch` answers it itself.
+            let unknown_verb = !nvs_stdlib::request::is_known_verb(request.method().as_str());
             // The tree standing now, read once for everything below that the
             // handler reads from it: the table's switches, the trace sample
             // and the CSRF key. A reload reaches the next request.
@@ -938,10 +938,12 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
                 // for. That is why it is answered here rather than by an entry —
                 // an application that will not compile is exactly when the
                 // question is being asked.
+                Some(Resolved::Health) if unknown_verb => return Reply::not_implemented(),
                 Some(Resolved::Health) => return Reply::health(&draining),
                 Some(Resolved::Mounted(selected)) => selected,
                 // § 4 step 1's third arrow. There is no mount for it and so
                 // nothing to run: not a program's `404` but the table's.
+                None if unknown_verb => return Reply::not_implemented(),
                 None => return Reply::not_found(),
             };
             // § 4 step 2's remainder and the row it came off, both taken before
@@ -953,6 +955,7 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
             let stripped = selected.path;
             let file = match selected.what {
                 What::Run(file) => file,
+                What::Static(_) if unknown_verb => return Reply::not_implemented(),
                 // Step 3 chose a file to *send*, and sending it is one policy
                 // this command shares with every other deployment rather than a
                 // development reading of one (`nvs_server::statics`). Nothing is
@@ -1004,6 +1007,15 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
                         None,
                     ),
                 };
+            // `rule:routing/a-gate-answers-around-every-handler`'s refusal mode:
+            // a unit that calls `Core\Router::dispatch` runs for a request this
+            // door refuses, with the refusal on the carrier, no match and no
+            // body, so that its gate answers. Every other unit gets the door's
+            // empty answer, as before.
+            let refusal_mode = routes.as_ref().is_some_and(|routes| routes.dispatches());
+            if unknown_verb && !refusal_mode {
+                return Reply::not_implemented();
+            }
             // The carrier, built here because this is the last point at which
             // the arrived request and step 2's remainder are both in hand, and
             // handed to the isolate rather than to this loop's own context —
@@ -1056,7 +1068,10 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
             // run. `nvs_server::route` owns why the door takes it rather than
             // the program, and why nothing is written for a request the table
             // does not claim.
-            if let Some(routes) = &routes {
+            // An unknown verb is matched against nothing: it is refused here.
+            if unknown_verb {
+                inbound.set_refusal(nvs_runtime::routes::Refusal::UnknownMethod);
+            } else if let Some(routes) = &routes {
                 nvs_server::route::take(routes, &mut inbound);
             }
             // `rule:security/csrf-is-on-by-default`'s refusal, over the match
@@ -1074,8 +1089,11 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
                 nvs_stdlib::session::cookie_in(&standing.config),
             );
             drop(standing);
-            if verdict == nvs_server::route::Csrf::Refused {
-                return Reply::forbidden();
+            if verdict == nvs_server::route::Csrf::Refused && inbound.refusal().is_none() {
+                if !refusal_mode {
+                    return Reply::forbidden();
+                }
+                inbound.set_refusal(nvs_runtime::routes::Refusal::Csrf);
             }
             // Split only here: everything above reads the request whole, and
             // the body is the one part of it that does not go where the rest
@@ -1088,9 +1106,15 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
             // isolate is a peer task, so what the carrier gets is the pulling
             // half and what goes back with the reply is the half the connection
             // keeps (`nvs_server::body`). A declared length already over § 5's
-            // cap is refused here, before a program exists to be given it.
+            // cap is refused here, before a program exists to be given it. A
+            // request already refused is given no body.
             let supply = match nvs_server::body::of(&head.headers, incoming) {
+                _ if inbound.refusal().is_some() => None,
                 Arrived::Absent => None,
+                Arrived::TooLarge if refusal_mode => {
+                    inbound.set_refusal(nvs_runtime::routes::Refusal::BodyTooLarge);
+                    None
+                }
                 Arrived::TooLarge => return Reply::too_large(),
                 Arrived::Streaming(supply, pull) => {
                     inbound.set_body(pull);

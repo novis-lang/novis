@@ -2909,8 +2909,16 @@ pub(crate) fn runtime_routes(exprs: &nvs_types::ExprTypeTable) -> nvs_runtime::r
     // Taken here so that every program this binary runs carries the same
     // answer, since a table marked in one builder and not in another is a
     // check that passes on which path compiled it.
-    if exprs.links_absolutely() {
+    let crossed = if exprs.links_absolutely() {
         crossed.linking_absolutely()
+    } else {
+        crossed
+    };
+    // And the dispatch half, for the same reason: whether the unit calls
+    // `Core\Router::dispatch` is a call the checker saw, and the door reads it
+    // off this table to choose refusal mode.
+    if table.dispatches() {
+        crossed.dispatching()
     } else {
         crossed
     }

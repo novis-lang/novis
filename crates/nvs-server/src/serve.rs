@@ -1637,6 +1637,14 @@ where
                     .answering_request()
                     .and_then(crate::route::label)
                     .map(Box::from);
+                // The status the door refused this request with, where it runs
+                // the program in `rule:routing/a-gate-answers-around-every-handler`'s
+                // refusal mode. A run that fails answers this status with no
+                // body, which is the door's own answer, and never a `500`.
+                let refusal = isolate
+                    .answering_request()
+                    .and_then(nvs_runtime::Inbound::refusal)
+                    .and_then(|refused| StatusCode::from_u16(refused.status()).ok());
                 // `rule:observability/four-kinds-become-a-span`'s root, taken
                 // off the carrier beside the label and at the same last moment,
                 // for the same reason: the trace the door decided rides on the
@@ -1836,8 +1844,9 @@ where
                             // Nothing left to wait for, so this join does not
                             // park.
                             None => {
-                                peer.collect(&mut ctx.borrow_mut())
-                                    .map_or_else(failed, |done| {
+                                peer.collect(&mut ctx.borrow_mut()).map_or_else(
+                                    || refusal.map_or_else(failed, empty),
+                                    |done| {
                                         // The events the request filed, on the
                                         // completion because that is the one channel out
                                         // of a finished isolate
@@ -1847,8 +1856,14 @@ where
                                         if let Some((request, trace)) = &recording {
                                             crate::trace::record(request, trace, &done.trace);
                                         }
-                                        finished(done, &asked)
-                                    })
+                                        let ok = done.ok;
+                                        let response = finished(done, &asked);
+                                        match refusal {
+                                            Some(status) if !ok => empty(status),
+                                            _ => response,
+                                        }
+                                    },
+                                )
                             }
                         }
                     }
@@ -2442,8 +2457,13 @@ fn event_stream(
 
 /// `500`, carrying nothing — `answer`'s docs own why the body is empty.
 fn failed() -> Response<Answer> {
+    empty(StatusCode::INTERNAL_SERVER_ERROR)
+}
+
+/// `status`, carrying nothing.
+fn empty(status: StatusCode) -> Response<Answer> {
     let mut response = Response::new(Answer::empty());
-    *response.status_mut() = StatusCode::INTERNAL_SERVER_ERROR;
+    *response.status_mut() = status;
     response
 }
 

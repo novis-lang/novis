@@ -409,6 +409,12 @@ pub struct Inbound {
     /// one — an `Arc` bump on the row and one `String` per capture.
     /// [`crate::routes`] accounts for the rest.
     route: Option<crate::routes::Match>,
+    /// `rule:routing/a-gate-answers-around-every-handler`'s refusal mode: the
+    /// door refused this request, and runs a dispatching program for it so
+    /// that its gate answers. While it is set, [`Self::route`] is `None`, so
+    /// no dispatcher reaches a handler. `None` for every request the door
+    /// accepted.
+    refusal: Option<crate::routes::Refusal>,
     /// `rule:observability/an-inbound-traceparent-is-continued`'s trace,
     /// as the door read it off the arrived `traceparent` — the trace continued
     /// when the header was one this understands, and the root it drew instead
@@ -624,6 +630,7 @@ impl Inbound {
             // Nothing has matched yet, which is what every carrier says until
             // the door that has a table says otherwise.
             route: None,
+            refusal: None,
             // No door has read a `traceparent` for this carrier, which leaves
             // whatever root its context drew standing — the field's own doc
             // owns why that is not "no trace".
@@ -718,10 +725,28 @@ impl Inbound {
     }
 
     /// The match this request arrived with, and `None` where nothing matched —
-    /// the field's own doc owns why those absences are one case.
+    /// the field's own doc owns why those absences are one case. `None` as well
+    /// for a refused request ([`Self::refusal`]), whatever was matched.
     #[must_use]
     pub fn route(&self) -> Option<&crate::routes::Match> {
+        if self.refusal.is_some() {
+            return None;
+        }
         self.route.as_ref()
+    }
+
+    /// Records the door's refusal of this request, for a program that calls
+    /// `Core\Router::dispatch` (`crate::routes::Routes::dispatches`). The door
+    /// is the one caller, before the program runs, and it sets no body.
+    pub fn set_refusal(&mut self, refusal: crate::routes::Refusal) {
+        self.refusal = Some(refusal);
+    }
+
+    /// The door's refusal of this request, and `None` for a request it
+    /// accepted.
+    #[must_use]
+    pub fn refusal(&self) -> Option<crate::routes::Refusal> {
+        self.refusal
     }
 
     /// Records `rule:observability/an-inbound-traceparent-is-continued`'s trace, as the door decided it from the arrived

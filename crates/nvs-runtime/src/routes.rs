@@ -678,6 +678,40 @@ pub struct Routes {
     /// absolutely — [`Self::absolute_links`], and the one fact here that is
     /// about the calls rather than about the declarations.
     absolute_links: bool,
+    /// Whether the unit that declared these rows calls `Core\Router::dispatch`
+    /// — [`Self::dispatches`], a fact about the calls for the reason
+    /// `absolute_links` is one.
+    dispatches: bool,
+}
+
+/// A request the door refused, which a dispatching program still runs for in
+/// `rule:routing/a-gate-answers-around-every-handler`'s refusal mode.
+///
+/// Each case is one the door decides before the program exists, and
+/// [`Self::status`] is the status the door answers it with when the program
+/// does not answer it. `Core\Router::dispatch` reads it off the carrier
+/// ([`crate::Inbound::refusal`]) and tells the gate the matching
+/// `Core\Router\Refusal` case.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Refusal {
+    /// The verb is not a `Core\Http\Method` case: `501`.
+    UnknownMethod,
+    /// `rule:security/csrf-is-on-by-default`'s check refused the write: `403`.
+    Csrf,
+    /// The declared body length is over the server's cap: `413`.
+    BodyTooLarge,
+}
+
+impl Refusal {
+    /// The status the door answers this refusal with.
+    #[must_use]
+    pub fn status(self) -> u16 {
+        match self {
+            Self::UnknownMethod => 501,
+            Self::Csrf => 403,
+            Self::BodyTooLarge => 413,
+        }
+    }
 }
 
 impl Routes {
@@ -692,6 +726,7 @@ impl Routes {
             rows: rows.into_iter().map(Arc::new).collect(),
             prefixes,
             absolute_links: false,
+            dispatches: false,
         }
     }
 
@@ -741,6 +776,25 @@ impl Routes {
     #[must_use]
     pub fn absolute_links(&self) -> bool {
         self.absolute_links
+    }
+
+    /// The same table, declared by a unit that calls `Core\Router::dispatch`
+    /// (`nvs_types::routes::RouteTable::dispatches`).
+    #[must_use]
+    pub fn dispatching(mut self) -> Self {
+        self.dispatches = true;
+        self
+    }
+
+    /// Whether the unit that declared this table calls `Core\Router::dispatch`,
+    /// which is what puts its requests in
+    /// `rule:routing/a-gate-answers-around-every-handler`'s refusal mode: a
+    /// request the door refuses still runs the program, with the [`Refusal`]
+    /// on its carrier. A unit that dispatches by hand keeps the door's empty
+    /// answers, because it would read a refused request as one with no route.
+    #[must_use]
+    pub fn dispatches(&self) -> bool {
+        self.dispatches
     }
 
     /// § 1's match: this method and this path against the whole table, once.

@@ -44,12 +44,13 @@
 //! this module's: `Core\Request::method` is the one reader that turns a method
 //! token into a case, and its module doc owns the two decisions in it — `HEAD`
 //! answering `Get`, and a token outside this roster being refused rather than
-//! mapped. A served request carrying an unrecognized verb never reaches that
-//! reader: it is answered **501 at the door**, before an isolate exists
-//! (`nvs_server::serve`'s `Answer::not_implemented`, `501` and not `405`
-//! because the route table has not been asked yet), so the throw inside the
-//! program is only what a program reading `Core\Request::method` for itself
-//! gets.
+//! mapped. A served request carrying an unrecognized verb is answered **501 at
+//! the door** (`nvs_server::serve`'s `Reply::not_implemented`, `501` and not
+//! `405` because the route table is not asked). A program that calls
+//! `Core\Router::dispatch` runs for it in refusal mode, where `dispatch` tells
+//! the gate `Refusal::UnknownMethod` and calls no handler, so the throw inside
+//! the program is only what a program reading `Core\Request::method` for
+//! itself gets.
 //!
 //! **A name this module is handed is one the compiler could not fold.** The
 //! route table is built and § 4's link is resolved against it while compiling:
@@ -2281,16 +2282,20 @@ nvs_runtime::nvs_helper! {
 /// [`nvs_runtime::call_method`].
 const DISPATCH: &str = "Core\\Router::dispatch";
 
-/// [`REFUSAL`]'s cases `dispatch` passes, by the ordinal [`REFUSAL`] gives
-/// each. The other three are the server's refusals, which reach a program only
-/// once refusal mode exists, and `dispatch` passes none of them yet.
+/// [`REFUSAL`]'s cases, by the ordinal [`REFUSAL`] gives each.
 mod refusal {
     /// No route claims the path.
     pub(super) const NOT_FOUND: i64 = 0;
     /// The path exists under other verbs.
     pub(super) const METHOD_NOT_ALLOWED: i64 = 1;
+    /// The door refused a verb outside `Core\Http\Method`.
+    pub(super) const UNKNOWN_METHOD: i64 = 2;
     /// `allows` returned `false` or threw.
     pub(super) const DENIED: i64 = 3;
+    /// The door's CSRF check refused the write.
+    pub(super) const CSRF: i64 = 4;
+    /// The door refused a declared body over its cap.
+    pub(super) const BODY_TOO_LARGE: i64 = 5;
     /// A capture did not convert to its parameter's type.
     pub(super) const BAD_CAPTURE: i64 = 6;
 }
@@ -2301,9 +2306,20 @@ fn refusal_status(ordinal: i64) -> u16 {
     match ordinal {
         refusal::NOT_FOUND => 404,
         refusal::METHOD_NOT_ALLOWED => 405,
+        refusal::UNKNOWN_METHOD => 501,
+        refusal::BODY_TOO_LARGE => 413,
         refusal::BAD_CAPTURE => 400,
-        // `Denied`, and `Csrf` when refusal mode passes it.
+        // `Denied` and `Csrf`.
         _ => 403,
+    }
+}
+
+/// The [`REFUSAL`] case of a refusal the door left on the carrier.
+fn door_refusal(refused: nvs_runtime::routes::Refusal) -> i64 {
+    match refused {
+        nvs_runtime::routes::Refusal::UnknownMethod => refusal::UNKNOWN_METHOD,
+        nvs_runtime::routes::Refusal::Csrf => refusal::CSRF,
+        nvs_runtime::routes::Refusal::BodyTooLarge => refusal::BODY_TOO_LARGE,
     }
 }
 
@@ -2329,7 +2345,9 @@ nvs_runtime::nvs_helper! {
     ///
     /// # What happens, in order
     ///
-    /// No match on the request is a `404` or a `405`, from
+    /// A refusal the door left on the carrier
+    /// ([`nvs_runtime::Inbound::refusal`]) is passed to `refused` first, with
+    /// a `null` route. No match on the request is a `404` or a `405`, from
     /// [`nvs_runtime::routes::Routes::methods_for`] over the request's path,
     /// with `Allow` set for the `405`. A match is built into the same
     /// [`MATCH`] `Core\Request::route()` returns ([`match_value`]). Building
@@ -2370,6 +2388,12 @@ fn dispatch(ctx: &mut nvs_runtime::Ctx, gate: Value) -> Result<(), Fault> {
         ));
     }
     let inbound = crate::request::served(ctx, DISPATCH)?;
+    // Refusal mode: the door refused this request and ran the program only so
+    // that the gate answers it. The carrier holds no match, so no handler is
+    // reachable from here on any path.
+    if let Some(refused) = inbound.refusal() {
+        return refuse(ctx, gate, door_refusal(refused), Value::null());
+    }
     let matched = inbound.route().cloned();
     let Some(matched) = matched else {
         let path = inbound.path().to_owned();
