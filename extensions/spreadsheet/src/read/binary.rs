@@ -12,7 +12,9 @@
 //! that reads back as the same `f64`. A formula is stored as parsed tokens, not as text, so a cell
 //! read with `formulas: true` gives its stored result and no formula.
 
-use super::format::{self, Kind};
+use std::sync::Arc;
+
+use super::format::Style;
 use super::merge::Merge;
 use super::sheet::{RawCell, RawRow};
 use super::zip::{Entry, Part};
@@ -228,10 +230,10 @@ pub fn workbook(part: &[u8]) -> Result<Workbook, Error> {
     Ok(book)
 }
 
-/// The read type of each cell style index in `xl/styles.bin`.
-pub fn kinds(part: &[u8]) -> Result<Vec<Kind>, Error> {
-    let mut codes: Vec<(u16, Kind)> = Vec::new();
-    let mut kinds = Vec::new();
+/// The number format of each cell style index in `xl/styles.bin`.
+pub fn styles(part: &[u8]) -> Result<Vec<Style>, Error> {
+    let mut codes: Vec<(u16, Arc<str>)> = Vec::new();
+    let mut styles = Vec::new();
     let mut in_cell_styles = false;
     for item in records(part) {
         let (kind, body) = item?;
@@ -239,26 +241,20 @@ pub fn kinds(part: &[u8]) -> Result<Vec<Kind>, Error> {
             FORMAT => {
                 let id = u16_at(body, 0)?;
                 if let (Some(code), _) = wide_at(body, 2)? {
-                    codes.push((id, format::classify(&code)));
+                    codes.push((id, Arc::from(code)));
                 }
             }
             BEGIN_CELL_STYLES => in_cell_styles = true,
             END_CELL_STYLES => in_cell_styles = false,
             STYLE if in_cell_styles => {
                 let id = u16_at(body, 2)?;
-                kinds.push(
-                    codes
-                        .iter()
-                        .find(|(code, _)| *code == id)
-                        .map(|(_, kind)| *kind)
-                        .or_else(|| format::builtin(u32::from(id)))
-                        .unwrap_or(Kind::Plain),
-                );
+                let custom = codes.iter().find(|(code, _)| *code == id);
+                styles.push(Style::of(u32::from(id), custom.map(|(_, code)| code)));
             }
             _ => {}
         }
     }
-    Ok(kinds)
+    Ok(styles)
 }
 
 /// Reads `xl/sharedStrings.bin` a block at a time, so only the arena is held.

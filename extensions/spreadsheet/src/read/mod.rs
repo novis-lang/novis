@@ -59,7 +59,8 @@ pub mod zip;
 use std::sync::Arc;
 
 use crate::{Clock, Date, Error, TimeOfDay, Visibility};
-use format::Kind;
+use crate::format::{Options, Separators, Value, locale};
+use format::{Kind, Style};
 use merge::{Fill, Merge};
 use xml::Token;
 
@@ -308,8 +309,9 @@ pub struct Reader {
     workbook: Option<String>,
     strings_part: Option<String>,
     strings: Option<Strings>,
-    /// The read type each cell style index gives a number.
-    kinds: Vec<Kind>,
+    /// The number format of each cell style index: the read type it gives a number, and its
+    /// code for the renderer.
+    styles: Vec<Style>,
     date1904: bool,
     /// Whether the parts are xlsb's records.
     binary: bool,
@@ -330,6 +332,9 @@ struct Open {
     held: Option<sheet::RawRow>,
     next: u64,
     fill: Option<Fill>,
+    /// The `text` and `text_all` the cursor was opened for, and the column ranges they name.
+    text: (Vec<String>, bool),
+    shown: Vec<(u64, u64)>,
 }
 
 /// A sheet's cursor, over XML, over records, or over the rows of a sheet read whole.
@@ -436,10 +441,10 @@ fn relationships(
     Ok(out)
 }
 
-/// The read type of each cell style index in `styles.xml`.
-fn kinds(part: &[u8]) -> Result<Vec<Kind>, Error> {
-    let mut codes: Vec<(u32, Kind)> = Vec::new();
-    let mut kinds = Vec::new();
+/// The number format of each cell style index in `styles.xml`.
+fn styles(part: &[u8]) -> Result<Vec<Style>, Error> {
+    let mut codes: Vec<(u32, Arc<str>)> = Vec::new();
+    let mut styles = Vec::new();
     let mut in_xfs = false;
     let mut at = 0;
     while let Some((token, size)) = xml::next(&part[at..])? {
@@ -450,7 +455,7 @@ fn kinds(part: &[u8]) -> Result<Vec<Kind>, Error> {
                     let id = xml::attr(attrs, b"numFmtId")
                         .and_then(|id| std::str::from_utf8(id).ok()?.parse().ok());
                     if let (Some(id), Some(code)) = (id, xml::attr_text(attrs, b"formatCode")?) {
-                        codes.push((id, format::classify(&code)));
+                        codes.push((id, Arc::from(code)));
                     }
                 }
                 b"cellXfs" => in_xfs = !empty,
@@ -458,13 +463,8 @@ fn kinds(part: &[u8]) -> Result<Vec<Kind>, Error> {
                     let id: u32 = xml::attr(attrs, b"numFmtId")
                         .and_then(|id| std::str::from_utf8(id).ok()?.parse().ok())
                         .unwrap_or(0);
-                    let kind = codes
-                        .iter()
-                        .find(|(code, _)| *code == id)
-                        .map(|(_, kind)| *kind)
-                        .or_else(|| format::builtin(id))
-                        .unwrap_or(Kind::Plain);
-                    kinds.push(kind);
+                    let custom = codes.iter().find(|(code, _)| *code == id);
+                    styles.push(Style::of(id, custom.map(|(_, code)| code)));
                 }
                 _ => {}
             },
@@ -472,7 +472,7 @@ fn kinds(part: &[u8]) -> Result<Vec<Kind>, Error> {
             _ => {}
         }
     }
-    Ok(kinds)
+    Ok(styles)
 }
 
 impl Reader {
@@ -486,7 +486,7 @@ impl Reader {
                 ..Self::whole(
                     zip::Directory::default(),
                     book.sheets,
-                    book.kinds,
+                    book.styles,
                     book.date1904,
                 )
             });
@@ -508,7 +508,7 @@ impl Reader {
                 return Err(broken("it has no workbook part"));
             }
             let sheets = ods::read(source, &directory)?;
-            return Ok(Self::whole(directory, sheets, ods::KINDS.to_vec(), false));
+            return Ok(Self::whole(directory, sheets, ods::KINDS.map(Style::of_kind).to_vec(), false));
         };
         let book = zip::whole(source, entry)?;
         let rels = relationships(source, &directory, &workbook)?;
@@ -566,9 +566,9 @@ impl Reader {
                 .find(|(_, kind, _, external)| kind == wanted && !external)
                 .map(|(_, _, target, _)| target.clone())
         };
-        let kinds = match part_of("styles").and_then(|part| directory.find(&part).cloned()) {
-            Some(entry) if binary => binary::kinds(&zip::whole(source, &entry)?)?,
-            Some(entry) => kinds(&zip::whole(source, &entry)?)?,
+        let styles = match part_of("styles").and_then(|part| directory.find(&part).cloned()) {
+            Some(entry) if binary => binary::styles(&zip::whole(source, &entry)?)?,
+            Some(entry) => styles(&zip::whole(source, &entry)?)?,
             None => Vec::new(),
         };
         // Excel always names the VBA part in the workbook's relationships. A part at the usual
@@ -583,7 +583,7 @@ impl Reader {
             directory,
             sheets,
             strings: None,
-            kinds,
+            styles,
             date1904,
             binary,
             compound: false,
@@ -595,7 +595,7 @@ impl Reader {
     fn whole(
         directory: zip::Directory,
         sheets: Vec<Listed>,
-        kinds: Vec<Kind>,
+        styles: Vec<Style>,
         date1904: bool,
     ) -> Self {
         Self {
@@ -604,7 +604,7 @@ impl Reader {
             workbook: None,
             strings_part: None,
             strings: None,
-            kinds,
+            styles,
             date1904,
             binary: false,
             compound: false,
@@ -744,7 +744,7 @@ impl Reader {
                 None => raw.number >= from,
             };
             if wanted {
-                let row = self.row(source, raw, options)?;
+                let row = self.row(source, raw, options, &[], Separators::EN)?;
                 if options.header_row.is_some() || row.cells.iter().any(|cell| cell.value.is_some())
                 {
                     break row;
@@ -786,8 +786,11 @@ impl Reader {
             .max(options.header_row.map_or(1, |header| header + 1));
         let resume = matches!(&self.open, Some(open) if open.sheet == options.sheet
             && open.next <= from
-            && open.fill.is_some() == options.fill_merged);
+            && open.fill.is_some() == options.fill_merged
+            && open.text.0 == options.text
+            && open.text.1 == options.text_all);
         if !resume {
+            let shown = self.shown(source, options)?;
             let cursor = self.cursor(source, &options.sheet)?;
             let fill = if options.fill_merged {
                 Some(Fill::new(self.merged(source, &options.sheet)?))
@@ -800,8 +803,16 @@ impl Reader {
                 held: None,
                 next: 1,
                 fill,
+                text: (options.text.clone(), options.text_all),
+                shown,
             });
         }
+        let separators = locale::of_tag(&options.locale);
+        let shown = self
+            .open
+            .as_ref()
+            .map(|open| open.shown.clone())
+            .unwrap_or_default();
         let selected = selection(&options.columns)?;
         let most = max.min(options.limit.unwrap_or(u64::MAX));
         let mut rows = Vec::new();
@@ -843,7 +854,7 @@ impl Reader {
             if raw.number < from || (options.skip_hidden && raw.hidden) {
                 continue;
             }
-            let mut row = self.row(source, raw, options)?;
+            let mut row = self.row(source, raw, options, &shown, separators)?;
             if let Some(fill) = self.open.as_ref().and_then(|open| open.fill.as_ref()) {
                 fill.fill(&mut row);
             }
@@ -890,12 +901,53 @@ impl Reader {
         Ok(())
     }
 
-    /// `raw` as read cells, every empty cell dropped.
+    /// The column ranges the read's `text` names: each name a header key when the read has a
+    /// header row, and otherwise a column or a range of columns. `text_all` names every column.
+    fn shown(
+        &mut self,
+        source: &dyn Source,
+        options: &ReadOptions,
+    ) -> Result<Vec<(u64, u64)>, Error> {
+        if options.text_all {
+            return Ok(vec![(1, u64::MAX)]);
+        }
+        if options.text.is_empty() {
+            return Ok(Vec::new());
+        }
+        let keys = if options.header_row.is_some() {
+            self.header(source, options)?
+        } else {
+            Vec::new()
+        };
+        options
+            .text
+            .iter()
+            .map(|name| {
+                if let Some(at) = keys.iter().position(|key| key == name) {
+                    let column = at as u64 + 1;
+                    return Ok((column, column));
+                }
+                selection(std::slice::from_ref(name))
+                    .map(|ranges| ranges[0])
+                    .map_err(|_| {
+                        Error::Invalid(format!(
+                            "The option `text` names `{name}`, which is not a header of the sheet \
+                             or a column such as `B` or `A:C`."
+                        ))
+                    })
+            })
+            .collect()
+    }
+
+    /// `raw` as read cells, every empty cell dropped. A cell in a column of `shown` carries
+    /// its displayed text, with the decimal and group separators `separators`.
     fn row(
         &mut self,
         source: &dyn Source,
         raw: sheet::RawRow,
         options: &ReadOptions,
+        shown: &[(u64, u64)],
+        separators: Separators,
     ) -> Result<ReadRow, Error> {
         let needs_strings = raw.cells.iter().any(|cell| cell.kind == b"s");
         if needs_strings {
@@ -904,6 +956,16 @@ impl Reader {
         let mut cells = Vec::with_capacity(raw.cells.len());
         for cell in raw.cells {
             let value = self.value(&cell)?;
+            let display = match &value {
+                Some(value)
+                    if shown
+                        .iter()
+                        .any(|&(first, last)| (first..=last).contains(&cell.column)) =>
+                {
+                    Some(self.display(&cell, value, separators))
+                }
+                _ => None,
+            };
             let formula = if options.formulas { cell.formula } else { None };
             if value.is_none() && formula.is_none() {
                 continue;
@@ -912,7 +974,7 @@ impl Reader {
                 column: cell.column,
                 value,
                 formula,
-                display: None,
+                display,
             });
         }
         Ok(ReadRow {
@@ -972,13 +1034,35 @@ impl Reader {
                     .parse()
                     .map_err(|_| broken(&format!("a number cell holds `{raw}`")))?;
                 let kind = self
-                    .kinds
+                    .styles
                     .get(cell.style as usize)
-                    .copied()
-                    .unwrap_or(Kind::Plain);
+                    .map_or(Kind::Plain, |style| style.kind);
                 timed(number, kind, self.date1904).unwrap_or_else(|| plain(number))
             }
         }))
+    }
+
+    /// The text `cell`, read as `value`, displays under its style's number format. A number is
+    /// rendered from the serial the file stores, so a date shows as its format writes it.
+    fn display(&self, cell: &sheet::RawCell, value: &Read, separators: Separators) -> String {
+        let code = self
+            .styles
+            .get(cell.style as usize)
+            .map_or("General", |style| &style.code);
+        let options = Options {
+            date1904: self.date1904,
+            separators,
+        };
+        let shown = match value {
+            Read::Text(text) => Value::Text(text),
+            Read::Boolean(flag) => Value::Boolean(*flag),
+            Read::Error(error) => Value::Error(error.text()),
+            _ => match cell.value.as_deref().map(str::trim).map(str::parse::<f64>) {
+                Some(Ok(number)) => Value::Number(number),
+                _ => return String::new(),
+            },
+        };
+        crate::format::render(code, shown, &options)
     }
 }
 
@@ -1044,7 +1128,7 @@ fn timed(number: f64, kind: Kind, date1904: bool) -> Option<Read> {
     })
 }
 
-fn days_from_civil(year: i64, month: i64, day: i64) -> i64 {
+pub(crate) fn days_from_civil(year: i64, month: i64, day: i64) -> i64 {
     let year = if month <= 2 { year - 1 } else { year };
     let era = year.div_euclid(400);
     let yoe = year - era * 400;
@@ -1053,7 +1137,7 @@ fn days_from_civil(year: i64, month: i64, day: i64) -> i64 {
 }
 
 /// The civil date `days` after 1970-01-01.
-fn civil(days: i64) -> Date {
+pub(crate) fn civil(days: i64) -> Date {
     let z = days + 719_468;
     let era = z.div_euclid(146_097);
     let doe = z - era * 146_097;

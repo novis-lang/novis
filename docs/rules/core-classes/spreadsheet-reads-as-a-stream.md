@@ -106,7 +106,9 @@ An xlsb stores a formula as parsed tokens and not as text, so with `formulas: tr
 reads as its stored result and gives no `Formula`.
 
 **Not shipped.** `links`, `notes`, `names`, `tables` and `images` from an xlsb, xls or ods file, and
-`properties` from an xls or ods file: each throws naming the format. `text`. `Reader::open`,
+`properties` from an xls or ods file: each throws naming the format. An ods cell's `text` is
+rendered under the default format of its type, and not under the file's own number style.
+Month and day names are English in every `locale`. `Reader::open`,
 `sheets()` and `rows()` read xlsx, xlsm, xlsb, xls and ods, from `bytes` or an open `Core\IO\File`.
 
 **Declined:**

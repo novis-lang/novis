@@ -17,7 +17,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use super::binary::{error_text, f64_at, number, rk, typed, u8_at, u16_at, u32_at};
-use super::format::{self, Kind};
+use super::format::Style;
 use super::merge::Merge;
 use super::sheet::{RawCell, RawRow};
 use super::{Listed, SheetKind, cfb};
@@ -223,7 +223,7 @@ fn cell(body: &[u8]) -> Result<(u32, RawCell), Error> {
 /// What [`read`] gives `super::Reader::open`.
 pub struct Book {
     pub date1904: bool,
-    pub kinds: Vec<Kind>,
+    pub styles: Vec<Style>,
     pub sheets: Vec<Listed>,
 }
 
@@ -285,13 +285,15 @@ pub fn read(bytes: &[u8]) -> Result<Book, Error> {
     } else {
         shared(strings_parts)?
     };
-    let kinds = styles
+    // An xls writes a FORMAT record for each built-in id it shows in its own locale, so the
+    // record's code is the one a cell displays.
+    let formats: BTreeMap<u16, std::sync::Arc<str>> = formats
+        .into_iter()
+        .map(|(id, code)| (id, code.into()))
+        .collect();
+    let styles = styles
         .iter()
-        .map(|&id| {
-            format::builtin(u32::from(id))
-                .or_else(|| formats.get(&id).map(|code| format::classify(code)))
-                .unwrap_or(Kind::Plain)
-        })
+        .map(|&id| Style::of(u32::from(id), formats.get(&id)))
         .collect();
     let mut sheets = Vec::with_capacity(listed.len());
     for (offset, name, visibility, sheet_type) in listed {
@@ -317,7 +319,7 @@ pub fn read(bytes: &[u8]) -> Result<Book, Error> {
     }
     Ok(Book {
         date1904,
-        kinds,
+        styles,
         sheets,
     })
 }

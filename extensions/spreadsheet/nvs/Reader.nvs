@@ -106,6 +106,8 @@ final class Reader
 
     /// `rows` reads the sheet `$sheet`, by name or by position from 0. It gives one `Row` at a time, with its row number in the file.
     /// With `header: true`, the keys are the header cells, and an empty cell is `null`. Without a header, the keys are the column letters.
+    /// `text: ["Zip"]` reads the column `Zip` as the text Excel shows, so `1234` with the format `00000` is `"01234"`.
+    /// `text` takes header names or column letters, and `text: true` reads every column this way. `locale` sets the separators, such as `"de"`.
     public function rows(string|int $sheet, RowOptions $options = null): Iterator<Row>
     {
         bool|array<string> $text = $options?->text ?? false;
@@ -172,7 +174,7 @@ final class Reader
 
     private function firstRow(Asked $asked, ?uint $from): ?uint
     {
-        var $first = Engine::readerRows($this->reader, $this->source, self::with($asked, null, $from, 1, false), 1);
+        var $first = Engine::readerRows($this->reader, $this->source, self::with($asked, null, $from, 1, false, false), 1);
         foreach ($first->rows as var $row) {
             return $row->number;
         }
@@ -184,12 +186,12 @@ final class Reader
         if ($headerRow == null) {
             return [];
         }
-        return Engine::readerHeader($this->reader, $this->source, self::with($asked, $headerRow, $from, null, $asked->keepEmptyRows));
+        return Engine::readerHeader($this->reader, $this->source, self::with($asked, $headerRow, $from, null, $asked->keepEmptyRows, false));
     }
 
     private function batch(Asked $asked, ?uint $headerRow, ?uint $from, ?uint $left, uint $most, array<tainted string> $keys, Core\Time\Zone $zone): array<Row>
     {
-        var $batch = Engine::readerRows($this->reader, $this->source, self::with($asked, $headerRow, $from, $left, $asked->keepEmptyRows), $most);
+        var $batch = Engine::readerRows($this->reader, $this->source, self::with($asked, $headerRow, $from, $left, $asked->keepEmptyRows, true), $most);
         array<Row> $rows = [];
         foreach ($batch->rows as var $row) {
             array<mixed> $values = [];
@@ -222,7 +224,7 @@ final class Reader
         throw new LogicError("The workbook has no sheet at position {$sheet}. The first sheet is at position 0.");
     }
 
-    private static function with(Asked $asked, ?uint $headerRow, ?uint $from, ?uint $limit, bool $keepEmptyRows): Asked
+    private static function with(Asked $asked, ?uint $headerRow, ?uint $from, ?uint $limit, bool $keepEmptyRows, bool $shown): Asked
     {
         return {
             sheet: $asked->sheet,
@@ -230,8 +232,8 @@ final class Reader
             from: $from,
             limit: $limit,
             columns: $asked->columns,
-            text: $asked->text,
-            textAll: $asked->textAll,
+            text: $shown ? $asked->text : [],
+            textAll: $shown && $asked->textAll,
             formulas: $asked->formulas,
             keepEmptyRows: $keepEmptyRows,
             fillMerged: $asked->fillMerged,
@@ -251,7 +253,7 @@ final class Reader
         throw new LogicError("The option `{$option}` is `'{$usual}'` or `'{$other}'`, not `'{$given}'`.");
     }
 
-    private static function value(?Read $value, ?string $formula, ?string $display, bool $formulas, Core\Time\Zone $zone): mixed
+    private static function value(?Read $value, ?string $formula, ?tainted string $display, bool $formulas, Core\Time\Zone $zone): mixed
     {
         if ($display != null) {
             return $display;

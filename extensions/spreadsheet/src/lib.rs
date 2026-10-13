@@ -38,6 +38,7 @@ pub mod cells;
 pub mod chart;
 pub mod conditional;
 pub mod drawing;
+pub mod format;
 pub mod read;
 pub mod styles;
 pub mod table;

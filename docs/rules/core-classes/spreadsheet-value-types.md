@@ -55,7 +55,9 @@ display text is one option away when the table is not what the program wants.
 
 **Not shipped.** The write table and the zone rule are on disk: the Novis half picks a value's
 case (`extensions/spreadsheet/nvs/Workbook.nvs`) and the component writes it
-(`extensions/spreadsheet/src/cells.rs`). `Formula`, `Cell::of` and reading are not.
+(`extensions/spreadsheet/src/cells.rs`). The read table and `{text: ...}` are on disk
+(`extensions/spreadsheet/src/read/mod.rs`, `extensions/spreadsheet/src/format/mod.rs`). `Cell::of`
+is not.
 
 **Declined:**
 - **A `string` that looks like a number written as a number.** The cell would depend on the content,
