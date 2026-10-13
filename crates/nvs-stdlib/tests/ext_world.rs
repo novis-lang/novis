@@ -20,6 +20,10 @@
 //! `wit/pdf.wit`'s `nvs:pdf@1.0.0` is held to [`PDF_EXPORTS`] in order, and
 //! its `render` to the two passes of
 //! `rule:core-classes/pdf-header-is-a-page-function`.
+//! `wit/spreadsheet.wit`'s `nvs:spreadsheet@1.0.0` is resource-shaped: it is
+//! held to [`SPREADSHEET_EXPORTS`] in order and to [`SPREADSHEET_RESOURCES`],
+//! each opened as an `own` and passed back as a `borrow`
+//! (`rule:core-classes/spreadsheet-roster`).
 //!
 //! The WIT text is parsed from the repository, never embedded, so the test
 //! and the file an extension author builds against cannot drift.
@@ -29,8 +33,8 @@ use std::collections::BTreeSet;
 use nvs_ext::types::{CORE_CLASSES, NovisType};
 use nvs_stdlib::registry::{CLASSES, CoreClass};
 use wit_parser::{
-    Function, FunctionKind, InterfaceId, PackageId, Resolve, Type, TypeDefKind, TypeId, WorldId,
-    WorldItem, WorldKey,
+    Function, FunctionKind, Handle, InterfaceId, PackageId, Resolve, Type, TypeDefKind, TypeId,
+    WorldId, WorldItem, WorldKey,
 };
 
 /// Whether the record field `wit` is the WIT type the Novis type `ty` of a
@@ -1189,6 +1193,228 @@ fn the_pdf_render_export_carries_a_second_pass_for_page_markup() {
         ["number", "name", "strings", "marks"],
         "each page's facts"
     );
+}
+
+/// The exports of the spreadsheet component's `engine`, one per static method of
+/// `Novis\Spreadsheet\Engine` (`rule:core-classes/spreadsheet-roster`).
+const SPREADSHEET_EXPORTS: &[&str] = &[
+    "writer-open",
+    "writer-style",
+    "writer-sheet",
+    "writer-rows",
+    "writer-part",
+    "writer-define",
+    "writer-finish",
+    "reader-open",
+    "reader-sheets",
+    "reader-header",
+    "reader-rows",
+    "reader-merged",
+    "reader-links",
+    "reader-notes",
+    "reader-names",
+    "reader-tables",
+    "reader-images",
+    "reader-properties",
+    "reader-macros",
+    "template-open",
+    "template-set",
+    "template-fill",
+    "template-items",
+    "template-finish",
+];
+
+/// The resources `engine` exports, each kept by the request that opened it.
+const SPREADSHEET_RESOURCES: &[&str] = &["writer", "reader", "template"];
+
+/// `wit/spreadsheet.wit`, resolved against the `nvs:ext` world it includes:
+/// the resolve, the `nvs:ext` package, the `nvs:spreadsheet` package and its
+/// `engine`.
+fn spreadsheet() -> (Resolve, PackageId, PackageId, InterfaceId) {
+    let (mut resolve, ext) = world();
+    let file = nvs_repo::path("wit/spreadsheet.wit");
+    let package = resolve
+        .push_file(&file)
+        .unwrap_or_else(|err| panic!("{} does not parse: {err:?}", file.display()));
+    assert_eq!(
+        resolve.packages[package].name.to_string(),
+        "nvs:spreadsheet@1.0.0"
+    );
+    let engine = *resolve.packages[package]
+        .interfaces
+        .get("engine")
+        .expect("`nvs:spreadsheet` has an interface `engine`");
+    (resolve, ext, package, engine)
+}
+
+/// The resource a handle type points at, and whether it is a `borrow`.
+fn handle_of(resolve: &Resolve, ty: Type) -> Option<(TypeId, bool)> {
+    let Type::Id(id) = ty else {
+        return None;
+    };
+    match resolve.types[dealias(resolve, id)].kind {
+        TypeDefKind::Handle(Handle::Borrow(resource)) => Some((dealias(resolve, resource), true)),
+        TypeDefKind::Handle(Handle::Own(resource)) => Some((dealias(resolve, resource), false)),
+        _ => None,
+    }
+}
+
+/// Every way a resource-shaped `iface` fails `rule:packaging/a-value-crosses-as-its-wit-type`:
+/// [`crossing_problems`]' checks, with a resource crossing as a `borrow` in a parameter and an
+/// `own` in a result, and an `ok` side that may be empty, as a `void` method's is.
+fn resource_crossing_problems(
+    resolve: &Resolve,
+    ext: PackageId,
+    iface: InterfaceId,
+) -> Vec<String> {
+    let error = named_type(resolve, interface(resolve, ext, "types"), "error");
+    let mut problems = Vec::new();
+    for (name, function) in &resolve.interfaces[iface].functions {
+        if function.kind != FunctionKind::Freestanding {
+            problems.push(format!("`{name}` is not a plain function"));
+        }
+        for param in &function.params {
+            let at = format!("{name}({})", param.name);
+            match handle_of(resolve, param.ty) {
+                Some((_, true)) => {}
+                Some((_, false)) => problems.push(format!("{at} takes an `own`, not a `borrow`")),
+                None => {
+                    if let Err(err) = check_crossable(resolve, param.ty, &at) {
+                        problems.push(err);
+                    }
+                }
+            }
+        }
+        match result_of(resolve, function) {
+            Some((ok, Some(Type::Id(err)))) if dealias(resolve, err) == error => match ok
+                .map(|ok| (ok, handle_of(resolve, ok)))
+            {
+                None | Some((_, Some((_, false)))) => {}
+                Some((_, Some((_, true)))) => {
+                    problems.push(format!("`{name}` returns a `borrow`, not an `own`"));
+                }
+                Some((ok, None)) => {
+                    if let Err(err) = check_crossable(resolve, ok, &format!("{name} -> ok")) {
+                        problems.push(err);
+                    }
+                }
+            },
+            Some((ok, err)) => problems.push(format!(
+                "`{name}` returns `result<{ok:?}, {err:?}>`, not a value and `nvs:ext/types`' `error`"
+            )),
+            None => problems.push(format!("`{name}` does not return a `result`")),
+        }
+    }
+    for (name, id) in &resolve.interfaces[iface].types {
+        if matches!(
+            resolve.types[dealias(resolve, *id)].kind,
+            TypeDefKind::Resource
+        ) {
+            continue;
+        }
+        if let Err(err) = check_crossable(resolve, Type::Id(*id), name) {
+            problems.push(err);
+        }
+    }
+    problems
+}
+
+#[test]
+fn the_spreadsheet_interface_parses_against_the_world_in_wit_types_alone() {
+    let (resolve, ext, package, engine) = spreadsheet();
+    let found = &resolve.packages[package];
+    let interfaces: Vec<&str> = found.interfaces.keys().map(String::as_str).collect();
+    assert_eq!(interfaces, ["engine"], "the package's interfaces");
+    let worlds: Vec<&str> = found.worlds.keys().map(String::as_str).collect();
+    assert_eq!(worlds, ["spreadsheet"], "the package's worlds");
+
+    let world_id = found.worlds["spreadsheet"];
+    let allowed: BTreeSet<String> = ALLOWED_IMPORTS.iter().map(ToString::to_string).collect();
+    let imported = imports(&resolve, world_id);
+    let extra: Vec<&String> = imported.difference(&allowed).collect();
+    let missing: Vec<&String> = allowed.difference(&imported).collect();
+    assert!(
+        extra.is_empty() && missing.is_empty(),
+        "the `spreadsheet` world imports {extra:?} that the `extension` world does not, and misses {missing:?}"
+    );
+    let exports: Vec<String> = resolve.worlds[world_id]
+        .exports
+        .iter()
+        .map(|(key, item)| match (key, item) {
+            (WorldKey::Interface(id), WorldItem::Interface { .. }) => resolve
+                .id_of(*id)
+                .expect("an exported interface has a package"),
+            (key, item) => panic!("the world exports {key:?} as {item:?}, not a named interface"),
+        })
+        .collect();
+    assert_eq!(
+        exports,
+        ["nvs:spreadsheet/engine@1.0.0"],
+        "the `spreadsheet` world exports `engine` alone"
+    );
+
+    let names: Vec<&str> = resolve.interfaces[engine]
+        .functions
+        .keys()
+        .map(String::as_str)
+        .collect();
+    assert_eq!(names, SPREADSHEET_EXPORTS, "`engine`'s functions, in order");
+
+    let problems = resource_crossing_problems(&resolve, ext, engine);
+    assert!(problems.is_empty(), "\n{}", problems.join("\n"));
+}
+
+/// `engine` exports a `writer`, a `reader` and a `template`. Each one's `-open` export returns
+/// an `own` of it, which the request keeps, and every other export named for it takes a
+/// `borrow` of it first, so no call gives one away.
+#[test]
+fn the_spreadsheet_interface_exports_writer_reader_and_template_resources() {
+    let (resolve, _, _, engine) = spreadsheet();
+    let iface = &resolve.interfaces[engine];
+    let resources: Vec<&str> = iface
+        .types
+        .iter()
+        .filter(|(_, id)| matches!(resolve.types[**id].kind, TypeDefKind::Resource))
+        .map(|(name, _)| name.as_str())
+        .collect();
+    assert_eq!(resources, SPREADSHEET_RESOURCES, "`engine`'s resources");
+
+    let mut problems = Vec::new();
+    for resource in SPREADSHEET_RESOURCES {
+        let id = iface.types[*resource];
+        let prefix = format!("{resource}-");
+        let open = format!("{resource}-open");
+        let mut calls = 0;
+        for (name, function) in iface
+            .functions
+            .iter()
+            .filter(|(name, _)| name.starts_with(&prefix))
+        {
+            calls += 1;
+            if *name == open {
+                let returned = result_of(&resolve, function)
+                    .and_then(|(ok, _)| ok)
+                    .and_then(|ok| handle_of(&resolve, ok));
+                if returned != Some((id, false)) {
+                    problems.push(format!("`{name}` does not return an `own<{resource}>`"));
+                }
+                continue;
+            }
+            let first = function
+                .params
+                .first()
+                .and_then(|param| handle_of(&resolve, param.ty));
+            if first != Some((id, true)) {
+                problems.push(format!(
+                    "`{name}` does not take a `borrow<{resource}>` first"
+                ));
+            }
+        }
+        if calls < 2 {
+            problems.push(format!("`{resource}` has no call beside `{open}`"));
+        }
+    }
+    assert!(problems.is_empty(), "\n{}", problems.join("\n"));
 }
 
 /// `nvs_stdlib::ext_record` reads and builds exactly the classes the host crosses, and a record
