@@ -5,11 +5,12 @@
 //! string, exposes no cell style, and reads a sheet from a `Read + Seek` it owns, where a
 //! reader resource must keep its place between guest calls. So the zip directory and the parts
 //! are read here ([`zip`]), the XML is tokenized here ([`xml`]), and a sheet is a [`sheet::Cursor`]
-//! that survives from one call to the next. xlsb, xlsm, xls and ods are not read yet, and each
-//! gives [`Error::Runtime`] naming its format.
+//! that survives from one call to the next. xlsb is the same package with binary parts, read
+//! the same way by [`binary`]. xlsm, xls and ods are not read yet, and each gives
+//! [`Error::Runtime`] naming its format.
 //!
-//! [`Reader::open`] reads the zip directory, the package's relationships, `xl/workbook.xml`, its
-//! relationships and `xl/styles.xml`, and nothing of a sheet. The shared strings are read at the
+//! [`Reader::open`] reads the zip directory, the package's relationships, the workbook part, its
+//! relationships and the styles part, and nothing of a sheet. The shared strings are read at the
 //! first call that reads cells, into one arena with `u32` ends ([`Strings`]). Each cell becomes
 //! its read type by `value`: the read table of `rule:core-classes/spreadsheet-value-types`, with
 //! each cell's style index giving the number format that makes a number a date, a time, a clock
@@ -28,6 +29,7 @@
 //! in one arena, one block of compressed bytes and the inflater's window, one block of sheet XML
 //! and the row being parsed, and one batch of rows.
 
+pub mod binary;
 pub mod format;
 pub mod sheet;
 pub mod xml;
@@ -206,7 +208,12 @@ impl Strings {
     }
 
     fn push(&mut self, text: &str) -> Result<(), Error> {
-        self.text.push_str(&xml::unescape(text.to_owned()));
+        self.push_text(&xml::unescape(text.to_owned()))
+    }
+
+    /// Adds `text` as it is, with no XML escapes to undo.
+    fn push_text(&mut self, text: &str) -> Result<(), Error> {
+        self.text.push_str(text);
         let end = u32::try_from(self.text.len()).map_err(|_| {
             Error::Parse("The workbook's shared strings are larger than 4 GiB.".to_owned())
         })?;
@@ -275,6 +282,8 @@ pub struct Reader {
     /// The read type each cell style index gives a number.
     kinds: Vec<Kind>,
     date1904: bool,
+    /// Whether the parts are xlsb's records.
+    binary: bool,
     open: Option<Open>,
 }
 
@@ -283,9 +292,32 @@ pub struct Reader {
 #[derive(Debug)]
 struct Open {
     sheet: String,
-    cursor: sheet::Cursor,
+    cursor: Cursor,
     held: Option<sheet::RawRow>,
     next: u64,
+}
+
+/// A sheet's cursor, over XML or over records.
+#[derive(Debug)]
+enum Cursor {
+    Xml(sheet::Cursor),
+    Binary(binary::Cursor),
+}
+
+impl Cursor {
+    fn dimension(&mut self, source: &dyn Source) -> Result<Option<(u64, u64)>, Error> {
+        match self {
+            Self::Xml(cursor) => cursor.dimension(source),
+            Self::Binary(cursor) => cursor.dimension(source),
+        }
+    }
+
+    fn next(&mut self, source: &dyn Source) -> Result<Option<sheet::RawRow>, Error> {
+        match self {
+            Self::Xml(cursor) => cursor.next(source),
+            Self::Binary(cursor) => cursor.next(source),
+        }
+    }
 }
 
 fn broken(what: &str) -> Error {
@@ -409,11 +441,7 @@ impl Reader {
             .into_iter()
             .find(|(_, kind, _, _)| kind == "officeDocument")
             .map_or_else(|| "xl/workbook.xml".to_owned(), |(_, _, target, _)| target);
-        if workbook.ends_with(".bin") {
-            return Err(Error::Runtime(
-                "This version of Novis cannot read xlsb files yet.".to_owned(),
-            ));
-        }
+        let binary = workbook.ends_with(".bin");
         let Some(entry) = directory.find(&workbook) else {
             return Err(if directory.find("content.xml").is_some() {
                 Error::Runtime("This version of Novis cannot read ods files yet.".to_owned())
@@ -423,47 +451,60 @@ impl Reader {
         };
         let book = zip::whole(source, entry)?;
         let rels = relationships(source, &directory, &workbook)?;
-        let mut sheets = Vec::new();
-        let mut date1904 = false;
-        let mut at = 0;
-        while let Some((token, size)) = xml::next(&book[at..])? {
-            at += size;
-            let Token::Open { name, attrs, .. } = token else {
-                continue;
-            };
-            match xml::local(name) {
-                b"workbookPr" => {
-                    date1904 = matches!(xml::attr(attrs, b"date1904"), Some(b"1" | b"true"));
+        let (date1904, listed) = if binary {
+            let book = binary::workbook(&book)?;
+            (book.date1904, book.sheets)
+        } else {
+            let mut listed = Vec::new();
+            let mut date1904 = false;
+            let mut at = 0;
+            while let Some((token, size)) = xml::next(&book[at..])? {
+                at += size;
+                let Token::Open { name, attrs, .. } = token else {
+                    continue;
+                };
+                match xml::local(name) {
+                    b"workbookPr" => {
+                        date1904 = matches!(xml::attr(attrs, b"date1904"), Some(b"1" | b"true"));
+                    }
+                    b"sheet" => {
+                        let name = xml::attr_text(attrs, b"name")?
+                            .ok_or_else(|| broken("a sheet has no name"))?;
+                        let visibility = match xml::attr(attrs, b"state") {
+                            Some(b"hidden") => Visibility::Hidden,
+                            Some(b"veryHidden") => Visibility::VeryHidden,
+                            _ => Visibility::Visible,
+                        };
+                        let id = xml::attr_text(attrs, b"id")?.unwrap_or_default();
+                        listed.push((name, visibility, id));
+                    }
+                    _ => {}
                 }
-                b"sheet" => {
-                    let name = xml::attr_text(attrs, b"name")?
-                        .ok_or_else(|| broken("a sheet has no name"))?;
-                    let visibility = match xml::attr(attrs, b"state") {
-                        Some(b"hidden") => Visibility::Hidden,
-                        Some(b"veryHidden") => Visibility::VeryHidden,
-                        _ => Visibility::Visible,
-                    };
-                    let id = xml::attr_text(attrs, b"id")?.unwrap_or_default();
-                    let rel = rels.iter().find(|(rid, _, _, _)| *rid == id);
-                    sheets.push(Listed {
-                        name,
-                        visibility,
-                        part: rel.filter(|rel| !rel.3).map(|rel| rel.2.clone()),
-                        kind: match rel {
-                            Some((_, kind, _, _)) if kind == "chartsheet" => SheetKind::Chartsheet,
-                            _ => SheetKind::Worksheet,
-                        },
-                    });
-                }
-                _ => {}
             }
-        }
+            (date1904, listed)
+        };
+        let sheets = listed
+            .into_iter()
+            .map(|(name, visibility, id)| {
+                let rel = rels.iter().find(|(rid, _, _, _)| *rid == id);
+                Listed {
+                    name,
+                    visibility,
+                    part: rel.filter(|rel| !rel.3).map(|rel| rel.2.clone()),
+                    kind: match rel {
+                        Some((_, kind, _, _)) if kind == "chartsheet" => SheetKind::Chartsheet,
+                        _ => SheetKind::Worksheet,
+                    },
+                }
+            })
+            .collect();
         let part_of = |wanted: &str| {
             rels.iter()
                 .find(|(_, kind, _, external)| kind == wanted && !external)
                 .map(|(_, _, target, _)| target.clone())
         };
         let kinds = match part_of("styles").and_then(|part| directory.find(&part).cloned()) {
+            Some(entry) if binary => binary::kinds(&zip::whole(source, &entry)?)?,
             Some(entry) => kinds(&zip::whole(source, &entry)?)?,
             None => Vec::new(),
         };
@@ -474,6 +515,7 @@ impl Reader {
             strings: None,
             kinds,
             date1904,
+            binary,
             open: None,
         })
     }
@@ -486,6 +528,7 @@ impl Reader {
                 .as_deref()
                 .and_then(|part| self.directory.find(part))
             {
+                Some(entry) if self.binary => binary::strings(source, entry)?,
                 Some(entry) => Strings::parse(source, entry)?,
                 None => Strings::default(),
             };
@@ -501,7 +544,7 @@ impl Reader {
             .ok_or_else(|| Error::Invalid(format!("The workbook has no sheet named `{name}`.")))
     }
 
-    fn cursor(&self, source: &dyn Source, name: &str) -> Result<sheet::Cursor, Error> {
+    fn cursor(&self, source: &dyn Source, name: &str) -> Result<Cursor, Error> {
         let listed = self.listed(name)?;
         if listed.kind == SheetKind::Chartsheet {
             return Err(Error::Invalid(format!(
@@ -513,7 +556,11 @@ impl Reader {
             .as_deref()
             .and_then(|part| self.directory.find(part))
             .ok_or_else(|| broken(&format!("the sheet `{name}` has no part")))?;
-        sheet::Cursor::open(source, entry)
+        Ok(if self.binary {
+            Cursor::Binary(binary::Cursor::open(source, entry)?)
+        } else {
+            Cursor::Xml(sheet::Cursor::open(source, entry)?)
+        })
     }
 
     /// Every sheet, in tab order.
@@ -717,6 +764,10 @@ impl Reader {
             },
             b"str" => match &cell.value {
                 Some(text) => Read::Text(xml::unescape(text.clone())),
+                None => return Ok(None),
+            },
+            b"text" => match &cell.value {
+                Some(text) => Read::Text(text.clone()),
                 None => return Ok(None),
             },
             b"b" => match cell.value.as_deref().map(str::trim) {

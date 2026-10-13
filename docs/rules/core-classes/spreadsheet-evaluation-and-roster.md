@@ -6,7 +6,9 @@ produce. ods reads, and writing it is the second wave. Template fill is in the f
 (`rule:core-classes/spreadsheet-template-fill`), because it is the workflow behind most real exports.
 
 **The crates**, each pinned and pure Rust, built for `wasm32-wasip2`, on `deny.toml`'s allowlist and
-with no C in the build: `calamine` reads xlsb, xls, ods and the cells of xlsx; `zip` with `deflate`
+with no C in the build: `calamine` reads xls and ods, and xlsx and xlsb are read by our own reader,
+because calamine keeps one `String` per shared string, exposes no cell style, and owns the `Read +
+Seek` a reader resource must keep its place in between calls; `zip` with `deflate`
 only, and `miniz_oxide` or `flate2` on its pure-Rust backend, frame and inflate the archive;
 `crc32fast` checks it; `quick-xml` reads and writes the XML; `itoa` and `ryu` write numbers. The
 writer, the template filler and the number-format renderer are our own. A crate that fails to build

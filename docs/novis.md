@@ -252,6 +252,8 @@ Conventions the whole file uses:
 | [`Novis\Spreadsheet\Chart`](#core-novis-spreadsheet-chart) |  |
 | [`Novis\Spreadsheet\Export`](#core-novis-spreadsheet-export) |  |
 | [`Novis\Spreadsheet\Formula`](#core-novis-spreadsheet-formula) |  |
+| [`Novis\Spreadsheet\Reader`](#core-novis-spreadsheet-reader) |  |
+| [`Novis\Spreadsheet\Row`](#core-novis-spreadsheet-row) |  |
 | [`Novis\Spreadsheet\Sheet`](#core-novis-spreadsheet-sheet) |  |
 | [`Novis\Spreadsheet\Style`](#core-novis-spreadsheet-style) |  |
 | [`Novis\Spreadsheet\Workbook`](#core-novis-spreadsheet-workbook) |  |
@@ -30225,6 +30227,70 @@ Novis\Spreadsheet\Formula::of(string $text, ?{cached?: string|int|float} $option
 
 **Returns** `Formula`
 
+<a id="core-novis-spreadsheet-reader"></a>
+### `Novis\Spreadsheet\Reader`
+
+Keywords: open, sheets, rows
+
+| Member | Signature |
+|---|---|
+| [`Novis\Spreadsheet\Reader::open`](#core-novis-spreadsheet-reader-open) | `open(bytes\|Core\IO\File $source): Reader` |
+| [`Novis\Spreadsheet\Reader->sheets`](#core-novis-spreadsheet-reader-sheets) | `sheets(): array<SheetInfo>` |
+| [`Novis\Spreadsheet\Reader->rows`](#core-novis-spreadsheet-reader-rows) | `rows(string\|int $sheet, RowOptions $options = null): Iterator<Row>` |
+
+<a id="core-novis-spreadsheet-reader-open"></a>
+#### `Novis\Spreadsheet\Reader::open`
+
+```nvs skip
+Novis\Spreadsheet\Reader::open(bytes|Core\IO\File $source): Reader
+```
+
+`Reader::open` opens the workbook in `$source`. The source is the bytes of the file, or a file your program opened.
+This reads the list of sheets and no rows. A file that is not an xlsx file throws an error.
+
+**Returns** `Reader`
+
+<a id="core-novis-spreadsheet-reader-sheets"></a>
+#### `Novis\Spreadsheet\Reader->sheets`
+
+```nvs skip
+$reader->sheets(): array<SheetInfo>
+```
+
+`sheets` returns each sheet in tab order, with its name, its position from 0, whether it is hidden, its size and its kind.
+
+**Returns** `array<SheetInfo>`
+
+<a id="core-novis-spreadsheet-reader-rows"></a>
+#### `Novis\Spreadsheet\Reader->rows`
+
+```nvs skip
+$reader->rows(string|int $sheet, RowOptions $options = null): Iterator<Row>
+```
+
+`rows` reads the sheet `$sheet`, by name or by position from 0. It gives one `Row` at a time, with its row number in the file.
+With `header: true`, the keys are the header cells, and an empty cell is `null`. Without a header, the keys are the column letters.
+
+**Returns** `Iterator<Row>`
+
+<a id="core-novis-spreadsheet-row"></a>
+### `Novis\Spreadsheet\Row`
+
+Keywords: constructor
+
+| Member | Signature |
+|---|---|
+| [`Novis\Spreadsheet\Row::constructor`](#core-novis-spreadsheet-row-constructor) | `constructor(uint $number, array<mixed> $values)` |
+
+<a id="core-novis-spreadsheet-row-constructor"></a>
+#### `Novis\Spreadsheet\Row::constructor`
+
+```nvs skip
+new Novis\Spreadsheet\Row(uint $number, array<mixed> $values)
+```
+
+`new Row` makes a row from its values. `Reader::rows` makes one for you.
+
 <a id="core-novis-spreadsheet-sheet"></a>
 ### `Novis\Spreadsheet\Sheet`
 
@@ -30613,10 +30679,10 @@ Keywords: writerOpen, writerStyle, writerSheet, writerRows, writerPart, writerDe
 | [`Novis\Spreadsheet\Engine::writerCell`](#core-novis-spreadsheet-engine-writercell) | `writerCell(Writer $writer, uint $column, uint $row): string` |
 | [`Novis\Spreadsheet\Engine::writerColumn`](#core-novis-spreadsheet-engine-writercolumn) | `writerColumn(Writer $writer, uint $column): string` |
 | [`Novis\Spreadsheet\Engine::writerFinish`](#core-novis-spreadsheet-engine-writerfinish) | `writerFinish(Writer $writer): {data: bytes, rows: array<{name: string, rows: uint}>, size: uint}` |
-| [`Novis\Spreadsheet\Engine::readerOpen`](#core-novis-spreadsheet-engine-readeropen) | `readerOpen(mixed $source): Reader` |
-| [`Novis\Spreadsheet\Engine::readerSheets`](#core-novis-spreadsheet-engine-readersheets) | `readerSheets(Reader $reader, mixed $source): array<{name: string, position: uint, visibility: Visibility, rows: uint, columns: uint, kind: SheetKind}>` |
-| [`Novis\Spreadsheet\Engine::readerHeader`](#core-novis-spreadsheet-engine-readerheader) | `readerHeader(Reader $reader, mixed $source, {sheet: string, headerRow: ?uint, from: ?uint, limit: ?uint, columns: array<string>, text: array<string>, textAll: bool, formulas: bool, keepEmptyRows: bool, fillMerged: bool, skipHidden: bool, locale: string} $options): array<string>` |
-| [`Novis\Spreadsheet\Engine::readerRows`](#core-novis-spreadsheet-engine-readerrows) | `readerRows(Reader $reader, mixed $source, {sheet: string, headerRow: ?uint, from: ?uint, limit: ?uint, columns: array<string>, text: array<string>, textAll: bool, formulas: bool, keepEmptyRows: bool, fillMerged: bool, skipHidden: bool, locale: string} $options, uint $max): {rows: array<{number: uint, cells: array<{column: uint, value: ?ReadValue, formula: ?string, display: ?string}>}>, done: bool}` |
+| [`Novis\Spreadsheet\Engine::readerOpen`](#core-novis-spreadsheet-engine-readeropen) | `readerOpen(mixed $source): Reading` |
+| [`Novis\Spreadsheet\Engine::readerSheets`](#core-novis-spreadsheet-engine-readersheets) | `readerSheets(Reading $reader, mixed $source): array<{name: string, position: uint, visibility: Visibility, rows: uint, columns: uint, kind: SheetKind}>` |
+| [`Novis\Spreadsheet\Engine::readerHeader`](#core-novis-spreadsheet-engine-readerheader) | `readerHeader(Reading $reader, mixed $source, {sheet: string, headerRow: ?uint, from: ?uint, limit: ?uint, columns: array<string>, text: array<string>, textAll: bool, formulas: bool, keepEmptyRows: bool, fillMerged: bool, skipHidden: bool, locale: string} $options): array<string>` |
+| [`Novis\Spreadsheet\Engine::readerRows`](#core-novis-spreadsheet-engine-readerrows) | `readerRows(Reading $reader, mixed $source, {sheet: string, headerRow: ?uint, from: ?uint, limit: ?uint, columns: array<string>, text: array<string>, textAll: bool, formulas: bool, keepEmptyRows: bool, fillMerged: bool, skipHidden: bool, locale: string} $options, uint $max): {rows: array<{number: uint, cells: array<{column: uint, value: ?ReadValue, formula: ?string, display: ?string}>}>, done: bool}` |
 
 <a id="core-novis-spreadsheet-engine-writeropen"></a>
 #### `Novis\Spreadsheet\Engine::writerOpen`
@@ -30767,7 +30833,7 @@ Finishes the last sheet and the workbook. Returns the last bytes of the file, th
 #### `Novis\Spreadsheet\Engine::readerOpen`
 
 ```nvs skip
-Novis\Spreadsheet\Engine::readerOpen(mixed $source): Reader
+Novis\Spreadsheet\Engine::readerOpen(mixed $source): Reading
 ```
 
 Opens the workbook in `source`, which is `bytes`. This reads the list of sheets and no rows.
@@ -30776,20 +30842,20 @@ Opens the workbook in `source`, which is `bytes`. This reads the list of sheets 
 |---|---|---|
 | `$source` | `mixed` |  |
 
-**Returns** `Reader`
+**Returns** `Reading`
 
 <a id="core-novis-spreadsheet-engine-readersheets"></a>
 #### `Novis\Spreadsheet\Engine::readerSheets`
 
 ```nvs skip
-Novis\Spreadsheet\Engine::readerSheets(Reader $reader, mixed $source): array<{name: string, position: uint, visibility: Visibility, rows: uint, columns: uint, kind: SheetKind}>
+Novis\Spreadsheet\Engine::readerSheets(Reading $reader, mixed $source): array<{name: string, position: uint, visibility: Visibility, rows: uint, columns: uint, kind: SheetKind}>
 ```
 
 Returns each sheet of the workbook in tab order. `rows` and `columns` are the size the file gives for the sheet, or 0 when it gives none.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$reader` | `Reader` |  |
+| `$reader` | `Reading` |  |
 | `$source` | `mixed` |  |
 
 **Returns** `array<{name: string, position: uint, visibility: Visibility, rows: uint, columns: uint, kind: SheetKind}>`
@@ -30798,14 +30864,14 @@ Returns each sheet of the workbook in tab order. `rows` and `columns` are the si
 #### `Novis\Spreadsheet\Engine::readerHeader`
 
 ```nvs skip
-Novis\Spreadsheet\Engine::readerHeader(Reader $reader, mixed $source, {sheet: string, headerRow: ?uint, from: ?uint, limit: ?uint, columns: array<string>, text: array<string>, textAll: bool, formulas: bool, keepEmptyRows: bool, fillMerged: bool, skipHidden: bool, locale: string} $options): array<string>
+Novis\Spreadsheet\Engine::readerHeader(Reading $reader, mixed $source, {sheet: string, headerRow: ?uint, from: ?uint, limit: ?uint, columns: array<string>, text: array<string>, textAll: bool, formulas: bool, keepEmptyRows: bool, fillMerged: bool, skipHidden: bool, locale: string} $options): array<string>
 ```
 
 Returns the names in the header row, one for each column from `A`. A name that is already used gets ` (2)`, ` (3)` and so on. An empty header cell gets its column letter.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$reader` | `Reader` |  |
+| `$reader` | `Reading` |  |
 | `$source` | `mixed` |  |
 | `$options` | `{sheet: string, headerRow: ?uint, from: ?uint, limit: ?uint, columns: array<string>, text: array<string>, textAll: bool, formulas: bool, keepEmptyRows: bool, fillMerged: bool, skipHidden: bool, locale: string}` |  |
 
@@ -30815,14 +30881,14 @@ Returns the names in the header row, one for each column from `A`. A name that i
 #### `Novis\Spreadsheet\Engine::readerRows`
 
 ```nvs skip
-Novis\Spreadsheet\Engine::readerRows(Reader $reader, mixed $source, {sheet: string, headerRow: ?uint, from: ?uint, limit: ?uint, columns: array<string>, text: array<string>, textAll: bool, formulas: bool, keepEmptyRows: bool, fillMerged: bool, skipHidden: bool, locale: string} $options, uint $max): {rows: array<{number: uint, cells: array<{column: uint, value: ?ReadValue, formula: ?string, display: ?string}>}>, done: bool}
+Novis\Spreadsheet\Engine::readerRows(Reading $reader, mixed $source, {sheet: string, headerRow: ?uint, from: ?uint, limit: ?uint, columns: array<string>, text: array<string>, textAll: bool, formulas: bool, keepEmptyRows: bool, fillMerged: bool, skipHidden: bool, locale: string} $options, uint $max): {rows: array<{number: uint, cells: array<{column: uint, value: ?ReadValue, formula: ?string, display: ?string}>}>, done: bool}
 ```
 
 Returns the next rows of a sheet, at most `max` of them. To get the rows after these, call it again with `from` one past the last row number. `done` is `true` after the last row of the sheet.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$reader` | `Reader` |  |
+| `$reader` | `Reading` |  |
 | `$source` | `mixed` |  |
 | `$options` | `{sheet: string, headerRow: ?uint, from: ?uint, limit: ?uint, columns: array<string>, text: array<string>, textAll: bool, formulas: bool, keepEmptyRows: bool, fillMerged: bool, skipHidden: bool, locale: string}` |  |
 | `$max` | `uint` |  |

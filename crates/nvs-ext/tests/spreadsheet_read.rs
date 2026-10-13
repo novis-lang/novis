@@ -905,3 +905,224 @@ fn a_document_type_declaration_is_never_read() {
     );
     block_on(request.end()).expect("the request ends");
 }
+
+/// One xlsb record: its type and its length, each in 7-bit groups, and then `body`.
+fn record(kind: u16, body: &[u8]) -> Vec<u8> {
+    let mut out = Vec::new();
+    let mut kind = kind;
+    loop {
+        let low = u8::try_from(kind & 0x7F).unwrap();
+        kind >>= 7;
+        out.push(if kind == 0 { low } else { low | 0x80 });
+        if kind == 0 {
+            break;
+        }
+    }
+    let mut length = body.len();
+    loop {
+        let low = u8::try_from(length & 0x7F).unwrap();
+        length >>= 7;
+        out.push(if length == 0 { low } else { low | 0x80 });
+        if length == 0 {
+            break;
+        }
+    }
+    out.extend_from_slice(body);
+    out
+}
+
+/// An xlsb string: its count of UTF-16 units and the units.
+fn wide(text: &str) -> Vec<u8> {
+    let units: Vec<u16> = text.encode_utf16().collect();
+    let mut out = u32::try_from(units.len()).unwrap().to_le_bytes().to_vec();
+    for unit in units {
+        out.extend_from_slice(&unit.to_le_bytes());
+    }
+    out
+}
+
+/// An xlsb cell record of `kind` in `column`, from 0, with `style` and the value bytes `value`.
+fn binary_cell(kind: u16, column: u32, style: u32, value: &[u8]) -> Vec<u8> {
+    let mut body = column.to_le_bytes().to_vec();
+    body.extend_from_slice(&style.to_le_bytes());
+    body.extend_from_slice(value);
+    record(kind, &body)
+}
+
+/// An xlsb row header for the row `number`, from 1.
+fn binary_row(number: u32, hidden: bool) -> Vec<u8> {
+    let mut body = (number - 1).to_le_bytes().to_vec();
+    body.extend_from_slice(&[0; 6]);
+    body.push(0);
+    body.push(if hidden { 0x10 } else { 0 });
+    body.extend_from_slice(&[0; 5]);
+    record(0, &body)
+}
+
+/// An xlsb with the sheets `Shop`, whose dimension is `A1:F60003` and whose rows are the records
+/// `data`, and `Lists`, hidden and empty. Style 1
+/// is the custom date format `dd/mm/yyyy`, and the shared strings are `shared`.
+fn xlsb(data: &[u8], shared: &[&str]) -> Vec<u8> {
+    let rel = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+    let package = "http://schemas.openxmlformats.org/package/2006/relationships";
+    let mut book = record(153, &[0; 12]);
+    for (n, (name, state)) in [("Shop", 0u32), ("Lists", 1)].iter().enumerate() {
+        let mut body = state.to_le_bytes().to_vec();
+        body.extend_from_slice(&u32::try_from(n + 1).unwrap().to_le_bytes());
+        body.extend(wide(&format!("rId{}", n + 1)));
+        body.extend(wide(name));
+        book.extend(record(156, &body));
+    }
+    let mut styles = record(
+        44,
+        &[&164u16.to_le_bytes()[..], &wide("dd/mm/yyyy")].concat(),
+    );
+    styles.extend(record(617, &[0; 4]));
+    for format in [0u16, 164] {
+        let mut body = 0u16.to_le_bytes().to_vec();
+        body.extend_from_slice(&format.to_le_bytes());
+        body.extend_from_slice(&[0; 12]);
+        styles.extend(record(47, &body));
+    }
+    styles.extend(record(618, &[]));
+    let mut sst = record(159, &[0; 8]);
+    for text in shared {
+        sst.extend(record(19, &[&[0u8][..], &wide(text)].concat()));
+    }
+    // The dimension: the first and last row and the first and last column, each from 0.
+    let dimension: Vec<u8> = [0u32, 60_002, 0, 5]
+        .iter()
+        .flat_map(|n| n.to_le_bytes())
+        .collect();
+    let mut sheet = record(148, &dimension);
+    sheet.extend(record(145, &[]));
+    sheet.extend_from_slice(data);
+    sheet.extend(record(146, &[]));
+    let lists = [record(145, &[]), record(146, &[])].concat();
+    zip(&[
+        ("[Content_Types].xml", b"<Types/>".to_vec()),
+        (
+            "_rels/.rels",
+            format!(r#"<Relationships xmlns="{package}"><Relationship Id="rId1" Type="{rel}/officeDocument" Target="xl/workbook.bin"/></Relationships>"#).into_bytes(),
+        ),
+        ("xl/workbook.bin", book),
+        (
+            "xl/_rels/workbook.bin.rels",
+            format!(r#"<Relationships xmlns="{package}"><Relationship Id="rId1" Type="{rel}/worksheet" Target="worksheets/sheet1.bin"/><Relationship Id="rId2" Type="{rel}/worksheet" Target="worksheets/sheet2.bin"/><Relationship Id="rIdS" Type="{rel}/styles" Target="styles.bin"/><Relationship Id="rIdT" Type="{rel}/sharedStrings" Target="sharedStrings.bin"/></Relationships>"#).into_bytes(),
+        ),
+        ("xl/styles.bin", styles),
+        ("xl/sharedStrings.bin", sst),
+        ("xl/worksheets/sheet1.bin", sheet),
+        ("xl/worksheets/sheet2.bin", lists),
+    ])
+}
+
+#[test]
+fn an_xlsb_is_read_through_byte_ranges() {
+    let rk_int = |n: i32| ((n << 2) | 2).to_le_bytes();
+    let mut data = binary_row(1, false);
+    data.extend(binary_cell(7, 0, 0, &0u32.to_le_bytes()));
+    data.extend(binary_cell(6, 1, 0, &wide("Price")));
+    data.extend(binary_cell(4, 2, 0, &[1]));
+    data.extend(binary_cell(3, 3, 0, &[0x07]));
+    data.extend(binary_row(2, false));
+    data.extend(binary_cell(2, 0, 0, &rk_int(42)));
+    data.extend(binary_cell(2, 1, 0, &((150u32 << 2) | 3).to_le_bytes()));
+    data.extend(binary_cell(5, 2, 1, &45_000f64.to_le_bytes()));
+    data.extend(binary_cell(
+        9,
+        3,
+        0,
+        &[&7f64.to_le_bytes()[..], &[0; 6]].concat(),
+    ));
+    data.extend(binary_cell(7, 4, 0, &1u32.to_le_bytes()));
+    data.extend(binary_cell(1, 5, 0, &[]));
+    data.extend(binary_row(3, true));
+    data.extend(binary_cell(2, 0, 0, &rk_int(-3)));
+    // The sheet is stored, so the file is as large as its records, about 3 MB.
+    for n in 4..=60_003u32 {
+        data.extend(binary_row(n, false));
+        data.extend(binary_cell(2, 0, 0, &rk_int(i32::try_from(n).unwrap())));
+        data.extend(binary_cell(5, 1, 0, &(f64::from(n) * 0.5).to_le_bytes()));
+    }
+    let bytes = xlsb(&data, &["Shop", "Tea &amp; cake"]);
+    let size = bytes.len() as u64;
+    let read = Read::open(bytes);
+    let rows = read.all(&options("Shop"), 5_000);
+    assert_eq!(rows.len(), 60_003);
+    let boolean = shape(vec![("boolean", Value::Bool(true))]);
+    let error = shape(vec![("error", Value::Case("DivZero".to_owned()))]);
+    assert_eq!(
+        rows[0],
+        (
+            1,
+            vec![
+                (1, text("Shop")),
+                (2, text("Price")),
+                (3, boolean),
+                (4, error)
+            ]
+        )
+    );
+    assert_eq!(
+        rows[1],
+        (
+            2,
+            vec![
+                (1, integer(42)),
+                (2, number(1.5)),
+                (3, shape(vec![("date", date(2023, 3, 15))])),
+                (4, integer(7)),
+                (5, text("Tea &amp; cake")),
+            ]
+        )
+    );
+    assert_eq!(rows[2], (3, vec![(1, integer(-3))]));
+    assert_eq!(
+        rows[60_002],
+        (60_003, vec![(1, integer(60_003)), (2, number(30_001.5))])
+    );
+    let charged = read.meter.charged();
+    assert!(
+        charged < size,
+        "the guest grew to {charged} bytes reading a file of {size}"
+    );
+    let shown = read.all(
+        &Options {
+            skip_hidden: true,
+            ..options("Shop")
+        },
+        5_000,
+    );
+    assert_eq!(shown.len(), 60_002);
+    let sheets = read.call("readerSheets", vec![]);
+    let listed: Vec<(&Value, &Value, &Value, &Value)> = entries(&sheets)
+        .into_iter()
+        .map(|sheet| {
+            (
+                field(sheet, "name"),
+                field(sheet, "visibility"),
+                field(sheet, "rows"),
+                field(sheet, "columns"),
+            )
+        })
+        .collect();
+    assert_eq!(
+        listed,
+        vec![
+            (
+                &Value::String("Shop".to_owned()),
+                &Value::Case("Visible".to_owned()),
+                &Value::Uint(60_003),
+                &Value::Uint(6),
+            ),
+            (
+                &Value::String("Lists".to_owned()),
+                &Value::Case("Hidden".to_owned()),
+                &Value::Uint(0),
+                &Value::Uint(0),
+            ),
+        ]
+    );
+    block_on(read.request.end()).expect("the request ends");
+}

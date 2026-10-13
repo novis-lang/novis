@@ -12,8 +12,8 @@ call. This is chosen against a pull loop in the Novis half, in which the guest w
 needed at offset N, length L" and the Novis code would read them and call again, for two reasons. On
 request latency, the import costs one host call per read-ahead block and runs no Novis code between
 them, where the pull loop costs a guest return, a Novis read and a guest call for every block. And
-the parsers read synchronously from a `Read + Seek`: calamine does, for xlsb and the whole formats,
-and a pull loop would need every parser rewritten as a resumable state machine.
+the parsers read synchronously: calamine does from a `Read + Seek` for the whole formats, and so do
+our xlsx and xlsb readers, and a pull loop would need every parser rewritten as a resumable state machine.
 
 **Formats** are told apart by their bytes: a zip is xlsx, xlsm or ods by its content types, an OLE
 compound file is xls, a zip with `xl/workbook.bin` is xlsb, and anything else is CSV. xls holds at
@@ -71,9 +71,13 @@ file is `tainted`, so a `Formula` read with `formulas: true` carries a number re
 one. The engine's resource is `reading`, because a manifest's resource is a class in
 `Novis\Spreadsheet` and `Reader` is the class over it.
 
-**Not shipped.** The extras, `merged: 'fill'`, `text`, and the xlsb, xlsm, xls and ods formats. The
+An xlsb stores a formula as parsed tokens and not as text, so with `formulas: true` an xlsb cell
+reads as its stored result and gives no `Formula`.
+
+**Not shipped.** The extras, `merged: 'fill'`, `text`, and the xlsm, xls and ods formats. The
 `value` accessor reads a range of `bytes` and not yet of an open `Core\IO\File`, and each call copies
-a `bytes` source whole as it crosses. `Reader::open`, `sheets()` and `rows()` read an xlsx.
+a `bytes` source whole as it crosses. `Reader::open`, `sheets()` and `rows()` read an xlsx and an
+xlsb.
 
 **Declined:**
 - **A pull loop in the Novis half.** It costs a guest return and a Novis call per block on the request
