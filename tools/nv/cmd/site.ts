@@ -6,8 +6,8 @@
 //     bun nv site --check [PART...]        run the named parts, or all of them: `site <part>: ok` per
 //                                          part that passes, its problems and exit 1 for one that fails
 //     bun nv site --bless SNIPPET...       write each snippet's `.out`, `.http.out` or `.err` from what the
-//                                          binary does and show it, and delete an output file it no longer
-//                                          needs
+//                                          binary does, and its `.tainted` from what `nvs lsp` reports,
+//                                          show them, and delete a file it no longer needs
 //     bun nv site --bless-apps [APP/FILE...]
 //                                          write each example app's copies under `website/public/
 //                                          example-apps/` from what its server returns now, and add each
@@ -56,6 +56,14 @@
 // snippet that has one. Each snippet's two runs follow each other, and `SNIPPET_WIDTH` snippets run at
 // once. `--bless` writes the `.err` of a snippet that has one, or that has no file and does not
 // compile, and otherwise writes the output files the rule owes and deletes the one it does not.
+//
+// A `.tainted` beside a snippet lists each token `nvs lsp` gives the `tainted` semantic-token modifier,
+// one `taintedRanges` line each, and a snippet has one only when there is at least one such token.
+// `Snippet.astro` gives each range a dotted underline and a tooltip, through the Expressive Code plugin
+// in `website/config/tainted-ranges.mjs`. The grammar that colours a snippet cannot know which values
+// are tainted, so the ranges come from the server, one session per snippet with the snippet opened at
+// its own path. `--bless` writes or deletes the file, and `--check snippets` names one that is missing,
+// stale or no longer needed.
 //
 // **A handwritten page** is every page under `website/src/content/docs/` that no renderer writes, which
 // is every page outside `reference/core/`. Its front matter carries `covers:`, a list of the proofs
@@ -106,7 +114,9 @@ import { request as httpRequest } from "node:http";
 import { createServer } from "node:net";
 import { availableParallelism } from "node:os";
 import { dirname, join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { COVWS_TARGET, hostTriple } from "../lib/covws.ts";
+import { lspFrame, lspMessages } from "../lib/lsp.ts";
 import { rel, ROOT } from "../lib/paths.ts";
 import { run as runProc } from "../lib/proc.ts";
 import { comparePaths } from "../lib/py.ts";
@@ -857,6 +867,62 @@ export function errVerdict(p: string, result: Ran, want: string): string | null 
   return same(result.stderr, want) ? null : `${p}: \`nvs check\` reports something other than its .err`;
 }
 
+/** The extension of the file beside a snippet that lists its tainted variables: the header's § *A snippet*. */
+export const TAINTED = "tainted";
+
+/** The session `nvs lsp` is sent for one snippet, as one stream on its stdin: the handshake, the snippet
+ * opened at `uri`, its semantic tokens as request 2, then shutdown and exit. */
+export function taintScript(uri: string, text: string): string {
+  return [
+    { id: 1, method: "initialize", params: { processId: null, rootUri: null, capabilities: {} } },
+    { method: "initialized", params: {} },
+    { method: "textDocument/didOpen", params: { textDocument: { uri, languageId: "nvs", version: 1, text } } },
+    { id: 2, method: "textDocument/semanticTokens/full", params: { textDocument: { uri } } },
+    { id: 3, method: "shutdown", params: null },
+    { method: "exit", params: null },
+  ]
+    .map(lspFrame)
+    .join("");
+}
+
+/** The names a server's semantic tokens index, as its `initialize` result declares them. */
+export interface Legend {
+  tokenTypes: string[];
+  tokenModifiers: string[];
+}
+
+/**
+ * A snippet's `.tainted` text, from the semantic tokens `nvs lsp` sent for `text`, or null when no token
+ * carries the `tainted` modifier. `data` is LSP's relative encoding, five numbers a token, and the bit is
+ * found by name in `legend`, so a reordered legend changes nothing here. Each line is one token as
+ * `line:column+length type text`: line and column from 1 and counted in UTF-16 units, as a
+ * `tests/lsp/semantic/` case writes them, the token's type by its legend name (`variable`, `parameter`,
+ * `property`), and the text the range covers, so a reader can check it.
+ */
+export function taintedRanges(text: string, legend: Legend, data: number[]): string | null {
+  const bit = legend.tokenModifiers.indexOf(TAINTED);
+  if (bit < 0) throw new Error(`the server declares no \`${TAINTED}\` modifier: ${legend.tokenModifiers.join(", ")}`);
+  const lines = text.split("\n");
+  const found: string[] = [];
+  let line = 0;
+  let column = 0;
+  for (let i = 0; i + 4 < data.length; i += 5) {
+    const [dLine, dColumn, length, type, modifiers] = data.slice(i, i + 5) as [number, number, number, number, number];
+    column = dLine === 0 ? column + dColumn : dColumn;
+    line += dLine;
+    if ((modifiers >> bit) & 1) found.push(`${line + 1}:${column + 1}+${length} ${legend.tokenTypes[type] ?? type} ${(lines[line] ?? "").slice(column, column + length)}`);
+  }
+  return found.length ? `${found.join("\n")}\n` : null;
+}
+
+/** The problem with a snippet's `.tainted`, given what it owes, `owed`, and the text of the file, each
+ * null where there is none. */
+export function taintVerdict(p: string, owed: string | null, file: string | null): string | null {
+  if (owed === null) return file === null ? null : `${p}: delete its .${TAINTED}: \`nvs lsp\` marks no variable in it as tainted`;
+  if (file === null) return `${p}: no .${TAINTED} beside it, and \`nvs lsp\` marks a variable in it as tainted`;
+  return same(owed, file) ? null : `${p}: its .${TAINTED} is not where \`nvs lsp\` marks a tainted variable now`;
+}
+
 /** How long one snippet's run, or its server's start and response, may take. */
 const SNIPPET_MS = 60_000;
 
@@ -915,6 +981,26 @@ async function serveSnippet(p: string, request: SnippetRequest, nvs: string): Pr
 /** The text of each of a snippet's two output files, null where it has none. */
 const outputFiles = (p: string) => ({ out: hasFile(ROOT, p, "out") ? readAt(ROOT, snippetFile(p, "out")) : null, http: hasFile(ROOT, p, "http") ? readAt(ROOT, snippetFile(p, "http")) : null });
 
+/** The `.tainted` text a snippet owes, from one `nvs lsp` session opened at the snippet's own path, or
+ * null when it owes none. A string inside `failure` is why the session gave no tokens. */
+async function snippetTaint(p: string, nvs: string): Promise<{ owed: string | null } | { failure: string }> {
+  const text = readAt(ROOT, p);
+  const ran = await runProc([nvs, "lsp"], { cwd: ROOT, input: taintScript(pathToFileURL(join(ROOT, p)).href, text), timeoutMs: SNIPPET_MS });
+  const messages = lspMessages(ran.stdout);
+  const answer = (id: number) => messages.find((m) => m.id === id && !("method" in m));
+  const legend = (answer(1)?.result as { capabilities?: { semanticTokensProvider?: { legend?: Legend } } } | undefined)?.capabilities?.semanticTokensProvider?.legend;
+  const data = (answer(2)?.result as { data?: number[] } | null | undefined)?.data;
+  if (legend === undefined || data === undefined) return { failure: `${p}: \`nvs lsp\` sent no semantic tokens (exit ${ran.code}): ${firstLine(ran.stderr)}` };
+  try {
+    return { owed: taintedRanges(text, legend, data) };
+  } catch (e) {
+    return { failure: `${p}: ${(e as Error).message}` };
+  }
+}
+
+/** The text of a snippet's `.tainted`, null where it has none. */
+const taintFile = (p: string) => (existsSync(join(ROOT, beside(p, TAINTED))) ? readAt(ROOT, beside(p, TAINTED)) : null);
+
 /** A snippet that compiles, run in both contexts: `nvs run`, and `nvs serve` sent its `.nvsr` or
  * `PLAIN_GET`. A command-line snippet whose `nvs run` fails is not served. */
 async function bothContexts(p: string, nvs: string): Promise<{ web: boolean; cli: Ran; served: Served | null } | string> {
@@ -948,6 +1034,9 @@ async function snippetProblems(nvs: string): Promise<string[]> {
   const { problems, snippets } = snippetShape();
   const perSnippet = await inParallel(snippets, SNIPPET_WIDTH, async (p): Promise<string[]> => {
     const found = commentProblems(p).map((c) => `${p}:${c}`);
+    const taint = await snippetTaint(p, nvs);
+    const taintProblem = "failure" in taint ? taint.failure : taintVerdict(p, taint.owed, taintFile(p));
+    if (taintProblem) found.push(taintProblem);
     const [out, http, err] = (["out", "http", "err"] as const).map((k) => hasFile(ROOT, p, k));
     // A snippet `snippetShape` already named has no one file to match.
     if ((err && (out || http)) || (!out && !http && !err)) return found;
@@ -982,6 +1071,13 @@ async function blessSnippets(nvs: string, paths: string[]): Promise<number> {
     if (!p.startsWith(`${SNIPPETS}/`) || !p.endsWith(".nvs") || !existsSync(join(ROOT, p))) {
       fail(`${p}: not a .nvs file under ${SNIPPETS}/`);
       continue;
+    }
+    const taint = await snippetTaint(p, nvs);
+    if ("failure" in taint) fail(taint.failure);
+    else if (taint.owed !== null) blessWrite(beside(p, TAINTED), taint.owed);
+    else if (taintFile(p) !== null) {
+      rmSync(join(ROOT, beside(p, TAINTED)));
+      console.log(`  deleted  ${beside(p, TAINTED)}`);
     }
     const [out, http, err] = (["out", "http", "err"] as const).map((k) => hasFile(ROOT, p, k));
     if (err && (out || http)) {

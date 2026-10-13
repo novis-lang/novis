@@ -1,9 +1,10 @@
 import { expect, test } from "bun:test";
 import { join } from "node:path";
 import {
-  agrees, AREAS, type Batch, batchSizes, boundsOf, CEILING, clockFlat, compileCounts, COUNT_BOUND, countsAgree, increments, judgeCounts, type Judged, ladderOf, ladderSizes, LSP_URI, lspFrame, lspScript, missingAreas,
+  agrees, AREAS, type Batch, batchSizes, boundsOf, CEILING, clockFlat, compileCounts, COUNT_BOUND, countsAgree, increments, judgeCounts, type Judged, ladderOf, ladderSizes, LSP_URI, lspScript, missingAreas,
   HEADER_VALUE, PEAK_SLACK, PER_CONNECTION, peakGrows, printedFiles, proposed, rebased, serveShape, SHAPED_REQUESTS, slopeOf, START, withBatch,
 } from "../cmd/scaling.ts";
+import { lspFrame } from "../lib/lsp.ts";
 import { ROOT } from "../lib/paths.ts";
 
 /** A ramp whose every count costs `cost(n)` at batch `n`, over `fixed` set-up. */

@@ -933,6 +933,9 @@ beside it against the real binary. A `.err` is the diagnostic `nvs check` must r
 does not compile. A `.out` is what `nvs run` must print with exit 0. A `.http.out` is the response body
 a real `nvs serve` sends for the request the snippet's `.nvsr` describes, or for a plain `GET` when it
 has none; no simulated request stands in for a server. A snippet with a `.nvsr` always has a `.http.out`.
+A `.tainted` lists each token `nvs lsp` gives the `tainted` modifier, which the page shows with a dotted
+underline and a tooltip, and a snippet with no such token has none: the grammar that colours the code
+cannot know which values are tainted, and the server that knows is the one an editor asks.
 
 **Where the command line and a server print different things, the page shows both**, the command line
 first. `echo` writes to a different sink in each ([`tooling/echo-always-has-a-sink`](tooling.md#tooling-echo-always-has-a-sink)), and in a

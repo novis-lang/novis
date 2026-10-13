@@ -101,6 +101,8 @@ export default defineConfig({
         // Starlight's banner, then the page's search questions in an attribute Pagefind indexes.
         Banner: './src/components/Banner.astro',
       },
+      // The plugins are in ec.config.mjs, which Expressive Code merges with this block:
+      // the <Code> component reads this block as JSON, and a plugin is a function.
       expressiveCode: {
         shiki: {
           langs: [novisGrammar],

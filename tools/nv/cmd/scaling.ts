@@ -128,6 +128,7 @@
 
 import { cpSync, existsSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { lspFrame } from "../lib/lsp.ts";
 import { abs, DISCARD_PROFILE, rel, ROOT } from "../lib/paths.ts";
 import { progress } from "../lib/progress.ts";
 import { fixed } from "../lib/py.ts";
@@ -577,12 +578,6 @@ const FMT: Measure = {
 export const LSP_URI = "file:///scaling/ladder.nvs";
 /** The cursor a printed document marks, as an `.lspt` case marks it. */
 const CURSOR = "<|>";
-
-/** One message, framed the way `nvs lsp` reads it from stdin. */
-export const lspFrame = (message: object): string => {
-  const body = JSON.stringify({ jsonrpc: "2.0", ...message });
-  return `Content-Length: ${Buffer.byteLength(body, "utf8")}\r\n\r\n${body}`;
-};
 
 /**
  * The session an `lsp` ladder runs on the document it printed, in the order it is sent: the

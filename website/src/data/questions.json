@@ -742,12 +742,13 @@
   },
   "/in-depth/concepts/tainted-input/": {
     "feature": "in-depth/concepts/tainted-input.mdx",
-    "hash": "822170c66cd67add",
+    "hash": "4a3aad0195a2d11f",
     "questions": [
       "How does Novis prevent SQL injection and cross-site scripting?",
       "What is tainted input and why does it matter?",
       "Why does a form field not compile in my SQL query?",
-      "Which ways make text from a request safe to use?"
+      "Which ways make text from a request safe to use?",
+      "What does the dotted underline under a variable in the code examples mean?"
     ]
   },
   "/in-depth/concepts/utf8-strings/": {

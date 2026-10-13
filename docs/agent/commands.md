@@ -359,8 +359,8 @@ longer agrees with fails the run. [docs/reference/README.md](../reference/README
 and the rules.
 
 ```sh
-bun nv site --check snippets              # every website snippet against `nvs run`, a real `nvs serve` and `nvs check`
-bun nv site --bless website/snippets/home/hero-html.nvs       # write its .out / .http.out / .err from the binary
+bun nv site --check snippets              # every website snippet against `nvs run`, a real `nvs serve`, `nvs check` and `nvs lsp`
+bun nv site --bless website/snippets/home/hero-html.nvs       # write its .out / .http.out / .err and .tainted from the binary
 ```
 
 A website snippet's output files, and when the page shows both the command line's and the server's,
