@@ -12,12 +12,21 @@ call. This is chosen against a pull loop in the Novis half, in which the guest w
 needed at offset N, length L" and the Novis code would read them and call again, for two reasons. On
 request latency, the import costs one host call per read-ahead block and runs no Novis code between
 them, where the pull loop costs a guest return, a Novis read and a guest call for every block. And
-the parsers read synchronously: calamine does from a `Read + Seek` for the whole formats, and so do
-our xlsx and xlsb readers, and a pull loop would need every parser rewritten as a resumable state machine.
+the parsers read synchronously, the readers of the whole formats included, and a pull loop would
+need every parser rewritten as a resumable state machine.
 
-**Formats** are told apart by their bytes: a zip is xlsx, xlsm or ods by its content types, an OLE
-compound file is xls, a zip with `xl/workbook.bin` is xlsb, and anything else is CSV. xls holds at
-most 65,536 rows. An xlsm's macros are listed by `macros()` and never run.
+**Formats** are told apart by their bytes: a zip is xlsx or xlsm when its workbook part is XML,
+xlsb when it is `xl/workbook.bin`, and ods when it has a `content.xml` and no workbook part. An OLE
+compound file is xls, and anything else is CSV. xls holds at most 65,536 rows, and an xls from
+Excel 95 or earlier, BIFF5 and before, throws naming it. An xlsm's macros are listed by `macros()`
+and never run.
+
+**xls and ods are read whole** when the reader opens: the file is held in the guest, and every
+sheet's rows with it. An xls or an ods stores a formula as tokens or as OpenFormula text, so with
+`formulas: true` its cell reads as its stored result and gives no `Formula`. An ods cell carries its
+type in its own attributes, and a time value in it reads as a `TimeOfDay` under 24 hours and a
+`Duration` from 24 hours on. A row or a cell with a repeat count is that many, an empty one costs
+nothing, and a repeat past the grid throws.
 
 **`rows($sheet, {...})`** takes the sheet by name or by position from 0 and yields one `Row` per row:
 its `number` is the **row number in the file**, and its `values` the row's array. The row number is
@@ -74,10 +83,9 @@ one. The engine's resource is `reading`, because a manifest's resource is a clas
 An xlsb stores a formula as parsed tokens and not as text, so with `formulas: true` an xlsb cell
 reads as its stored result and gives no `Formula`.
 
-**Not shipped.** The extras, `merged: 'fill'`, `text`, and the xlsm, xls and ods formats. The
-`value` accessor reads a range of `bytes` and not yet of an open `Core\IO\File`, and each call copies
-a `bytes` source whole as it crosses. `Reader::open`, `sheets()` and `rows()` read an xlsx and an
-xlsb.
+**Not shipped.** The extras, `macros()`, `merged: 'fill'` and `text`. The `value` accessor reads a
+range of `bytes` and not yet of an open `Core\IO\File`, and each call copies a `bytes` source whole
+as it crosses. `Reader::open`, `sheets()` and `rows()` read xlsx, xlsm, xlsb, xls and ods.
 
 **Declined:**
 - **A pull loop in the Novis half.** It costs a guest return and a Novis call per block on the request

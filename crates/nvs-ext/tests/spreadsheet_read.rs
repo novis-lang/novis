@@ -171,6 +171,11 @@ const STYLES: &str = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 
 /// An xlsx of `sheets` with the shared strings `shared`, laid out as Excel lays one out.
 fn xlsx(sheets: &[Sheet<'_>], shared: &[&str]) -> Vec<u8> {
+    package(sheets, shared, &[])
+}
+
+/// The package [`xlsx`] makes, with the parts `extra` added.
+fn package(sheets: &[Sheet<'_>], shared: &[&str], extra: &[(&str, Vec<u8>)]) -> Vec<u8> {
     let main = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
     let rel = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
     let mut book =
@@ -226,6 +231,11 @@ fn xlsx(sheets: &[Sheet<'_>], shared: &[&str]) -> Vec<u8> {
         ("xl/sharedStrings.xml".to_owned(), sst.into_bytes()),
     ];
     all.extend(parts);
+    all.extend(
+        extra
+            .iter()
+            .map(|(name, data)| ((*name).to_owned(), data.clone())),
+    );
     let borrowed: Vec<(&str, Vec<u8>)> = all
         .iter()
         .map(|(name, data)| (name.as_str(), data.clone()))
@@ -1122,6 +1132,427 @@ fn an_xlsb_is_read_through_byte_ranges() {
                 &Value::Uint(0),
                 &Value::Uint(0),
             ),
+        ]
+    );
+    block_on(read.request.end()).expect("the request ends");
+}
+
+/// A compound file of 512-byte sectors holding `streams`. Each stream is padded with zeros to the
+/// 4,096 bytes below which it would be kept in the mini stream.
+fn compound(streams: &[(&str, Vec<u8>)]) -> Vec<u8> {
+    const END: u32 = 0xFFFF_FFFE;
+    let padded: Vec<Vec<u8>> = streams
+        .iter()
+        .map(|(_, data)| {
+            let mut data = data.clone();
+            data.resize(data.len().max(4096).div_ceil(512) * 512, 0);
+            data
+        })
+        .collect();
+    let dir_sectors = (streams.len() + 1).div_ceil(4);
+    let data_sectors: usize = padded.iter().map(|data| data.len() / 512).sum();
+    let mut fat_sectors = 1;
+    while fat_sectors * 128 < fat_sectors + dir_sectors + data_sectors {
+        fat_sectors += 1;
+    }
+    assert!(
+        fat_sectors <= 109,
+        "the header lists the whole sector table"
+    );
+    let mut fat = vec![0xFFFF_FFFDu32; fat_sectors];
+    let chain = |fat: &mut Vec<u32>, count: usize| {
+        let start = fat.len();
+        for n in 0..count {
+            fat.push(if n + 1 == count {
+                END
+            } else {
+                u32::try_from(start + n + 1).unwrap()
+            });
+        }
+        u32::try_from(start).unwrap()
+    };
+    let dir_start = chain(&mut fat, dir_sectors);
+    let starts: Vec<u32> = padded
+        .iter()
+        .map(|data| chain(&mut fat, data.len() / 512))
+        .collect();
+    fat.resize(fat_sectors * 128, 0xFFFF_FFFF);
+    let entry = |name: &str, kind: u8, start: u32, size: usize| {
+        let mut out = vec![0u8; 128];
+        let units: Vec<u16> = name.encode_utf16().chain([0]).collect();
+        for (at, unit) in units.iter().enumerate() {
+            out[at * 2..at * 2 + 2].copy_from_slice(&unit.to_le_bytes());
+        }
+        out[64..66].copy_from_slice(&u16::try_from(units.len() * 2).unwrap().to_le_bytes());
+        out[66] = kind;
+        // The left sibling, the right sibling and the child: none.
+        out[68..80].fill(0xFF);
+        out[116..120].copy_from_slice(&start.to_le_bytes());
+        out[120..124].copy_from_slice(&u32::try_from(size).unwrap().to_le_bytes());
+        out
+    };
+    let mut directory = entry("Root Entry", 5, END, 0);
+    for ((name, data), start) in streams.iter().zip(&starts) {
+        directory.extend(entry(name, 2, *start, data.len().max(4096)));
+    }
+    directory.resize(dir_sectors * 512, 0);
+    let mut out = vec![0u8; 512];
+    out[..8].copy_from_slice(&[0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1]);
+    let fields: [(usize, u32); 7] = [
+        (44, u32::try_from(fat_sectors).unwrap()),
+        (48, dir_start),
+        (56, 4096),
+        (60, END),
+        (64, 0),
+        (68, END),
+        (72, 0),
+    ];
+    for (at, value) in fields {
+        out[at..at + 4].copy_from_slice(&value.to_le_bytes());
+    }
+    out[24..26].copy_from_slice(&0x3Eu16.to_le_bytes());
+    out[26..28].copy_from_slice(&3u16.to_le_bytes());
+    out[28..30].copy_from_slice(&0xFFFEu16.to_le_bytes());
+    out[30..32].copy_from_slice(&9u16.to_le_bytes());
+    out[32..34].copy_from_slice(&6u16.to_le_bytes());
+    out[76..].fill(0xFF);
+    for n in 0..fat_sectors {
+        let id = u32::try_from(n).unwrap();
+        out[76 + n * 4..80 + n * 4].copy_from_slice(&id.to_le_bytes());
+    }
+    out.extend(fat.iter().flat_map(|id| id.to_le_bytes()));
+    out.extend(directory);
+    for data in padded {
+        out.extend(data);
+    }
+    out
+}
+
+/// One BIFF8 record: its type, its length and `body`.
+fn biff(kind: u16, body: &[u8]) -> Vec<u8> {
+    let mut out = kind.to_le_bytes().to_vec();
+    out.extend_from_slice(&u16::try_from(body.len()).unwrap().to_le_bytes());
+    out.extend_from_slice(body);
+    out
+}
+
+/// A BIFF8 string with a two-byte count, in two-byte characters.
+fn biff_text(text: &str) -> Vec<u8> {
+    let units: Vec<u16> = text.encode_utf16().collect();
+    let mut out = u16::try_from(units.len()).unwrap().to_le_bytes().to_vec();
+    out.push(1);
+    for unit in units {
+        out.extend_from_slice(&unit.to_le_bytes());
+    }
+    out
+}
+
+/// An xls with the sheets `Shop` and `Lists`, hidden and empty. The cell styles are 0 plain,
+/// 1 a date, 2 the custom date format `dd/mm/yyyy`, 3 a clock time and 4 elapsed time.
+fn xls() -> Vec<u8> {
+    let bof = |kind: u16| {
+        biff(
+            0x0809,
+            &[&0x0600u16.to_le_bytes()[..], &kind.to_le_bytes(), &[0; 12]].concat(),
+        )
+    };
+    let mut globals = bof(0x0005);
+    globals.extend(biff(
+        0x041E,
+        &[&164u16.to_le_bytes()[..], &biff_text("dd/mm/yyyy")].concat(),
+    ));
+    for format in [0u16, 14, 164, 22, 46] {
+        globals.extend(biff(
+            0x00E0,
+            &[&[0u8, 0][..], &format.to_le_bytes(), &[0; 16]].concat(),
+        ));
+    }
+    // `Pastries` starts in one-byte characters and goes on in the `CONTINUE` record in
+    // two-byte ones, and `Crème` is wholly inside it.
+    let mut sst = [3u32.to_le_bytes(), 3u32.to_le_bytes()].concat();
+    sst.extend([6u8, 0, 0]);
+    sst.extend(b"Coffee");
+    sst.extend([8u8, 0, 0]);
+    sst.extend(b"Past");
+    globals.extend(biff(0x00FC, &sst));
+    let mut more = vec![1u8];
+    for unit in "ries".encode_utf16() {
+        more.extend(unit.to_le_bytes());
+    }
+    more.extend(biff_text("Crème"));
+    globals.extend(biff(0x003C, &more));
+    let rk_int = |n: i32| ((n << 2) | 2).to_le_bytes();
+    let cell = |kind: u16, row: u16, column: u16, style: u16, value: &[u8]| {
+        biff(
+            kind,
+            &[
+                &row.to_le_bytes()[..],
+                &column.to_le_bytes(),
+                &style.to_le_bytes(),
+                value,
+            ]
+            .concat(),
+        )
+    };
+    let mut shop = bof(0x0010);
+    // The third row is hidden.
+    let mut hidden = 2u16.to_le_bytes().to_vec();
+    hidden.extend([0; 10]);
+    hidden.extend([0x20, 0x01, 0x0F, 0x00]);
+    shop.extend(biff(0x0208, &hidden));
+    shop.extend(cell(0x00FD, 0, 0, 0, &0u32.to_le_bytes()));
+    shop.extend(cell(0x00FD, 0, 1, 0, &1u32.to_le_bytes()));
+    shop.extend(cell(0x00FD, 0, 2, 0, &2u32.to_le_bytes()));
+    shop.extend(cell(0x0205, 0, 3, 0, &[1, 0]));
+    shop.extend(cell(0x0205, 0, 4, 0, &[0x07, 1]));
+    shop.extend(cell(0x0203, 1, 0, 0, &2.5f64.to_le_bytes()));
+    shop.extend(cell(0x027E, 1, 1, 0, &rk_int(42)));
+    let mut several = [1u16.to_le_bytes(), 2u16.to_le_bytes()].concat();
+    several.extend(1u16.to_le_bytes());
+    several.extend(rk_int(45_000));
+    several.extend(0u16.to_le_bytes());
+    several.extend(rk_int(7));
+    several.extend(3u16.to_le_bytes());
+    shop.extend(biff(0x00BD, &several));
+    shop.extend(cell(
+        0x0006,
+        1,
+        4,
+        0,
+        &[&10f64.to_le_bytes()[..], &[0; 8]].concat(),
+    ));
+    shop.extend(cell(
+        0x0006,
+        1,
+        5,
+        0,
+        &[&[0u8, 0, 0, 0, 0, 0, 0xFF, 0xFF][..], &[0; 8]].concat(),
+    ));
+    shop.extend(biff(0x0207, &biff_text("total")));
+    shop.extend(cell(0x0203, 2, 0, 3, &45_000.5f64.to_le_bytes()));
+    shop.extend(cell(0x0203, 2, 1, 4, &1.5f64.to_le_bytes()));
+    shop.extend(cell(0x0204, 2, 2, 2, &biff_text("Tea & cake")));
+    shop.extend(biff(0x000A, &[]));
+    let lists = [bof(0x0010), biff(0x000A, &[])].concat();
+    let listed = |at: usize, state: u8, name: &str| {
+        let at = u32::try_from(at).unwrap();
+        let length = u8::try_from(name.len()).unwrap();
+        biff(
+            0x0085,
+            &[
+                &at.to_le_bytes()[..],
+                &[state, 0, length, 0],
+                name.as_bytes(),
+            ]
+            .concat(),
+        )
+    };
+    let start = globals.len() + listed(0, 0, "Shop").len() + listed(0, 1, "Lists").len() + 4;
+    globals.extend(listed(start, 0, "Shop"));
+    globals.extend(listed(start + shop.len(), 1, "Lists"));
+    globals.extend(biff(0x000A, &[]));
+    globals.extend(shop);
+    globals.extend(lists);
+    compound(&[("Workbook", globals)])
+}
+
+/// An ods of the sheets `Shop` and `Lists`, hidden, with the cells of `content.xml` as
+/// LibreOffice writes them, a million empty rows at the end included.
+fn ods() -> Vec<u8> {
+    let content = r#"<?xml version="1.0" encoding="UTF-8"?>
+<office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0" xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" xmlns:calcext="urn:org:documentfoundation:names:experimental:calc:xmlns:calcext:1.0">
+<office:automatic-styles><style:style style:name="ta1" style:family="table"><style:table-properties table:display="true"/></style:style><style:style style:name="ta2" style:family="table"><style:table-properties table:display="false"/></style:style></office:automatic-styles>
+<office:body><office:spreadsheet>
+<table:table table:name="Shop" table:style-name="ta1"><table:table-column table:number-columns-repeated="3"/>
+<table:table-row><table:table-cell office:value-type="string" calcext:value-type="string"><text:p>Tea &amp; cake</text:p></table:table-cell><table:table-cell office:value-type="float" office:value="42"><text:p>42</text:p></table:table-cell><table:table-cell office:value-type="float" office:value="2.5"/><table:table-cell office:value-type="boolean" office:boolean-value="true"/><table:table-cell table:formula="of:=1/0" office:value-type="string" office:string-value="" calcext:value-type="error"><text:p>#DIV/0!</text:p></table:table-cell></table:table-row>
+<table:table-row table:number-rows-repeated="2"><table:table-cell/></table:table-row>
+<table:table-row table:visibility="collapse"><table:table-cell office:value-type="date" office:date-value="2024-01-15"/><table:table-cell office:value-type="date" office:date-value="2024-01-15T18:00:00"/><table:table-cell office:value-type="time" office:time-value="PT12H30M00S"/><table:table-cell office:value-type="time" office:time-value="PT36H00M00S"/></table:table-row>
+<table:table-row table:number-rows-repeated="2"><table:table-cell table:number-columns-repeated="2" office:value-type="string"><text:p>a</text:p><text:p>b<text:s text:c="2"/>c</text:p></table:table-cell><table:table-cell table:number-columns-repeated="1000"/><table:table-cell office:value-type="percentage" office:value="0.25"/></table:table-row>
+<table:table-row table:number-rows-repeated="1048570"><table:table-cell table:number-columns-repeated="1024"/></table:table-row>
+</table:table>
+<table:table table:name="Lists" table:style-name="ta2"><table:table-row><table:table-cell office:value-type="string"><text:p>x</text:p></table:table-cell></table:table-row></table:table>
+</office:spreadsheet></office:body></office:document-content>"#;
+    zip(&[
+        (
+            "mimetype",
+            b"application/vnd.oasis.opendocument.spreadsheet".to_vec(),
+        ),
+        ("META-INF/manifest.xml", b"<manifest:manifest/>".to_vec()),
+        ("content.xml", content.as_bytes().to_vec()),
+    ])
+}
+
+/// Each sheet's name, visibility, rows and columns, as `readerSheets` gives them.
+fn listed(read: &Read) -> Vec<(String, String, u64, u64)> {
+    entries(&read.call("readerSheets", vec![]))
+        .into_iter()
+        .map(|sheet| {
+            let (
+                Value::String(name),
+                Value::Case(visibility),
+                Value::Uint(rows),
+                Value::Uint(columns),
+            ) = (
+                field(sheet, "name"),
+                field(sheet, "visibility"),
+                field(sheet, "rows"),
+                field(sheet, "columns"),
+            )
+            else {
+                panic!("{sheet:?} is not a sheet's shape");
+            };
+            (name.clone(), visibility.clone(), *rows, *columns)
+        })
+        .collect()
+}
+
+#[test]
+fn xlsm_xls_and_ods_are_read_whole() {
+    let boolean = shape(vec![("boolean", Value::Bool(true))]);
+    let error = shape(vec![("error", Value::Case("DivZero".to_owned()))]);
+    let hours = |h: i64| {
+        shape(vec![(
+            "duration",
+            core("Core\\Time\\Duration", &[("nanos", h * 3_600_000_000_000)]),
+        )])
+    };
+    let clock = |hour| {
+        shape(vec![
+            ("day", date(2023, 3, 15)),
+            ("clock", time(hour, 0, 0)),
+        ])
+    };
+
+    // An xlsm is an xlsx with a VBA part, and reads as one.
+    let vba = compound(&[(
+        "PROJECT",
+        b"ID=\"{00000000-0000-0000-0000-000000000000}\"".to_vec(),
+    )]);
+    let xlsm = package(
+        &[sheet(
+            "Shop",
+            row(1, &[("s", 0, "<v>0</v>"), ("", 0, "<v>3</v>")]),
+        )],
+        &["Coffee"],
+        &[("xl/vbaProject.bin", vba)],
+    );
+    let read = Read::open(xlsm);
+    assert_eq!(
+        read.all(&options("Shop"), 10),
+        vec![(1, vec![(1, text("Coffee")), (2, integer(3))])]
+    );
+    block_on(read.request.end()).expect("the request ends");
+
+    // An xls: shared strings across a `CONTINUE` record, every cell record, a formula's number
+    // and text results, the cell styles' formats and a hidden row.
+    let read = Read::open(xls());
+    let rows = read.all(&options("Shop"), 2);
+    assert_eq!(
+        rows,
+        vec![
+            (
+                1,
+                vec![
+                    (1, text("Coffee")),
+                    (2, text("Pastries")),
+                    (3, text("Crème")),
+                    (4, boolean.clone()),
+                    (5, error.clone()),
+                ]
+            ),
+            (
+                2,
+                vec![
+                    (1, number(2.5)),
+                    (2, integer(42)),
+                    (3, shape(vec![("date", date(2023, 3, 15))])),
+                    (4, integer(7)),
+                    (5, integer(10)),
+                    (6, text("total")),
+                ]
+            ),
+            (
+                3,
+                vec![(1, clock(12)), (2, hours(36)), (3, text("Tea & cake"))]
+            ),
+        ]
+    );
+    let shown = read.all(
+        &Options {
+            skip_hidden: true,
+            ..options("Shop")
+        },
+        10,
+    );
+    assert_eq!(shown.len(), 2);
+    assert_eq!(
+        listed(&read),
+        vec![
+            ("Shop".to_owned(), "Visible".to_owned(), 3, 6),
+            ("Lists".to_owned(), "Hidden".to_owned(), 0, 0),
+        ]
+    );
+    block_on(read.request.end()).expect("the request ends");
+
+    // An xls from Excel 95 or earlier names what it is.
+    let old = compound(&[("Book", biff(0x0809, &[0; 16]))]);
+    let host = Host::new(2, |_| Ok(())).expect("the host starts");
+    let extension = spreadsheet(&host);
+    let request = host.request(Arc::new(Meter::new(Duration::from_secs(60), None)));
+    let refused = block_on(request.call_values(&extension, "readerOpen", vec![Value::Bytes(old)]))
+        .expect_err("an Excel 95 file is not read");
+    assert!(refused.to_string().contains("Excel 95"), "{refused}");
+    block_on(request.end()).expect("the request ends");
+
+    // An ods: every value type, repeated rows and cells, a hidden row and a hidden sheet.
+    let read = Read::open(ods());
+    let both = vec![
+        (1, text("a\nb  c")),
+        (2, text("a\nb  c")),
+        (1003, number(0.25)),
+    ];
+    assert_eq!(
+        read.all(&options("Shop"), 2),
+        vec![
+            (
+                1,
+                vec![
+                    (1, text("Tea & cake")),
+                    (2, integer(42)),
+                    (3, number(2.5)),
+                    (4, boolean),
+                    (5, error),
+                ]
+            ),
+            (
+                4,
+                vec![
+                    (1, shape(vec![("date", date(2024, 1, 15))])),
+                    (
+                        2,
+                        shape(vec![("day", date(2024, 1, 15)), ("clock", time(18, 0, 0))])
+                    ),
+                    (3, shape(vec![("time", time(12, 30, 0))])),
+                    (4, hours(36)),
+                ]
+            ),
+            (5, both.clone()),
+            (6, both),
+        ]
+    );
+    let shown = read.all(
+        &Options {
+            skip_hidden: true,
+            ..options("Shop")
+        },
+        10,
+    );
+    assert_eq!(shown.len(), 3);
+    assert_eq!(
+        listed(&read),
+        vec![
+            ("Shop".to_owned(), "Visible".to_owned(), 6, 1003),
+            ("Lists".to_owned(), "Hidden".to_owned(), 1, 1),
         ]
     );
     block_on(read.request.end()).expect("the request ends");

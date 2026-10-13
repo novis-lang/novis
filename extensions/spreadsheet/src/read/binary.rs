@@ -109,25 +109,25 @@ fn records(part: &[u8]) -> impl Iterator<Item = Result<(u16, &[u8]), Error>> {
     })
 }
 
-fn u32_at(body: &[u8], at: usize) -> Result<u32, Error> {
+pub(super) fn u32_at(body: &[u8], at: usize) -> Result<u32, Error> {
     body.get(at..at + 4)
         .map(|b| u32::from_le_bytes([b[0], b[1], b[2], b[3]]))
         .ok_or_else(|| broken("a record is shorter than its fields"))
 }
 
-fn u16_at(body: &[u8], at: usize) -> Result<u16, Error> {
+pub(super) fn u16_at(body: &[u8], at: usize) -> Result<u16, Error> {
     body.get(at..at + 2)
         .map(|b| u16::from_le_bytes([b[0], b[1]]))
         .ok_or_else(|| broken("a record is shorter than its fields"))
 }
 
-fn u8_at(body: &[u8], at: usize) -> Result<u8, Error> {
+pub(super) fn u8_at(body: &[u8], at: usize) -> Result<u8, Error> {
     body.get(at)
         .copied()
         .ok_or_else(|| broken("a record is shorter than its fields"))
 }
 
-fn f64_at(body: &[u8], at: usize) -> Result<f64, Error> {
+pub(super) fn f64_at(body: &[u8], at: usize) -> Result<f64, Error> {
     body.get(at..at + 8)
         .map(|b| f64::from_le_bytes([b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7]]))
         .ok_or_else(|| broken("a record is shorter than its fields"))
@@ -159,7 +159,7 @@ fn wide_at(body: &[u8], at: usize) -> Result<(Option<String>, usize), Error> {
 }
 
 /// The text Excel shows for an error code.
-fn error_text(code: u8) -> Option<&'static str> {
+pub(super) fn error_text(code: u8) -> Option<&'static str> {
     Some(match code {
         0x00 => "#NULL!",
         0x07 => "#DIV/0!",
@@ -175,7 +175,7 @@ fn error_text(code: u8) -> Option<&'static str> {
 
 /// An RK number: a 30-bit whole number or the top 30 bits of an `f64`, either divided by 100
 /// when its lowest bit is set.
-fn rk(value: u32) -> f64 {
+pub(super) fn rk(value: u32) -> f64 {
     #[allow(
         clippy::cast_possible_wrap,
         reason = "the RK bits are a signed whole number"
@@ -297,12 +297,12 @@ fn cell(body: &[u8]) -> Result<RawCell, Error> {
     })
 }
 
-fn number(mut cell: RawCell, value: f64) -> RawCell {
+pub(super) fn number(mut cell: RawCell, value: f64) -> RawCell {
     cell.value = Some(ryu::Buffer::new().format(value).to_owned());
     cell
 }
 
-fn typed(mut cell: RawCell, kind: &[u8], value: Option<String>) -> RawCell {
+pub(super) fn typed(mut cell: RawCell, kind: &[u8], value: Option<String>) -> RawCell {
     cell.kind = kind.to_vec();
     cell.value = value;
     cell

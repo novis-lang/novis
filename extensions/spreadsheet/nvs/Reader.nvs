@@ -4,7 +4,7 @@ namespace Novis\Spreadsheet;
 use Iterator;
 use LogicError;
 
-/// An Excel file (xlsx) that your program reads row by row.
+/// A spreadsheet file that your program reads row by row. It can be xlsx, xlsm, xlsb, xls or ods.
 /// Open one with `Reader::open`. `sheets` lists its sheets, and `rows` reads the rows of one sheet.
 final class Reader
 {
@@ -19,7 +19,7 @@ final class Reader
     ) {}
 
     /// `Reader::open` opens the workbook in `$source`. The source is the bytes of the file, or a file your program opened.
-    /// This reads the list of sheets and no rows. A file that is not an xlsx file throws an error.
+    /// This reads the list of sheets. An xls or ods file is read whole here. Any other file type throws an error.
     public static function open(bytes|Core\IO\File $source): Reader
     {
         return new Reader(Engine::readerOpen($source), $source);

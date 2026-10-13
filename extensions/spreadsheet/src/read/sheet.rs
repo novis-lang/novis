@@ -16,7 +16,7 @@ use super::zip::{Entry, Part};
 use crate::Error;
 
 /// A cell as the file writes it.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct RawCell {
     /// From 1.
     pub column: u64,
@@ -28,7 +28,7 @@ pub struct RawCell {
 }
 
 /// A row as the file writes it.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct RawRow {
     /// From 1.
     pub number: u64,

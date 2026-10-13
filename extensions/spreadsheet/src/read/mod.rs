@@ -1,13 +1,18 @@
 //! The reader: a workbook read through byte ranges of a source the program holds
 //! (`rule:core-classes/spreadsheet-reads-as-a-stream`).
 //!
-//! **This is our own thin reader for xlsx, not calamine.** calamine keeps one `String` per shared
+//! **This is our own thin reader, not calamine.** calamine keeps one `String` per shared
 //! string, exposes no cell style, and reads a sheet from a `Read + Seek` it owns, where a
 //! reader resource must keep its place between guest calls. So the zip directory and the parts
 //! are read here ([`zip`]), the XML is tokenized here ([`xml`]), and a sheet is a [`sheet::Cursor`]
 //! that survives from one call to the next. xlsb is the same package with binary parts, read
-//! the same way by [`binary`]. xlsm, xls and ods are not read yet, and each gives
-//! [`Error::Runtime`] naming its format.
+//! the same way by [`binary`]. xlsm is an xlsx with a VBA part, and reads as one.
+//!
+//! **xls and ods are read whole**, at [`Reader::open`]: [`xls`] over the compound file [`cfb`],
+//! and [`ods`]. Each sheet's rows are kept in its [`Listed`], and a cursor walks them. calamine
+//! does not read them here either. Its release with a sound `quick-xml` needs a `zip` that does
+//! not build for `wasm32-wasip2`, and its release that builds carries `quick-xml`'s two open
+//! advisories, which `deny.toml` refuses.
 //!
 //! [`Reader::open`] reads the zip directory, the package's relationships, the workbook part, its
 //! relationships and the styles part, and nothing of a sheet. The shared strings are read at the
@@ -30,10 +35,15 @@
 //! and the row being parsed, and one batch of rows.
 
 pub mod binary;
+mod cfb;
 pub mod format;
+mod ods;
 pub mod sheet;
+mod xls;
 pub mod xml;
 pub mod zip;
+
+use std::sync::Arc;
 
 use crate::{Clock, Date, Error, TimeOfDay, Visibility};
 use format::Kind;
@@ -263,13 +273,14 @@ impl Strings {
     }
 }
 
-/// A sheet as the workbook lists it.
+/// A sheet as the workbook lists it. A sheet of a format read whole has its rows in `rows`.
 #[derive(Debug, Clone)]
 struct Listed {
     name: String,
     visibility: Visibility,
     part: Option<String>,
     kind: SheetKind,
+    rows: Option<Arc<Vec<sheet::RawRow>>>,
 }
 
 /// A workbook being read.
@@ -297,11 +308,15 @@ struct Open {
     next: u64,
 }
 
-/// A sheet's cursor, over XML or over records.
+/// A sheet's cursor, over XML, over records, or over the rows of a sheet read whole.
 #[derive(Debug)]
 enum Cursor {
     Xml(sheet::Cursor),
     Binary(binary::Cursor),
+    Whole {
+        rows: Arc<Vec<sheet::RawRow>>,
+        at: usize,
+    },
 }
 
 impl Cursor {
@@ -309,6 +324,15 @@ impl Cursor {
         match self {
             Self::Xml(cursor) => cursor.dimension(source),
             Self::Binary(cursor) => cursor.dimension(source),
+            Self::Whole { rows, .. } => Ok(rows.last().map(|last| {
+                let columns = rows
+                    .iter()
+                    .flat_map(|row| row.cells.last())
+                    .map(|cell| cell.column)
+                    .max()
+                    .unwrap_or(0);
+                (last.number, columns)
+            })),
         }
     }
 
@@ -316,6 +340,11 @@ impl Cursor {
         match self {
             Self::Xml(cursor) => cursor.next(source),
             Self::Binary(cursor) => cursor.next(source),
+            Self::Whole { rows, at } => {
+                let row = rows.get(*at).cloned();
+                *at += 1;
+                Ok(row)
+            }
         }
     }
 }
@@ -426,14 +455,19 @@ impl Reader {
     /// Opens the workbook `source` is: its directory and its workbook part.
     pub fn open(source: &dyn Source) -> Result<Self, Error> {
         let head = source.range(0, 8)?;
-        if head.starts_with(&[0xD0, 0xCF, 0x11, 0xE0]) {
-            return Err(Error::Runtime(
-                "This version of Novis cannot read xls files yet.".to_owned(),
+        if cfb::is_compound(&head) {
+            let book = xls::read(&source.range(0, source.size()?)?)?;
+            return Ok(Self::whole(
+                zip::Directory::default(),
+                book.sheets,
+                book.kinds,
+                book.date1904,
             ));
         }
         if !head.starts_with(b"PK") {
             return Err(Error::Parse(
-                "The file is not a workbook. Novis reads xlsx files.".to_owned(),
+                "The file is not a workbook. Novis reads xlsx, xlsm, xlsb, xls and ods files."
+                    .to_owned(),
             ));
         }
         let directory = zip::Directory::read(source)?;
@@ -443,11 +477,11 @@ impl Reader {
             .map_or_else(|| "xl/workbook.xml".to_owned(), |(_, _, target, _)| target);
         let binary = workbook.ends_with(".bin");
         let Some(entry) = directory.find(&workbook) else {
-            return Err(if directory.find("content.xml").is_some() {
-                Error::Runtime("This version of Novis cannot read ods files yet.".to_owned())
-            } else {
-                broken("it has no workbook part")
-            });
+            if directory.find("content.xml").is_none() {
+                return Err(broken("it has no workbook part"));
+            }
+            let sheets = ods::read(source, &directory)?;
+            return Ok(Self::whole(directory, sheets, ods::KINDS.to_vec(), false));
         };
         let book = zip::whole(source, entry)?;
         let rels = relationships(source, &directory, &workbook)?;
@@ -495,6 +529,7 @@ impl Reader {
                         Some((_, kind, _, _)) if kind == "chartsheet" => SheetKind::Chartsheet,
                         _ => SheetKind::Worksheet,
                     },
+                    rows: None,
                 }
             })
             .collect();
@@ -518,6 +553,25 @@ impl Reader {
             binary,
             open: None,
         })
+    }
+
+    /// A workbook whose sheets were read whole, with their rows in `sheets`.
+    fn whole(
+        directory: zip::Directory,
+        sheets: Vec<Listed>,
+        kinds: Vec<Kind>,
+        date1904: bool,
+    ) -> Self {
+        Self {
+            directory,
+            sheets,
+            strings_part: None,
+            strings: None,
+            kinds,
+            date1904,
+            binary: false,
+            open: None,
+        }
     }
 
     /// The shared strings, read at the first call that needs them.
@@ -550,6 +604,12 @@ impl Reader {
             return Err(Error::Invalid(format!(
                 "The sheet `{name}` is a chart. It has no rows to read."
             )));
+        }
+        if let Some(rows) = &listed.rows {
+            return Ok(Cursor::Whole {
+                rows: rows.clone(),
+                at: 0,
+            });
         }
         let entry = listed
             .part
