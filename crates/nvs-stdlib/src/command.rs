@@ -608,14 +608,15 @@ fn convert(arg: &CommandArg, text: &str) -> Result<Value, String> {
         // § 6's other closed set, and the refusal is the same sentence with the
         // enum's own name in it — the words are cases *of* something here, which
         // is the one thing a set of allowed values has nothing to say. The value is
-        // the case's backing integer and there is no case object to build:
+        // the case's backing integer under the enum tag (`rule:enums/representation`),
+        // and there is no case object to build:
         // `nvs_runtime::commands::ArgConv::Enum` is the home of both.
         ArgConv::Enum { class, cases } => cases
             .iter()
             .find(|(case, _)| case == text)
             .map(|(_, value)| match value {
-                CaseValue::Int(number) => Value::int(*number),
-                CaseValue::Uint(number) => Value::uint(*number),
+                CaseValue::Int(number) => Value::enum_int(*number),
+                CaseValue::Uint(number) => Value::enum_uint(*number),
             })
             .ok_or_else(|| {
                 format!(
@@ -2138,6 +2139,31 @@ mod tests {
             zsh_script(PROGRAM, &table).contains(r"'db\:list$(id)'"),
             "`zsh` ends the command word at a colon, so the colon carries one"
         );
+    }
+
+    /// An enum argument becomes the case itself, under the enum tag of its
+    /// backing (`rule:enums/representation`), so a handler that hands it on
+    /// hands on a case and not an `int`.
+    #[test]
+    fn an_enum_argument_is_written_as_a_case() {
+        let arg = |cases: Vec<(String, CaseValue)>| CommandArg {
+            param: "level".to_owned(),
+            spellings: Vec::new(),
+            about: None,
+            conv: ArgConv::Enum {
+                class: "Level".to_owned(),
+                cases,
+            },
+            default: None,
+        };
+        let signed = arg(vec![("Off".to_owned(), CaseValue::Int(0))]);
+        let value = convert(&signed, "Off").expect("a declared case");
+        assert_eq!(value.exact_tag(), Some(Tag::EnumInt));
+        assert_eq!(value.as_int(), Some(0));
+        let unsigned = arg(vec![("Warn".to_owned(), CaseValue::Uint(10))]);
+        let value = convert(&unsigned, "Warn").expect("a declared case");
+        assert_eq!(value.exact_tag(), Some(Tag::EnumUint));
+        assert_eq!(value.as_uint(), Some(10));
     }
 
     /// A context with no program name cannot produce a script at all, and says

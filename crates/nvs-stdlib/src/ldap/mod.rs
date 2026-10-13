@@ -319,7 +319,8 @@ fn ldap_error(message: String, error: &nvs_ldap::Error) -> Fault {
 }
 
 /// An [`nvs_ldap::Kind`] as the [`ERROR_KIND`] case a program matches on,
-/// which at runtime is that case's ordinal. The two enums are joined by name,
+/// which at runtime is that case's ordinal under the enum tag
+/// (`rule:enums/representation`). The two enums are joined by name,
 /// and `every_ldap_kind_names_a_registered_case` makes the `expect` unreachable.
 pub(crate) fn error_kind_value(kind: nvs_ldap::Kind) -> Value {
     let (_, ordinal) = ERROR_KIND
@@ -327,7 +328,7 @@ pub(crate) fn error_kind_value(kind: nvs_ldap::Kind) -> Value {
         .iter()
         .find(|(name, _)| *name == kind.name())
         .expect("every `nvs_ldap::Kind` names a case `ERROR_KIND` registers");
-    Value::int(*ordinal)
+    Value::enum_int(*ordinal)
 }
 
 /// Whether `error` is the server refusing the credentials, which stops a

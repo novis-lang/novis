@@ -1993,18 +1993,19 @@ fn case_named<'a>(access: Option<&'a str>, written: &str) -> Option<&'a str> {
 /// The value of `desc`'s case named `case`, or `null` when `desc` declares no
 /// such case.
 ///
-/// A case is its backing integer at run time (`rule:enums/representation`), so
-/// the enum's own `int` or `uint` is what is returned, and nothing is allocated.
+/// A case is its backing integer under the enum tag at run time
+/// (`rule:enums/representation`), so that is what is returned, and nothing is
+/// allocated. The tag is what keeps the `?E` a case once it is in a `mixed`.
 fn case_value(desc: &nvs_runtime::EnumDesc, case: &str) -> Value {
     // Both narrowings are exact: `nvs_ir::lower` widened an `i64` or a `u64`
     // to `i128`, and `rule:enums/one-backing-type` says which one it was.
     match desc.value_of(case) {
-        Some(value) if desc.unsigned() => {
-            Value::uint(u64::try_from(value).expect("a `uint`-backed case widened from a `u64`"))
-        }
-        Some(value) => {
-            Value::int(i64::try_from(value).expect("an `int`-backed case widened from an `i64`"))
-        }
+        Some(value) if desc.unsigned() => Value::enum_uint(
+            u64::try_from(value).expect("a `uint`-backed case widened from a `u64`"),
+        ),
+        Some(value) => Value::enum_int(
+            i64::try_from(value).expect("an `int`-backed case widened from an `i64`"),
+        ),
         None => Value::null(),
     }
 }

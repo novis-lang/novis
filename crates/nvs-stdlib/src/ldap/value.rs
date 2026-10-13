@@ -243,7 +243,7 @@ nvs_runtime::nvs_helper! {
             .iter()
             .find(|(name, _)| *name == kind.name())
             .expect("every `nvs_ldap::value::AccountType` names a case `ACCOUNT_TYPE` registers");
-        Ok(Value::int(*ordinal))
+        Ok(Value::enum_int(*ordinal))
     }
 }
 
@@ -487,6 +487,11 @@ mod tests {
         let kind = ok(call(nvs_core_ldap_entry_account_type, ctx, &[entry]));
         let user = ACCOUNT_TYPE.cases.iter().find(|(name, _)| *name == "User");
         assert_eq!(kind.as_int(), user.map(|(_, ordinal)| *ordinal));
+        assert_eq!(
+            kind.exact_tag(),
+            Some(nvs_runtime::Tag::EnumInt),
+            "the `?AccountType` it returns is a case, so `is` and a condition read it as one"
+        );
 
         let all = ok(call(nvs_core_ldap_entry_to_array, ctx, &[entry]));
         let all = all.as_array().expect("an array");

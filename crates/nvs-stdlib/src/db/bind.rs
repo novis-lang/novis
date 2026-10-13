@@ -257,8 +257,8 @@ pub(super) fn statement_failure(
 }
 
 /// A [`nvs_db::DbErrorKind`] as the [`ERROR_KIND`] case a program matches on,
-/// which at runtime is that case's ordinal
-/// (`rule:enums/closed-integer-type`) — so a
+/// which at runtime is that case's ordinal under the enum tag
+/// (`rule:enums/closed-integer-type`, `rule:enums/representation`) — so a
 /// `match ($e->kind) { Core\Db\DbError::Kind::Deadlock => … }` reads what the
 /// server itself said.
 ///
@@ -274,7 +274,7 @@ pub(super) fn error_kind_value(of: nvs_db::DbErrorKind) -> Value {
         .iter()
         .find(|(name, _)| *name == case)
         .expect("every `nvs_db::DbErrorKind` names a case `ERROR_KIND` registers");
-    Value::int(*ordinal)
+    Value::enum_int(*ordinal)
 }
 
 /// The [`nvs_db::DbErrorKind`] a `Core\Db\DbError::Kind` value is, or `None` for
@@ -736,10 +736,16 @@ mod tests {
     /// § 7's retry reads a kind back out of a thrown `Db\DbError`, so the two
     /// halves of that round trip have to agree for every case — including the
     /// two [`nvs_db::DbErrorKind::is_retryable`] names, which is the only
-    /// answer the loop acts on.
+    /// answer the loop acts on. Each kind is written under the enum tag
+    /// (`rule:enums/representation`), which the reading half ignores.
     #[test]
     fn a_kind_written_into_a_throw_reads_back_as_itself() {
         for kind in EVERY_ERROR_KIND {
+            assert_eq!(
+                error_kind_value(kind).exact_tag(),
+                Some(nvs_runtime::Tag::EnumInt),
+                "`DbError::kind` is a case, so `is` and a condition read it as one"
+            );
             assert_eq!(
                 error_kind_of(error_kind_value(kind)),
                 Some(kind),

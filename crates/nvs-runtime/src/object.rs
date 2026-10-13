@@ -919,10 +919,10 @@ pub enum CodecTy {
     /// declaration says.
     List,
     /// An enum — `rule:core-classes/derive-field-list`'s enum field, decoded as a membership test
-    /// rather than as a construction: `rule:enums/representation` reserves an enum tag that
-    /// nothing writes, so a case at run time *is* the integer behind it (see
-    /// [`crate::value_truthy`]'s own note), and what a decode produces is that
-    /// integer in the enum's backing type.
+    /// rather than as a construction: a case at run time is the integer behind
+    /// it under the enum tag (`rule:enums/representation`), so what a decode
+    /// produces is that integer, written with [`Value::enum_int`] or
+    /// [`Value::enum_uint`] by the enum's backing type.
     ///
     /// The roster of accepted values rides on [`CodecField::cases`] for
     /// [`Self::Class`]'s reason: this enum is `Copy` and a case list is not.

@@ -3139,9 +3139,12 @@ mod tests {
         );
         for (ordinal, kind) in EVERY_KIND.into_iter().enumerate() {
             let expected = i64::try_from(ordinal).expect("twenty-one cases");
+            let value = super::super::error_kind_value(kind);
+            assert_eq!(value.as_int(), Some(expected));
             assert_eq!(
-                super::super::error_kind_value(kind).as_int(),
-                Some(expected)
+                value.exact_tag(),
+                Some(nvs_runtime::Tag::EnumInt),
+                "`LdapError::kind` is a case, so `is` and a condition read it as one"
             );
         }
     }

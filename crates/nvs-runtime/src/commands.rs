@@ -134,8 +134,8 @@ pub enum ArgConv {
     /// **The word is the case name and the value is the case's backing
     /// integer**, both decided in `nvs_types::commands::ArgConv::Enum`, which is
     /// the home of why. What this side is for is the consequence: a case is
-    /// indistinguishable from its integer by the time it is a
-    /// [`Value`](crate::Value) ([`crate::object::EnumCases`] says so), so the
+    /// its integer under the enum tag by the time it is a
+    /// [`Value`](crate::Value) (`rule:enums/representation`), so the
     /// conversion constructs nothing and reaches no class descriptor — the set
     /// that crosses *is* the answer, exactly as [`Self::OneOf`]'s is.
     ///
