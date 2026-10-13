@@ -767,31 +767,28 @@ One file set: `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/n
 
 ### State
 
-**Stage 4 is done.** `spreadsheet-columns-styles-defaults-and-sheets` and `spreadsheet-an-export-is-styled-by-default` are green, and so are the Stage 3 checks.
+**Stage 5, the sheet tail, is half done.** 7 of the 13 tests of `spreadsheet-the-sheet-end-parts` exist and pass (`extensions/spreadsheet/tests/sheet_end.rs`). The check stays red until the other six exist. `spreadsheet-a-report-with-totals-runs` is red because its two `.nvst` cases are not written yet.
 
-- The writer (`extensions/spreadsheet/src/writer.rs` module doc) checks a sheet's options in `sheet()` and starts the sheet's zip entry with its first batch, so auto width measures that batch (`src/width.rs`). A first row with `header: true` gets the `Header` layer, a frozen pane, an autofilter and auto width for the columns the options do not list.
-- `extensions/spreadsheet/` is the fourth built-in component, class `Novis\Spreadsheet\Engine`, 0.35 MiB packed. The crate is `src/{lib,zip,xml,cells,styles,width,writer}.rs`. The output is byte-equal for equal input.
-- The manifest has `writerOpen`, `writerStyle`, `writerSheet`, `writerRows`, `writerDefine` and `writerFinish`. `writer-part`, the reader exports and the template exports return a runtime error and are not in the manifest. The enums `Line`, `Underline`, `Align`, `Valign` and `Visibility` are still at namespace scope; the roster wants the style enums under `Style` and `Reader::Visibility`.
-- The Novis half is `nvs/Workbook.nvs`, `Sheet.nvs`, `Written.nvs`, `Style.nvs` and `Export.nvs`. `Workbook::sheet` calls `writerSheet($layout, [])` at once, so a bad name throws there and the open sheet goes on; every batch goes through `writerRows`. The columns are the `columns` option's keys, then the first row's other keys (`Workbook::begin`), and a list row is written by position (`Workbook::arrange`). `Style::of` maps the readable fields to the `writerStyle` record and keeps `key` (`Core\Json::encode` of the fields); `Workbook::styleId` asks the engine once per key. `fromRows` returns an `Export` holding a closure, and an array's rows go in one batch (`$whole`).
-- `headerStyle` is `false` to turn the default off, and a `Style` to replace it (`rule:core-classes/spreadsheet-styles-and-defaults`).
-- **A started download cannot be cut off.** The gap is `data/gaps/nvs-server/a-streamed-body-cannot-be-cut-off.json`. The log line stays.
-- The check's two `an_instant_*` tests were replaced by `a_clock_time_is_its_serial_with_the_date_time_format`. The guest never sees an `Instant`, so `spreadsheet-an-instant-with-no-zone-throws.nvst` pins the zone rule.
+- `src/tail.rs` is the sheet tail (its module doc). `Writer::part` keeps each part in the open sheet's `Tail`, and `end_sheet` writes them after `</sheetData>` in the schema's order. It then writes the sheet's rels, `comments<n>.xml` and the VML drawing as entries of their own. Merges, links, notes, validation, groups, print and protection are written. Formulas and rich text already worked, and now have tests.
+- **Groups and fit-to-page are read before the rows**, because xlsx writes them with the row or in the head. A row group over written rows, a column group or a `fit` after the first row throws. `rule:core-classes/spreadsheet-sheet-end-parts` says so, and so does the rule about link schemes (`http:`, `https:`, `mailto:` or a cell).
+- The print area and the repeated rows are the sheet's local defined names (`Sheet.names` in `writer.rs`), beside `_xlnm._FilterDatabase`.
+- `writerPart` is in `manifest.json` with the whole `SheetPart` union and its seven enums at namespace scope. The table, conditional, image and chart cases return `runtime` (`extensions/spreadsheet/src/lib.rs:737`). The component is now 0.41 MiB.
+- **A started download cannot be cut off.** The gap is `data/gaps/nvs-server/a-streamed-body-cannot-be-cut-off.json`.
 
 ### Next
 
-**Stage 5, the Rust half: the sheet tail.** Files: `extensions/spreadsheet/src/writer.rs`, `src/lib.rs`, a new `src/tail.rs`, and a new `extensions/spreadsheet/tests/sheet_end.rs` (the check `spreadsheet-the-sheet-end-parts`). Tables, conditional formats, images and the Novis half are the group after.
+**Stage 5, the Rust half: tables, conditional formats and images.** Files: `extensions/spreadsheet/src/tail.rs`, `src/writer.rs`, `src/lib.rs`, `src/styles.rs` (a `dxf` list for conditional styles), and `tests/sheet_end.rs`.
 
-- [ ] **`writer-part` keeps each part of the open sheet until `end_sheet`**, which writes them after `</sheetData>` in xlsx's order (`rule:core-classes/spreadsheet-sheet-end-parts`). A part may name any row already written. `extensions/spreadsheet/src/lib.rs:719`, `extensions/spreadsheet/src/writer.rs:716`, `wit/spreadsheet.wit:428`
-- [ ] **Merges, links, notes, validation, groups, print and protection**, with the tests `merges_links_and_notes_point_at_earlier_rows`, `data_validation_writes_every_rule_kind_and_its_messages`, `hidden_rows_columns_and_sheets_and_outline_groups_are_written`, `page_setup_print_titles_and_print_area_are_written` and `protection_defined_names_and_document_properties_are_written`. `wit/spreadsheet.wit:242`, `wit/spreadsheet.wit:409`, `wit/spreadsheet.wit:420`
-- [ ] **Formulas and rich text**: the `Formula` and `Rich` cell values with the recalculate flag in `workbook.xml`, and `a_formula_carries_its_cached_value_and_the_workbook_recalculates_on_open`, `rich_text_in_one_cell_is_written` (`rule:core-classes/spreadsheet-formula-is-a-value`). `extensions/spreadsheet/src/cells.rs:1`
-- [ ] **Add `writerPart` to `extensions/spreadsheet/manifest.json` and its name to `crates/nvs-cli/tests/meta.rs:308`** in the same slice (playbook).
+- [ ] **Excel tables**: a `table<n>.xml` entry per table, `<tableParts>` at the end of the sheet, a rel and a content type. Banded rows, filter buttons, a totals row with `SUBTOTAL` per function or a formula, and structured references left as written. Test `a_table_with_a_totals_row_and_structured_references_is_written` (`rule:core-classes/spreadsheet-sheet-end-parts`). `extensions/spreadsheet/src/tail.rs:458`, `extensions/spreadsheet/src/writer.rs:781`, `wit/spreadsheet.wit:310`
+- [ ] **Conditional formats**: each kind as `<conditionalFormatting>` after the merges, and each rule's `style` as a `dxf` in `styles.xml`. Test `every_conditional_format_kind_is_written_with_its_style`. `wit/spreadsheet.wit:331`, `extensions/spreadsheet/src/writer.rs:879`
+- [ ] **Images**: the format read from the magic bytes, `xl/media/image<n>.<ext>` written at once and returned by `Writer::part`, and a `drawing<n>.xml` with a one-cell anchor at `end_sheet`. Tests `an_image_is_its_own_entry_anchored_to_its_cell` and `an_image_that_is_not_png_jpeg_or_gif_throws`. `wit/spreadsheet.wit:345`, `extensions/spreadsheet/src/writer.rs:388`
+- [ ] **`cell` and `column`**: the check names `cell_and_column_give_a1_text_over_the_rows_written_so_far` and `a_column_formula_is_called_once_per_row` in this Rust file. Give the writer the A1 helpers and test them there, or move those two names to the Novis cases in the check, in the same slice (`rule:core-classes/spreadsheet-formula-is-a-value`). `extensions/spreadsheet/src/writer.rs:388`
 
 ### Backlog
 
-- Stages 5 and 6: tables, conditional formats, images, `writerDefine` reached from Novis, `Formula`, `Cell::of`, a column's `formula`, and charts. See `docs/goals/spreadsheet.md`.
-- The style enums under `Style` (`rule:core-classes/spreadsheet-roster`). Moving them changes `crates/nvs-cli/tests/meta.rs:341` too.
-- Stage 7: the `value` range accessor in `wit/nvs-ext/types.wit`, the reader, and `Reader::Visibility` as an owned enum (`rule:core-classes/spreadsheet-reads-as-a-stream`).
-- Stages 8 to 10: the number-format renderer, CSV through the same API, and template fill. A `'csv'` workbook throws for now.
-- Stages 11 to 14: hostile files, 100 MB and the growth, the comparison with Excel's files, and the feature proofs. `website/src/data/core.json` has no spreadsheet entries yet.
-- The cut-off download is waiting on `nvs-server` (`data/gaps/nvs-server/a-streamed-body-cannot-be-cut-off.json`).
+- The Novis half of Stage 5: `Sheet::merge`, `link`, `note`, `validate`, `group`, `table`, `conditional`, `image`, `print`, `protect`, `cell`, `column`, `Formula`, `Cell::of` and a column's `formula`, then `spreadsheet-a-totals-row-sums-its-column.nvst` and `spreadsheet-an-image-of-another-format-throws.nvst`. `extensions/spreadsheet/nvs/Sheet.nvs:21`
+- Stage 6: charts (`rule:core-classes/spreadsheet-sheet-end-parts`).
+- The style enums under `Style`, and the seven new part enums somewhere better than namespace scope (`rule:core-classes/spreadsheet-roster`). Moving them changes `crates/nvs-cli/tests/meta.rs:341` too.
+- Stage 7: the `value` range accessor in `wit/nvs-ext/types.wit`, the reader, and `Reader::Visibility` (`rule:core-classes/spreadsheet-reads-as-a-stream`).
+- Stages 8 to 14: the number-format renderer, CSV, template fill, hostile files, 100 MB, the comparison with Excel's files and the feature proofs. See `docs/goals/spreadsheet.md`.
 - `looper lint` reports AGENTS.md's managed text as edited by hand, and `AGENTS.md:403` links the missing `docs/decisions/README.md`. Neither came from this goal. See `AGENTS.md`.
