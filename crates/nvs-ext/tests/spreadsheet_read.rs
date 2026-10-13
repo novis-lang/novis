@@ -150,6 +150,8 @@ struct Sheet<'a> {
     state: Option<&'a str>,
     dimension: Option<&'a str>,
     data: String,
+    /// The XML after `</sheetData>`.
+    tail: String,
 }
 
 fn sheet(name: &str, data: impl Into<String>) -> Sheet<'_> {
@@ -158,6 +160,7 @@ fn sheet(name: &str, data: impl Into<String>) -> Sheet<'_> {
         state: None,
         dimension: None,
         data: data.into(),
+        tail: String::new(),
     }
 }
 
@@ -204,8 +207,8 @@ fn package(sheets: &[Sheet<'_>], shared: &[&str], extra: &[(&str, Vec<u8>)]) -> 
         parts.push((
             format!("xl/worksheets/sheet{n}.xml"),
             format!(
-                r#"<?xml version="1.0"?><worksheet xmlns="{main}">{dimension}<sheetData>{}</sheetData></worksheet>"#,
-                sheet.data
+                r#"<?xml version="1.0"?><worksheet xmlns="{main}">{dimension}<sheetData>{}</sheetData>{}</worksheet>"#,
+                sheet.data, sheet.tail
             )
             .into_bytes(),
         ));
@@ -345,6 +348,7 @@ struct Options<'a> {
     columns: &'a [&'a str],
     formulas: bool,
     keep_empty_rows: bool,
+    fill_merged: bool,
     skip_hidden: bool,
 }
 
@@ -357,6 +361,7 @@ fn options(sheet: &str) -> Options<'_> {
         columns: &[],
         formulas: false,
         keep_empty_rows: false,
+        fill_merged: false,
         skip_hidden: false,
     }
 }
@@ -374,7 +379,7 @@ impl Options<'_> {
             ("textAll", Value::Bool(false)),
             ("formulas", Value::Bool(self.formulas)),
             ("keepEmptyRows", Value::Bool(self.keep_empty_rows)),
-            ("fillMerged", Value::Bool(false)),
+            ("fillMerged", Value::Bool(self.fill_merged)),
             ("skipHidden", Value::Bool(self.skip_hidden)),
             ("locale", Value::String("en".to_owned())),
         ])
@@ -783,7 +788,7 @@ fn from_limit_and_columns_select_the_range() {
 }
 
 #[test]
-fn empty_rows_and_hidden_rows_follow_their_options() {
+fn empty_rows_merged_cells_and_hidden_rows_follow_their_options() {
     let data = [
         row(1, &[("", 0, "<v>1</v>")]),
         r#"<row r="2"><c r="A2" s="0"/></row>"#.to_owned(),
@@ -810,7 +815,112 @@ fn empty_rows_and_hidden_rows_follow_their_options() {
         }),
         vec![1, 5]
     );
+    // The empty row 3 is kept though the row after it is hidden and skipped.
+    assert_eq!(
+        numbers(&Options {
+            keep_empty_rows: true,
+            skip_hidden: true,
+            ..options("Shop")
+        }),
+        vec![1, 2, 3, 5]
+    );
     block_on(read.request.end()).expect("the request ends");
+
+    // `A1:B2` and `C4:C6` are merged, and the rows 2 and 5 are not in the file.
+    let data = [
+        r#"<row r="1"><c r="A1"><v>1</v></c><c r="C1"><v>3</v></c></row>"#.to_owned(),
+        row(3, &[("", 0, "<v>9</v>")]),
+        r#"<row r="4"><c r="C4"><v>4</v></c></row>"#.to_owned(),
+        row(6, &[("", 0, "<v>6</v>")]),
+    ]
+    .concat();
+    let read = Read::open(xlsx(
+        &[Sheet {
+            tail: r#"<mergeCells count="2"><mergeCell ref="A1:B2"/><mergeCell ref="C4:C6"/></mergeCells>"#.to_owned(),
+            ..sheet("Shop", data)
+        }],
+        &[],
+    ));
+    assert_eq!(
+        read.call("readerMerged", vec![Value::String("Shop".to_owned())]),
+        strings(&["A1:B2", "C4:C6"])
+    );
+    let one = integer(1);
+    let four = integer(4);
+    assert_eq!(
+        read.all(&options("Shop"), 2),
+        vec![
+            (1, vec![(1, one.clone()), (3, integer(3))]),
+            (3, vec![(1, integer(9))]),
+            (4, vec![(3, four.clone())]),
+            (6, vec![(1, integer(6))]),
+        ]
+    );
+    let fill = Options {
+        fill_merged: true,
+        ..options("Shop")
+    };
+    assert_eq!(
+        read.all(&fill, 2),
+        vec![
+            (1, vec![(1, one.clone()), (2, one.clone()), (3, integer(3))]),
+            (2, vec![(1, one.clone()), (2, one.clone())]),
+            (3, vec![(1, integer(9))]),
+            (4, vec![(3, four.clone())]),
+            (5, vec![(3, four.clone())]),
+            (6, vec![(1, integer(6)), (3, four.clone())]),
+        ]
+    );
+    // A range whose top-left cell is above `from` still fills the rows below it.
+    assert_eq!(
+        read.all(
+            &Options {
+                from: Some(2),
+                limit: Some(1),
+                ..fill.clone()
+            },
+            5
+        )[0],
+        (2, vec![(1, one.clone()), (2, one.clone())])
+    );
+    // The cells outside the column `B` are dropped after the fill.
+    assert_eq!(
+        read.all(
+            &Options {
+                columns: &["B"],
+                ..fill.clone()
+            },
+            5
+        ),
+        vec![(1, vec![(2, one.clone())]), (2, vec![(2, one)])]
+    );
+    let bad = read.failure("readerMerged", vec![Value::String("Blog".to_owned())]);
+    assert!(bad.contains("no sheet named `Blog`"), "{bad}");
+    block_on(read.request.end()).expect("the request ends");
+
+    // xlsb lists its ranges as records, xls as `MERGEDCELLS` and ods as spanned cells.
+    let corners: Vec<u8> = [1u32, 2, 0, 1]
+        .iter()
+        .flat_map(|n| n.to_le_bytes())
+        .collect();
+    let data = [
+        binary_row(1, false),
+        binary_cell(2, 0, 0, &((7 << 2) | 2u32).to_le_bytes()),
+        record(176, &corners),
+    ]
+    .concat();
+    for (bytes, ranges) in [
+        (xlsb(&data, &[]), ["A2:B3"]),
+        (xls(), ["A2:B2"]),
+        (ods(), ["A4:B5"]),
+    ] {
+        let read = Read::open(bytes);
+        assert_eq!(
+            read.call("readerMerged", vec![Value::String("Shop".to_owned())]),
+            strings(&ranges)
+        );
+        block_on(read.request.end()).expect("the request ends");
+    }
 }
 
 #[test]
@@ -1424,6 +1534,11 @@ fn xls() -> Vec<u8> {
     shop.extend(cell(0x0203, 2, 0, 3, &45_000.5f64.to_le_bytes()));
     shop.extend(cell(0x0203, 2, 1, 4, &1.5f64.to_le_bytes()));
     shop.extend(cell(0x0204, 2, 2, 2, &biff_text("Tea & cake")));
+    // `A2:B2` is merged.
+    shop.extend(biff(
+        0x00E5,
+        &[1u16, 1, 1, 0, 1].map(u16::to_le_bytes).concat(),
+    ));
     shop.extend(biff(0x000A, &[]));
     let lists = [bof(0x0010), biff(0x000A, &[])].concat();
     let listed = |at: usize, state: u8, name: &str| {
@@ -1458,7 +1573,7 @@ fn ods() -> Vec<u8> {
 <table:table table:name="Shop" table:style-name="ta1"><table:table-column table:number-columns-repeated="3"/>
 <table:table-row><table:table-cell office:value-type="string" calcext:value-type="string"><text:p>Tea &amp; cake</text:p></table:table-cell><table:table-cell office:value-type="float" office:value="42"><text:p>42</text:p></table:table-cell><table:table-cell office:value-type="float" office:value="2.5"/><table:table-cell office:value-type="boolean" office:boolean-value="true"/><table:table-cell table:formula="of:=1/0" office:value-type="string" office:string-value="" calcext:value-type="error"><text:p>#DIV/0!</text:p></table:table-cell></table:table-row>
 <table:table-row table:number-rows-repeated="2"><table:table-cell/></table:table-row>
-<table:table-row table:visibility="collapse"><table:table-cell office:value-type="date" office:date-value="2024-01-15"/><table:table-cell office:value-type="date" office:date-value="2024-01-15T18:00:00"/><table:table-cell office:value-type="time" office:time-value="PT12H30M00S"/><table:table-cell office:value-type="time" office:time-value="PT36H00M00S"/></table:table-row>
+<table:table-row table:visibility="collapse"><table:table-cell table:number-columns-spanned="2" table:number-rows-spanned="2" office:value-type="date" office:date-value="2024-01-15"/><table:table-cell office:value-type="date" office:date-value="2024-01-15T18:00:00"/><table:table-cell office:value-type="time" office:time-value="PT12H30M00S"/><table:table-cell office:value-type="time" office:time-value="PT36H00M00S"/></table:table-row>
 <table:table-row table:number-rows-repeated="2"><table:table-cell table:number-columns-repeated="2" office:value-type="string"><text:p>a</text:p><text:p>b<text:s text:c="2"/>c</text:p></table:table-cell><table:table-cell table:number-columns-repeated="1000"/><table:table-cell office:value-type="percentage" office:value="0.25"/></table:table-row>
 <table:table-row table:number-rows-repeated="1048570"><table:table-cell table:number-columns-repeated="1024"/></table:table-row>
 </table:table>

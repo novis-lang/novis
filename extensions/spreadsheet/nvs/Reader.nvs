@@ -38,6 +38,13 @@ final class Reader
         return Engine::readerMacros($this->reader, $this->source);
     }
 
+    /// `merged` returns the merged cells of the sheet `$sheet`, by name or by position from 0. Each one is a range such as `"A1:C2"`.
+    /// When you read rows, the value of a merged range is in its top-left cell. With `merged: 'fill'`, every cell of the range has that value.
+    public function merged(string|int $sheet): array<string>
+    {
+        return Engine::readerMerged($this->reader, $this->source, $this->sheetName($sheet));
+    }
+
     /// `rows` reads the sheet `$sheet`, by name or by position from 0. It gives one `Row` at a time, with its row number in the file.
     /// With `header: true`, the keys are the header cells, and an empty cell is `null`. Without a header, the keys are the column letters.
     public function rows(string|int $sheet, RowOptions $options = null): Iterator<Row>

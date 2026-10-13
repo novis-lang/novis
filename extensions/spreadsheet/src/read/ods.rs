@@ -13,10 +13,13 @@
 //! with a value is held once per column it covers, up to the grid's 1,048,576 rows and 16,384
 //! columns, and a repeat past the grid is [`Error::Parse`]. A formula is OpenFormula text, which
 //! is not Excel's, so a cell read with `formulas: true` gives its stored result and no formula.
+//! A cell that spans columns or rows is a merged range, and the cells it covers follow it as
+//! `covered-table-cell`s.
 
 use std::sync::Arc;
 
 use super::format::Kind;
+use super::merge::Merge;
 use super::sheet::{RawCell, RawRow};
 use super::xml::{self, Token};
 use super::{Listed, SheetKind, Source, days_from_civil, zip};
@@ -175,6 +178,7 @@ struct Table {
     style: Option<String>,
     rows: Vec<RawRow>,
     next_row: u64,
+    merged: Vec<Merge>,
 }
 
 /// Reads every sheet of the ods whose zip directory is `directory`.
@@ -208,6 +212,7 @@ pub fn read(source: &dyn Source, directory: &zip::Directory) -> Result<Vec<Liste
                         style: xml::attr_text(attrs, b"style-name")?,
                         rows: Vec::new(),
                         next_row: 1,
+                        merged: Vec::new(),
                     };
                     if empty {
                         tables.push(next);
@@ -231,6 +236,16 @@ pub fn read(source: &dyn Source, directory: &zip::Directory) -> Result<Vec<Liste
                     }
                 }
                 b"table-cell" | b"covered-table-cell" if row.is_some() => {
+                    let columns = repeat(attrs, b"number-columns-spanned")?;
+                    let rows = repeat(attrs, b"number-rows-spanned")?;
+                    if (columns > 1 || rows > 1)
+                        && let (Some(table), Some((_, _, column))) = (table.as_mut(), row.as_ref())
+                    {
+                        table.merged.push(Merge::new(
+                            (table.next_row, table.next_row.saturating_add(rows - 1)),
+                            (*column, column.saturating_add(columns - 1)),
+                        )?);
+                    }
                     let open = Open {
                         cell: typed_cell(attrs)?,
                         repeat: repeat(attrs, b"number-columns-repeated")?,
@@ -303,6 +318,7 @@ pub fn read(source: &dyn Source, directory: &zip::Directory) -> Result<Vec<Liste
             part: None,
             kind: SheetKind::Worksheet,
             rows: Some(Arc::new(table.rows)),
+            merged: table.merged,
         })
         .collect())
 }

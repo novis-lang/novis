@@ -50,6 +50,17 @@ ordinary method, which the compiler lowers where it does not yet lower them insi
 | `hidden` | `'read'` | `'skip'` leaves hidden rows out |
 | `locale` | `'en'` | the separators `text` renders with |
 
+**Merged ranges.** `merged($sheet)` gives a sheet's ranges as A1 text, `'A1:C2'`, in the file's
+order. An xlsx or xlsb sheet lists them after its rows, so the call reads the sheet's part to its
+end; an xls or ods has them from the open. Without a fill, a range's value is in its top-left cell
+only. **`merged: 'fill'` reads the ranges before the first row**, at that one more pass over the
+part, and gives every cell of a range the top-left value, the cells outside `columns` dropped after.
+A row the file does not write is yielded when it lies in a range below its top row. A range whose
+top-left cell is above `from` still fills the rows below it, because the cursor reads every row
+from the first. A range past the grid throws. The fill keeps each range, 32 bytes, and the top-left
+value of each range the read is inside, and drops a range once the read passes its last row, so a
+row costs the ranges it is in and not every range of the sheet. The header row is never filled.
+
 With a header, **every row has every header key**, and a missing cell is `null`; a duplicate header
 gets ` (2)`, ` (3)` and on, and an empty header cell is its column letter. Without one, a row is keyed
 by column letter. A CSV read takes the same options and gives the same row shape, and its cells are
@@ -74,7 +85,8 @@ spent on the shared strings, which a file may make large, and bounded by the req
 
 - **Memory:** per reading request, the read-ahead buffer, the inflater's window, one batch of rows,
   the number formats, and the shared strings of the file being read in one arena; for xlsm, xls and
-  ods, the whole file. All of it is inside the request's cap and freed when the request ends.
+  ods, the whole file; with `merged: 'fill'`, the sheet's ranges. All of it is inside the request's
+  cap and freed when the request ends.
 
 **The Novis half** asks for 1,000 rows a call, with `from` one past the last row it was given.
 `header: true` costs one call more, for the number of the first row with a value. Text read from a
@@ -85,7 +97,7 @@ one. The engine's resource is `reading`, because a manifest's resource is a clas
 An xlsb stores a formula as parsed tokens and not as text, so with `formulas: true` an xlsb cell
 reads as its stored result and gives no `Formula`.
 
-**Not shipped.** The extras but `macros()`, `merged: 'fill'` and `text`. The `value` accessor reads a
+**Not shipped.** The extras but `macros()` and `merged()`, and `text`. The `value` accessor reads a
 range of `bytes` and not yet of an open `Core\IO\File`, and each call copies a `bytes` source whole
 as it crosses. `Reader::open`, `sheets()` and `rows()` read xlsx, xlsm, xlsb, xls and ods.
 

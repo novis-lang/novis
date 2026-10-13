@@ -6,7 +6,8 @@
 //! the [`RawRow`]s the xlsx cursor gives, so `super::Reader::value` reads every format the same
 //! way. A sheet holds at most 65,536 rows. A text cell is the kind `text`, a number has its cell
 //! style's index, and a formula gives its stored result, because its formula is stored as parsed
-//! tokens. The streams of an older Excel, BIFF5 and before, are [`Error::Runtime`].
+//! tokens. The streams of an older Excel, BIFF5 and before, are [`Error::Runtime`]. A sheet's
+//! merged ranges are its `MERGEDCELLS` records, read with its cells.
 //!
 //! A record longer than 8,224 bytes goes on in `CONTINUE` records. The shared strings are the one
 //! table this reader needs that crosses them, and [`Continued`] reads across the seams, where a
@@ -17,6 +18,7 @@ use std::sync::Arc;
 
 use super::binary::{error_text, f64_at, number, rk, typed, u8_at, u16_at, u32_at};
 use super::format::{self, Kind};
+use super::merge::Merge;
 use super::sheet::{RawCell, RawRow};
 use super::{Listed, SheetKind, cfb};
 use crate::{Error, Visibility};
@@ -29,6 +31,7 @@ const SHEET: u16 = 0x0085;
 const MULTIPLE_RK: u16 = 0x00BD;
 const RICH_LABEL: u16 = 0x00D6;
 const STYLE: u16 = 0x00E0;
+const MERGED_CELLS: u16 = 0x00E5;
 const SHARED_STRINGS: u16 = 0x00FC;
 const SHARED_LABEL: u16 = 0x00FD;
 const NUMBER: u16 = 0x0203;
@@ -297,10 +300,11 @@ pub fn read(bytes: &[u8]) -> Result<Book, Error> {
         } else {
             SheetKind::Worksheet
         };
-        let rows = if kind == SheetKind::Worksheet {
-            Some(Arc::new(sheet(&stream, offset as usize, &strings)?))
+        let (rows, merged) = if kind == SheetKind::Worksheet {
+            let (rows, merged) = sheet(&stream, offset as usize, &strings)?;
+            (Some(Arc::new(rows)), merged)
         } else {
-            None
+            (None, Vec::new())
         };
         sheets.push(Listed {
             name,
@@ -308,6 +312,7 @@ pub fn read(bytes: &[u8]) -> Result<Book, Error> {
             part: None,
             kind,
             rows,
+            merged,
         });
     }
     Ok(Book {
@@ -317,9 +322,15 @@ pub fn read(bytes: &[u8]) -> Result<Book, Error> {
     })
 }
 
-/// The rows of the sheet whose `BOF` record is at `offset`, in order, each cell in order.
-fn sheet(stream: &[u8], offset: usize, strings: &[String]) -> Result<Vec<RawRow>, Error> {
+/// The rows of the sheet whose `BOF` record is at `offset`, in order, each cell in order, and
+/// its merged ranges.
+fn sheet(
+    stream: &[u8],
+    offset: usize,
+    strings: &[String],
+) -> Result<(Vec<RawRow>, Vec<Merge>), Error> {
     let mut rows: BTreeMap<u32, RawRow> = BTreeMap::new();
+    let mut merged = Vec::new();
     let mut pending: Option<(u32, RawCell)> = None;
     let put = |rows: &mut BTreeMap<u32, RawRow>, row: u32, cell: RawCell| {
         if row >= MOST_ROWS || cell.column > u64::from(MOST_COLUMNS) {
@@ -436,15 +447,28 @@ fn sheet(stream: &[u8], offset: usize, strings: &[String]) -> Result<Vec<RawRow>
                     put(&mut rows, row, typed(at, b"text", Some(text)))?;
                 }
             }
+            // A count, then each range as its first and last row and first and last column, each
+            // from 0 in two bytes.
+            MERGED_CELLS => {
+                let count = usize::from(u16_at(body, 0)?);
+                for n in 0..count {
+                    let corner = |at| u16_at(body, 2 + n * 8 + at).map(|v| u64::from(v) + 1);
+                    merged.push(Merge::new(
+                        (corner(0)?, corner(2)?),
+                        (corner(4)?, corner(6)?),
+                    )?);
+                }
+            }
             _ => {}
         }
     }
-    Ok(rows
+    let rows = rows
         .into_values()
         .map(|mut row| {
             row.cells.sort_by_key(|cell| cell.column);
             row.cells.dedup_by_key(|cell| cell.column);
             row
         })
-        .collect())
+        .collect();
+    Ok((rows, merged))
 }

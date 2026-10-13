@@ -113,6 +113,16 @@
       "help": "Returns the names of the workbook's macro modules. The list is empty when the workbook has no macros. Nothing runs the macros."
     },
     {
+      "name": "readerMerged",
+      "params": [
+        {"name": "reader", "type": "Reading"},
+        {"name": "source", "type": "mixed"},
+        {"name": "sheet", "type": "string"}
+      ],
+      "returns": "array<string>",
+      "help": "Returns the merged cells of the sheet `sheet`. Each one is a range such as `A1:C2`."
+    },
+    {
       "name": "readerHeader",
       "params": [
         {"name": "reader", "type": "Reading"},

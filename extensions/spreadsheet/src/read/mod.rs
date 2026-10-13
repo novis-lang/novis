@@ -27,17 +27,24 @@
 //! half asks for its next batch with `from` one past the last row it was given, and a new loop
 //! starts the sheet again. `limit` is the most rows this call may give.
 //!
+//! **Merged ranges.** [`Reader::merged`] lists a sheet's ranges. A read with `merged: 'fill'`
+//! reads them when it opens its cursor, at one more pass over an xlsx or xlsb sheet's part, and
+//! gives each cell of a range the range's top-left value ([`merge`]). A read without it gives the
+//! value in the top-left cell only.
+//!
 //! **Time values.** A serial is rounded to the millisecond, the precision Excel shows. In the 1900
 //! system a serial below 61 is one day later than its count, because Excel counts the day
 //! 1900-02-29, which did not exist. Serial 60 reads as 1900-03-01.
 //!
 //! What it spends, per reading request: the zip directory, the styles' kinds, the shared strings
 //! in one arena, one block of compressed bytes and the inflater's window, one block of sheet XML
-//! and the row being parsed, and one batch of rows.
+//! and the row being parsed, and one batch of rows. A fill adds 32 bytes per merged range of the
+//! sheet, and the top-left value of each range the read is inside.
 
 pub mod binary;
 mod cfb;
 pub mod format;
+pub mod merge;
 mod ods;
 pub mod sheet;
 mod vba;
@@ -49,6 +56,7 @@ use std::sync::Arc;
 
 use crate::{Clock, Date, Error, TimeOfDay, Visibility};
 use format::Kind;
+use merge::{Fill, Merge};
 use xml::Token;
 
 /// A source the reader reads byte ranges of.
@@ -275,7 +283,8 @@ impl Strings {
     }
 }
 
-/// A sheet as the workbook lists it. A sheet of a format read whole has its rows in `rows`.
+/// A sheet as the workbook lists it. A sheet of a format read whole has its rows in `rows` and
+/// its merged ranges in `merged`.
 #[derive(Debug, Clone)]
 struct Listed {
     name: String,
@@ -283,6 +292,7 @@ struct Listed {
     part: Option<String>,
     kind: SheetKind,
     rows: Option<Arc<Vec<sheet::RawRow>>>,
+    merged: Vec<Merge>,
 }
 
 /// A workbook being read.
@@ -305,13 +315,15 @@ pub struct Reader {
 }
 
 /// The sheet [`Reader::rows`] is reading: its cursor, a row read and held back while the empty
-/// rows before it are given, and the number of the next row a call continues from.
+/// rows before it are given, the number of the next row a call continues from, and the merged
+/// ranges of a read that fills them.
 #[derive(Debug)]
 struct Open {
     sheet: String,
     cursor: Cursor,
     held: Option<sheet::RawRow>,
     next: u64,
+    fill: Option<Fill>,
 }
 
 /// A sheet's cursor, over XML, over records, or over the rows of a sheet read whole.
@@ -539,6 +551,7 @@ impl Reader {
                         _ => SheetKind::Worksheet,
                     },
                     rows: None,
+                    merged: Vec::new(),
                 }
             })
             .collect();
@@ -648,16 +661,36 @@ impl Reader {
                 at: 0,
             });
         }
-        let entry = listed
-            .part
-            .as_deref()
-            .and_then(|part| self.directory.find(part))
-            .ok_or_else(|| broken(&format!("the sheet `{name}` has no part")))?;
+        let entry = self.part(listed)?;
         Ok(if self.binary {
             Cursor::Binary(binary::Cursor::open(source, entry)?)
         } else {
             Cursor::Xml(sheet::Cursor::open(source, entry)?)
         })
+    }
+
+    /// The zip entry of the sheet `listed`, a sheet of a package.
+    fn part(&self, listed: &Listed) -> Result<&zip::Entry, Error> {
+        listed
+            .part
+            .as_deref()
+            .and_then(|part| self.directory.find(part))
+            .ok_or_else(|| broken(&format!("the sheet `{}` has no part", listed.name)))
+    }
+
+    /// The merged ranges of the sheet `name`, in the order the file lists them. A chart sheet
+    /// has none.
+    pub fn merged(&self, source: &dyn Source, name: &str) -> Result<Vec<Merge>, Error> {
+        let listed = self.listed(name)?;
+        if listed.rows.is_some() || listed.kind == SheetKind::Chartsheet {
+            return Ok(listed.merged.clone());
+        }
+        let entry = self.part(listed)?;
+        if self.binary {
+            binary::merged(source, entry)
+        } else {
+            sheet::merged(source, entry)
+        }
     }
 
     /// Every sheet, in tab order.
@@ -739,24 +772,26 @@ impl Reader {
         options: &ReadOptions,
         max: u64,
     ) -> Result<Batch, Error> {
-        if options.fill_merged {
-            return Err(Error::Runtime(
-                "This version of Novis cannot fill merged cells yet.".to_owned(),
-            ));
-        }
         let from = options
             .from
             .unwrap_or(1)
             .max(options.header_row.map_or(1, |header| header + 1));
-        let resume =
-            matches!(&self.open, Some(open) if open.sheet == options.sheet && open.next <= from);
+        let resume = matches!(&self.open, Some(open) if open.sheet == options.sheet
+            && open.next <= from
+            && open.fill.is_some() == options.fill_merged);
         if !resume {
             let cursor = self.cursor(source, &options.sheet)?;
+            let fill = if options.fill_merged {
+                Some(Fill::new(self.merged(source, &options.sheet)?))
+            } else {
+                None
+            };
             self.open = Some(Open {
                 sheet: options.sheet.clone(),
                 cursor,
                 held: None,
                 next: 1,
+                fill,
             });
         }
         let selected = selection(&options.columns)?;
@@ -773,22 +808,37 @@ impl Reader {
                     None => return Ok(Batch { rows, done: true }),
                 },
             };
-            if raw.number < from || (options.skip_hidden && raw.hidden) {
-                open.next = raw.number + 1;
-                continue;
-            }
+            // A row the file does not write is given when empty rows are kept, or when a fill
+            // has a value for it.
             let expected = open.next.max(from);
-            if options.keep_empty_rows && expected < raw.number {
-                open.held = Some(raw);
-                open.next = expected + 1;
-                rows.push(ReadRow {
-                    number: expected,
-                    cells: Vec::new(),
-                });
+            let gap = if expected >= raw.number {
+                None
+            } else if options.keep_empty_rows {
+                Some(expected)
+            } else {
+                open.fill
+                    .as_ref()
+                    .and_then(|fill| fill.covered(expected, raw.number))
+            };
+            let raw = match gap {
+                Some(number) => {
+                    open.held = Some(raw);
+                    sheet::RawRow {
+                        number,
+                        ..sheet::RawRow::default()
+                    }
+                }
+                None => raw,
+            };
+            open.next = raw.number + 1;
+            self.reach(source, &raw)?;
+            if raw.number < from || (options.skip_hidden && raw.hidden) {
                 continue;
             }
-            open.next = raw.number + 1;
             let mut row = self.row(source, raw, options)?;
+            if let Some(fill) = self.open.as_ref().and_then(|open| open.fill.as_ref()) {
+                fill.fill(&mut row);
+            }
             row.cells.retain(|cell| {
                 selected.is_empty()
                     || selected
@@ -801,6 +851,35 @@ impl Reader {
             rows.push(row);
         }
         Ok(Batch { rows, done: false })
+    }
+
+    /// Moves a fill to the row `raw`, and keeps the top-left value of each range that starts in
+    /// it. Does nothing for a read that does not fill.
+    fn reach(&mut self, source: &dyn Source, raw: &sheet::RawRow) -> Result<(), Error> {
+        let Some(fill) = self.open.as_mut().and_then(|open| open.fill.as_mut()) else {
+            return Ok(());
+        };
+        let starting = fill.reach(raw.number);
+        if starting.is_empty() {
+            return Ok(());
+        }
+        if raw.cells.iter().any(|cell| cell.kind == b"s") {
+            self.strings(source)?;
+        }
+        let mut values = Vec::with_capacity(starting.len());
+        for (at, column) in starting {
+            let value = match raw.cells.iter().find(|cell| cell.column == column) {
+                Some(cell) => self.value(cell)?,
+                None => None,
+            };
+            values.push((at, value));
+        }
+        if let Some(fill) = self.open.as_mut().and_then(|open| open.fill.as_mut()) {
+            for (at, value) in values {
+                fill.set(at, value);
+            }
+        }
+        Ok(())
     }
 
     /// `raw` as read cells, every empty cell dropped.

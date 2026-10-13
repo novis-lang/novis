@@ -4341,7 +4341,7 @@ surfaced as data and nothing resolved.
 
 `rule:core-classes/spreadsheet-roster`
 
-`Novis\Spreadsheet` is eleven classes and one enum, with `Engine` the manifest class whose static
+`Novis\Spreadsheet` is twelve classes and one enum, with `Engine` the manifest class whose static
 methods are `wit/spreadsheet.wit`'s exports and which no program calls directly:
 
 | Class | What it is | Its members |
@@ -4350,7 +4350,8 @@ methods are `wit/spreadsheet.wit`'s exports and which no program calls directly:
 | `Sheet` | One sheet of a `Workbook`, written row by row | `add(array $row, {…}): Sheet`, `addAll(iterable $rows): Sheet`, `cell(string\|int $column, int $row): string`, `column(string\|int $column): string`, and the sheet-end parts `merge`, `link`, `note`, `validate`, `group`, `table`, `conditional`, `image`, `chart`, `print`, `protect` |
 | `Written` | What `finish()` returns | `rows: array<int>` by sheet name, `size: int`, `bytes: ?bytes` |
 | `Export` | A whole workbook from one call, written where its last call says | `download(string $name): void`, `save(string $path): Written`, `to(Core\IO\File $file): Written`, `bytes(): bytes` |
-| `Reader` | A workbook or CSV being read | `open(Core\IO\File\|bytes $source, {…}): Reader`, `sheets(): array<{…}>`, `rows(string\|int $sheet, {…}): iterable<int, array>`, and the extras `merged`, `links`, `notes`, `names`, `tables`, `images`, `properties`, `macros` |
+| `Reader` | A workbook or CSV being read | `open(Core\IO\File\|bytes $source): Reader`, `sheets(): array<{…}>`, `rows(string\|int $sheet, {…}): Iterator<Row>`, and the extras `merged`, `links`, `notes`, `names`, `tables`, `images`, `properties`, `macros` |
+| `Row` | One row `rows` read | `number: uint`, the row number in the file, and `values: array` by header text or column letter |
 | `Template` | A designed workbook to fill | `open(Core\IO\File\|bytes $source): Template`, `set(string $address, mixed $value): Template`, `fill(array $data): Export` |
 | `Style` | A set of style fields | `of({…}): Style` |
 | `Cell` | One value with its own style, or rich text | `of(mixed $value, Style $style): Cell`, `rich(array<{text: string, style?: Style}> $runs): Cell` |
@@ -4865,19 +4866,33 @@ call. This is chosen against a pull loop in the Novis half, in which the guest w
 needed at offset N, length L" and the Novis code would read them and call again, for two reasons. On
 request latency, the import costs one host call per read-ahead block and runs no Novis code between
 them, where the pull loop costs a guest return, a Novis read and a guest call for every block. And
-the parsers read synchronously from a `Read + Seek`: calamine does, for xlsb and the whole formats,
-and a pull loop would need every parser rewritten as a resumable state machine.
+the parsers read synchronously, the readers of the whole formats included, and a pull loop would
+need every parser rewritten as a resumable state machine.
 
-**Formats** are told apart by their bytes: a zip is xlsx, xlsm or ods by its content types, an OLE
-compound file is xls, a zip with `xl/workbook.bin` is xlsb, and anything else is CSV. xls holds at
-most 65,536 rows. An xlsm's macros are listed by `macros()` and never run.
+**Formats** are told apart by their bytes: a zip is xlsx or xlsm when its workbook part is XML,
+xlsb when it is `xl/workbook.bin`, and ods when it has a `content.xml` and no workbook part. An OLE
+compound file is xls, and anything else is CSV. xls holds at most 65,536 rows, and an xls from
+Excel 95 or earlier, BIFF5 and before, throws naming it. An xlsm's macros are listed by `macros()`
+and never run: the VBA project's `dir` stream is decompressed and its module names read, and no
+module's code is read. An xls's project is its `_VBA_PROJECT_CUR` storage, and an xlsm's is the part
+the workbook's relationships name, or `xl/vbaProject.bin` when none does, so a file never hides one.
 
-**`rows($sheet, {...})`** takes the sheet by name or position and yields one array per row, keyed by
-the **row number in the file** as the `foreach` key:
+**xls and ods are read whole** when the reader opens: the file is held in the guest, and every
+sheet's rows with it. An xls or an ods stores a formula as tokens or as OpenFormula text, so with
+`formulas: true` its cell reads as its stored result and gives no `Formula`. An ods cell carries its
+type in its own attributes, and a time value in it reads as a `TimeOfDay` under 24 hours and a
+`Duration` from 24 hours on. A row or a cell with a repeat count is that many, an empty one costs
+nothing, and a repeat past the grid throws.
+
+**`rows($sheet, {...})`** takes the sheet by name or by position from 0 and yields one `Row` per row:
+its `number` is the **row number in the file**, and its `values` the row's array. The row number is
+not the `foreach` key, because a cursor carries no key ([`iteration/foreach-subjects`](iteration.md#iteration-foreach-subjects)), and a
+generator yields a class and not a shape. The generator only yields: a batch's shapes are read in an
+ordinary method, which the compiler lowers where it does not yet lower them inside a generator.
 
 | Option | Default | What it does |
 |---|---|---|
-| `header` | `false` | `true` reads the first row read as the header; an `int` names the header's row number. The values are then keyed by header text |
+| `header` | `false` | `true` reads the first row with a value at or after `from` as the header; an `int` names the header's row number. The values are then keyed by header text |
 | `from` | the first row | the first row number to read |
 | `limit` | none | the most rows to yield |
 | `columns` | every column | `['A:C', 'F']` |
@@ -4888,6 +4903,17 @@ the **row number in the file** as the `foreach` key:
 | `merged` | `'first'` | `'fill'` gives every cell of a merged range its value |
 | `hidden` | `'read'` | `'skip'` leaves hidden rows out |
 | `locale` | `'en'` | the separators `text` renders with |
+
+**Merged ranges.** `merged($sheet)` gives a sheet's ranges as A1 text, `'A1:C2'`, in the file's
+order. An xlsx or xlsb sheet lists them after its rows, so the call reads the sheet's part to its
+end; an xls or ods has them from the open. Without a fill, a range's value is in its top-left cell
+only. **`merged: 'fill'` reads the ranges before the first row**, at that one more pass over the
+part, and gives every cell of a range the top-left value, the cells outside `columns` dropped after.
+A row the file does not write is yielded when it lies in a range below its top row. A range whose
+top-left cell is above `from` still fills the rows below it, because the cursor reads every row
+from the first. A range past the grid throws. The fill keeps each range, 32 bytes, and the top-left
+value of each range the read is inside, and drops a range once the read passes its last row, so a
+row costs the ranges it is in and not every range of the sheet. The header row is never filled.
 
 With a header, **every row has every header key**, and a missing cell is `null`; a duplicate header
 gets ` (2)`, ` (3)` and on, and an empty header cell is its column letter. Without one, a row is keyed
@@ -4913,10 +4939,21 @@ spent on the shared strings, which a file may make large, and bounded by the req
 
 - **Memory:** per reading request, the read-ahead buffer, the inflater's window, one batch of rows,
   the number formats, and the shared strings of the file being read in one arena; for xlsm, xls and
-  ods, the whole file. All of it is inside the request's cap and freed when the request ends.
+  ods, the whole file; with `merged: 'fill'`, the sheet's ranges. All of it is inside the request's
+  cap and freed when the request ends.
 
-**Not shipped.** Nothing of `Novis\Spreadsheet` is on disk, and the `value` accessor that reads a
-range is not in `wit/nvs-ext/types.wit`.
+**The Novis half** asks for 1,000 rows a call, with `from` one past the last row it was given.
+`header: true` costs one call more, for the number of the first row with a value. Text read from a
+file is `tainted`, so a `Formula` read with `formulas: true` carries a number result and not a text
+one. The engine's resource is `reading`, because a manifest's resource is a class in
+`Novis\Spreadsheet` and `Reader` is the class over it.
+
+An xlsb stores a formula as parsed tokens and not as text, so with `formulas: true` an xlsb cell
+reads as its stored result and gives no `Formula`.
+
+**Not shipped.** The extras but `macros()` and `merged()`, and `text`. The `value` accessor reads a
+range of `bytes` and not yet of an open `Core\IO\File`, and each call copies a `bytes` source whole
+as it crosses. `Reader::open`, `sheets()` and `rows()` read xlsx, xlsm, xlsb, xls and ods.
 
 **Declined:**
 - **A pull loop in the Novis half.** It costs a guest return and a Novis call per block on the request
@@ -4981,7 +5018,13 @@ produce. ods reads, and writing it is the second wave. Template fill is in the f
 ([`core-classes/spreadsheet-template-fill`](core-classes.md#core-classes-spreadsheet-template-fill)), because it is the workflow behind most real exports.
 
 **The crates**, each pinned and pure Rust, built for `wasm32-wasip2`, on `deny.toml`'s allowlist and
-with no C in the build: `calamine` reads xlsb, xls, ods and the cells of xlsx; `zip` with `deflate`
+with no C in the build. Every format is read by our own reader. For xlsx and xlsb, `calamine` keeps
+one `String` per shared string, exposes no cell style, and owns the `Read + Seek` a reader resource
+must keep its place in between calls. For xls and ods it is the crate that fails to build: its
+release on a `quick-xml` with no open advisory needs a `zip` that pulls in `typed-path`, which does
+not build for `wasm32-wasip2` on stable Rust, and its release that builds carries `quick-xml`'s two
+open advisories, which `deny.toml` refuses. Its replacement is our reader of the compound file and
+BIFF8 records for xls, and of `content.xml` for ods. `zip` with `deflate`
 only, and `miniz_oxide` or `flate2` on its pure-Rust backend, frame and inflate the archive;
 `crc32fast` checks it; `quick-xml` reads and writes the XML; `itoa` and `ryu` write numbers. The
 writer, the template filler and the number-format renderer are our own. A crate that fails to build

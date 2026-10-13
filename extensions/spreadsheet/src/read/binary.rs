@@ -13,6 +13,7 @@
 //! read with `formulas: true` gives its stored result and no formula.
 
 use super::format::{self, Kind};
+use super::merge::Merge;
 use super::sheet::{RawCell, RawRow};
 use super::zip::{Entry, Part};
 use super::{Source, Strings};
@@ -39,6 +40,7 @@ const END_SHEET_DATA: u16 = 146;
 const DIMENSION: u16 = 148;
 const WORKBOOK_PROPERTIES: u16 = 153;
 const SHEET: u16 = 156;
+const MERGE_CELL: u16 = 176;
 const BEGIN_CELL_STYLES: u16 = 617;
 const END_CELL_STYLES: u16 = 618;
 
@@ -282,6 +284,40 @@ pub fn strings(source: &dyn Source, entry: &Entry) -> Result<Strings, Error> {
                         return Ok(strings);
                     }
                     return Err(broken("the shared strings end inside a record"));
+                }
+            }
+        }
+    }
+}
+
+/// The merged ranges of the sheet whose part is `entry`, read a block at a time to the part's end.
+/// Each is a `BrtMergeCell` record: its first and last row and its first and last column, each
+/// from 0.
+pub fn merged(source: &dyn Source, entry: &Entry) -> Result<Vec<Merge>, Error> {
+    let mut part = Part::open(source, entry)?;
+    let mut buf = Vec::new();
+    let mut at = 0;
+    let mut ranges = Vec::new();
+    loop {
+        match record(&buf[at..])? {
+            Some((kind, body, length)) => {
+                if kind == MERGE_CELL {
+                    let corner = |at| u32_at(body, at).map(|n| u64::from(n) + 1);
+                    ranges.push(Merge::new(
+                        (corner(0)?, corner(4)?),
+                        (corner(8)?, corner(12)?),
+                    )?);
+                }
+                at += length;
+            }
+            None => {
+                buf.drain(..at);
+                at = 0;
+                if !part.fill(source, &mut buf)? {
+                    if buf.is_empty() {
+                        return Ok(ranges);
+                    }
+                    return Err(broken("a worksheet ends inside a record"));
                 }
             }
         }

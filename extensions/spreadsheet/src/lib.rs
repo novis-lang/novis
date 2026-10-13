@@ -1118,11 +1118,17 @@ mod guest {
         }
 
         fn reader_merged(
-            _reader: wit::ReadingBorrow<'_>,
-            _source: &Source,
-            _sheet: String,
+            reader: wit::ReadingBorrow<'_>,
+            source: &Source,
+            sheet: String,
         ) -> Result<Vec<String>, wit::Error> {
-            Err(reading())
+            let ranges = reader
+                .get::<Reader>()
+                .reader
+                .borrow()
+                .merged(&Lent(source), &sheet)
+                .map_err(error)?;
+            Ok(ranges.iter().map(crate::read::merge::Merge::text).collect())
         }
 
         fn reader_links(
