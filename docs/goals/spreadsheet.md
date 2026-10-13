@@ -6,7 +6,7 @@ context: [crates/nvs-ext/build.rs, crates/nvs-ext/src/builtin.rs, crates/nvs-ext
 stages:
   - id: 2
     title: "the fragments and `wit/spreadsheet.wit`"
-    status: open
+    status: done
     extra:
       context:
         rules: [core-classes/spreadsheet-has-no-io, core-classes/spreadsheet-bulk-boundary, core-classes/spreadsheet-evaluation-and-roster, core-classes/spreadsheet-formula-is-a-value, core-classes/spreadsheet-output-is-inert, core-classes/decompression-bound, packaging/a-value-crosses-as-its-wit-type, packaging/a-guest-has-no-ambient-authority, core-api/options-bag, core-api/one-paradigm-per-operation, enums/an-enum-lives-in-the-class-that-uses-it]
@@ -17,7 +17,7 @@ stages:
     extra:
       context:
         playbook: ["Writing Novis > in extensions/intl/nvs/Collator.nvs"]
-        rules: [core-classes/spreadsheet-output-is-inert, core-classes/io-write-stream, packaging/a-wasm-module-cache-reuses-the-artifact-cache, packaging/the-first-party-components-are-built-in, packaging/a-prebuilt-wasm-library-is-rebuilt-in-ci]
+        rules: [core-classes/spreadsheet-roster, core-classes/spreadsheet-writes-as-a-stream, core-classes/spreadsheet-value-types, core-classes/spreadsheet-output-is-inert, core-classes/io-write-stream, packaging/a-wasm-module-cache-reuses-the-artifact-cache, packaging/the-first-party-components-are-built-in, packaging/a-prebuilt-wasm-library-is-rebuilt-in-ci]
         shapes: ["A `.nvst` test case"]
   - id: 4
     title: "columns, styles, defaults and sheets"
@@ -118,6 +118,11 @@ checks:
     name: "`Novis\\Spreadsheet` writes from a binary with no `nvs.toml` to memory, a file and an open file, and an `Instant` with no zone throws"
     run: [bun, nv, suite, tests/conformance/, --case, tests/conformance/novis/spreadsheet-writes-with-no-configuration.nvst, --case, tests/conformance/novis/spreadsheet-writes-to-a-file-and-an-open-file.nvst, --case, tests/conformance/novis/spreadsheet-an-instant-with-no-zone-throws.nvst]
     tests: [tests/conformance/novis/spreadsheet-writes-with-no-configuration.nvst, tests/conformance/novis/spreadsheet-writes-to-a-file-and-an-open-file.nvst, tests/conformance/novis/spreadsheet-an-instant-with-no-zone-throws.nvst]
+  - id: deny-the-spreadsheet-component-graph-passes
+    stage: 3
+    name: "cargo deny: the spreadsheet component's own `wasm32-wasip2` graph passes `deny.toml`"
+    run: [cargo, deny, --manifest-path, extensions/spreadsheet/Cargo.toml, --target, wasm32-wasip2, --locked, check]
+    output_ordered: ["advisories ok, bans ok, licenses ok, sources ok"]
   - id: spreadsheet-columns-styles-defaults-and-sheets
     stage: 4
     name: "extensions/spreadsheet (styles layer column, row and cell into shared entries, a header row gets the defaults, auto width measures and caps, sheets follow one another, and Excel's limits throw naming them)"
@@ -218,6 +223,61 @@ checks:
     name: "proofs: the `Novis\\` programs carry comments inside the plain-comment bounds"
     run: [bun, nv, proofs, --comments, docs/examples/novis, tests/hostile/novis, benches/members/novis]
     output_ordered: [each inside the bounds]
+  - id: dossier-novis-spreadsheet-workbook-owes-nothing
+    stage: 14
+    name: "proofs: `Novis\\Spreadsheet\\Workbook` owes nothing, and its examples and attacks run"
+    run: [bun, nv, proofs, --verify, --group, "Novis\\Spreadsheet\\Workbook"]
+    output_ordered: [nothing owed in]
+  - id: dossier-novis-spreadsheet-sheet-owes-nothing
+    stage: 14
+    name: "proofs: `Novis\\Spreadsheet\\Sheet` owes nothing, and its examples and attacks run"
+    run: [bun, nv, proofs, --verify, --group, "Novis\\Spreadsheet\\Sheet"]
+    output_ordered: [nothing owed in]
+  - id: dossier-novis-spreadsheet-written-owes-nothing
+    stage: 14
+    name: "proofs: `Novis\\Spreadsheet\\Written` owes nothing, and its examples and attacks run"
+    run: [bun, nv, proofs, --verify, --group, "Novis\\Spreadsheet\\Written"]
+    output_ordered: [nothing owed in]
+  - id: dossier-novis-spreadsheet-export-owes-nothing
+    stage: 14
+    name: "proofs: `Novis\\Spreadsheet\\Export` owes nothing, and its examples and attacks run"
+    run: [bun, nv, proofs, --verify, --group, "Novis\\Spreadsheet\\Export"]
+    output_ordered: [nothing owed in]
+  - id: dossier-novis-spreadsheet-reader-owes-nothing
+    stage: 14
+    name: "proofs: `Novis\\Spreadsheet\\Reader` owes nothing, and its examples and attacks run"
+    run: [bun, nv, proofs, --verify, --group, "Novis\\Spreadsheet\\Reader"]
+    output_ordered: [nothing owed in]
+  - id: dossier-novis-spreadsheet-template-owes-nothing
+    stage: 14
+    name: "proofs: `Novis\\Spreadsheet\\Template` owes nothing, and its examples and attacks run"
+    run: [bun, nv, proofs, --verify, --group, "Novis\\Spreadsheet\\Template"]
+    output_ordered: [nothing owed in]
+  - id: dossier-novis-spreadsheet-style-owes-nothing
+    stage: 14
+    name: "proofs: `Novis\\Spreadsheet\\Style` owes nothing, and its examples and attacks run"
+    run: [bun, nv, proofs, --verify, --group, "Novis\\Spreadsheet\\Style"]
+    output_ordered: [nothing owed in]
+  - id: dossier-novis-spreadsheet-cell-owes-nothing
+    stage: 14
+    name: "proofs: `Novis\\Spreadsheet\\Cell` owes nothing, and its examples and attacks run"
+    run: [bun, nv, proofs, --verify, --group, "Novis\\Spreadsheet\\Cell"]
+    output_ordered: [nothing owed in]
+  - id: dossier-novis-spreadsheet-formula-owes-nothing
+    stage: 14
+    name: "proofs: `Novis\\Spreadsheet\\Formula` owes nothing, and its examples and attacks run"
+    run: [bun, nv, proofs, --verify, --group, "Novis\\Spreadsheet\\Formula"]
+    output_ordered: [nothing owed in]
+  - id: dossier-novis-spreadsheet-chart-owes-nothing
+    stage: 14
+    name: "proofs: `Novis\\Spreadsheet\\Chart` owes nothing, and its examples and attacks run"
+    run: [bun, nv, proofs, --verify, --group, "Novis\\Spreadsheet\\Chart"]
+    output_ordered: [nothing owed in]
+  - id: dossier-novis-spreadsheet-engine-owes-nothing
+    stage: 14
+    name: "proofs: `Novis\\Spreadsheet\\Engine` owes nothing, and its examples and attacks run"
+    run: [bun, nv, proofs, --verify, --group, "Novis\\Spreadsheet\\Engine"]
+    output_ordered: [nothing owed in]
 extra:
   milestone: M17
   files: []
@@ -706,22 +766,28 @@ One file set: `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/n
 
 ### State
 
-**Goal `spreadsheet` — `Novis\Spreadsheet` built into every binary: xlsx written and read in constant memory, styled exports, template fill, and CSV through the same API — has just started; nothing of it has landed yet.** Stage 1's floor is whatever the chain carries.
+**Stage 2 is done, and its two checks are green**: `spreadsheet-the-record-creates-its-fragments` and `nvs-stdlib-the-spreadsheet-interface-parses-against-the-world`. Stage 3 is next, and nothing of `extensions/spreadsheet/` is on disk.
 
-The five `spreadsheet-*` rules and M17 Part 3 planned this work as an unscheduled first-party package; this goal schedules it and reverses several of their decisions: it is built in, CSV goes through the component, the cell cap is dropped, and streaming is the only way to write. The user settled the scope question by question when the goal was written, under the rule goal `pdf` used: every common case is in, an easy edge case is in, a hard edge case almost nobody needs is out. The goal file's § *Standing decisions* holds those calls with the writer's own calls beside them. No session re-decides one.
-
-Facts about the tree as the goal was written. `Novis\` is reserved for built-in components (`rule:packaging/the-first-party-components-are-built-in`), so `Novis\Spreadsheet` is the fourth built-in and Stage 2 rewrites that rule's count, as well as the `spreadsheet-*` rules and `rule:core-classes/decompression-bound`. The five `spreadsheet-*` fragments under `docs/rules/core-classes/` and `decompression-bound` state decisions this goal reverses (the cell cap, whole-sheet reads, `nvs/spreadsheet` as a package). A guest resource lives for one request (`crates/nvs-ext/src/call.rs:50-57`). The build and load tables the component joins are `crates/nvs-ext/build.rs:115` (`COMPONENTS`), `crates/nvs-ext/src/builtin.rs:18` and `crates/nvs-ext/src/load.rs:667`. `Core\Csv::rows` is `crates/nvs-stdlib/src/csv.rs:119-185` and gives a short record fewer keys (`csv.rs:77`); `Core\IO\File::seek` is `crates/nvs-stdlib/src/io.rs:1404`. `rust_xlsxwriter`'s constant-memory mode writes through a `std::fs::File`, so the writer is our own and that crate is a source of chart XML and fixtures only.
+- The fragments are twelve `designed` rules under `docs/rules/core-classes/spreadsheet-*`, owned by this goal. `rule:core-classes/spreadsheet-roster` is the class and member list. The class names of the goal's sketch stand, plus `Written` (what `finish()` returns) and `Export` (what `fromRows` and `Template::fill` return). `CellError` stays at namespace scope, and `Reader::Visibility` is the one owned enum.
+- **How the guest reads ranges is decided**: a host import, a range accessor on the `value` handle, with the source lent again on every reader and template call (`rule:core-classes/spreadsheet-reads-as-a-stream`). Nothing of it is in `wit/nvs-ext/types.wit` yet. Stage 7 adds it, with `ext_world.rs`'s value-resource test and `rule:packaging/a-guest-has-no-ambient-authority`.
+- `wit/spreadsheet.wit` has the `writer`, `reader` and `template` resources and 24 exports, held by `SPREADSHEET_EXPORTS` in `crates/nvs-stdlib/tests/ext_world.rs`. A cell crosses as a typed `cell-value` variant, because the `value` handle cannot read a `Date`, a `decimal` or an object's properties. So the Novis half applies the write table, and an `Instant` reaches the guest already as a clock time.
+- `rule:core-classes/decompression-bound` states the streamed-part bound. `docs/plan/m17.md` Part 3 points at the goal.
+- **Left for Stage 3 on purpose**: `rule:packaging/the-first-party-components-are-built-in` still says three components. The goal's Stage 0 rewrites it in the slice that builds the fourth.
+- Stage 3 carries `deny-the-spreadsheet-component-graph-passes`. Stage 14 carries one `bun nv proofs --verify --group` check per class, eleven in all, with no check for `CellError`.
 
 ### Next
 
-**Stage 2: the fragments and `wit/spreadsheet.wit`**, one file set: `docs/rules/core-classes/`, `docs/rules/packaging/`, `wit/spreadsheet.wit`.
+**Stage 3: the component is built in, and the streaming writer.** Files: `extensions/spreadsheet/` (new), the build and load tables, and `crates/nvs-ext/tests/spreadsheet.rs` (new).
 
-- [ ] **The fragments**, written first: every `Novis\Spreadsheet` class, member and options shape, the write and read type tables, the style fields and their layering, the defaults, the template syntax, the formula helpers, the reader options, the limits, the error kinds, and the user's calls as decided, each with its reasons, a `**Memory:**` bullet where it spends memory, and a `**Declined:**` list, and the tradeoffs. It rewrites the five `spreadsheet-*` fragments (built in, CSV through the component, the cell cap and the concept-mapping table dropped), `rule:core-classes/decompression-bound` (the streamed-part bound) and `rule:packaging/the-first-party-components-are-built-in`'s built-in count to the new decisions, and creates the five new ids the Stage 2 check reads, listed in the goal's Stage 2. Then `docs/plan/m17.md` Part 3 through a `## milestone: M17` wrap section. `docs/rules/core-classes/spreadsheet-bulk-boundary.md:1`
-- [ ] **`wit/spreadsheet.wit`** resource-shaped: a `writer`, a `reader` over a byte source and a `template`, with its two tests in `crates/nvs-stdlib/tests/ext_world.rs`. The fragments decide how the guest reads byte ranges — a host import or a pull loop in the Novis half — and why, against request latency. `wit/spreadsheet.wit:1`
-- [ ] **The proofs checks the fragments make possible** — one `bun nv proofs --verify --group '<class>'` check per class the fragments name, in Stage 14 of `data/goals/spreadsheet.json`, and a `cargo deny` over the component's own `wasm32-wasip2` graph in the form goal `pdf` added. `docs/goals/spreadsheet.md:1`
+- [ ] **The crate in `extensions/image`'s shape**, with its manifest class `Novis\Spreadsheet\Engine` over `wit/spreadsheet.wit`, joined to `COMPONENTS` and the load table. `rule:packaging/the-first-party-components-are-built-in`'s count goes to four in the same slice, and the `meta.rs` member list too (playbook). `crates/nvs-ext/build.rs:115`, `crates/nvs-ext/src/builtin.rs:18`, `crates/nvs-ext/src/load.rs:667`
+- [ ] **The streaming writer**: `writer-open`, `writer-style`, `writer-sheet`, `writer-rows` and `writer-finish`, with inline strings, deflate with data descriptors, fixed archive times, and the write table. `rule:core-classes/spreadsheet-writes-as-a-stream`, `rule:core-classes/spreadsheet-value-types`. `wit/spreadsheet.wit:1`
+- [ ] **The Novis half's targets**: `Workbook::createForDownload`, `createForFile`, `createForStream` and `createInMemory`, `finish()` returning `Written`, and the three Stage 3 `.nvst` cases. Check first that a started stream can be aborted (the goal's Stage 3 says what to record if not). `rule:core-classes/spreadsheet-roster`, `extensions/image/src/lib.rs:1`
+- [ ] **`deny-the-spreadsheet-component-graph-passes`** once the crate's lock exists, in the form of the per-component check `docs/goals/spreadsheet.md:121` names.
 
 ### Backlog
 
-- Stages 3 to 6: `extensions/spreadsheet/` built in, the streaming writer, columns and styles, the sheet-end parts, and charts — `docs/agent/goals/spreadsheet.md`.
-- Stages 7 to 10: the reader, the number-format renderer, CSV through the same API, and template fill.
-- Stages 11 to 14: limits and hostile files, 100 MB and the growth, the comparison with Excel's own files, the feature proofs.
+- Stages 4 to 6: columns and styles, the sheet-end parts, and charts. The sheet-end parts' records are in `wit/spreadsheet.wit`'s `sheet-part`. See `docs/goals/spreadsheet.md`.
+- Stage 7: the `value` range accessor in `wit/nvs-ext/types.wit`, and the world's minor version for it (`rule:core-classes/spreadsheet-reads-as-a-stream`).
+- Stages 8 to 10: the number-format renderer, CSV through the same API, and template fill.
+- Stages 11 to 14: hostile files, 100 MB and the growth, the comparison with Excel's files, and the feature proofs.
+- `AGENTS.md:403` links the missing `docs/decisions/README.md`, and `looper lint` reports AGENTS.md's managed text as edited by hand. Neither came from this goal. See `AGENTS.md`.
