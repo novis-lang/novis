@@ -49,6 +49,14 @@ interface types {
         as-string: func() -> option<string>;
         as-bytes: func() -> option<list<u8>>;
 
+        /// The length of a byte string, which `range` reads in parts.
+        size: func() -> option<u64>;
+        /// At most `length` bytes of a byte string from `offset`, fewer at
+        /// its end and none past it. The host gives at most 1 MiB per call,
+        /// so a large value is read a block at a time and never whole
+        /// (`rule:core-classes/spreadsheet-reads-as-a-stream`).
+        range: func(offset: u64, length: u64) -> option<list<u8>>;
+
         /// The number of entries of an `array`.
         length: func() -> option<u64>;
         /// The key and the value of an `array`'s entry at a position, in

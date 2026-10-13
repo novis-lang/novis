@@ -245,7 +245,7 @@ const VALUE_READERS: &[(&str, &[&str])] = &[
     ("uint", &["as-uint"]),
     ("float", &["as-float"]),
     ("string", &["as-string"]),
-    ("bytes", &["as-bytes"]),
+    ("bytes", &["as-bytes", "size", "range"]),
     ("array", &["length", "key", "element", "field"]),
     ("object", &["class-name"]),
 ];
