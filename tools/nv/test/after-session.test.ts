@@ -1,11 +1,15 @@
 // `bun nv sweep`, the floor gate, with every runner handed in, so nothing builds and nothing runs: which
-// steps a shut and an open gate start, the count in the store's meta, the lines it writes into
-// `.loop/last-sweep.md` beside looper's, and its exit code.
+// steps a shut and an open gate start, that an open gate runs both Linux legs whatever changed, the count
+// in the store's meta, the lines it writes into `.loop/last-sweep.md` beside looper's, and its exit code.
 
 import { afterAll, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { FLOOR_GATE_EVERY, FLOOR_LINE, FLOOR_META, LAST_SWEEP, type SweepCmdSeams, type SweepVoice, floorGate, sweep } from "../cmd/sweep.ts";
+import type { Check } from "../accept/accept.ts";
+import type { LegName } from "../accept/legs.ts";
+import type { LegsCmdSeams } from "../cmd/legs.ts";
+import { FLOOR_GATE_EVERY, FLOOR_LINE, FLOOR_META, LAST_SWEEP, type SweepCmdSeams, type SweepVoice, floorGate, legsTurn, sweep } from "../cmd/sweep.ts";
+import type { Goal } from "../lib/chain.ts";
 import { ROOT } from "../lib/paths.ts";
 
 const TMP = join(ROOT, ".agent-tmp", `after-session-${process.pid}`);
@@ -52,7 +56,57 @@ function looperWrote(root: string, ...extra: string[]): void {
   writeFileSync(lastSweep(root), `${[LOOPER_LINE, ...extra].join("\n")}\n`);
 }
 
+const fixture = (file: string): Check => ({ id: `run-${file.replace(/\W+/g, "-")}`, kind: "exact", stage: 1, file, want: ["ok"] });
+
+const LEGS_GOAL = {
+  checks: [fixture("examples/a.nvs"), fixture("examples/b.nvs")],
+  files: ["examples/a.nvs", "examples/b.nvs"],
+  stages: [{ number: 1, title: "floor" }],
+  env: { wsl: { targetDir: "/var/tmp/nvs-target-gate" } },
+} as unknown as Goal;
+
+/** The real legs turn over a fake WSL machine, whose store says the change reached neither leg. */
+function linux() {
+  const lines: string[] = [];
+  const green = new Set<LegName>();
+  const seams: Partial<LegsCmdSeams> = {
+    plan: (slug) => ({ slug: slug ?? "demo", goal: LEGS_GOAL }),
+    store: async () => ({ reached: () => false, green: (l) => void green.add(l), red: () => {}, done: () => {} }),
+    hold: async () => () => {},
+    machine: {
+      platform: "win32",
+      hasWsl: () => true,
+      hasValgrind: () => true,
+      shell: async (_where, line) => (lines.push(line), { code: 0, out: "ok\n", err: "" }),
+      sync: async () => "",
+      origin: async () => ({ line: "wsl origin: listening", close: () => {} }),
+      profile: () => ({ cores: 4 }),
+      jobs: () => 1,
+      remember: () => {},
+      now: () => 0,
+    },
+  };
+  return { lines, green, legs: (slug: string | undefined, note: (line: string) => void) => legsTurn(slug, note, seams) };
+}
+
 describe("bun nv sweep", () => {
+  test("an open gate runs both Linux legs over every fixture, though the store says the change reached neither", async () => {
+    const l = linux();
+    const g = gate("legs-open", FLOOR_GATE_EVERY - 1);
+    expect((await floorGate({ slug: "demo", keepRuns: 1 }, SILENT, { ...g, legs: l.legs })).open).toBe(true);
+    expect(l.lines.some((line) => line.includes("cargo build --quiet"))).toBe(true);
+    expect(l.lines.filter((line) => line.includes("valgrind --error-exitcode"))).toHaveLength(2);
+    expect(l.green).toEqual(new Set<LegName>(["wsl leg", "valgrind sweep"]));
+  });
+
+  test("a shut gate runs neither Linux leg", async () => {
+    const l = linux();
+    const g = gate("legs-shut", 0);
+    expect((await floorGate({ slug: "demo", keepRuns: 1 }, SILENT, { ...g, legs: l.legs })).open).toBe(false);
+    expect(l.lines).toEqual([]);
+    expect(l.green.size).toBe(0);
+  });
+
   test("a shut gate counts the session and runs the disk sweep alone", async () => {
     const g = gate("shut", 3);
     looperWrote(g.root, `${FLOOR_LINE}benches: an earlier run's red`);

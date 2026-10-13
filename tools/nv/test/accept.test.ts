@@ -505,64 +505,22 @@ describe("the whole sweep", () => {
     expect(h.log.some((l) => l.startsWith("build"))).toBe(false);
   });
 
-  /** A `beside` run, as the Linux legs are one, that ends only when the test says so. */
-  const legs = (log: string[]) => {
-    const end = { legs: () => {} };
-    const beside = () => {
-      log.push("legs start");
-      return new Promise<void>((r) => (end.legs = () => (log.push("legs end"), r())));
-    };
-    return { end, beside };
-  };
-
-  test("the legs start with the overlap tier, and the release checks run only once the legs end too", async () => {
-    const h = held();
-    const l = legs(h.log);
-    const swept = acceptance(plan, { label, sweep: h.sweep, reached: everything, collect: false, beside: l.beside });
-    await until(() => h.log.includes("legs start"));
-    expect(h.log.slice(-2)).toEqual(["run goal-fix", "legs start"]);
-    h.end.over();
-    h.end.build();
-    await Bun.sleep(5);
-    expect(h.log).not.toContain("run rel");
-    l.end.legs();
-    expect((await swept).fail).toBe("");
-    expect(h.log.slice(-2)).toEqual(["legs end", "run rel"]);
-  });
-
-  test("the legs start even when the change reaches no release check, and the sweep returns only once they end", async () => {
-    const h = held();
-    const l = legs(h.log);
-    let returned = false;
-    const swept = acceptance(plan, { label, sweep: h.sweep, reached: (c) => c.id !== "rel", collect: false, beside: l.beside }).then((r) => ((returned = true), r));
-    await until(() => h.log.includes("legs start"));
-    h.end.over();
-    await Bun.sleep(5);
-    expect(returned).toBe(false);
-    l.end.legs();
-    expect((await swept).fail).toBe("");
-  });
-
-  test("a sweep that stops at a red check in the cargo and command tier starts neither the legs nor a release build", async () => {
+  test("a sweep that stops at a red check in the cargo and command tier starts no release build", async () => {
     const h = held(["cmd2"]);
-    const l = legs(h.log);
-    const r = await acceptance(plan, { label, sweep: h.sweep, reached: (c) => c.id !== "over", collect: false, beside: l.beside });
+    const r = await acceptance(plan, { label, sweep: h.sweep, reached: (c) => c.id !== "over", collect: false });
     expect(r.fail).toBe("cmd2 red");
-    expect(h.log).not.toContain("legs start");
     expect(h.log.some((l) => l.startsWith("build"))).toBe(false);
   });
 
   test("a sweep that stops at a red goal fixture tells the release builds to stop, and returns once the one in progress ends", async () => {
     const h = held(["goal-fix"]);
-    const l = legs(h.log);
     let returned = false;
-    const swept = acceptance(plan, { label, sweep: h.sweep, reached: (c) => c.id !== "over", collect: false, beside: l.beside }).then((r) => ((returned = true), r));
+    const swept = acceptance(plan, { label, sweep: h.sweep, reached: (c) => c.id !== "over", collect: false }).then((r) => ((returned = true), r));
     await until(() => h.told.stop?.aborted === true);
     await Bun.sleep(5);
     expect(returned).toBe(false);
     h.end.build();
     expect((await swept).fail).toContain("goal-fix red");
-    expect(h.log).not.toContain("legs start");
     expect(h.log).not.toContain("run rel");
   });
 

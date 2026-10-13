@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { type Check, type Outcome } from "../accept/accept.ts";
 import { ROOT } from "../lib/paths.ts";
-import { type LegName, type LegsOptions, type LegsSeams, legSteps, linuxLegs, q, startWslBuild, valgrindFailLine, valgrindLine, wslPath } from "../accept/legs.ts";
+import { type LegName, type LegsOptions, type LegsSeams, linuxLegs, q, valgrindFailLine, valgrindLine, wslPath } from "../accept/legs.ts";
 import { CARRIED, carryLine, mirrorPath, targetLine } from "../accept/mirror.ts";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -77,7 +77,6 @@ function options(f: Fake, over: Partial<LegsOptions> = {}): LegsOptions {
     files: ["examples/a.nvs", "examples/b.nvs", "examples/c.nvs"],
     valgrindSkip: [],
     wslTarget: "/var/tmp/nvs-target-wsl",
-    gateOpen: true,
     reached: () => true,
     onGreen: (leg) => void green.add(leg),
     onRed: (leg) => void green.delete(leg),
@@ -94,7 +93,7 @@ const valgrindRuns = (f: Fake) => f.lines.filter((l) => l.includes("valgrind --e
 const builds = (f: Fake) => f.lines.filter((l) => l.includes("cargo build"));
 
 describe("linuxLegs", () => {
-  test("a green WSL leg and a green valgrind sweep are recorded when the floor gate is open", async () => {
+  test("a green WSL leg and a green valgrind sweep are recorded", async () => {
     const f = fake();
     const o = options(f);
     expect(await linuxLegs(o)).toBe("");
@@ -109,31 +108,6 @@ describe("linuxLegs", () => {
     expect(f.origins).toBe(1);
     expect(f.closed).toBe(1);
     expect(greenOf(o)).toEqual(new Set(["wsl leg", "valgrind sweep"]));
-  });
-
-  test("the legs are counted before they run, say that count as they begin, and finish exactly that many", async () => {
-    const count = async (over: Partial<LegsOptions>, platform: NodeJS.Platform = "win32") => {
-      const f = fake(undefined, platform);
-      const got = { before: 0, planned: [] as number[], steps: 0 };
-      const o = options(f, { ...over, onPlan: (n) => got.planned.push(n), onStep: () => void got.steps++ });
-      got.before = legSteps(o);
-      await linuxLegs(o);
-      return got;
-    };
-    // The build, one setup check, two fixtures, one suite and two valgrind runs.
-    expect(await count({ setups: [migrate] })).toEqual({ before: 7, planned: [7], steps: 7 });
-    expect(await count(unreached(["wsl leg"]))).toEqual({ before: 3, planned: [3], steps: 3 });
-    expect(await count({}, "linux")).toEqual({ before: 3, planned: [3], steps: 3 });
-    expect(await count({ programs: [] })).toEqual({ before: 0, planned: [], steps: 0 });
-    expect(await count(unreached(["wsl leg", "valgrind sweep"]))).toEqual({ before: 0, planned: [], steps: 0 });
-    expect(await count({ wslTarget: null })).toEqual({ before: 0, planned: [], steps: 0 });
-  });
-
-  test("with the floor gate shut, a green leg is not recorded", async () => {
-    const f = fake();
-    const o = options(f, { gateOpen: false });
-    expect(await linuxLegs(o)).toBe("");
-    expect(greenOf(o).size).toBe(0);
   });
 
   test("a change that reaches neither leg skips the build and every run", async () => {
@@ -292,16 +266,6 @@ describe("linuxLegs", () => {
     expect(await linuxLegs(options(g))).toBe("");
     expect(g.lines).toEqual([]);
     expect(g.said).toContain("valgrind sweep skipped -- no valgrind on this platform");
-  });
-
-  test("a build started early is the one linuxLegs waits for", async () => {
-    const f = fake();
-    const o = options(f);
-    expect(startWslBuild(o)).toBe(true);
-    expect(await linuxLegs(o)).toBe("");
-    expect(f.synced).toHaveLength(1);
-    expect(builds(f)).toHaveLength(1);
-    expect(startWslBuild(options(fake(), { gateOpen: false }))).toBe(false);
   });
 
   test("a copy that cannot be synced is red, and nothing is built or run from it", async () => {

@@ -70,12 +70,11 @@ export interface ItemChange {
   was?: Item;
 }
 
-/** Why a key moved: the path and item it came from, and for a reached item the item that reached it.
- * `cadence` is no change at all: the loop's safety net picks every heavy check on its cadence. */
+/** Why a key moved: the path and item it came from, and for a reached item the item that reached it. */
 export interface Origin {
   path: string;
   item?: string;
-  how: How | "path" | "global" | "build" | "wide" | "cadence";
+  how: How | "path" | "global" | "build" | "wide";
   via?: string;
 }
 

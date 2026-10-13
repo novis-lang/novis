@@ -877,7 +877,6 @@ export function explain(store: SelectStore, sel: Selection, id: string): string[
 }
 
 export function describe(o: Origin): string {
-  if (o.how === "cadence") return "the safety net's cadence: every heavy check runs on this goal end";
   const where = o.item ? `${o.path}#${o.item}` : o.path;
   const how = o.how === "path" ? "the path changed" : o.how === "global" ? "a global file" : o.how === "wide" ? "the file does not parse; taken whole" : `item ${o.how}`;
   return `${where} (${how}${o.via ? `, through ${o.via}` : ""})`;

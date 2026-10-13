@@ -12,11 +12,10 @@
 // first. An `overlap` command starts when the setup tier ends and is judged after the goal's fixtures.
 // The release tier's builds start when the cargo and command tier has ended, beside the goal's
 // fixtures and the overlap commands. They start no earlier because `nvs-server`'s `serve` tests in that
-// tier bind loopback sockets, and a saturating `cargo build --release` beside them turns one red. What
-// the caller hands in as `beside`, the Linux legs when `sweepOver` is asked for them, starts when the
-// overlap tier does. The release checks themselves run one at a time once every build, overlap command and `beside` run has ended, so a
-// perf guard measures on cores nothing else of the sweep is using. A sweep that stops at a red check
-// before the release tier stops the builds: the cargo run in progress is killed, and no other starts.
+// tier bind loopback sockets, and a saturating `cargo build --release` beside them turns one red. The
+// release checks themselves run one at a time once every build and overlap command has ended, so a perf
+// guard measures on cores nothing else of the sweep is using. A sweep that stops at a red check before
+// the release tier stops the builds: the cargo run in progress is killed, and no other starts.
 //
 // A check is reached when the selection picks one of its atoms (`select/checks.ts`): something it was
 // seen to use changed, it is new, red or owed, or its record changed. A check with `memoize = false`
@@ -26,7 +25,7 @@
 // the store's last green runs. A suite below its `minPassing` is `short`, reported and never green.
 //
 // The floor gate is `cmd/sweep.ts`'s, which looper runs after every session. The WSL leg and the
-// valgrind sweep are `accept/legs.ts`'s, which `sweepOver` starts as `beside`.
+// valgrind sweep are `accept/legs.ts`'s, and the floor gate and `bun nv legs` run them.
 
 import { dirname } from "node:path";
 
@@ -564,11 +563,6 @@ export interface AcceptanceOptions {
    * tier's reached checks when the goal fixtures tier starts, and builds what they will build. Once
    * `stop` is aborted it kills the build in progress and starts no other; its promise never rejects. */
   sweep: { check(c: Check): Promise<Verdict>; batch?(checks: Check[]): void; prebuild?(checks: Check[], stop: AbortSignal): Promise<void> };
-  /** Work that starts when the overlap tier does, beside the release builds, and that no measurement may
-   * share the cores with: the release tier starts only once it ends, and the sweep never returns while it
-   * runs. A sweep that stops at a red check before the overlap tier never starts it. Its promise never
-   * rejects. */
-  beside?: () => Promise<void>;
   /** Whether the change reaches `c`. A check it does not reach is not started and prints nothing. */
   reached: (c: Check) => boolean;
   /** The verdict of a check the change does not reach, from what the store holds; green when omitted. */
@@ -598,20 +592,14 @@ export async function acceptance(checks: Check[], o: AcceptanceOptions): Promise
   let ran = 0;
   let answered = 0;
   const pending = new Map<string, Promise<Verdict>>();
-  // The release builds, started with the goal fixtures tier, and the caller's `beside` run, started with
-  // the overlap tier. The sweep never returns while one still runs, so nothing it measures after them,
-  // and no other tree's sweep, shares the cores with them. Returning early kills the build in progress
-  // and starts no other.
+  // The release builds, started with the goal fixtures tier. The sweep never returns while one still
+  // runs, so nothing it measures after them, and no other tree's sweep, shares the cores with them.
+  // Returning early kills the build in progress and starts no other.
   const stop = new AbortController();
   let prebuilt: Promise<void> = Promise.resolve();
-  let besides: Promise<void> = Promise.resolve();
-  const settled = async () => {
-    await prebuilt;
-    await besides;
-  };
   const done = async (fail: string): Promise<AcceptanceResult> => {
     stop.abort();
-    await settled();
+    await prebuilt;
     return { fail, ran, answered, verdicts };
   };
 
@@ -623,10 +611,8 @@ export async function acceptance(checks: Check[], o: AcceptanceOptions): Promise
       const release = order.find((t) => t.name === "release")!.checks.filter(o.reached);
       if (o.sweep.prebuild && release.length > 0) prebuilt = o.sweep.prebuild(release, stop.signal);
     }
-    // The overlap tier waits on commands that started with the setup tier. `beside` starts now, and the
-    // release tier's measurements start only once it, the builds and those commands have all ended.
-    if (tier.name === "overlap" && o.beside) besides = o.beside();
-    if (tier.name === "release") await settled();
+    // The release tier's measurements start only once the builds and the overlap commands have ended.
+    if (tier.name === "release") await prebuilt;
     for (const c of tier.checks) {
       let v: Verdict;
       if (!o.reached(c)) {

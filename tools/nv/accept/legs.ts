@@ -1,15 +1,13 @@
-// The acceptance sweep's two Linux legs: the WSL leg and the valgrind sweep. `linuxLegs` runs both and
-// returns the ledger's line, or "" when both are green, skipped or not reached by the change. The turn
-// starts it when the native sweep reaches its overlap tier with every earlier tier green, beside the
-// release builds, and the release tier measures only once it has ended (`accept/accept.ts`).
+// The two Linux legs: the WSL leg and the valgrind sweep. `linuxLegs` runs both and returns the ledger's
+// line, or "" when both are green, skipped or not reached by the change. `cmd/legs.ts` `legsOver` is what
+// starts it, for `bun nv legs` and for the floor gate (`cmd/sweep.ts`).
 //
 // **The WSL leg** is Windows only. It builds the CLI inside the default WSL distro, into the goal's
 // `env.wsl.targetDir`, and runs every fixture the sweep reached and every `nvs-suite` check against that
 // Linux build. A JIT is where a calling-convention divergence hides, and this leg is what finds one. The
 // build is `cargo build --quiet` over the whole workspace through `bash -lc`, so cargo comes from the
 // distro's login `PATH`. The build and every fixture run from a copy of the working tree on the distro's
-// own disk, which `tools/nv/accept/mirror.ts` brings up to date before each build. The build may start
-// early with `startWslBuild`, beside the cargo tier, and `linuxLegs` then waits for it.
+// own disk, which `tools/nv/accept/mirror.ts` brings up to date before each build.
 //
 // That sync deletes every ignored file in the copy, so a file a `setup` check writes, such as a fixture's
 // SQLite database, is gone after it. The leg therefore runs the goal's `setup` checks itself, with the
@@ -50,11 +48,8 @@
 // footprint log the store can read. What a leg runs is the plan's fixtures and suites again, whose own
 // atoms were recorded on the covws build, so a leg is selected whenever the selection picks one of them,
 // and its own atom holds only the key moved by code only Linux compiles (`checks.ts` `LEG_KEYS`). A leg
-// keeps the floor gate's cadence, and is recorded green only when it is green on a sweep with the floor
-// gate open: a leg over the goal's own fixtures alone is not the leg the store names. A red leg stays
-// selected until a run of it is green.
-// The build is skipped only when the change reaches neither leg, since either one still to run needs
-// the binary.
+// that runs is recorded green or red, and a red leg stays selected until a run of it is green. The build
+// is skipped only when the change reaches neither leg, since either one still to run needs the binary.
 //
 // Every process this module starts goes through `LegsSeams`, so `tools/nv/test/legs.test.ts` drives it
 // with recorded outcomes and no WSL.
@@ -92,21 +87,15 @@ export interface LegsOptions {
   valgrindSkip: string[];
   /** `env.wsl.targetDir`, or null when the goal names none (then no WSL leg). */
   wslTarget: string | null;
-  /** The floor gate is open: only then is a green leg recorded, since a leg over the goal's own fixtures alone is not the leg the store names. */
-  gateOpen: boolean;
   /** Whether the change reaches the leg: its atom is new, red, owed or holds a key the change moved. */
   reached: (leg: LegName) => boolean;
-  /** Records a leg that was green on a sweep with the floor gate open. */
+  /** Records a leg that was green. */
   onGreen?: (leg: LegName) => void | Promise<void>;
   /** Records a leg that was red. */
   onRed?: (leg: LegName) => void;
   label: (stage: number) => string;
   /** A process is starting / a step is reached, for the console. */
   onRun?: (what: string) => void;
-  /** The legs begin, and take `steps` more: `legSteps`'s count, which a sweep has already added to its total. */
-  onPlan?: (steps: number) => void;
-  /** One of the steps `onPlan` counted is finished. */
-  onStep?: () => void;
   /** The processes, replaced under test. Each one left out is the real one. */
   seams?: Partial<LegsSeams>;
 }
@@ -114,14 +103,14 @@ export interface LegsOptions {
 /**
  * The legs' options over `checks`, the checks a sweep reached of `goal`: its fixtures and suites, every
  * `setup` check of the whole goal, its fixture list, `env.valgrind.skip` and `env.wsl.targetDir`.
- * `sweepOver` and `bun nv legs` both build them here.
+ * `bun nv legs` and the floor gate build them here, through `cmd/legs.ts` `legsOver`.
  */
 export function legsOptions(goal: Pick<Goal, "checks" | "files" | "env">, checks: Check[], o: Omit<LegsOptions, "programs" | "suites" | "setups" | "files" | "valgrindSkip" | "wslTarget">): LegsOptions {
   return {
     programs: checks.filter((c) => PROGRAM_KINDS.has(c.kind)),
     suites: checks.filter((c) => c.kind === "nvs-suite"),
-    // From the whole goal, not `checks`: a setup check is heavy, so a shut floor gate holds it back while
-    // the leg still runs the fixtures that read what it writes.
+    // From the whole goal, not `checks`: a setup check is heavy, so the change may not reach it while the
+    // leg still runs the fixtures that read what it writes.
     setups: (goal.checks as Check[]).filter((c) => c.setup === true),
     files: goal.files,
     valgrindSkip: goal.env.valgrind?.skip ?? [],
@@ -312,9 +301,6 @@ function seamsOf(o: { seams?: Partial<LegsSeams> }): LegsSeams {
 
 // ---- the legs -------------------------------------------------------------------------------------
 
-/** One leg's build, started early and awaited by `linuxLegs`, by target directory. */
-const inflight = new Map<string, Promise<string>>();
-
 function answered(o: Pick<LegsOptions, "reached">, leg: LegName): boolean {
   return !o.reached(leg);
 }
@@ -331,43 +317,10 @@ async function buildWsl(s: LegsSeams, targetDir: string): Promise<string> {
   return r.code === 0 ? "" : `the wsl build failed -- ${firstErrLine(r)}`;
 }
 
-/**
- * Starts the WSL build in the background, beside the cargo tier, when `linuxLegs` will need it: the floor
- * gate is open, the sweep reaches a fixture, WSL is here and the change reaches a leg. The
- * build and nothing after it: the fixtures and the sweep reach the same database servers the cargo tier's
- * tests do, so they wait for `linuxLegs`, which starts once that tier has ended.
- */
-export function startWslBuild(o: Omit<LegsOptions, "suites" | "setups" | "files" | "valgrindSkip" | "label">): boolean {
-  const s = seamsOf(o);
-  if (!o.gateOpen || o.programs.length === 0 || o.wslTarget === null || s.platform !== "win32" || !s.hasWsl()) return false;
-  if (answered(o, "wsl leg") && answered(o, "valgrind sweep")) return false;
-  if (inflight.has(o.wslTarget)) return true;
-  o.onRun?.("wsl build started in the background");
-  inflight.set(o.wslTarget, buildWsl(s, o.wslTarget));
-  return true;
-}
-
 /** The fixtures the valgrind sweep runs: each one the sweep reached, in the plan's order, less the skip list. */
 function valgrindTargets(o: Pick<LegsOptions, "programs" | "files" | "valgrindSkip">): string[] {
   const reached = new Set(o.programs.map((c) => c.file ?? ""));
   return o.files.filter((f) => reached.has(f) && !o.valgrindSkip.includes(f));
-}
-
-/**
- * How many steps `linuxLegs` takes over `o`, or 0 when it skips both legs: the build, then each setup check,
- * fixture, suite and valgrind run still to judge. It reads only `reached`, the machine and `o`'s lists, so a
- * sweep can count the legs into its total before its first check runs.
- */
-export function legSteps(o: LegsOptions): number {
-  const s = seamsOf(o);
-  if (o.programs.length === 0) return 0;
-  const targets = valgrindTargets(o);
-  if (s.platform !== "win32") return answered(o, "valgrind sweep") || !s.hasValgrind() || targets.length === 0 ? 0 : 1 + targets.length;
-  if (o.wslTarget === null) return 0;
-  const legGreen = answered(o, "wsl leg");
-  const sweepGreen = answered(o, "valgrind sweep");
-  if ((legGreen && sweepGreen) || !s.hasWsl()) return 0;
-  return 1 + o.setups.length + (legGreen ? 0 : o.programs.length + o.suites.length) + (sweepGreen ? 0 : targets.length);
 }
 
 /** Runs the WSL leg (Windows with WSL) and the valgrind sweep. Returns "" when both are green, skipped or remembered, else the ledger line: the WSL leg's fixture reds as one `programFailLine`, then valgrind's `valgrind <file>: exit 97 -- <first error line>  (and N more: ...)`. */
@@ -390,11 +343,9 @@ export async function linuxLegs(o: LegsOptions): Promise<string> {
       return "";
     }
     if (targets.length === 0) return "";
-    o.onPlan?.(legSteps(o));
     say("cargo build");
     const built = await s.shell("native", `cd ${q(ROOT)} && cargo build --quiet`, TIMEOUT_MS);
     if (built.code !== 0) return `the native build failed -- ${firstErrLine(built)}`;
-    o.onStep?.();
     const origin = await s.origin("native", join(ROOT, "target", "debug", "nvs"), ROOT);
     say(`native ${origin.line}`);
     try {
@@ -411,7 +362,6 @@ export async function linuxLegs(o: LegsOptions): Promise<string> {
   const legGreen = answered(o, "wsl leg");
   const sweepGreen = answered(o, "valgrind sweep");
   if (legGreen && sweepGreen) {
-    inflight.delete(o.wslTarget);
     say("wsl leg and valgrind sweep: the change reaches neither -- neither is rebuilt");
     return "";
   }
@@ -422,13 +372,9 @@ export async function linuxLegs(o: LegsOptions): Promise<string> {
 
   const repo = wslRepo(o.wslTarget);
   const binary = `${o.wslTarget}/debug/nvs`;
-  o.onPlan?.(legSteps(o));
   say("wsl build");
-  const pending = inflight.get(o.wslTarget);
-  inflight.delete(o.wslTarget);
-  const buildFail = await (pending ?? buildWsl(s, o.wslTarget));
+  const buildFail = await buildWsl(s, o.wslTarget);
   if (buildFail !== "") return buildFail;
-  o.onStep?.();
 
   // The origin's program is written into this checkout, so it runs from the mount, not from the copy.
   const origin = await s.origin("wsl", binary, wslPath(ROOT));
@@ -444,7 +390,7 @@ export async function linuxLegs(o: LegsOptions): Promise<string> {
       if (line !== "") {
         reds.push(line);
         o.onRed?.("wsl leg");
-      } else if (o.gateOpen) await o.onGreen?.("wsl leg");
+      } else await o.onGreen?.("wsl leg");
     }
     if (sweepGreen) say("valgrind sweep: the change reaches nothing it runs -- not run");
     else if (targets.length > 0) {
@@ -465,7 +411,6 @@ async function wslSetup(o: LegsOptions, s: LegsSeams, repo: string, binary: stri
     const argv = c.argv ?? [];
     if (!argv.includes("{nvs}")) {
       o.onRun?.(`${label} -- skipped: it does not run nvs`);
-      o.onStep?.();
       continue;
     }
     const line = argv.map((a) => (a === "{nvs}" ? q(binary) : q(a))).join(" ");
@@ -473,7 +418,6 @@ async function wslSetup(o: LegsOptions, s: LegsSeams, repo: string, binary: stri
     const r = await s.shell("wsl", `cd ${q(`${repo}/${c.cwd ?? "."}`)} && ${line}`, TIMEOUT_MS);
     const fail = judgeCommand(c, r, label);
     if (fail !== "") fails.push({ c, fail });
-    o.onStep?.();
   }
   return fails;
 }
@@ -498,7 +442,6 @@ async function wslFixtures(o: LegsOptions, s: LegsSeams, repo: string, binary: s
   for (const c of o.programs) {
     const fail = await wslProgram(o, c, leg, shared, repo, binary);
     if (fail !== "") fails.push({ c, fail });
-    o.onStep?.();
   }
   for (const c of o.suites) {
     const label = `wsl ${c.name ?? c.id} [${o.label(c.stage)}]`;
@@ -506,7 +449,6 @@ async function wslFixtures(o: LegsOptions, s: LegsSeams, repo: string, binary: s
     const r = await shared(`cd ${q(repo)} && ${q(binary)} ${args.map(q).join(" ")}`, `wsl nvs ${args.join(" ")}`);
     const v = judgeTests(c, r, label, (rel) => existsSync(join(ROOT, rel)));
     if (v.fail !== "") fails.push({ c, fail: v.fail });
-    o.onStep?.();
   }
   if (fails.length === 0) return "";
   const ordered = fails.map((f, i) => ({ f, i })).sort((a, b) => a.f.c.stage - b.f.c.stage || a.i - b.i).map((x) => x.f);
@@ -558,7 +500,6 @@ async function valgrindSweep(o: LegsOptions, s: LegsSeams, where: Where, repo: s
       const started = s.now();
       const r = await s.shell(where, valgrindLine(repo, binary, f), TIMEOUT_MS);
       done.set(f, { r, seconds: (s.now() - started) / 1000 });
-      o.onStep?.();
     }
   };
   await Promise.all(Array.from({ length: Math.max(1, Math.min(width, order.length)) }, worker));
@@ -579,7 +520,7 @@ async function valgrindSweep(o: LegsOptions, s: LegsSeams, where: Where, repo: s
     o.onRed?.("valgrind sweep");
     return valgrindFailLine(fails);
   }
-  if (o.gateOpen) await o.onGreen?.("valgrind sweep");
+  await o.onGreen?.("valgrind sweep");
   return "";
 }
 

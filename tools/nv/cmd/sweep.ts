@@ -10,10 +10,11 @@
 //
 // - `bun nv select --full` (`select/full.ts` `fullRun`): every atom that is not heavy runs and records,
 //   and a red one the selection did not pick is a selection miss;
-// - the two Linux legs, the WSL leg and the valgrind sweep, over the goal's fixtures and suites, as
-//   `bun nv legs` runs them (`cmd/legs.ts` `legsOver`), each when the store says the change reached it.
-//   The goal is `--goal`'s, else the one `LOOPER_GOAL` names, else the current one (`lib/chain.ts`
-//   `namedPlan`), and only the legs read it;
+// - both Linux legs, the WSL leg and the valgrind sweep, over every fixture and suite of the goal,
+//   whatever changed, as `bun nv legs --full` runs them (`cmd/legs.ts` `legsOver`). A leg records no
+//   footprint of its own, so this run is the safety net for what its selection cannot see. The goal is
+//   `--goal`'s, else the one `LOOPER_GOAL` names, else the current one (`lib/chain.ts` `namedPlan`), and
+//   only the legs read it;
 // - every bench the selection picks, on the release build (`cmd/benches.ts` `benchTurn`).
 //
 // The count goes back to 0 once the three have run, red or green. A step that throws leaves the count
@@ -37,7 +38,7 @@ import { describeFull, fullRun } from "../select/full.ts";
 import { SelectStore } from "../select/store.ts";
 import { benchTurn } from "./benches.ts";
 import { clean, freedLines, freeGb, human, KEEP_RUNS, total } from "./disk.ts";
-import { legsOver } from "./legs.ts";
+import { type LegsCmdSeams, legsOver } from "./legs.ts";
 
 /** The file looper writes with its sweep's reds, repo-relative, to which the floor gate adds its own. */
 export const LAST_SWEEP = ".loop/last-sweep.md";
@@ -71,7 +72,7 @@ export interface SweepSeams {
   setMeta(key: string, count: number): void;
   /** `bun nv select --full`: a red line naming the selection misses, or "". */
   fullRun(note: (line: string) => void): Promise<string>;
-  /** Both Linux legs over goal `slug`'s fixtures and suites, `namedPlan`'s goal: a red line, or "". */
+  /** Both Linux legs over every fixture and suite of goal `slug`, `namedPlan`'s goal, whatever changed: a red line, or "". */
   legs(slug: string | undefined, note: (line: string) => void): Promise<string>;
   /** The bench turn: a red line, or "". */
   benches(note: (line: string) => void): Promise<string>;
@@ -134,11 +135,14 @@ async function fullRunTurn(note: (line: string) => void): Promise<string> {
   }
 }
 
-/** The legs over `namedPlan`'s goal, or a red line saying no goal is there to read them from. */
-async function legsTurn(slug: string | undefined, note: (line: string) => void): Promise<string> {
-  const found = namedPlan(slug);
+/**
+ * Both legs over `namedPlan`'s goal, whatever changed, or a red line saying no goal is there to read them
+ * from. `over` replaces what `legsOver` reads or starts, under test.
+ */
+export async function legsTurn(slug: string | undefined, note: (line: string) => void, over: Partial<LegsCmdSeams> = {}): Promise<string> {
+  const found = (over.plan ?? namedPlan)(slug);
   if (found === null) return `Linux legs: not run, ${slug ? `no goal record for \`${slug}\`` : "no goal is named or current"}`;
-  return legsOver(found.goal, false, { say: note });
+  return legsOver(found.goal, true, { say: note, ...over });
 }
 
 /** `nv disk --clean`'s sweep. Says each part, and returns the one-line summary. */
@@ -178,7 +182,7 @@ export async function floorGate(i: FloorInput, voice: SweepVoice, over: Partial<
     voice.step(`floor gate open, 1 run in ${FLOOR_GATE_EVERY}: the full run, the Linux legs and the benches`);
     voice.step("full run: every atom that is not heavy runs and records, and a red one the selection did not pick is a selection miss");
     reds.push(await s.fullRun(voice.note));
-    voice.step("Linux legs: the WSL leg and the valgrind sweep over the goal's fixtures and suites, each when the store says the change reached it");
+    voice.step("Linux legs: the WSL leg and the valgrind sweep over every fixture and suite of the goal, whatever changed");
     reds.push(await s.legs(i.slug, voice.note));
     voice.step("benches: every selected bench, owed, red, new or reached, is judged on the release build and recorded");
     reds.push(await s.benches(voice.note));

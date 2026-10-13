@@ -1,15 +1,13 @@
 // The acceptance sweep over a goal's checks, on the selection store: `sweepOver` runs the checks a change
-// reaches, with the origin and the sweep lock when the checks need them and the Linux legs when its caller
-// asks for them, and `sweepIds` is the sweep `bun nv affected --run` runs over the check ids it chose.
-// After a session, looper runs the goal's checks itself, and `bun nv sweep` runs the legs through
-// `cmd/legs.ts` when the floor gate opens.
+// reaches, with the origin and the sweep lock when the checks need them, and `sweepIds` is the sweep
+// `bun nv affected --run` runs over the check ids it chose. After a session, looper runs the goal's
+// checks itself, and `bun nv sweep` runs the Linux legs through `cmd/legs.ts` when the floor gate opens.
 //
 // `livePlan` is the goal a process works on: the side goal `SIDE_ENV` names, or else the chain's live goal,
 // each read through `lib/chain.ts` and nothing else.
 
 import { chainGoals, type Goal, goalPlan, liveGoal, SIDE_ENV, sideGoal, sidePlan } from "../lib/chain.ts";
-import { type AcceptanceResult, type Check, acceptance, allReds } from "./accept.ts";
-import { legSteps, legsOptions, linuxLegs, startWslBuild } from "./legs.ts";
+import { type AcceptanceResult, type Check, acceptance } from "./accept.ts";
 import { holdOrigin, type Origin } from "./origin.ts";
 import { PlanSweep } from "./runner.ts";
 import { needLine, sharedResources, takeSweepLock } from "./sweep-lock.ts";
@@ -64,14 +62,11 @@ export function stageLabels(goal: Goal): (n: number) => string {
   return (n: number) => labels.get(n) ?? String(n);
 }
 
-/** How a sweep reports itself: each process as it starts, each check the change reaches as it starts, and any other line. The Linux legs' steps are counted before the sweep starts, then the legs say when they begin and each step they finish. */
+/** How a sweep reports itself: each process as it starts, each check the change reaches as it starts, and any other line. */
 export interface Progress {
   run: (what: string) => void;
   trace: (c: Check) => void;
   note: (text: string) => void;
-  count: (steps: number) => void;
-  plan: (steps: number) => void;
-  step: () => void;
 }
 
 /**
@@ -84,18 +79,15 @@ export async function sweepOver(
   goal: Goal,
   checks: Check[],
   labelOf: (n: number) => string,
-  o: { full: boolean; collect: boolean; legs?: boolean; gateOpen?: boolean; heavyAll?: boolean; onDone?: (c: Check, green: boolean) => void; progress?: Progress },
+  o: { full: boolean; collect: boolean; onDone?: (c: Check, green: boolean) => void; progress?: Progress },
 ): Promise<{ result: AcceptanceResult; secs: number; owed: number }> {
   const started = Date.now();
   const p: Progress = o.progress ?? {
     run: (what) => console.error(`  .. ${what}`),
     trace: (c) => console.error(`  check ${nameOf(c)} [${labelOf(c.stage)}]`),
     note: (text) => console.error(`  ${text}`),
-    count: () => {},
-    plan: () => {},
-    step: () => {},
   };
-  const sweep = await PlanSweep.open(goal.checks as Check[], labelOf, { full: o.full, heavyAll: o.heavyAll === true, onRun: p.run, say: p.note });
+  const sweep = await PlanSweep.open(goal.checks as Check[], labelOf, { full: o.full, onRun: p.run, say: p.note });
   const reachedOf = new Map<string, boolean>();
   const reached = (c: Check) => {
     let r = reachedOf.get(c.id);
@@ -106,23 +98,9 @@ export async function sweepOver(
   const c = sweep.change;
   const since = c.full ? (c.global ?? "everything") : `${c.changes.length} path(s) changed since the recorded tree`;
   p.note(`${since}; ${n} of ${checks.length} check(s) reached, the other ${checks.length - n} not started`);
-  // The two Linux legs, over the fixtures and suites this sweep reaches. They start with the overlap tier,
-  // beside the release builds, and the release tier measures only once they end (`acceptance`'s `beside`).
-  const legs = legsOptions(goal, checks, {
-    gateOpen: o.gateOpen ?? false,
-    reached: (leg) => o.full || sweep.legReached(leg),
-    onGreen: (leg) => sweep.legGreen(leg),
-    onRed: (leg) => sweep.legRed(leg),
-    label: labelOf,
-    onRun: p.run,
-    onPlan: p.plan,
-    onStep: p.step,
-  });
-  // The legs run only with the floor gate open; a leg the change reached with the gate shut is owed.
-  const runLegs = o.legs === true && o.gateOpen === true;
-  // A sweep that uses the origin, a Linux leg or a perf guard takes the lock, which another tree's sweep
-  // using one of them may hold. The time spent waiting for it is not this sweep's cost.
-  const need = sharedResources(checks.filter(reached), runLegs, legs.reached);
+  // A sweep that uses the origin or a perf guard takes the lock, which another tree's sweep using one of
+  // them may hold. The time spent waiting for it is not this sweep's cost. It runs no Linux leg.
+  const need = sharedResources(checks.filter(reached), false, () => false);
   p.note(needLine(need));
   const asked = Date.now();
   const lock = need.lock ? await takeSweepLock({ note: p.note }) : null;
@@ -130,13 +108,7 @@ export async function sweepOver(
   let result: AcceptanceResult;
   let owed = 0;
   let origin: Origin | null = null;
-  let legsRun: Promise<string> | null = null;
   try {
-    if (runLegs) {
-      p.count(legSteps(legs));
-      p.note("the Linux legs run every fixture and suite again on Linux: they keep the floor gate's cadence, and run when the change reached one of those or code only Linux compiles");
-      startWslBuild(legs);
-    }
     if (need.origin) {
       origin = await holdOrigin();
       p.note(origin.line);
@@ -148,25 +120,7 @@ export async function sweepOver(
       judged: (x) => sweep.judged(x),
       collect: o.collect,
       trace: p.trace,
-      ...(runLegs
-        ? {
-            beside: () => {
-              const run = linuxLegs(legs);
-              legsRun = run;
-              return run.then(
-                () => {},
-                () => {},
-              );
-            },
-          }
-        : {}),
     });
-    // A sweep that stopped at a red check reports that red alone, as it would have at any later tier; a
-    // collecting sweep that returned before the overlap tier runs the legs now.
-    if (runLegs && (result.fail === "" || o.collect)) {
-      const red = await (legsRun ?? linuxLegs(legs));
-      if (red) result = { ...result, fail: result.fail ? allReds([result.fail, red]) : red };
-    }
   } finally {
     origin?.close();
     lock?.release();
