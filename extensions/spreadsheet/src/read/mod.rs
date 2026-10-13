@@ -1,0 +1,878 @@
+//! The reader: a workbook read through byte ranges of a source the program holds
+//! (`rule:core-classes/spreadsheet-reads-as-a-stream`).
+//!
+//! **This is our own thin reader for xlsx, not calamine.** calamine keeps one `String` per shared
+//! string, exposes no cell style, and reads a sheet from a `Read + Seek` it owns, where a
+//! reader resource must keep its place between guest calls. So the zip directory and the parts
+//! are read here ([`zip`]), the XML is tokenized here ([`xml`]), and a sheet is a [`sheet::Cursor`]
+//! that survives from one call to the next. xlsb, xlsm, xls and ods are not read yet, and each
+//! gives [`Error::Runtime`] naming its format.
+//!
+//! [`Reader::open`] reads the zip directory, the package's relationships, `xl/workbook.xml`, its
+//! relationships and `xl/styles.xml`, and nothing of a sheet. The shared strings are read at the
+//! first call that reads cells, into one arena with `u32` ends ([`Strings`]). Each cell becomes
+//! its read type by `value`: the read table of `rule:core-classes/spreadsheet-value-types`, with
+//! each cell's style index giving the number format that makes a number a date, a time, a clock
+//! time or a duration ([`format`]).
+//!
+//! **One cursor at a time.** [`Reader::rows`] continues the open cursor when it is on the same
+//! sheet and `from` is past the last row it read, and opens a new one otherwise. So the Novis
+//! half asks for its next batch with `from` one past the last row it was given, and a new loop
+//! starts the sheet again. `limit` is the most rows this call may give.
+//!
+//! **Time values.** A serial is rounded to the millisecond, the precision Excel shows. In the 1900
+//! system a serial below 61 is one day later than its count, because Excel counts the day
+//! 1900-02-29, which did not exist. Serial 60 reads as 1900-03-01.
+//!
+//! What it spends, per reading request: the zip directory, the styles' kinds, the shared strings
+//! in one arena, one block of compressed bytes and the inflater's window, one block of sheet XML
+//! and the row being parsed, and one batch of rows.
+
+pub mod format;
+pub mod sheet;
+pub mod xml;
+pub mod zip;
+
+use crate::{Clock, Date, Error, TimeOfDay, Visibility};
+use format::Kind;
+use xml::Token;
+
+/// A source the reader reads byte ranges of.
+pub trait Source {
+    /// The source's length in bytes.
+    fn size(&self) -> Result<u64, Error>;
+    /// At most `length` bytes from `offset`, fewer at the end.
+    fn range(&self, offset: u64, length: u64) -> Result<Vec<u8>, Error>;
+}
+
+impl Source for [u8] {
+    fn size(&self) -> Result<u64, Error> {
+        Ok(self.len() as u64)
+    }
+
+    fn range(&self, offset: u64, length: u64) -> Result<Vec<u8>, Error> {
+        let start = usize::try_from(offset).map_or(self.len(), |at| at.min(self.len()));
+        let take = usize::try_from(length).map_or(usize::MAX, |n| n);
+        Ok(self[start..start + take.min(self.len() - start)].to_vec())
+    }
+}
+
+/// An error a cell holds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CellError {
+    Null,
+    DivZero,
+    Value,
+    Ref,
+    Name,
+    Num,
+    NotAvailable,
+    GettingData,
+    Spill,
+    Calc,
+}
+
+impl CellError {
+    fn of(text: &str) -> Option<Self> {
+        Some(match text {
+            "#NULL!" => Self::Null,
+            "#DIV/0!" => Self::DivZero,
+            "#VALUE!" => Self::Value,
+            "#REF!" => Self::Ref,
+            "#NAME?" => Self::Name,
+            "#NUM!" => Self::Num,
+            "#N/A" => Self::NotAvailable,
+            "#GETTING_DATA" => Self::GettingData,
+            "#SPILL!" => Self::Spill,
+            "#CALC!" => Self::Calc,
+            _ => return None,
+        })
+    }
+
+    /// The text Excel shows for the error.
+    pub fn text(self) -> &'static str {
+        match self {
+            Self::Null => "#NULL!",
+            Self::DivZero => "#DIV/0!",
+            Self::Value => "#VALUE!",
+            Self::Ref => "#REF!",
+            Self::Name => "#NAME?",
+            Self::Num => "#NUM!",
+            Self::NotAvailable => "#N/A",
+            Self::GettingData => "#GETTING_DATA",
+            Self::Spill => "#SPILL!",
+            Self::Calc => "#CALC!",
+        }
+    }
+}
+
+/// One read cell's value, by the read table.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Read {
+    Text(String),
+    Integer(i64),
+    Number(f64),
+    Boolean(bool),
+    Clock(Clock),
+    Date(Date),
+    Time(TimeOfDay),
+    /// Nanoseconds.
+    Duration(i64),
+    Error(CellError),
+}
+
+/// One read cell. `column` counts from 1.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ReadCell {
+    pub column: u64,
+    pub value: Option<Read>,
+    pub formula: Option<String>,
+    pub display: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ReadRow {
+    pub number: u64,
+    pub cells: Vec<ReadCell>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Batch {
+    pub rows: Vec<ReadRow>,
+    pub done: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SheetKind {
+    Worksheet,
+    Chartsheet,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct SheetInfo {
+    pub name: String,
+    pub position: u64,
+    pub visibility: Visibility,
+    pub rows: u64,
+    pub columns: u64,
+    pub kind: SheetKind,
+}
+
+/// The selection and the defaults of a read (`wit/spreadsheet.wit`'s `read-options`).
+#[derive(Debug, Clone, Default)]
+pub struct ReadOptions {
+    pub sheet: String,
+    pub header_row: Option<u64>,
+    pub from: Option<u64>,
+    pub limit: Option<u64>,
+    pub columns: Vec<String>,
+    pub text: Vec<String>,
+    pub text_all: bool,
+    pub formulas: bool,
+    pub keep_empty_rows: bool,
+    pub fill_merged: bool,
+    pub skip_hidden: bool,
+    pub locale: String,
+}
+
+/// The shared strings, in one arena: string `i` is `text[ends[i - 1]..ends[i]]`.
+#[derive(Debug, Default)]
+pub struct Strings {
+    text: String,
+    ends: Vec<u32>,
+}
+
+impl Strings {
+    /// The number of strings.
+    pub fn len(&self) -> usize {
+        self.ends.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.ends.is_empty()
+    }
+
+    /// The arena's length in bytes, which is every string's bytes and nothing else.
+    pub fn arena(&self) -> usize {
+        self.text.len()
+    }
+
+    pub fn get(&self, at: usize) -> Option<&str> {
+        let end = *self.ends.get(at)? as usize;
+        let start = at
+            .checked_sub(1)
+            .map_or(0, |before| self.ends[before] as usize);
+        self.text.get(start..end)
+    }
+
+    fn push(&mut self, text: &str) -> Result<(), Error> {
+        self.text.push_str(&xml::unescape(text.to_owned()));
+        let end = u32::try_from(self.text.len()).map_err(|_| {
+            Error::Parse("The workbook's shared strings are larger than 4 GiB.".to_owned())
+        })?;
+        self.ends.push(end);
+        Ok(())
+    }
+
+    /// Reads the shared strings part `entry` a block at a time, so only the arena is held.
+    fn parse(source: &dyn Source, entry: &zip::Entry) -> Result<Self, Error> {
+        let mut part = zip::Part::open(source, entry)?;
+        let mut buf = Vec::new();
+        let mut eof = false;
+        let mut strings = Self::default();
+        let mut at = 0;
+        let (mut item, mut inside_t, mut phonetic) = (String::new(), false, false);
+        loop {
+            let Some((token, size)) = xml::next(&buf[at..])? else {
+                if eof {
+                    break;
+                }
+                buf.drain(..at);
+                at = 0;
+                eof = !part.fill(source, &mut buf)?;
+                continue;
+            };
+            at += size;
+            match token {
+                Token::Open { name, empty, .. } => match xml::local(name) {
+                    b"si" if empty => strings.push("")?,
+                    b"si" => item.clear(),
+                    b"t" if !empty && !phonetic => inside_t = true,
+                    b"rPh" if !empty => phonetic = true,
+                    _ => {}
+                },
+                Token::Text(raw) if inside_t => xml::decode(raw, &mut item)?,
+                Token::Raw(raw) if inside_t => item.push_str(&String::from_utf8_lossy(raw)),
+                Token::Close(name) => match xml::local(name) {
+                    b"si" => strings.push(&item)?,
+                    b"t" => inside_t = false,
+                    b"rPh" => phonetic = false,
+                    _ => {}
+                },
+                _ => {}
+            }
+        }
+        Ok(strings)
+    }
+}
+
+/// A sheet as the workbook lists it.
+#[derive(Debug, Clone)]
+struct Listed {
+    name: String,
+    visibility: Visibility,
+    part: Option<String>,
+    kind: SheetKind,
+}
+
+/// A workbook being read.
+#[derive(Debug)]
+pub struct Reader {
+    directory: zip::Directory,
+    sheets: Vec<Listed>,
+    strings_part: Option<String>,
+    strings: Option<Strings>,
+    /// The read type each cell style index gives a number.
+    kinds: Vec<Kind>,
+    date1904: bool,
+    open: Option<Open>,
+}
+
+/// The sheet [`Reader::rows`] is reading: its cursor, a row read and held back while the empty
+/// rows before it are given, and the number of the next row a call continues from.
+#[derive(Debug)]
+struct Open {
+    sheet: String,
+    cursor: sheet::Cursor,
+    held: Option<sheet::RawRow>,
+    next: u64,
+}
+
+fn broken(what: &str) -> Error {
+    Error::Parse(format!("The file is not a valid workbook: {what}."))
+}
+
+/// `target` resolved against the folder of the part `base`, as a relationship's target is.
+fn resolve(base: &str, target: &str) -> String {
+    if let Some(absolute) = target.strip_prefix('/') {
+        return absolute.to_owned();
+    }
+    let mut parts: Vec<&str> = base.split('/').collect();
+    parts.pop();
+    for segment in target.split('/') {
+        match segment {
+            ".." => {
+                parts.pop();
+            }
+            "." | "" => {}
+            segment => parts.push(segment),
+        }
+    }
+    parts.join("/")
+}
+
+/// The relationships part of `part`: each id, its type's last segment, its target and whether it
+/// is external. An external target is kept as text and never followed.
+fn relationships(
+    source: &dyn Source,
+    directory: &zip::Directory,
+    part: &str,
+) -> Result<Vec<(String, String, String, bool)>, Error> {
+    let (folder, file) = part.rsplit_once('/').unwrap_or(("", part));
+    let rels = if folder.is_empty() {
+        format!("_rels/{file}.rels")
+    } else {
+        format!("{folder}/_rels/{file}.rels")
+    };
+    let Some(entry) = directory.find(&rels) else {
+        return Ok(Vec::new());
+    };
+    let bytes = zip::whole(source, entry)?;
+    let mut out = Vec::new();
+    let mut at = 0;
+    while let Some((token, size)) = xml::next(&bytes[at..])? {
+        at += size;
+        if let Token::Open { name, attrs, .. } = token
+            && xml::local(name) == b"Relationship"
+        {
+            let id = xml::attr_text(attrs, b"Id")?.unwrap_or_default();
+            let kind = xml::attr_text(attrs, b"Type")?.unwrap_or_default();
+            let kind = kind.rsplit('/').next().unwrap_or_default().to_owned();
+            let target = xml::attr_text(attrs, b"Target")?.unwrap_or_default();
+            let external = xml::attr(attrs, b"TargetMode") == Some(b"External");
+            let target = if external {
+                target
+            } else {
+                resolve(part, &target)
+            };
+            out.push((id, kind, target, external));
+        }
+    }
+    Ok(out)
+}
+
+/// The read type of each cell style index in `styles.xml`.
+fn kinds(part: &[u8]) -> Result<Vec<Kind>, Error> {
+    let mut codes: Vec<(u32, Kind)> = Vec::new();
+    let mut kinds = Vec::new();
+    let mut in_xfs = false;
+    let mut at = 0;
+    while let Some((token, size)) = xml::next(&part[at..])? {
+        at += size;
+        match token {
+            Token::Open { name, attrs, empty } => match xml::local(name) {
+                b"numFmt" => {
+                    let id = xml::attr(attrs, b"numFmtId")
+                        .and_then(|id| std::str::from_utf8(id).ok()?.parse().ok());
+                    if let (Some(id), Some(code)) = (id, xml::attr_text(attrs, b"formatCode")?) {
+                        codes.push((id, format::classify(&code)));
+                    }
+                }
+                b"cellXfs" => in_xfs = !empty,
+                b"xf" if in_xfs => {
+                    let id: u32 = xml::attr(attrs, b"numFmtId")
+                        .and_then(|id| std::str::from_utf8(id).ok()?.parse().ok())
+                        .unwrap_or(0);
+                    let kind = codes
+                        .iter()
+                        .find(|(code, _)| *code == id)
+                        .map(|(_, kind)| *kind)
+                        .or_else(|| format::builtin(id))
+                        .unwrap_or(Kind::Plain);
+                    kinds.push(kind);
+                }
+                _ => {}
+            },
+            Token::Close(name) if xml::local(name) == b"cellXfs" => in_xfs = false,
+            _ => {}
+        }
+    }
+    Ok(kinds)
+}
+
+impl Reader {
+    /// Opens the workbook `source` is: its directory and its workbook part.
+    pub fn open(source: &dyn Source) -> Result<Self, Error> {
+        let head = source.range(0, 8)?;
+        if head.starts_with(&[0xD0, 0xCF, 0x11, 0xE0]) {
+            return Err(Error::Runtime(
+                "This version of Novis cannot read xls files yet.".to_owned(),
+            ));
+        }
+        if !head.starts_with(b"PK") {
+            return Err(Error::Parse(
+                "The file is not a workbook. Novis reads xlsx files.".to_owned(),
+            ));
+        }
+        let directory = zip::Directory::read(source)?;
+        let workbook = relationships(source, &directory, "")?
+            .into_iter()
+            .find(|(_, kind, _, _)| kind == "officeDocument")
+            .map_or_else(|| "xl/workbook.xml".to_owned(), |(_, _, target, _)| target);
+        if workbook.ends_with(".bin") {
+            return Err(Error::Runtime(
+                "This version of Novis cannot read xlsb files yet.".to_owned(),
+            ));
+        }
+        let Some(entry) = directory.find(&workbook) else {
+            return Err(if directory.find("content.xml").is_some() {
+                Error::Runtime("This version of Novis cannot read ods files yet.".to_owned())
+            } else {
+                broken("it has no workbook part")
+            });
+        };
+        let book = zip::whole(source, entry)?;
+        let rels = relationships(source, &directory, &workbook)?;
+        let mut sheets = Vec::new();
+        let mut date1904 = false;
+        let mut at = 0;
+        while let Some((token, size)) = xml::next(&book[at..])? {
+            at += size;
+            let Token::Open { name, attrs, .. } = token else {
+                continue;
+            };
+            match xml::local(name) {
+                b"workbookPr" => {
+                    date1904 = matches!(xml::attr(attrs, b"date1904"), Some(b"1" | b"true"));
+                }
+                b"sheet" => {
+                    let name = xml::attr_text(attrs, b"name")?
+                        .ok_or_else(|| broken("a sheet has no name"))?;
+                    let visibility = match xml::attr(attrs, b"state") {
+                        Some(b"hidden") => Visibility::Hidden,
+                        Some(b"veryHidden") => Visibility::VeryHidden,
+                        _ => Visibility::Visible,
+                    };
+                    let id = xml::attr_text(attrs, b"id")?.unwrap_or_default();
+                    let rel = rels.iter().find(|(rid, _, _, _)| *rid == id);
+                    sheets.push(Listed {
+                        name,
+                        visibility,
+                        part: rel.filter(|rel| !rel.3).map(|rel| rel.2.clone()),
+                        kind: match rel {
+                            Some((_, kind, _, _)) if kind == "chartsheet" => SheetKind::Chartsheet,
+                            _ => SheetKind::Worksheet,
+                        },
+                    });
+                }
+                _ => {}
+            }
+        }
+        let part_of = |wanted: &str| {
+            rels.iter()
+                .find(|(_, kind, _, external)| kind == wanted && !external)
+                .map(|(_, _, target, _)| target.clone())
+        };
+        let kinds = match part_of("styles").and_then(|part| directory.find(&part).cloned()) {
+            Some(entry) => kinds(&zip::whole(source, &entry)?)?,
+            None => Vec::new(),
+        };
+        Ok(Self {
+            strings_part: part_of("sharedStrings"),
+            directory,
+            sheets,
+            strings: None,
+            kinds,
+            date1904,
+            open: None,
+        })
+    }
+
+    /// The shared strings, read at the first call that needs them.
+    pub fn strings(&mut self, source: &dyn Source) -> Result<&Strings, Error> {
+        if self.strings.is_none() {
+            let strings = match self
+                .strings_part
+                .as_deref()
+                .and_then(|part| self.directory.find(part))
+            {
+                Some(entry) => Strings::parse(source, entry)?,
+                None => Strings::default(),
+            };
+            self.strings = Some(strings);
+        }
+        Ok(self.strings.get_or_insert_default())
+    }
+
+    fn listed(&self, name: &str) -> Result<&Listed, Error> {
+        self.sheets
+            .iter()
+            .find(|sheet| sheet.name == name)
+            .ok_or_else(|| Error::Invalid(format!("The workbook has no sheet named `{name}`.")))
+    }
+
+    fn cursor(&self, source: &dyn Source, name: &str) -> Result<sheet::Cursor, Error> {
+        let listed = self.listed(name)?;
+        if listed.kind == SheetKind::Chartsheet {
+            return Err(Error::Invalid(format!(
+                "The sheet `{name}` is a chart. It has no rows to read."
+            )));
+        }
+        let entry = listed
+            .part
+            .as_deref()
+            .and_then(|part| self.directory.find(part))
+            .ok_or_else(|| broken(&format!("the sheet `{name}` has no part")))?;
+        sheet::Cursor::open(source, entry)
+    }
+
+    /// Every sheet, in tab order.
+    pub fn sheets(&self, source: &dyn Source) -> Result<Vec<SheetInfo>, Error> {
+        let mut out = Vec::with_capacity(self.sheets.len());
+        for (position, listed) in self.sheets.iter().enumerate() {
+            let (rows, columns) = if listed.kind == SheetKind::Worksheet {
+                self.cursor(source, &listed.name)?
+                    .dimension(source)?
+                    .unwrap_or((0, 0))
+            } else {
+                (0, 0)
+            };
+            out.push(SheetInfo {
+                name: listed.name.clone(),
+                position: position as u64,
+                visibility: listed.visibility,
+                rows,
+                columns,
+                kind: listed.kind,
+            });
+        }
+        Ok(out)
+    }
+
+    /// The header's keys: each header cell's text, a duplicate numbered, and an empty one its
+    /// column letter. The header row is `header_row`, or the first row at or after `from` with a
+    /// value in it.
+    pub fn header(
+        &mut self,
+        source: &dyn Source,
+        options: &ReadOptions,
+    ) -> Result<Vec<String>, Error> {
+        let mut cursor = self.cursor(source, &options.sheet)?;
+        let from = options.from.unwrap_or(1);
+        let row = loop {
+            let Some(raw) = cursor.next(source)? else {
+                return Ok(Vec::new());
+            };
+            let wanted = match options.header_row {
+                Some(header) if raw.number > header => return Ok(Vec::new()),
+                Some(header) => raw.number == header,
+                None => raw.number >= from,
+            };
+            if wanted {
+                let row = self.row(source, raw, options)?;
+                if options.header_row.is_some() || row.cells.iter().any(|cell| cell.value.is_some())
+                {
+                    break row;
+                }
+            }
+        };
+        let last = row.cells.iter().map(|cell| cell.column).max().unwrap_or(0);
+        let mut names: Vec<String> = Vec::new();
+        for column in 1..=last {
+            let text = row
+                .cells
+                .iter()
+                .find(|cell| cell.column == column)
+                .and_then(|cell| cell.value.as_ref())
+                .map(header_text)
+                .filter(|text| !text.is_empty());
+            let base = text.unwrap_or_else(|| letters(column));
+            let mut name = base.clone();
+            let mut count = 1;
+            while names.contains(&name) {
+                count += 1;
+                name = format!("{base} ({count})");
+            }
+            names.push(name);
+        }
+        Ok(names)
+    }
+
+    /// The next batch of at most `max` rows, by the rules in the module doc.
+    pub fn rows(
+        &mut self,
+        source: &dyn Source,
+        options: &ReadOptions,
+        max: u64,
+    ) -> Result<Batch, Error> {
+        if options.fill_merged {
+            return Err(Error::Runtime(
+                "This version of Novis cannot fill merged cells yet.".to_owned(),
+            ));
+        }
+        let from = options
+            .from
+            .unwrap_or(1)
+            .max(options.header_row.map_or(1, |header| header + 1));
+        let resume =
+            matches!(&self.open, Some(open) if open.sheet == options.sheet && open.next <= from);
+        if !resume {
+            let cursor = self.cursor(source, &options.sheet)?;
+            self.open = Some(Open {
+                sheet: options.sheet.clone(),
+                cursor,
+                held: None,
+                next: 1,
+            });
+        }
+        let selected = selection(&options.columns)?;
+        let most = max.min(options.limit.unwrap_or(u64::MAX));
+        let mut rows = Vec::new();
+        while (rows.len() as u64) < most {
+            let Some(open) = self.open.as_mut() else {
+                break;
+            };
+            let raw = match open.held.take() {
+                Some(raw) => raw,
+                None => match open.cursor.next(source)? {
+                    Some(raw) => raw,
+                    None => return Ok(Batch { rows, done: true }),
+                },
+            };
+            if raw.number < from || (options.skip_hidden && raw.hidden) {
+                open.next = raw.number + 1;
+                continue;
+            }
+            let expected = open.next.max(from);
+            if options.keep_empty_rows && expected < raw.number {
+                open.held = Some(raw);
+                open.next = expected + 1;
+                rows.push(ReadRow {
+                    number: expected,
+                    cells: Vec::new(),
+                });
+                continue;
+            }
+            open.next = raw.number + 1;
+            let mut row = self.row(source, raw, options)?;
+            row.cells.retain(|cell| {
+                selected.is_empty()
+                    || selected
+                        .iter()
+                        .any(|&(first, last)| (first..=last).contains(&cell.column))
+            });
+            if row.cells.iter().all(|cell| cell.value.is_none()) && !options.keep_empty_rows {
+                continue;
+            }
+            rows.push(row);
+        }
+        Ok(Batch { rows, done: false })
+    }
+
+    /// `raw` as read cells, every empty cell dropped.
+    fn row(
+        &mut self,
+        source: &dyn Source,
+        raw: sheet::RawRow,
+        options: &ReadOptions,
+    ) -> Result<ReadRow, Error> {
+        let needs_strings = raw.cells.iter().any(|cell| cell.kind == b"s");
+        if needs_strings {
+            self.strings(source)?;
+        }
+        let mut cells = Vec::with_capacity(raw.cells.len());
+        for cell in raw.cells {
+            let value = self.value(&cell)?;
+            let formula = if options.formulas { cell.formula } else { None };
+            if value.is_none() && formula.is_none() {
+                continue;
+            }
+            cells.push(ReadCell {
+                column: cell.column,
+                value,
+                formula,
+                display: None,
+            });
+        }
+        Ok(ReadRow {
+            number: raw.number,
+            cells,
+        })
+    }
+
+    /// The read value of `cell`, by the read table.
+    fn value(&self, cell: &sheet::RawCell) -> Result<Option<Read>, Error> {
+        let text = || cell.value.clone().unwrap_or_default();
+        Ok(Some(match cell.kind.as_slice() {
+            b"s" => {
+                let Some(index) = cell
+                    .value
+                    .as_deref()
+                    .and_then(|v| v.trim().parse::<usize>().ok())
+                else {
+                    return Ok(None);
+                };
+                let strings = self
+                    .strings
+                    .as_ref()
+                    .ok_or_else(|| broken("no shared strings"))?;
+                let text = strings
+                    .get(index)
+                    .ok_or_else(|| broken("a cell names a shared string the file does not have"))?;
+                Read::Text(text.to_owned())
+            }
+            b"inlineStr" => match &cell.inline {
+                Some(text) => Read::Text(xml::unescape(text.clone())),
+                None => return Ok(None),
+            },
+            b"str" => match &cell.value {
+                Some(text) => Read::Text(xml::unescape(text.clone())),
+                None => return Ok(None),
+            },
+            b"b" => match cell.value.as_deref().map(str::trim) {
+                Some("1" | "true") => Read::Boolean(true),
+                Some(_) => Read::Boolean(false),
+                None => return Ok(None),
+            },
+            b"e" => match cell.value.as_deref().and_then(|v| CellError::of(v.trim())) {
+                Some(error) => Read::Error(error),
+                None => return Ok(None),
+            },
+            b"d" => Read::Text(text()),
+            _ => {
+                let Some(raw) = cell.value.as_deref().map(str::trim) else {
+                    return Ok(None);
+                };
+                let number: f64 = raw
+                    .parse()
+                    .map_err(|_| broken(&format!("a number cell holds `{raw}`")))?;
+                let kind = self
+                    .kinds
+                    .get(cell.style as usize)
+                    .copied()
+                    .unwrap_or(Kind::Plain);
+                timed(number, kind, self.date1904).unwrap_or_else(|| plain(number))
+            }
+        }))
+    }
+}
+
+/// A number as `integer` when it is whole and within ±2^53, and `number` otherwise.
+fn plain(number: f64) -> Read {
+    const EXACT: f64 = 9_007_199_254_740_992.0;
+    if number.fract() == 0.0 && number.abs() <= EXACT {
+        #[allow(
+            clippy::cast_possible_truncation,
+            reason = "whole and within ±2^53, so exact"
+        )]
+        Read::Integer(number as i64)
+    } else {
+        Read::Number(number)
+    }
+}
+
+const DAY_MS: i64 = 86_400_000;
+
+/// The time value a serial `number` is under a format of `kind`, or `None` for a plain number or a
+/// serial no date can have.
+fn timed(number: f64, kind: Kind, date1904: bool) -> Option<Read> {
+    if kind == Kind::Plain || !number.is_finite() {
+        return None;
+    }
+    let ms = (number * DAY_MS as f64).round();
+    if ms.abs() > 3e15 {
+        return None;
+    }
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "bounded by the check above"
+    )]
+    let ms = ms as i64;
+    if kind == Kind::Duration {
+        return Some(Read::Duration(ms * 1_000_000));
+    }
+    if ms < 0 {
+        return None;
+    }
+    let (days, of_day) = (ms / DAY_MS, ms % DAY_MS);
+    let time = TimeOfDay {
+        hour: of_day / 3_600_000,
+        minute: of_day / 60_000 % 60,
+        second: of_day / 1000 % 60,
+        nanos: of_day % 1000 * 1_000_000,
+    };
+    let days = if date1904 {
+        days + 1462
+    } else if days < 61 {
+        days + 1
+    } else {
+        days
+    };
+    let day = civil(days + days_from_civil(1899, 12, 30));
+    if day.year > 9999 {
+        return None;
+    }
+    Some(match kind {
+        Kind::Date => Read::Date(day),
+        Kind::Time => Read::Time(time),
+        _ => Read::Clock(Clock { day, clock: time }),
+    })
+}
+
+fn days_from_civil(year: i64, month: i64, day: i64) -> i64 {
+    let year = if month <= 2 { year - 1 } else { year };
+    let era = year.div_euclid(400);
+    let yoe = year - era * 400;
+    let doy = (153 * ((month + 9) % 12) + 2) / 5 + day - 1;
+    era * 146_097 + yoe * 365 + yoe / 4 - yoe / 100 + doy - 719_468
+}
+
+/// The civil date `days` after 1970-01-01.
+fn civil(days: i64) -> Date {
+    let z = days + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let day = doy - (153 * mp + 2) / 5 + 1;
+    let month = if mp < 10 { mp + 3 } else { mp - 9 };
+    Date {
+        year: yoe + era * 400 + i64::from(month <= 2),
+        month,
+        day,
+    }
+}
+
+/// The column letters of `column`, from 1.
+fn letters(column: u64) -> String {
+    let mut out = String::new();
+    crate::cells::column_letters(&mut out, u32::try_from(column - 1).unwrap_or(u32::MAX));
+    out
+}
+
+/// The text a header cell gives its key.
+fn header_text(value: &Read) -> String {
+    match value {
+        Read::Text(text) => text.trim().to_owned(),
+        Read::Integer(n) => n.to_string(),
+        Read::Number(x) => x.to_string(),
+        Read::Boolean(b) => (if *b { "TRUE" } else { "FALSE" }).to_owned(),
+        Read::Date(d) => format!("{:04}-{:02}-{:02}", d.year, d.month, d.day),
+        Read::Time(t) => format!("{:02}:{:02}:{:02}", t.hour, t.minute, t.second),
+        Read::Clock(c) => format!(
+            "{:04}-{:02}-{:02} {:02}:{:02}",
+            c.day.year, c.day.month, c.day.day, c.clock.hour, c.clock.minute
+        ),
+        Read::Duration(nanos) => format!("{}s", nanos / 1_000_000_000),
+        Read::Error(error) => error.text().to_owned(),
+    }
+}
+
+/// The column ranges `columns` names, such as `A:C` and `F`.
+fn selection(columns: &[String]) -> Result<Vec<(u64, u64)>, Error> {
+    columns
+        .iter()
+        .map(|range| {
+            let bad = || {
+                Error::Invalid(format!(
+                    "`{range}` is not a column or a range of columns such as `A:C`."
+                ))
+            };
+            let (first, last) = range.split_once(':').unwrap_or((range, range));
+            let first = sheet::column_of(first.trim().as_bytes()).ok_or_else(bad)?;
+            let last = sheet::column_of(last.trim().as_bytes()).ok_or_else(bad)?;
+            Ok((first.min(last), first.max(last)))
+        })
+        .collect()
+}

@@ -85,6 +85,44 @@
       ],
       "returns": "{data: bytes, rows: array<{name: string, rows: uint}>, size: uint}",
       "help": "Finishes the last sheet and the workbook. Returns the last bytes of the file, the number of rows in each sheet, and the size of the whole file in bytes."
+    },
+    {
+      "name": "readerOpen",
+      "params": [
+        {"name": "source", "type": "mixed"}
+      ],
+      "returns": "Reader",
+      "help": "Opens the workbook in `source`, which is `bytes`. This reads the list of sheets and no rows."
+    },
+    {
+      "name": "readerSheets",
+      "params": [
+        {"name": "reader", "type": "Reader"},
+        {"name": "source", "type": "mixed"}
+      ],
+      "returns": "array<{name: string, position: uint, visibility: Visibility, rows: uint, columns: uint, kind: SheetKind}>",
+      "help": "Returns each sheet of the workbook in tab order. `rows` and `columns` are the size the file gives for the sheet, or 0 when it gives none."
+    },
+    {
+      "name": "readerHeader",
+      "params": [
+        {"name": "reader", "type": "Reader"},
+        {"name": "source", "type": "mixed"},
+        {"name": "options", "type": "{sheet: string, headerRow: ?uint, from: ?uint, limit: ?uint, columns: array<string>, text: array<string>, textAll: bool, formulas: bool, keepEmptyRows: bool, fillMerged: bool, skipHidden: bool, locale: string}"}
+      ],
+      "returns": "array<string>",
+      "help": "Returns the names in the header row, one for each column from `A`. A name that is already used gets ` (2)`, ` (3)` and so on. An empty header cell gets its column letter."
+    },
+    {
+      "name": "readerRows",
+      "params": [
+        {"name": "reader", "type": "Reader"},
+        {"name": "source", "type": "mixed"},
+        {"name": "options", "type": "{sheet: string, headerRow: ?uint, from: ?uint, limit: ?uint, columns: array<string>, text: array<string>, textAll: bool, formulas: bool, keepEmptyRows: bool, fillMerged: bool, skipHidden: bool, locale: string}"},
+        {"name": "max", "type": "uint"}
+      ],
+      "returns": "{rows: array<{number: uint, cells: array<{column: uint, value: ?ReadValue, formula: ?string, display: ?string}>}>, done: bool}",
+      "help": "Returns the next rows of a sheet, at most `max` of them. To get the rows after these, call it again with `from` one past the last row number. `done` is `true` after the last row of the sheet."
     }
   ],
   "enums": [
@@ -99,10 +137,23 @@
     {"name": "ConditionalKind", "cases": ["Cell", "Formula", "ColorScale", "DataBar", "IconSet", "Top", "Bottom", "Duplicates", "Unique"], "help": "The kind of a conditional format rule."},
     {"name": "ChartKind", "cases": ["Column", "Bar", "Line", "Area", "Pie", "Doughnut", "Scatter"], "help": "The type of a chart."},
     {"name": "Legend", "cases": ["Hidden", "Top", "Right", "Bottom", "Left"], "help": "Where a chart shows its legend. `Hidden` shows no legend."},
-    {"name": "Orientation", "cases": ["Portrait", "Landscape"], "help": "Whether a printed page is tall or wide."}
+    {"name": "Orientation", "cases": ["Portrait", "Landscape"], "help": "Whether a printed page is tall or wide."},
+    {"name": "SheetKind", "cases": ["Worksheet", "Chartsheet"], "help": "Whether a sheet has cells or only a chart."},
+    {"name": "CellError", "cases": ["Null", "DivZero", "Value", "Ref", "Name", "Num", "NotAvailable", "GettingData", "Spill", "Calc"], "help": "The error a cell shows: `#NULL!`, `#DIV/0!`, `#VALUE!`, `#REF!`, `#NAME?`, `#NUM!`, `#N/A`, `#GETTING_DATA`, `#SPILL!` or `#CALC!`."}
   ],
-  "resources": [{"name": "Writer"}],
+  "resources": [{"name": "Writer"}, {"name": "Reader"}],
   "unions": [
+    {"name": "ReadValue", "cases": [
+      {"name": "Text", "shape": "{text: string}"},
+      {"name": "Integer", "shape": "{integer: int}"},
+      {"name": "Number", "shape": "{number: float}"},
+      {"name": "Boolean", "shape": "{boolean: bool}"},
+      {"name": "Clock", "shape": "{day: Core\\Time\\Date, clock: Core\\Time\\TimeOfDay}"},
+      {"name": "Date", "shape": "{date: Core\\Time\\Date}"},
+      {"name": "Time", "shape": "{time: Core\\Time\\TimeOfDay}"},
+      {"name": "Duration", "shape": "{duration: Core\\Time\\Duration}"},
+      {"name": "Error", "shape": "{error: CellError}"}
+    ]},
     {"name": "CellValue", "cases": [
       {"name": "Text", "shape": "{text: string}"},
       {"name": "Number", "shape": "{number: float}"},

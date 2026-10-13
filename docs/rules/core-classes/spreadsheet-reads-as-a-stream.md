@@ -62,8 +62,9 @@ spent on the shared strings, which a file may make large, and bounded by the req
   the number formats, and the shared strings of the file being read in one arena; for xlsm, xls and
   ods, the whole file. All of it is inside the request's cap and freed when the request ends.
 
-**Not shipped.** Nothing of `Novis\Spreadsheet` is on disk, and the `value` accessor that reads a
-range is not in `wit/nvs-ext/types.wit`.
+**Not shipped.** `Reader` in Novis, the extras, `merged: 'fill'`, `text`, and the xlsb, xlsm, xls
+and ods formats. The `value` accessor reads a range of `bytes` and not yet of an open
+`Core\IO\File`. The engine reads an xlsx's sheets, header and rows.
 
 **Declined:**
 - **A pull loop in the Novis half.** It costs a guest return and a Novis call per block on the request

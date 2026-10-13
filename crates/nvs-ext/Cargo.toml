@@ -119,6 +119,10 @@ name = "spreadsheet"
 required-features = ["engine", "pack"]
 
 [[test]]
+name = "spreadsheet_read"
+required-features = ["engine", "pack"]
+
+[[test]]
 name = "image_decode"
 required-features = ["engine", "pack"]
 
