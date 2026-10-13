@@ -16095,7 +16095,7 @@ Checks the signature in the `_sig` query parameter with the keys in `$keys`, and
 <a id="core-core-router"></a>
 ### `Core\Router`
 
-Keywords: route, url, link, reverse routing, named route, #[Core\Route], origin, mount, router, methodsFor, Allow, 404, 405, url, urlAbsolute, urlSigned, signedRoute, match, methodsFor
+Keywords: route, url, link, reverse routing, named route, #[Core\Route], origin, mount, router, methodsFor, Allow, 404, 405, url, urlAbsolute, urlSigned, signedRoute, match, methodsFor, dispatch
 
 `Core\Router::url` builds a link from a route's `name` as its `#[Core\Route]` declared it: each
 `{capture}` in the path is substituted from `$params`, percent-encoded into its own segment. It is
@@ -16154,6 +16154,7 @@ https://example.test/users/7
 | [`Core\Router::signedRoute`](#core-core-router-signedroute) | `signedRoute(array<secret bytes> $keys): Core\Router\Match` |
 | [`Core\Router::match`](#core-core-router-match) | `match(Core\Http\Method $method, string $path): ?Core\Router\Match` |
 | [`Core\Router::methodsFor`](#core-core-router-methodsfor) | `methodsFor(string $path): array<Core\Http\Method>` |
+| [`Core\Router::dispatch`](#core-core-router-dispatch) | `dispatch(Core\Router\Gate $gate): void` |
 
 <a id="core-core-router-url"></a>
 #### `Core\Router::url`
@@ -16259,6 +16260,23 @@ Lists the HTTP methods that the routes of `$path` accept, in the order the route
 | `$path` | `string` (neutral) | The path, with no query string. The path of a request already has its mount prefix removed. |
 
 **Returns** `array<Core\Http\Method>` — The methods, each one once. An empty array means that no route has this path, so the status is `404`. Otherwise the status is `405`, and the array is the list for the `Allow` header. A path does not match when a capture is not a valid `int`, `uint`, `decimal` or `Core\Uuid` for its handler parameter, or is not one of the values its parameter allows.
+
+<a id="core-core-router-dispatch"></a>
+#### `Core\Router::dispatch`
+
+```nvs skip
+Core\Router::dispatch(Core\Router\Gate $gate): void
+```
+
+Calls the method of the route that the request matched. First, `$gate->allows()` checks the request. When no route method runs, `dispatch` sets the status and calls `$gate->refused()`. When the method throws an error, `dispatch` sets the status `500` and calls `$gate->failed()`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$gate` | `Core\Router\Gate` | An instance of your class that implements `Core\Router\Gate`. |
+
+**Returns** `void` — Nothing. The route method or the gate writes the response. Each value captured from the path goes to the method parameter with the same name. An error that `refused()` or `failed()` throws is thrown by `dispatch`.
+
+**Throws** `LogicError` — When the program has no `#[Route]`. When the program is not answering a request, for example a command-line program, a job or a test. When the route method has a parameter that no value in the path fills, such as a `#[Query]` parameter or an optional capture that the path does not have.
 
 <a id="core-core-router-match"></a>
 ### `Core\Router\Match`
@@ -31149,6 +31167,21 @@ The operating system family the program runs on. `Core\Env::OS` is one of these 
 | `Core\Env::Platform::BSD` | FreeBSD, OpenBSD, NetBSD and DragonFly BSD. |
 | `Core\Env::Platform::Solaris` | Solaris and illumos. |
 | `Core\Env::Platform::Unknown` | Any other operating system. |
+
+<a id="enum-core-router-refusal"></a>
+#### `Core\Router\Refusal`
+
+The reason `Core\Router::dispatch` did not call the method of a route. Your `Core\Router\Gate` gets it in `refused()`. The response already has the status that each case names.
+
+| Case | Meaning |
+|---|---|
+| `Core\Router\Refusal::NotFound` | No route has this path. The status is `404`. |
+| `Core\Router\Refusal::MethodNotAllowed` | A route has this path, but not for this HTTP method. The status is `405`. The `Allow` header lists the methods that the path accepts. |
+| `Core\Router\Refusal::UnknownMethod` | The HTTP method is not a case of `Core\Http\Method`. The status is `501`. |
+| `Core\Router\Refusal::Denied` | `allows()` returned `false` or threw an error. The status is `403`. |
+| `Core\Router\Refusal::Csrf` | The server did not accept the CSRF token or the origin of the request. The status is `403`. |
+| `Core\Router\Refusal::BodyTooLarge` | The request body is larger than the limit of the server. The status is `413`. |
+| `Core\Router\Refusal::BadCapture` | A value in the path cannot be converted to the type of its parameter. For example, the `parse` method of its class threw an error. The status is `400`. |
 
 <a id="enum-core-http-method"></a>
 #### `Core\Http\Method`
