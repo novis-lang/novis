@@ -483,7 +483,8 @@ routing is not a case that forces [`types/grammar`](types.md#types-grammar)'s de
 - **An invocable match.** Dispatch is a call the program makes, and the match it reads stays data
   ([`routing/a-match-is-not-invocable`](routing.md#routing-a-match-is-not-invocable)).
 - **A controller convention.** No base class, naming rule or directory layout.
-- **A return-value-to-response rule.** A handler returns `void`, and what it sends is what it writes.
+- **A return-value-to-response rule.** What a handler sends is what it writes, and `dispatch` discards
+  what it returns.
 - **Middleware, filters, groups or a route-level rate limit.** The gate is the one place around every
   handler, and what a program checks there is its own, which is why
   [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members) declines to decide what a limit does for a route.
@@ -649,10 +650,12 @@ interface Core\Router\Gate {
 The compiler generates the jump from the route table it already builds, one entry per route, indexed
 by the matched row, so no program writes or keeps a list of its routes. The jump is code in the unit
 and never a value: the handler's `Class::method` label still does not cross into the program, and the
-match stays not invocable ([`routing/a-match-is-not-invocable`](routing.md#routing-a-match-is-not-invocable)). **A handler returns `void`,** and
-is a static method or a method of a class with a no-argument constructor; any other `#[Route]` method
-is a compile error at its attribute, because the jump has no response type to read a value into and no
-arguments to build an instance with.
+match stays not invocable ([`routing/a-match-is-not-invocable`](routing.md#routing-a-match-is-not-invocable)). **A handler may declare any return
+type, and `dispatch` discards the value:** what a handler sends is what it writes, and the declared type
+is what `nvs build --openapi` describes as the response body
+([`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table)). A handler is a static method or a
+method of a class with a no-argument constructor; any other `#[Route]` method is a compile error at its
+attribute, because the jump has no arguments to build an instance with.
 
 **`allows` runs before every handler, and the handler runs only when it returns `true`.** A `false` or
 a throw is `Refusal::Denied`. This is the dispatch site that reads `#[Access]` on every route
@@ -711,7 +714,9 @@ run, so their pages, when they exist, are static and come from the configuration
 - **Refusal mode for every program.** A hand-written dispatcher would read a refused request as an
   ordinary request with no route.
 - **A return-value-to-response rule and constructor injection.** Each is a framework opinion, and a
-  `void` handler with a no-argument constructor needs neither.
+  handler that writes its own response from a no-argument constructor needs neither.
+- **Every handler returns `void`.** The OpenAPI document reads a route's response schema and its
+  `#[Api]` example from the return type, so the rule would remove both from every document.
 
 <sub>See also [`routing/matching-is-not-dispatching`](routing.md#routing-matching-is-not-dispatching), [`routing/a-match-is-not-invocable`](routing.md#routing-a-match-is-not-invocable), [`routing/the-servers-match-dispatches-nothing`](routing.md#routing-the-servers-match-dispatches-nothing), [`routing/a-refused-verb-is-not-a-missing-path`](routing.md#routing-a-refused-verb-is-not-a-missing-path), [`security/access-is-checked-for-presence-not-meaning`](security.md#security-access-is-checked-for-presence-not-meaning), [`security/csrf-is-on-by-default`](security.md#security-csrf-is-on-by-default), [`testing/in-process-request`](testing.md#testing-in-process-request).</sub>
 

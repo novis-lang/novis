@@ -75,7 +75,7 @@ checks:
   - id: dispatch-cases
     stage: 2
     name: "dispatch calls the matched method, and each program-side refusal reaches the gate"
-    run: [bun, nv, suite, tests/conformance/, --case, tests/conformance/core/router-dispatch-calls-the-matched-method.nvst, --case, tests/conformance/core/router-dispatch-refusals-reach-the-gate.nvst, --case, tests/conformance/core/router-dispatch-a-handler-that-returns-a-value-does-not-compile.nvst]
+    run: [bun, nv, suite, tests/conformance/, --case, tests/conformance/core/router-dispatch-calls-the-matched-method.nvst, --case, tests/conformance/core/router-dispatch-refusals-reach-the-gate.nvst, --case, tests/conformance/core/router-dispatch-discards-a-handlers-return-value.nvst]
   - id: door-refusals
     stage: 3
     name: "CSRF, body-too-large and unknown-method refusals reach a dispatching program's gate, and never a handler"
@@ -185,8 +185,10 @@ ordinary one with no route. `Core\Request::route()` and `Core\Router::match` sta
 limits. If that one fails too, the answer is today's empty `500`. How a limit reports its stop is
 not checked yet, and stage 4 starts there.
 
-**A handler returns `void`.** It is a static method, or a method of a class with a no-argument
-constructor. Anything else is a compile error at the `#[Route]`. Constructor injection and a
+**A handler may declare any return type, and `dispatch` discards the value.** The user chose this over
+a `void`-only rule, which would remove the response schema and `#[Api]` example that `nvs build
+--openapi` reads from the return type (`crates/nvs-cli/src/openapi.rs:196`). A handler is a static
+method, or a method of a class with a no-argument constructor. Anything else is a compile error at the `#[Route]`. Constructor injection and a
 return-value-to-response rule are out of this goal.
 
 **Out of the gate, each for its reason:**
@@ -240,8 +242,7 @@ after it. Every page and comment this goal writes follows AGENTS.md § *Text an 
 - [x] The jump over the route table: the matched row's handler, resolved through its class (`crates/nvs-stdlib/src/router.rs:2521`)
 - [ ] The unit's "dispatches" mark, found as links are (`crates/nvs-types/src/links.rs:146`)
 - [x] The no-argument-constructor handler error, `E0855` (`crates/nvs-types/src/routes.rs:778`)
-- [ ] The `void` handler error, blocked on the user's decision about OpenAPI response schemas (`crates/nvs-cli/src/openapi.rs:196`)
-- [ ] The three conformance cases the `dispatch-cases` check names: two are written, the `void` one waits on the decision above (`tests/conformance/core/router-dispatch-calls-the-matched-method.nvst:1`)
+- [ ] The three conformance cases the `dispatch-cases` check names: two are written, and the third pins that a handler's return value is discarded (`tests/conformance/core/router-dispatch-discards-a-handlers-return-value.nvst:1`)
 
 ### 3. the server's refusals reach the gate
 
@@ -302,7 +303,7 @@ refusal mode, and never a handler.
 
 ### State
 
-Stage 2 is built except the `void` handler rule, which is **blocked on the user**:
+Stage 2 is built except the "dispatches" mark and the third case:
 
 - `Core\Router::dispatch` (`crates/nvs-stdlib/src/router.rs:2354`) calls the matched row's handler.
   - A static handler goes through `call_static_bound`.
@@ -324,18 +325,9 @@ Decisions made here, each open to review:
 - A parameter no capture fills, such as an absent optional capture or a `#[Query]`, throws a
   `LogicError` before the handler runs. Defaults are on neither the route row nor `MethodRow`.
 
-**The block.** The standing decision says every `#[Route]` handler returns `void`. But
-`nvs build --openapi` builds each route's success schema and its `#[Api]` example from the handler's
-return type (`crates/nvs-cli/src/openapi.rs:196`, `crates/nvs-types/src/routes.rs:1082`). The rule
-would remove that feature, and making the corpus comply is about 500 handlers in 209 files.
-
-The user picks one:
-
-- **(a)** Refuse a non-`void` handler only in a unit that calls `dispatch`.
-- **(b)** Allow any return type, and `dispatch` discards the value.
-- **(c)** Keep `void`, and add a `returns:` field to `#[Api]` for the response type.
-
-The `void` error gets the next free code, `E0856`.
+The user decided the return type: a handler may declare any, and `dispatch` discards the value
+(§ *Standing decisions*). The jump already releases it (`crates/nvs-stdlib/src/router.rs:2545`), so no
+code changes and no new error code is owed. The rule fragment says so.
 
 The rule stays `designed` until stage 2 is done. Both apps still dispatch by hand
 (`apps/notes/src/App.nvs:16`).
@@ -344,8 +336,7 @@ The rule stays `designed` until stage 2 is done. Both apps still dispatch by han
 
 Stage 2's remainder, over the route checks and links (`rule:routing/a-gate-answers-around-every-handler`):
 
-- [ ] Apply the user's `void` decision (`crates/nvs-types/src/routes.rs:689`, `crates/nvs-cli/src/openapi.rs:196`)
-- [ ] Write the third case it names (`tests/conformance/core/router-dispatch-a-handler-that-returns-a-value-does-not-compile.nvst:1`)
+- [ ] Write the third case: a handler returning a value sends only what it wrote, and the gate's `failed` does not run (`tests/conformance/core/router-dispatch-discards-a-handlers-return-value.nvst:1`)
 - [ ] Add the unit's "dispatches" mark, found as links are (`crates/nvs-types/src/links.rs:146`)
 - [ ] Mark the rule `shipped`, with `guardedBy` listing the three cases (`docs/rules/routing/a-gate-answers-around-every-handler.md:1`)
 
