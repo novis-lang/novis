@@ -1,0 +1,43 @@
+<?nvs
+// Calls the method of the route a request matched, as the entry file of a web app does once per request.
+// bench: iterations 512
+// bench: complexity constant
+
+class Shop {
+    #[Core\Route(path: "/", method: Core\Http\Method::Get, name: "Shop::home")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function home(): uint { return 1; }
+
+    #[Core\Route(path: "/products/{id}", method: Core\Http\Method::Get, name: "Shop::product")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function product(uint $id): uint { return $id; }
+
+    #[Core\Route(path: "/cart", method: Core\Http\Method::Post, name: "Shop::cart")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function cart(): uint { return 3; }
+}
+
+class Gate implements Core\Router\Gate {
+    public function allows(Core\Router\Match $route): bool { return true; }
+
+    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void {}
+
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void {}
+}
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        Gate $gate = new Gate();
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            Core\Router::dispatch($gate);
+            // chained: the next round depends on this one
+            $total = $total + 1 + $total % 3;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(512), "\n";
