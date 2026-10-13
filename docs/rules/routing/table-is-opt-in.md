@@ -4,10 +4,11 @@ consequences (`rule:programs/implementing`):
 
 - **A program containing no call to a member whose answer comes from the table performs no scan of
   the autoload roots**, the identical opt-in rule a discovery query has, and any one of them alone
-  opts it in. Those members are `Core\Request::route()` and `Core\Router`'s `match`, `methodsFor`,
-  `url`, `urlAbsolute`, `urlSigned` and `signedRoute`. `route()` and `signedRoute` read the match the
-  door took, and that match is taken against the table, so without the scan a front controller
-  reading `route()` over autoloaded routes would get `null` on every request. `Core\Request::mount()`
+  opts it in. Those members are `Core\Request::route()` and `Core\Router`'s `dispatch`, `match`,
+  `methodsFor`, `url`, `urlAbsolute`, `urlSigned` and `signedRoute`. `route()`, `signedRoute` and
+  `dispatch` read the match the door took, and that match is taken against the table, so without the
+  scan a front controller reading `route()` over autoloaded routes would get `null` on every request,
+  and an entry whose only call is `dispatch` would compile none of the classes it dispatches to. `Core\Request::mount()`
   reads the mount table and does not opt in. A program with no `#[Route]` anywhere pays nothing,
   including no pass. A running program with no table matches nothing and serves the request however
   it likes. The table still holds every `#[Route]` of every class the program compiles, named or

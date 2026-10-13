@@ -840,7 +840,9 @@ const ROUTER_CLASS: &str = r"Core\Router";
 /// need the scan that builds it: the three link builders resolve a route name
 /// against it, `match` and `methodsFor` walk it, and `signedRoute` verifies
 /// against the match the door took from it. With no table that match is
-/// always absent and every signed link is refused.
+/// always absent and every signed link is refused. `dispatch` calls the
+/// handler of the match the door took, and its handlers are the classes an
+/// entry that only calls `dispatch` never names.
 const ROUTER_SCAN_MEMBERS: &[&str] = &[
     "url",
     "urlAbsolute",
@@ -848,6 +850,7 @@ const ROUTER_SCAN_MEMBERS: &[&str] = &[
     "match",
     "methodsFor",
     "signedRoute",
+    "dispatch",
 ];
 const REQUEST_CLASS: &str = r"Core\Request";
 /// The `Core\Request` members whose answer comes from the route table. `route`
@@ -3262,6 +3265,7 @@ class Unreached {}
             ),
             ("methods.nvs", r"Core\Router::methodsFor('/')"),
             ("signed.nvs", r"Core\Router::signedRoute([])"),
+            ("dispatch.nvs", r"Core\Router::dispatch(null)"),
             ("route.nvs", r"Core\Request::route()"),
             ("other.nvs", r"Core\Str::length('Users::show')"),
             ("path.nvs", r"Core\Request::path()"),
@@ -3280,6 +3284,7 @@ class Unreached {}
             "match.nvs",
             "methods.nvs",
             "signed.nvs",
+            "dispatch.nvs",
             "route.nvs",
         ] {
             let (module, diags) = resolve_entry(&dir, file);
