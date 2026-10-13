@@ -30,7 +30,7 @@ stages:
         shapes: ["A `.nvst` test case"]
   - id: 4
     title: "`failed` after a memory or time limit"
-    status: open
+    status: done
     context: [crates/nvs-server/src/serve.rs]
     extra:
       context:
@@ -258,9 +258,9 @@ refusal mode, and never a handler.
 
 **Does:** a program stopped by a limit gets its `failed` page from a fresh isolate.
 
-- [ ] Find how a limit's stop reaches the door (`crates/nvs-server/src/serve.rs:1840`)
-- [ ] Run the gate's `failed` in a fresh isolate under the same limits, with the empty `500` as fallback (`crates/nvs-server/src/serve.rs:2444`)
-- [ ] The two Rust tests the `limit-failed` check names (`crates/nvs-cli/tests/gate.rs:1`)
+- [x] Find how a limit's stop reaches the door (`crates/nvs-server/src/serve.rs:1840`)
+- [x] Run the gate's `failed` in a fresh isolate under the same limits, with the empty `500` as fallback (`crates/nvs-server/src/serve.rs:2444`)
+- [x] The two Rust tests the `limit-failed` check names (`crates/nvs-cli/tests/gate.rs:1`)
 
 ### 5. the example apps use the gate
 
@@ -303,38 +303,34 @@ refusal mode, and never a handler.
 
 ### State
 
-Stages 2 and 3 are done. `door-refusals` passes: `cargo test --test gate`, five tests over a real
-`nvs serve`.
+Stages 2 to 4 are done, and `rule:routing/a-gate-answers-around-every-handler` is `shipped`.
+`door-refusals` and `limit-failed` pass: `cargo test --test gate`, eight tests over a real `nvs serve`.
 
-- The checker's mark crosses as `Routes::dispatches()` (`crates/nvs-runtime/src/routes.rs:796`), set
-  in `runtime_routes` (`crates/nvs-cli/src/main.rs:2920`).
-- The carrier holds `nvs_runtime::routes::Refusal` (`UnknownMethod`, `Csrf`, `BodyTooLarge`,
-  `crates/nvs-runtime/src/routes.rs:696`). `Inbound::route()` is `None` while one is set
-  (`crates/nvs-runtime/src/ctx/inbound.rs:731`).
-- Both doors (`crates/nvs-cli/src/serve.rs:1015`, `crates/nvs-cli/src/runner.rs:1598`) set it for a
-  dispatching unit, with no match and no body, and keep the empty answers for every other unit. The
-  unknown-verb check runs after mount selection. Health, a path no mount covers and a static file
-  still answer `501` for an unknown verb.
-- `dispatch` reads the refusal first and calls `refused` with a `null` route
-  (`crates/nvs-stdlib/src/router.rs:2394`).
-- A refused run that fails answers the door's status with no body, never a `500`
-  (`crates/nvs-server/src/serve.rs:1644`, `:1862`). A run whose head was already streamed is not
-  covered, since it never reaches that arm.
+- The carrier's `nvs_runtime::routes::Refusal` has `UnknownMethod`, `Csrf`, `BodyTooLarge` and
+  `Limit` (`crates/nvs-runtime/src/routes.rs:707`). `Inbound::route()` is `None` while one is set.
+- A limit's stop is recorded by `Ctx::run_limit_handler` (`crates/nvs-runtime/src/ctx/hooks.rs:518`)
+  and crosses as `Failure::limit` (`crates/nvs-runtime/src/host.rs:400`).
+- The serving door returns `Reply::Gated` with a lazy `Rerun` for a dispatching unit's accepted
+  request (`crates/nvs-cli/src/serve.rs:1122`, `crates/nvs-server/src/serve.rs:467`). The accept arm
+  is a loop that runs it once when `Memory` or `CpuTime` stopped the first run
+  (`crates/nvs-server/src/serve.rs:1942`). The rerun has no body, no upgrade offer, the first run's
+  trace, and `Refusal::Limit`, so a failing rerun answers the empty `500`.
+- `dispatch` answers `Refusal::Limit` with `failed(null, null)` and status `500`
+  (`crates/nvs-stdlib/src/router.rs:2319`, `:2477`).
+- The in-process door (`crates/nvs-cli/src/runner.rs:1682`) still returns `Reply::Run`, so
+  `Core\Test::request` does not rerun after a limit.
 
 Decisions from stage 2 still open to review: `BadCapture` before `allows` with a `null` route; a throw
-from `allows` is `Denied`; a parameter no capture fills throws `LogicError`.
-
-The rule stays `designed` until stage 4 is done, because its fragment also states `failed` after a
-limit. Its `guardedBy` now lists `crates/nvs-cli/tests/gate.rs`. Both apps still dispatch by hand
-(`apps/notes/src/App.nvs:16`).
+from `allows` is `Denied`; a parameter no capture fills throws `LogicError`. From stage 4: `failed`
+gets no route and no error after a limit; a run whose head was already streamed is not rerun.
 
 ### Next
 
-Stage 4, over the accept loop's completion arm (`rule:routing/a-gate-answers-around-every-handler` § *A limit*):
+Stage 5, the example apps over `apps/*/src/App.nvs` and `apps/*/public/index.nvs` (`rule:routing/a-gate-answers-around-every-handler`):
 
-- [ ] Find how a memory or time limit's stop reaches the completion: `done.ok` alone, or a cause on it (`crates/nvs-server/src/serve.rs:1862`, `crates/nvs-runtime/src/host.rs:418`)
-- [ ] Run the gate's `failed` in a fresh isolate under the same limits, with the empty `500` as fallback (`crates/nvs-server/src/serve.rs:2459`)
-- [ ] The two `limit-failed` tests beside the five in `crates/nvs-cli/tests/gate.rs:1`
+- [ ] Notes: delete `App::handle`, add `src/Gate.nvs` with its error pages, and make `index.nvs` one `dispatch` call (`apps/notes/src/App.nvs:16`, `apps/notes/public/index.nvs:6`)
+- [ ] Notes: the tests cover a 404, a 405, a CSRF refusal and a failure page (`apps/notes/src/AppTest.nvs:10`)
+- [ ] Paperwork: the same (`apps/paperwork/src/App.nvs:14`, `apps/paperwork/public/index.nvs:6`)
 
 ### Backlog
 
@@ -343,4 +339,5 @@ Stage 4, over the accept loop's completion arm (`rule:routing/a-gate-answers-aro
 - Constructor injection for handler classes: not decided (`docs/rules/routing/a-match-is-not-invocable.md:21`).
 - Whether the generated jump binds `#[Query]` parameters and answers their `400`: not decided, M16 owns it today (`docs/rules/routing/a-bad-query-value-is-a-400.md:20`).
 - The checker does not hold an implementing member's signature to the `Gate` interface's signature, and `$v is Core\Router\Gate` folds to `false` (`crates/nvs-types/src/conformance.rs:1`).
-- `nvs-stdlib`'s ldap test `set_password_and_change_password_use_unicode_pwd` fails beside the other test binaries and passes alone (`crates/nvs-stdlib/tests/ldap.rs:1485`).
+- `nvs-stdlib`'s ldap tests and `nvs-cli`'s `live_edit` fail beside the other test binaries and pass alone (`crates/nvs-stdlib/tests/ldap.rs:1485`, `crates/nvs-cli/tests/live_edit.rs:1010`).
+- The in-process door does not rerun a dispatching program after a limit, so `Core\Test::request` cannot test a limit's `failed` page (`crates/nvs-cli/src/runner.rs:1682`).
