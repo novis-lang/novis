@@ -991,7 +991,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: [ast, lex, parse, prefix]
+        target: [ast, lex, parse, prefix, uri]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: dtolnay/rust-toolchain@be39649afda95dbf70f87cce95f68b8d5797b296 # nightly branch
@@ -1015,7 +1015,7 @@ jobs:
       # and a second copy of the same files is a second thing to keep true.
       # Nothing the cache restored is at risk: libFuzzer names what it saves
       # after the input's hash, so a seed can only overwrite itself. The guard is
-      # for a target with no seeds of its own, which `lex` is.
+      # for a target with no seeds of its own, as `lex` and `uri` are.
       - name: Seed corpus for ${{ matrix.target }}
         run: |
           seeds=fuzz/seeds/${{ matrix.target }}
