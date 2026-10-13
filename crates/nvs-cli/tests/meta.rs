@@ -316,6 +316,21 @@ fn meta_lists_the_built_in_components_classes_and_enums() {
         ]
     );
     names(r"Novis\Spreadsheet\Written");
+    assert_eq!(
+        names(r"Novis\Spreadsheet\Workbook"),
+        [
+            "createForDownload",
+            "createForFile",
+            "createForStream",
+            "createInMemory",
+            "sheet",
+            "finish"
+        ]
+    );
+    assert_eq!(
+        names(r"Novis\Spreadsheet\Sheet"),
+        ["constructor", "add", "addAll"]
+    );
     for name in ["Line", "Underline", "Align", "Valign", "Visibility"] {
         core_enum(&document, &format!(r"Novis\Spreadsheet\{name}"));
     }

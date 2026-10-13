@@ -53,9 +53,9 @@ The tradeoffs. **Usability:** an import gets an `int` where the sheet has a whol
 where it has a date, with no parse in the program. **Simplicity:** one table per direction, and the
 display text is one option away when the table is not what the program wants.
 
-**Not shipped.** The component writes each `cell-value` case by the write table
-(`extensions/spreadsheet/src/cells.rs`). The Novis half that picks a value's case, and the zone
-rule, are not on disk, and neither is reading.
+**Not shipped.** The write table and the zone rule are on disk: the Novis half picks a value's
+case (`extensions/spreadsheet/nvs/Workbook.nvs`) and the component writes it
+(`extensions/spreadsheet/src/cells.rs`). `Formula`, `Cell::of` and reading are not.
 
 **Declined:**
 - **A `string` that looks like a number written as a number.** The cell would depend on the content,

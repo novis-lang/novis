@@ -1,0 +1,321 @@
+<?nvs
+namespace Novis\Spreadsheet;
+
+use LogicError;
+
+/// An Excel file (xlsx) that your program writes row by row.
+/// Each `create` method sets where the file goes. Add a sheet with `sheet`, add its rows, and call `finish` at the end.
+final class Workbook
+{
+    type Options = ?{zone?: string, format?: string, properties?: {title?: string, subject?: string, author?: string, company?: string, keywords?: string, created?: Core\Time\Instant}};
+    type SheetOptions = ?{position?: uint, hidden?: bool|string, tabColor?: string, zoom?: uint, gridlines?: bool, rightToLeft?: bool};
+    type RowOptions = ?{height?: float, hidden?: bool, level?: uint};
+    type Value = {text: string}|{number: float}|{integer: int}|{decimal: string}|{boolean: bool}|{date: Core\Time\Date}|{time: Core\Time\TimeOfDay}|{duration: Core\Time\Duration}|{day: Core\Time\Date, clock: Core\Time\TimeOfDay};
+    type Entry = {value: ?Value, style: ?uint};
+    type Row = {cells: array<Entry>, style: ?uint, height: ?float, hidden: bool, level: uint};
+    type Layout = {name: string, position: ?uint, visibility: Visibility, columns: array<{width: ?float, auto: bool, style: ?uint, hidden: bool}>, freezeRows: uint, freezeColumns: uint, autofilter: ?string, tabColor: ?string, zoom: ?uint, gridlines: bool, rightToLeft: bool};
+
+    private ?Core\Response\Stream $response = null;
+    private ?Core\IO\File $file = null;
+    private bool $closeFile = false;
+    private bool $keep = false;
+    private array<bytes> $kept = [];
+    private ?Layout $layout = null;
+    private bool $opened = false;
+    private array<Row> $pending = [];
+    private uint $sheets = 0;
+    private array<string> $names = [];
+    private bool $finished = false;
+
+    private function constructor(
+        private readonly Writer $writer,
+        private readonly ?Core\Time\Zone $zone,
+    ) {}
+
+    /// `Workbook::createForDownload` sends the file to the browser as a download named `$name`.
+    /// The response headers are sent at once, and each part of the file is sent when it is ready.
+    public static function createForDownload(string $name, Options $options = null): Workbook
+    {
+        var $book = self::start($name, $name, $options);
+        Core\Response::setHeader("Content-Disposition", self::disposition($name));
+        $book->response = Core\Response::stream("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        return $book;
+    }
+
+    /// `Workbook::createForFile` writes the file to `$path`. If the file exists, it is replaced.
+    /// The path needs the `fs.write` capability in `nvs.toml`.
+    public static function createForFile(#[Core\Path] string $path, Options $options = null): Workbook
+    {
+        var $book = self::start($path, $path, $options);
+        $book->file = Core\IO::open($path, Core\IO::FileMode::Write);
+        $book->closeFile = true;
+        return $book;
+    }
+
+    /// `Workbook::createForStream` writes the file to `$file`, a file that your program opened for writing.
+    /// `finish` does not close `$file`.
+    public static function createForStream(Core\IO\File $file, Options $options = null): Workbook
+    {
+        var $book = self::start("an open file", null, $options);
+        $book->file = $file;
+        return $book;
+    }
+
+    /// `Workbook::createInMemory` keeps the file in memory. `finish` returns it in `Written::bytes`.
+    public static function createInMemory(Options $options = null): Workbook
+    {
+        var $book = self::start("memory", null, $options);
+        $book->keep = true;
+        return $book;
+    }
+
+    /// `sheet` starts a new sheet named `$name` and returns it. The sheet before it is finished, and you cannot add rows to it after this.
+    /// `position` sets the place of the tab, from `0`. `hidden` is `true` or `'very'`. `zoom` is a percentage from 10 to 400.
+    public function sheet(string $name, SheetOptions $options = null): Sheet
+    {
+        $this->checkOpen();
+        $this->closeSheet();
+        Visibility $visibility = Visibility::Visible;
+        bool|string|null $hidden = $options?->hidden ?? null;
+        if ($hidden == "very") {
+            $visibility = Visibility::VeryHidden;
+        } elseif ($hidden == true) {
+            $visibility = Visibility::Hidden;
+        } elseif ($hidden is string) {
+            throw new LogicError("The sheet option `hidden` is `true`, `false` or `'very'`. The sheet `{$name}` has `'{$hidden}'`.");
+        }
+        $this->layout = {
+            name: $name,
+            position: $options?->position ?? null,
+            visibility: $visibility,
+            columns: [],
+            freezeRows: 0,
+            freezeColumns: 0,
+            autofilter: null,
+            tabColor: $options?->tabColor ?? null,
+            zoom: $options?->zoom ?? null,
+            gridlines: $options?->gridlines ?? true,
+            rightToLeft: $options?->rightToLeft ?? false,
+        };
+        $this->opened = false;
+        $this->sheets = $this->sheets + 1;
+        $this->names[] = $name;
+        return new Sheet($this->sheets, $this->queue(...));
+    }
+
+    /// `finish` writes the end of the file and sends the last part. Call it once, after the last row.
+    /// A workbook that is never finished is not a valid file, and the program logs an error for it.
+    public function finish(): Written
+    {
+        $this->checkOpen();
+        $this->closeSheet();
+        $this->finished = true;
+        var $last = Engine::writerFinish($this->writer);
+        $this->send($last->data);
+        if ($this->closeFile) {
+            $this->file?->close();
+        }
+        array<int> $rows = [];
+        foreach ($last->rows as var $sheet) {
+            $rows[$sheet->name] = $sheet->rows as int;
+        }
+        ?bytes $whole = null;
+        if ($this->keep) {
+            $whole = Core\Bytes::join($this->kept);
+            $this->kept = [];
+        }
+        return new Written($rows, $last->size as int, $whole);
+    }
+
+    private static function start(string $target, ?string $named, Options $options): Workbook
+    {
+        string $format = $options?->format ?? self::formatOf($named);
+        if ($format == "csv") {
+            throw new LogicError("This version of `Workbook` writes only `xlsx` files. To write CSV, use `Core\\Csv`.");
+        }
+        if ($format != "xlsx") {
+            throw new LogicError("The format `{$format}` is not supported. Use `xlsx`.");
+        }
+        ?Core\Time\Zone $zone = null;
+        ?string $zoneName = $options?->zone ?? null;
+        if ($zoneName != null) {
+            $zone = Core\Time\Zone::of($zoneName);
+        }
+        var $properties = $options?->properties ?? null;
+        ?{day: Core\Time\Date, clock: Core\Time\TimeOfDay} $created = null;
+        ?Core\Time\Instant $at = $properties?->created ?? null;
+        if ($at != null) {
+            var $utc = $at->in(Core\Time\Zone::of("UTC"));
+            $created = {day: $utc->date(), clock: $utc->timeOfDay()};
+        }
+        var $writer = Engine::writerOpen({
+            properties: {
+                title: $properties?->title ?? null,
+                subject: $properties?->subject ?? null,
+                author: $properties?->author ?? null,
+                company: $properties?->company ?? null,
+                keywords: $properties?->keywords ?? null,
+                created: $created,
+            },
+            target: $target,
+        });
+        return new Workbook($writer, $zone);
+    }
+
+    private static function formatOf(?string $named): string
+    {
+        if ($named == null) {
+            return "xlsx";
+        }
+        ?string $extension = Core\Path::extension($named);
+        if ($extension != null && Core\Str::lower($extension) == "csv") {
+            return "csv";
+        }
+        return "xlsx";
+    }
+
+    private static function disposition(string $name): string
+    {
+        string $plain = "";
+        foreach (Core\Str::codePoints($name) as uint $code) {
+            if ($code >= 32 && $code < 127 && $code != 34 && $code != 92) {
+                $plain = $plain . Core\Str::fromCodePoint($code);
+            } else {
+                $plain = $plain . "_";
+            }
+        }
+        return "attachment; filename=\"{$plain}\"; filename*=UTF-8''" . Core\Uri::encodeComponent($name);
+    }
+
+    private function checkOpen(): void
+    {
+        if ($this->finished) {
+            throw new LogicError("The workbook is finished. `finish` is the last call on a workbook.");
+        }
+    }
+
+    private function queue(uint $sheet, array<mixed> $row, RowOptions $options): void
+    {
+        string $name = $this->names[($sheet as int) - 1];
+        if ($this->finished) {
+            throw new LogicError("The sheet `{$name}` is finished, because the workbook is finished. `finish` is the last call on a workbook.");
+        }
+        if ($sheet != $this->sheets) {
+            throw new LogicError("The sheet `{$name}` is finished, so you cannot add rows to it. A sheet is finished when the workbook starts the next sheet.");
+        }
+        array<Entry> $cells = [];
+        uint $at = 0;
+        foreach ($row as mixed $value) {
+            $cells[] = {value: self::cell($value, $at, $this->zone), style: null};
+            $at = $at + 1;
+        }
+        $this->pending[] = {
+            cells: $cells,
+            style: null,
+            height: $options?->height ?? null,
+            hidden: $options?->hidden ?? false,
+            level: $options?->level ?? 0,
+        };
+        // A batch of 1,000 rows goes to the engine in one call.
+        if (Core\Arr::count($this->pending) >= 1000) {
+            $this->flush();
+        }
+    }
+
+    private function closeSheet(): void
+    {
+        if ($this->layout != null) {
+            if (!$this->opened || Core\Arr::count($this->pending) > 0) {
+                $this->flush();
+            }
+            $this->layout = null;
+        }
+    }
+
+    private function flush(): void
+    {
+        ?Layout $layout = $this->layout;
+        if ($layout == null) {
+            return;
+        }
+        array<Row> $rows = $this->pending;
+        $this->pending = [];
+        if ($this->opened) {
+            $this->send(Engine::writerRows($this->writer, $rows));
+            return;
+        }
+        $this->opened = true;
+        $this->send(Engine::writerSheet($this->writer, $layout, $rows));
+    }
+
+    private function send(bytes $chunk): void
+    {
+        if (Core\Bytes::length($chunk) == 0) {
+            return;
+        }
+        $this->response?->write($chunk);
+        $this->file?->write($chunk);
+        if ($this->keep) {
+            $this->kept[] = $chunk;
+        }
+    }
+
+    private static function cell(mixed $value, uint $at, ?Core\Time\Zone $zone): ?Value
+    {
+        if ($value == null) {
+            return null;
+        }
+        if ($value is string) {
+            return {text: Core\Taint::assertTrusted($value, "the engine writes a string as an inline text cell and escapes it")};
+        }
+        if ($value is bool) {
+            return {boolean: $value};
+        }
+        if ($value is int) {
+            return {integer: $value};
+        }
+        if ($value is uint) {
+            return {decimal: $value as string};
+        }
+        if ($value is float) {
+            return {number: $value};
+        }
+        if ($value is decimal) {
+            return {decimal: $value as string};
+        }
+        if ($value is Core\Time\Date) {
+            return {date: $value};
+        }
+        if ($value is Core\Time\TimeOfDay) {
+            return {time: $value};
+        }
+        if ($value is Core\Time\Duration) {
+            return {duration: $value};
+        }
+        if ($value is Core\Time\DateTime) {
+            return {day: $value->date(), clock: $value->timeOfDay()};
+        }
+        if ($value is Core\Time\Instant) {
+            if ($zone == null) {
+                string $letter = self::column($at);
+                throw new LogicError("The column `{$letter}` has an `Instant`, and the workbook has no `zone`. Set `zone` in the workbook options, such as `zone: 'Europe/Berlin'`.");
+            }
+            var $local = $value->in($zone);
+            return {day: $local->date(), clock: $local->timeOfDay()};
+        }
+        string $column = self::column($at);
+        throw new LogicError("The column `{$column}` has a value that a cell cannot contain. A cell can contain a `string`, a number, a `bool`, `null`, or a date, a time or a duration from `Core\\Time`.");
+    }
+
+    private static function column(uint $at): string
+    {
+        string $letters = "";
+        int $left = ($at as int) + 1;
+        while ($left > 0) {
+            int $rest = ($left - 1) % 26;
+            $letters = Core\Str::fromCodePoint((65 + $rest) as uint) . $letters;
+            $left = Core\Math::intDiv($left - 1, 26);
+        }
+        return $letters;
+    }
+}

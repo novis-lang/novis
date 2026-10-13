@@ -1,0 +1,48 @@
+<?nvs
+namespace Novis\Spreadsheet;
+
+use Iterable;
+use Iterator;
+
+/// One sheet of a `Workbook`. Add its rows in order with `add` or `addAll`.
+/// A row is written once and cannot be changed after that.
+final class Sheet
+{
+    type RowOptions = ?{height?: float, hidden?: bool, level?: uint};
+
+    /// `new Sheet` makes a sheet that gives each row to `$add`. `Workbook::sheet` makes one for you.
+    public function constructor(
+        private readonly uint $index,
+        private readonly callable(uint, array<mixed>, RowOptions): void $add,
+    ) {}
+
+    /// `add` adds one row to the end of the sheet. Each value of `$row` is one cell, from column `A`.
+    /// `height` sets the row height in points. `hidden` hides the row. `level` puts the row in an outline group.
+    public function add(array<mixed> $row, RowOptions $options = null): Sheet
+    {
+        callable(uint, array<mixed>, RowOptions): void $add = $this->add;
+        $add($this->index, $row, $options);
+        return $this;
+    }
+
+    /// `addAll` adds each row of `$rows` in order, as `add` does.
+    /// `$rows` can be an array or a generator, so a long list of rows does not have to be in memory.
+    public function addAll(array<array<mixed>>|Iterable<array<mixed>>|Iterator<array<mixed>> $rows): Sheet
+    {
+        callable(uint, array<mixed>, RowOptions): void $add = $this->add;
+        if ($rows is Iterable<array<mixed>>) {
+            foreach ($rows as array<mixed> $row) {
+                $add($this->index, $row, null);
+            }
+        } elseif ($rows is Iterator<array<mixed>>) {
+            foreach ($rows as array<mixed> $row) {
+                $add($this->index, $row, null);
+            }
+        } elseif ($rows is array<array<mixed>>) {
+            foreach ($rows as array<mixed> $row) {
+                $add($this->index, $row, null);
+            }
+        }
+        return $this;
+    }
+}

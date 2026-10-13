@@ -6,7 +6,7 @@ write**: a row's values and styles are final once written, and there is no in-me
 | Method | Where the bytes go |
 |---|---|
 | `createForDownload(string $name, {…})` | The response. It sets `Content-Disposition` with `$name` and starts `Core\Response::stream` at once, so the headers leave before the first row is written |
-| `createForFile(string $path, {…})` | A file, through `Core\IO::writeStream` |
+| `createForFile(string $path, {…})` | A file, opened with `Core\IO::open` in `Write` mode and written with `Core\IO\File::write` |
 | `createForStream(Core\IO\File $file, {…})` | A file the program already opened |
 | `createInMemory({…})` | Memory, and `finish()`'s `Written` carries the `bytes` |
 
@@ -62,9 +62,13 @@ paragraphs, written down once.
   the request's cap and freed when the request ends. A million rows cost one batch, never the sheet,
   so a large export runs in the request and not in a queue.
 
-**Not shipped.** The component's streaming writer and `Written` are on disk
-(`extensions/spreadsheet/src/writer.rs`). `Workbook`, `Sheet`, `Export`, the four targets and the
-cut-off download are not.
+**Not shipped.** The streaming writer (`extensions/spreadsheet/src/writer.rs`), the four targets,
+`sheet`, `finish`, `Written`, and `Sheet`'s `add` and `addAll` in batches of 1,000 rows are on disk
+(`extensions/spreadsheet/nvs/Workbook.nvs`, `Sheet.nvs`). The sheet options are `position`,
+`hidden`, `tabColor`, `zoom`, `gridlines` and `rightToLeft`, and the row options `height`, `hidden`
+and `level`. Not on disk: `columns`, `header`, `freeze`, `autofilter`, `headerStyle` and `overflow`,
+a row's `style`, the sheet-name rules, `fromRows` and `Export`, `define`, CSV, and the cut-off
+download, which the server cannot do yet (`data/gaps/nvs-server/a-streamed-body-cannot-be-cut-off.json`).
 
 **Declined:**
 - **An in-memory editable mode beside the stream.** Two ways to write is two sets of rules, and the

@@ -41,7 +41,8 @@ a lying record length, a bomb — throws `ParseError`. Anything else the compone
 `RuntimeError`. A trap throws `ExtensionError`, and the request's memory or CPU cap ends the request
 (`rule:packaging/a-guest-crash-throws`).
 
-**Not shipped.** Nothing of `Novis\Spreadsheet` is on disk.
+**Not shipped.** `Engine`, `Written`, `Sheet`'s `add` and `addAll`, and `Workbook`'s four targets,
+`sheet` and `finish` are on disk. The other members and classes are not.
 
 **Declined:**
 - **One `Spreadsheet` class with every member.** Writing, reading and filling share no state, and a

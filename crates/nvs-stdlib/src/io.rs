@@ -1394,8 +1394,14 @@ pub(crate) const FILE: CoreClass = CoreClass {
             name: "write",
             names: &["data"],
             // `$data` is not a path, so it is not a sink — the same reading
-            // `Core\IO::write`'s own `$content` carries.
-            params: &[CoreTy::Text(Qual::Neutral)],
+            // `Core\IO::write`'s own `$content` carries. A union, as
+            // `Core\Response\Stream::write`'s chunk is: a file holds octets, and
+            // `bytes` that are not UTF-8 (an archive, an image) are written as
+            // they are.
+            params: &[CoreTy::Union(&[
+                CoreTy::Text(Qual::Neutral),
+                CoreTy::Blob(Qual::Neutral),
+            ])],
             defaults: &[],
             return_ty: CoreTy::Uint,
             symbol: "nvs_core_io_file_write",
@@ -1530,7 +1536,7 @@ const FILE_WRITE_DOC: MethodDoc = MethodDoc {
             Needs no capability of its own: the descriptor was checked when `open` produced it.",
     params: &[ParamDoc {
         name: "data",
-        desc: "The bytes to write.",
+        desc: "The data to write, as a `string` or as `bytes`. It is written exactly as it is.",
         shape: &[],
     }],
     ret: "How many bytes were written, which is every byte of `$data` — a short write is retried \
@@ -2557,18 +2563,30 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\IO\File::write(string $data): uint` — replacing `fwrite`.
+    /// `Core\IO\File::write(string|bytes $data): uint` — replacing `fwrite`.
     ///
     /// `write_all` rather than one `write`, so the answer is always every byte
     /// of `$data`: PHP's short-write return is a number every correct caller
     /// turns into the same loop, and a member that returns it is a member whose
-    /// contract is "you finish this".
+    /// contract is "you finish this". The two readers are asked in turn, as
+    /// `Core\Response\Stream::write` asks them, because `Value::as_bytes`
+    /// answers `None` for text.
     fn nvs_core_io_file_write(ctx, args: [2]) {
         let (key, path) = handle_of(args[0], "write")?;
-        let data = text(&args[1], "write", "data")?;
+        // Unreachable from source: the row's parameter is a union of exactly
+        // these two, so `E0401` refuses every other one before this runs.
+        let data = args[1]
+            .as_str_bytes()
+            .or_else(|| args[1].as_bytes())
+            .ok_or_else(|| {
+                Fault::fatal(format!(
+                    "Core\\IO\\File::write expected a `string` or `bytes`, got tag {}",
+                    args[1].tag_byte()
+                ))
+            })?;
         {
             let file = ctx.open_file_mut(key).ok_or_else(|| already_closed("write", &path))?;
-            file.write_all(data.as_bytes())
+            file.write_all(data)
         }
         .map_err(|err| {
             nvs_runtime::capability::io_failure(

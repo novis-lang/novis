@@ -1,0 +1,64 @@
+--TEST--
+`Workbook::createInMemory` writes a sheet of typed rows from a binary with no `nvs.toml` and no grant, `finish` returns the row count and the size, the bytes are an xlsx archive whose sheet holds each cell by the write table, and a download sends the same bytes: rule:core-classes/spreadsheet-writes-as-a-stream
+--FILE--
+<?nvs
+// covers: Novis\Spreadsheet\Workbook::createInMemory
+// covers: Novis\Spreadsheet\Workbook::createForDownload
+// covers: Novis\Spreadsheet\Workbook::sheet
+// covers: Novis\Spreadsheet\Workbook::finish
+// covers: Novis\Spreadsheet\Sheet::add
+// covers: Novis\Spreadsheet\Sheet::addAll
+// covers: Novis\Spreadsheet\Engine::writerOpen
+// covers: Novis\Spreadsheet\Engine::writerSheet
+// covers: Novis\Spreadsheet\Engine::writerFinish
+use Novis\Spreadsheet\Workbook;
+
+// Each value is one cell. A `string` is text, a number is a number, and a date is a date.
+var $book = Workbook::createInMemory({properties: {title: "Shop orders"}});
+var $sheet = $book->sheet("Orders");
+$sheet->add(["Widget", 3, 2.5, true, null, Core\Time\Date::at(2024, 1, 15)]);
+$sheet->addAll([["Gadget", 4], ["Gizmo", 5]]);
+$sheet->add(["Total"], {height: 30.0});
+var $written = $book->finish();
+echo $written->rows["Orders"], " rows\n";
+
+// The size is the length of the file in bytes.
+bytes $file = $written->bytes ?? Core\Bytes::fill(0, 0);
+echo $written->size == Core\Bytes::length($file) ? "the size is the length of the file" : "the size is wrong", "\n";
+
+// An xlsx file is a zip archive. Its first sheet is `xl/worksheets/sheet1.xml`.
+var $xml = Core\Zip::read($file, "xl/worksheets/sheet1.xml") as string;
+array<string> $cells = [
+    "<c r=\"A1\" t=\"inlineStr\"><is><t>Widget</t></is></c>",
+    "<c r=\"B1\"><v>3</v></c>",
+    "<c r=\"C1\"><v>2.5</v></c>",
+    "<c r=\"D1\" t=\"b\"><v>1</v></c>",
+    "<v>45306</v>",
+    "<row r=\"4\" ht=\"30\" customHeight=\"1\">",
+];
+foreach ($cells as string $cell) {
+    echo Core\Str::contains($xml, $cell) ? "has " : "lacks ", $cell, "\n";
+}
+// `null` is an empty cell, so the row has no cell `E1`.
+echo Core\Str::contains($xml, "r=\"E1\"") ? "has E1" : "no E1", "\n";
+
+// A download sends the same bytes as the file in memory.
+var $sent = Core\Out::capture(fn (): void => {
+    var $download = Workbook::createForDownload("Orders März.xlsx");
+    $download->sheet("Orders")->add(["Widget", 3]);
+    $download->finish();
+});
+var $memory = Workbook::createInMemory();
+$memory->sheet("Orders")->add(["Widget", 3]);
+echo ($sent as string as bytes) == $memory->finish()->bytes ? "the download is the same file" : "the download is different", "\n";
+--EXPECT--
+4 rows
+the size is the length of the file
+has <c r="A1" t="inlineStr"><is><t>Widget</t></is></c>
+has <c r="B1"><v>3</v></c>
+has <c r="C1"><v>2.5</v></c>
+has <c r="D1" t="b"><v>1</v></c>
+has <v>45306</v>
+has <row r="4" ht="30" customHeight="1">
+no E1
+the download is the same file

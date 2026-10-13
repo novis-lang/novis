@@ -1,0 +1,54 @@
+--TEST--
+`Workbook::createForFile` and `Workbook::createForStream` write the same bytes as `Workbook::createInMemory` for equal input, over more rows than one batch and two sheets, and `Written` has no bytes for a file: rule:core-classes/spreadsheet-writes-as-a-stream
+--FILE--
+<?nvs
+// covers: Novis\Spreadsheet\Workbook::createForFile
+// covers: Novis\Spreadsheet\Workbook::createForStream
+// covers: Novis\Spreadsheet\Workbook::createInMemory
+// covers: Novis\Spreadsheet\Engine::writerRows
+// covers: Core\IO\File::write
+use Novis\Spreadsheet\Workbook;
+
+final class Shop {
+    // This generator gives 2,500 order rows, one at a time.
+    public static function orders(): Iterator<array<mixed>> {
+        int $at = 0;
+        while ($at < 2500) {
+            yield ["Order", $at, $at * 2.5];
+            $at = $at + 1;
+        }
+    }
+
+    // This function writes the same two sheets to any workbook.
+    public static function fill(Workbook $book): Novis\Spreadsheet\Written {
+        $book->sheet("Orders")->addAll(Shop::orders());
+        $book->sheet("Notes", {position: 0, tabColor: "#336699"})->add(["Shipped"]);
+        return $book->finish();
+    }
+}
+
+var $memory = Shop::fill(Workbook::createInMemory());
+bytes $expected = $memory->bytes ?? Core\Bytes::fill(0, 0);
+
+var $saved = Shop::fill(Workbook::createForFile("out-file.xlsx"));
+echo $saved->rows["Orders"], " and ", $saved->rows["Notes"], " rows\n";
+echo $saved->bytes == null ? "no bytes in the result" : "bytes in the result", "\n";
+
+Core\IO\File $open = Core\IO::open("out-open.xlsx", Core\IO::FileMode::Write);
+Shop::fill(Workbook::createForStream($open));
+$open->close();
+
+// Latin-1 reads each byte of a file as one character, so encoding the text again gives the bytes of the file.
+var $file = Core\Encoding::encodeText(Core\IO::readText("out-file.xlsx", {charset: Core\Charset::Latin1}), Core\Charset::Latin1);
+echo "out-file.xlsx: ", $file == $expected ? "the same bytes as in memory" : "different bytes", "\n";
+var $opened = Core\Encoding::encodeText(Core\IO::readText("out-open.xlsx", {charset: Core\Charset::Latin1}), Core\Charset::Latin1);
+echo "out-open.xlsx: ", $opened == $expected ? "the same bytes as in memory" : "different bytes", "\n";
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+2500 and 1 rows
+no bytes in the result
+out-file.xlsx: the same bytes as in memory
+out-open.xlsx: the same bytes as in memory

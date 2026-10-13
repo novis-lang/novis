@@ -248,6 +248,8 @@ Conventions the whole file uses:
 | [`Novis\Pdf\Reader`](#core-novis-pdf-reader) |  |
 | [`Novis\Pdf\Rendered`](#core-novis-pdf-rendered) |  |
 | [`Novis\Pdf\Engine`](#core-novis-pdf-engine) |  |
+| [`Novis\Spreadsheet\Sheet`](#core-novis-spreadsheet-sheet) |  |
+| [`Novis\Spreadsheet\Workbook`](#core-novis-spreadsheet-workbook) |  |
 | [`Novis\Spreadsheet\Written`](#core-novis-spreadsheet-written) |  |
 | [`Novis\Spreadsheet\Engine`](#core-novis-spreadsheet-engine) |  |
 | [`Core` enums](#core-enums) | every enum a member takes, with its cases |
@@ -12629,7 +12631,7 @@ Keywords: read, readLine, write, seek, tell, truncate, flush, lock, close
 |---|---|
 | [`Core\IO\File->read`](#core-core-io-file-read) | `read(uint $max): string` |
 | [`Core\IO\File->readLine`](#core-core-io-file-readline) | `readLine(): ?string` |
-| [`Core\IO\File->write`](#core-core-io-file-write) | `write(string $data): uint` |
+| [`Core\IO\File->write`](#core-core-io-file-write) | `write(string\|bytes $data): uint` |
 | [`Core\IO\File->seek`](#core-core-io-file-seek) | `seek(uint $offset): void` |
 | [`Core\IO\File->tell`](#core-core-io-file-tell) | `tell(): uint` |
 | [`Core\IO\File->truncate`](#core-core-io-file-truncate) | `truncate(uint $size): void` |
@@ -12671,14 +12673,14 @@ Reads the next line and moves the handle past it — `fgets`. The terminator is 
 #### `Core\IO\File->write`
 
 ```nvs skip
-$file->write(string $data): uint
+$file->write(string|bytes $data): uint
 ```
 
 Writes `$data` at the handle's position and moves it past what went out — `fwrite`. Needs no capability of its own: the descriptor was checked when `open` produced it.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$data` | `string` (neutral) | The bytes to write. |
+| `$data` | `string\|bytes` (neutral) | The data to write, as a `string` or as `bytes`. It is written exactly as it is. |
 
 **Returns** `uint` — How many bytes were written, which is every byte of `$data` — a short write is retried rather than reported, so a caller never has to loop.
 
@@ -29958,6 +29960,135 @@ Returns the text of each page in `pages` of a PDF file. Pages count from 1.
 | `$pages` | `array<uint>` |  |
 
 **Returns** `array<string>`
+
+<a id="core-novis-spreadsheet-sheet"></a>
+### `Novis\Spreadsheet\Sheet`
+
+Keywords: constructor, add, addAll
+
+| Member | Signature |
+|---|---|
+| [`Novis\Spreadsheet\Sheet::constructor`](#core-novis-spreadsheet-sheet-constructor) | `constructor(uint $index, callable(uint, array<mixed>, RowOptions): void $add)` |
+| [`Novis\Spreadsheet\Sheet->add`](#core-novis-spreadsheet-sheet-add) | `add(array<mixed> $row, RowOptions $options = null): Sheet` |
+| [`Novis\Spreadsheet\Sheet->addAll`](#core-novis-spreadsheet-sheet-addall) | `addAll(array<array<mixed>>\|Iterable<array<mixed>>\|Iterator<array<mixed>> $rows): Sheet` |
+
+<a id="core-novis-spreadsheet-sheet-constructor"></a>
+#### `Novis\Spreadsheet\Sheet::constructor`
+
+```nvs skip
+new Novis\Spreadsheet\Sheet(uint $index, callable(uint, array<mixed>, RowOptions): void $add)
+```
+
+`new Sheet` makes a sheet that gives each row to `$add`. `Workbook::sheet` makes one for you.
+
+<a id="core-novis-spreadsheet-sheet-add"></a>
+#### `Novis\Spreadsheet\Sheet->add`
+
+```nvs skip
+$sheet->add(array<mixed> $row, RowOptions $options = null): Sheet
+```
+
+`add` adds one row to the end of the sheet. Each value of `$row` is one cell, from column `A`.
+`height` sets the row height in points. `hidden` hides the row. `level` puts the row in an outline group.
+
+**Returns** `Sheet`
+
+<a id="core-novis-spreadsheet-sheet-addall"></a>
+#### `Novis\Spreadsheet\Sheet->addAll`
+
+```nvs skip
+$sheet->addAll(array<array<mixed>>|Iterable<array<mixed>>|Iterator<array<mixed>> $rows): Sheet
+```
+
+`addAll` adds each row of `$rows` in order, as `add` does.
+`$rows` can be an array or a generator, so a long list of rows does not have to be in memory.
+
+**Returns** `Sheet`
+
+<a id="core-novis-spreadsheet-workbook"></a>
+### `Novis\Spreadsheet\Workbook`
+
+Keywords: createForDownload, createForFile, createForStream, createInMemory, sheet, finish
+
+| Member | Signature |
+|---|---|
+| [`Novis\Spreadsheet\Workbook::createForDownload`](#core-novis-spreadsheet-workbook-createfordownload) | `createForDownload(string $name, Options $options = null): Workbook` |
+| [`Novis\Spreadsheet\Workbook::createForFile`](#core-novis-spreadsheet-workbook-createforfile) | `createForFile(string $path, Options $options = null): Workbook` |
+| [`Novis\Spreadsheet\Workbook::createForStream`](#core-novis-spreadsheet-workbook-createforstream) | `createForStream(Core\IO\File $file, Options $options = null): Workbook` |
+| [`Novis\Spreadsheet\Workbook::createInMemory`](#core-novis-spreadsheet-workbook-createinmemory) | `createInMemory(Options $options = null): Workbook` |
+| [`Novis\Spreadsheet\Workbook->sheet`](#core-novis-spreadsheet-workbook-sheet) | `sheet(string $name, SheetOptions $options = null): Sheet` |
+| [`Novis\Spreadsheet\Workbook->finish`](#core-novis-spreadsheet-workbook-finish) | `finish(): Written` |
+
+<a id="core-novis-spreadsheet-workbook-createfordownload"></a>
+#### `Novis\Spreadsheet\Workbook::createForDownload`
+
+```nvs skip
+Novis\Spreadsheet\Workbook::createForDownload(string $name, Options $options = null): Workbook
+```
+
+`Workbook::createForDownload` sends the file to the browser as a download named `$name`.
+The response headers are sent at once, and each part of the file is sent when it is ready.
+
+**Returns** `Workbook`
+
+<a id="core-novis-spreadsheet-workbook-createforfile"></a>
+#### `Novis\Spreadsheet\Workbook::createForFile`
+
+```nvs skip
+Novis\Spreadsheet\Workbook::createForFile(string $path, Options $options = null): Workbook
+```
+
+`Workbook::createForFile` writes the file to `$path`. If the file exists, it is replaced.
+The path needs the `fs.write` capability in `nvs.toml`.
+
+**Returns** `Workbook`
+
+<a id="core-novis-spreadsheet-workbook-createforstream"></a>
+#### `Novis\Spreadsheet\Workbook::createForStream`
+
+```nvs skip
+Novis\Spreadsheet\Workbook::createForStream(Core\IO\File $file, Options $options = null): Workbook
+```
+
+`Workbook::createForStream` writes the file to `$file`, a file that your program opened for writing.
+`finish` does not close `$file`.
+
+**Returns** `Workbook`
+
+<a id="core-novis-spreadsheet-workbook-createinmemory"></a>
+#### `Novis\Spreadsheet\Workbook::createInMemory`
+
+```nvs skip
+Novis\Spreadsheet\Workbook::createInMemory(Options $options = null): Workbook
+```
+
+`Workbook::createInMemory` keeps the file in memory. `finish` returns it in `Written::bytes`.
+
+**Returns** `Workbook`
+
+<a id="core-novis-spreadsheet-workbook-sheet"></a>
+#### `Novis\Spreadsheet\Workbook->sheet`
+
+```nvs skip
+$workbook->sheet(string $name, SheetOptions $options = null): Sheet
+```
+
+`sheet` starts a new sheet named `$name` and returns it. The sheet before it is finished, and you cannot add rows to it after this.
+`position` sets the place of the tab, from `0`. `hidden` is `true` or `'very'`. `zoom` is a percentage from 10 to 400.
+
+**Returns** `Sheet`
+
+<a id="core-novis-spreadsheet-workbook-finish"></a>
+#### `Novis\Spreadsheet\Workbook->finish`
+
+```nvs skip
+$workbook->finish(): Written
+```
+
+`finish` writes the end of the file and sends the last part. Call it once, after the last row.
+A workbook that is never finished is not a valid file, and the program logs an error for it.
+
+**Returns** `Written`
 
 <a id="core-novis-spreadsheet-written"></a>
 ### `Novis\Spreadsheet\Written`
