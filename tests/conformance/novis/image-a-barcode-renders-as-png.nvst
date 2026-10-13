@@ -40,5 +40,5 @@ image/png 264x120
 image/webp 315x114
 80x80
 the check digit of the EAN-13 4006381333932 is 1, and the data ends in 2
-Code 39 cannot carry the character 'o' at position 1
+Code 39 cannot encode the character 'o' at position 1
 a barcode needs a `module` and a `height` above 0
