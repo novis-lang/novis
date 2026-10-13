@@ -568,7 +568,9 @@ fn a_batch_of_rows_returns_the_compressed_bytes_ready_to_leave() {
 fn the_guest_holds_no_row_of_an_earlier_batch() {
     let host = Host::new(4, |_| Ok(())).expect("the host starts");
     let extension = spreadsheet(&host);
-    let meter = Arc::new(Meter::new(Duration::from_secs(120), None));
+    // A `Meter`'s CPU budget is wall-clock time, and this test measures memory, not time. An hour
+    // keeps 40 debug-built batches on a loaded machine clear of the deadline.
+    let meter = Arc::new(Meter::new(Duration::from_secs(3600), None));
     let request = host.request(Arc::clone(&meter) as Arc<dyn Budget>);
     let writer = call(
         &request,
