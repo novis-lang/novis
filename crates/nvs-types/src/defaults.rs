@@ -62,14 +62,14 @@
 //! **A named constant is accepted at both positions, and the emitter carrying
 //! the position's own IR type is what makes the parameter half work.** The
 //! fold is [`const_reference_default`] either way; where the two differ is
-//! where the constant lands. A property default becomes a
-//! `nvs_runtime::FieldDefault` written straight into a slot, where an enum
-//! case *is* the integer it was folded to. A parameter default is emitted at
-//! every omitting call site by `nvs_ir::lower::emit_const_arg`, which is
-//! handed the parameter's own `nvs_ir::ty::Ty` and materializes that same
-//! integer under `nvs_ir::ty::Ty::Enum` — the type a written `Mode::Fast`
-//! already lowers to, so no value in the IR carries a plain `int` where the
-//! signature declares an enum.
+//! where the constant lands. An enum case folds to [`ConstArg::EnumInt`] or
+//! [`ConstArg::EnumUint`] in both, so the constant itself says it is a case. A
+//! property default becomes a `nvs_runtime::FieldDefault` of the same kind,
+//! written straight into a slot under the enum tag. A parameter default is
+//! emitted at every omitting call site by `nvs_ir::lower::emit_const_arg`
+//! under `nvs_ir::ty::Ty::Enum` — the type a written `Mode::Fast` already
+//! lowers to, so no value in the IR carries a plain `int` where the program
+//! wrote a case.
 //!
 //! A class constant is also only as wide as [`crate::consts`] folds it: an
 //! integer whose magnitude no `int` holds has no folded value at all
@@ -131,6 +131,19 @@ pub enum ConstArg {
     Int(i64),
     /// `uint`
     Uint(u64),
+    /// A case of an `int`-backed enum, as its backing value —
+    /// `rule:enums/representation`.
+    ///
+    /// Kept apart from [`Self::Int`] because the two materialize under
+    /// different runtime tags (`nvs_runtime::Tag::EnumInt` and `Tag::Int`): a
+    /// case stored where the tag is the only type left — an array element, a
+    /// shape field, a property slot read back as `mixed` — has to answer `is`
+    /// for its enum and stay truthy at `0`. Produced by the two folds of a
+    /// written case, [`const_reference_default`] and [`fold_const_reference`].
+    EnumInt(i64),
+    /// A case of a `uint`-backed enum, as its backing value: [`Self::EnumInt`]'s
+    /// unsigned half.
+    EnumUint(u64),
     /// `float`
     Float(f64),
     /// `decimal`, as `nvs_ir::ir::InstKind::ConstDecimal`'s own three parts —
@@ -245,6 +258,17 @@ pub enum ConstArg {
     Array(Vec<(String, ConstArg)>),
 }
 
+impl ConstArg {
+    /// One enum case, under the variant its backing type gives it.
+    #[must_use]
+    pub const fn enum_case(case: crate::enums::EnumValue) -> Self {
+        match case {
+            crate::enums::EnumValue::Int(value) => Self::EnumInt(value),
+            crate::enums::EnumValue::Uint(value) => Self::EnumUint(value),
+        }
+    }
+}
+
 /// Evaluates a written `= expr` parameter default against the parameter's own
 /// declared type `declared`, reporting `E_PARAM_DEFAULT_NOT_LITERAL` and
 /// returning `None` for anything this module does not accept (see its docs).
@@ -257,9 +281,10 @@ pub enum ConstArg {
 /// A *named* constant — an enum case, another class's `const` — is folded by
 /// the same [`const_reference_default`] a property default reaches, so the two
 /// positions accept one constant set. What the name resolves to is the whole
-/// of what crosses: the call site emits the folded value at the parameter's
-/// own IR type (`nvs_ir::lower::emit_const_arg`), so `Mode $m = Mode::Fast`
-/// materializes the case's integer *as* that enum rather than as an `int`.
+/// of what crosses: a case folds to [`ConstArg::EnumInt`] or
+/// [`ConstArg::EnumUint`], which the call site emits under `Ty::Enum`
+/// (`nvs_ir::lower::emit_const_arg`), so `Mode $m = Mode::Fast` materializes
+/// the case as that enum rather than as an `int`.
 pub(crate) fn eval_param_default(
     expr: &Expr,
     declared: TypeId,
@@ -306,9 +331,9 @@ pub(crate) fn eval_param_default(
 /// Unlike a parameter default, this constant is never emitted at a *call
 /// site*: it is copied onto the class descriptor and written into the fresh
 /// instance's slot by `nvs_runtime::NvsObj::new`, which is why an array
-/// constant is reachable here at all — and why a folded enum case is, since
-/// what the slot receives is the integer `rule:enums/no-class-machinery` says the case already
-/// is.
+/// constant is reachable here at all. A folded enum case reaches the slot as
+/// `nvs_runtime::FieldDefault::EnumInt` or `EnumUint`, under the enum tag a
+/// written case carries.
 pub(crate) fn eval_property_default(
     expr: &Expr,
     declared: TypeId,
@@ -397,10 +422,7 @@ fn const_reference_default(
         if !names_it {
             return None;
         }
-        return Some(match case {
-            crate::enums::EnumValue::Int(value) => ConstArg::Int(value),
-            crate::enums::EnumValue::Uint(value) => ConstArg::Uint(value),
-        });
+        return Some(ConstArg::enum_case(case));
     }
     let folded = if qname.is_core() {
         crate::core_lib::constant(&qname, &member, env.interner).map(|(_, value)| value)
@@ -505,10 +527,7 @@ pub(crate) fn fold_const_reference(
             let qname = crate::expr::resolve_class_expr(class, ctx, env)?;
             let member = crate::span_text(env.src, *name).to_owned();
             if let Some(case) = env.enums.case(&qname, &member) {
-                return Some(match case {
-                    crate::enums::EnumValue::Int(value) => ConstArg::Int(value),
-                    crate::enums::EnumValue::Uint(value) => ConstArg::Uint(value),
-                });
+                return Some(ConstArg::enum_case(case));
             }
             if qname.is_core() {
                 return crate::core_lib::constant(&qname, &member, env.interner)
@@ -769,8 +788,8 @@ fn fold_const_array(
         let key = match key {
             Some(key) => match fold_constant_value(key, ctx, env)? {
                 ConstArg::Str(s) => s,
-                ConstArg::Int(n) => n.to_string(),
-                ConstArg::Uint(n) => n.to_string(),
+                ConstArg::Int(n) | ConstArg::EnumInt(n) => n.to_string(),
+                ConstArg::Uint(n) | ConstArg::EnumUint(n) => n.to_string(),
                 _ => return None,
             },
             None => {

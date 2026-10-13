@@ -812,6 +812,13 @@ pub enum FieldDefault {
     Int(i64),
     /// `uint`
     Uint(u64),
+    /// A case of an `int`-backed enum, as its backing value. It materializes
+    /// under [`crate::Tag::EnumInt`] (`rule:enums/representation`), so a slot
+    /// that kept its default reads back as the case through a `mixed` too.
+    EnumInt(i64),
+    /// A case of a `uint`-backed enum: [`Self::EnumInt`] under
+    /// [`crate::Tag::EnumUint`].
+    EnumUint(u64),
     /// `float`
     Float(f64),
     /// `string`, already cooked — the octets the slot's fresh
@@ -847,6 +854,8 @@ impl FieldDefault {
             Self::Bool(v) => Value::bool(*v),
             Self::Int(v) => Value::int(*v),
             Self::Uint(v) => Value::uint(*v),
+            Self::EnumInt(v) => Value::enum_int(*v),
+            Self::EnumUint(v) => Value::enum_uint(*v),
             Self::Float(v) => Value::float(*v),
             Self::Str(s) => Value::str(crate::NvsStr::new(s.as_bytes())),
             Self::EmptyArray => Value::array(crate::NvsArray::new()),
@@ -977,9 +986,10 @@ pub struct EnumCases {
 /// of, and every case by name.
 ///
 /// [`ClassDesc`]'s counterpart for the one type that has no descriptor:
-/// `rule:enums/representation` makes an enum case *be* the integer behind it at
-/// run time, so nothing about a running value can be asked what enum it came
-/// from and there is no class to hang the answer on. `rule:enums/reflection` is
+/// `rule:enums/representation` makes an enum case its backing integer at run
+/// time, under an enum tag that names no enum, so nothing about a running value
+/// can be asked what enum it came from and there is no class to hang the answer
+/// on. `rule:enums/reflection` is
 /// the one reader — `Core\Reflect\EnumInfo::of` reports a name and a closed
 /// case list as ordinary structural metadata — and the shape is carried here
 /// because the front end is the only place it exists: `nvs_types::enums`
@@ -1833,8 +1843,8 @@ pub struct ClassTable {
     ///
     /// Unboxed, unlike the two above, and that is the whole difference between
     /// them: no address of one is ever baked into machine code, because an enum
-    /// case at run time is the integer behind it and compiled code never
-    /// reaches this at all. The one reader is `Core\Reflect\EnumInfo::of`,
+    /// case at run time is its backing integer under an enum tag that names no
+    /// enum, so compiled code never reaches this at all. The one reader is `Core\Reflect\EnumInfo::of`,
     /// which arrives by name.
     enums: Vec<EnumDesc>,
 }
@@ -6515,5 +6525,25 @@ mod tests {
         // The recipes travel with it, and are plain data — no `unsafe impl`
         // buys this one, so a `FieldDefault` growing a pointer fails here.
         crosses::<std::sync::Arc<[Option<FieldDefault>]>>();
+    }
+
+    /// `rule:enums/representation`: an enum default materializes under the
+    /// enum tag, so a new object, a static slot and a decoder's absent field
+    /// all start as the case. A plain `int` default keeps `Tag::Int`.
+    #[test]
+    fn an_enum_default_materializes_under_the_enum_tag() {
+        assert_eq!(
+            FieldDefault::EnumInt(0).materialize().exact_tag(),
+            Some(Tag::EnumInt)
+        );
+        assert_eq!(
+            FieldDefault::EnumUint(0).materialize().exact_tag(),
+            Some(Tag::EnumUint)
+        );
+        assert_eq!(FieldDefault::EnumInt(-3).materialize().as_int(), Some(-3));
+        assert_eq!(
+            FieldDefault::Int(0).materialize().exact_tag(),
+            Some(Tag::Int)
+        );
     }
 }

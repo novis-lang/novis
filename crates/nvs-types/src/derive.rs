@@ -954,10 +954,12 @@ fn codec_ty(
                 shape: None,
             }
         }
-        // `rule:core-classes/derive-field-list`'s enum. What travels is the roster and not the name: `rule:enums/representation` reserves an enum tag that nothing writes, so by the time a case
-        // is a value it is the integer behind it, and a decoder has nothing to
-        // resolve a name against. The membership test is therefore the whole
-        // of the decode — see `nvs_stdlib::EnumCases`.
+        // `rule:core-classes/derive-field-list`'s enum. What travels is the roster and not the name: a case at
+        // run time is its backing integer under an enum tag that names no enum
+        // (`rule:enums/representation`), so a decoder has no name to resolve
+        // against. The membership test is therefore the whole of the decode,
+        // and the decoder writes the enum tag of the backing type — see
+        // `nvs_stdlib::EnumCases`.
         Ty::Enum(name, backing) => Erased {
             ty: CodecTy::Enum,
             element: None,

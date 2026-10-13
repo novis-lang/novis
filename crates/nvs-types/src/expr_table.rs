@@ -368,9 +368,10 @@ pub enum UrlPiece {
 ///
 /// `rule:routing/an-enum-capture-is-spelled-by-its-backing-value-or-its-case-name`
 /// decides the spelling while compiling, and a **name**-spelled subset is the
-/// half that leaves work over. A case is indistinguishable from its integer by
-/// the time it is a value, so a link would otherwise build `/s/1` for a route
-/// whose segment is `/s/Sale`. A value-spelled subset gets no entry at all: the
+/// half that leaves work over. A case carries no name at run time, only its
+/// backing integer under an enum tag that names no enum
+/// (`rule:enums/representation`), so a link would otherwise build `/s/1` for a
+/// route whose segment is `/s/Sale`. A value-spelled subset gets no entry at all: the
 /// decimal `nvs_runtime::value_to_string` already writes *is* its segment.
 ///
 /// Not a check, and that is what makes it affordable at all — the set a link is

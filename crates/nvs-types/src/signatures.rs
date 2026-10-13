@@ -2060,9 +2060,9 @@ mod tests {
         assert_eq!(
             sig.defaults,
             vec![
-                // The case's backing integer: what `rule:enums/no-class-machinery` says the case
-                // already is, with the enum carried by the parameter's type.
-                Some(crate::defaults::ConstArg::Int(3)),
+                // The case's backing value, folded as a case
+                // (`rule:enums/representation`), not as its ordinal.
+                Some(crate::defaults::ConstArg::EnumInt(3)),
                 Some(crate::defaults::ConstArg::Int(12)),
                 Some(crate::defaults::ConstArg::Uint(12)),
             ]

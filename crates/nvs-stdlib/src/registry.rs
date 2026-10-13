@@ -2371,9 +2371,10 @@ pub const CLASSES: &[CoreClass] = &[
     crate::reflect::CONSTANT_INFO,
     crate::reflect::ATTRIBUTE_INFO,
     // `rule:enums/reflection`'s description of the one type that has no
-    // descriptor: an enum case at run time is the integer behind it, so there
-    // is no value to describe and no `forObject` twin — the name is the only
-    // door, and what it opens onto is the shape the compiler carried down.
+    // descriptor: an enum case at run time is its backing integer under an
+    // enum tag that names no enum, so there is no value to describe and no
+    // `forObject` twin — the name is the only door, and what it opens onto is
+    // the shape the compiler carried down.
     crate::reflect::ENUM_INFO,
     // § 3's other half of the same ADR: the compiler's own parser, reached at
     // run time. One member, because parsing is one question.

@@ -675,6 +675,11 @@ impl<'a> Lowering<'a> {
             nvs_types::ConstArg::Bool(b) => (Ty::Bool, InstKind::ConstBool(*b)),
             nvs_types::ConstArg::Int(v) => (Ty::Int, InstKind::ConstInt(*v)),
             nvs_types::ConstArg::Uint(v) => (Ty::Uint, InstKind::ConstUint(*v)),
+            // A case is its backing integer under `Ty::Enum`, the type a
+            // written `Mode::Fast` lowers to, so a case inside a folded array
+            // or shape is stored under the enum tag with no position to say so.
+            nvs_types::ConstArg::EnumInt(v) => (Ty::Enum(EnumRepr::Int), InstKind::ConstInt(*v)),
+            nvs_types::ConstArg::EnumUint(v) => (Ty::Enum(EnumRepr::Uint), InstKind::ConstUint(*v)),
             nvs_types::ConstArg::Float(v) => (Ty::Float, InstKind::ConstFloat(*v)),
             &nvs_types::ConstArg::Decimal {
                 negative,
@@ -731,10 +736,11 @@ impl<'a> Lowering<'a> {
                 (Ty::Array, InstKind::ArrayNew { entries: values })
             }
         };
-        // The one thing the position decides. A case's backing integer and the
-        // enum it is a case of are the same bits (`Ty::Enum`'s own doc), so
-        // nothing is converted here — the constant is simply emitted under the
-        // type the slot declares, exactly as a written case already is.
+        // The one thing the position decides. A `Core` member's enum default
+        // arrives as a plain integer constant (`nvs_types::core_lib`), and is
+        // emitted here under the enum type the slot declares. A case's backing
+        // integer and the enum it is a case of are the same bits (`Ty::Enum`'s
+        // own doc), so nothing is converted.
         let ty = match (position, &kind) {
             (Some(Ty::Enum(repr @ EnumRepr::Int)), InstKind::ConstInt(_))
             | (Some(Ty::Enum(repr @ EnumRepr::Uint)), InstKind::ConstUint(_)) => Ty::Enum(repr),

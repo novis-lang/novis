@@ -246,8 +246,8 @@ fn example_value(value: &ConstArg) -> Option<Value> {
     Some(match value {
         ConstArg::Null => Value::Null,
         ConstArg::Bool(value) => json!(value),
-        ConstArg::Int(value) => json!(value),
-        ConstArg::Uint(value) => json!(value),
+        ConstArg::Int(value) | ConstArg::EnumInt(value) => json!(value),
+        ConstArg::Uint(value) | ConstArg::EnumUint(value) => json!(value),
         ConstArg::Float(value) => json!(value),
         ConstArg::Str(value) => json!(value),
         ConstArg::EmptyArray => Value::Array(Vec::new()),

@@ -1339,8 +1339,8 @@ impl Classes {
         out.link_codecs(classes);
         // Beside the descriptors rather than among them: `rule:enums/reflection`
         // is the one reader of this roster, and nothing it holds is relocated
-        // against, since an enum case at run time is the integer behind it and
-        // compiled code never names the shape at all.
+        // against: an enum case at run time is its backing integer under an
+        // enum tag that names no enum, so compiled code never names the shape.
         for shape in enums {
             out.table
                 .define_enum(shape.label.clone(), shape.unsigned, shape.cases.clone());

@@ -426,10 +426,6 @@ class Config {
         ("debug", "debugLiteral"),
         ("span", "spanLiteral"),
         ("widened", "widenedLiteral"),
-        // `rule:enums/no-class-machinery`: the case *is* its backing integer, so the slot an
-        // enum-typed property arms holds exactly what the integer literal
-        // arms — there is no second representation for it to drift into.
-        ("mode", "modeBacking"),
     ] {
         assert_eq!(
             value(named),
@@ -437,6 +433,11 @@ class Config {
             "`${named}` and `${literal}` are the same constant written twice"
         );
     }
+    // `rule:enums/representation`: a case folds to its backing value, not its
+    // ordinal, and stays a case, so the slot is armed under the enum tag. The
+    // integer literal of the same value stays an `int`.
+    assert_eq!(value("mode"), nvs_types::ConstArg::EnumInt(3));
+    assert_eq!(value("modeBacking"), nvs_types::ConstArg::Int(3));
 
     // The other end: a case of a *different* enum is not a constant of this
     // property's declared type, exactly as a `string` literal is not.

@@ -1,0 +1,58 @@
+--TEST--
+An enum case inside a retrieved attribute payload is the case itself, in an array field and in a shape field alike, so `is` names its enum, a callable declaring the enum accepts it and a case backed by `0` is truthy, on both backings — `rule:enums/representation` and `rule:attributes/retrieval-folds-while-checking`
+--FILE--
+<?nvs
+// The payload is built from constants the compiler folded, so each case in it
+// has to carry the enum tag a written case carries. A case read back as a bare
+// `int` fails every check below.
+enum Mode: int {
+    Off = 0,
+    On = 1,
+}
+
+enum Weight: uint {
+    Light = 0,
+    Heavy = 2,
+}
+
+#[{modes: [Mode::Off, Mode::On], mode: Mode::Off, weight: Weight::Light}]
+class Job {
+}
+
+class Check {
+    public static function show(string $label, mixed $value): void
+    {
+        echo $label, ": is Mode=", $value is Mode ? "yes" : "no",
+            " is Weight=", $value is Weight ? "yes" : "no",
+            " is int=", $value is int ? "yes" : "no",
+            " truthy=", $value ? "yes" : "no", "\n";
+    }
+}
+
+?{modes: array<mixed>} $list = Core\Attributes::get<{modes: array<mixed>}>(Job::constructor(...));
+if ($list != null) {
+    foreach ($list->modes as mixed $mode) {
+        Check::show("element", $mode);
+    }
+    // A function with a `Mode` parameter checks the value when it is called.
+    // It throws an error for a plain `int`.
+    callable $name = fn(Mode $m): string => $m == Mode::On ? "on" : "off";
+    foreach ($list->modes as mixed $mode) {
+        echo "called: ", $name($mode) as string, "\n";
+    }
+}
+
+?{mode: Mode, weight: Weight} $one = Core\Attributes::get<{mode: Mode, weight: Weight}>(Job::constructor(...));
+if ($one != null) {
+    mixed $shape = $one;
+    var $info = Core\Reflect::forObject($shape);
+    Check::show("mode", $info->get($shape, "mode"));
+    Check::show("weight", $info->get($shape, "weight"));
+}
+--EXPECT--
+element: is Mode=yes is Weight=no is int=no truthy=yes
+element: is Mode=yes is Weight=no is int=no truthy=yes
+called: off
+called: on
+mode: is Mode=yes is Weight=no is int=no truthy=yes
+weight: is Mode=no is Weight=yes is int=no truthy=yes

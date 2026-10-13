@@ -355,6 +355,8 @@ fn field_default(value: &nvs_types::ConstArg) -> Option<nvs_types::FieldDefault>
         ConstArg::Bool(v) => Some(FieldDefault::Bool(*v)),
         ConstArg::Int(v) => Some(FieldDefault::Int(*v)),
         ConstArg::Uint(v) => Some(FieldDefault::Uint(*v)),
+        ConstArg::EnumInt(v) => Some(FieldDefault::EnumInt(*v)),
+        ConstArg::EnumUint(v) => Some(FieldDefault::EnumUint(*v)),
         ConstArg::Float(v) => Some(FieldDefault::Float(*v)),
         ConstArg::Str(s) => Some(FieldDefault::Str(s.clone())),
         ConstArg::EmptyArray => Some(FieldDefault::EmptyArray),
