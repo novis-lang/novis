@@ -2,11 +2,11 @@
 `Core\Json::decodeAs<T>` decodes an enum field as a membership test over its declared cases, on both backings and inside an `array<T>`, and refuses every other integer — `rule:core-classes/derive-field-list` and `rule:core-classes/derive-reports-every-field`, `rule:enums/one-backing-type` and `rule:enums/representation`
 --FILE--
 <?nvs
-// `rule:enums/representation` reserves an enum tag that nothing writes, so a case *is* the
-// integer behind it: a decode has nothing to construct and no name to resolve,
-// and what it owes instead is the membership test this case pins. `Role`'s
-// values are deliberately neither contiguous nor zero-based, so what is being
-// asserted is a set and never a range.
+// A case is its backing integer under the enum tag (`rule:enums/representation`),
+// so a decode resolves no name: it tests the integer against the declared cases
+// and writes the tag. This case pins the membership test. `Role`'s values are
+// deliberately neither contiguous nor zero-based, so what is being asserted is
+// a set and never a range.
 enum Role: int {
     Guest = -2,
     Member = 0,

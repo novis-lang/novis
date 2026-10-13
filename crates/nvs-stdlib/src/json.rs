@@ -3094,33 +3094,35 @@ unsafe fn scalar(
             return nvs_runtime::value_to_string(found).ok();
         }
         CodecTy::Str => (found.tag() == Some(Tag::Str)).then_some(found),
-        // `rule:enums/representation` reserves an enum tag and nothing writes one, so a case
-        // is the integer behind it and there is nothing to construct: what a
-        // decode owes is the membership test, and an integer outside the
-        // roster is a bad document rather than a case this build forgot.
+        // A case is its backing integer under the enum tag
+        // (`rule:enums/representation`), so a decode reads the integer, tests
+        // it against the declared cases, and writes the tag. An integer
+        // outside the roster is a bad document rather than a case this build
+        // forgot.
         CodecTy::Enum => {
             let cases = cases?;
             // The backing value first and the membership test after, which is
             // `rule:types/conversion`'s "backing type / `mixed` → `EnumName`"
             // read in the order it is written. Under `Values` the backing
             // value is `"2"` as often as `2`, so the row that reaches it is
-            // the same one an `int` field's is.
-            let number = if coerce {
-                nvs_runtime::to_int(found)?
-            } else {
-                found.as_int()?
+            // the same one an `int` field's is. Either reading takes a `uint`
+            // as it is, which is how a `uint`-backed case that already is one
+            // reaches `Core\Arr::shapeAs`.
+            let number = match found.as_uint() {
+                Some(number) => i128::from(number),
+                None if coerce => i128::from(nvs_runtime::to_int(found)?),
+                None => i128::from(found.as_int()?),
             };
-            if cases.values.binary_search(&i128::from(number)).is_err() {
+            if cases.values.binary_search(&number).is_err() {
                 return None;
             }
-            // A `uint`-backed enum's case is a `Value::uint` everywhere else
-            // in the runtime — `nvs_ir::lower::expr` emits one for a written
-            // `Role::Admin` — so a decoded case has to be the same value a
-            // written one is, or the two would compare unequal.
+            // The tag a written `Role::Admin` carries, so a decoded case is
+            // the same value and passes every reader that checks the tag: a
+            // callable's enum parameter, `is`, a condition.
             return if cases.unsigned {
-                u64::try_from(number).ok().map(Value::uint)
+                u64::try_from(number).ok().map(Value::enum_uint)
             } else {
-                Some(Value::int(number))
+                i64::try_from(number).ok().map(Value::enum_int)
             };
         }
         // `rule:types/decimal`'s exactness is why the wire form is a **string**:

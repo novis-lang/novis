@@ -417,8 +417,9 @@ pub(super) fn converted(
             Some(Tag::Bytes) => Ok(held),
             _ => Err(wanted("`bytes`", held)),
         },
-        // `rule:enums/representation`: a case *is* the integer behind it by the time it is a
-        // `Value`, so this is a membership test and not a construction.
+        // A case is its backing integer under the enum tag
+        // (`rule:enums/representation`), so this tests the column's integer
+        // against the declared cases and writes the tag a written case carries.
         CodecTy::Enum => {
             let Some(cases) = cases else {
                 return Err(
@@ -442,14 +443,14 @@ pub(super) fn converted(
                     reason = "the value is one of the declared cases, which a `uint`-backed \
                               enum's are all `u64`"
                 )]
-                Value::uint(backing as u64)
+                Value::enum_uint(backing as u64)
             } else {
                 #[expect(
                     clippy::cast_possible_truncation,
                     reason = "the value is one of the declared cases, which an `int`-backed \
                               enum's are all `i64`"
                 )]
-                Value::int(backing as i64)
+                Value::enum_int(backing as i64)
             })
         }
         // A row is a flat list of columns and `nvs_types::derive`'s own

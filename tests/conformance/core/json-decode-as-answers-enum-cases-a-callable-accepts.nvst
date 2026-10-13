@@ -1,0 +1,57 @@
+--TEST--
+`Core\Json::decodeAs<T>` and `Core\Arr::shapeAs<T>` give an enum field the case itself, so an `array<Enum>` element reaches a callable declaring the enum, a nullable field is still a case, and a case backed by `0` is truthy, on both backings — `rule:enums/representation`, `rule:enums/truthiness` and `rule:core-classes/derive-field-list`
+--FILE--
+<?nvs
+// covers: Core\Json::decodeAs, Core\Arr::shapeAs
+// The decoder builds each field outside compiled code, so it has to write the
+// enum tag compiled code would have written. A field read as a bare `int`
+// fails every reader below that checks the tag.
+enum Role: int {
+    Guest = -2,
+    Member = 0,
+    Admin = 7,
+}
+
+enum Weight: uint {
+    Light = 0,
+    Heavy = 900,
+}
+
+#[Core\Json\Derive]
+class Account {
+    public function constructor(
+        public ?Role $role,
+        public ?Weight $weight,
+        public array<Role> $seen,
+    ) {}
+}
+
+Account $decoded = Core\Json::decodeAs<Account>("{\"role\":0,\"weight\":0,\"seen\":[-2,0,7]}");
+
+// `Core\Arr::filter` calls the callable itself, which checks each argument's tag.
+echo "members: ", Core\Arr::count(Core\Arr::filter($decoded->seen, fn(Role $r): bool => $r == Role::Member)) as string, "\n";
+
+// A case backed by `0` is truthy, so every element passes.
+echo "truthy: ", Core\Arr::count(Core\Arr::filter($decoded->seen, fn(mixed $m): bool => $m ? true : false)) as string, "\n";
+
+// A nullable field that has a case is a case, and the case is truthy.
+mixed $role = $decoded->role;
+echo "role is a Role: ", ($role is Role) ? "yes" : "no", ", truthy: ", $role ? "yes" : "no", "\n";
+mixed $weight = $decoded->weight;
+echo "weight is a Weight: ", ($weight is Weight) ? "yes" : "no", ", truthy: ", $weight ? "yes" : "no", "\n";
+
+// `Core\Arr::shapeAs` keeps a case that already is one, and an element it
+// converts from a number becomes a case too.
+({seen: array<Role>, weight: ?Weight}) $shaped = Core\Arr::shapeAs<{seen: array<Role>, weight: ?Weight}>(
+    ["seen" => [Role::Member, 7], "weight" => Weight::Light]
+);
+echo "shaped members: ", Core\Arr::count(Core\Arr::filter($shaped->seen, fn(Role $r): bool => $r == Role::Member)) as string, "\n";
+mixed $shapedWeight = $shaped->weight;
+echo "shaped weight is a Weight: ", ($shapedWeight is Weight) ? "yes" : "no", ", truthy: ", $shapedWeight ? "yes" : "no", "\n";
+--EXPECT--
+members: 1
+truthy: 3
+role is a Role: yes, truthy: yes
+weight is a Weight: yes, truthy: yes
+shaped members: 1
+shaped weight is a Weight: yes, truthy: yes
