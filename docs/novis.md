@@ -242,7 +242,7 @@ Conventions the whole file uses:
 | [`Novis\Intl\RelativeTime`](#core-novis-intl-relativetime) |  |
 | [`Novis\Intl\Segmenter`](#core-novis-intl-segmenter) |  |
 | [`Novis\Intl\Icu`](#core-novis-intl-icu) |  |
-| [`Novis\Pdf\Document`](#core-novis-pdf-document) |  |
+| [`Novis\Pdf\Document`](#core-novis-pdf-document) | render HTML and CSS as a PDF file, with page headers, footers and the files the HTML uses |
 | [`Novis\Pdf\Page`](#core-novis-pdf-page) |  |
 | [`Novis\Pdf\Pages`](#core-novis-pdf-pages) |  |
 | [`Novis\Pdf\Reader`](#core-novis-pdf-reader) |  |
@@ -29529,7 +29529,36 @@ Returns the best of the offered locales for an `Accept-Language` header value. I
 <a id="core-novis-pdf-document"></a>
 ### `Novis\Pdf\Document`
 
-Keywords: fromHtml, asset, standard, invoiceXml, password, created, header, footer, slots, render
+Keywords: pdf, dompdf, mpdf, tcpdf, fpdf, wkhtmltopdf, html to pdf, invoice, report, page number, header, footer, pdf/a, factur-x, fromHtml, asset, standard, invoiceXml, password, created, header, footer, slots, render
+
+`Novis\Pdf\Document` is an HTML document that `render` turns into a PDF file. Each method returns a
+new `Document` and does not change the old one. The render reads only the files you add with `asset`
+and `data:` URIs, so a name that is not an asset throws a `LogicError`. `render` returns a
+`Rendered` with the file, its page count, and the CSS it could not draw.
+
+```nvs
+<?nvs
+use Novis\Pdf\Document;
+use Novis\Pdf\Page;
+
+// The logo is a file that the HTML names. `asset` adds it to the document.
+bytes $logo = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"40\" height=\"20\"><rect width=\"40\" height=\"20\"/></svg>" as bytes;
+string $html = "<html lang=\"en\"><head><title>Invoice 1042</title></head><body>"
+    . "<img src=\"logo.svg\" alt=\"Shop\"><h1>Invoice 1042</h1><p>Tea: 2.50 EUR</p></body></html>";
+
+// The footer is a function. The render calls it once for each page.
+var $rendered = Document::fromHtml($html)
+    ->asset("logo.svg", $logo)
+    ->footer(fn(Page $page): Core\Html\Markup => html`<p>Page {$page->number} of {$page->count}</p>`)
+    ->render();
+
+echo Core\Bytes::startsWith($rendered->bytes, "%PDF-" as bytes) ? "a PDF file" : "not a PDF file", "\n";
+echo $rendered->pageCount, " page\n";
+```
+```output
+a PDF file
+1 page
+```
 
 | Member | Signature |
 |---|---|
@@ -29587,7 +29616,7 @@ $document->invoiceXml(string $xml): Document
 ```
 
 `invoiceXml` attaches the XML of an electronic invoice to the file.
-It needs the standard `Standard::PdfA3b`. With any other standard, `render` throws a `LogicError`.
+It needs the standard `Document::Standard::PdfA3b`. With any other standard, `render` throws a `LogicError`.
 
 **Returns** `Document`
 

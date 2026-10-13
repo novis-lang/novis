@@ -6,7 +6,13 @@
       "description": {
         "kind": "markdown",
         "value": "Saves the element's text under a name, for `string()` in a margin box.\n\n`string-set: chapter content(text)`"
-      }
+      },
+      "references": [
+        {
+          "name": "Novis\\Pdf\\Document",
+          "url": "https://novis-lang.org/reference/core/novis-pdf-document/"
+        }
+      ]
     }
   ],
   "atDirectives": [
@@ -15,112 +21,208 @@
       "description": {
         "kind": "markdown",
         "value": "In `@page`, the box in the top left corner of the page."
-      }
+      },
+      "references": [
+        {
+          "name": "Novis\\Pdf\\Document",
+          "url": "https://novis-lang.org/reference/core/novis-pdf-document/"
+        }
+      ]
     },
     {
       "name": "@top-left",
       "description": {
         "kind": "markdown",
         "value": "In `@page`, the left box of the top margin."
-      }
+      },
+      "references": [
+        {
+          "name": "Novis\\Pdf\\Document",
+          "url": "https://novis-lang.org/reference/core/novis-pdf-document/"
+        }
+      ]
     },
     {
       "name": "@top-center",
       "description": {
         "kind": "markdown",
         "value": "In `@page`, the middle box of the top margin."
-      }
+      },
+      "references": [
+        {
+          "name": "Novis\\Pdf\\Document",
+          "url": "https://novis-lang.org/reference/core/novis-pdf-document/"
+        }
+      ]
     },
     {
       "name": "@top-right",
       "description": {
         "kind": "markdown",
         "value": "In `@page`, the right box of the top margin."
-      }
+      },
+      "references": [
+        {
+          "name": "Novis\\Pdf\\Document",
+          "url": "https://novis-lang.org/reference/core/novis-pdf-document/"
+        }
+      ]
     },
     {
       "name": "@top-right-corner",
       "description": {
         "kind": "markdown",
         "value": "In `@page`, the box in the top right corner of the page."
-      }
+      },
+      "references": [
+        {
+          "name": "Novis\\Pdf\\Document",
+          "url": "https://novis-lang.org/reference/core/novis-pdf-document/"
+        }
+      ]
     },
     {
       "name": "@right-top",
       "description": {
         "kind": "markdown",
         "value": "In `@page`, the top box of the right margin."
-      }
+      },
+      "references": [
+        {
+          "name": "Novis\\Pdf\\Document",
+          "url": "https://novis-lang.org/reference/core/novis-pdf-document/"
+        }
+      ]
     },
     {
       "name": "@right-middle",
       "description": {
         "kind": "markdown",
         "value": "In `@page`, the middle box of the right margin."
-      }
+      },
+      "references": [
+        {
+          "name": "Novis\\Pdf\\Document",
+          "url": "https://novis-lang.org/reference/core/novis-pdf-document/"
+        }
+      ]
     },
     {
       "name": "@right-bottom",
       "description": {
         "kind": "markdown",
         "value": "In `@page`, the bottom box of the right margin."
-      }
+      },
+      "references": [
+        {
+          "name": "Novis\\Pdf\\Document",
+          "url": "https://novis-lang.org/reference/core/novis-pdf-document/"
+        }
+      ]
     },
     {
       "name": "@bottom-right-corner",
       "description": {
         "kind": "markdown",
         "value": "In `@page`, the box in the bottom right corner of the page."
-      }
+      },
+      "references": [
+        {
+          "name": "Novis\\Pdf\\Document",
+          "url": "https://novis-lang.org/reference/core/novis-pdf-document/"
+        }
+      ]
     },
     {
       "name": "@bottom-right",
       "description": {
         "kind": "markdown",
         "value": "In `@page`, the right box of the bottom margin."
-      }
+      },
+      "references": [
+        {
+          "name": "Novis\\Pdf\\Document",
+          "url": "https://novis-lang.org/reference/core/novis-pdf-document/"
+        }
+      ]
     },
     {
       "name": "@bottom-center",
       "description": {
         "kind": "markdown",
         "value": "In `@page`, the middle box of the bottom margin."
-      }
+      },
+      "references": [
+        {
+          "name": "Novis\\Pdf\\Document",
+          "url": "https://novis-lang.org/reference/core/novis-pdf-document/"
+        }
+      ]
     },
     {
       "name": "@bottom-left",
       "description": {
         "kind": "markdown",
         "value": "In `@page`, the left box of the bottom margin."
-      }
+      },
+      "references": [
+        {
+          "name": "Novis\\Pdf\\Document",
+          "url": "https://novis-lang.org/reference/core/novis-pdf-document/"
+        }
+      ]
     },
     {
       "name": "@bottom-left-corner",
       "description": {
         "kind": "markdown",
         "value": "In `@page`, the box in the bottom left corner of the page."
-      }
+      },
+      "references": [
+        {
+          "name": "Novis\\Pdf\\Document",
+          "url": "https://novis-lang.org/reference/core/novis-pdf-document/"
+        }
+      ]
     },
     {
       "name": "@left-bottom",
       "description": {
         "kind": "markdown",
         "value": "In `@page`, the bottom box of the left margin."
-      }
+      },
+      "references": [
+        {
+          "name": "Novis\\Pdf\\Document",
+          "url": "https://novis-lang.org/reference/core/novis-pdf-document/"
+        }
+      ]
     },
     {
       "name": "@left-middle",
       "description": {
         "kind": "markdown",
         "value": "In `@page`, the middle box of the left margin."
-      }
+      },
+      "references": [
+        {
+          "name": "Novis\\Pdf\\Document",
+          "url": "https://novis-lang.org/reference/core/novis-pdf-document/"
+        }
+      ]
     },
     {
       "name": "@left-top",
       "description": {
         "kind": "markdown",
         "value": "In `@page`, the top box of the left margin."
-      }
+      },
+      "references": [
+        {
+          "name": "Novis\\Pdf\\Document",
+          "url": "https://novis-lang.org/reference/core/novis-pdf-document/"
+        }
+      ]
     }
   ]
 }

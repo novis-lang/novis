@@ -41,6 +41,13 @@ function carried(list: Entry[]): Entry[] {
   return list.filter((entry) => entry.editor === true);
 }
 
+// Every hover links the `Novis\Pdf\Document` page on the website, whose origin is the extension's
+// `homepage` and `SITE_URL` in `website/config/site.mjs`; the page's introduction is
+// `docs/reference/novis/Pdf-Document.md`.
+const references = [
+  { name: "Novis\\Pdf\\Document", url: "https://novis-lang.org/reference/core/novis-pdf-document/" },
+];
+
 // Each file is its JSON with two-space indentation and a final newline.
 function text(data: unknown): string {
   return `${JSON.stringify(data, null, 2)}\n`;
@@ -55,6 +62,7 @@ export function customData(subset: Subset): CustomData {
       name: entry.name,
       description: markdown(entry.description),
       ...(entry.values ? { values: entry.values.map((name) => ({ name })) } : {}),
+      references,
     };
   });
   const properties = carried(subset.properties).map((entry) => ({
@@ -64,10 +72,12 @@ export function customData(subset: Subset): CustomData {
         ? entry.description
         : `${entry.description}\n\n\`${entry.name}: ${entry.example}\``,
     ),
+    references,
   }));
   const atDirectives = carried(subset.atRules).map((entry) => ({
     name: entry.name,
     description: markdown(entry.description),
+    references,
   }));
   return {
     html: text({ version: 1.1, globalAttributes: attributes }),

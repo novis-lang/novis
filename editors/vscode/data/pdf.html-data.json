@@ -20,6 +20,12 @@
         {
           "name": "continued"
         }
+      ],
+      "references": [
+        {
+          "name": "Novis\\Pdf\\Document",
+          "url": "https://novis-lang.org/reference/core/novis-pdf-document/"
+        }
       ]
     },
     {
@@ -27,7 +33,13 @@
       "description": {
         "kind": "markdown",
         "value": "Gives the page a mark as `name:value`. A header or footer function reads the marks of its page."
-      }
+      },
+      "references": [
+        {
+          "name": "Novis\\Pdf\\Document",
+          "url": "https://novis-lang.org/reference/core/novis-pdf-document/"
+        }
+      ]
     }
   ]
 }
