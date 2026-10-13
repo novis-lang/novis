@@ -14,7 +14,7 @@ stages:
         shapes: ["A `.nvst` test case"]
   - id: 2
     title: "the cards, the rule and the attack say what is now true"
-    status: open
+    status: done
     context: [tests/hostile/core/Test-Response/jsonAs/01-a-class-that-contains-itself-and-wrong-bodies.nvs, docs/examples/core/Json/decodeAs/about.md]
     extra:
       context:
@@ -121,31 +121,29 @@ compare throws now.
 
 **Does:** no reference card says a deep document fills the stack.
 
-- [ ] The `RecursionError` text on the three cards that have one (`crates/nvs-stdlib/src/json.rs:467`, `crates/nvs-stdlib/src/test.rs:1346`, `crates/nvs-stdlib/src/request.rs:767`)
-- [ ] The rule names the build walk among the engine walks with a depth counter (`docs/rules/errors/stack-depth.md:18`)
-- [ ] The attack's step 2 comment says the result is an object (`tests/hostile/core/Test-Response/jsonAs/01-a-class-that-contains-itself-and-wrong-bodies.nvs:47`)
+- [x] The `RecursionError` text on the three cards that have one (`crates/nvs-stdlib/src/json.rs:467`, `crates/nvs-stdlib/src/test.rs:1346`, `crates/nvs-stdlib/src/request.rs:767`)
+- [x] The rule names the build walk among the engine walks with a depth counter (`docs/rules/errors/stack-depth.md:18`)
+- [x] The attack's step 2 comment says the result is an object (`tests/hostile/core/Test-Response/jsonAs/01-a-class-that-contains-itself-and-wrong-bodies.nvs:47`)
 
 ## Handoff
 
 ### State
 
-Stage 1 is built and its four checks are green. `Core\Json`'s decoder builds objects on heap frames:
-`walk` (`crates/nvs-stdlib/src/json.rs:2640`) steps through `Build` frames, and `Fields::finish`
-(`crates/nvs-stdlib/src/json.rs:2828`) runs each constructor after a stack compare. Both builds print
-`deep: read f` for the attack's step 2. The new case decodes 1000 levels under `maxDepth: 1024`.
+Both stages are done and every check is green. `Core\Json`'s decoder builds objects on heap frames
+(`crates/nvs-stdlib/src/json.rs:2640`), so `maxDepth` is the only depth bound and the jsonAs attack
+prints `deep: read f` on the proof and covws builds. The three `RecursionError` cards, the rule's
+engine-walk paragraph (`docs/rules/errors/stack-depth.md:18`) and the attack's step 2 comment say
+so. `bun nv verify --doc` is green and `bun nv owners --closes json-decode-depth` names no gap.
 
-A written `fromJson` needed no frame: the walk calls it like a scalar conversion and gets one value back.
+The goal is reached. The branch lands on `main` by hand, and this file is deleted as it lands.
 
 ### Next
 
-Stage 2, over the three reference cards, `docs/rules/errors/stack-depth.md` and the attack:
-
-- [ ] The `RecursionError` text on the three cards, per `rule:core-api/reference-card`: a deep document no longer fills the stack, only a constructor or a decode entered with little stack left (`crates/nvs-stdlib/src/json.rs:484`, `crates/nvs-stdlib/src/test.rs:1346`, `crates/nvs-stdlib/src/request.rs:767`)
-- [ ] The rule names the build walk's heap frames among the engine walks, per `rule:errors/stack-depth` (`docs/rules/errors/stack-depth.md:18`)
-- [ ] The attack's step 2 comment says the result is an object (`tests/hostile/core/Test-Response/jsonAs/01-a-class-that-contains-itself-and-wrong-bodies.nvs:47`)
+Nothing on this goal. Land `side/json-decode-depth` on `main`, delete this file, then remove the
+worktree and the branch.
 
 ### Backlog
 
 - `rule:errors/stack-depth` states an 8 MB ceiling per coroutine, and a task stack is 1 MiB: not checked which is meant (`docs/rules/errors/stack-depth.md:11`, `crates/nvs-host/src/stack.rs:88`).
-- Security, not measured: each open object holds its issue-path prefix, so prefix bytes grow with key length times depth squared. A body of about 1 MB, 1024 levels deep with 1000-byte keys, would hold about 500 MB of prefixes. The recursive walk had the same cost. Build the path from the frames when an issue is made (`crates/nvs-stdlib/src/json.rs:2682`, `rule:programs/memory-priority`).
-- The `Core\Json` member benches are stale after this change to `json.rs`: `bun nv proofs --record-perf --group 'Core\Json'` (`docs/agent/playbook.md`).
+- The `Core\Json` member benches are stale after the change to `json.rs`: `bun nv proofs --record-perf --group 'Core\Json'` (`docs/agent/playbook.md`).
+- The issue-path prefix cost is a gap record now: `data/gaps/nvs-stdlib/a-decoded-objects-issue-prefixes-grow-with-depth-squared.json`.
