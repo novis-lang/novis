@@ -8,8 +8,10 @@ case takes an **enum tag of its own**, one per backing type: `EnumInt` over an `
 `EnumUint` over a `uint` one. A condition, a type test, an anonymous function parameter's check and a declared
 slot's write check read that tag, so a case in a `mixed` is always truthy (`rule:enums/truthiness`),
 `is int` is `false` for it and `is` an enum is `false` for a plain integer. Every reader that only
-decodes the value — printing, conversion, comparison, `===`, serialization — reads it as its backing
-integer. The tag names no enum, so two enums with the same backing are not told apart in a `mixed`.
+decodes the value — printing, conversion, comparison, `===` — reads it as its backing integer. The tag
+names no enum, so two enums with the same backing are not told apart in a `mixed`. `Core\Serialize`
+writes a case as a node kind of its own over the same payload, so a case read back from it, from
+`Core\Cache`, from a session, from a topic or from a placed task is still a case.
 
 One tag per backing keeps the payload's signedness with the value, so nothing reads a `uint` case above
 `i64::MAX` as a negative number, and no padding byte is written. The tag is written only where a case

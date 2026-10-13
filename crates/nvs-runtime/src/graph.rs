@@ -69,6 +69,11 @@
 //! being copied) and are released when it ends, so nothing here grows with
 //! requests served (`rule:programs/memory-priority`).
 //!
+//! An enum case keeps its tag through both carriers (`rule:enums/representation`).
+//! [`Live`] copies the value whole, and [`Encode`] writes the case as a node kind
+//! of its own over the same eight payload bytes an `int` or a `uint` writes, so
+//! a case costs no byte beyond the node byte every scalar already writes.
+//!
 //! A decoded `Core` instance is a `mixed` a program gets back by naming its
 //! class. The value is rebuilt under its own descriptor — a `Core\Time\Date`
 //! arrives back as one, slots intact, because [`crate::Ctx::class_desc`] asks
@@ -90,8 +95,12 @@ use crate::value::{Tag, Value};
 /// marker and version is refused outright".
 const MAGIC: &[u8; 4] = b"NVS\x1b";
 
-/// The format version. Bumped whenever the node grammar below changes; a
-/// payload carrying any other value is refused whole.
+/// The format version. A payload carrying any other value is refused whole.
+///
+/// It changes only when an existing node's bytes change meaning. A new node
+/// kind is added under the same version: a reader that meets a kind it does not
+/// know refuses the payload anyway, and a record a cache or a session store
+/// kept from an earlier build still decodes.
 const VERSION: u8 = 1;
 
 /// How deep a graph may nest before it is refused.
@@ -102,6 +111,9 @@ const VERSION: u8 = 1;
 const MAX_DEPTH: u32 = 256;
 
 /// The node tags of the byte carrier's grammar.
+///
+/// A number here is never reused or renumbered. A new node kind takes the next
+/// free number, so a payload an earlier build wrote reads exactly as it did.
 mod node {
     pub(super) const NULL: u8 = 0;
     pub(super) const BOOL: u8 = 1;
@@ -114,6 +126,12 @@ mod node {
     pub(super) const ARRAY: u8 = 8;
     pub(super) const OBJECT: u8 = 9;
     pub(super) const BACKREF: u8 = 10;
+    /// An `int`-backed enum case: [`INT`]'s eight payload bytes, decoded with
+    /// [`super::Tag::EnumInt`].
+    pub(super) const ENUM_INT: u8 = 11;
+    /// A `uint`-backed enum case: [`UINT`]'s eight payload bytes, decoded with
+    /// [`super::Tag::EnumUint`].
+    pub(super) const ENUM_UINT: u8 = 12;
 }
 
 /// Why a graph did not cross.
@@ -645,20 +663,30 @@ impl Carrier for Encode {
     }
 
     fn scalar(&mut self, value: Value) -> usize {
-        match value.tag() {
+        match value.exact_tag() {
             Some(Tag::Bool) => {
                 self.out.push(node::BOOL);
                 self.out
                     .push(u8::from(value.as_bool().expect("a `Bool` carries one")));
             }
-            Some(Tag::Int) => {
-                self.out.push(node::INT);
-                let held = value.as_int().expect("an `Int` carries one");
+            // An enum case writes a node of its own over the same payload, so
+            // it decodes as a case (`rule:enums/representation`).
+            Some(tag @ (Tag::Int | Tag::EnumInt)) => {
+                self.out.push(if tag == Tag::EnumInt {
+                    node::ENUM_INT
+                } else {
+                    node::INT
+                });
+                let held = value.as_int().expect("an `Int` payload carries one");
                 self.out.extend_from_slice(&held.to_le_bytes());
             }
-            Some(Tag::Uint) => {
-                self.out.push(node::UINT);
-                let held = value.as_uint().expect("a `Uint` carries one");
+            Some(tag @ (Tag::Uint | Tag::EnumUint)) => {
+                self.out.push(if tag == Tag::EnumUint {
+                    node::ENUM_UINT
+                } else {
+                    node::UINT
+                });
+                let held = value.as_uint().expect("a `Uint` payload carries one");
                 self.out.extend_from_slice(&held.to_le_bytes());
             }
             Some(Tag::Float) => {
@@ -836,6 +864,8 @@ impl Reader<'_> {
             node::BOOL => Ok(Value::bool(self.byte()? != 0)),
             node::INT => Ok(Value::int(i64::from_le_bytes(self.fixed::<8>()?))),
             node::UINT => Ok(Value::uint(u64::from_le_bytes(self.fixed::<8>()?))),
+            node::ENUM_INT => Ok(Value::enum_int(i64::from_le_bytes(self.fixed::<8>()?))),
+            node::ENUM_UINT => Ok(Value::enum_uint(u64::from_le_bytes(self.fixed::<8>()?))),
             node::FLOAT => Ok(Value::float(f64::from_le_bytes(self.fixed::<8>()?))),
             node::DECIMAL => {
                 let bits = u128::from_le_bytes(self.fixed::<16>()?);
@@ -1314,6 +1344,61 @@ mod tests {
                 "the {what} payload was accepted"
             );
         }
+    }
+
+    /// `rule:enums/representation`: a case keeps its enum tag through both
+    /// carriers, so a case backed by `0` is still a case on the other side.
+    #[test]
+    fn an_enum_case_keeps_its_tag_through_both_carriers() {
+        let resolve = |_: &str| -> Option<*const ClassDesc> { None };
+        for (case, plain) in [
+            (Value::enum_int(0), Value::int(0)),
+            (Value::enum_int(-3), Value::int(-3)),
+            (Value::enum_uint(0), Value::uint(0)),
+            (Value::enum_uint(u64::MAX), Value::uint(u64::MAX)),
+        ] {
+            let copied = copy_graph(case).expect("a case crosses");
+            assert_eq!(copied.exact_tag(), case.exact_tag(), "the live copy");
+            assert_eq!(copied.bits(), case.bits(), "the live copy");
+
+            let bytes = encode(case).expect("a case encodes");
+            let back = decode(&bytes, &resolve).expect("a case decodes");
+            assert_eq!(back.exact_tag(), case.exact_tag(), "the byte copy");
+            assert_eq!(back.bits(), case.bits(), "the byte copy");
+
+            let bytes = encode(plain).expect("an integer encodes");
+            let back = decode(&bytes, &resolve).expect("an integer decodes");
+            assert_eq!(back.exact_tag(), plain.exact_tag(), "a plain integer");
+        }
+    }
+
+    /// A record a cache or a session store kept from a build before the enum
+    /// node kinds existed still decodes, each integer as a plain integer. The
+    /// bytes are written out by hand, so renumbering a node fails here.
+    #[test]
+    fn a_record_written_before_the_enum_nodes_decodes_as_before() {
+        let resolve = |_: &str| -> Option<*const ClassDesc> { None };
+        let mut int = b"NVS\x1b\x01\x02".to_vec();
+        int.extend_from_slice(&(-3_i64).to_le_bytes());
+        let back = decode(&int, &resolve).expect("an old `int` record decodes");
+        assert_eq!(back.exact_tag(), Some(Tag::Int));
+        assert_eq!(back.as_int(), Some(-3));
+
+        let mut uint = b"NVS\x1b\x01\x03".to_vec();
+        uint.extend_from_slice(&7_u64.to_le_bytes());
+        let back = decode(&uint, &resolve).expect("an old `uint` record decodes");
+        assert_eq!(back.exact_tag(), Some(Tag::Uint));
+        assert_eq!(back.as_uint(), Some(7));
+
+        // The new kinds, pinned the same way.
+        let mut case = b"NVS\x1b\x01\x0b".to_vec();
+        case.extend_from_slice(&0_i64.to_le_bytes());
+        let back = decode(&case, &resolve).expect("an `int` case decodes");
+        assert_eq!(back.exact_tag(), Some(Tag::EnumInt));
+        let mut case = b"NVS\x1b\x01\x0c".to_vec();
+        case.extend_from_slice(&0_u64.to_le_bytes());
+        let back = decode(&case, &resolve).expect("a `uint` case decodes");
+        assert_eq!(back.exact_tag(), Some(Tag::EnumUint));
     }
 
     /// § 3's third bullet: a recorded property set that is not the class's
