@@ -1978,9 +1978,12 @@ fn rels(entries: &[(&str, &str, &str, bool)]) -> Vec<u8> {
     out.into_bytes()
 }
 
-/// A drawing part with one anchor per `(anchor, from, blip attributes)`; an `absoluteAnchor` has
-/// no `from`.
-fn drawing(anchors: &[(&str, Option<(u32, u32)>, &str)]) -> Vec<u8> {
+/// One picture of a drawing part: its anchor element, the `(column, row)` it starts at, and its
+/// blip's attributes.
+type Anchor<'a> = (&'a str, Option<(u32, u32)>, &'a str);
+
+/// A drawing part with one anchor per [`Anchor`]; an `absoluteAnchor` has no `from`.
+fn drawing(anchors: &[Anchor<'_>]) -> Vec<u8> {
     let mut out = String::from(
         r#"<?xml version="1.0"?><xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">"#,
     );
