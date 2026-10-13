@@ -45,7 +45,9 @@
 //   is stopped. The request is the snippet's `.nvsr` (method, path, query, headers and body; a section a
 //   real connection cannot carry is an error), or `PLAIN_GET` when it has none. With no `[server]`
 //   block every path runs the snippet. Status and headers are not compared, because the body is what a
-//   reader compares with the code.
+//   reader compares with the code. The root `nvs.toml` arms a queue on `tests/db/compose.yaml`'s
+//   `postgres`, so before the first snippet served under it that service is brought up and
+//   `nvs queue migrate` is run, once per process.
 //
 // Which output files a snippet that compiles has is the divergence rule, `snippetOutputs`. A snippet
 // with a `.nvsr` is a web snippet: it has a `.http.out`, and a `.out` too only when `nvs run` exits 0
@@ -121,6 +123,7 @@ import { rel, ROOT } from "../lib/paths.ts";
 import { run as runProc } from "../lib/proc.ts";
 import { comparePaths } from "../lib/py.ts";
 import { commentProblems } from "../proofs/collect.ts";
+import { servicesFor } from "../proofs/run.ts";
 import { ABOUT, EXAMPLES, examplesDir, metaJson, roster, RosterError, type Entry, type Meta } from "../proofs/roster.ts";
 import { DATA_FILE, renderWebsiteCore } from "../renderers/website-core.ts";
 import { REFERENCE_FILE, type Page as RefPage } from "../renderers/website-reference.ts";
@@ -951,6 +954,24 @@ function send(port: number, request: SnippetRequest, timeoutMs: number): Promise
   });
 }
 
+/** The services a snippet served under the root `nvs.toml` needs, as `requires:` lines. That file's
+ * `[queue]` arms on `[db.main]`, the `postgres` service, and `nvs serve` will not boot until that
+ * database holds the queue's tables. A snippet with its own `nvs.toml` never touches Docker. */
+const ROOT_CONFIG_SERVICES = "// requires: postgres";
+/** `rootConfigReady`, started once per process by the first snippet served under the root `nvs.toml`. */
+let rootConfigUp: Promise<string | null> | null = null;
+
+/** Brings up what the root `nvs.toml` serves on, and runs `nvs queue migrate` over it: the compose
+ * service keeps no data volume, so each new container starts without the queue's tables. Null when
+ * the root config can serve, and the failure otherwise. */
+async function rootConfigReady(nvs: string): Promise<string | null> {
+  const down = await servicesFor(ROOT_CONFIG_SERVICES);
+  if (down) return `the root \`nvs.toml\` ${down}`;
+  const migrated = await runProc([nvs, "queue", "migrate"], { cwd: ROOT, timeoutMs: SNIPPET_MS, env: { NOVIS_NO_INIT: "1" } });
+  if (migrated.code === 0) return null;
+  return `the root \`nvs.toml\` needs the queue's tables, and \`nvs queue migrate\` failed (exit ${migrated.code}): ${migrated.stderr.trim().split(/\r?\n/).at(-1) ?? ""}`;
+}
+
 /**
  * `nvs serve` started with the snippet as its one file and port 0, `request` sent once to the port its
  * `listening on` line names, and the server stopped. The system picks the port as the server binds it,
@@ -960,6 +981,11 @@ function send(port: number, request: SnippetRequest, timeoutMs: number): Promise
  */
 async function serveSnippet(p: string, request: SnippetRequest, nvs: string): Promise<Served> {
   const { argv, cwd } = serveRun(p, nvs, 0);
+  if (!argv.includes("--config")) {
+    rootConfigUp ??= rootConfigReady(nvs);
+    const down = await rootConfigUp;
+    if (down) return { status: 0, body: "", failure: down, started: false };
+  }
   const stop = new AbortController();
   let bound: (port: number) => void = () => {};
   const port = new Promise<number>((resolve) => (bound = resolve));
