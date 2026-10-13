@@ -1391,3 +1391,80 @@ fn a_parses_capture_names_no_closed_set_and_changes_no_route_rank() {
     ));
     assert!(reported(&diags, code::E_DUPLICATE_ROUTE), "{diags:?}");
 }
+
+/// A program whose `Posts` class has one `#[Route]` method, `show`, written
+/// with `modifier` (`""` or `"static "`), after `before` (the class
+/// declarations it needs) and with `head` between `class Posts` and its `{`.
+/// `members` goes inside the class beside `show`.
+fn dispatch_src(before: &str, head: &str, members: &str, modifier: &str) -> String {
+    format!(
+        "<?nvs\n{before}class Posts{head} {{\n{members}\n  \
+         #[Core\\Route(path: \"/posts\", method: Core\\Http\\Method::Get)]\n  \
+         #[Core\\Route(path: \"/posts\", method: Core\\Http\\Method::Head, name: \"h\")]\n  \
+         #[Core\\Access(allow: Core\\Audience::Public)]\n  \
+         public {modifier}function show(): void {{ }}\n}}\n"
+    )
+}
+
+#[test]
+fn a_route_method_is_static_or_its_class_is_built_with_no_argument() {
+    // `rule:routing/a-gate-answers-around-every-handler`: `dispatch` builds the
+    // instance with no argument. Each of these it can build, so none is an
+    // error: no constructor, defaults for every parameter, the class's own
+    // `private` constructor, a parent's `protected` one, and any class at all
+    // when the method is `static`.
+    let open = [
+        dispatch_src("", "", "", ""),
+        dispatch_src(
+            "",
+            "",
+            "  public function constructor(int $page = 1) { }",
+            "",
+        ),
+        dispatch_src("", "", "  private function constructor() { }", ""),
+        dispatch_src(
+            "class Base {\n  protected function constructor() { }\n}\n",
+            " extends Base",
+            "",
+            "",
+        ),
+        dispatch_src(
+            "",
+            "",
+            "  public function constructor(int $page) { }",
+            "static ",
+        ),
+        dispatch_src("", "", "", "static ").replace("class Posts", "abstract class Posts"),
+    ];
+    for src in &open {
+        let diags = check_src(src);
+        assert!(!diags.has_errors(), "{src}\n{diags:?}");
+    }
+
+    // Each of these it cannot build, and the error is reported once for the
+    // method however many `#[Route]`s it has.
+    let closed = [
+        dispatch_src("", "", "", "").replace("class Posts", "abstract class Posts"),
+        dispatch_src("", "", "  public function constructor(int $page) { }", ""),
+        dispatch_src(
+            "class Base {\n  public function constructor(string $name) { }\n}\n",
+            " extends Base",
+            "",
+            "",
+        ),
+        dispatch_src(
+            "class Base {\n  private function constructor() { }\n}\n",
+            " extends Base",
+            "",
+            "",
+        ),
+    ];
+    for src in &closed {
+        let diags = check_src(src);
+        assert_eq!(
+            count(&diags, code::E_ROUTE_HANDLER_NOT_CONSTRUCTIBLE),
+            1,
+            "{src}\n{diags:?}"
+        );
+    }
+}

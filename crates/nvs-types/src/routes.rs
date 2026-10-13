@@ -686,6 +686,7 @@ pub(crate) fn check_class_routes(
         if let Some(access) = access {
             check_csrf_opt_out(access, m, ctx, env);
         }
+        check_handler_is_callable(first, m, class, &handler, env);
         // `rule:attributes/api-adds-and-cannot-contradict`'s annotation is a fact about the *method* — one
         // `#[Api]` describes the operation however many verbs it serves — so
         // it is asked once here beside `#[Access]`, and not per row.
@@ -758,6 +759,73 @@ fn check_access_declared<'a>(
         ),
     );
     None
+}
+
+/// `rule:routing/a-gate-answers-around-every-handler`'s instance rule: a
+/// `#[Route]` method that is not `static` belongs to a class
+/// `Core\Router::dispatch` can build with no argument.
+///
+/// Refused is exactly what `dispatch`'s construct path cannot build: an
+/// `abstract` class, a constructor (its own or inherited) with a required
+/// parameter, and an inherited `private` constructor. `dispatch` builds the
+/// instance as code inside the handler's own class would, so the class's own
+/// `private` or `protected` constructor is allowed and a parent's `protected`
+/// one is too. A constructor whose every parameter has a default counts as
+/// taking no argument. Asked once per method against its first `#[Route]`,
+/// for [`check_access_declared`]'s reason: whether the class can be built is
+/// a fact about the method, and one report per verb would name one mistake
+/// twice.
+fn check_handler_is_callable(
+    attr: &Attribute,
+    m: &MethodMember,
+    class: &QName,
+    handler: &str,
+    env: &mut Env<'_>,
+) {
+    if m.modifiers.contains(&nvs_syntax::ast::Modifier::Static) {
+        return;
+    }
+    let found = if env.graph.get(class).map(|links| links.concrete) == Some(false) {
+        Some((
+            format!("`{class}` is `abstract`, so it has no objects"),
+            "Make the method `static`. Or move it to a class that is not `abstract`.".to_owned(),
+        ))
+    } else {
+        match crate::signatures::resolve_method(class, "constructor", env.signatures, env.graph) {
+            Some((owner, sig)) if sig.required() > 0 => Some((
+                format!(
+                    "the constructor of `{owner}` needs {} argument{}",
+                    sig.required(),
+                    if sig.required() == 1 { "" } else { "s" }
+                ),
+                "Make the method `static`. Or give every parameter of the constructor a \
+                 default value."
+                    .to_owned(),
+            )),
+            Some((owner, sig))
+                if owner != *class && sig.visibility == nvs_syntax::ast::Visibility::Private =>
+            {
+                Some((
+                    format!("the constructor of `{owner}` is `private`"),
+                    format!(
+                        "Make the method `static`. Or give `{class}` a constructor of its own."
+                    ),
+                ))
+            }
+            _ => None,
+        }
+    };
+    let Some((reason, help)) = found else {
+        return;
+    };
+    env.diags.report(
+        Diagnostic::error(
+            code::E_ROUTE_HANDLER_NOT_CONSTRUCTIBLE,
+            format!("`Core\\Router::dispatch` cannot create an object to call `{handler}`"),
+        )
+        .with_primary(attr.span, reason)
+        .with_help(help),
+    );
 }
 
 /// `rule:attributes/access-payload`'s `csrf` for [`Route::csrf`]: `false` only where the sibling

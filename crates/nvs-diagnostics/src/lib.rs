@@ -5493,6 +5493,18 @@ pub mod code {
         "`isinit` needs an object of a known class. Test the class first with `is`, for \
          example `if ($value is Post)`.",
     );
+    /// A `#[Route]` method that is not `static`, on a class
+    /// `Core\Router::dispatch` cannot build with no argument: an `abstract`
+    /// class, a constructor with a required parameter, or an inherited
+    /// `private` constructor. `rule:routing/a-gate-answers-around-every-handler`.
+    /// Reported once per method, at its first `#[Route]`.
+    pub const E_ROUTE_HANDLER_NOT_CONSTRUCTIBLE: Code = Code::new("E0855").card(
+        "`Core\\Router::dispatch` creates an object of the class to call a `#[Route]` method \
+         that is not `static`. It passes no arguments to the constructor. So the class must not \
+         be `abstract`, and every parameter of its constructor needs a default value. A \
+         constructor the class inherits must not be `private`. To fix it, make the method \
+         `static`.",
+    );
 
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.
