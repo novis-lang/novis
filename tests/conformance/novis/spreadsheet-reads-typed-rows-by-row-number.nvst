@@ -1,0 +1,111 @@
+--TEST--
+`Reader` reads an xlsx as typed rows, each with its row number in the file: the header gives every row every key with `null` for an empty cell, a duplicate header is numbered and an empty one is its column letter, empty rows are skipped unless kept, a clock time is placed in `zone`, and `from`, `limit` and `columns` choose the rows and columns: rule:core-classes/spreadsheet-reads-as-a-stream
+--FILE--
+<?nvs
+// covers: Novis\Spreadsheet\Reader::open
+// covers: Novis\Spreadsheet\Reader::sheets
+// covers: Novis\Spreadsheet\Reader::rows
+// covers: Novis\Spreadsheet\Engine::readerOpen
+// covers: Novis\Spreadsheet\Engine::readerSheets
+// covers: Novis\Spreadsheet\Engine::readerHeader
+// covers: Novis\Spreadsheet\Engine::readerRows
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Row;
+use Novis\Spreadsheet\Workbook;
+
+final class Show
+{
+public static function value(mixed $value): string
+{
+    if ($value == null) {
+        return "null";
+    }
+    if ($value is tainted string) {
+        return "string " . Core\Taint::assertTrusted($value, "the test prints what it wrote");
+    }
+    if ($value is int) {
+        return "int " . ($value as string);
+    }
+    if ($value is float) {
+        return "float " . ($value as string);
+    }
+    if ($value is bool) {
+        return $value ? "bool true" : "bool false";
+    }
+    if ($value is Core\Time\DateTime) {
+        return "DateTime " . $value->format("yyyy-MM-dd HH:mm VV");
+    }
+    if ($value is Core\Time\Date) {
+        return "Date " . $value->format("yyyy-MM-dd");
+    }
+    if ($value is Core\Time\TimeOfDay) {
+        return "TimeOfDay " . $value->format("HH:mm:ss");
+    }
+    if ($value is Core\Time\Duration) {
+        return "Duration " . ($value->toSeconds() as string) . "s";
+    }
+    return "another value";
+}
+
+public static function row(Row $row): void
+{
+    echo "row ", $row->number;
+    foreach ($row->values as tainted string $key => mixed $value) {
+        echo " | ", Core\Taint::assertTrusted($key, "the test prints what it wrote"), ": ", Show::value($value);
+    }
+    echo "\n";
+}
+}
+
+// Row 1 is the header. Row 3 is empty, so `rows` skips it.
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet("Orders", {header: true});
+$sheet->add(["Item", "Price", "Count", "Paid", "Ordered"]);
+$sheet->add(["Widget", 2.5, 3, true, Core\Time::at(2024, 1, 15, Core\Time\Zone::UTC, {hour: 9, minute: 30})]);
+$sheet->add([null]);
+$sheet->add(["Gadget", null, 4]);
+$sheet->add(["Gizmo", 1.25, 7, false]);
+bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+
+var $reader = Reader::open($file);
+foreach ($reader->sheets() as var $info) {
+    echo $info->name, " is at position ", $info->position, "\n";
+}
+
+// The key of each value is its header. `Gadget` has no price, so its price is `null`.
+foreach ($reader->rows("Orders", {header: true}) as Row $row) {
+    Show::row($row);
+}
+
+// `zone` places a date and time in that zone. The default is `UTC`.
+foreach ($reader->rows(0, {header: true, zone: "Europe/Berlin", limit: 1}) as Row $row) {
+    Show::row($row);
+}
+
+// `header: 1` says the header is row 1. `from` is the first row number to read, `limit` is the most rows, and `columns` chooses the columns.
+foreach ($reader->rows("Orders", {header: 1, from: 4, limit: 1, columns: ["A", "C"]}) as Row $row) {
+    Show::row($row);
+}
+
+// Without a header, the keys are the column letters. `emptyRows: 'keep'` also gives the empty row 3.
+foreach ($reader->rows("Orders", {from: 2, limit: 2, emptyRows: "keep"}) as Row $row) {
+    Show::row($row);
+}
+
+// A header that is used twice gets ` (2)`. An empty header cell gets its column letter.
+var $names = Workbook::createInMemory();
+$names->sheet("Names", {header: false})->addAll([["Name", "Name", null, "City"], ["Ada", "Lovelace", "x", "London"]]);
+var $named = Reader::open($names->finish()->bytes ?? Core\Bytes::fill(0, 0));
+foreach ($named->rows("Names", {header: true}) as Row $row) {
+    Show::row($row);
+}
+--EXPECT--
+Orders is at position 0
+row 2 | Item: string Widget | Price: float 2.5 | Count: int 3 | Paid: bool true | Ordered: DateTime 2024-01-15 09:30 UTC
+row 4 | Item: string Gadget | Price: null | Count: int 4 | Paid: null | Ordered: null
+row 5 | Item: string Gizmo | Price: float 1.25 | Count: int 7 | Paid: bool false | Ordered: null
+row 2 | Item: string Widget | Price: float 2.5 | Count: int 3 | Paid: bool true | Ordered: DateTime 2024-01-15 09:30 Europe/Berlin
+row 4 | Item: string Gadget | Count: int 4
+row 2 | A: string Widget | B: float 2.5 | C: int 3 | D: bool true | E: DateTime 2024-01-15 09:30 UTC
+row 3
+row 2 | Name: string Ada | Name (2): string Lovelace | C: string x | City: string London

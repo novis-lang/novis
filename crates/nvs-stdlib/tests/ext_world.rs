@@ -1227,7 +1227,18 @@ const SPREADSHEET_EXPORTS: &[&str] = &[
 ];
 
 /// The resources `engine` exports, each kept by the request that opened it.
-const SPREADSHEET_RESOURCES: &[&str] = &["writer", "reader", "template"];
+const SPREADSHEET_RESOURCES: &[&str] = &["writer", "reading", "template"];
+
+/// The word each resource's exports start with. `reading`'s are `reader-`, because the resource
+/// is not named `reader`: a manifest's resource is a class in `Novis\Spreadsheet`, where `Reader`
+/// is the Novis class over it.
+fn calls_of(resource: &str) -> &str {
+    if resource == "reading" {
+        "reader"
+    } else {
+        resource
+    }
+}
 
 /// `wit/spreadsheet.wit`, resolved against the `nvs:ext` world it includes:
 /// the resolve, the `nvs:ext` package, the `nvs:spreadsheet` package and its
@@ -1366,7 +1377,7 @@ fn the_spreadsheet_interface_parses_against_the_world_in_wit_types_alone() {
     assert!(problems.is_empty(), "\n{}", problems.join("\n"));
 }
 
-/// `engine` exports a `writer`, a `reader` and a `template`. Each one's `-open` export returns
+/// `engine` exports a `writer`, a `reading` and a `template`. Each one's `-open` export returns
 /// an `own` of it, which the request keeps, and every other export named for it takes a
 /// `borrow` of it first, so no call gives one away.
 #[test]
@@ -1384,8 +1395,8 @@ fn the_spreadsheet_interface_exports_writer_reader_and_template_resources() {
     let mut problems = Vec::new();
     for resource in SPREADSHEET_RESOURCES {
         let id = iface.types[*resource];
-        let prefix = format!("{resource}-");
-        let open = format!("{resource}-open");
+        let prefix = format!("{}-", calls_of(resource));
+        let open = format!("{}-open", calls_of(resource));
         let mut calls = 0;
         for (name, function) in iface
             .functions

@@ -19,12 +19,15 @@ and a pull loop would need every parser rewritten as a resumable state machine.
 compound file is xls, a zip with `xl/workbook.bin` is xlsb, and anything else is CSV. xls holds at
 most 65,536 rows. An xlsm's macros are listed by `macros()` and never run.
 
-**`rows($sheet, {...})`** takes the sheet by name or position and yields one array per row, keyed by
-the **row number in the file** as the `foreach` key:
+**`rows($sheet, {...})`** takes the sheet by name or by position from 0 and yields one `Row` per row:
+its `number` is the **row number in the file**, and its `values` the row's array. The row number is
+not the `foreach` key, because a cursor carries no key (`rule:iteration/foreach-subjects`), and a
+generator yields a class and not a shape. The generator only yields: a batch's shapes are read in an
+ordinary method, which the compiler lowers where it does not yet lower them inside a generator.
 
 | Option | Default | What it does |
 |---|---|---|
-| `header` | `false` | `true` reads the first row read as the header; an `int` names the header's row number. The values are then keyed by header text |
+| `header` | `false` | `true` reads the first row with a value at or after `from` as the header; an `int` names the header's row number. The values are then keyed by header text |
 | `from` | the first row | the first row number to read |
 | `limit` | none | the most rows to yield |
 | `columns` | every column | `['A:C', 'F']` |
@@ -62,9 +65,15 @@ spent on the shared strings, which a file may make large, and bounded by the req
   the number formats, and the shared strings of the file being read in one arena; for xlsm, xls and
   ods, the whole file. All of it is inside the request's cap and freed when the request ends.
 
-**Not shipped.** `Reader` in Novis, the extras, `merged: 'fill'`, `text`, and the xlsb, xlsm, xls
-and ods formats. The `value` accessor reads a range of `bytes` and not yet of an open
-`Core\IO\File`. The engine reads an xlsx's sheets, header and rows.
+**The Novis half** asks for 1,000 rows a call, with `from` one past the last row it was given.
+`header: true` costs one call more, for the number of the first row with a value. Text read from a
+file is `tainted`, so a `Formula` read with `formulas: true` carries a number result and not a text
+one. The engine's resource is `reading`, because a manifest's resource is a class in
+`Novis\Spreadsheet` and `Reader` is the class over it.
+
+**Not shipped.** The extras, `merged: 'fill'`, `text`, and the xlsb, xlsm, xls and ods formats. The
+`value` accessor reads a range of `bytes` and not yet of an open `Core\IO\File`, and each call copies
+a `bytes` source whole as it crosses. `Reader::open`, `sheets()` and `rows()` read an xlsx.
 
 **Declined:**
 - **A pull loop in the Novis half.** It costs a guest return and a Novis call per block on the request
