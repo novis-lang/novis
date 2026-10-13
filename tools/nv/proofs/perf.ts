@@ -267,8 +267,9 @@ export async function recordPerf(out: string[], nvs: string, entries: Entry[], p
       [fig, findings] = await measureOne(nvs, bench, opts.reps, floor, base, ramp);
     } catch (err) {
       if (!(err instanceof PerfError)) throw err;
-      out.push(`  FAIL  ${e.id}: ${err.message}`);
-      return 1;
+      failed++;
+      print(`  FAIL  ${e.id}: ${err.message}`);
+      continue;
     } finally {
       if (existsSync(ramp.scratch)) rmSync(ramp.scratch, { recursive: true, force: true });
     }
@@ -316,7 +317,7 @@ export async function recordPerf(out: string[], nvs: string, entries: Entry[], p
     appendFileSync(abs(LEDGER), lines.join("\n") + "\n");
     record(abs(LEDGER));
   }
-  out.push(`nv proofs perf: ${lines.length} records appended to ${LEDGER}` + (failed ? `, ${failed} bench(es) missed what they declared and were not recorded` : ""));
+  out.push(`nv proofs perf: ${lines.length} records appended to ${LEDGER}` + (failed ? `, ${failed} bench(es) failed or missed what they declared and were not recorded` : ""));
   return failed ? 1 : 0;
 }
 
