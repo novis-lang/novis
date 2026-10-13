@@ -768,7 +768,11 @@ One file set: `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/n
 
 ### State
 
-**Stage 7 reads xlsx, xlsm, xlsb, xls and ods from `bytes`.** `xlsm_xls_and_ods_are_read_whole` is green. `nvs-ext-the-spreadsheet-reader` still lacks six of the test names it lists: `xlsm_macros_are_listed_and_never_run`, `the_header_names_every_key_and_a_missing_cell_is_null`, `empty_rows_merged_cells_and_hidden_rows_follow_their_options`, `the_extras_read_on_request`, `an_external_link_or_connection_reads_as_data_and_is_never_followed` and `a_cell_read_from_tainted_bytes_is_tainted`.
+**Stage 7 reads xlsx, xlsm, xlsb, xls and ods from `bytes`, and `macros()` lists a VBA project's modules.** `xlsm_macros_are_listed_and_never_run` and `the_header_names_every_key_and_a_missing_cell_is_null` are green. `nvs-ext-the-spreadsheet-reader` still lacks four of the test names it lists: `empty_rows_merged_cells_and_hidden_rows_follow_their_options`, `the_extras_read_on_request`, `an_external_link_or_connection_reads_as_data_and_is_never_followed` and `a_cell_read_from_tainted_bytes_is_tainted`.
+
+- **`macros()`** is `read/vba.rs`: the project's `VBA/dir` stream, found by path with `cfb::File::stream_at`, decompressed by MS-OVBA 2.4.1, and each `MODULENAME` record, replaced by its `MODULENAMEUNICODE`. An xlsm's project is the `vbaProject` relationship's part, or `xl/vbaProject.bin`; an xls's is `_VBA_PROJECT_CUR/VBA`, which no test reaches yet because the test's `compound_with` builds one level of storages. The guest holds the decompressed `dir` whole, at most 4,096 bytes per compressed chunk, which Stage 11's bomb corpus should try.
+- The test builder `compound_with(streams, mini)` (`crates/nvs-ext/tests/spreadsheet_read.rs:@compound_with`) names streams by path and keeps small ones in the mini stream, so the mini-stream read is now pinned.
+- The red `spreadsheet-writes-to-every-target` of the last sweep passed on its first re-run, with no change.
 
 - **calamine is not a dependency, and every format is our own reader.** 0.36 needs `zip` 8, whose `typed-path` does not build for `wasm32-wasip2` on stable (0.33 to 0.35 the same, through `zip` 7). 0.32 builds, but carries `quick-xml` 0.38 and RUSTSEC-2026-0194 and -0195, which `cargo deny` fails. The standing decision's replacement clause applies, and `rule:core-classes/spreadsheet-evaluation-and-roster` says so.
 - **xls and ods are read whole at `Reader::open`** into each sheet's `Listed::rows`, and `Cursor::Whole` walks them (`extensions/spreadsheet/src/read/mod.rs:1`). xls is `read/cfb.rs` (the compound file, a looping chain refused) and `read/xls.rs` (BIFF8, shared strings across `CONTINUE`). ods is `read/ods.rs` over `content.xml`. BIFF5 throws naming Excel 95.
@@ -780,10 +784,11 @@ One file set: `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/n
 
 ### Next
 
-**Stage 7, the reader's missing tests, the next sweep's red first: `macros()` and the header's keys.** Files: `extensions/spreadsheet/src/read/cfb.rs`, `extensions/spreadsheet/src/read/mod.rs`, `extensions/spreadsheet/src/lib.rs`, `crates/nvs-ext/tests/spreadsheet_read.rs`.
+**Stage 7, the reader's merged cells: `merged()` and `merged: 'fill'`, the check's next missing name.** Files: `extensions/spreadsheet/src/read/mod.rs`, `extensions/spreadsheet/src/read/sheet.rs`, `extensions/spreadsheet/src/lib.rs`, `crates/nvs-ext/tests/spreadsheet_read.rs`.
 
-- [ ] **`macros()` lists an xlsm's VBA modules** for `xlsm_macros_are_listed_and_never_run`. `reader_macros` (`extensions/spreadsheet/src/lib.rs:1174`) still throws. Open `xl/vbaProject.bin` with `cfb::File` (`extensions/spreadsheet/src/read/cfb.rs:1`), decompress its `VBA/dir` stream (MS-OVBA 2.4.1), and give each `MODULENAME` record. `File::stream` matches a name and not a path, so `dir` needs the storage it sits in. The test's `compound` builder (`crates/nvs-ext/tests/spreadsheet_read.rs:@compound`) makes the file, and its streams under 4,096 bytes are padded, so a mini-stream case is new (`rule:core-classes/spreadsheet-reads-as-a-stream`).
-- [ ] **`the_header_names_every_key_and_a_missing_cell_is_null`**: the guest half is `Reader::header` (`extensions/spreadsheet/src/read/mod.rs:@header`), and the `null` for a missing cell is the Novis half's `extensions/spreadsheet/nvs/Reader.nvs:1`.
+- [ ] **`merged($sheet)`** gives a sheet's merged ranges as A1 text. `reader_merged` (`extensions/spreadsheet/src/lib.rs:1120`) still throws. An xlsx's `<mergeCells>` comes after `<sheetData>`, so reading it means a pass over the sheet's part to its end; xls (`MERGEDCELLS`, 0x00E5) and ods (`table:number-columns-spanned`) have them at open (`rule:core-classes/spreadsheet-reads-as-a-stream`).
+- [ ] **`merged: 'fill'`** gives each cell of a range the top-left value. `Reader::rows` throws for it (`extensions/spreadsheet/src/read/mod.rs:742`). Decide whether the ranges are read before the first row, at one more pass over the part, and say what that pass costs in the rule.
+- [ ] **Rename `empty_rows_and_hidden_rows_follow_their_options`** (`crates/nvs-ext/tests/spreadsheet_read.rs:786`) to `empty_rows_merged_cells_and_hidden_rows_follow_their_options`, and add the merged cases to it.
 
 Then the file source (`crates/nvs-cli/src/extensions.rs:648`, `crates/nvs-ext/src/convert.rs:63`, `crates/nvs-ext/src/handle.rs:268`, `crates/nvs-stdlib/src/io.rs:2320`), as the Backlog says.
 
@@ -791,7 +796,7 @@ Then the file source (`crates/nvs-cli/src/extensions.rs:648`, `crates/nvs-ext/sr
 
 - **The file source.** A `Core\IO\File` crosses as its descriptor through `handle_of` and the request's open-file table, with the Windows cursor put back after a positional read; `bytes` lent with no copy per call; a conformance case reading an upload from an open file; and the rule's `Not shipped` paragraph loses both (`rule:core-classes/spreadsheet-reads-as-a-stream`).
 
-- The reader's extras: `merged` (and `merged: 'fill'`, which renames `empty_rows_and_hidden_rows_follow_their_options` to the check's name), `links`, `notes`, `names`, `tables`, `images` and `properties`; then the check's tests for them, for external links and for `tainted`. `extensions/spreadsheet/src/lib.rs:1`
+- The reader's other extras: `links`, `notes`, `names`, `tables`, `images` and `properties`; then the check's tests for them, for external links and for `tainted`. `extensions/spreadsheet/src/lib.rs:1`
 - A text result for a `Formula` read with `formulas: true`, which needs `Formula::cached` to take a `tainted` text (`rule:core-classes/spreadsheet-formula-is-a-value`). `extensions/spreadsheet/nvs/Formula.nvs:1`
 - `Cell::rich`, and the shapes of `validate`, `conditional` and `Chart`'s options in `rule:core-classes/spreadsheet-sheet-end-parts`. `extensions/spreadsheet/nvs/Workbook.nvs:537`
 - Stages 8 to 14. `Row` is a new class, so Stage 14's proofs owe it a group too. Stage 11 owes `an_xlsb_record_whose_length_lies_throws` and `an_xls_sector_chain_that_loops_is_refused`, whose refusal is `extensions/spreadsheet/src/read/cfb.rs`'s `chain`. See `docs/goals/spreadsheet.md`.
