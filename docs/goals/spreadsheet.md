@@ -42,7 +42,7 @@ stages:
         shapes: ["A `.nvst` test case"]
   - id: 7
     title: the reader
-    status: open
+    status: done
     extra:
       context:
         rules: [core-classes/spreadsheet-evaluation-and-roster, core-classes/xml-refuses-by-construction, security/taint-propagation, security/tainted-sources]
@@ -157,12 +157,12 @@ checks:
     stage: 7
     name: "nvs-ext (xlsx and xlsb read as a stream of byte ranges, the other formats whole, every cell as its read type, the header and row-number keys and the reading defaults, and nothing a file names is followed)"
     run: [cargo, test, --test, spreadsheet_read]
-    tests: [an_xlsx_is_read_through_byte_ranges_and_never_whole, an_xlsb_is_read_through_byte_ranges, xlsm_xls_and_ods_are_read_whole, xlsm_macros_are_listed_and_never_run, shared_strings_are_kept_in_one_arena, every_cell_reads_as_its_read_table_type, a_number_with_a_date_format_reads_as_its_time_type_in_the_zone, an_elapsed_time_format_reads_as_a_duration, an_error_cell_reads_as_its_cell_error_case, formulas_true_gives_the_formula_with_its_stored_result, the_header_names_every_key_and_a_missing_cell_is_null, a_duplicate_header_is_numbered_and_an_empty_one_is_its_column_letter, the_foreach_key_is_the_row_number_in_the_file, from_limit_and_columns_select_the_range, empty_rows_merged_cells_and_hidden_rows_follow_their_options, sheets_gives_name_position_visibility_size_and_kind, the_extras_read_on_request, an_external_link_or_connection_reads_as_data_and_is_never_followed]
+    tests: [an_xlsx_is_read_through_byte_ranges_and_never_whole, a_lent_source_is_read_through_the_budget_a_block_at_a_time, an_xlsb_is_read_through_byte_ranges, xlsm_xls_and_ods_are_read_whole, xlsm_macros_are_listed_and_never_run, shared_strings_are_kept_in_one_arena, every_cell_reads_as_its_read_table_type, a_number_with_a_date_format_reads_as_its_time_type_in_the_zone, an_elapsed_time_format_reads_as_a_duration, an_error_cell_reads_as_its_cell_error_case, formulas_true_gives_the_formula_with_its_stored_result, the_header_names_every_key_and_a_missing_cell_is_null, a_duplicate_header_is_numbered_and_an_empty_one_is_its_column_letter, the_foreach_key_is_the_row_number_in_the_file, from_limit_and_columns_select_the_range, empty_rows_merged_cells_and_hidden_rows_follow_their_options, sheets_gives_name_position_visibility_size_and_kind, the_extras_read_on_request, an_external_link_or_connection_reads_as_data_and_is_never_followed]
   - id: spreadsheet-an-upload-reads-with-row-numbers
     stage: 7
-    name: "an xlsx reads back as typed rows keyed by their row numbers, what the writer wrote reads back equal, and everything read from an upload is tainted"
-    run: [bun, nv, suite, tests/conformance/, --case, tests/conformance/novis/spreadsheet-reads-typed-rows-by-row-number.nvst, --case, tests/conformance/novis/spreadsheet-reads-back-what-it-wrote.nvst, --case, tests/conformance/novis/spreadsheet-a-cell-read-from-an-upload-is-tainted.nvst]
-    tests: [tests/conformance/novis/spreadsheet-reads-typed-rows-by-row-number.nvst, tests/conformance/novis/spreadsheet-reads-back-what-it-wrote.nvst, tests/conformance/novis/spreadsheet-a-cell-read-from-an-upload-is-tainted.nvst]
+    name: "an xlsx reads back as typed rows keyed by their row numbers, what the writer wrote reads back equal, an open file reads through ranges, and everything read from an upload is tainted"
+    run: [bun, nv, suite, tests/conformance/, --case, tests/conformance/novis/spreadsheet-reads-typed-rows-by-row-number.nvst, --case, tests/conformance/novis/spreadsheet-reads-back-what-it-wrote.nvst, --case, tests/conformance/novis/spreadsheet-a-cell-read-from-an-upload-is-tainted.nvst, --case, tests/conformance/novis/spreadsheet-reads-an-open-file.nvst]
+    tests: [tests/conformance/novis/spreadsheet-reads-typed-rows-by-row-number.nvst, tests/conformance/novis/spreadsheet-reads-back-what-it-wrote.nvst, tests/conformance/novis/spreadsheet-a-cell-read-from-an-upload-is-tainted.nvst, tests/conformance/novis/spreadsheet-reads-an-open-file.nvst]
   - id: spreadsheet-the-number-format-renderer
     stage: 8
     name: "extensions/spreadsheet (every row of the committed reference table renders as Excel displays it, with the built-in ids, both epochs, elapsed time and the locale's separators)"
@@ -768,25 +768,22 @@ One file set: `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/n
 
 ### State
 
-**Stage 7 reads xlsx, xlsm, xlsb, xls and ods from `bytes`, an upload included, and everything it reads is `tainted`.** Every extra works: `merged`, `macros`, `links`, `notes`, `names`, `tables`, `images` and `properties`. What is left of Stage 7 is the file source.
+**Stage 7 is done.** The reader reads xlsx, xlsm, xlsb, xls and ods from `bytes`, an upload included, or from an open `Core\IO\File`, and everything it reads is `tainted`. Every extra works: `merged`, `macros`, `links`, `notes`, `names`, `tables`, `images` and `properties`.
 
-- **`Reader::open` and its `source` field take `tainted bytes|Core\IO\File`** (`extensions/spreadsheet/nvs/Reader.nvs:25`, `:30`). Every string and `bytes` in `Reader`'s shape types is written `tainted`, because an extension call's contagion stops at a shape's fields (playbook, *Writing Novis*). `sheetName` sends a sheet name back to the engine through one `assertTrusted`. `Formula::text` is a `tainted string`, and the writer asserts it trusted where a `Formula` becomes a formula (`extensions/spreadsheet/nvs/Workbook.nvs:@cell`, `extensions/spreadsheet/nvs/Sheet.nvs:@table`). `rule:core-classes/spreadsheet-has-no-io`'s *Everything read is `tainted`* holds the tradeoff and the declined plain `text`.
-- **The taint proof moved hosts.** An `nvs-ext` test calls the engine with `Value`s and never sees a qualifier, so `a_cell_read_from_tainted_bytes_is_tainted` left `nvs-ext-the-spreadsheet-reader`, and `spreadsheet-an-upload-reads-with-row-numbers` runs `tests/conformance/novis/spreadsheet-a-cell-read-from-an-upload-is-tainted.nvst`, which `nvs check` refuses three times.
-
-- **The extras are `extensions/spreadsheet/src/read/extras.rs`.** Hyperlinks scan the sheet's part to its end through `read/sheet.rs:@scan`, which `merged` now uses too. Notes, tables, images, names and properties read their small parts whole. `wit/spreadsheet.wit`'s `image-info` gained `link: option<string>` for a linked picture, which has no bytes.
-- The sheet extras and `names` read xlsx and xlsm only, and `properties` any zip package. The rest throw naming the format (`extras.rs:@xml_workbook`), and the rule's `Not shipped` paragraph says so.
-- `crates/nvs-cli/tests/meta.rs` lists the six new `Engine` and `Reader` methods.
-- calamine is not a dependency, and every format is our own reader (`rule:core-classes/spreadsheet-evaluation-and-roster`). xls and ods are read whole at `Reader::open` (`extensions/spreadsheet/src/read/mod.rs:1`).
+- **A source is lent by number and never copied as it crosses** (`rule:core-classes/spreadsheet-reads-as-a-stream`). For a `mixed` parameter, `crates/nvs-cli/src/extensions.rs:@lent_source` crosses a `bytes` value or an open `Core\IO\File` as `nvs_ext::convert::Value::Lent { id, size }`. The `value` accessor's `as-bytes` and `range` are async imports (`crates/nvs-ext/src/handle.rs:@bytes_of`) that ask `Budget::read` and wait. `Spent::reads` serves each read between two polls of the call, from the runtime's string or through `nvs_stdlib::extension_file_range`, which puts the handle's position back. This is the pattern outbound HTTP already used.
+- The host gives at most 1 MiB per `range`, and the guest's `Lent::range` asks again until it has the whole length (`extensions/spreadsheet/src/lib.rs`). Before, a whole read of an xls or ods past 1 MiB came back short.
+- A read the host fails (a closed file, an I/O error) traps the call, so the program sees an `ExtensionError` with the reason, and not an `IOError`.
+- `tests/conformance/novis/spreadsheet-reads-an-open-file.nvst` and `a_lent_source_is_read_through_the_budget_a_block_at_a_time` are new, and both are pinned in the Stage 7 checks.
 - Each row is a `Row` with `number` and `values`. The row number is not the `foreach` key (`rule:iteration/foreach-subjects`). The user has been told.
-- `bytes` is still copied whole on every reader call, and an open `Core\IO\File` crosses as a class name. The engine then throws "A workbook is read from `bytes`."
+- calamine is not a dependency, and every format is our own reader (`rule:core-classes/spreadsheet-evaluation-and-roster`).
 
 ### Next
 
-**Stage 7, the file source: an open `Core\IO\File` is read through byte ranges, and `bytes` is lent with no copy per call** (`rule:core-classes/spreadsheet-reads-as-a-stream`). Files: `crates/nvs-cli/src/extensions.rs`, `crates/nvs-ext/src/handle.rs`, `crates/nvs-stdlib/src/io.rs`, `crates/nvs-ext/tests/spreadsheet_read.rs`.
+**Stage 8, the number-format renderer: a cell rendered as Excel displays it, for `{text: [...]}` on read and for auto width on write** (`rule:core-classes/spreadsheet-reads-as-a-stream`'s `text` option, `rule:core-classes/spreadsheet-value-types`). Files: `extensions/spreadsheet/src/format/` (new), `extensions/spreadsheet/src/read/format.rs`, `extensions/spreadsheet/src/read/mod.rs`, `extensions/spreadsheet/tests/format.rs` (new).
 
-- [ ] **A `Core\IO\File` crosses as its descriptor**, not its class name (`crates/nvs-cli/src/extensions.rs:648`'s `crossed`, `crates/nvs-stdlib/src/io.rs:2320`'s `handle_of`).
-- [ ] **The `value` accessor's `size` and `range` read a range of the file** (`crates/nvs-ext/src/handle.rs:268`, `:279`), and the engine's "A workbook is read from `bytes`." goes.
-- [ ] **`bytes` is lent with no copy per call** (`crates/nvs-ext/src/handle.rs:279`), and a read of an open file reaches the conformance suite (`tests/conformance/novis/spreadsheet-writes-to-a-file-and-an-open-file.nvst` is the shape).
+- [ ] **The format language parses**: sections, conditions and colours, `0` `#` `?`, separators and scaling, percent, scientific, fractions, literals, `@`. Start from `extensions/spreadsheet/src/read/format.rs:35`'s `classify`, which reads only the first section today.
+- [ ] **Dates, times and elapsed time render**, with both epochs and the 1900 leap-day bug, and built-in ids 0 to 49 map to their codes (`extensions/spreadsheet/src/read/format.rs:23`'s `builtin`).
+- [ ] **The committed reference table** of code, value and Excel's text, from SheetJS's SSF cases, and `text`/`text_all` read through the renderer (`extensions/spreadsheet/src/read/mod.rs:196`).
 
 ### Backlog
 
@@ -794,5 +791,5 @@ One file set: `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/n
 - A text result for a `Formula` read with `formulas: true` (`rule:core-classes/spreadsheet-formula-is-a-value`). `extensions/spreadsheet/nvs/Formula.nvs:1`
 - Extension contagion does not reach a shape's fields, so an extension returning a shape launders a `tainted` argument (`crates/nvs-types/src/expr/quals.rs:531`'s `tainted_result`, `rule:security/extension-contagion`). A compiler fix, outside this goal.
 - `Cell::rich`, and the shapes of `validate`, `conditional` and `Chart`'s options in `rule:core-classes/spreadsheet-sheet-end-parts`. `extensions/spreadsheet/nvs/Workbook.nvs:537`
-- Stages 8 to 14. `Row` is a new class, so Stage 14's proofs owe it a group. Stage 11 owes `an_xlsb_record_whose_length_lies_throws` and `an_xls_sector_chain_that_loops_is_refused` (`extensions/spreadsheet/src/read/cfb.rs`'s `chain`). See `docs/goals/spreadsheet.md`.
-- The flaky `nvs-stdlib` `ldap` test, `nvs-cli`'s `live_edit` tests, and `looper lint`'s report on `AGENTS.md`'s managed text, none from this goal (`tools/nv/cmd/verify.ts`'s module doc, `AGENTS.md`).
+- Stages 9 to 14. `Row` is a new class, so Stage 14's proofs owe it a group. Stage 11 owes `an_xlsb_record_whose_length_lies_throws` and `an_xls_sector_chain_that_loops_is_refused` (`extensions/spreadsheet/src/read/cfb.rs`'s `chain`). See `docs/goals/spreadsheet.md`.
+- The flaky `nvs-stdlib` `ldap` test, `nvs-cli`'s `live_edit` tests (`a_link_switch_during_a_compile_never_builds_a_program_from_both_releases` failed beside the other binaries this session and passed alone), and `looper lint`'s report on `AGENTS.md`'s managed text, none from this goal (`tools/nv/cmd/verify.ts`'s module doc, `AGENTS.md`).
