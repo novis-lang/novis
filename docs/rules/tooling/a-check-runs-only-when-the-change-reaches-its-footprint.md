@@ -44,7 +44,7 @@ on `covws`, which is never a verdict; when the two runs end differently, the pro
 they agree.
 
 The heavy checks, which build the release profile, fuzz, TSan, the database matrix or run a Linux leg,
-wait for the floor gate, and record no coverage of their own. A release test, a bench and the database
+record no coverage of their own. A release test, a bench and the database
 matrix are keyed on a **twin**: the same work run again on `covws`, whose verdict counts for nothing and
 whose coverage is the check's keys. The twin of a release test runs its tests with `--include-ignored`,
 a bench runs once on the covws `nvs`, and the database matrix runs its SQLite leg. Each also holds a key
@@ -58,13 +58,15 @@ is never answered from the store, and
 `bun nv loop --goal-only --full` runs every atom of every check.
 
 A heavy check keyed on every file of every crate it builds would be reached by almost any Rust change,
-so the goal-end sweep would pay for all of them at nearly every goal end; the twin is what keeps a
+so a goal that names them would pay for all of them after nearly every session; the twin is what keeps a
 change that reaches none of its code from running it. A twin is paid only when its heavy check runs.
 
 **Every open floor gate runs both Linux legs over every fixture and suite of the goal**, whatever
 changed (`tools/nv/cmd/sweep.ts`, through `bun nv legs --full`'s `legsOver`). A leg records no footprint
 of its own and is selected through its fixtures' atoms, so this run is the safety net for what that
-selection cannot see. The gate runs no other heavy check whatever changed.
+selection cannot see. The gate runs no other heavy check. CI is their safety net: its nightly deep lane
+runs the release profile, fuzz, TSan and the database matrix whatever changed, and a push runs each one
+its diff reaches (`rule:testing/ci-lanes`).
 
 **The full run is the safety net.** `bun nv select --full` runs and records every atom that is not
 heavy, whatever changed, and the loop runs it when the floor gate opens by its count. An atom red there

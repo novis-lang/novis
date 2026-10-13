@@ -205,8 +205,9 @@ what the selection store says differs from the tree it last recorded, which is w
 (`rule:tooling/a-check-runs-only-when-the-change-reaches-its-footprint`). Its verify half is each step,
 test binary and case whose footprint holds a key the change moved, or that is new, red or owed, with
 the path each came from. Its acceptance half is each plan check one of whose atoms is selected. A heavy
-check — the release profile, fuzz, TSan, the database matrix — is named and left to looper's sweep after
-the session, and the Linux legs to the floor gate. A check reached only because its atoms were owed or red before the change is left out, since
+check — the release profile, fuzz, TSan, the database matrix — is named and left to looper's sweep when
+the live goal names it, and to CI's nightly deep lane whatever changed; the Linux legs are left to the
+floor gate. A check reached only because its atoms were owed or red before the change is left out, since
 it stays red until the goal is reached. `--run` runs the rest: `nv verify` first,
 then the sweep over exactly the checks it named, and a binary or case verify ran green is not started
 twice.
