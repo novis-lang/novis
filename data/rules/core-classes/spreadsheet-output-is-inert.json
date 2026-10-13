@@ -1,5 +1,5 @@
 {
-  "title": "The writer embeds no executable content and no entropy, so equal input gives byte-equal output",
+  "title": "The writer and the template filler embed no executable content and no entropy, so equal input gives byte-equal output",
   "status": "designed",
   "seeAlso": [
     "core-classes/pdf-output-is-inert",

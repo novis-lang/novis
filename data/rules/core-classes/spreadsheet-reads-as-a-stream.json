@@ -1,0 +1,12 @@
+{
+  "title": "xlsx and xlsb are read through byte ranges a host import serves from the lent source, into typed rows keyed by their row numbers",
+  "status": "designed",
+  "seeAlso": [
+    "core-classes/spreadsheet-value-types",
+    "core-classes/spreadsheet-has-no-io",
+    "core-classes/decompression-bound",
+    "packaging/values-cross-as-handles"
+  ],
+  "guardedBy": [],
+  "goal": "spreadsheet"
+}

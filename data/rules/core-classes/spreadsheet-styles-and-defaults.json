@@ -1,0 +1,10 @@
+{
+  "title": "A `Style` layers column, row and cell, and a sheet with a header row is bold, bordered, frozen, filtered and auto-width by default",
+  "status": "designed",
+  "seeAlso": [
+    "core-classes/spreadsheet-writes-as-a-stream",
+    "core-classes/spreadsheet-value-types"
+  ],
+  "guardedBy": [],
+  "goal": "spreadsheet"
+}

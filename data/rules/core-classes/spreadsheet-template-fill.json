@@ -1,0 +1,11 @@
+{
+  "title": "A template fill copies every part but the filled cells, repeats the rows a list marks, and shifts every reference below them",
+  "status": "designed",
+  "seeAlso": [
+    "core-classes/spreadsheet-value-types",
+    "core-classes/spreadsheet-output-is-inert",
+    "core-classes/spreadsheet-formula-is-a-value"
+  ],
+  "guardedBy": [],
+  "goal": "spreadsheet"
+}

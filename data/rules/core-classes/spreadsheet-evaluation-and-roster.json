@@ -1,5 +1,5 @@
 {
-  "title": "The roster is read-wide and write-narrow, a macro is never written, and evaluation is an explicit call",
+  "title": "The roster reads xlsx, xlsm, xlsb, xls, ods and CSV and writes xlsx and CSV, a macro is never written, and nothing evaluates",
   "status": "designed",
   "seeAlso": [
     "core-classes/spreadsheet-formula-is-a-value",

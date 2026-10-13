@@ -1,5 +1,5 @@
 {
-  "title": "A workbook crosses the boundary in whole blocks, and a bomb is refused before a sheet buffer exists",
+  "title": "A workbook crosses the boundary a batch at a time, never a cell at a time, and Excel's grid is the only limit it adds",
   "status": "designed",
   "seeAlso": [
     "core-classes/image-pipeline",

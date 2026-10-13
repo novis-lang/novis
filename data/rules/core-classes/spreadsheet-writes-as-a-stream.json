@@ -1,0 +1,12 @@
+{
+  "title": "A workbook is written as a stream to the target it was created for, one sheet after another, and finished with `finish()`",
+  "status": "designed",
+  "seeAlso": [
+    "core-classes/spreadsheet-roster",
+    "core-classes/spreadsheet-sheet-end-parts",
+    "core-classes/spreadsheet-styles-and-defaults",
+    "core-classes/spreadsheet-bulk-boundary"
+  ],
+  "guardedBy": [],
+  "goal": "spreadsheet"
+}

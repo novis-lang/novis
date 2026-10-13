@@ -3,7 +3,7 @@
 
 # The Core classes
 
-*9 of 108 rules below are **designed** rather than shipped, and are marked where they appear.*
+*16 of 115 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="core-classes-cli-arguments"></a>
 
@@ -3001,6 +3001,14 @@ attack one level up. This is why both classes are Tier 0 rather than sandboxed c
 ([`core-api/tier-roster`](core-api.md#core-api-tier-roster)): a sandboxed decoder gets a memory cap for free and this rule not at
 all.
 
+**The ceiling bounds what is held, and the ratio bounds what is spent.** A part a consumer inflates as
+a stream and never holds — a spreadsheet sheet read row by row
+([`core-classes/spreadsheet-reads-as-a-stream`](core-classes.md#core-classes-spreadsheet-reads-as-a-stream)) — is bounded by `input × ratio` alone, because
+the request holds a window of it at any time and its CPU cap bounds the time. A part held whole keeps
+both bounds, and an archive-wide total counts held parts only. The configured values reach a guest
+the way `[image] max_pixels` does, clamped by the host before the call. Every `Core\Compress` and
+`Core\Zip` member holds its output, so each keeps both bounds.
+
 A handler that decompresses something genuinely larger than the ceiling, such as a 200 MB archive
 member, is refused until the operator raises `max_decompressed` for that deployment. The default is
 chosen for the deployment that has not thought about it.
@@ -4261,53 +4269,292 @@ contained trap or a whole page (`crates/nvs-ext/tests/image_decode.rs`). The thr
 
 <a id="core-classes-spreadsheet-has-no-io"></a>
 
-## The spreadsheet component is a first-party extension that fetches nothing and executes nothing it reads  *(designed — owned by goal spreadsheet)*
+## `NovisSpreadsheet` is a built-in component that never touches disk, fetches nothing and executes nothing it reads  *(designed — owned by goal spreadsheet)*
 
 `rule:core-classes/spreadsheet-has-no-io`
 
-Spreadsheet reading and generation are one first-party Tier 1 extension package, `nvs/spreadsheet`,
-sandboxed, with `Novis\Spreadsheet\Engine` as its one registered class and everything else under
-`Novis\Spreadsheet` Novis source that calls it. It is not `Core`: a PhpSpreadsheet-sized API is a
-permanent simplicity cost, and its parsers unsandboxed in every in-flight request is exactly the
-outcome the tier system exists to prevent. It is not Native either, because nothing in it holds
-connection state or privilege, and the sandbox is the feature. CSV stays `Core\Csv`'s, so each job
-has one way to write it.
+`Novis\Spreadsheet` is the fourth component built into every `nvs` binary
+([`packaging/the-first-party-components-are-built-in`](packaging.md#packaging-the-first-party-components-are-built-in)), sandboxed, always present under
+`Novis\`, with `Novis\Spreadsheet\Engine` as its manifest class and every other class Novis source
+that calls it ([`core-classes/spreadsheet-roster`](core-classes.md#core-classes-spreadsheet-roster)). It is not `Core`: a spreadsheet API is a
+permanent simplicity cost, and its parsers unsandboxed in every in-flight request is the outcome the
+tier system exists to prevent. It is not Native either, because nothing in it holds connection state
+or privilege, and the sandbox is the feature. It is not an `[[extension]]` package, because an
+export and an import of an upload are jobs nearly every web application has, and a program could not
+know whether the package exists without asking its deployment.
 
 The placement holds because an uploaded workbook is the tier's exact hostile-bytes material: xlsx is a
 zip of XML, where external entities and decompression bombs are the genre's vulnerability history, and
-legacy xls is an OLE compound binary. Parsing or serializing a document costs milliseconds, so the
-boundary crossing is noise.
+legacy xls is an OLE compound binary. One guest call per batch of rows or per read-ahead block makes
+the boundary crossing noise beside the work ([`core-classes/spreadsheet-bulk-boundary`](core-classes.md#core-classes-spreadsheet-bulk-boundary)).
 
-A workbook crosses the boundary as bytes and the result returns as bytes; **the component fetches
-nothing**. An external-workbook reference, a linked image or a remote data connection in a read file
-comes back as **data** — the reference itself — and is never resolved. An image placed on write is
-bytes the caller supplies. A workbook is self-contained, so this needs no asset map.
+**The component never touches disk, and is granted nothing.** Writing returns compressed chunks, and
+the Novis half sends them on to the response, the file or the memory the program chose
+([`core-classes/spreadsheet-writes-as-a-stream`](core-classes.md#core-classes-spreadsheet-writes-as-a-stream)). Reading pulls byte ranges of a `Core\IO\File`
+the program opened, or of `bytes` it holds, through the call that lent them
+([`core-classes/spreadsheet-reads-as-a-stream`](core-classes.md#core-classes-spreadsheet-reads-as-a-stream)). No preopen and no outbound HTTP is granted to the
+component, under any configuration. **The component fetches nothing**: an external-workbook reference,
+a linked image or a data connection in a read file comes back as **data** — the reference itself — and
+is never resolved, and an image placed on write is bytes the caller supplies. CSV goes through the
+same classes and is parsed and formatted by `Core\Csv` in the Novis half, so CSV has one parser and
+one API for the job.
 
-**Reading evaluates nothing.** A cell reads as its stored scalar, or as formula text plus the cached
-result the file's author wrote beside it, and the two are distinguishable at the API, because a
-cached value is a claim by the author rather than a computation by us. VBA and embedded OLE objects
-are inert payload the reader may enumerate but can never execute. Cells read from `tainted` bytes are
-`tainted`.
+**Reading evaluates nothing.** A cell reads as its stored scalar, or as its formula text with the cached
+result the file's author wrote beside it, and the two are distinguishable at the API, because a cached
+value is a claim by the author rather than a computation by us
+([`core-classes/spreadsheet-value-types`](core-classes.md#core-classes-spreadsheet-value-types)). VBA and embedded OLE objects are inert payload the reader
+may list but never executes. The XML parser resolves no entity and loads no DTD. Cells read from
+`tainted` bytes are `tainted`.
 
-The component's fixtures owe, asserted inside the guest: a read and a write with no capability grants
-that succeed with no network or filesystem access observable; and an xlsx whose sheet XML declares an
+The component's tests owe, asserted inside the guest: a read and a write with no capability grant that
+succeed with no network or filesystem access observable; and an xlsx whose sheet XML declares an
 external entity, and one carrying an external-workbook reference, each read with the reference
 surfaced as data and nothing resolved.
 
-**Not shipped.** There is no spreadsheet package in the tree; M17 builds it.
+- **Memory:** nothing until a program first uses `Novis\Spreadsheet`. Then the compiled module, held
+  once per process and shared by every core, and per calling request one instance under the request's
+  cap, freed when the request ends. What a write and a read hold inside it are their own fragments'.
+
+**Not shipped.** Nothing of `Novis\Spreadsheet` is on disk.
 
 **Declined:**
+- **A first-party `[[extension]]` package, `nvs/spreadsheet`.** It is one configuration step for a
+  feature every web application uses, and `Novis\` is reserved for what the binary carries.
+- **A preopen for the component, so it writes the file itself.** That is a grant of a directory to a
+  parser of hostile bytes, and the Novis half already holds the file the program opened.
+- **CSV left to `Core\Csv` alone, beside the component.** An import that accepts xlsx and CSV would be
+  two APIs with two row shapes; through one `Reader` it is one loop.
 - **Written in Novis.** It would reimplement OOXML and BIFF parsing that production crates already
   carry, unfuzzed and ours to maintain, and buy nothing the wasm build does not give. Novis code
   belongs in the builder.
-- **Leaving the category to the third-party channel.** The read surface belongs where the sandbox and
-  the cap are always present, the typed formula only protects when it is the one way everybody writes
-  a cell ([`core-classes/spreadsheet-formula-is-a-value`](core-classes.md#core-classes-spreadsheet-formula-is-a-value)), and the existing engines make
-  first-party assembly cheap.
-- **Exposing the crates' surfaces directly.** That is three disjoint APIs for one job inside a single
+- **Exposing the crates' surfaces directly.** That is several disjoint APIs for one job inside a single
   component.
 
 <sub>See also [`core-classes/spreadsheet-formula-is-a-value`](core-classes.md#core-classes-spreadsheet-formula-is-a-value), [`core-classes/spreadsheet-bulk-boundary`](core-classes.md#core-classes-spreadsheet-bulk-boundary), [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io).</sub>
+
+<a id="core-classes-spreadsheet-roster"></a>
+
+## `Novis\Spreadsheet` is `Workbook`, `Sheet`, `Written`, `Export`, `Reader`, `Template`, `Style`, `Cell`, `Formula`, `Chart` and `CellError`, with `Engine` the manifest class  *(designed — owned by goal spreadsheet)*
+
+`rule:core-classes/spreadsheet-roster`
+
+`Novis\Spreadsheet` is eleven classes and one enum, with `Engine` the manifest class whose static
+methods are `wit/spreadsheet.wit`'s exports and which no program calls directly:
+
+| Class | What it is | Its members |
+|---|---|---|
+| `Workbook` | A workbook being written to one target | `createForDownload(string $name, {…})`, `createForFile(string $path, {…})`, `createForStream(Core\IO\File $file, {…})`, `createInMemory({…})`, `fromRows(iterable $rows, {…}): Export`; `sheet(string $name, {…}): Sheet`, `define(string $name, string $reference): Workbook`, `finish(): Written` |
+| `Sheet` | One sheet of a `Workbook`, written row by row | `add(array $row, {…}): Sheet`, `addAll(iterable $rows): Sheet`, `cell(string\|int $column, int $row): string`, `column(string\|int $column): string`, and the sheet-end parts `merge`, `link`, `note`, `validate`, `group`, `table`, `conditional`, `image`, `chart`, `print`, `protect` |
+| `Written` | What `finish()` returns | `rows: array<int>` by sheet name, `size: int`, `bytes: ?bytes` |
+| `Export` | A whole workbook from one call, written where its last call says | `download(string $name): void`, `save(string $path): Written`, `to(Core\IO\File $file): Written`, `bytes(): bytes` |
+| `Reader` | A workbook or CSV being read | `open(Core\IO\File\|bytes $source, {…}): Reader`, `sheets(): array<{…}>`, `rows(string\|int $sheet, {…}): iterable<int, array>`, and the extras `merged`, `links`, `notes`, `names`, `tables`, `images`, `properties`, `macros` |
+| `Template` | A designed workbook to fill | `open(Core\IO\File\|bytes $source): Template`, `set(string $address, mixed $value): Template`, `fill(array $data): Export` |
+| `Style` | A set of style fields | `of({…}): Style` |
+| `Cell` | One value with its own style, or rich text | `of(mixed $value, Style $style): Cell`, `rich(array<{text: string, style?: Style}> $runs): Cell` |
+| `Formula` | A formula cell's text and its cached result | `of(string $text, {cached?: mixed}): Formula`, `text: string`, `cached: mixed` |
+| `Chart` | One chart of the subset | `column`, `bar`, `line`, `area`, `pie`, `doughnut`, `scatter` (each `({…}): Chart`), `series(string $values, {…}): Chart`, `combine(Chart $other): Chart` |
+| `Engine` | The manifest class | one static method per export |
+
+The enum is `CellError`, the cell error values `#NULL!`, `#DIV/0!`, `#VALUE!`, `#REF!`, `#NAME?`,
+`#NUM!`, `#N/A`, `#GETTING_DATA`, `#SPILL!` and `#CALC!` as the cases `Null`, `DivZero`, `Value`,
+`Ref`, `Name`, `Num`, `NotAvailable`, `GettingData`, `Spill` and `Calc`. It stays at namespace scope,
+because a cell value is `mixed` in every signature that carries one and no member names it
+([`enums/an-enum-lives-in-the-class-that-uses-it`](enums.md#enums-an-enum-lives-in-the-class-that-uses-it)). `Reader::Visibility` (`Visible`, `Hidden`,
+`VeryHidden`) is the one owned enum, the type of a `sheets()` entry's `visibility`.
+
+**The target comes first, and the verb last.** A program that writes row by row names where the bytes
+go when it creates the `Workbook`, so a download's headers leave at once; a one-call helper
+(`Workbook::fromRows`, `Template::fill`) names it last, with the verb ([`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation)
+holds each job to one of the two). **The last call of a write is `finish()`**, or the `Export`'s verb.
+Each options shape is the home fragment's: the workbook's and the sheet's in
+[`core-classes/spreadsheet-writes-as-a-stream`](core-classes.md#core-classes-spreadsheet-writes-as-a-stream), the columns and styles in
+[`core-classes/spreadsheet-styles-and-defaults`](core-classes.md#core-classes-spreadsheet-styles-and-defaults), the reader's in
+[`core-classes/spreadsheet-reads-as-a-stream`](core-classes.md#core-classes-spreadsheet-reads-as-a-stream), the template's in
+[`core-classes/spreadsheet-template-fill`](core-classes.md#core-classes-spreadsheet-template-fill), and the formula helpers in
+[`core-classes/spreadsheet-formula-is-a-value`](core-classes.md#core-classes-spreadsheet-formula-is-a-value). Every options bag is a shape
+([`core-api/options-bag`](core-api.md#core-api-options-bag)).
+
+**An error throws the world's three classes.** A call the program got wrong — a bad sheet name, an
+`Instant` with no zone, a row past the grid, a placeholder the data lacks — throws `LogicError`
+naming the rule it broke and the cell, column or sheet. A file that does not read — a broken archive,
+a lying record length, a bomb — throws `ParseError`. Anything else the component reports throws
+`RuntimeError`. A trap throws `ExtensionError`, and the request's memory or CPU cap ends the request
+([`packaging/a-guest-crash-throws`](packaging.md#packaging-a-guest-crash-throws)).
+
+**Not shipped.** Nothing of `Novis\Spreadsheet` is on disk.
+
+**Declined:**
+- **One `Spreadsheet` class with every member.** Writing, reading and filling share no state, and a
+  class per job keeps each card short.
+- **`createForMemory`.** `createInMemory` says where the bytes stay, the way the other three name a
+  target.
+- **A `CellError` owned by `Reader`.** No signature names it, so the enum rule places it in the
+  namespace.
+
+<sub>See also [`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io), [`core-classes/spreadsheet-writes-as-a-stream`](core-classes.md#core-classes-spreadsheet-writes-as-a-stream), [`core-classes/spreadsheet-reads-as-a-stream`](core-classes.md#core-classes-spreadsheet-reads-as-a-stream), [`core-api/options-bag`](core-api.md#core-api-options-bag).</sub>
+
+<a id="core-classes-spreadsheet-writes-as-a-stream"></a>
+
+## A workbook is written as a stream to the target it was created for, one sheet after another, and finished with `finish()`  *(designed — owned by goal spreadsheet)*
+
+`rule:core-classes/spreadsheet-writes-as-a-stream`
+
+A workbook is written as a stream to the target it was created for, and **streaming is the only way to
+write**: a row's values and styles are final once written, and there is no in-memory editable mode.
+
+**The four targets**, each a `Workbook` static method that takes the workbook options last:
+
+| Method | Where the bytes go |
+|---|---|
+| `createForDownload(string $name, {…})` | The response. It sets `Content-Disposition` with `$name` and starts `Core\Response::stream` at once, so the headers leave before the first row is written |
+| `createForFile(string $path, {…})` | A file, through `Core\IO::writeStream` |
+| `createForStream(Core\IO\File $file, {…})` | A file the program already opened |
+| `createInMemory({…})` | Memory, and `finish()`'s `Written` carries the `bytes` |
+
+The workbook options are `zone` (an IANA name; an `Instant` written with no `zone` throws naming its
+column, [`core-classes/spreadsheet-value-types`](core-classes.md#core-classes-spreadsheet-value-types)), `format` (`'xlsx'` or `'csv'`, defaulting to the
+name's extension and then to `'xlsx'`), and `properties` (`title`, `subject`, `author`, `company`,
+`keywords`, `created`). `Workbook::fromRows(iterable $rows, {…})` is the one-call form: it takes the
+workbook and sheet options in one bag, writes one sheet named `sheet` (default `'Sheet1'`), and
+returns an `Export`, whose `download`, `save`, `to` and `bytes` name the target last.
+
+**Rows go in batches, and compressed bytes come back.** `$sheet->add($row)` queues a row in the Novis
+half, and a full batch crosses in one guest call, which returns the deflated bytes ready to leave; the
+Novis half sends them on before it takes the next row. `addAll` takes any `iterable`, a generator or a
+query result included, and batches it the same way. The guest writes sheet XML as plain text, deflates
+it as it goes and frames each zip entry with a data descriptor, so it never knows an entry's size in
+advance and never seeks. **Strings are written inline** (`t="inlineStr"`), so no shared-string table
+grows with the sheet.
+
+**Sheets are written one after another.** `$book->sheet('B')` finishes sheet A; writing to a finished
+sheet throws naming it. `{position: n}` sets the tab order, which `workbook.xml` records at
+`finish()`. A sheet name follows Excel's rules — at most 31 characters, none of `: \ / ? * [ ]`, not
+empty, no leading or trailing apostrophe, unique in the workbook — and a bad one throws naming the
+rule it broke.
+
+**What stays changeable until the sheet is finished** is everything xlsx writes after the rows or in
+a part of its own: merged ranges, hyperlinks, notes, data validation, outline groups, Excel tables,
+conditional formats, images, charts, page setup and protection
+([`core-classes/spreadsheet-sheet-end-parts`](core-classes.md#core-classes-spreadsheet-sheet-end-parts)). Each may point at any row already written. **What is
+fixed before the first row** is what xlsx writes before the rows: frozen panes, column widths and
+column styles, which is why they are sheet options and not calls. Row heights, hidden rows and outline
+levels are options of `add`, because they are written with the row.
+
+The sheet options are `columns` ([`core-classes/spreadsheet-styles-and-defaults`](core-classes.md#core-classes-spreadsheet-styles-and-defaults)), `header`,
+`freeze`, `autofilter`, `headerStyle`, `position`, `hidden` (`true` or `'very'`), `tabColor`, `zoom`,
+`gridlines`, `rightToLeft` and `overflow`. **The grid is Excel's**: row 1,048,577 throws naming the
+limit, and `{overflow: 'newSheet'}` continues on a sheet named `<name> (2)` with the header row
+repeated.
+
+**`finish()`** writes the sheet-end parts, `styles.xml`, `workbook.xml`, the content types and the zip
+directory, sends the last bytes, and returns a `Written`: the row count per sheet, the size in bytes,
+and the bytes for `createInMemory`. **A workbook never finished** is logged as an error naming its
+target when the request ends, and a download is cut off, so the browser reports a failed download and
+not a broken file. A CSV workbook writes each batch through `Core\Csv::format`, ignores styles, widths
+and every sheet-end part, and throws naming the format when a second sheet is opened.
+
+The tradeoffs. **Performance:** one guest call per batch, not per cell, and a download starts before
+the first row is written. **Usability:** an export is one line, and a stream from a query is a
+`foreach`. **Simplicity:** one way to write, no editable mode, and the forward-only rules are these
+paragraphs, written down once.
+
+- **Memory:** per writing request, one batch of rows in the Novis half and its sheet XML in the guest,
+  the compressor's window, the style combinations seen so far, and the sheet-end parts, all inside
+  the request's cap and freed when the request ends. A million rows cost one batch, never the sheet,
+  so a large export runs in the request and not in a queue.
+
+**Not shipped.** Nothing of `Novis\Spreadsheet` is on disk.
+
+**Declined:**
+- **An in-memory editable mode beside the stream.** Two ways to write is two sets of rules, and the
+  editable one holds the whole sheet, which is the memory an export of user data must not cost.
+- **`rust_xlsxwriter` as the writer.** Its constant-memory mode writes each sheet through a
+  `std::fs::File`, which a guest with no preopen cannot open; it is a source of chart XML and of
+  Excel-made fixtures only.
+- **A shared-string table.** It grows with every distinct string, so a text-heavy export would hold
+  all its text; inline strings cost a few bytes per cell on disk and nothing in memory.
+- **Several sheets open at once.** Each would hold its own pending XML and compressor, and xlsx puts
+  sheets in separate entries of one stream, so interleaving would buffer all but one.
+- **Writing xls, encrypted or password-protected files, and ods.** xls is a 1997 format nothing should
+  produce, encryption is not a sandboxed writer's job, and ods writing is the second wave
+  ([`core-classes/spreadsheet-evaluation-and-roster`](core-classes.md#core-classes-spreadsheet-evaluation-and-roster)).
+
+<sub>See also [`core-classes/spreadsheet-roster`](core-classes.md#core-classes-spreadsheet-roster), [`core-classes/spreadsheet-sheet-end-parts`](core-classes.md#core-classes-spreadsheet-sheet-end-parts), [`core-classes/spreadsheet-styles-and-defaults`](core-classes.md#core-classes-spreadsheet-styles-and-defaults), [`core-classes/spreadsheet-bulk-boundary`](core-classes.md#core-classes-spreadsheet-bulk-boundary).</sub>
+
+<a id="core-classes-spreadsheet-value-types"></a>
+
+## Every Novis value writes as one cell type and every cell reads as one Novis type, and an `Instant` needs a zone  *(designed — owned by goal spreadsheet)*
+
+`rule:core-classes/spreadsheet-value-types`
+
+Every Novis value writes as one cell type and every cell reads as one Novis type, by two fixed tables,
+so neither a write nor a read guesses from the value's content.
+
+**The write table:**
+
+| Novis value | Cell |
+|---|---|
+| `string` | a text cell, always, whatever it begins with ([`core-classes/spreadsheet-formula-is-a-value`](core-classes.md#core-classes-spreadsheet-formula-is-a-value)) |
+| `int`, `float` | a number |
+| `decimal` | a number |
+| `int` or `decimal` with more than 15 significant digits | a text cell, so no digit is lost |
+| `bool` | `TRUE` or `FALSE` |
+| `Date` | a serial with the format `yyyy-mm-dd` |
+| `TimeOfDay` | a serial with the format `hh:mm:ss` |
+| `Duration` | a serial with the format `[h]:mm:ss` |
+| `DateTime` | its own clock time as a serial, with `yyyy-mm-dd hh:mm` |
+| `Instant` | its clock time in the workbook's `zone`, with `yyyy-mm-dd hh:mm` |
+| `null` | an empty cell |
+| `Formula` | a formula, with its cached result when it carries one |
+| `Cell::of($value, $style)` | the value's own cell, with that style on top of the row's and column's |
+
+Any other value throws `LogicError` naming the column and the type. A column or `Style` `format`
+replaces the table's format and never the cell type.
+
+**The zone rule.** A serial has no zone, so an `Instant` needs one to become a clock time: the
+workbook's `zone` option, and with none the write throws naming the column. A `DateTime` already
+carries its clock time, which is written as it is. On read, `zone` (default `'UTC'`) is the zone a
+read `DateTime` is placed in, and the clock time in the file is kept exactly; no conversion moves it.
+
+**The read table:**
+
+| Cell | Novis value |
+|---|---|
+| text, inline or shared | `string` |
+| a whole number within ±2^53 | `int` |
+| another number | `float` |
+| `TRUE`, `FALSE` | `bool` |
+| a number with a date format that has a date and a time | `DateTime` in `zone` |
+| a number with a date format that has no time | `Date` |
+| a number with a format that has only a time | `TimeOfDay` |
+| a number with an elapsed-time format (`[h]`, `[mm]`, `[ss]`) | `Duration` |
+| an error value | a `CellError` case |
+| empty | `null` |
+| a formula | its stored result, read by this table; `{formulas: true}` gives the `Formula` with that result as its `cached` |
+
+A format is a date format when its code has a date or time token outside quotes and brackets, or it is
+one of the built-in ids that are. Both epochs are read, 1900 with its leap-day bug and 1904.
+`{text: [...]}` names columns that read as Excel's displayed text instead, and `{text: true}` reads
+every column so ([`core-classes/spreadsheet-reads-as-a-stream`](core-classes.md#core-classes-spreadsheet-reads-as-a-stream)). A CSV cell is always `string`,
+because CSV has no other type.
+
+The tradeoffs. **Usability:** an import gets an `int` where the sheet has a whole number and a `Date`
+where it has a date, with no parse in the program. **Simplicity:** one table per direction, and the
+display text is one option away when the table is not what the program wants.
+
+**Not shipped.** Nothing of `Novis\Spreadsheet` is on disk.
+
+**Declined:**
+- **A `string` that looks like a number written as a number.** The cell would depend on the content,
+  and a zip code or an account number would lose its leading zeros.
+- **Writing an `Instant` in UTC when no `zone` is set.** Every reader in another zone would see the
+  wrong clock time with nothing to tell them; a throw names the missing option once.
+- **Reading every number as `float`.** An id column would come back as `1042.0`, and ±2^53 is exactly
+  the range in which `float` holds a whole number without loss.
+- **A read `DateTime` converted into the program's zone.** The file holds a clock time and no zone, so
+  any conversion would invent the zone it converts from.
+
+<sub>See also [`core-classes/spreadsheet-formula-is-a-value`](core-classes.md#core-classes-spreadsheet-formula-is-a-value), [`core-classes/spreadsheet-reads-as-a-stream`](core-classes.md#core-classes-spreadsheet-reads-as-a-stream), [`core-classes/spreadsheet-writes-as-a-stream`](core-classes.md#core-classes-spreadsheet-writes-as-a-stream).</sub>
 
 <a id="core-classes-spreadsheet-formula-is-a-value"></a>
 
@@ -4322,103 +4569,420 @@ the formula-injection class.
 An export built from user data is therefore inert by construction rather than by a caller remembering
 to prefix a quote. This is the same move taint tracking makes everywhere else — code and data
 separated by type, not by inspection — applied at a boundary that is otherwise a footnote in a
-security advisory.
+security advisory. Because the writer cannot be tricked into emitting code, it needs no launderer. A
+template fill holds to the same rule: a value beginning `=` fills as text
+([`core-classes/spreadsheet-template-fill`](core-classes.md#core-classes-spreadsheet-template-fill)).
+
+**A formula is plain Excel text**, `Formula::of('SUM(C2:C9)', {cached: 42})`, with no placeholder syntax
+inside it. Three helpers write the references, so a program never computes a column letter:
+
+- `$sheet->cell($key, $row)` is the A1 address of the column `$key` (a column key or a letter) in row
+  `$row`, such as `C7`.
+- `$sheet->column($key)` is the column's data range over the rows written so far, such as `C2:C1043`,
+  so a totals row written after the data covers every row of the stream.
+- A column's `formula: fn(int $row) => Formula` is called once per row with that row's number, and its
+  `Formula` is the column's cell in that row.
+
+`cached` is the result the file carries beside the formula, for a reader that does not recalculate;
+with none, the cell has no cached value. Every written workbook is flagged to recalculate when it is
+opened, so Excel shows computed values whatever was cached.
 
 What it costs is one wrapper at the call sites that genuinely mean a formula, which is the smaller
-half of any real export. Because the writer cannot be tricked into emitting code, it needs no
-launderer, which is part of why it can live outside `Core`.
+half of any real export.
 
-The component's fixtures owe a `tainted` string beginning `=` that lands as a text cell, and the same
+The component's tests owe a `tainted` string beginning `=` that lands as a text cell, and the same
 expression as a `Formula` value that lands as a formula cell, both asserted on the written bytes
 rather than the builder's state.
 
-**Not shipped.** There is no spreadsheet package in the tree.
+**Not shipped.** Nothing of `Novis\Spreadsheet` is on disk.
+
+**Declined:**
+- **Placeholders inside formula text, such as `{qty}*{price}`.** It is a second syntax inside Excel's,
+  and the helpers give the same references as Novis strings.
+- **A string beginning `=` written as a formula, with an escape for text.** Every export of user data
+  would then be one forgotten escape from injection.
 
 <sub>See also [`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io), [`core-classes/spreadsheet-evaluation-and-roster`](core-classes.md#core-classes-spreadsheet-evaluation-and-roster).</sub>
 
+<a id="core-classes-spreadsheet-styles-and-defaults"></a>
+
+## A `Style` layers column, row and cell, and a sheet with a header row is bold, bordered, frozen, filtered and auto-width by default  *(designed — owned by goal spreadsheet)*
+
+`rule:core-classes/spreadsheet-styles-and-defaults`
+
+A style is a `Style::of({...})` value, layered column, then row, then cell, and a sheet with a header
+row is styled by default: a bold header with a bottom border, frozen, filtered, and every column
+`width: 'auto'`.
+
+**The style fields**, every one optional:
+
+| Field | Values |
+|---|---|
+| `font` | a font name, such as `'Calibri'` |
+| `size` | points, a `float` |
+| `bold`, `italic`, `strike` | `bool` |
+| `underline` | `true`, `'single'` or `'double'` |
+| `color`, `fill` | `'#RRGGBB'` |
+| `border` | `'thin'`, `'medium'`, `'thick'`, `'dashed'`, `'dotted'` or `'double'` on every side, or `{top?, right?, bottom?, left?}` of those |
+| `borderColor` | `'#RRGGBB'` |
+| `align` | `'left'`, `'center'`, `'right'`, `'fill'` or `'justify'` |
+| `valign` | `'top'`, `'center'` or `'bottom'` |
+| `wrap` | `bool` |
+| `rotate` | degrees, -90 to 90 |
+| `indent` | an `int` |
+| `format` | a format code, or a shortcut below |
+| `locked`, `hideFormula` | `bool`, which take effect only on a protected sheet |
+
+**The format shortcuts** are `'date'` (`yyyy-mm-dd`), `'datetime'` (`yyyy-mm-dd hh:mm`), `'time'`
+(`hh:mm:ss`), `'duration'` (`[h]:mm:ss`), `'integer'` (`0`), `'decimal'` (`0.00`), `'money'`
+(`#,##0.00`), `'percent'` (`0%`) and `'text'` (`@`). Any other string is a format code, written as it
+is.
+
+**Layering.** A cell's style is each field from the most specific layer that sets it: the cell's own
+(`Cell::of`), then the row's (`add`'s `style`), then the column's. A field no layer sets is Excel's
+default. Every distinct combination becomes one entry of `styles.xml` at `finish()`, so equal
+combinations share one entry, and Excel's limit of 65,490 cell formats throws naming it.
+
+**Columns** are a sheet option, `columns: {key: {...}}`, keyed by the row's array keys, in the order the
+header is written. A column takes `header` (its header text, default the key), `width` (characters,
+or `'auto'`), `format`, `style`, `hidden` and `formula`
+([`core-classes/spreadsheet-formula-is-a-value`](core-classes.md#core-classes-spreadsheet-formula-is-a-value)). A row key no column names is written after the
+named ones in the order of the first row; a column a row lacks is an empty cell. Rows that are lists
+of plain lists have no keys, so they have no header and no defaults.
+
+**The defaults, whenever a sheet has a header row**, in `fromRows` and `sheet()` alike: the header row
+bold with a thin bottom border (`headerStyle`), frozen below it (`freeze`), with an autofilter over the
+header (`autofilter`), and every column `width: 'auto'`. Each turns off on its own:
+`{freeze: false, autofilter: false, headerStyle: null}`, or a column's own `width`. `header: false`
+writes no header row, and so none of these.
+
+**Auto width** measures the header and the rows the Novis half holds before the first chunk leaves —
+the first 1,000 — or every row when `fromRows` is given an array. A cell's width is its text as Excel
+displays it, through the number-format renderer the reader's `text` option uses, counting a wide East
+Asian character as two, plus one, capped at 60. There are no font metrics.
+
+The tradeoffs. **Usability:** an export looks finished with no option at all, and a style is a value
+a program names once and reuses. **Performance:** the 1,000-row window keeps a download's first byte
+from waiting on the whole query. **Memory:** the window is up to 1,000 rows held once, at the start of
+a sheet.
+
+- **Memory:** per writing request, one entry per distinct style combination until `finish()`, and the
+  auto-width window of at most 1,000 rows before the first chunk leaves.
+
+**Not shipped.** Nothing of `Novis\Spreadsheet` is on disk.
+
+**Declined:**
+- **A style as an options bag on every call, with no value.** A report repeats the same few styles on
+  thousands of rows, and a value compares and dedupes once.
+- **Unstyled by default.** The common export is a table with a header, and the four defaults are
+  what every user would otherwise add by hand.
+- **Auto width over every row of a stream.** It would hold the sheet until the end, which is the memory
+  streaming exists to avoid.
+- **Font metrics for auto width.** It needs every font's tables in the guest for a width a reader
+  changes with one drag; characters as displayed are close enough, and the cap keeps one long cell
+  from taking the screen.
+
+<sub>See also [`core-classes/spreadsheet-writes-as-a-stream`](core-classes.md#core-classes-spreadsheet-writes-as-a-stream), [`core-classes/spreadsheet-value-types`](core-classes.md#core-classes-spreadsheet-value-types).</sub>
+
+<a id="core-classes-spreadsheet-sheet-end-parts"></a>
+
+## Merges, links, notes, validation, tables, conditional formats, images and charts may point at any written row until the sheet ends  *(designed — owned by goal spreadsheet)*
+
+`rule:core-classes/spreadsheet-sheet-end-parts`
+
+The parts xlsx writes after a sheet's rows or in a part of its own are `Sheet` calls that may point at
+any row already written, until the sheet is finished: merged ranges, hyperlinks, notes, data
+validation, outline groups, Excel tables, conditional formats, images, charts, page setup and
+protection.
+
+| Call | What it writes |
+|---|---|
+| `merge(string $range)` | a merged range |
+| `link(string $cell, string $target, {text?, tooltip?})` | a hyperlink to a URL, a `mailto:` address or `'Sheet!A1'` |
+| `note(string $cell, string $text, {author?})` | a note |
+| `validate(string $range, {...})` | data validation: `list`, `whole`, `decimal`, `date` or `length` with `between`, `min` or `max`, or `formula`; `input` and `error` messages; `allowEmpty` |
+| `group(string $rows, {collapsed?})` | an outline group over `'5:9'` or `'B:D'` |
+| `table(string $range, {name?, style?, banded?, filter?, totals?})` | an Excel table; `totals` maps a column to `'sum'`, `'average'`, `'count'`, `'min'`, `'max'` or a `Formula`, and the table's own formulas may use structured references such as `[@qty]` |
+| `conditional(string $range, {...})` | one conditional format: `cell` with an operator and values, `formula`, `colorScale`, `dataBar`, `iconSet`, `top` or `bottom` N, `duplicates` or `unique`, each with a `style` of font, fill, border and format |
+| `image(string $cell, bytes $data, {width?, height?, offsetX?, offsetY?})` | a PNG, JPEG or GIF, read from its bytes; any other format throws `LogicError` |
+| `chart(string $cell, Chart $chart, {width?, height?})` | a chart of the subset below |
+| `print({...})` | page setup: `orientation`, `fitToPage`, `margins`, `header`, `footer`, `repeatRows`, `area` |
+| `protect({password?, allow?})` | sheet protection |
+
+Row heights, hidden rows and outline levels are `add`'s options, and hidden columns a column's
+([`core-classes/spreadsheet-styles-and-defaults`](core-classes.md#core-classes-spreadsheet-styles-and-defaults)), because xlsx writes them with the row or before
+it. `Workbook::define` writes a defined name, and the workbook's `properties` the document properties.
+Rich text in one cell is `Cell::rich`. **Sheet protection locks the layout and is not security**: the
+password is a hash any tool removes, which the reference card says.
+
+**An image is its own zip entry**, written as soon as it is added, so a report with many images holds
+none of them. **The chart subset** is column, bar, line, area, pie, doughnut and scatter, and a
+combination of two of them, with a title, axis titles, the legend, series colours and data labels. A
+series names its ranges with `$sheet->column($key)`, so a chart over a stream covers every row the
+sheet ends with. Its XML follows `rust_xlsxwriter`'s output for the same chart, ported for the subset
+and attributed in the module that writes it.
+
+The tradeoffs. **Usability:** a report's merges, totals and chart are written after the rows they
+summarise, in the order a program computes them. **Memory:** the parts are held until the sheet ends,
+and they are small beside the rows.
+
+- **Memory:** per writing request, each sheet-end part of the open sheet until the sheet is finished,
+  and nothing of an image after the call that adds it.
+
+**Not shipped.** Nothing of `Novis\Spreadsheet` is on disk.
+
+**Declined:**
+- **Pivot tables, sparklines and threaded comments.** Each is a part with its own cache or model, for
+  a feature a reader builds in Excel from the data in seconds.
+- **Every chart type outside the subset, trendlines, error bars, secondary axes beyond the
+  combination, chartsheets and 3D.** The subset is what reports use; the rest is Excel's to add.
+- **An image that is not PNG, JPEG or GIF converted on the way in.** `Novis\Image` converts it in one
+  call, and the writer stays a writer.
+
+<sub>See also [`core-classes/spreadsheet-writes-as-a-stream`](core-classes.md#core-classes-spreadsheet-writes-as-a-stream), [`core-classes/spreadsheet-formula-is-a-value`](core-classes.md#core-classes-spreadsheet-formula-is-a-value).</sub>
+
+<a id="core-classes-spreadsheet-template-fill"></a>
+
+## A template fill copies every part but the filled cells, repeats the rows a list marks, and shifts every reference below them  *(designed — owned by goal spreadsheet)*
+
+`rule:core-classes/spreadsheet-template-fill`
+
+`Template::open($source)->fill($data)` copies every part of a designed workbook unchanged except the
+cells it fills, writes a row marked by a list once per item, and moves every reference below it so the
+formulas, tables and charts still point at the right rows.
+
+**Placeholders** are `{{name}}` and `{{customer.name}}`, a path into `$data`'s keys. A cell that is
+only a placeholder takes the value's cell type by [`core-classes/spreadsheet-value-types`](core-classes.md#core-classes-spreadsheet-value-types)'s write
+table and keeps the cell's style; a placeholder with text around it makes the cell text. A string
+value beginning `=` stays text ([`core-classes/spreadsheet-formula-is-a-value`](core-classes.md#core-classes-spreadsheet-formula-is-a-value)). A placeholder
+the data lacks throws `LogicError` naming it and its cell. Formula text holds no placeholder: a
+formula refers to the cells that do.
+
+**Repeated rows.** A row whose placeholder goes through a list, `{{items.qty}}`, is written once per
+item of `$data['items']`, each copy with the template row's style and height. A block of several rows
+repeats as one when a defined name equal to the list's name covers it, so an item can span two rows.
+**A list inside a list throws**, naming both.
+
+**The shift.** Every row below a repeated block moves down by the rows it added, and every part that
+points at those rows moves with it: merged ranges, formulas, defined names, the print area, the
+autofilter, data validation, conditional formats, tables, drawing anchors and chart ranges. A range
+that covers the template row grows with the block, so `SUM(C5:C5)` over a block of 100 items becomes
+`SUM(C5:C104)`. The shifter tokenizes A1 references — relative, absolute, ranges, whole rows and
+columns, and references to other sheets — and leaves every other character of formula text as it was.
+
+**`->set('Summary!B2', $value)`** fills one cell by address, by the same write table, before `fill`.
+`fill` returns an `Export`, so the target is the last call: `->download($name)`, `->save($path)`,
+`->to($file)` or `->bytes()`. The source is a `Core\IO\File` or `bytes`, read as
+[`core-classes/spreadsheet-reads-as-a-stream`](core-classes.md#core-classes-spreadsheet-reads-as-a-stream) reads one. **An xlsm template gives xlsx**: the
+`vbaProject` part and its relationship are dropped, and the content type is the xlsx one
+([`core-classes/spreadsheet-output-is-inert`](core-classes.md#core-classes-spreadsheet-output-is-inert)). Two fills of equal input are byte-equal.
+
+The tradeoffs. **Usability:** a designer builds the invoice in Excel, and the program supplies data.
+**Simplicity:** one placeholder syntax, one list rule and no list inside a list. **Performance and
+memory:** the repeated rows stream, so a template of a thousand items costs what one batch does.
+
+- **Memory:** per filling request, the parts the template carries that are not sheet rows (the styles,
+  the drawings, the parts the shift rewrites), the template's sheet rows as they stream through, and
+  one batch of repeated rows, freed when the request ends.
+
+**Not shipped.** Nothing of `Novis\Spreadsheet` is on disk.
+
+**Declined:**
+- **A list inside a list.** It needs nested blocks whose shifts compound, for a layout almost nobody
+  designs; a program that needs it writes the sheet with `Workbook`.
+- **Placeholders inside formula text.** A formula that names a filled cell does the same job, and
+  text substituted into a formula is the injection the formula rule closes.
+- **`umya-spreadsheet` as the filler.** It loads the whole workbook into an editable model, which is
+  the memory a template with a long list must not cost.
+- **Keeping the macros of an xlsm template.** The writer emits no executable content
+  ([`core-classes/spreadsheet-output-is-inert`](core-classes.md#core-classes-spreadsheet-output-is-inert)).
+
+<sub>See also [`core-classes/spreadsheet-value-types`](core-classes.md#core-classes-spreadsheet-value-types), [`core-classes/spreadsheet-output-is-inert`](core-classes.md#core-classes-spreadsheet-output-is-inert), [`core-classes/spreadsheet-formula-is-a-value`](core-classes.md#core-classes-spreadsheet-formula-is-a-value).</sub>
+
+<a id="core-classes-spreadsheet-reads-as-a-stream"></a>
+
+## xlsx and xlsb are read through byte ranges a host import serves from the lent source, into typed rows keyed by their row numbers  *(designed — owned by goal spreadsheet)*
+
+`rule:core-classes/spreadsheet-reads-as-a-stream`
+
+`Reader::open($source)` reads a `Core\IO\File` the program opened, or `bytes` it holds, and xlsx and
+xlsb are read as a stream of byte ranges, so a 100 MB upload never enters the guest whole; xlsm, xls
+and ods are read whole, and CSV goes to `Core\Csv`.
+
+**How the guest reads a range.** Every reader call lends the source as a `mixed` value, and the guest
+reads ranges of it through a host import, an accessor of the `value` handle that returns the bytes at
+an offset and length of a `bytes` value or of an open `Core\IO\File`. The guest keeps a read-ahead
+buffer, reads the zip directory from the end, and inflates each part as it parses it. The import
+grants nothing: it reads only what the program lent to this call, and the handle stops being valid
+when the call returns ([`packaging/values-cross-as-handles`](packaging.md#packaging-values-cross-as-handles)), so the source is lent again on every
+call. This is chosen against a pull loop in the Novis half, in which the guest would return "bytes
+needed at offset N, length L" and the Novis code would read them and call again, for two reasons. On
+request latency, the import costs one host call per read-ahead block and runs no Novis code between
+them, where the pull loop costs a guest return, a Novis read and a guest call for every block. And
+the parsers read synchronously from a `Read + Seek`: calamine does, for xlsb and the whole formats,
+and a pull loop would need every parser rewritten as a resumable state machine.
+
+**Formats** are told apart by their bytes: a zip is xlsx, xlsm or ods by its content types, an OLE
+compound file is xls, a zip with `xl/workbook.bin` is xlsb, and anything else is CSV. xls holds at
+most 65,536 rows. An xlsm's macros are listed by `macros()` and never run.
+
+**`rows($sheet, {...})`** takes the sheet by name or position and yields one array per row, keyed by
+the **row number in the file** as the `foreach` key:
+
+| Option | Default | What it does |
+|---|---|---|
+| `header` | `false` | `true` reads the first row read as the header; an `int` names the header's row number. The values are then keyed by header text |
+| `from` | the first row | the first row number to read |
+| `limit` | none | the most rows to yield |
+| `columns` | every column | `['A:C', 'F']` |
+| `zone` | `'UTC'` | the zone a read `DateTime` is in |
+| `text` | none | the columns, by header or letter, that read as their displayed text; `true` for all |
+| `formulas` | `false` | `true` reads a formula cell as its `Formula` |
+| `emptyRows` | `'skip'` | `'keep'` yields an empty row |
+| `merged` | `'first'` | `'fill'` gives every cell of a merged range its value |
+| `hidden` | `'read'` | `'skip'` leaves hidden rows out |
+| `locale` | `'en'` | the separators `text` renders with |
+
+With a header, **every row has every header key**, and a missing cell is `null`; a duplicate header
+gets ` (2)`, ` (3)` and on, and an empty header cell is its column letter. Without one, a row is keyed
+by column letter. A CSV read takes the same options and gives the same row shape, and its cells are
+all `string`.
+
+**`sheets()`** gives one shape per sheet: `name`, `position`, `visibility` (`Reader::Visibility`), `rows`
+and `columns` as the file declares them, and `kind` (`'worksheet'` or `'chartsheet'`). **The extras
+read on request**, each for one sheet or the workbook: `merged`, `links`, `notes`, `names`, `tables`,
+`images` (as bytes with their anchor), `properties` and `macros`. An external link, a linked image or a
+data connection reads as data and is never followed ([`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io)).
+
+**Shared strings are kept in one arena** with `u32` offsets, never one allocation per entry, and the
+reader reads `styles.xml`'s number formats and each cell's style index, which the read table's date
+rule and the `text` option need. **A part streamed and never held** — a sheet read row by row — is
+bounded by the decompression ratio alone; a part held whole, such as the shared strings, keeps both
+bounds ([`core-classes/decompression-bound`](core-classes.md#core-classes-decompression-bound)).
+
+The tradeoffs. **Performance:** one host call per read-ahead block, one guest call per batch of rows,
+and no Novis code between blocks. **Usability:** typed values, the header's keys on every row, and row
+numbers to report errors by. **Simplicity:** one `Reader` for every format, CSV included. **Memory:**
+spent on the shared strings, which a file may make large, and bounded by the request's cap.
+
+- **Memory:** per reading request, the read-ahead buffer, the inflater's window, one batch of rows,
+  the number formats, and the shared strings of the file being read in one arena; for xlsm, xls and
+  ods, the whole file. All of it is inside the request's cap and freed when the request ends.
+
+**Not shipped.** Nothing of `Novis\Spreadsheet` is on disk, and the `value` accessor that reads a
+range is not in `wit/nvs-ext/types.wit`.
+
+**Declined:**
+- **A pull loop in the Novis half.** It costs a guest return and a Novis call per block on the request
+  path, and rewrites every parser as a resumable machine (the paragraph above).
+- **The whole file copied into the guest.** A 100 MB upload would cost 100 MB of guest memory beside
+  the program's own copy.
+- **A preopen for the uploaded file.** It is a grant to a parser of hostile bytes, and a range import
+  on a lent value grants nothing ([`packaging/a-guest-has-no-ambient-authority`](packaging.md#packaging-a-guest-has-no-ambient-authority)).
+- **Whole-sheet reads into one block.** A large sheet would cost its size; a batch of rows costs the
+  same for every size.
+- **A per-cell accessor.** [`core-classes/spreadsheet-bulk-boundary`](core-classes.md#core-classes-spreadsheet-bulk-boundary) declines it for good.
+
+<sub>See also [`core-classes/spreadsheet-value-types`](core-classes.md#core-classes-spreadsheet-value-types), [`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io), [`core-classes/decompression-bound`](core-classes.md#core-classes-decompression-bound), [`packaging/values-cross-as-handles`](packaging.md#packaging-values-cross-as-handles).</sub>
+
 <a id="core-classes-spreadsheet-bulk-boundary"></a>
 
-## A workbook crosses the boundary in whole blocks, and a bomb is refused before a sheet buffer exists  *(designed — owned by goal spreadsheet)*
+## A workbook crosses the boundary a batch at a time, never a cell at a time, and Excel's grid is the only limit it adds  *(designed — owned by goal spreadsheet)*
 
 `rule:core-classes/spreadsheet-bulk-boundary`
 
-The builder assembles the whole document — sheets, cells, styles, charts — as Novis values, and
-**one call serializes it**. Reading opens a workbook once and pulls whole sheets or declared ranges
-as bulk blocks. **There is no per-cell accessor, and none is added later**: a member that would be
-called in a loop over the file's own contents costs the boundary, not the work — the same refusal the
-image component makes.
+A workbook crosses the boundary a batch of rows at a time on write and a read-ahead block and a batch
+of rows at a time on read, **never a cell at a time**, and Excel's own grid and limits are the only
+limits the component adds. **There is no per-cell accessor, and none is added later**: a member that
+would be called in a loop over the file's own contents costs the boundary, not the work — the same
+refusal the image component makes ([`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline)).
 
-Before any sheet buffer is allocated, the component reads the declared dimensions and the container's
-declared uncompressed sizes, and refuses a workbook over a cell cap with a throw naming the cap and
-the declared size. The cap is policy and the sandbox's memory cap is the backstop, which is the shape
-the image component's pixel cap already has. The cap's knob, default and config block are the
-building milestone's to set. The component's fixtures owe a workbook whose declared dimensions or
-declared uncompressed size exceed the cap and throw before a sheet buffer is allocated, and the same
-bytes passing when the cap is raised.
+**Excel's limits throw, naming the limit and the place**: 1,048,576 rows and 16,384 columns, a row or
+column index past them in a read file included; 32,767 characters in a cell; 31 characters in a sheet
+name; 65,490 cell formats. A merged range past the grid throws, and so does a record whose declared
+length is past the bytes left. Every other bound is the request's: its memory and CPU caps hold the
+guest ([`packaging/a-guest-runs-under-the-requests-budget`](packaging.md#packaging-a-guest-runs-under-the-requests-budget)), and the decompression bound holds
+every inflated part ([`core-classes/decompression-bound`](core-classes.md#core-classes-decompression-bound)). **There is no cell cap.** A file's
+declared dimensions and declared sizes are its author's numbers, so no member trusts them, not even as
+a hint: memory is measured as it is spent.
 
-- **Memory:** a request that calls the component holds the document model and its serialized form,
-  inside the extension's memory cap, and none of it outlives the request. A million-row export belongs
-  in the queue, and the write path must offer a bounded-memory streaming mode, so a large export costs
-  rows in flight rather than rows total.
+- **Memory:** a batch of rows on each side of the boundary, never the sheet. Each crossing is charged
+  to the request while it is converted (`crates/nvs-ext/src/call.rs`'s module doc).
 
-**Not shipped.** There is no spreadsheet package in the tree.
+**Not shipped.** Nothing of `Novis\Spreadsheet` is on disk.
+
+**Declined:**
+- **A cell cap with its own knob, read from the declared dimensions.** A streamed read holds a batch
+  whatever the sheet's size, so a cap would refuse large files that cost nothing, and the dimensions
+  it would read are the attacker's to write. The request's memory cap is the bound that measures.
+- **A per-cell accessor.** Called in a loop over a sheet, its cost is the boundary crossed once per
+  cell.
+- **Whole sheets as one block.** It holds the sheet, which a batch does not.
 
 <sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/image-pixel-cap`](core-classes.md#core-classes-image-pixel-cap), [`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io).</sub>
 
 <a id="core-classes-spreadsheet-evaluation-and-roster"></a>
 
-## The roster is read-wide and write-narrow, a macro is never written, and evaluation is an explicit call  *(designed — owned by goal spreadsheet)*
+## The roster reads xlsx, xlsm, xlsb, xls, ods and CSV and writes xlsx and CSV, a macro is never written, and nothing evaluates  *(designed — owned by goal spreadsheet)*
 
 `rule:core-classes/spreadsheet-evaluation-and-roster`
 
-The roster is **read-wide and write-narrow**. xlsx reads and writes, and is the parity target: styles,
-merged cells, charts, conditional formats, tables, autofilters, images and defined names. xlsm reads
-data only, with its macros enumerable and inert, and **is never written** — a filled template emits
-xlsx with no VBA stream. xlsb and xls (BIFF8) read and do not write, because a writer for a 1997
-binary format is legacy nothing should produce. ods reads, and writes in a second wave. Template fill
-is named explicitly, because it is the workflow behind most real exports: open a styled workbook, set
-values, save — styling preserved, macros dropped.
+The format roster is **read-wide and write-narrow**. xlsx reads and writes. CSV reads and writes through
+the same classes, parsed and formatted by `Core\Csv`. xlsm reads its data, with its macros listed and
+inert, and **is never written**: a filled xlsm template gives xlsx with no VBA part. xlsb and xls
+(BIFF8) read and do not write, because a writer for a 1997 binary format is legacy nothing should
+produce. ods reads, and writing it is the second wave. Template fill is in the first wave
+([`core-classes/spreadsheet-template-fill`](core-classes.md#core-classes-spreadsheet-template-fill)), because it is the workflow behind most real exports.
 
-Reading is `calamine`, generation `rust_xlsxwriter`, template fill `umya-spreadsheet` and the
-second-wave ods writer `spreadsheet-ods`: every crate pure Rust, wasm-clean and on `deny.toml`'s
-allowlist, with no C in the build.
+**The crates**, each pinned and pure Rust, built for `wasm32-wasip2`, on `deny.toml`'s allowlist and
+with no C in the build: `calamine` reads xlsb, xls, ods and the cells of xlsx; `zip` with `deflate`
+only, and `miniz_oxide` or `flate2` on its pure-Rust backend, frame and inflate the archive;
+`crc32fast` checks it; `quick-xml` reads and writes the XML; `itoa` and `ryu` write numbers. The
+writer, the template filler and the number-format renderer are our own. A crate that fails to build
+for `wasm32-wasip2` is replaced by its nearest pure-Rust equivalent, and this fragment names the
+replacement. `rust_xlsxwriter` is a source of chart XML and of Excel-made fixtures, never a
+dependency; `umya-spreadsheet` and `ironcalc` are not dependencies.
 
-**Nothing evaluates implicitly** — not on read, and not on write, where a formula cell is written for
-the opening application to compute. An explicit evaluate call is second-wave work over IronCalc, the
-one credible Rust engine, and the wave waits on its 1.0 release: a version test rather than a
-judgment. Its function set is documented, and its result carries the list of functions and references
-it could not compute, so a test asserts that list is empty. That is the same visibility rule the PDF
-component applies to dropped CSS: silent wrongness becomes a named, testable diagnostic. Until that
-wave, a workbook's cached formula results are returned where PhpSpreadsheet would recalculate, and the
-API tells the two apart, so the gap is visible.
+**Nothing evaluates implicitly** — not on read, and not on write, where a formula cell is written with
+its cached result when the program gave one and the workbook is flagged to recalculate when opened. A
+read formula cell is its stored result, and `{formulas: true}` gives the `Formula` with that result as
+its `cached`, so the program can tell the author's claim from the cell's text
+([`core-classes/spreadsheet-value-types`](core-classes.md#core-classes-spreadsheet-value-types)). An explicit evaluate call is second-wave work, and so is
+writing ods; neither is in the first wave's acceptance. An evaluate call would return the list of
+functions and references it could not compute, so a test asserts that list is empty — the visibility
+rule the PDF component applies to dropped CSS ([`core-classes/pdf-css-subset`](core-classes.md#core-classes-pdf-css-subset)).
 
-**Not shipped.** There is no spreadsheet package in the tree.
+**Not shipped.** Nothing of `Novis\Spreadsheet` is on disk.
 
 **Declined:**
 - **Evaluating formulas on read.** Recalculating on open turns reading an attacker's upload into
   running the attacker's program ([`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io)).
+- **Writing xls, xlsb or xlsm.** Legacy and binary formats nothing should produce, and a macro-enabled
+  format whose only purpose over xlsx is the macros.
+- **`umya-spreadsheet` for template fill.** It loads the whole workbook into an editable model
+  ([`core-classes/spreadsheet-template-fill`](core-classes.md#core-classes-spreadsheet-template-fill)).
 
 <sub>See also [`core-classes/spreadsheet-formula-is-a-value`](core-classes.md#core-classes-spreadsheet-formula-is-a-value), [`core-classes/spreadsheet-output-is-inert`](core-classes.md#core-classes-spreadsheet-output-is-inert), [`core-classes/pdf-css-subset`](core-classes.md#core-classes-pdf-css-subset).</sub>
 
 <a id="core-classes-spreadsheet-output-is-inert"></a>
 
-## The writer embeds no executable content and no entropy, so equal input gives byte-equal output  *(designed — owned by goal spreadsheet)*
+## The writer and the template filler embed no executable content and no entropy, so equal input gives byte-equal output  *(designed — owned by goal spreadsheet)*
 
 `rule:core-classes/spreadsheet-output-is-inert`
 
 The writer emits no macros, no embedded executables and no launch-shaped content; hyperlinks exist
-only where the document wrote them.
+only where the program wrote them.
 
 It embeds **no timestamps and no generator entropy** — document properties carry fixed dates unless
-the caller sets them, and archive entries a fixed time — so equal input gives byte-equal output and a
-document test is a byte comparison. This is the same rule the PDF writer holds
-([`core-classes/pdf-output-is-inert`](core-classes.md#core-classes-pdf-output-is-inert)), and it exists for the same reason: a test that cannot
-compare bytes ends up comparing nothing.
+the program sets them, archive entries a fixed time, and no output depends on a map's order — so equal
+input gives byte-equal output, for a write and for a template fill alike, and a document test is a
+byte comparison. This is the same rule the PDF writer holds ([`core-classes/pdf-output-is-inert`](core-classes.md#core-classes-pdf-output-is-inert)),
+and it exists for the same reason: a test that cannot compare bytes ends up comparing nothing.
 
-The component's fixtures owe a filled `.xlsm` template whose output a scanner finds no `vbaProject`
-stream in, and the same input serialized twice and compared byte for byte.
+The component's tests owe a filled `.xlsm` template whose output a scanner finds no `vbaProject`
+part in, and the same input written twice and filled twice, each pair compared byte for byte.
 
-**Not shipped.** There is no spreadsheet package in the tree.
+**Not shipped.** Nothing of `Novis\Spreadsheet` is on disk.
 
 <sub>See also [`core-classes/pdf-output-is-inert`](core-classes.md#core-classes-pdf-output-is-inert), [`core-classes/spreadsheet-evaluation-and-roster`](core-classes.md#core-classes-spreadsheet-evaluation-and-roster).</sub>
 

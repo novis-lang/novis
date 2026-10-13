@@ -1,0 +1,12 @@
+{
+  "title": "`Novis\\Spreadsheet` is `Workbook`, `Sheet`, `Written`, `Export`, `Reader`, `Template`, `Style`, `Cell`, `Formula`, `Chart` and `CellError`, with `Engine` the manifest class",
+  "status": "designed",
+  "seeAlso": [
+    "core-classes/spreadsheet-has-no-io",
+    "core-classes/spreadsheet-writes-as-a-stream",
+    "core-classes/spreadsheet-reads-as-a-stream",
+    "core-api/options-bag"
+  ],
+  "guardedBy": [],
+  "goal": "spreadsheet"
+}

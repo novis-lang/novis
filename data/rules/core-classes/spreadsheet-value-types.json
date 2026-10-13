@@ -1,0 +1,11 @@
+{
+  "title": "Every Novis value writes as one cell type and every cell reads as one Novis type, and an `Instant` needs a zone",
+  "status": "designed",
+  "seeAlso": [
+    "core-classes/spreadsheet-formula-is-a-value",
+    "core-classes/spreadsheet-reads-as-a-stream",
+    "core-classes/spreadsheet-writes-as-a-stream"
+  ],
+  "guardedBy": [],
+  "goal": "spreadsheet"
+}

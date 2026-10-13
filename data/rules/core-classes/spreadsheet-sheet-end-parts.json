@@ -1,0 +1,10 @@
+{
+  "title": "Merges, links, notes, validation, tables, conditional formats, images and charts may point at any written row until the sheet ends",
+  "status": "designed",
+  "seeAlso": [
+    "core-classes/spreadsheet-writes-as-a-stream",
+    "core-classes/spreadsheet-formula-is-a-value"
+  ],
+  "guardedBy": [],
+  "goal": "spreadsheet"
+}

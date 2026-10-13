@@ -1,26 +1,34 @@
-The roster is **read-wide and write-narrow**. xlsx reads and writes, and is the parity target: styles,
-merged cells, charts, conditional formats, tables, autofilters, images and defined names. xlsm reads
-data only, with its macros enumerable and inert, and **is never written** — a filled template emits
-xlsx with no VBA stream. xlsb and xls (BIFF8) read and do not write, because a writer for a 1997
-binary format is legacy nothing should produce. ods reads, and writes in a second wave. Template fill
-is named explicitly, because it is the workflow behind most real exports: open a styled workbook, set
-values, save — styling preserved, macros dropped.
+The format roster is **read-wide and write-narrow**. xlsx reads and writes. CSV reads and writes through
+the same classes, parsed and formatted by `Core\Csv`. xlsm reads its data, with its macros listed and
+inert, and **is never written**: a filled xlsm template gives xlsx with no VBA part. xlsb and xls
+(BIFF8) read and do not write, because a writer for a 1997 binary format is legacy nothing should
+produce. ods reads, and writing it is the second wave. Template fill is in the first wave
+(`rule:core-classes/spreadsheet-template-fill`), because it is the workflow behind most real exports.
 
-Reading is `calamine`, generation `rust_xlsxwriter`, template fill `umya-spreadsheet` and the
-second-wave ods writer `spreadsheet-ods`: every crate pure Rust, wasm-clean and on `deny.toml`'s
-allowlist, with no C in the build.
+**The crates**, each pinned and pure Rust, built for `wasm32-wasip2`, on `deny.toml`'s allowlist and
+with no C in the build: `calamine` reads xlsb, xls, ods and the cells of xlsx; `zip` with `deflate`
+only, and `miniz_oxide` or `flate2` on its pure-Rust backend, frame and inflate the archive;
+`crc32fast` checks it; `quick-xml` reads and writes the XML; `itoa` and `ryu` write numbers. The
+writer, the template filler and the number-format renderer are our own. A crate that fails to build
+for `wasm32-wasip2` is replaced by its nearest pure-Rust equivalent, and this fragment names the
+replacement. `rust_xlsxwriter` is a source of chart XML and of Excel-made fixtures, never a
+dependency; `umya-spreadsheet` and `ironcalc` are not dependencies.
 
-**Nothing evaluates implicitly** — not on read, and not on write, where a formula cell is written for
-the opening application to compute. An explicit evaluate call is second-wave work over IronCalc, the
-one credible Rust engine, and the wave waits on its 1.0 release: a version test rather than a
-judgment. Its function set is documented, and its result carries the list of functions and references
-it could not compute, so a test asserts that list is empty. That is the same visibility rule the PDF
-component applies to dropped CSS: silent wrongness becomes a named, testable diagnostic. Until that
-wave, a workbook's cached formula results are returned where PhpSpreadsheet would recalculate, and the
-API tells the two apart, so the gap is visible.
+**Nothing evaluates implicitly** — not on read, and not on write, where a formula cell is written with
+its cached result when the program gave one and the workbook is flagged to recalculate when opened. A
+read formula cell is its stored result, and `{formulas: true}` gives the `Formula` with that result as
+its `cached`, so the program can tell the author's claim from the cell's text
+(`rule:core-classes/spreadsheet-value-types`). An explicit evaluate call is second-wave work, and so is
+writing ods; neither is in the first wave's acceptance. An evaluate call would return the list of
+functions and references it could not compute, so a test asserts that list is empty — the visibility
+rule the PDF component applies to dropped CSS (`rule:core-classes/pdf-css-subset`).
 
-**Not shipped.** There is no spreadsheet package in the tree.
+**Not shipped.** Nothing of `Novis\Spreadsheet` is on disk.
 
 **Declined:**
 - **Evaluating formulas on read.** Recalculating on open turns reading an attacker's upload into
   running the attacker's program (`rule:core-classes/spreadsheet-has-no-io`).
+- **Writing xls, xlsb or xlsm.** Legacy and binary formats nothing should produce, and a macro-enabled
+  format whose only purpose over xlsx is the macros.
+- **`umya-spreadsheet` for template fill.** It loads the whole workbook into an editable model
+  (`rule:core-classes/spreadsheet-template-fill`).

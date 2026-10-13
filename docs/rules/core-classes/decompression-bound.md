@@ -33,6 +33,14 @@ attack one level up. This is why both classes are Tier 0 rather than sandboxed c
 (`rule:core-api/tier-roster`): a sandboxed decoder gets a memory cap for free and this rule not at
 all.
 
+**The ceiling bounds what is held, and the ratio bounds what is spent.** A part a consumer inflates as
+a stream and never holds — a spreadsheet sheet read row by row
+(`rule:core-classes/spreadsheet-reads-as-a-stream`) — is bounded by `input × ratio` alone, because
+the request holds a window of it at any time and its CPU cap bounds the time. A part held whole keeps
+both bounds, and an archive-wide total counts held parts only. The configured values reach a guest
+the way `[image] max_pixels` does, clamped by the host before the call. Every `Core\Compress` and
+`Core\Zip` member holds its output, so each keeps both bounds.
+
 A handler that decompresses something genuinely larger than the ceiling, such as a 200 MB archive
 member, is refused until the operator raises `max_decompressed` for that deployment. The default is
 chosen for the deployment that has not thought about it.

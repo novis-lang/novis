@@ -1,20 +1,27 @@
-The builder assembles the whole document — sheets, cells, styles, charts — as Novis values, and
-**one call serializes it**. Reading opens a workbook once and pulls whole sheets or declared ranges
-as bulk blocks. **There is no per-cell accessor, and none is added later**: a member that would be
-called in a loop over the file's own contents costs the boundary, not the work — the same refusal the
-image component makes.
+A workbook crosses the boundary a batch of rows at a time on write and a read-ahead block and a batch
+of rows at a time on read, **never a cell at a time**, and Excel's own grid and limits are the only
+limits the component adds. **There is no per-cell accessor, and none is added later**: a member that
+would be called in a loop over the file's own contents costs the boundary, not the work — the same
+refusal the image component makes (`rule:core-classes/image-pipeline`).
 
-Before any sheet buffer is allocated, the component reads the declared dimensions and the container's
-declared uncompressed sizes, and refuses a workbook over a cell cap with a throw naming the cap and
-the declared size. The cap is policy and the sandbox's memory cap is the backstop, which is the shape
-the image component's pixel cap already has. The cap's knob, default and config block are the
-building milestone's to set. The component's fixtures owe a workbook whose declared dimensions or
-declared uncompressed size exceed the cap and throw before a sheet buffer is allocated, and the same
-bytes passing when the cap is raised.
+**Excel's limits throw, naming the limit and the place**: 1,048,576 rows and 16,384 columns, a row or
+column index past them in a read file included; 32,767 characters in a cell; 31 characters in a sheet
+name; 65,490 cell formats. A merged range past the grid throws, and so does a record whose declared
+length is past the bytes left. Every other bound is the request's: its memory and CPU caps hold the
+guest (`rule:packaging/a-guest-runs-under-the-requests-budget`), and the decompression bound holds
+every inflated part (`rule:core-classes/decompression-bound`). **There is no cell cap.** A file's
+declared dimensions and declared sizes are its author's numbers, so no member trusts them, not even as
+a hint: memory is measured as it is spent.
 
-- **Memory:** a request that calls the component holds the document model and its serialized form,
-  inside the extension's memory cap, and none of it outlives the request. A million-row export belongs
-  in the queue, and the write path must offer a bounded-memory streaming mode, so a large export costs
-  rows in flight rather than rows total.
+- **Memory:** a batch of rows on each side of the boundary, never the sheet. Each crossing is charged
+  to the request while it is converted (`crates/nvs-ext/src/call.rs`'s module doc).
 
-**Not shipped.** There is no spreadsheet package in the tree.
+**Not shipped.** Nothing of `Novis\Spreadsheet` is on disk.
+
+**Declined:**
+- **A cell cap with its own knob, read from the declared dimensions.** A streamed read holds a batch
+  whatever the sheet's size, so a cap would refuse large files that cost nothing, and the dimensions
+  it would read are the attacker's to write. The request's memory cap is the bound that measures.
+- **A per-cell accessor.** Called in a loop over a sheet, its cost is the boundary crossed once per
+  cell.
+- **Whole sheets as one block.** It holds the sheet, which a batch does not.
