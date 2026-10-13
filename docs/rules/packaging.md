@@ -1947,9 +1947,12 @@ a few times rather than words many times ([`packaging/the-boundary-is-the-cost`]
 `nvs_ext::call::Request::call_values` lends a `mixed` argument through it; a handle kept past its
 call traps when it is read (`crates/nvs-ext/tests/convert.rs`). `nvs run` calls an extension from a
 program, and the row-table case passes `mixed` values to the fixture's `kindOf`
-(`tests/conformance/ext/an-extension-call-crosses-every-row-of-the-value-table.nvst`). The bulk
-copy is missing: a guest reads a handle's bytes only through `as-bytes`, and a byte list crosses as
-one wasmtime `Val` per byte, so it costs tens of nanoseconds per byte rather than about 12 ns per KiB
+(`tests/conformance/ext/an-extension-call-crosses-every-row-of-the-value-table.nvst`). A `bytes`
+value or an open `Core\IO\File` passed as `mixed` is lent by number and not copied, and the host
+serves each `range` the guest reads from the program's own copy between two polls of the call
+([`core-classes/spreadsheet-reads-as-a-stream`](core-classes.md#core-classes-spreadsheet-reads-as-a-stream)). The bulk copy is missing: a block a guest reads
+through `as-bytes` or `range` crosses as one wasmtime `Val` per byte, so it costs tens of
+nanoseconds per byte rather than about 12 ns per KiB
 (`data/gaps/nvs-ext/bytes-cross-one-val-per-byte.json`).
 
 <sub>See also [`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost), [`core-api/a-lifetime-is-an-object`](core-api.md#core-api-a-lifetime-is-an-object).</sub>

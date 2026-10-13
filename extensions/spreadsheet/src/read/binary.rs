@@ -12,7 +12,10 @@
 //! that reads back as the same `f64`. A formula is stored as parsed tokens, not as text, so a cell
 //! read with `formulas: true` gives its stored result and no formula.
 
-use super::format::{self, Kind};
+use std::sync::Arc;
+
+use super::format::Style;
+use super::merge::Merge;
 use super::sheet::{RawCell, RawRow};
 use super::zip::{Entry, Part};
 use super::{Source, Strings};
@@ -39,6 +42,7 @@ const END_SHEET_DATA: u16 = 146;
 const DIMENSION: u16 = 148;
 const WORKBOOK_PROPERTIES: u16 = 153;
 const SHEET: u16 = 156;
+const MERGE_CELL: u16 = 176;
 const BEGIN_CELL_STYLES: u16 = 617;
 const END_CELL_STYLES: u16 = 618;
 
@@ -109,25 +113,25 @@ fn records(part: &[u8]) -> impl Iterator<Item = Result<(u16, &[u8]), Error>> {
     })
 }
 
-fn u32_at(body: &[u8], at: usize) -> Result<u32, Error> {
+pub(super) fn u32_at(body: &[u8], at: usize) -> Result<u32, Error> {
     body.get(at..at + 4)
         .map(|b| u32::from_le_bytes([b[0], b[1], b[2], b[3]]))
         .ok_or_else(|| broken("a record is shorter than its fields"))
 }
 
-fn u16_at(body: &[u8], at: usize) -> Result<u16, Error> {
+pub(super) fn u16_at(body: &[u8], at: usize) -> Result<u16, Error> {
     body.get(at..at + 2)
         .map(|b| u16::from_le_bytes([b[0], b[1]]))
         .ok_or_else(|| broken("a record is shorter than its fields"))
 }
 
-fn u8_at(body: &[u8], at: usize) -> Result<u8, Error> {
+pub(super) fn u8_at(body: &[u8], at: usize) -> Result<u8, Error> {
     body.get(at)
         .copied()
         .ok_or_else(|| broken("a record is shorter than its fields"))
 }
 
-fn f64_at(body: &[u8], at: usize) -> Result<f64, Error> {
+pub(super) fn f64_at(body: &[u8], at: usize) -> Result<f64, Error> {
     body.get(at..at + 8)
         .map(|b| f64::from_le_bytes([b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7]]))
         .ok_or_else(|| broken("a record is shorter than its fields"))
@@ -159,7 +163,7 @@ fn wide_at(body: &[u8], at: usize) -> Result<(Option<String>, usize), Error> {
 }
 
 /// The text Excel shows for an error code.
-fn error_text(code: u8) -> Option<&'static str> {
+pub(super) fn error_text(code: u8) -> Option<&'static str> {
     Some(match code {
         0x00 => "#NULL!",
         0x07 => "#DIV/0!",
@@ -175,7 +179,7 @@ fn error_text(code: u8) -> Option<&'static str> {
 
 /// An RK number: a 30-bit whole number or the top 30 bits of an `f64`, either divided by 100
 /// when its lowest bit is set.
-fn rk(value: u32) -> f64 {
+pub(super) fn rk(value: u32) -> f64 {
     #[allow(
         clippy::cast_possible_wrap,
         reason = "the RK bits are a signed whole number"
@@ -226,10 +230,10 @@ pub fn workbook(part: &[u8]) -> Result<Workbook, Error> {
     Ok(book)
 }
 
-/// The read type of each cell style index in `xl/styles.bin`.
-pub fn kinds(part: &[u8]) -> Result<Vec<Kind>, Error> {
-    let mut codes: Vec<(u16, Kind)> = Vec::new();
-    let mut kinds = Vec::new();
+/// The number format of each cell style index in `xl/styles.bin`.
+pub fn styles(part: &[u8]) -> Result<Vec<Style>, Error> {
+    let mut codes: Vec<(u16, Arc<str>)> = Vec::new();
+    let mut styles = Vec::new();
     let mut in_cell_styles = false;
     for item in records(part) {
         let (kind, body) = item?;
@@ -237,26 +241,20 @@ pub fn kinds(part: &[u8]) -> Result<Vec<Kind>, Error> {
             FORMAT => {
                 let id = u16_at(body, 0)?;
                 if let (Some(code), _) = wide_at(body, 2)? {
-                    codes.push((id, format::classify(&code)));
+                    codes.push((id, Arc::from(code)));
                 }
             }
             BEGIN_CELL_STYLES => in_cell_styles = true,
             END_CELL_STYLES => in_cell_styles = false,
             STYLE if in_cell_styles => {
                 let id = u16_at(body, 2)?;
-                kinds.push(
-                    codes
-                        .iter()
-                        .find(|(code, _)| *code == id)
-                        .map(|(_, kind)| *kind)
-                        .or_else(|| format::builtin(u32::from(id)))
-                        .unwrap_or(Kind::Plain),
-                );
+                let custom = codes.iter().find(|(code, _)| *code == id);
+                styles.push(Style::of(u32::from(id), custom.map(|(_, code)| code)));
             }
             _ => {}
         }
     }
-    Ok(kinds)
+    Ok(styles)
 }
 
 /// Reads `xl/sharedStrings.bin` a block at a time, so only the arena is held.
@@ -288,6 +286,40 @@ pub fn strings(source: &dyn Source, entry: &Entry) -> Result<Strings, Error> {
     }
 }
 
+/// The merged ranges of the sheet whose part is `entry`, read a block at a time to the part's end.
+/// Each is a `BrtMergeCell` record: its first and last row and its first and last column, each
+/// from 0.
+pub fn merged(source: &dyn Source, entry: &Entry) -> Result<Vec<Merge>, Error> {
+    let mut part = Part::open(source, entry)?;
+    let mut buf = Vec::new();
+    let mut at = 0;
+    let mut ranges = Vec::new();
+    loop {
+        match record(&buf[at..])? {
+            Some((kind, body, length)) => {
+                if kind == MERGE_CELL {
+                    let corner = |at| u32_at(body, at).map(|n| u64::from(n) + 1);
+                    ranges.push(Merge::new(
+                        (corner(0)?, corner(4)?),
+                        (corner(8)?, corner(12)?),
+                    )?);
+                }
+                at += length;
+            }
+            None => {
+                buf.drain(..at);
+                at = 0;
+                if !part.fill(source, &mut buf)? {
+                    if buf.is_empty() {
+                        return Ok(ranges);
+                    }
+                    return Err(broken("a worksheet ends inside a record"));
+                }
+            }
+        }
+    }
+}
+
 /// A cell record's cell: its column from 1 and its style index, with no value yet.
 fn cell(body: &[u8]) -> Result<RawCell, Error> {
     Ok(RawCell {
@@ -297,12 +329,12 @@ fn cell(body: &[u8]) -> Result<RawCell, Error> {
     })
 }
 
-fn number(mut cell: RawCell, value: f64) -> RawCell {
+pub(super) fn number(mut cell: RawCell, value: f64) -> RawCell {
     cell.value = Some(ryu::Buffer::new().format(value).to_owned());
     cell
 }
 
-fn typed(mut cell: RawCell, kind: &[u8], value: Option<String>) -> RawCell {
+pub(super) fn typed(mut cell: RawCell, kind: &[u8], value: Option<String>) -> RawCell {
     cell.kind = kind.to_vec();
     cell.value = value;
     cell

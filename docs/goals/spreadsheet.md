@@ -42,7 +42,7 @@ stages:
         shapes: ["A `.nvst` test case"]
   - id: 7
     title: the reader
-    status: open
+    status: done
     extra:
       context:
         rules: [core-classes/spreadsheet-evaluation-and-roster, core-classes/xml-refuses-by-construction, security/taint-propagation, security/tainted-sources]
@@ -157,12 +157,12 @@ checks:
     stage: 7
     name: "nvs-ext (xlsx and xlsb read as a stream of byte ranges, the other formats whole, every cell as its read type, the header and row-number keys and the reading defaults, and nothing a file names is followed)"
     run: [cargo, test, --test, spreadsheet_read]
-    tests: [an_xlsx_is_read_through_byte_ranges_and_never_whole, an_xlsb_is_read_through_byte_ranges, xlsm_xls_and_ods_are_read_whole, xlsm_macros_are_listed_and_never_run, shared_strings_are_kept_in_one_arena, every_cell_reads_as_its_read_table_type, a_number_with_a_date_format_reads_as_its_time_type_in_the_zone, an_elapsed_time_format_reads_as_a_duration, an_error_cell_reads_as_its_cell_error_case, formulas_true_gives_the_formula_with_its_stored_result, the_header_names_every_key_and_a_missing_cell_is_null, a_duplicate_header_is_numbered_and_an_empty_one_is_its_column_letter, the_foreach_key_is_the_row_number_in_the_file, from_limit_and_columns_select_the_range, empty_rows_merged_cells_and_hidden_rows_follow_their_options, sheets_gives_name_position_visibility_size_and_kind, the_extras_read_on_request, an_external_link_or_connection_reads_as_data_and_is_never_followed, a_cell_read_from_tainted_bytes_is_tainted]
+    tests: [an_xlsx_is_read_through_byte_ranges_and_never_whole, a_lent_source_is_read_through_the_budget_a_block_at_a_time, an_xlsb_is_read_through_byte_ranges, xlsm_xls_and_ods_are_read_whole, xlsm_macros_are_listed_and_never_run, shared_strings_are_kept_in_one_arena, every_cell_reads_as_its_read_table_type, a_number_with_a_date_format_reads_as_its_time_type_in_the_zone, an_elapsed_time_format_reads_as_a_duration, an_error_cell_reads_as_its_cell_error_case, formulas_true_gives_the_formula_with_its_stored_result, the_header_names_every_key_and_a_missing_cell_is_null, a_duplicate_header_is_numbered_and_an_empty_one_is_its_column_letter, the_foreach_key_is_the_row_number_in_the_file, from_limit_and_columns_select_the_range, empty_rows_merged_cells_and_hidden_rows_follow_their_options, sheets_gives_name_position_visibility_size_and_kind, the_extras_read_on_request, an_external_link_or_connection_reads_as_data_and_is_never_followed]
   - id: spreadsheet-an-upload-reads-with-row-numbers
     stage: 7
-    name: "an xlsx reads back as typed rows keyed by their row numbers, and what the writer wrote reads back equal"
-    run: [bun, nv, suite, tests/conformance/, --case, tests/conformance/novis/spreadsheet-reads-typed-rows-by-row-number.nvst, --case, tests/conformance/novis/spreadsheet-reads-back-what-it-wrote.nvst]
-    tests: [tests/conformance/novis/spreadsheet-reads-typed-rows-by-row-number.nvst, tests/conformance/novis/spreadsheet-reads-back-what-it-wrote.nvst]
+    name: "an xlsx reads back as typed rows keyed by their row numbers, what the writer wrote reads back equal, an open file reads through ranges, and everything read from an upload is tainted"
+    run: [bun, nv, suite, tests/conformance/, --case, tests/conformance/novis/spreadsheet-reads-typed-rows-by-row-number.nvst, --case, tests/conformance/novis/spreadsheet-reads-back-what-it-wrote.nvst, --case, tests/conformance/novis/spreadsheet-a-cell-read-from-an-upload-is-tainted.nvst, --case, tests/conformance/novis/spreadsheet-reads-an-open-file.nvst]
+    tests: [tests/conformance/novis/spreadsheet-reads-typed-rows-by-row-number.nvst, tests/conformance/novis/spreadsheet-reads-back-what-it-wrote.nvst, tests/conformance/novis/spreadsheet-a-cell-read-from-an-upload-is-tainted.nvst, tests/conformance/novis/spreadsheet-reads-an-open-file.nvst]
   - id: spreadsheet-the-number-format-renderer
     stage: 8
     name: "extensions/spreadsheet (every row of the committed reference table renders as Excel displays it, with the built-in ids, both epochs, elapsed time and the locale's separators)"
@@ -768,28 +768,28 @@ One file set: `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/n
 
 ### State
 
-**Stage 7 reads xlsx and xlsb from `bytes`.** `Reader::open`, `sheets()` and `rows()` read both, and `spreadsheet-an-upload-reads-with-row-numbers` is green. `nvs-ext-the-spreadsheet-reader` still lacks five of the test names it lists, `xlsm_xls_and_ods_are_read_whole` first.
+**Stage 8 is mostly on disk and not yet verified.** This session stopped at the hand-off budget before `looper verify` and before the zip-code case finished running.
 
-- **xlsb is our own reader, not calamine** (`extensions/spreadsheet/src/read/binary.rs:1`), for the reasons the xlsx reader is: one arena for the shared strings, the cell styles for dates, and a cursor that keeps its place between calls. Its rows are the xlsx cursor's `RawRow`, so one `value` reads both. `rule:core-classes/spreadsheet-evaluation-and-roster` now says calamine reads xls and ods only.
-- An xlsb formula is stored as tokens, so `formulas: true` gives no `Formula` for an xlsb cell. `rule:core-classes/spreadsheet-reads-as-a-stream` says so.
-- **Each row is a `Row` with `number` and `values`. The row number is not the `foreach` key**, which the standing decision asked for. A cursor has no key half (`rule:iteration/foreach-subjects`). The user has been told.
-- The WIT resource is `reading` (Novis `Reading`), because a manifest's resource is a class in `Novis\Spreadsheet`. `template` will meet the same clash with `Template` in Stage 10.
-- Text read from a file is `tainted`. So `formulas: true` gives a `Formula` with a number result only, because `Formula::cached` takes a plain `string`.
-- `bytes` is still copied whole on every reader call (`crossed`), and an open `Core\IO\File` crosses as a class name. The engine then throws "A workbook is read from `bytes`."
+- **The renderer** is `extensions/spreadsheet/src/format/` (`mod.rs` sections, lexer and `choose`; `number.rs`; `date.rs`; `locale.rs`). It covers General, `0` `#` `?`, grouping and scaling, percent, scientific, fractions, literals, `@`, conditions, colours (dropped), dates, times, elapsed time, both epochs, the 1900 leap day, built-in ids 0 to 49 and `[$-407]` prefixes. Its module doc says what it does.
+- `extensions/spreadsheet/tests/format.rs` has the six Stage 8 tests, and all six pass. The committed reference table is `extensions/spreadsheet/tests/fixtures/number-formats.txt`, with 120 rows. The rows were written by hand from SSF's rules. They were not checked against Excel and not copied from SSF's files.
+- The locale separators are a CLDR table in `extensions/spreadsheet/src/format/locale.rs`. Each row was checked against `Novis\Intl\NumberFormat::decimal`'s output. The table is not a call into `Novis\Intl`'s data, because the component cannot call another component. Grouping is by three digits in every locale, so `en-IN` is not Indian grouping.
+- `read::format::classify` now uses the renderer's lexer. This fixes a bug: a custom `0.00E+00` read as a date before.
+- **The reader's `text` wiring is written but not verified.** Each style keeps its format code (`read::format::Style`). `Reader::rows` resolves `text` names to columns, header keys first and column letters second (`extensions/spreadsheet/src/read/mod.rs`'s `shown`), and fills `ReadCell::display` (`display`). `Reader.nvs` drops `text` from `firstRow` and `keys` through `with`'s new `$shown` parameter, and takes `$display` as `?tainted string`.
+- `tests/conformance/novis/spreadsheet-a-zip-code-column-reads-as-text.nvst` is new and has never run green. Its error case expects `LogicError`, and that guess is not checked.
 
 ### Next
 
-**Stage 7, the file source: a range of an open `Core\IO\File`, and `bytes` read with no copy per call.** Files: `crates/nvs-cli/src/extensions.rs`, `crates/nvs-ext/src/convert.rs`, `crates/nvs-ext/src/handle.rs`, `crates/nvs-stdlib/src/io.rs`.
+**Stage 8, close it: verify the wiring, then auto width through the renderer.** Files: `extensions/spreadsheet/src/read/mod.rs`, `tests/conformance/novis/spreadsheet-a-zip-code-column-reads-as-text.nvst`, `extensions/spreadsheet/src/width.rs`, `extensions/spreadsheet/src/writer.rs`.
 
-- [ ] **A `Core\IO\File` crosses as its descriptor.** `crossed` (`crates/nvs-cli/src/extensions.rs:648`) turns it into `Value::Object`. Find the descriptor through `nvs_stdlib::io::handle_of` (`crates/nvs-stdlib/src/io.rs:2320`) and the request's open-file table, and lend a clone of it for the call. `size` and `range` in `crates/nvs-ext/src/handle.rs:268` read it at an offset. On Windows a positional read moves the shared cursor, so the cursor is put back after the call (`rule:core-classes/spreadsheet-reads-as-a-stream`).
-- [ ] **`bytes` lent with no copy per call.** `Value::Bytes(Vec<u8>)` (`crates/nvs-ext/src/convert.rs:63`) is a fresh copy at every crossing. A 100 MB upload read in 1,000-row batches copies it once per batch.
-- [ ] **A conformance case reads an upload from an open file**, after the shape of `tests/conformance/novis/spreadsheet-reads-back-what-it-wrote.nvst:1`, and the `Not shipped` paragraph of the rule loses the file and the copy.
+- [ ] **Verify this session's work.** Run `looper verify`, and fix what it names. Then run `looper check --name spreadsheet-a-column-reads-as-text` and `looper check --name spreadsheet-the-number-format-renderer`. Run `cargo test --test spreadsheet_read` too, because the reader's styles changed type (`extensions/spreadsheet/src/read/mod.rs:441`).
+- [ ] **Auto width measures through the renderer** (`rule:core-classes/spreadsheet-styles-and-defaults`). Today `extensions/spreadsheet/src/width.rs:1`'s "Not done yet" measures the stored text. Measure through `crate::format::render` with the column's format code, and remove the "Not shipped" sentence in that fragment.
+- [ ] **Set Stage 8 to `done`** in the front matter (`docs/goals/spreadsheet.md:52`) once both Stage 8 checks pass.
 
 ### Backlog
 
-- xlsm (its data, and `macros()` listing the VBA part), then xls and ods read whole through calamine, for `xlsm_xls_and_ods_are_read_whole` and `xlsm_macros_are_listed_and_never_run` (`rule:core-classes/spreadsheet-reads-as-a-stream`). `extensions/spreadsheet/src/read/mod.rs:1`
-- The reader's extras: `merged` (and `merged: 'fill'`, which renames `empty_rows_and_hidden_rows_follow_their_options` to the check's name), `links`, `notes`, `names`, `tables`, `images` and `properties`; then the check's tests for them, for external links and for `tainted`. `extensions/spreadsheet/src/lib.rs:1`
-- A text result for a `Formula` read with `formulas: true`, which needs `Formula::cached` to take a `tainted` text (`rule:core-classes/spreadsheet-formula-is-a-value`). `extensions/spreadsheet/nvs/Formula.nvs:1`
-- `Cell::rich`, and the shapes of `validate`, `conditional` and `Chart`'s options in `rule:core-classes/spreadsheet-sheet-end-parts`. `extensions/spreadsheet/nvs/Workbook.nvs:537`
-- Stages 8 to 14. `Row` is a new class, so Stage 14's proofs owe it a group too. Stage 11 owes `an_xlsb_record_whose_length_lies_throws`. See `docs/goals/spreadsheet.md`.
-- The flaky `nvs-stdlib` `ldap` test, `nvs-cli`'s `live_edit` tests (red beside the other binaries again this session), and `looper lint`'s report on `AGENTS.md`'s managed text, none from this goal (`tools/nv/cmd/verify.ts`'s module doc, `AGENTS.md`).
+- Built-in id 14 renders as `m/d/yyyy` and id 22 as `m/d/yyyy h:mm`, which is what Excel shows in en-US. SSF uses `m/d/yy`. `extensions/spreadsheet/src/format/mod.rs:@builtin`
+- An ods cell's `text` uses the default format of its type, not the file's own number style. A merged fill copies no `display`. `extensions/spreadsheet/src/read/ods.rs:1`, `extensions/spreadsheet/src/read/merge.rs:166`
+- The extras from xlsb, xls and ods, which throw naming the format now. `extensions/spreadsheet/src/read/extras.rs:1`
+- Extension contagion does not reach a shape's fields (`crates/nvs-types/src/expr/quals.rs:531`'s `tainted_result`, `rule:security/extension-contagion`). This is a compiler fix, outside this goal.
+- `Cell::rich`, and the shapes of `validate`, `conditional` and `Chart`'s options (`rule:core-classes/spreadsheet-sheet-end-parts`). `extensions/spreadsheet/nvs/Workbook.nvs:537`
+- Stages 9 to 14. Stage 14's proofs owe `Row` a group. Stage 11 owes `an_xlsb_record_whose_length_lies_throws` and `an_xls_sector_chain_that_loops_is_refused` (`extensions/spreadsheet/src/read/cfb.rs`). See `docs/goals/spreadsheet.md`.

@@ -22,8 +22,7 @@
 // - a heavy check runs as it always has, with the footprint logs of what it starts, and then its twin
 //   runs on the covws build and records which Rust code it used (`select/checks.ts` `heavyTwin`); fuzz
 //   and TSan have none and hold `heavyKeys`;
-// - a Linux leg is picked when a fixture or case it runs again is, and on the safety net's cadence every
-//   heavy check and leg is picked (`OpenOptions.heavyAll`).
+// - a Linux leg is picked when a fixture or case it runs again is.
 //
 // A sweep shares every process between the checks that ask for the same one. Two checks naming one
 // `argv` in one directory get one run, recorded under each check's atom, and each judges its own exit
@@ -175,9 +174,6 @@ export interface OpenOptions {
   /** The store to read and record in, which the caller closes; the default store, closed by `close`,
    * when absent. */
   store?: SelectStore;
-  /** Pick every heavy check and both Linux legs, whatever changed: the loop's safety net for their keys,
-   * on its cadence of goal ends. */
-  heavyAll?: boolean;
   /** The `nvs` every run uses in place of the covws build, which is then not built: `bun nv suite`'s
    * `NVS_BIN`. */
   nvs?: string;
@@ -253,13 +249,7 @@ export class PlanSweep {
     const by = legAtoms(plan, groups)
       .map((a) => sel.selected.get(a))
       .find((s) => s !== undefined);
-    const heavy = [...groups.values()].flatMap((g) => (g.how === "heavy" && g.own ? [g.own.id] : []));
     for (const id of LEGS.map(legId)) if (by && !sel.selected.has(id)) sel.selected.set(id, { id, kind: "heavy", why: by.why, keys: by.keys });
-    if (o.heavyAll) {
-      for (const id of [...heavy, ...LEGS.map(legId)]) {
-        if (!sel.selected.has(id)) sel.selected.set(id, { id, kind: "heavy", why: "key", keys: [{ key: HEAVY_ALL, origin: { path: "", how: "cadence" } }] });
-      }
-    }
     const rec = await Recorder.open(store, change.view, graph, "sweep", { say: o.say ?? (() => {}) });
     return new PlanSweep(store, graph, change, sel, groups, plan, rec, label, o);
   }
@@ -833,9 +823,6 @@ export class PlanSweep {
 
 /** What a leg's atom is defined by: nothing a plan writes, only what its keys are read from. */
 const LEG_DEF = "leg: selected by the fixtures and suites it runs";
-
-/** The key a heavy atom is picked under on the safety net's cadence of goal ends. */
-const HEAVY_ALL = "cadence:every heavy check";
 
 /** The test executable `<package> <kind> <target>` names in `exes`, with its package, or null. */
 function exeOf(name: string, exes: Map<string, TestExe[]>): { pkg: string; t: TestExe } | null {

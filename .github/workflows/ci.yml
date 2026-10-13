@@ -154,17 +154,41 @@ jobs:
       - name: Install tool dependencies
         run: bun install --frozen-lockfile
 
-      - run: cargo build --workspace --all-targets
+      # The servers the server-backed tests and conformance cases dial: `tests/db/compose.yaml`'s
+      # `redis` for `Core\Session` and `Core\Cache::shared()`, and its `samba-ad` for `Core\Ldap`. On
+      # Linux they are the compose file's own containers, started before the build so Samba's
+      # first-boot provisioning runs while the workspace compiles. `up -d` returns once the `certs`
+      # service has issued the CA, so the anchor the cases verify against is copied out here, to the
+      # path the repository's `nvs.toml` and the cases' `--COPY--` sections name.
+      - name: The compose servers (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          docker compose -f tests/db/compose.yaml up -d redis samba-ad
+          docker compose -f tests/db/compose.yaml cp samba-ad:/certs/ca.crt tests/db/ca.crt
+
+      # macOS and Windows runners cannot run the compose file's Linux containers, so each starts a
+      # Redis on the port the compose file publishes, as the `proofs` job does: Homebrew's build on
+      # macOS, and Memurai, a Redis-compatible server, on Windows, which has no Redis build of its own.
+      - name: A Redis server (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install redis
+          redis-server --port 16379 --daemonize yes
+      - name: A Redis server (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          choco install memurai-developer -y --no-progress
+          Start-Process "C:\Program Files\Memurai\memurai.exe" -ArgumentList '--port', '16379'
 
       # The repository's `nvs.toml` names `tests/db/ca.crt` in its server-backed `[db]` blocks, and a
-      # resolve refuses a `tls_ca_file` that is not there (`E0605`), so on a fresh checkout every run
-      # from the repository root and every test that resolves that file stops at the door. A
-      # developer machine holds the compose `certs` service's CA at that path, copied out by the
-      # command `tests/db/compose.yaml`'s header names; this job has no containers, so it issues a
-      # throwaway CA of its own in its place. Nothing here dials a database server, so the anchor is
-      # never used to verify one; its key is written outside the tree and dropped with the runner.
-      # `MSYS_NO_PATHCONV` keeps Git Bash on Windows from rewriting the `-subj` value as a path.
+      # resolve refuses a `tls_ca_file` that is not there (`E0605`), so without one every run from the
+      # repository root stops at the door. Where no compose stack issued the real CA, this step issues
+      # a throwaway CA in its place. Nothing on these legs verifies a server against it; its key is
+      # written outside the tree and dropped with the runner. `MSYS_NO_PATHCONV` keeps Git Bash on
+      # Windows from rewriting the `-subj` value as a path.
       - name: A placeholder for the compose CA
+        if: runner.os != 'Linux'
         shell: bash
         env:
           MSYS_NO_PATHCONV: '1'
@@ -172,6 +196,16 @@ jobs:
           openssl req -x509 -newkey rsa:2048 -nodes -days 1
           -subj "/CN=Novis CI placeholder CA"
           -keyout "$RUNNER_TEMP/ca.key" -out tests/db/ca.crt
+
+      - run: cargo build --workspace --all-targets
+
+      # `--wait` makes "up" mean healthy, so no test races Samba's provisioning. `NVS_LDAP_SAMBA`
+      # makes the LDAP tests fail when they cannot reach the server, and not skip.
+      - name: Wait for the compose servers (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          docker compose -f tests/db/compose.yaml up -d --wait redis samba-ad
+          echo "NVS_LDAP_SAMBA=1" >> "$GITHUB_ENV"
 
       - run: cargo test --workspace --all-targets
       # Doc tests are excluded from --all-targets and are real tests for a
@@ -183,6 +217,9 @@ jobs:
       # generation is what differs per target.
       - name: Conformance suite
         run: cargo run --quiet -p nvs-cli -- test tests/conformance/
+      - name: Stop the compose servers (Linux)
+        if: always() && runner.os == 'Linux'
+        run: docker compose -f tests/db/compose.yaml down --volumes
 
   # ---------------------------------------------------------------------------
   # The release-profile guards, on the same three platforms as `test`. A job of
@@ -991,7 +1028,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: [ast, lex, parse, prefix]
+        target: [ast, lex, parse, prefix, uri]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: dtolnay/rust-toolchain@be39649afda95dbf70f87cce95f68b8d5797b296 # nightly branch
@@ -1015,7 +1052,7 @@ jobs:
       # and a second copy of the same files is a second thing to keep true.
       # Nothing the cache restored is at risk: libFuzzer names what it saves
       # after the input's hash, so a seed can only overwrite itself. The guard is
-      # for a target with no seeds of its own, which `lex` is.
+      # for a target with no seeds of its own, as `lex` and `uri` are.
       - name: Seed corpus for ${{ matrix.target }}
         run: |
           seeds=fuzz/seeds/${{ matrix.target }}

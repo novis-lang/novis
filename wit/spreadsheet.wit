@@ -592,10 +592,13 @@ interface engine {
         sheet: string,
     }
 
+    /// A picture placed in its file has its bytes in `image`. A linked
+    /// picture has no bytes and its target's text in `link`, never fetched.
     record image-info {
         at: string,
         image: list<u8>,
         format: string,
+        link: option<string>,
     }
 
     /// A workbook being read (`rule:core-classes/spreadsheet-reads-as-a-stream`).

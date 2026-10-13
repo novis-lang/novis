@@ -23,13 +23,13 @@
 //! ends, and one dropped before `writer-finish` writes an error to the request's log naming the
 //! workbook's `target` ([`writer::unfinished_message`]).
 //!
-//! **Reading** is `read`'s module doc: `reader-open`, `reader-sheets`, `reader-header` and
-//! `reader-rows` read an xlsx through the `range` of the source each call is lent.
+//! **Reading** is `read`'s module doc: every `reader-` export reads the workbook through the
+//! `range` of the source its call is lent.
 //!
-//! **Not done yet.** The reader's extras, the other formats and the template exports return
-//! `runtime`, and are not in `manifest.json`: Stages 7 and 10 of goal `spreadsheet`.
+//! **Not done yet.** The template exports return `runtime`, and are not in `manifest.json`:
+//! Stage 10 of goal `spreadsheet`.
 //!
-//! Packed as a `.nvsx` and embedded in every `nvs` binary, the component is 0.62 MiB, built for
+//! Packed as a `.nvsx` and embedded in every `nvs` binary, the component is 0.77 MiB, built for
 //! release as `crates/nvs-ext/build.rs` always builds it. That is the binary's growth for
 //! spreadsheets, and `crates/nvs-ext/tests/builtin.rs` fails when this figure drifts past 5% of
 //! the bytes the binary carries.
@@ -38,6 +38,7 @@ pub mod cells;
 pub mod chart;
 pub mod conditional;
 pub mod drawing;
+pub mod format;
 pub mod read;
 pub mod styles;
 pub mod table;
@@ -487,20 +488,34 @@ mod guest {
 
     impl GuestReading for Reader {}
 
-    /// The source a reader call was lent, read through the host's `range`.
+    /// The source a reader call was lent, `bytes` or an open file, read through the host's
+    /// `range`. The host gives at most one block per `range`, so a longer read asks again from
+    /// where the last block ended, until it has `length` bytes or the source ends.
     struct Lent<'a>(&'a Source);
 
-    fn not_bytes() -> crate::Error {
-        crate::Error::Invalid("A workbook is read from `bytes`.".to_owned())
+    fn not_a_source() -> crate::Error {
+        crate::Error::Invalid("A workbook is read from `bytes` or an open `Core\\IO\\File`.".to_owned())
     }
 
     impl crate::read::Source for Lent<'_> {
         fn size(&self) -> Result<u64, crate::Error> {
-            self.0.size().ok_or_else(not_bytes)
+            self.0.size().ok_or_else(not_a_source)
         }
 
         fn range(&self, offset: u64, length: u64) -> Result<Vec<u8>, crate::Error> {
-            self.0.range(offset, length).ok_or_else(not_bytes)
+            let mut read = self.0.range(offset, length).ok_or_else(not_a_source)?;
+            while (read.len() as u64) < length {
+                let got = read.len() as u64;
+                let block = self
+                    .0
+                    .range(offset.saturating_add(got), length - got)
+                    .ok_or_else(not_a_source)?;
+                if block.is_empty() {
+                    break;
+                }
+                read.extend_from_slice(&block);
+            }
+            Ok(read)
         }
     }
 
@@ -613,10 +628,6 @@ mod guest {
     pub struct Template;
 
     impl GuestTemplate for Template {}
-
-    fn reading() -> wit::Error {
-        wit::Error::Runtime("This version of Novis cannot read workbooks yet.".to_owned())
-    }
 
     fn filling() -> wit::Error {
         wit::Error::Runtime("This version of Novis cannot fill templates yet.".to_owned())
@@ -1118,64 +1129,159 @@ mod guest {
         }
 
         fn reader_merged(
-            _reader: wit::ReadingBorrow<'_>,
-            _source: &Source,
-            _sheet: String,
+            reader: wit::ReadingBorrow<'_>,
+            source: &Source,
+            sheet: String,
         ) -> Result<Vec<String>, wit::Error> {
-            Err(reading())
+            let ranges = reader
+                .get::<Reader>()
+                .reader
+                .borrow()
+                .merged(&Lent(source), &sheet)
+                .map_err(error)?;
+            Ok(ranges.iter().map(crate::read::merge::Merge::text).collect())
         }
 
         fn reader_links(
-            _reader: wit::ReadingBorrow<'_>,
-            _source: &Source,
-            _sheet: String,
+            reader: wit::ReadingBorrow<'_>,
+            source: &Source,
+            sheet: String,
         ) -> Result<Vec<wit::LinkInfo>, wit::Error> {
-            Err(reading())
+            let links = reader
+                .get::<Reader>()
+                .reader
+                .borrow()
+                .links(&Lent(source), &sheet)
+                .map_err(error)?;
+            Ok(links
+                .into_iter()
+                .map(|link| wit::LinkInfo {
+                    anchor: link.anchor,
+                    target: link.target,
+                    text: link.text,
+                    tooltip: link.tooltip,
+                    external: link.external,
+                })
+                .collect())
         }
 
         fn reader_notes(
-            _reader: wit::ReadingBorrow<'_>,
-            _source: &Source,
-            _sheet: String,
+            reader: wit::ReadingBorrow<'_>,
+            source: &Source,
+            sheet: String,
         ) -> Result<Vec<wit::NoteInfo>, wit::Error> {
-            Err(reading())
+            let notes = reader
+                .get::<Reader>()
+                .reader
+                .borrow()
+                .notes(&Lent(source), &sheet)
+                .map_err(error)?;
+            Ok(notes
+                .into_iter()
+                .map(|note| wit::NoteInfo {
+                    noted: note.noted,
+                    note: note.note,
+                    author: note.author,
+                })
+                .collect())
         }
 
         fn reader_names(
-            _reader: wit::ReadingBorrow<'_>,
-            _source: &Source,
+            reader: wit::ReadingBorrow<'_>,
+            source: &Source,
         ) -> Result<Vec<wit::NameInfo>, wit::Error> {
-            Err(reading())
+            let names = reader
+                .get::<Reader>()
+                .reader
+                .borrow()
+                .names(&Lent(source))
+                .map_err(error)?;
+            Ok(names
+                .into_iter()
+                .map(|name| wit::NameInfo {
+                    name: name.name,
+                    reference: name.reference,
+                    sheet: name.sheet,
+                })
+                .collect())
         }
 
         fn reader_tables(
-            _reader: wit::ReadingBorrow<'_>,
-            _source: &Source,
-            _sheet: String,
+            reader: wit::ReadingBorrow<'_>,
+            source: &Source,
+            sheet: String,
         ) -> Result<Vec<wit::TableInfo>, wit::Error> {
-            Err(reading())
+            let tables = reader
+                .get::<Reader>()
+                .reader
+                .borrow()
+                .tables(&Lent(source), &sheet)
+                .map_err(error)?;
+            Ok(tables
+                .into_iter()
+                .map(|table| wit::TableInfo {
+                    table: table.table,
+                    name: table.name,
+                    sheet: table.sheet,
+                })
+                .collect())
         }
 
         fn reader_images(
-            _reader: wit::ReadingBorrow<'_>,
-            _source: &Source,
-            _sheet: String,
+            reader: wit::ReadingBorrow<'_>,
+            source: &Source,
+            sheet: String,
         ) -> Result<Vec<wit::ImageInfo>, wit::Error> {
-            Err(reading())
+            let images = reader
+                .get::<Reader>()
+                .reader
+                .borrow()
+                .images(&Lent(source), &sheet)
+                .map_err(error)?;
+            Ok(images
+                .into_iter()
+                .map(|image| wit::ImageInfo {
+                    at: image.at,
+                    image: image.image,
+                    format: image.format,
+                    link: image.link,
+                })
+                .collect())
         }
 
         fn reader_properties(
-            _reader: wit::ReadingBorrow<'_>,
-            _source: &Source,
+            reader: wit::ReadingBorrow<'_>,
+            source: &Source,
         ) -> Result<wit::Properties, wit::Error> {
-            Err(reading())
+            let properties = reader
+                .get::<Reader>()
+                .reader
+                .borrow()
+                .properties(&Lent(source))
+                .map_err(error)?;
+            Ok(wit::Properties {
+                title: properties.title,
+                subject: properties.subject,
+                author: properties.author,
+                company: properties.company,
+                keywords: properties.keywords,
+                created: properties.created.map(|clock| wit::ClockCell {
+                    day: wit_date(clock.day),
+                    clock: wit_time(clock.clock),
+                }),
+            })
         }
 
         fn reader_macros(
-            _reader: wit::ReadingBorrow<'_>,
-            _source: &Source,
+            reader: wit::ReadingBorrow<'_>,
+            source: &Source,
         ) -> Result<Vec<String>, wit::Error> {
-            Err(reading())
+            reader
+                .get::<Reader>()
+                .reader
+                .borrow()
+                .macros(&Lent(source))
+                .map_err(error)
         }
 
         fn template_open(_source: &Source) -> Result<wit::Template, wit::Error> {

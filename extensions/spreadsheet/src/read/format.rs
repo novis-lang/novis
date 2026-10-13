@@ -1,12 +1,16 @@
 //! Which read type a number format gives a number: the date rule of the read table
 //! (`rule:core-classes/spreadsheet-value-types`).
 //!
-//! [`classify`] reads a format code's first section. Quoted text, an escaped character, the
-//! characters after `_` and `*`, and a bracket such as a colour or a condition say nothing. `y`,
-//! `d` and `e` are a date, `h`, `s` and `AM/PM` a time, and `m` a month beside a date part or
-//! alone, and minutes beside a time part. A bracketed `[h]`, `[m]` or `[s]` is elapsed time. A
-//! format with a date part and a time part is a clock time. [`builtin`] gives the formats Excel
+//! [`classify`] reads a format code's first section, lexed by the renderer
+//! (`crate::format::lex`), so quoted text, an escape, a colour, a condition and the `E` of
+//! `E+00` say nothing. `y`, `d` and `e` are a date, `h`, `s` and `AM/PM` a time, and `m` a month,
+//! or minutes after an hour or before seconds. A bracketed `[h]`, `[m]` or `[s]` is elapsed time.
+//! A format with a date part and a time part is a clock time. [`builtin`] gives the formats Excel
 //! numbers and does not write into `styles.xml`.
+
+use std::sync::Arc;
+
+use crate::format::{self, Token, date};
 
 /// The read type a number format gives.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -17,6 +21,45 @@ pub enum Kind {
     Time,
     Clock,
     Duration,
+}
+
+/// A cell style's number format: the read type it gives, and its code for the renderer.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Style {
+    pub kind: Kind,
+    pub code: Arc<str>,
+}
+
+impl Style {
+    /// The style of the format `id`, with `custom` its code when the file defines one. An id
+    /// with neither is `General`.
+    pub fn of(id: u32, custom: Option<&Arc<str>>) -> Self {
+        match custom {
+            Some(code) => Self {
+                kind: classify(code),
+                code: Arc::clone(code),
+            },
+            None => Self {
+                kind: builtin(id).unwrap_or(Kind::Plain),
+                code: Arc::from(format::builtin(id).unwrap_or("General")),
+            },
+        }
+    }
+
+    /// The style an ods cell of `kind` has: its kind, and the format the writer gives it.
+    pub fn of_kind(kind: Kind) -> Self {
+        let code = match kind {
+            Kind::Plain => "General",
+            Kind::Date => "yyyy-mm-dd",
+            Kind::Time => "hh:mm:ss",
+            Kind::Clock => "yyyy-mm-dd hh:mm",
+            Kind::Duration => "[h]:mm:ss",
+        };
+        Self {
+            kind,
+            code: Arc::from(code),
+        }
+    }
 }
 
 /// The kind of the built-in format `id`, or `None` for an id `styles.xml` must define.
@@ -33,54 +76,21 @@ pub fn builtin(id: u32) -> Option<Kind> {
 
 /// The kind of the format code `code`.
 pub fn classify(code: &str) -> Kind {
-    let lower = code.to_ascii_lowercase();
-    let mut chars = lower.chars().peekable();
-    let (mut date, mut time, mut month, mut elapsed) = (false, false, false, false);
-    while let Some(c) = chars.next() {
-        match c {
-            ';' => break,
-            '"' => {
-                for c in chars.by_ref() {
-                    if c == '"' {
-                        break;
-                    }
-                }
-            }
-            '\\' | '_' | '*' => {
-                chars.next();
-            }
-            '[' => {
-                let mut inner = String::new();
-                for c in chars.by_ref() {
-                    if c == ']' {
-                        break;
-                    }
-                    inner.push(c);
-                }
-                if !inner.is_empty() && inner.chars().all(|c| matches!(c, 'h' | 'm' | 's')) {
-                    elapsed = true;
-                }
-            }
-            'g' if lower[..].contains("general") => return Kind::Plain,
-            'y' | 'd' | 'e' => date = true,
-            'h' | 's' => time = true,
-            'm' => month = true,
-            'a' => {
-                let rest: String = chars.clone().take(4).collect();
-                if rest.starts_with("m/pm") || rest.starts_with("/p") {
-                    time = true;
-                    for _ in 0..if rest.starts_with("m/pm") { 4 } else { 2 } {
-                        chars.next();
-                    }
-                }
-            }
+    let first = format::split(code).into_iter().next().unwrap_or("");
+    let tokens = format::lex(first).tokens;
+    let (mut date, mut time, mut elapsed) = (false, false, false);
+    for (at, token) in tokens.iter().enumerate() {
+        match token {
+            Token::Elapsed(..) => elapsed = true,
+            Token::Part('m', _) if date::minutes(&tokens, at) => time = true,
+            Token::Part('y' | 'd' | 'e' | 'm', _) => date = true,
+            Token::Part(..) | Token::Meridiem(_) => time = true,
             _ => {}
         }
     }
     if elapsed {
         return Kind::Duration;
     }
-    let date = date || (month && !time);
     match (date, time) {
         (true, true) => Kind::Clock,
         (true, false) => Kind::Date,

@@ -4,10 +4,10 @@
 //
 // The goal is `--goal`'s, else the one `LOOPER_GOAL` names, else the current one (`lib/chain.ts`
 // `namedPlan`). Its `env.wsl.targetDir`, `env.valgrind.skip`, fixture list and checks build the legs'
-// options through `legsOptions`, the builder the sweep uses, and `linuxLegs` runs them. A leg the change
-// does not reach is judged from the selection store, as a sweep judges it; `--full` runs both. A leg
-// that runs is recorded green or red in the store, whose tree stays where it is (`PlanSweep.discard`).
-// The run takes the sweep lock, and on Linux the local origin, as a sweep that runs the legs does.
+// options through `legsOptions`, and `linuxLegs` runs them. A leg the change does not reach is judged
+// from the selection store; `--full` runs both whatever changed, which is how the floor gate runs them
+// (`cmd/sweep.ts`). A leg that runs is recorded green or red in the store, whose tree stays where it is
+// (`PlanSweep.discard`). The run takes the sweep lock, and on Linux the local origin.
 //
 // On a host where the legs do not apply, Windows with no WSL or a goal with no WSL target, or Linux with
 // no valgrind, it says so and exits 0. Otherwise it exits 0 when both legs are green, 1 when one is red,
@@ -68,6 +68,37 @@ async function holdShared(need: SharedNeed, platform: NodeJS.Platform): Promise<
 
 const REAL: LegsCmdSeams = { plan: namedPlan, store: sweepStore, hold: holdShared, machine: {}, say: (l) => console.log(l) };
 
+/**
+ * Both legs over `goal`'s fixtures and suites, each recorded green or red in the store, whose tree stays
+ * where it is. A leg the change does not reach is judged from the store unless `full` is set. Returns the
+ * red line, or "" when both legs are green, skipped or not reached. `bun nv sweep` runs the legs here
+ * with `full` set when the floor gate opens.
+ */
+export async function legsOver(goal: Goal, full: boolean, over: Partial<LegsCmdSeams> = {}): Promise<string> {
+  const s: LegsCmdSeams = { ...REAL, ...over };
+  const checks = goal.checks as Check[];
+  const label = stageLabels(goal);
+  const store = await s.store(checks, full, label);
+  try {
+    const o = legsOptions(goal, checks, {
+      reached: (leg) => full || store.reached(leg),
+      onGreen: (leg) => store.green(leg),
+      onRed: (leg) => store.red(leg),
+      label,
+      onRun: (what) => s.say(`  .. ${what}`),
+      seams: s.machine,
+    });
+    const release = await s.hold(sharedResources(o.programs, true, o.reached), s.machine.platform ?? process.platform);
+    try {
+      return await linuxLegs(o);
+    } finally {
+      release();
+    }
+  } finally {
+    store.done();
+  }
+}
+
 /** Parses, runs the legs and prints; returns the exit code. */
 export async function legs(args: string[], over: Partial<LegsCmdSeams> = {}): Promise<number> {
   const s: LegsCmdSeams = { ...REAL, ...over };
@@ -87,29 +118,7 @@ export async function legs(args: string[], over: Partial<LegsCmdSeams> = {}): Pr
     console.error(`${USAGE}\nnv legs: error: ${slug ? `no goal record for ${slug}` : "no goal is named or current"}`);
     return 2;
   }
-  const checks = plan.goal.checks as Check[];
-  const label = stageLabels(plan.goal);
-  const store = await s.store(checks, full, label);
-  let red: string;
-  try {
-    const o = legsOptions(plan.goal, checks, {
-      gateOpen: true,
-      reached: (leg) => full || store.reached(leg),
-      onGreen: (leg) => store.green(leg),
-      onRed: (leg) => store.red(leg),
-      label,
-      onRun: (what) => s.say(`  .. ${what}`),
-      seams: s.machine,
-    });
-    const release = await s.hold(sharedResources(o.programs, true, o.reached), s.machine.platform ?? process.platform);
-    try {
-      red = await linuxLegs(o);
-    } finally {
-      release();
-    }
-  } finally {
-    store.done();
-  }
+  const red = await legsOver(plan.goal, full, s);
   if (red !== "") {
     s.say(`RED ${red}`);
     return 1;

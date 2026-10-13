@@ -29,10 +29,19 @@
 //
 // An item is reached only from where Rust lets its name resolve to the item that moved. A `private`
 // item (`scope`) is named from its own module's files alone, and a `crate` item from its own package;
-// another file's item of the same name is another item. A file of no package (vendored code, a tool
-// with a workspace of its own) names no item of the workspace, except under `fuzz/`, whose targets
-// depend on the workspace's crates. Code another package ships sees the packages its build depends on,
-// and its test code (`test`, or a file of a test, bench or example target) its dev-dependencies too.
+// another file's item of the same name is another item. A path dependency outside the workspace that a
+// member names, such as a built-in component's crate a member's tests build natively, is a package of
+// the scope like a member (`select.ts` `graphScope`). Code another package ships sees the packages its
+// build depends on, and its test code (`test`, or a file of a test, bench or example target) its
+// dev-dependencies too.
+//
+// A file of no package names no item of the workspace, except under `fuzz/`, whose targets depend on
+// the workspace's crates. Vendored code is such a file: the root manifest's `[patch.crates-io]` swaps it
+// in for a registry crate, so cargo names no path edge to it, and the workspace may reach its items
+// through a registry crate's re-export that no scan reads. An item of it therefore reaches every item
+// that names it. A built-in component's crate that no member names is compiled to WebAssembly alone
+// (`Scope.unlinked`): an item of it reaches only the items of its own crate. What a component's crate
+// changes, named or not, also moves its `component:` key (`keys.ts`).
 // There it reaches an item only with evidence it names that item and not one of its own spelled the
 // same (`Universe.canName`): its tokens spell a crate name that leads to the item, or a `use` of its
 // file binds the name, a glob or a `_` from such a crate, or from its own modules or an external crate
@@ -65,12 +74,11 @@ export interface ItemChange {
   was?: Item;
 }
 
-/** Why a key moved: the path and item it came from, and for a reached item the item that reached it.
- * `cadence` is no change at all: the loop's safety net picks every heavy check on its cadence. */
+/** Why a key moved: the path and item it came from, and for a reached item the item that reached it. */
 export interface Origin {
   path: string;
   item?: string;
-  how: How | "path" | "global" | "build" | "wide" | "cadence";
+  how: How | "path" | "global" | "build" | "wide";
   via?: string;
 }
 
@@ -150,6 +158,9 @@ export interface Scope {
    * `a/b.rs`, and the file's own directory for a crate root or a `mod.rs`. Null when the crate roots
    * are not known, and then a private item is reached as a `crate` one. */
   modDir(file: string): string | null;
+  /** For a file of a crate no build of the workspace compiles, the directory of that crate; null for
+   * any other file. Absent when it is not known, and then such a file is one of no package. */
+  unlinked?(file: string): string | null;
 }
 
 /** Every package sees every other: the scope a caller without the workspace graph uses. */
@@ -355,11 +366,13 @@ export function referenceWalk(
     const owner = universe.scope.pkgOf(from.file);
     const macro = from.item.kind === "macro-rules";
     const key = `${from.file}#${from.item.id}`;
+    const alone = universe.scope.unlinked?.(from.file) ?? null;
     for (const name of names) {
       if (name === "*" || name === "") continue;
       for (const p of universe.naming(name)) {
         if (p.file === from.file && p.item.id === from.item.id) continue;
         if (sameFile && p.file !== from.file) continue;
+        if (alone !== null && !p.file.startsWith(`${alone}/`)) continue;
         if (!sameFile && owner !== null && p.file !== from.file) {
           const user = universe.scope.pkgOf(p.file);
           const dev = p.item.test || (universe.scope.devFile?.(p.file) ?? true);

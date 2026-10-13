@@ -75,6 +75,15 @@ pub enum Value {
     String(String),
     /// A `bytes` value.
     Bytes(Vec<u8>),
+    /// A source the host lends a call by number and keeps: a `bytes` value or an open
+    /// `Core\IO\File` passed as a `mixed` argument. The guest reads it as `bytes`, a range at a
+    /// time, through [`crate::call::Budget::read`], so nothing of it is copied as it crosses.
+    Lent {
+        /// The call's number for it, which [`crate::call::Budget::read`] is given.
+        id: u64,
+        /// Its length in bytes when the call started.
+        size: u64,
+    },
     /// An array: a list, a keyed array or a shape, its pairs in order.
     Array(Vec<(Key, Value)>),
     /// A case of an enum, by its Novis name.

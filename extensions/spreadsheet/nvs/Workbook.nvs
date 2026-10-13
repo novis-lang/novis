@@ -535,14 +535,15 @@ final class Workbook
             return {day: $local->date(), clock: $local->timeOfDay()};
         }
         if ($value is Formula) {
+            string $formula = Core\Taint::assertTrusted($value->text, "a Formula is written as a formula only when the program passes one");
             string|int|float|null $cached = $value->cached;
             if ($cached is string) {
-                return {formula: $value->text, cachedText: $cached, cachedNumber: null};
+                return {formula: $formula, cachedText: $cached, cachedNumber: null};
             }
             if ($cached is int || $cached is float) {
-                return {formula: $value->text, cachedText: null, cachedNumber: $cached as float};
+                return {formula: $formula, cachedText: null, cachedNumber: $cached as float};
             }
-            return {formula: $value->text, cachedText: null, cachedNumber: null};
+            return {formula: $formula, cachedText: null, cachedNumber: null};
         }
         string $column = self::column($at);
         throw new LogicError("The column `{$column}` has a value that a cell cannot contain. A cell can contain a `string`, a number, a `bool`, `null`, or a date, a time or a duration from `Core\\Time`.");

@@ -192,7 +192,7 @@ bun nv verify --fast                                           # build + test on
 bun nv verify -p nvs-ir                                        # the same build; only nvs-ir's test binaries run
 bun nv verify --start   ... --wait                             # run it while you write the wrap file
 bun nv verify --no-cache                                       # run every step, whatever the cache holds; by hand only
-bun nv verify --doc                                            # the rustdoc gate alone (the driver's)
+bun nv verify --doc                                            # the rustdoc gate alone, a session's before DONE
 bun nv verify --list                                           # the steps in order, running none of them
 cargo test --release -p nvs-abi-probe                          # cost guards (skipped in debug)
 cargo test --release -p nvs-cli --bin nvs by_the_margin         # the CLI's two cost margins (skipped in debug)
@@ -205,16 +205,17 @@ what the selection store says differs from the tree it last recorded, which is w
 (`rule:tooling/a-check-runs-only-when-the-change-reaches-its-footprint`). Its verify half is each step,
 test binary and case whose footprint holds a key the change moved, or that is new, red or owed, with
 the path each came from. Its acceptance half is each plan check one of whose atoms is selected. A heavy
-check — the release profile, fuzz, TSan, the database matrix, the Linux legs — is named and left to the
+check — the release profile, fuzz, TSan, the database matrix — is named and left to looper's sweep when
+the live goal names it, and to CI's nightly deep lane whatever changed; the Linux legs are left to the
 floor gate. A check reached only because its atoms were owed or red before the change is left out, since
 it stays red until the goal is reached. `--run` runs the rest: `nv verify` first,
 then the sweep over exactly the checks it named, and a binary or case verify ran green is not started
 twice.
 
 **`nv guard` refuses the commands that run more than a change reaches**: `cargo test` with no target
-and no filter, `bun nv benches`, `bun nv proofs --verify` or `--run` over every feature, and `bun nv
-verify --no-cache`. A person runs them by hand; looper's sweep is not a tool call, so the guard never
-sees it. To look into one test, name it: `cargo test --test <name>` or `cargo test --lib <filter>`.
+and no filter, `bun nv benches`, `bun nv select --full`, `bun nv sweep`, `bun nv proofs --verify` or
+`--run` over every feature, and `bun nv verify --no-cache`. A person runs them by hand; looper's sweep
+and its hooks are not tool calls, so the guard never sees them. To look into one test, name it: `cargo test --test <name>` or `cargo test --lib <filter>`.
 
 **Two of those are for the run that is not the final one, and both are measured as unused.** Over a
 33-session run there were 108 verifications and **`--fast` was chosen 0 times**, `-p` three times — every
@@ -320,19 +321,19 @@ It never writes the real store: `NV_SELECT_STORE` names the file every `bun nv s
 place of `.cache/select.sqlite`, and `--mutate` points it at a copy under `.agent-tmp/` that it deletes
 afterwards. The edits are reverted in a `finally`, and a batch fails when `git status` differs after it.
 
-**Verification runs what a change can reach, and the checks that cost minutes wait.** `nv verify`
-runs the test binaries a change reaches and every `.nvst` case, and the loop's sweep after each session
-runs every acceptance check the change reached. The heavy ones — the fuzz run, the
-valgrind sweep and the WSL leg, the release-profile guards, the database matrix, the checks never
-memoized — wait for the floor gate (`tools/nv/cmd/sweep.ts`'s `FLOOR_GATE_EVERY`) and for the sweep a
-goal is reached on. Nothing is dropped: an atom the change reached that a run did not start is `owed`
-in the store, and stays selected until a run of it is green.
+**Verification runs what a change can reach, and the heavy work waits.** `nv verify` runs
+the test binaries a change reaches and every `.nvst` case, and looper's sweep after each session runs
+the live goal's acceptance checks, each as often as its `every` says. What no check covers waits for
+the floor gate, `bun nv sweep`, which looper runs after each session as its `after_session` hook. One
+run in `FLOOR_GATE_EVERY` (`tools/nv/cmd/sweep.ts`) runs `bun nv select --full`, the WSL leg and the
+valgrind sweep, and every selected bench. Nothing is dropped: an atom the change reached that a run did
+not start is `owed` in the store, and stays selected until a run of it is green.
 
-**Every sweep names every red check, not the first.** It runs past a red check, so one red check
-never keeps the others from being judged, and the ledger's `goal check:` line is
-followed by one `also red:` line per other red check, which the pack prints. A build that fails still
-stops it, since nothing behind a build can run. The goal-end gates (`nv verify --doc`, `bun nv owners
---closes`) run after the sweep that would reach the goal, whether it is red or green.
+**Every sweep names every red check, not the first.** `bun nv affected --run` runs past a red check,
+so one red check never keeps the others from being judged, and its `NOT GREEN:` line is followed by one
+`also red:` line per other red check. A build that fails still stops it, since nothing behind a build
+can run. The goal-end gates, `nv verify --doc` and `bun nv owners --closes`, are the session's to run
+before it reports DONE (AGENTS.md § *In the loop*).
 
 
 **What a check is made of is decided by what the check is, and every doubt widens.**
@@ -552,7 +553,7 @@ blocks back in the order you asked for them.
 bun nv suite <tree>... [--case <path>]... [--min-passing <n>] [--full]   # judge one suite as an nvs-suite check
 bun nv legs [--goal <slug>] [--full]                  # the WSL leg and the valgrind sweep over a goal's fixtures
 bun nv services --up [--goal <slug>]                  # Docker preflight, then the goal's services up and healthy
-bun nv sweep [--goal <slug>] [--done] [--keep-runs <n>] [--session <label>]   # the sweep after a session
+bun nv sweep [--goal <slug>] [--keep-runs <n>]        # the floor gate, looper's after_session hook
 bun nv benches [--owed]                               # the bench turn by hand
 bun nv side --prepare <slug> [--dir <path>] [--min-free-gb <n>]   # make or complete a side worktree
 bun nv allow --learn <events.jsonl>                   # record a session's shell calls, add the owed allow rules
@@ -560,11 +561,13 @@ bun nv plan --apply <wrap-file | -> [--dry]           # check, then write, a wra
 bun nv pack [--goal <slug>] [--stage <n>]             # the pack sections only Novis has
 ```
 
-Each is a piece of the old loop driver that a person or a hook can run alone. Each exits 0 green, 1 red and 2 on a usage error, except `bun nv sweep`, which always
-exits 0 and writes what was red to `.loop/last-sweep.md`. `--goal` and `--stage` win over
+Each is a piece of the old loop driver that a person or a hook can run alone. Each exits 0 green, 1
+red and 2 on a usage error, except `bun nv sweep`, which always exits 0 and writes what was red into
+`.loop/last-sweep.md`, below the lines looper's own sweep wrote there. `--goal` and `--stage` win over
 `LOOPER_GOAL` and `LOOPER_STAGE`, which win over the live goal and its handoff's next stage.
-`looper.toml` wires only `bun nv verify`, as `[verify] run`, so looper runs none of the others on its
-own. Each command's `--help` and module doc own its flags.
+`looper.toml` wires two of them: `bun nv verify` as `[verify] run`, and `bun nv sweep` as `[hooks]
+after_session`, whose comment there says why its timeout and `on_fail` are what they are. looper runs
+none of the others on its own. Each command's `--help` and module doc own its flags.
 
 ## Disk
 

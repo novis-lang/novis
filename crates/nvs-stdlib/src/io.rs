@@ -2331,6 +2331,68 @@ pub(crate) fn handle_of(value: Value, member: &str) -> Result<(u64, Value), Faul
     Ok((key, crate::instance::slot(receiver, FILE_PATH_SLOT)))
 }
 
+/// The size of the file `value` has open, when `value` is a `Core\IO\File`, which
+/// `nvs_cli`'s extension host lends to a guest as a source of byte ranges
+/// (`rule:core-classes/spreadsheet-reads-as-a-stream`). `None` for any other value.
+///
+/// # Errors
+///
+/// [`already_closed`]'s `RuntimeError`, and the `IOError` the size was not read with.
+pub fn extension_file_size(ctx: &mut nvs_runtime::Ctx, value: Value) -> Option<Result<u64, Fault>> {
+    if value.class_name().as_deref() != Some(FILE_NAME) {
+        return None;
+    }
+    let mut size = || {
+        let (key, path) = handle_of(value, "read")?;
+        let file = ctx
+            .open_file_mut(key)
+            .ok_or_else(|| already_closed("read", &path))?;
+        file.metadata().map(|meta| meta.len()).map_err(|err| {
+            nvs_runtime::capability::io_failure(
+                "Core\\IO\\File::read",
+                Path::new(path.as_text().unwrap_or("?")),
+                &err,
+            )
+        })
+    };
+    Some(size())
+}
+
+/// At most `length` bytes at `offset` of the file `value` has open, fewer where the file ends
+/// first, for a guest reading the source [`extension_file_size`] lent it. The handle's position
+/// is where it was before, so the program's next `read` goes on from where it was.
+///
+/// # Errors
+///
+/// [`handle_of`]'s fault for a value that is not a `Core\IO\File`, [`already_closed`]'s
+/// `RuntimeError`, and the `IOError` the file was not read with.
+pub fn extension_file_range(
+    ctx: &mut nvs_runtime::Ctx,
+    value: Value,
+    offset: u64,
+    length: u64,
+) -> Result<Vec<u8>, Fault> {
+    let (key, path) = handle_of(value, "read")?;
+    let failed = |err: std::io::Error| {
+        nvs_runtime::capability::io_failure(
+            "Core\\IO\\File::read",
+            Path::new(path.as_text().unwrap_or("?")),
+            &err,
+        )
+    };
+    let file = ctx
+        .open_file_mut(key)
+        .ok_or_else(|| already_closed("read", &path))?;
+    let here = file.stream_position().map_err(failed)?;
+    file.seek(std::io::SeekFrom::Start(offset))
+        .map_err(failed)?;
+    let mut octets = Vec::new();
+    let read = (&mut *file).take(length).read_to_end(&mut octets);
+    file.seek(std::io::SeekFrom::Start(here)).map_err(failed)?;
+    read.map_err(failed)?;
+    Ok(octets)
+}
+
 /// The catchable `RuntimeError` every member of [`FILE`] raises on a handle
 /// that has already been closed.
 ///

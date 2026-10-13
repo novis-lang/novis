@@ -1,5 +1,18 @@
 --TEST--
 A `Change` with an attribute that is not a name and a write of a `float` throw `LogicError` before anything is sent, an empty list of changes throws `LogicError`, and `delete`, `modify` and `rename` of a DN with no entry throw `NoSuchObject` — `rule:core-classes/ldap-value-types`
+--SKIPIF--
+<?nvs
+// The case needs the `samba-ad` server from `tests/db/compose.yaml`. Where it
+// does not answer, the case is skipped, unless `NVS_LDAP_SAMBA` is set: CI's
+// Linux leg runs the server and sets it, so a missing server fails there.
+try {
+    Core\Ldap::connect("corp");
+} catch (Core\Ldap\LdapError $down) {
+    if ($down->kind != Core\Ldap\LdapError::Kind::Unavailable || Core\Env::get("NVS_LDAP_SAMBA") != null) {
+        throw $down;
+    }
+    echo "skip - ", $down->message, "\n";
+}
 --FILE--
 <?nvs
 var $corp = Core\Ldap::connect("corp");

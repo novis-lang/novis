@@ -17,6 +17,9 @@
 // | `app:<path>` | an `[[app]]` block keyed on this path, lowercased, that would apply to the program; `app:~` is a path outside the tree, `app:*` every block |
 // | `ext:<ext>` | every file whose name ends `.<ext>`, anywhere, as a `git grep -- *.<ext>` reads them |
 // | `mod:<path>` | a TypeScript module a `bun nv` process loaded, other than one its bookkeeping first loaded `loadUnrecorded` |
+// | `component:<name>` | a built-in component called, or named by a program being compiled; moved by a change under `extensions/<name>/` or to `wit/<name>.wit` (`componentKeys`) |
+// | `component:*` | every built-in component: held by a reader of all of them, whom a change to any one selects; moved by a change to anything else under `extensions/` or `wit/`, which selects every `component:` key |
+// | `builtins:read` | the process read the table of built-in components, so its footprint names each one it used; no change moves it |
 // | `tests:<package>/<kind>/<target>` | computed: held by what ran that test binary, moved by a test added to a file compiled into it; a `use` is no test |
 // | `profile:optimized` | computed: moved by a change to code only an optimized build compiles, which selects every proof program |
 // | `platform:elsewhere` | computed: moved by a change to code Linux compiles and this platform does not, held by what runs on Linux |
@@ -29,9 +32,17 @@
 // case, and a path outside the tree or under a directory that is never an input is `app:~`: a block
 // keyed there can still cover a program's entry file, since every program's key list reaches past the
 // repository root. `config.ts` says which keys an edit of the repository's `nvs.toml` moves.
+//
+// A built-in component's code runs as WebAssembly, which coverage does not see, so a change to its crate
+// moves its `component:` key. It moves a `fn:` key of the workspace only where a member that builds the
+// crate natively as a path dependency names the item that changed (`items.ts`). Its name is its crate's
+// directory under `extensions/`, the one `BUILTINS` in `crates/nvs-ext/src/load.rs` gives it, and a
+// directory there is a component when it holds a `manifest.json` (`builtinComponents`). A footprint
+// recorded before the kind existed holds no `component:` key; `select.ts` reads one that ran the
+// built-in loader without holding `builtins:read` as holding every `component:` key.
 
-import { closeSync, openSync, readSync } from "node:fs";
-import { isAbsolute, posix, resolve } from "node:path";
+import { closeSync, existsSync, openSync, readdirSync, readSync } from "node:fs";
+import { isAbsolute, join, posix, resolve } from "node:path";
 import { NOT_INPUTS, ROOT } from "../lib/paths.ts";
 import type { Reads } from "../lib/reads.ts";
 
@@ -66,6 +77,31 @@ export const PROFILE_ONLY = "profile:optimized";
 /** Moved by a change to code Linux compiles and the recording platform does not, or to code such code
  * names: no footprint recorded here holds it, so what runs on Linux holds this key. */
 export const PLATFORM_ONLY = "platform:elsewhere";
+/** Held by what used the built-in component `name`, and moved by a change to its crate or its WIT file. */
+export const componentKey = (name: string) => `component:${name}`;
+/** Held by a reader of every built-in component, and moved by a change to any of them. */
+export const ALL_COMPONENTS = "component:*";
+/** Held by a footprint whose processes name each built-in component they use. No change moves it. */
+export const BUILTINS_READ = "builtins:read";
+
+/** The built-in components of the tree at `root`: each directory under `extensions/` that holds a
+ * `manifest.json`, by name. */
+export function builtinComponents(root: string = ROOT): Set<string> {
+  const dir = join(root, "extensions");
+  if (!existsSync(dir)) return new Set();
+  return new Set(readdirSync(dir).filter((d) => existsSync(join(dir, d, "manifest.json"))));
+}
+
+/** The `component:` keys a changed path moves: a path under a component's crate or its WIT file moves
+ * that component, and any other path under `extensions/` or `wit/` (the shared world, the fonts a
+ * component embeds) moves every one. `components` is `builtinComponents`'s set. */
+export function componentKeys(path: string, components: ReadonlySet<string>): string[] {
+  const [top, next, ...rest] = path.split("/");
+  if (top === "extensions" && next !== undefined && rest.length > 0 && components.has(next)) return [componentKey(next)];
+  if (top === "wit" && rest.length === 0 && next?.endsWith(".wit") && components.has(next.slice(0, -4))) return [componentKey(next.slice(0, -4))];
+  if (top === "extensions" || top === "wit") return [ALL_COMPONENTS];
+  return [];
+}
 
 /** A class or card name as a key holds it: lowercased, without a leading `\`. */
 export function norm(name: string): string {
@@ -194,6 +230,12 @@ function lineKey(keys: Set<string>, raw: string, root: string): void {
       break;
     case "named":
       keys.add(`named:${value}`);
+      break;
+    case "component":
+      keys.add(componentKey(value));
+      break;
+    case "builtins":
+      keys.add(BUILTINS_READ);
       break;
     case "config": {
       const p = repoPath(value, root);

@@ -9,14 +9,17 @@
 //! [`RawCell`] is a cell as the file writes it: its column, its type attribute, its style index,
 //! its `<v>`, its `<f>`, and the text of an inline string. `super::value` turns it into a read
 //! value.
+//!
+//! [`merged`] reads a sheet's merged ranges, which come after its rows, in a pass of its own.
 
 use super::Source;
+use super::merge::Merge;
 use super::xml::{self, Token};
 use super::zip::{Entry, Part};
 use crate::Error;
 
 /// A cell as the file writes it.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct RawCell {
     /// From 1.
     pub column: u64,
@@ -28,7 +31,7 @@ pub struct RawCell {
 }
 
 /// A row as the file writes it.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct RawRow {
     /// From 1.
     pub number: u64,
@@ -67,7 +70,7 @@ pub fn column_of(reference: &[u8]) -> Option<u64> {
 }
 
 /// The row of an `A1` reference.
-fn row_of(reference: &[u8]) -> Option<u64> {
+pub fn row_of(reference: &[u8]) -> Option<u64> {
     let digits = &reference[reference
         .iter()
         .position(u8::is_ascii_digit)
@@ -178,6 +181,48 @@ impl Cursor {
                 }
                 Some((_, length)) => self.pos += length,
             }
+        }
+    }
+}
+
+/// The merged ranges of the sheet whose part is `entry`, read a block at a time to the part's end.
+pub fn merged(source: &dyn Source, entry: &Entry) -> Result<Vec<Merge>, Error> {
+    let mut ranges = Vec::new();
+    scan(source, entry, |name, attrs| {
+        if name == b"mergeCell"
+            && let Some(reference) = xml::attr(attrs, b"ref")
+        {
+            ranges.push(Merge::parse(reference)?);
+        }
+        Ok(())
+    })?;
+    Ok(ranges)
+}
+
+/// Calls `each` with the local name and the attributes of every start tag of the part `entry`,
+/// read a block at a time to the part's end, so the part is never held whole.
+pub fn scan(
+    source: &dyn Source,
+    entry: &Entry,
+    mut each: impl FnMut(&[u8], &[u8]) -> Result<(), Error>,
+) -> Result<(), Error> {
+    let mut part = Part::open(source, entry)?;
+    let mut buf = Vec::new();
+    let mut at = 0;
+    let mut eof = false;
+    loop {
+        let Some((token, size)) = xml::next(&buf[at..])? else {
+            if eof {
+                return Ok(());
+            }
+            buf.drain(..at);
+            at = 0;
+            eof = !part.fill(source, &mut buf)?;
+            continue;
+        };
+        at += size;
+        if let Token::Open { name, attrs, .. } = token {
+            each(xml::local(name), attrs)?;
         }
     }
 }

@@ -415,6 +415,7 @@ impl Loader {
     /// The first built-in component whose sections do not read, or whose world this loader does
     /// not implement. Either one is a broken build.
     pub fn builtins(&self) -> Result<Vec<Builtin>, Refused> {
+        nvs_footprint::builtins();
         BUILTINS
             .iter()
             .map(|&(name, bytes, sha256)| self.builtin(name, bytes, sha256))
@@ -425,16 +426,18 @@ impl Loader {
     /// took of them.
     fn builtin(
         &self,
-        name: &str,
+        name: &'static str,
         bytes: &'static [u8],
         sha256: &[u8; 32],
     ) -> Result<Builtin, Refused> {
         let path = PathBuf::from(format!("built-in {name}.nvsx"));
-        let (manifest, source) = sections(&path, bytes)?;
+        let (mut manifest, source) = sections(&path, bytes)?;
         if !self.admits(manifest.world) {
             return Err(refused(&path, self.mismatch(manifest.world)));
         }
+        manifest.builtin = Some(name.to_owned());
         Ok(Builtin {
+            name,
             path,
             bytes,
             sha256: hex(sha256),
@@ -584,6 +587,7 @@ fn sections(path: &Path, bytes: &[u8]) -> Result<(Manifest, Source), Refused> {
 /// loading it hashes nothing. It has no `memory` ceiling of its own and no grants: the request's
 /// memory cap bounds it, and the empty grant gives it no file and no host.
 pub struct Builtin {
+    name: &'static str,
     path: PathBuf,
     bytes: &'static [u8],
     sha256: String,
@@ -624,14 +628,21 @@ impl Builtin {
         self.extension.get().is_some()
     }
 
+    /// The name `BUILTINS` gives it, which is its crate's directory under `extensions/`.
+    pub fn name(&self) -> &'static str {
+        self.name
+    }
+
     /// The component as a loaded extension. The first call compiles it, or reads it from the
     /// loader's cache, and runs every check an `[[extension]]` entry passes but the reserved
-    /// namespace. Every later call returns the same answer.
+    /// namespace. Every later call returns the same answer. Each call is a use of the component
+    /// for observed selection (`nvs_footprint::component`), since what it returns runs.
     ///
     /// # Errors
     ///
     /// Why the component does not load, which is a broken build.
     pub fn extension(&self) -> Result<&Extension, &Refused> {
+        nvs_footprint::component(self.name);
         self.extension
             .get_or_init(|| {
                 let component = self
@@ -665,6 +676,8 @@ impl Builtin {
 }
 
 /// Every built-in component: its name, the bytes the binary carries and the digest the build took.
+/// A name is its crate's directory under `extensions/`, which observed selection reads to know
+/// which component a changed path belongs to (`tools/nv/select/keys.ts`).
 const BUILTINS: [(&str, &[u8], &[u8; 32]); 4] = [
     (
         "image",
@@ -682,18 +695,21 @@ const BUILTINS: [(&str, &[u8], &[u8; 32]); 4] = [
 
 /// The manifests of the built-in components, read without an engine and without compiling: what
 /// a compiler types a call into `Novis\` against, beside the manifests [`read_manifests`] reads.
-/// Each carries its source section's files in [`Manifest::source`].
+/// Each carries its source section's files in [`Manifest::source`] and its name in
+/// [`Manifest::builtin`].
 ///
 /// # Errors
 ///
 /// The first built-in component whose sections do not read, which is a broken build.
 pub fn builtin_manifests() -> Result<Vec<Manifest>, Refused> {
+    nvs_footprint::builtins();
     BUILTINS
         .iter()
         .map(|&(name, bytes, _)| {
             let (mut manifest, source) =
                 sections(&PathBuf::from(format!("built-in {name}.nvsx")), bytes)?;
             manifest.source = source.files;
+            manifest.builtin = Some(name.to_owned());
             Ok(manifest)
         })
         .collect()

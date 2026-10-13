@@ -1,13 +1,19 @@
 //! The reader: a workbook read through byte ranges of a source the program holds
 //! (`rule:core-classes/spreadsheet-reads-as-a-stream`).
 //!
-//! **This is our own thin reader for xlsx, not calamine.** calamine keeps one `String` per shared
+//! **This is our own thin reader, not calamine.** calamine keeps one `String` per shared
 //! string, exposes no cell style, and reads a sheet from a `Read + Seek` it owns, where a
 //! reader resource must keep its place between guest calls. So the zip directory and the parts
 //! are read here ([`zip`]), the XML is tokenized here ([`xml`]), and a sheet is a [`sheet::Cursor`]
 //! that survives from one call to the next. xlsb is the same package with binary parts, read
-//! the same way by [`binary`]. xlsm, xls and ods are not read yet, and each gives
-//! [`Error::Runtime`] naming its format.
+//! the same way by [`binary`]. xlsm is an xlsx with a VBA part, and reads as one.
+//! [`Reader::macros`] lists the VBA project's module names ([`vba`]), and nothing runs them.
+//!
+//! **xls and ods are read whole**, at [`Reader::open`]: [`xls`] over the compound file [`cfb`],
+//! and [`ods`]. Each sheet's rows are kept in its [`Listed`], and a cursor walks them. calamine
+//! does not read them here either. Its release with a sound `quick-xml` needs a `zip` that does
+//! not build for `wasm32-wasip2`, and its release that builds carries `quick-xml`'s two open
+//! advisories, which `deny.toml` refuses.
 //!
 //! [`Reader::open`] reads the zip directory, the package's relationships, the workbook part, its
 //! relationships and the styles part, and nothing of a sheet. The shared strings are read at the
@@ -21,22 +27,41 @@
 //! half asks for its next batch with `from` one past the last row it was given, and a new loop
 //! starts the sheet again. `limit` is the most rows this call may give.
 //!
+//! **Merged ranges.** [`Reader::merged`] lists a sheet's ranges. A read with `merged: 'fill'`
+//! reads them when it opens its cursor, at one more pass over an xlsx or xlsb sheet's part, and
+//! gives each cell of a range the range's top-left value ([`merge`]). A read without it gives the
+//! value in the top-left cell only.
+//!
+//! **The other extras**, a sheet's hyperlinks, notes, tables and images and the workbook's names
+//! and properties, are [`extras`]' module doc.
+//!
 //! **Time values.** A serial is rounded to the millisecond, the precision Excel shows. In the 1900
 //! system a serial below 61 is one day later than its count, because Excel counts the day
 //! 1900-02-29, which did not exist. Serial 60 reads as 1900-03-01.
 //!
 //! What it spends, per reading request: the zip directory, the styles' kinds, the shared strings
 //! in one arena, one block of compressed bytes and the inflater's window, one block of sheet XML
-//! and the row being parsed, and one batch of rows.
+//! and the row being parsed, and one batch of rows. A fill adds 32 bytes per merged range of the
+//! sheet, and the top-left value of each range the read is inside.
 
 pub mod binary;
+mod cfb;
+pub mod extras;
 pub mod format;
+pub mod merge;
+mod ods;
 pub mod sheet;
+mod vba;
+mod xls;
 pub mod xml;
 pub mod zip;
 
+use std::sync::Arc;
+
 use crate::{Clock, Date, Error, TimeOfDay, Visibility};
-use format::Kind;
+use crate::format::{Options, Separators, Value, locale};
+use format::{Kind, Style};
+use merge::{Fill, Merge};
 use xml::Token;
 
 /// A source the reader reads byte ranges of.
@@ -263,13 +288,16 @@ impl Strings {
     }
 }
 
-/// A sheet as the workbook lists it.
+/// A sheet as the workbook lists it. A sheet of a format read whole has its rows in `rows` and
+/// its merged ranges in `merged`.
 #[derive(Debug, Clone)]
 struct Listed {
     name: String,
     visibility: Visibility,
     part: Option<String>,
     kind: SheetKind,
+    rows: Option<Arc<Vec<sheet::RawRow>>>,
+    merged: Vec<Merge>,
 }
 
 /// A workbook being read.
@@ -277,31 +305,47 @@ struct Listed {
 pub struct Reader {
     directory: zip::Directory,
     sheets: Vec<Listed>,
+    /// The workbook part of a zip package: an xlsx, xlsm or xlsb.
+    workbook: Option<String>,
     strings_part: Option<String>,
     strings: Option<Strings>,
-    /// The read type each cell style index gives a number.
-    kinds: Vec<Kind>,
+    /// The number format of each cell style index: the read type it gives a number, and its
+    /// code for the renderer.
+    styles: Vec<Style>,
     date1904: bool,
     /// Whether the parts are xlsb's records.
     binary: bool,
+    /// Whether the file is a compound file, an xls.
+    compound: bool,
+    /// The VBA project's part, when the package has one.
+    vba_part: Option<String>,
     open: Option<Open>,
 }
 
 /// The sheet [`Reader::rows`] is reading: its cursor, a row read and held back while the empty
-/// rows before it are given, and the number of the next row a call continues from.
+/// rows before it are given, the number of the next row a call continues from, and the merged
+/// ranges of a read that fills them.
 #[derive(Debug)]
 struct Open {
     sheet: String,
     cursor: Cursor,
     held: Option<sheet::RawRow>,
     next: u64,
+    fill: Option<Fill>,
+    /// The `text` and `text_all` the cursor was opened for, and the column ranges they name.
+    text: (Vec<String>, bool),
+    shown: Vec<(u64, u64)>,
 }
 
-/// A sheet's cursor, over XML or over records.
+/// A sheet's cursor, over XML, over records, or over the rows of a sheet read whole.
 #[derive(Debug)]
 enum Cursor {
     Xml(sheet::Cursor),
     Binary(binary::Cursor),
+    Whole {
+        rows: Arc<Vec<sheet::RawRow>>,
+        at: usize,
+    },
 }
 
 impl Cursor {
@@ -309,6 +353,15 @@ impl Cursor {
         match self {
             Self::Xml(cursor) => cursor.dimension(source),
             Self::Binary(cursor) => cursor.dimension(source),
+            Self::Whole { rows, .. } => Ok(rows.last().map(|last| {
+                let columns = rows
+                    .iter()
+                    .flat_map(|row| row.cells.last())
+                    .map(|cell| cell.column)
+                    .max()
+                    .unwrap_or(0);
+                (last.number, columns)
+            })),
         }
     }
 
@@ -316,6 +369,11 @@ impl Cursor {
         match self {
             Self::Xml(cursor) => cursor.next(source),
             Self::Binary(cursor) => cursor.next(source),
+            Self::Whole { rows, at } => {
+                let row = rows.get(*at).cloned();
+                *at += 1;
+                Ok(row)
+            }
         }
     }
 }
@@ -383,10 +441,10 @@ fn relationships(
     Ok(out)
 }
 
-/// The read type of each cell style index in `styles.xml`.
-fn kinds(part: &[u8]) -> Result<Vec<Kind>, Error> {
-    let mut codes: Vec<(u32, Kind)> = Vec::new();
-    let mut kinds = Vec::new();
+/// The number format of each cell style index in `styles.xml`.
+fn styles(part: &[u8]) -> Result<Vec<Style>, Error> {
+    let mut codes: Vec<(u32, Arc<str>)> = Vec::new();
+    let mut styles = Vec::new();
     let mut in_xfs = false;
     let mut at = 0;
     while let Some((token, size)) = xml::next(&part[at..])? {
@@ -397,7 +455,7 @@ fn kinds(part: &[u8]) -> Result<Vec<Kind>, Error> {
                     let id = xml::attr(attrs, b"numFmtId")
                         .and_then(|id| std::str::from_utf8(id).ok()?.parse().ok());
                     if let (Some(id), Some(code)) = (id, xml::attr_text(attrs, b"formatCode")?) {
-                        codes.push((id, format::classify(&code)));
+                        codes.push((id, Arc::from(code)));
                     }
                 }
                 b"cellXfs" => in_xfs = !empty,
@@ -405,13 +463,8 @@ fn kinds(part: &[u8]) -> Result<Vec<Kind>, Error> {
                     let id: u32 = xml::attr(attrs, b"numFmtId")
                         .and_then(|id| std::str::from_utf8(id).ok()?.parse().ok())
                         .unwrap_or(0);
-                    let kind = codes
-                        .iter()
-                        .find(|(code, _)| *code == id)
-                        .map(|(_, kind)| *kind)
-                        .or_else(|| format::builtin(id))
-                        .unwrap_or(Kind::Plain);
-                    kinds.push(kind);
+                    let custom = codes.iter().find(|(code, _)| *code == id);
+                    styles.push(Style::of(id, custom.map(|(_, code)| code)));
                 }
                 _ => {}
             },
@@ -419,21 +472,29 @@ fn kinds(part: &[u8]) -> Result<Vec<Kind>, Error> {
             _ => {}
         }
     }
-    Ok(kinds)
+    Ok(styles)
 }
 
 impl Reader {
     /// Opens the workbook `source` is: its directory and its workbook part.
     pub fn open(source: &dyn Source) -> Result<Self, Error> {
         let head = source.range(0, 8)?;
-        if head.starts_with(&[0xD0, 0xCF, 0x11, 0xE0]) {
-            return Err(Error::Runtime(
-                "This version of Novis cannot read xls files yet.".to_owned(),
-            ));
+        if cfb::is_compound(&head) {
+            let book = xls::read(&source.range(0, source.size()?)?)?;
+            return Ok(Self {
+                compound: true,
+                ..Self::whole(
+                    zip::Directory::default(),
+                    book.sheets,
+                    book.styles,
+                    book.date1904,
+                )
+            });
         }
         if !head.starts_with(b"PK") {
             return Err(Error::Parse(
-                "The file is not a workbook. Novis reads xlsx files.".to_owned(),
+                "The file is not a workbook. Novis reads xlsx, xlsm, xlsb, xls and ods files."
+                    .to_owned(),
             ));
         }
         let directory = zip::Directory::read(source)?;
@@ -443,11 +504,11 @@ impl Reader {
             .map_or_else(|| "xl/workbook.xml".to_owned(), |(_, _, target, _)| target);
         let binary = workbook.ends_with(".bin");
         let Some(entry) = directory.find(&workbook) else {
-            return Err(if directory.find("content.xml").is_some() {
-                Error::Runtime("This version of Novis cannot read ods files yet.".to_owned())
-            } else {
-                broken("it has no workbook part")
-            });
+            if directory.find("content.xml").is_none() {
+                return Err(broken("it has no workbook part"));
+            }
+            let sheets = ods::read(source, &directory)?;
+            return Ok(Self::whole(directory, sheets, ods::KINDS.map(Style::of_kind).to_vec(), false));
         };
         let book = zip::whole(source, entry)?;
         let rels = relationships(source, &directory, &workbook)?;
@@ -495,6 +556,8 @@ impl Reader {
                         Some((_, kind, _, _)) if kind == "chartsheet" => SheetKind::Chartsheet,
                         _ => SheetKind::Worksheet,
                     },
+                    rows: None,
+                    merged: Vec::new(),
                 }
             })
             .collect();
@@ -503,21 +566,70 @@ impl Reader {
                 .find(|(_, kind, _, external)| kind == wanted && !external)
                 .map(|(_, _, target, _)| target.clone())
         };
-        let kinds = match part_of("styles").and_then(|part| directory.find(&part).cloned()) {
-            Some(entry) if binary => binary::kinds(&zip::whole(source, &entry)?)?,
-            Some(entry) => kinds(&zip::whole(source, &entry)?)?,
+        let styles = match part_of("styles").and_then(|part| directory.find(&part).cloned()) {
+            Some(entry) if binary => binary::styles(&zip::whole(source, &entry)?)?,
+            Some(entry) => styles(&zip::whole(source, &entry)?)?,
             None => Vec::new(),
         };
+        // Excel always names the VBA part in the workbook's relationships. A part at the usual
+        // path with no relationship is listed too, so a file never hides a macro.
+        let vba_part = part_of("vbaProject")
+            .or_else(|| Some("xl/vbaProject.bin".to_owned()))
+            .filter(|part| directory.find(part).is_some());
         Ok(Self {
             strings_part: part_of("sharedStrings"),
+            vba_part,
+            workbook: Some(workbook),
             directory,
             sheets,
             strings: None,
-            kinds,
+            styles,
             date1904,
             binary,
+            compound: false,
             open: None,
         })
+    }
+
+    /// A workbook whose sheets were read whole, with their rows in `sheets`.
+    fn whole(
+        directory: zip::Directory,
+        sheets: Vec<Listed>,
+        styles: Vec<Style>,
+        date1904: bool,
+    ) -> Self {
+        Self {
+            directory,
+            sheets,
+            workbook: None,
+            strings_part: None,
+            strings: None,
+            styles,
+            date1904,
+            binary: false,
+            compound: false,
+            vba_part: None,
+            open: None,
+        }
+    }
+
+    /// The names of the workbook's VBA modules, in the project's order, and none when it has no
+    /// VBA project. An xlsm's project is its VBA part, and an xls's is its `_VBA_PROJECT_CUR`
+    /// storage. Nothing runs them.
+    pub fn macros(&self, source: &dyn Source) -> Result<Vec<String>, Error> {
+        if self.compound {
+            let bytes = source.range(0, source.size()?)?;
+            return vba::modules(&cfb::File::open(&bytes)?, &["_VBA_PROJECT_CUR", "VBA"]);
+        }
+        let Some(entry) = self
+            .vba_part
+            .as_deref()
+            .and_then(|part| self.directory.find(part))
+        else {
+            return Ok(Vec::new());
+        };
+        let bytes = zip::whole(source, entry)?;
+        vba::modules(&cfb::File::open(&bytes)?, &["VBA"])
     }
 
     /// The shared strings, read at the first call that needs them.
@@ -551,16 +663,42 @@ impl Reader {
                 "The sheet `{name}` is a chart. It has no rows to read."
             )));
         }
-        let entry = listed
-            .part
-            .as_deref()
-            .and_then(|part| self.directory.find(part))
-            .ok_or_else(|| broken(&format!("the sheet `{name}` has no part")))?;
+        if let Some(rows) = &listed.rows {
+            return Ok(Cursor::Whole {
+                rows: rows.clone(),
+                at: 0,
+            });
+        }
+        let entry = self.part(listed)?;
         Ok(if self.binary {
             Cursor::Binary(binary::Cursor::open(source, entry)?)
         } else {
             Cursor::Xml(sheet::Cursor::open(source, entry)?)
         })
+    }
+
+    /// The zip entry of the sheet `listed`, a sheet of a package.
+    fn part(&self, listed: &Listed) -> Result<&zip::Entry, Error> {
+        listed
+            .part
+            .as_deref()
+            .and_then(|part| self.directory.find(part))
+            .ok_or_else(|| broken(&format!("the sheet `{}` has no part", listed.name)))
+    }
+
+    /// The merged ranges of the sheet `name`, in the order the file lists them. A chart sheet
+    /// has none.
+    pub fn merged(&self, source: &dyn Source, name: &str) -> Result<Vec<Merge>, Error> {
+        let listed = self.listed(name)?;
+        if listed.rows.is_some() || listed.kind == SheetKind::Chartsheet {
+            return Ok(listed.merged.clone());
+        }
+        let entry = self.part(listed)?;
+        if self.binary {
+            binary::merged(source, entry)
+        } else {
+            sheet::merged(source, entry)
+        }
     }
 
     /// Every sheet, in tab order.
@@ -606,7 +744,7 @@ impl Reader {
                 None => raw.number >= from,
             };
             if wanted {
-                let row = self.row(source, raw, options)?;
+                let row = self.row(source, raw, options, &[], Separators::EN)?;
                 if options.header_row.is_some() || row.cells.iter().any(|cell| cell.value.is_some())
                 {
                     break row;
@@ -642,26 +780,39 @@ impl Reader {
         options: &ReadOptions,
         max: u64,
     ) -> Result<Batch, Error> {
-        if options.fill_merged {
-            return Err(Error::Runtime(
-                "This version of Novis cannot fill merged cells yet.".to_owned(),
-            ));
-        }
         let from = options
             .from
             .unwrap_or(1)
             .max(options.header_row.map_or(1, |header| header + 1));
-        let resume =
-            matches!(&self.open, Some(open) if open.sheet == options.sheet && open.next <= from);
+        let resume = matches!(&self.open, Some(open) if open.sheet == options.sheet
+            && open.next <= from
+            && open.fill.is_some() == options.fill_merged
+            && open.text.0 == options.text
+            && open.text.1 == options.text_all);
         if !resume {
+            let shown = self.shown(source, options)?;
             let cursor = self.cursor(source, &options.sheet)?;
+            let fill = if options.fill_merged {
+                Some(Fill::new(self.merged(source, &options.sheet)?))
+            } else {
+                None
+            };
             self.open = Some(Open {
                 sheet: options.sheet.clone(),
                 cursor,
                 held: None,
                 next: 1,
+                fill,
+                text: (options.text.clone(), options.text_all),
+                shown,
             });
         }
+        let separators = locale::of_tag(&options.locale);
+        let shown = self
+            .open
+            .as_ref()
+            .map(|open| open.shown.clone())
+            .unwrap_or_default();
         let selected = selection(&options.columns)?;
         let most = max.min(options.limit.unwrap_or(u64::MAX));
         let mut rows = Vec::new();
@@ -676,22 +827,37 @@ impl Reader {
                     None => return Ok(Batch { rows, done: true }),
                 },
             };
-            if raw.number < from || (options.skip_hidden && raw.hidden) {
-                open.next = raw.number + 1;
-                continue;
-            }
+            // A row the file does not write is given when empty rows are kept, or when a fill
+            // has a value for it.
             let expected = open.next.max(from);
-            if options.keep_empty_rows && expected < raw.number {
-                open.held = Some(raw);
-                open.next = expected + 1;
-                rows.push(ReadRow {
-                    number: expected,
-                    cells: Vec::new(),
-                });
+            let gap = if expected >= raw.number {
+                None
+            } else if options.keep_empty_rows {
+                Some(expected)
+            } else {
+                open.fill
+                    .as_ref()
+                    .and_then(|fill| fill.covered(expected, raw.number))
+            };
+            let raw = match gap {
+                Some(number) => {
+                    open.held = Some(raw);
+                    sheet::RawRow {
+                        number,
+                        ..sheet::RawRow::default()
+                    }
+                }
+                None => raw,
+            };
+            open.next = raw.number + 1;
+            self.reach(source, &raw)?;
+            if raw.number < from || (options.skip_hidden && raw.hidden) {
                 continue;
             }
-            open.next = raw.number + 1;
-            let mut row = self.row(source, raw, options)?;
+            let mut row = self.row(source, raw, options, &shown, separators)?;
+            if let Some(fill) = self.open.as_ref().and_then(|open| open.fill.as_ref()) {
+                fill.fill(&mut row);
+            }
             row.cells.retain(|cell| {
                 selected.is_empty()
                     || selected
@@ -706,12 +872,82 @@ impl Reader {
         Ok(Batch { rows, done: false })
     }
 
-    /// `raw` as read cells, every empty cell dropped.
+    /// Moves a fill to the row `raw`, and keeps the top-left value of each range that starts in
+    /// it. Does nothing for a read that does not fill.
+    fn reach(&mut self, source: &dyn Source, raw: &sheet::RawRow) -> Result<(), Error> {
+        let Some(fill) = self.open.as_mut().and_then(|open| open.fill.as_mut()) else {
+            return Ok(());
+        };
+        let starting = fill.reach(raw.number);
+        if starting.is_empty() {
+            return Ok(());
+        }
+        if raw.cells.iter().any(|cell| cell.kind == b"s") {
+            self.strings(source)?;
+        }
+        let mut values = Vec::with_capacity(starting.len());
+        for (at, column) in starting {
+            let value = match raw.cells.iter().find(|cell| cell.column == column) {
+                Some(cell) => self.value(cell)?,
+                None => None,
+            };
+            values.push((at, value));
+        }
+        if let Some(fill) = self.open.as_mut().and_then(|open| open.fill.as_mut()) {
+            for (at, value) in values {
+                fill.set(at, value);
+            }
+        }
+        Ok(())
+    }
+
+    /// The column ranges the read's `text` names: each name a header key when the read has a
+    /// header row, and otherwise a column or a range of columns. `text_all` names every column.
+    fn shown(
+        &mut self,
+        source: &dyn Source,
+        options: &ReadOptions,
+    ) -> Result<Vec<(u64, u64)>, Error> {
+        if options.text_all {
+            return Ok(vec![(1, u64::MAX)]);
+        }
+        if options.text.is_empty() {
+            return Ok(Vec::new());
+        }
+        let keys = if options.header_row.is_some() {
+            self.header(source, options)?
+        } else {
+            Vec::new()
+        };
+        options
+            .text
+            .iter()
+            .map(|name| {
+                if let Some(at) = keys.iter().position(|key| key == name) {
+                    let column = at as u64 + 1;
+                    return Ok((column, column));
+                }
+                selection(std::slice::from_ref(name))
+                    .map(|ranges| ranges[0])
+                    .map_err(|_| {
+                        Error::Invalid(format!(
+                            "The option `text` names `{name}`, which is not a header of the sheet \
+                             or a column such as `B` or `A:C`."
+                        ))
+                    })
+            })
+            .collect()
+    }
+
+    /// `raw` as read cells, every empty cell dropped. A cell in a column of `shown` carries
+    /// its displayed text, with the decimal and group separators `separators`.
     fn row(
         &mut self,
         source: &dyn Source,
         raw: sheet::RawRow,
         options: &ReadOptions,
+        shown: &[(u64, u64)],
+        separators: Separators,
     ) -> Result<ReadRow, Error> {
         let needs_strings = raw.cells.iter().any(|cell| cell.kind == b"s");
         if needs_strings {
@@ -720,6 +956,16 @@ impl Reader {
         let mut cells = Vec::with_capacity(raw.cells.len());
         for cell in raw.cells {
             let value = self.value(&cell)?;
+            let display = match &value {
+                Some(value)
+                    if shown
+                        .iter()
+                        .any(|&(first, last)| (first..=last).contains(&cell.column)) =>
+                {
+                    Some(self.display(&cell, value, separators))
+                }
+                _ => None,
+            };
             let formula = if options.formulas { cell.formula } else { None };
             if value.is_none() && formula.is_none() {
                 continue;
@@ -728,7 +974,7 @@ impl Reader {
                 column: cell.column,
                 value,
                 formula,
-                display: None,
+                display,
             });
         }
         Ok(ReadRow {
@@ -788,13 +1034,35 @@ impl Reader {
                     .parse()
                     .map_err(|_| broken(&format!("a number cell holds `{raw}`")))?;
                 let kind = self
-                    .kinds
+                    .styles
                     .get(cell.style as usize)
-                    .copied()
-                    .unwrap_or(Kind::Plain);
+                    .map_or(Kind::Plain, |style| style.kind);
                 timed(number, kind, self.date1904).unwrap_or_else(|| plain(number))
             }
         }))
+    }
+
+    /// The text `cell`, read as `value`, displays under its style's number format. A number is
+    /// rendered from the serial the file stores, so a date shows as its format writes it.
+    fn display(&self, cell: &sheet::RawCell, value: &Read, separators: Separators) -> String {
+        let code = self
+            .styles
+            .get(cell.style as usize)
+            .map_or("General", |style| &style.code);
+        let options = Options {
+            date1904: self.date1904,
+            separators,
+        };
+        let shown = match value {
+            Read::Text(text) => Value::Text(text),
+            Read::Boolean(flag) => Value::Boolean(*flag),
+            Read::Error(error) => Value::Error(error.text()),
+            _ => match cell.value.as_deref().map(str::trim).map(str::parse::<f64>) {
+                Some(Ok(number)) => Value::Number(number),
+                _ => return String::new(),
+            },
+        };
+        crate::format::render(code, shown, &options)
     }
 }
 
@@ -860,7 +1128,7 @@ fn timed(number: f64, kind: Kind, date1904: bool) -> Option<Read> {
     })
 }
 
-fn days_from_civil(year: i64, month: i64, day: i64) -> i64 {
+pub(crate) fn days_from_civil(year: i64, month: i64, day: i64) -> i64 {
     let year = if month <= 2 { year - 1 } else { year };
     let era = year.div_euclid(400);
     let yoe = year - era * 400;
@@ -869,7 +1137,7 @@ fn days_from_civil(year: i64, month: i64, day: i64) -> i64 {
 }
 
 /// The civil date `days` after 1970-01-01.
-fn civil(days: i64) -> Date {
+pub(crate) fn civil(days: i64) -> Date {
     let z = days + 719_468;
     let era = z.div_euclid(146_097);
     let doe = z - era * 146_097;

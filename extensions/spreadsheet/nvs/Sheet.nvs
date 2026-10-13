@@ -198,7 +198,7 @@ final class Sheet
         foreach ($asked as tainted string $tainted => string|Formula $total) {
             string $column = Core\Taint::assertTrusted($tainted, "a header name finds the column of a total, and the engine escapes it");
             if ($total is Formula) {
-                $totals[] = {column: $column, function: null, formula: $total->text};
+                $totals[] = {column: $column, function: null, formula: Core\Taint::assertTrusted($total->text, "a Formula is written as a formula only when the program passes one")};
             } elseif ($total is string) {
                 $totals[] = {column: $column, function: self::total($column, $total), formula: null};
             }

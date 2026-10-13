@@ -80,9 +80,8 @@ cargo test --release -p nvs-abi-probe --features wasm-probe    # wasmtime moved
 ```
 
 **C. If codegen, the runtime or the stdlib moved** — the end-to-end legs, both platforms plus the leak sweep.
-`bun nv affected` names them as heavy checks the floor gate runs, and the loop's next open floor gate
-runs them. The Linux leg and the leak sweep have no `bun nv` command yet: `tools/nv/accept/accept.ts`'s "Not here
-yet" list names them.
+`bun nv affected` names the Linux legs, the WSL leg and the valgrind sweep, and the loop's next open
+floor gate runs them (`tools/nv/cmd/sweep.ts`). `bun nv legs` runs both by hand.
 
 **D. If a lexer/parser-adjacent crate moved:**
 

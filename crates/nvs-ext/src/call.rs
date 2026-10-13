@@ -152,6 +152,14 @@ pub trait Budget: Send + Sync {
             "this request has no outbound HTTP".to_owned(),
         )))
     }
+
+    /// Reads at most `length` bytes at `offset` of the source the host lent this call as `id`
+    /// ([`crate::convert::Value::Lent`]), fewer where the source ends first, and returns the
+    /// read the guest waits on. The host serves it where it holds the source, between two polls
+    /// of the call. The default lends nothing, so every read fails.
+    fn read(&self, _id: u64, _offset: u64, _length: u64) -> Lending {
+        Lending::ready(Err("this request lends no source".to_owned()))
+    }
 }
 
 /// One outbound HTTP request a guest sends.
@@ -265,6 +273,83 @@ impl Drop for Answer {
         self.filled(Err(Unsent::Refused(
             "the request ended before this response arrived".to_owned(),
         )));
+    }
+}
+
+/// What [`Budget::read`] returns: a future the guest's `range` waits on until the [`Lender`] made
+/// with it is given the bytes.
+#[derive(Debug)]
+pub struct Lending(Arc<Mutex<Lent>>);
+
+/// The half of a [`Lending`] that the host gives the bytes to. Dropped without them, it gives the
+/// guest an error, so a guest never waits on a read nobody serves.
+#[derive(Debug)]
+pub struct Lender(Option<Arc<Mutex<Lent>>>);
+
+/// The bytes a [`Lending`] waits on, and the waker of the call that waits.
+#[derive(Debug, Default)]
+struct Lent {
+    result: Option<Result<Vec<u8>, String>>,
+    waker: Option<Waker>,
+}
+
+impl Lending {
+    /// A pending read and the [`Lender`] that fills it.
+    #[must_use]
+    pub fn pair() -> (Self, Lender) {
+        let slot = Arc::new(Mutex::new(Lent::default()));
+        (Self(Arc::clone(&slot)), Lender(Some(slot)))
+    }
+
+    /// A read that is already done.
+    #[must_use]
+    pub fn ready(result: Result<Vec<u8>, String>) -> Self {
+        Self(Arc::new(Mutex::new(Lent {
+            result: Some(result),
+            waker: None,
+        })))
+    }
+}
+
+impl Future for Lending {
+    type Output = Result<Vec<u8>, String>;
+
+    fn poll(self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
+        let mut slot = self.0.lock().unwrap_or_else(PoisonError::into_inner);
+        match slot.result.take() {
+            Some(result) => Poll::Ready(result),
+            None => {
+                slot.waker = Some(cx.waker().clone());
+                Poll::Pending
+            }
+        }
+    }
+}
+
+impl Lender {
+    /// Gives the waiting call its bytes, or the reason there are none, and wakes it.
+    pub fn fill(mut self, result: Result<Vec<u8>, String>) {
+        self.filled(result);
+    }
+
+    fn filled(&mut self, result: Result<Vec<u8>, String>) {
+        let Some(slot) = self.0.take() else {
+            return;
+        };
+        let waker = {
+            let mut slot = slot.lock().unwrap_or_else(PoisonError::into_inner);
+            slot.result = Some(result);
+            slot.waker.take()
+        };
+        if let Some(waker) = waker {
+            waker.wake();
+        }
+    }
+}
+
+impl Drop for Lender {
+    fn drop(&mut self) {
+        self.filled(Err("the call ended before this read was served".to_owned()));
     }
 }
 

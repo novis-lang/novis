@@ -519,6 +519,7 @@ function heavyRun(all: string[], cwd: string): string | null {
   const nv = nvArgs(words);
   if (nv !== null) {
     const [cmd, ...rest] = nv;
+    if (cmd === "sweep" && !rest.some((w) => w === "--help" || w === "-h")) return "`bun nv sweep` is the floor gate looper runs after each session: it counts a session, and on the floor gate's cadence runs the full selection run, the Linux legs and the benches";
     if (cmd === "benches") return "`bun nv benches` judges every bench the selection picks on the release build, whatever your change reaches; the loop runs it on the floor gate's cadence";
     if (cmd === "proofs" && rest.some((w) => w === "--verify" || w === "--run") && !rest.some((w) => /^--(?:id|only|group)(?:=|$)/.test(w))) {
       return "`bun nv proofs` over every feature runs each one's examples and attacks, whatever your change reaches";

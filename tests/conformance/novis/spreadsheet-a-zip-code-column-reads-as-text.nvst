@@ -1,0 +1,90 @@
+--TEST--
+`{text: [...]}` reads the columns it names as the text Excel displays: a zip code under the format `00000` keeps its leading zeros, a price shows its format's decimals and the separators of `locale`, `text: true` reads every column so, and a name that is neither a header nor a column throws: rule:core-classes/spreadsheet-reads-as-a-stream
+--FILE--
+<?nvs
+// covers: Novis\Spreadsheet\Reader::rows
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Row;
+use Novis\Spreadsheet\Workbook;
+
+final class Show
+{
+    public static function value(mixed $value): string
+    {
+        if ($value is tainted string) {
+            return "string \"" . Core\Taint::assertTrusted($value, "the test prints what it wrote") . "\"";
+        }
+        if ($value is int) {
+            return "int " . ($value as string);
+        }
+        if ($value is float) {
+            return "float " . ($value as string);
+        }
+        return "other";
+    }
+
+    public static function row(Row $row): void
+    {
+        array<string> $shown = [];
+        foreach ($row->values as tainted string $key => mixed $value) {
+            $shown[] = Core\Taint::assertTrusted($key, "the test prints what it wrote") . ": " . Show::value($value);
+        }
+        echo Core\Str::join($shown, ", "), "\n";
+    }
+}
+
+// The zip codes are numbers with the format `00000`, so Excel shows five digits.
+array<array<mixed>> $rows = [
+    ["shop" => "North", "zip" => 1234, "price" => 1234.5],
+    ["shop" => "South", "zip" => 98101, "price" => 0.5],
+];
+bytes $file = Workbook::fromRows($rows, {columns: [
+    "zip" => {header: "Zip", format: "00000"},
+    "price" => {header: "Price", format: "#,##0.00"},
+]})->bytes();
+var $reader = Reader::open($file);
+
+echo "== the numbers\n";
+foreach ($reader->rows(0, {header: true}) as Row $row) {
+    Show::row($row);
+}
+
+echo "== the zip codes as text\n";
+foreach ($reader->rows(0, {header: true, text: ["Zip"]}) as Row $row) {
+    Show::row($row);
+}
+
+// A column letter works too. The separators come from `locale`.
+echo "== every column as text, in German\n";
+foreach ($reader->rows(0, {header: true, text: true, locale: "de"}) as Row $row) {
+    Show::row($row);
+}
+
+echo "== column B by its letter\n";
+foreach ($reader->rows(0, {header: true, text: ["B"]}) as Row $row) {
+    Show::row($row);
+}
+
+echo "== a name the sheet does not have\n";
+try {
+    foreach ($reader->rows(0, {header: true, text: ["Postcode"]}) as Row $row) {
+        Show::row($row);
+    }
+} catch (LogicError $error) {
+    echo $error->message, "\n";
+}
+--EXPECT--
+== the numbers
+Zip: int 1234, Price: float 1234.5, shop: string "North"
+Zip: int 98101, Price: float 0.5, shop: string "South"
+== the zip codes as text
+Zip: string "01234", Price: float 1234.5, shop: string "North"
+Zip: string "98101", Price: float 0.5, shop: string "South"
+== every column as text, in German
+Zip: string "01234", Price: string "1.234,50", shop: string "North"
+Zip: string "98101", Price: string "0,50", shop: string "South"
+== column B by its letter
+Zip: int 1234, Price: string "1,234.50", shop: string "North"
+Zip: int 98101, Price: string "0.50", shop: string "South"
+== a name the sheet does not have
+The option `text` names `Postcode`, which is not a header of the sheet or a column such as `B` or `A:C`.

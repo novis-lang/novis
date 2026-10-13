@@ -4,23 +4,29 @@ namespace Novis\Spreadsheet;
 use Iterator;
 use LogicError;
 
-/// An Excel file (xlsx) that your program reads row by row.
-/// Open one with `Reader::open`. `sheets` lists its sheets, and `rows` reads the rows of one sheet.
+/// A spreadsheet file that your program reads row by row, such as an upload. It can be xlsx, xlsm, xlsb, xls or ods.
+/// Open one with `Reader::open`. Every string and `bytes` value it returns is `tainted`, because it comes from the file.
 final class Reader
 {
     type RowOptions = ?{header?: bool|int, from?: uint, limit?: uint, columns?: array<string>, zone?: string, text?: bool|array<string>, formulas?: bool, emptyRows?: string, merged?: string, hidden?: string, locale?: string};
-    type SheetInfo = {name: string, position: uint, visibility: Visibility, rows: uint, columns: uint, kind: SheetKind};
+    type SheetInfo = {name: tainted string, position: uint, visibility: Visibility, rows: uint, columns: uint, kind: SheetKind};
+    type Link = {anchor: tainted string, target: tainted string, text: ?tainted string, tooltip: ?tainted string, external: bool};
+    type Note = {noted: tainted string, note: tainted string, author: ?tainted string};
+    type Name = {name: tainted string, reference: tainted string, sheet: ?tainted string};
+    type Table = {table: tainted string, name: tainted string, sheet: tainted string};
+    type Image = {at: tainted string, image: tainted bytes, format: tainted string, link: ?tainted string};
+    type Properties = {title: ?tainted string, subject: ?tainted string, author: ?tainted string, company: ?tainted string, keywords: ?tainted string, created: ?Core\Time\Instant};
     type Read = {text: string}|{integer: int}|{number: float}|{boolean: bool}|{day: Core\Time\Date, clock: Core\Time\TimeOfDay}|{date: Core\Time\Date}|{time: Core\Time\TimeOfDay}|{duration: Core\Time\Duration}|{error: CellError};
     type Asked = {sheet: string, headerRow: ?uint, from: ?uint, limit: ?uint, columns: array<string>, text: array<string>, textAll: bool, formulas: bool, keepEmptyRows: bool, fillMerged: bool, skipHidden: bool, locale: string};
 
     private function constructor(
         private readonly Reading $reader,
-        private readonly bytes|Core\IO\File $source,
+        private readonly tainted bytes|Core\IO\File $source,
     ) {}
 
     /// `Reader::open` opens the workbook in `$source`. The source is the bytes of the file, or a file your program opened.
-    /// This reads the list of sheets and no rows. A file that is not an xlsx file throws an error.
-    public static function open(bytes|Core\IO\File $source): Reader
+    /// This reads the list of sheets. An xls or ods file is read whole here. Any other file type throws an error.
+    public static function open(tainted bytes|Core\IO\File $source): Reader
     {
         return new Reader(Engine::readerOpen($source), $source);
     }
@@ -31,8 +37,77 @@ final class Reader
         return Engine::readerSheets($this->reader, $this->source);
     }
 
+    /// `macros` returns the names of the macro modules in an xlsm or xls file. The list is empty when the file has no macros.
+    /// Reading a file never runs its macros.
+    public function macros(): array<tainted string>
+    {
+        return Engine::readerMacros($this->reader, $this->source);
+    }
+
+    /// `merged` returns the merged cells of the sheet `$sheet`, by name or by position from 0. Each one is a range such as `"A1:C2"`.
+    /// When you read rows, the value of a merged range is in its top-left cell. With `merged: 'fill'`, every cell of the range has that value.
+    public function merged(string|int $sheet): array<tainted string>
+    {
+        return Engine::readerMerged($this->reader, $this->source, $this->sheetName($sheet));
+    }
+
+    /// `links` returns the hyperlinks of the sheet `$sheet`. `anchor` is the cell, such as `"B2"`, and `target` is where the link goes.
+    /// `external` is `true` for a URL or a file. Reading a file never opens its links.
+    public function links(string|int $sheet): array<Link>
+    {
+        return Engine::readerLinks($this->reader, $this->source, $this->sheetName($sheet));
+    }
+
+    /// `notes` returns the notes of the sheet `$sheet`. Each one has its cell in `noted`, its text in `note`, and its `author`.
+    public function notes(string|int $sheet): array<Note>
+    {
+        return Engine::readerNotes($this->reader, $this->source, $this->sheetName($sheet));
+    }
+
+    /// `names` returns the defined names of the workbook. `reference` is the text of the name, such as `"Shop!$A$1:$C$9"`.
+    /// `sheet` is `null` for a name the whole workbook can use.
+    public function names(): array<Name>
+    {
+        return Engine::readerNames($this->reader, $this->source);
+    }
+
+    /// `tables` returns the Excel tables of the sheet `$sheet`. `table` is the range, such as `"A1:C10"`, and `name` is the table name.
+    public function tables(string|int $sheet): array<Table>
+    {
+        return Engine::readerTables($this->reader, $this->source, $this->sheetName($sheet));
+    }
+
+    /// `images` returns the pictures of the sheet `$sheet`. `at` is the top-left cell, and `image` is the bytes of the picture.
+    /// A linked picture has empty `image` bytes, and `link` is its target. Reading a file never fetches a link.
+    public function images(string|int $sheet): array<Image>
+    {
+        return Engine::readerImages($this->reader, $this->source, $this->sheetName($sheet));
+    }
+
+    /// `properties` returns the title, subject, author, company and keywords of the workbook, and the time it was created.
+    /// A property the file does not have is `null`. An xls or ods file throws an error.
+    public function properties(): Properties
+    {
+        var $found = Engine::readerProperties($this->reader, $this->source);
+        ?Core\Time\Instant $created = null;
+        var $at = $found->created;
+        if ($at != null) {
+            $created = Core\Time::parse($at->day->format("yyyy-MM-dd"), "yyyy-MM-dd", Core\Time\Zone::of("UTC"))->withTime($at->clock)->toInstant();
+        }
+        return {
+            title: $found->title,
+            subject: $found->subject,
+            author: $found->author,
+            company: $found->company,
+            keywords: $found->keywords,
+            created: $created,
+        };
+    }
+
     /// `rows` reads the sheet `$sheet`, by name or by position from 0. It gives one `Row` at a time, with its row number in the file.
     /// With `header: true`, the keys are the header cells, and an empty cell is `null`. Without a header, the keys are the column letters.
+    /// `text: ["Zip"]` reads the column `Zip` as the text Excel shows, so `1234` with the format `00000` is `"01234"`.
+    /// `text` takes header names or column letters, and `text: true` reads every column this way. `locale` sets the separators, such as `"de"`.
     public function rows(string|int $sheet, RowOptions $options = null): Iterator<Row>
     {
         bool|array<string> $text = $options?->text ?? false;
@@ -70,7 +145,7 @@ final class Reader
                 return;
             }
         }
-        array<string> $keys = $this->keys($asked, $headerRow, $from);
+        array<tainted string> $keys = $this->keys($asked, $headerRow, $from);
         ?uint $next = $from;
         ?uint $left = $limit;
         while (true) {
@@ -99,36 +174,36 @@ final class Reader
 
     private function firstRow(Asked $asked, ?uint $from): ?uint
     {
-        var $first = Engine::readerRows($this->reader, $this->source, self::with($asked, null, $from, 1, false), 1);
+        var $first = Engine::readerRows($this->reader, $this->source, self::with($asked, null, $from, 1, false, false), 1);
         foreach ($first->rows as var $row) {
             return $row->number;
         }
         return null;
     }
 
-    private function keys(Asked $asked, ?uint $headerRow, ?uint $from): array<string>
+    private function keys(Asked $asked, ?uint $headerRow, ?uint $from): array<tainted string>
     {
         if ($headerRow == null) {
             return [];
         }
-        return Engine::readerHeader($this->reader, $this->source, self::with($asked, $headerRow, $from, null, $asked->keepEmptyRows));
+        return Engine::readerHeader($this->reader, $this->source, self::with($asked, $headerRow, $from, null, $asked->keepEmptyRows, false));
     }
 
-    private function batch(Asked $asked, ?uint $headerRow, ?uint $from, ?uint $left, uint $most, array<string> $keys, Core\Time\Zone $zone): array<Row>
+    private function batch(Asked $asked, ?uint $headerRow, ?uint $from, ?uint $left, uint $most, array<tainted string> $keys, Core\Time\Zone $zone): array<Row>
     {
-        var $batch = Engine::readerRows($this->reader, $this->source, self::with($asked, $headerRow, $from, $left, $asked->keepEmptyRows), $most);
+        var $batch = Engine::readerRows($this->reader, $this->source, self::with($asked, $headerRow, $from, $left, $asked->keepEmptyRows, true), $most);
         array<Row> $rows = [];
         foreach ($batch->rows as var $row) {
             array<mixed> $values = [];
             uint $column = 0;
-            foreach ($keys as string $named) {
+            foreach ($keys as tainted string $named) {
                 $column = $column + 1;
                 if (self::selected($asked->columns, $column)) {
                     $values[$named] = null;
                 }
             }
             foreach ($row->cells as var $cell) {
-                string $key = $cell->column <= Core\Arr::count($keys) ? $keys[$cell->column - 1] : self::letters($cell->column);
+                tainted string $key = $cell->column <= Core\Arr::count($keys) ? $keys[$cell->column - 1] : self::letters($cell->column);
                 $values[$key] = self::value($cell->value, $cell->formula, $cell->display, $asked->formulas, $zone);
             }
             $rows[] = new Row($row->number, $values);
@@ -143,13 +218,13 @@ final class Reader
         }
         foreach ($this->sheets() as var $info) {
             if ($info->position as int == $sheet) {
-                return $info->name;
+                return Core\Taint::assertTrusted($info->name, "the file gave this sheet name, and it goes back only to the same file");
             }
         }
         throw new LogicError("The workbook has no sheet at position {$sheet}. The first sheet is at position 0.");
     }
 
-    private static function with(Asked $asked, ?uint $headerRow, ?uint $from, ?uint $limit, bool $keepEmptyRows): Asked
+    private static function with(Asked $asked, ?uint $headerRow, ?uint $from, ?uint $limit, bool $keepEmptyRows, bool $shown): Asked
     {
         return {
             sheet: $asked->sheet,
@@ -157,8 +232,8 @@ final class Reader
             from: $from,
             limit: $limit,
             columns: $asked->columns,
-            text: $asked->text,
-            textAll: $asked->textAll,
+            text: $shown ? $asked->text : [],
+            textAll: $shown && $asked->textAll,
             formulas: $asked->formulas,
             keepEmptyRows: $keepEmptyRows,
             fillMerged: $asked->fillMerged,
@@ -178,7 +253,7 @@ final class Reader
         throw new LogicError("The option `{$option}` is `'{$usual}'` or `'{$other}'`, not `'{$given}'`.");
     }
 
-    private static function value(?Read $value, ?string $formula, ?string $display, bool $formulas, Core\Time\Zone $zone): mixed
+    private static function value(?Read $value, ?string $formula, ?tainted string $display, bool $formulas, Core\Time\Zone $zone): mixed
     {
         if ($display != null) {
             return $display;

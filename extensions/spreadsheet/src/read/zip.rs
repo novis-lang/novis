@@ -39,7 +39,7 @@ pub struct Entry {
 }
 
 /// The archive's directory.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Directory {
     entries: Vec<Entry>,
 }

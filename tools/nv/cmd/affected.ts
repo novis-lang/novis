@@ -29,7 +29,8 @@
 // of the live plan, or of the side goal `NOVIS_SIDE_GOAL` names. A check reached through a key the change
 // moved, or through its own record changing, is due, less the heavy ones: a check that builds or
 // measures the release profile, fuzz, TSan, the database matrix, the two Linux legs and a check that is
-// never memoized. Those are named as deferred, and the loop's floor gate runs them. A check whose atoms
+// never memoized. Those are named as deferred: looper's sweep after the session runs the goal's checks,
+// and the loop's floor gate (`cmd/sweep.ts`) runs the Linux legs. A check whose atoms
 // were all picked only for being owed, red or never recorded before the change, none of them reached by
 // the change itself, was red before the change and stays so until the goal is reached, so it is not due.
 //
@@ -71,7 +72,7 @@ export interface Reached {
 
 export interface ReachedCheck extends Reached {
   id: string;
-  /** Heavy: the floor gate runs it, not this command. */
+  /** Heavy: the loop runs it after the session, not this command. */
   deferred: boolean;
   /** Reached only through atoms owed or red from before the change. */
   before: boolean;
@@ -288,7 +289,7 @@ function print(p: Plan, asked: string[] | undefined): void {
   console.log(`\nacceptance -- \`bun nv affected --run\` runs ${run.length} check(s):`);
   for (const x of run.slice(0, 20)) console.log(`  ${x.name}${from(x.by)}`);
   if (run.length > 20) console.log(`  +${run.length - 20} more`);
-  if (deferred > 0) console.log(`  ${deferred} reached heavy check(s) and leg(s) wait for the loop's floor gate: release profile, fuzz, TSan, the database matrix, the Linux legs`);
+  if (deferred > 0) console.log(`  ${deferred} reached heavy check(s) and leg(s) wait for the loop: looper's sweep runs the release profile, fuzz, TSan and the database matrix, and its floor gate the Linux legs`);
 
 
   if (owes(p)) console.log(`\nrun it: \`bun nv affected --run${c.why === "uncommitted changes" || c.why === "the loop's session base" ? "" : ` ${c.why}`}\``);

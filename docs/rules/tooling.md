@@ -2280,7 +2280,7 @@ on `covws`, which is never a verdict; when the two runs end differently, the pro
 they agree.
 
 The heavy checks, which build the release profile, fuzz, TSan, the database matrix or run a Linux leg,
-wait for the floor gate, and record no coverage of their own. A release test, a bench and the database
+record no coverage of their own. A release test, a bench and the database
 matrix are keyed on a **twin**: the same work run again on `covws`, whose verdict counts for nothing and
 whose coverage is the check's keys. The twin of a release test runs its tests with `--include-ignored`,
 a bench runs once on the covws `nvs`, and the database matrix runs its SQLite leg. Each also holds a key
@@ -2294,13 +2294,15 @@ is never answered from the store, and
 `bun nv loop --goal-only --full` runs every atom of every check.
 
 A heavy check keyed on every file of every crate it builds would be reached by almost any Rust change,
-so the goal-end sweep would pay for all of them at nearly every goal end; the twin is what keeps a
+so a goal that names them would pay for all of them after nearly every session; the twin is what keeps a
 change that reaches none of its code from running it. A twin is paid only when its heavy check runs.
 
-**Every third goal end runs every heavy check and both legs**, whatever changed, and so does a store
-with no count yet. That is the safety net for the twins' keys, and it is what holds the code no twin
-observes: a path only a release build takes, and server-only dialect code outside `nvs-db` that the
-SQLite leg never calls. The goal-end sweeps between those run what their goal reached.
+**Every open floor gate runs both Linux legs over every fixture and suite of the goal**, whatever
+changed (`tools/nv/cmd/sweep.ts`, through `bun nv legs --full`'s `legsOver`). A leg records no footprint
+of its own and is selected through its fixtures' atoms, so this run is the safety net for what that
+selection cannot see. The gate runs no other heavy check. CI is their safety net: its nightly deep lane
+runs the release profile, fuzz, TSan and the database matrix whatever changed, and a push runs each one
+its diff reaches ([`testing/ci-lanes`](testing.md#testing-ci-lanes)).
 
 **The full run is the safety net.** `bun nv select --full` runs and records every atom that is not
 heavy, whatever changed, and the loop runs it when the floor gate opens by its count. An atom red there
@@ -2332,8 +2334,9 @@ reverts the edits.
 - **Running a Linux leg over only the fixtures the change reached.** A fixture reached while the floor
   gate is shut would need a Linux owed state of its own. The leg's cost is fixed, so what is cut is how
   often it runs.
-- **Running every heavy check at every goal end, or at a much longer interval.** Every goal end is the
-  cost the twins remove. A long interval lets a missed heavy regression wait too long, and one in three
-  is about as often as the floor gate's full run.
+- **Running the Linux legs at the floor gate only when the store says the change reached them.** A
+  leg's selection is read through its fixtures' atoms, so a regression that selection misses would
+  never be run on Linux. The gate opens one session in `FLOOR_GATE_EVERY`, so both legs cost a fixed
+  run at that interval.
 
 <sub>See also [`tooling/the-chain-names-its-live-goal`](tooling.md#tooling-the-chain-names-its-live-goal), [`tooling/the-repository-tools-are-one-bun-program`](tooling.md#tooling-the-repository-tools-are-one-bun-program).</sub>

@@ -360,6 +360,7 @@ fn walk(
     let mut probed: FxHashSet<QName> = FxHashSet::default();
     let mut autoload_map: Option<AutoloadMap> = None;
     let mut carried = carried_source(extensions);
+    let components = component_namespaces(extensions);
 
     'walk: loop {
         while let Some((id, stmts, depth, path)) = work.pop() {
@@ -385,6 +386,9 @@ fn walk(
 
             let mut harvest = Harvest::default();
             find_written_requires(&stmts, map.file(id), &mut harvest);
+            for (name, _) in &harvest.names {
+                record_component(name, &components);
+            }
             wanted.append(&mut harvest.names);
             scan = scan.or_else(|| harvest.scans.first().copied());
             let targets = std::mem::take(&mut harvest.requires);
@@ -628,6 +632,33 @@ fn carried_source(extensions: &[ExtensionClass]) -> FxHashMap<QName, (String, St
         }
     }
     carried
+}
+
+/// The namespace of each class a built-in component declares, with that
+/// component's name: the class's name minus its last segment.
+fn component_namespaces(extensions: &[ExtensionClass]) -> Vec<(&[String], &str)> {
+    extensions
+        .iter()
+        .filter_map(|class| {
+            let component = class.component.as_deref()?;
+            let segments = class.name.segments();
+            Some((&segments[..segments.len().saturating_sub(1)], component))
+        })
+        .collect()
+}
+
+/// Records the built-in component whose namespace `name` is under, found or
+/// not: a name its source does not declare today is one a change to that
+/// source can declare.
+fn record_component(name: &QName, components: &[(&[String], &str)]) {
+    if !nvs_footprint::enabled() {
+        return;
+    }
+    for (namespace, component) in components {
+        if !namespace.is_empty() && name.segments().starts_with(namespace) {
+            nvs_footprint::component(component);
+        }
+    }
 }
 
 fn canonical_path(src: &SourceFile) -> Option<PathBuf> {
@@ -2346,6 +2377,7 @@ class Unreached {}
                 path: "Ledger/Receipt.nvs".to_owned(),
                 text: text.to_owned(),
             }],
+            component: None,
         };
         let resolve = |entry: &str, class: ExtensionClass| {
             let mut map = SourceMap::new();
@@ -2388,6 +2420,46 @@ class Unreached {}
             diags.has_errors(),
             "a carried file is held to the name its path gives it"
         );
+    }
+
+    /// A program that names anything under a built-in component's namespace
+    /// records that component, whether or not the name is declared, and a
+    /// program that names nothing there records none.
+    #[test]
+    fn a_name_under_a_built_in_namespace_records_its_component() {
+        let ledger = ExtensionClass {
+            name: QName::parse("Shop\\Ledger"),
+            methods: vec!["total".to_owned()],
+            consts: Vec::new(),
+            source: Vec::new(),
+            component: Some("ledger".to_owned()),
+        };
+        let resolve = |entry: &str| {
+            let mut map = SourceMap::new();
+            let id = map.add("main.nvs", entry);
+            let mut diags = Diagnostics::new();
+            let stmts = parse_file(map.file(id), &mut diags);
+            let ((), lines) = nvs_footprint::capture(|| {
+                drop(resolve_program_linted(
+                    id,
+                    stmts,
+                    &mut map,
+                    CoreRoster::Trusted,
+                    &mut diags,
+                    false,
+                    &[],
+                    std::slice::from_ref(&ledger),
+                ));
+            });
+            lines
+        };
+        let component = |lines: &[String]| lines.iter().any(|l| l == "component\tledger");
+
+        assert!(component(&resolve("<?nvs\necho Shop\\Ledger::total();\n")));
+        assert!(component(&resolve(
+            "<?nvs\necho Shop\\Ledger\\Missing::line();\n"
+        )));
+        assert!(!component(&resolve("<?nvs\necho 1;\n")));
     }
 
     // --- `rule:programs/no-runtime-autoload`: the autoload map ----------------------------------------

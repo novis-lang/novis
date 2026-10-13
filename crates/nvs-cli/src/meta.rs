@@ -568,6 +568,7 @@ fn enum_doc_json(doc: &EnumDoc) -> Value {
 fn builtin_json() -> (Vec<Value>, Vec<Value>) {
     let manifests = nvs_ext::load::builtin_manifests()
         .expect("the built-in components' manifests read, because the build packed them");
+    nvs_footprint::every_component();
     let mut classes = Vec::new();
     let mut enums = Vec::new();
     for manifest in &manifests {
