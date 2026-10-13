@@ -235,11 +235,13 @@ after it. Every page and comment this goal writes follows AGENTS.md § *Text an 
 **Does:** `dispatch` calls the matched method and sends `NotFound`, `MethodNotAllowed`, `Denied`,
 `BadCapture` and a handler's throw to the gate.
 
-- [ ] `Core\Router::dispatch`, `Core\Router\Gate` and `Core\Router\Refusal`, with reference cards (`crates/nvs-stdlib/src/router.rs:207`)
-- [ ] The spec rows (`data/spec/core-members.json:1`, `docs/spec/01-core-library.md:1`)
-- [ ] The generated jump over the route table, and the unit's "dispatches" mark (`crates/nvs-types/src/routes.rs:613`)
-- [ ] The handler-shape compile errors (`crates/nvs-types/src/routes.rs:678`)
-- [ ] The three conformance cases the `dispatch-cases` check names (`tests/conformance/core/router-dispatch-calls-the-matched-method.nvst:1`)
+- [x] `Core\Router::dispatch`, `Core\Router\Gate` and `Core\Router\Refusal`, with reference cards (`crates/nvs-stdlib/src/router.rs:2354`)
+- [x] The spec rows (`data/spec/core-members.json:1`, `docs/spec/01-core-library.md:1`)
+- [x] The jump over the route table: the matched row's handler, resolved through its class (`crates/nvs-stdlib/src/router.rs:2521`)
+- [ ] The unit's "dispatches" mark, found as links are (`crates/nvs-types/src/links.rs:146`)
+- [x] The no-argument-constructor handler error, `E0855` (`crates/nvs-types/src/routes.rs:778`)
+- [ ] The `void` handler error, blocked on the user's decision about OpenAPI response schemas (`crates/nvs-cli/src/openapi.rs:196`)
+- [ ] The three conformance cases the `dispatch-cases` check names: two are written, the `void` one waits on the decision above (`tests/conformance/core/router-dispatch-calls-the-matched-method.nvst:1`)
 
 ### 3. the server's refusals reach the gate
 
@@ -300,20 +302,52 @@ refusal mode, and never a handler.
 
 ### State
 
-Stage 1 is done: `rule:routing/a-gate-answers-around-every-handler` states the design as a `designed`
-rule owned by this goal, and the shipped routing, security, testing and tooling fragments point at it.
-No code is built. When stage 2 ships `dispatch`, that rule's `status` turns `shipped`, its `goal` key
-goes, and its `guardedBy` lists the three `dispatch-cases` conformance cases. Both example apps still
-dispatch by hand (`apps/notes/src/App.nvs:16`, `apps/paperwork/src/App.nvs:16`).
+Stage 2 is built except the `void` handler rule, which is **blocked on the user**:
+
+- `Core\Router::dispatch` (`crates/nvs-stdlib/src/router.rs:2354`) calls the matched row's handler.
+  - A static handler goes through `call_static_bound`.
+  - An instance handler is built with no argument and called through its class.
+  - The route row's `static_handler` flag tells the two apart.
+- The gate gets `NotFound`, `MethodNotAllowed` (with `Allow`), `Denied`, `BadCapture` and a handler's
+  throw (`failed`, `500`). Two cases pin this, and both pass:
+  `tests/conformance/core/router-dispatch-calls-the-matched-method.nvst` and
+  `tests/conformance/core/router-dispatch-refusals-reach-the-gate.nvst`.
+- `Core\Router\Gate` is a new registry roster of contracts a program implements (`CONTRACTS` in
+  `crates/nvs-stdlib/src/registry.rs`).
+- `E0855` refuses an instance handler whose class cannot be built with no argument.
+
+Decisions made here, each open to review:
+
+- `BadCapture` is decided before `allows`, with a `null` route, because the `Match` converts every
+  capture as it is built.
+- A throw from `allows` is `Denied`. A constructor throw is a handler failure.
+- A parameter no capture fills, such as an absent optional capture or a `#[Query]`, throws a
+  `LogicError` before the handler runs. Defaults are on neither the route row nor `MethodRow`.
+
+**The block.** The standing decision says every `#[Route]` handler returns `void`. But
+`nvs build --openapi` builds each route's success schema and its `#[Api]` example from the handler's
+return type (`crates/nvs-cli/src/openapi.rs:196`, `crates/nvs-types/src/routes.rs:1082`). The rule
+would remove that feature, and making the corpus comply is about 500 handlers in 209 files.
+
+The user picks one:
+
+- **(a)** Refuse a non-`void` handler only in a unit that calls `dispatch`.
+- **(b)** Allow any return type, and `dispatch` discards the value.
+- **(c)** Keep `void`, and add a `returns:` field to `#[Api]` for the response type.
+
+The `void` error gets the next free code, `E0856`.
+
+The rule stays `designed` until stage 2 is done. Both apps still dispatch by hand
+(`apps/notes/src/App.nvs:16`).
 
 ### Next
 
-Stage 2, over the route table and the router registry (`rule:routing/a-gate-answers-around-every-handler`):
+Stage 2's remainder, over the route checks and links (`rule:routing/a-gate-answers-around-every-handler`):
 
-- [ ] `Core\Router::dispatch`, the `Core\Router\Gate` interface and the `Core\Router\Refusal` enum, with reference cards (`crates/nvs-stdlib/src/router.rs:217`)
-- [ ] The generated jump indexed by the matched row, and the unit's "dispatches" mark found as links are (`crates/nvs-types/src/routes.rs:613`, `crates/nvs-types/src/links.rs:146`)
-- [ ] The `void` and no-argument-constructor handler errors at the `#[Route]` (`crates/nvs-types/src/routes.rs:659`)
-- [ ] The three `dispatch-cases` conformance cases (`tests/conformance/core/router-dispatch-calls-the-matched-method.nvst:1`)
+- [ ] Apply the user's `void` decision (`crates/nvs-types/src/routes.rs:689`, `crates/nvs-cli/src/openapi.rs:196`)
+- [ ] Write the third case it names (`tests/conformance/core/router-dispatch-a-handler-that-returns-a-value-does-not-compile.nvst:1`)
+- [ ] Add the unit's "dispatches" mark, found as links are (`crates/nvs-types/src/links.rs:146`)
+- [ ] Mark the rule `shipped`, with `guardedBy` listing the three cases (`docs/rules/routing/a-gate-answers-around-every-handler.md:1`)
 
 ### Backlog
 
@@ -321,3 +355,5 @@ Stage 2, over the route table and the router registry (`rule:routing/a-gate-answ
 - The CSRF token from a form field, since the door reads only `X-CSRF-Token` and a plain form cannot send it: a later goal (`crates/nvs-server/src/route.rs:128`).
 - Constructor injection for handler classes: not decided (`docs/rules/routing/a-match-is-not-invocable.md:21`).
 - Whether the generated jump binds `#[Query]` parameters and answers their `400`: not decided, M16 owns it today (`docs/rules/routing/a-bad-query-value-is-a-400.md:20`).
+- The checker does not hold an implementing member's signature to the `Gate` interface's signature, and `$v is Core\Router\Gate` folds to `false` (`crates/nvs-types/src/conformance.rs:1`).
+- `nvs-stdlib`'s ldap test `set_password_and_change_password_use_unicode_pwd` fails beside the other test binaries and passes alone (`crates/nvs-stdlib/tests/ldap.rs:1485`).
