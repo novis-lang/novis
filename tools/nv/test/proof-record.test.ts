@@ -249,14 +249,14 @@ describe("the judged run and the recording run", () => {
       const out = readFileSync(abs(SQRT.replace(/\.nvs$/, ".out")), "utf8");
       const dir = join(rec.dir, "proofs");
       const diverged = await recordProgram(rec, nvs, dir, "examples", SQRT, { verdict: "ok", why: "", cached: false, ran: ran(0, `${out}extra\n`) });
-      expect(diverged).toMatch(/^stdout differs from the judged run's at line /);
+      expect(diverged?.why).toMatch(/^stdout differs from the judged run's at line /);
       expect([...store.divergences().keys()]).toEqual([proofId(SQRT)]);
       expect(store.atom(proofId(SQRT))?.verdict).toBe("green");
       expect(store.durations("proof").get(proofId(SQRT))?.judged).toBe(1000);
-      expect(await recordProgram(rec, nvs, dir, "examples", SQRT, { verdict: "ok", why: "", cached: false, ran: ran(0, out) })).toBeNull();
+      expect((await recordProgram(rec, nvs, dir, "examples", SQRT, { verdict: "ok", why: "", cached: false, ran: ran(0, out) }))?.why).toBeNull();
       expect(store.divergences().size).toBe(0);
       // A program skipped on this host is not run again, and holds its own file.
-      expect(await recordProgram(rec, nvs, dir, "examples", SQRT, { verdict: "skip", why: "", cached: false })).toBeNull();
+      expect(await recordProgram(rec, nvs, dir, "examples", SQRT, { verdict: "skip", why: "", cached: false })).toEqual({ verdict: "green", why: null, ext: null });
       expect(store.footprint(proofId(SQRT))).toContain(`file:${SQRT}`);
     } finally {
       rec.close();
