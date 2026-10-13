@@ -5,6 +5,6 @@ string $name = "<script>alert(1)</script>";
 // `{$name}` is a hole in an `html` template. Its value is escaped.
 echo html`<p>Hello, {$name}</p>`, "\n";
 
-// `<?= $part ?>` inserts markup that is already HTML, so it is not escaped twice.
+// `$part` is already HTML, so `{$part}` inserts it without escaping it again.
 Core\Html\Markup $part = html`<b>{$name}</b>`;
-echo html`<p><?= $part ?></p>`, "\n";
+echo html`<p>{$part}</p>`, "\n";

@@ -15,7 +15,7 @@ class Pages {
             string $title = $task->title;
             $items = $items + html`<li>{$title}</li>`;
         }
-        return html`<h1>Tasks</h1><ul><?= $items ?></ul>`;
+        return html`<h1>Tasks</h1><ul>{$items}</ul>`;
     }
 }
 

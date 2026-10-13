@@ -115,7 +115,7 @@ final class Tickets {
   <table class="lines">
     <thead><tr><th>Attendee</th><th>Ticket</th><th>Ticket number</th><th class="num">Price</th></tr></thead>
     <tbody>
-<?= $rows ?>
+{$rows}
     </tbody>
     <tfoot>
       <tr class="total"><td colspan="3">Total, paid by card</td><td class="num">{$sum}</td></tr>

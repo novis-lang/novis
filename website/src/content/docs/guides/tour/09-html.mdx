@@ -15,8 +15,11 @@ with `html` in front.
 second title has `<b>` in it, and the page shows it as text. So a value from a user cannot add
 a tag or a script to your page.
 
-`<?= $items ?>` is a hole for any expression. `$items` has the type `Core\Html\Markup`, which is
-HTML already, so it goes in as it is. `+` joins two pieces of HTML.
+`{$items}` is a hole too. `$items` has the type `Core\Html\Markup`, which is HTML already, so it
+goes in as it is. `+` joins two pieces of HTML.
+
+The expression in a `{$…}` hole must start with a variable. For one that does not, such as a static
+method call, write `<?= Pages::footer() ?>`. It is escaped in the same way.
 
 Read more in [Syntax: string operators](/syntax/operators/string-operators/).
 

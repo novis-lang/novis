@@ -23,7 +23,7 @@ final class Pages {
             tainted string $noteTitle = $note->title;
             $list = $list + html`<li><a href="{$link}">{$noteTitle}</a></li>`;
         }
-        return Pages::layout("Notes", html`<h1>Notes</h1><?= $form ?><ul><?= $list ?></ul>`);
+        return Pages::layout("Notes", html`<h1>Notes</h1>{$form}<ul>{$list}</ul>`);
     }
 
     // The page for one note.
@@ -47,14 +47,14 @@ final class Pages {
         foreach ($problems as string $problem) {
             $items = $items + html`<li>{$problem}</li>`;
         }
-        return html`<ul class="errors"><?= $items ?></ul>`;
+        return html`<ul class="errors">{$items}</ul>`;
     }
 
     private static function layout(tainted string $title, Markup $content): Markup {
         return html`<!doctype html>
 <html lang="en">
 <head><meta charset="utf-8"><title>{$title}</title></head>
-<body><?= $content ?></body>
+<body>{$content}</body>
 </html>`;
     }
 }

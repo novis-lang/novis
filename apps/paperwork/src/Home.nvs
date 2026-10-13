@@ -41,7 +41,7 @@ h1 { color: #1d3557; }
 code { background: #f5f7fa; padding: 0 0.3rem; border-radius: 4px; }
 </style>
 </head>
-<body><?= $content ?></body>
+<body>{$content}</body>
 </html>`;
     }
 }

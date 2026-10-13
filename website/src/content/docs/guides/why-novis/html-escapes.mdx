@@ -14,7 +14,7 @@ with an `html` template. Every value you put into it, like `{$name}`, is escaped
 The name contains a `<script>` tag. The page shows it as text, and the browser does not run it.
 
 An `html` template has the type `Core\Html\Markup`. You put one piece of markup into another with
-`<?= $part ?>`. That value is already HTML, so it is not escaped a second time.
+the same hole, `{$part}`. That value is already HTML, so it is not escaped a second time.
 
 You do not need to remember an escape function. The safe way is the only way to write it.
 
