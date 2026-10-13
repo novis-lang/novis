@@ -14,7 +14,7 @@ stages:
         shapes: [A rule fragment]
   - id: 2
     title: "`Core\\Router::dispatch` and the gate, for what the program decides"
-    status: open
+    status: done
     context: [crates/nvs-types/src/routes.rs, crates/nvs-types/src/links.rs, crates/nvs-runtime/src/routes.rs, crates/nvs-stdlib/src/registry.rs, data/spec/core-members.json]
     extra:
       context:
@@ -240,9 +240,9 @@ after it. Every page and comment this goal writes follows AGENTS.md § *Text an 
 - [x] `Core\Router::dispatch`, `Core\Router\Gate` and `Core\Router\Refusal`, with reference cards (`crates/nvs-stdlib/src/router.rs:2354`)
 - [x] The spec rows (`data/spec/core-members.json:1`, `docs/spec/01-core-library.md:1`)
 - [x] The jump over the route table: the matched row's handler, resolved through its class (`crates/nvs-stdlib/src/router.rs:2521`)
-- [ ] The unit's "dispatches" mark, found as links are (`crates/nvs-types/src/links.rs:146`)
+- [x] The unit's "dispatches" mark, found as links are (`crates/nvs-types/src/links.rs:146`)
 - [x] The no-argument-constructor handler error, `E0855` (`crates/nvs-types/src/routes.rs:778`)
-- [ ] The three conformance cases the `dispatch-cases` check names: two are written, and the third pins that a handler's return value is discarded (`tests/conformance/core/router-dispatch-discards-a-handlers-return-value.nvst:1`)
+- [x] The three conformance cases the `dispatch-cases` check names: two are written, and the third pins that a handler's return value is discarded (`tests/conformance/core/router-dispatch-discards-a-handlers-return-value.nvst:1`)
 
 ### 3. the server's refusals reach the gate
 
@@ -303,16 +303,21 @@ refusal mode, and never a handler.
 
 ### State
 
-Stage 2 is built except the "dispatches" mark and the third case:
+Stage 2 is done:
 
 - `Core\Router::dispatch` (`crates/nvs-stdlib/src/router.rs:2354`) calls the matched row's handler.
   - A static handler goes through `call_static_bound`.
   - An instance handler is built with no argument and called through its class.
   - The route row's `static_handler` flag tells the two apart.
 - The gate gets `NotFound`, `MethodNotAllowed` (with `Allow`), `Denied`, `BadCapture` and a handler's
-  throw (`failed`, `500`). Two cases pin this, and both pass:
-  `tests/conformance/core/router-dispatch-calls-the-matched-method.nvst` and
-  `tests/conformance/core/router-dispatch-refusals-reach-the-gate.nvst`.
+  throw (`failed`, `500`). The three cases the `dispatch-cases` check names all pass. The third,
+  `tests/conformance/core/router-dispatch-discards-a-handlers-return-value.nvst`, pins that a
+  returned string, `uint` or object is not sent and `failed` does not run.
+- The unit's mark is `RouteTable::dispatches()` (`crates/nvs-types/src/routes.rs:635`). It is set where
+  the call is checked (`crates/nvs-types/src/expr/calls.rs:579`), and
+  `a_call_to_dispatch_marks_the_unit_and_a_hand_written_dispatcher_does_not` in
+  `crates/nvs-types/tests/routes.rs` pins it. Nothing reads the mark yet. It does not cross to the
+  runtime table.
 - `Core\Router\Gate` is a new registry roster of contracts a program implements (`CONTRACTS` in
   `crates/nvs-stdlib/src/registry.rs`).
 - `E0855` refuses an instance handler whose class cannot be built with no argument.
@@ -325,20 +330,19 @@ Decisions made here, each open to review:
 - A parameter no capture fills, such as an absent optional capture or a `#[Query]`, throws a
   `LogicError` before the handler runs. Defaults are on neither the route row nor `MethodRow`.
 
-The user decided the return type: a handler may declare any, and `dispatch` discards the value
-(§ *Standing decisions*). The jump already releases it (`crates/nvs-stdlib/src/router.rs:2545`), so no
-code changes and no new error code is owed. The rule fragment says so.
-
-The rule stays `designed` until stage 2 is done. Both apps still dispatch by hand
-(`apps/notes/src/App.nvs:16`).
+The rule's `guardedBy` lists the three cases and the mark's test. **The rule stays `designed`,
+against the last handoff's plan to ship it now.** Its fragment also states refusal mode and `failed`
+after a limit, which stages 3 and 4 still owe, and `docs/novis.md` prints only `shipped` rules. Ship it
+when stage 4 is done. Both apps still dispatch by hand (`apps/notes/src/App.nvs:16`).
 
 ### Next
 
-Stage 2's remainder, over the route checks and links (`rule:routing/a-gate-answers-around-every-handler`):
+Stage 3, over the doors and the carrier (`rule:routing/a-gate-answers-around-every-handler` § *Refusal mode*):
 
-- [ ] Write the third case: a handler returning a value sends only what it wrote, and the gate's `failed` does not run (`tests/conformance/core/router-dispatch-discards-a-handlers-return-value.nvst:1`)
-- [ ] Add the unit's "dispatches" mark, found as links are (`crates/nvs-types/src/links.rs:146`)
-- [ ] Mark the rule `shipped`, with `guardedBy` listing the three cases (`docs/rules/routing/a-gate-answers-around-every-handler.md:1`)
+- [ ] Carry the mark onto the runtime table where the rows cross (`crates/nvs-cli/src/main.rs:2859`, `crates/nvs-runtime/src/routes.rs:686`)
+- [ ] The refusal on the carrier, and `route()` returning `null` under it (`crates/nvs-runtime/src/ctx/inbound.rs:716`)
+- [ ] The served door: unknown method after mount selection, and CSRF and the body cap as refusal mode (`crates/nvs-cli/src/serve.rs:927`)
+- [ ] The in-process door, the same, with the `door-refusals` tests (`crates/nvs-cli/src/runner.rs:1595`, `crates/nvs-cli/tests/gate.rs:1`)
 
 ### Backlog
 

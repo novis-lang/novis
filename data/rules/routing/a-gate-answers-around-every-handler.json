@@ -10,6 +10,11 @@
     "security/csrf-is-on-by-default",
     "testing/in-process-request"
   ],
-  "guardedBy": [],
+  "guardedBy": [
+    "tests/conformance/core/router-dispatch-calls-the-matched-method.nvst",
+    "tests/conformance/core/router-dispatch-refusals-reach-the-gate.nvst",
+    "tests/conformance/core/router-dispatch-discards-a-handlers-return-value.nvst",
+    "crates/nvs-types/tests/routes.rs"
+  ],
   "goal": "route-dispatch"
 }
