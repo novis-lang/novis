@@ -793,6 +793,65 @@ fn an_encrypted_pdf_throws_a_parse_error() {
 }
 
 #[test]
+fn a_link_a_script_and_an_attachment_rasterise_inert() {
+    let host = Host::new(4, |_| Ok(())).expect("the host starts");
+    let extension = component(&host);
+    let request = host.request(Arc::new(Meter::new(Duration::from_secs(30), None)));
+    // The document runs a script on open, carries a file and links outside itself. The page is
+    // drawn from its content alone, and the component has no import that could fetch or open.
+    let data = pdf_of(&[
+        "<< /Type /Catalog /Pages 2 0 R /OpenAction 5 0 R /Names << /EmbeddedFiles << /Names [(a.txt) 6 0 R] >> >> >>".to_owned(),
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_owned(),
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 100] /Resources << >> /Contents 4 0 R /Annots [8 0 R] /AA << /O 9 0 R >> >>".to_owned(),
+        stream("", "1 0 0 rg 0 0 200 100 re f"),
+        "<< /S /JavaScript /JS (app.alert\\(1\\)) >>".to_owned(),
+        "<< /Type /Filespec /F (a.txt) /EF << /F 7 0 R >> >>".to_owned(),
+        stream("/Type /EmbeddedFile", "Shop"),
+        "<< /Type /Annot /Subtype /Link /Rect [0 0 200 100] /A << /S /URI /URI (https://example.com/) >> >>".to_owned(),
+        "<< /S /Launch /F (shop.exe) >>".to_owned(),
+    ]);
+    let out = run(
+        &request,
+        &extension,
+        page_of(data, 1, 72.0, None),
+        plan(Vec::new(), "Raw"),
+    )
+    .expect("the page rasterises");
+    assert_eq!(size_of(&out), (200, 100));
+    assert_eq!(pixel_at(&out, 200, 10, 10), [255, 0, 0, 255]);
+    block_on(request.end()).expect("the request ends");
+}
+
+#[test]
+fn an_image_that_does_not_decode_throws_naming_the_page() {
+    let host = Host::new(4, |_| Ok(())).expect("the host starts");
+    let extension = component(&host);
+    let request = host.request(Arc::new(Meter::new(Duration::from_secs(30), None)));
+    let image = stream(
+        "/Type /XObject /Subtype /Image /Width 8 /Height 8 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode",
+        "not a JPEG",
+    );
+    let data = pages_pdf(
+        200,
+        100,
+        &["200 0 0 100 0 0 cm /Im Do".to_owned()],
+        "/XObject << /Im 5 0 R >>",
+        &[image],
+    );
+    let refused = expect_error(run(
+        &request,
+        &extension,
+        page_of(data, 1, 72.0, None),
+        plan(Vec::new(), "Raw"),
+    ));
+    assert_eq!(
+        refused,
+        Error::Runtime("page 1 contains an image that does not decode".to_owned())
+    );
+    block_on(request.end()).expect("the request ends");
+}
+
+#[test]
 fn an_unembedded_standard_font_renders_with_its_substitute() {
     let host = Host::new(4, |_| Ok(())).expect("the host starts");
     let extension = component(&host);
