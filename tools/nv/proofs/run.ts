@@ -197,6 +197,9 @@ export interface Ran {
   stderr: string;
   timedOut: boolean;
   ms: number;
+  /** The binary that ran, `argv[0]`: its default data folder is `.nvsdata` beside it. A verdict kept
+   * from before the field existed has none. */
+  exe?: string;
 }
 
 const sibling = (proof: string, suffix: string) => proof.replace(/\.nvs$/, suffix);
@@ -330,7 +333,7 @@ async function spawnTimed(argv: string[], env: Record<string, string | undefined
     const [stdout, stderr] = await reading;
     // A program ended by a signal has no exit status of its own, and that is crash-shaped.
     const code = child.signalCode && !timedOut ? -1 : exited;
-    return { code, stdout, stderr, timedOut, ms: performance.now() - started };
+    return { code, stdout, stderr, timedOut, ms: performance.now() - started, exe: argv[0]! };
   } finally {
     clearTimeout(timer);
     tree.close();
@@ -712,17 +715,34 @@ export function recordingRun(nvs: string, what: What, path: string, dir: string,
  * exit status and the same standard output. A recording run that ends differently may have stopped
  * short of code the judged run reached, so its footprint is not trusted. A judged run that ran out of
  * time is red whatever the recording run did, and is compared with nothing.
+ *
+ * The two runs are different binaries in different folders, and a program may print its binary's
+ * default data folder, `.nvsdata` beside the binary. Each run's own folder is replaced with one
+ * placeholder in its output before the two are compared (`ownDataFolder`).
  */
 export function divergence(judged: Ran, recorded: Ran): string | null {
   if (judged.timedOut) return null;
   if (recorded.timedOut) return `the recording run was still running after ${Math.round(recorded.ms / 1000)}s`;
   if (recorded.code !== judged.code) return `exit ${recorded.code} on the recording run, ${judged.code} on the judged run`;
-  const a = normalise(judged.stdout).split("\n");
-  const b = normalise(recorded.stdout).split("\n");
+  const a = normalise(ownDataFolder(judged)).split("\n");
+  const b = normalise(ownDataFolder(recorded)).split("\n");
   if (a.join("\n") === b.join("\n")) return null;
   let line = 0;
   while (line < a.length && line < b.length && a[line] === b[line]) line++;
   return `stdout differs from the judged run's at line ${line + 1}`;
+}
+
+/** `ran`'s standard output with its binary's default data folder, `resolve(dirname(exe), ".nvsdata")`,
+ * replaced by `<data folder>`, in either slash form. On Windows the match ignores case, as the file
+ * system does, so a drive letter printed in either case is found. A run with no `exe` is unchanged. */
+export function ownDataFolder(ran: Ran): string {
+  if (!ran.exe) return ran.stdout;
+  const folder = resolve(ROOT, dirname(ran.exe), ".nvsdata");
+  const pattern = folder
+    .split(/[\\/]/)
+    .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+    .join("[\\\\/]");
+  return ran.stdout.replace(new RegExp(pattern, process.platform === "win32" ? "gi" : "g"), "<data folder>");
 }
 
 /** One program run for a person to read: a `== <path>` line, what it printed, then its exit status and

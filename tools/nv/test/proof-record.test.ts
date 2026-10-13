@@ -210,6 +210,26 @@ describe("the judged run and the recording run", () => {
     expect(divergence(ran(1, "", true), ran(0, "x"))).toBeNull();
   });
 
+  test("each run's own data folder is one placeholder, so only a difference elsewhere diverges", () => {
+    const judgedExe = abs("target/proof/nvs.exe");
+    const recordedExe = abs("target/covws/x86_64-pc-windows-msvc/debug/nvs.exe");
+    const at = (exe: string) => join(exe, "..", ".nvsdata");
+    const judged: Ran = { ...ran(0, `start\ndata: ${at(judgedExe)}\n`), exe: judgedExe };
+    const recorded: Ran = { ...ran(0, `start\ndata: ${at(recordedExe)}\n`), exe: recordedExe };
+    expect(divergence(judged, recorded)).toBeNull();
+    const slashed: Ran = { ...recorded, stdout: recorded.stdout.replaceAll("\\", "/") };
+    expect(divergence(judged, slashed)).toBeNull();
+    if (process.platform === "win32") {
+      const lower: Ran = { ...recorded, stdout: recorded.stdout.replace(/[A-Z]:/, (d) => d.toLowerCase()) };
+      expect(divergence(judged, lower)).toBeNull();
+    }
+    const other: Ran = { ...recorded, stdout: `${recorded.stdout}extra\n` };
+    expect(divergence(judged, other)).toBe("stdout differs from the judged run's at line 3");
+    // The judged run printing the recording binary's folder is a real difference.
+    const crossed: Ran = { ...judged, stdout: recorded.stdout };
+    expect(divergence(crossed, recorded)).toBe("stdout differs from the judged run's at line 2");
+  });
+
   test("only a program whose judged run ran out of time is run again alone", () => {
     const results = new Map<string, Result>([
       ["hostile:slow.nvs", { verdict: "fail", why: "still running after 10s", cached: false, ran: ran(1, "", true) }],
