@@ -13,9 +13,10 @@
 // `llvm-profdata` and `llvm-cov` read the counters. They come with the toolchain's `llvm-tools`
 // component, which `rust-toolchain.toml` names.
 
-import { existsSync, statSync } from "node:fs";
+import { existsSync, readdirSync, rmSync, statSync } from "node:fs";
+import { dirname, join } from "node:path";
 import type { TestExe } from "../accept/accept.ts";
-import { abs } from "./paths.ts";
+import { abs, DISCARD_PROFILE } from "./paths.ts";
 import { run } from "./proc.ts";
 
 const WRAPPER = "tools/covwrap";
@@ -104,6 +105,23 @@ export interface CovwsOptions {
 }
 
 /**
+ * Deletes the files of `DISCARD_PROFILE`'s merge pool. Its `%m` names a file by a signature built from
+ * the sizes of a binary's counters, so a rebuilt binary can share a name with an older one and then
+ * fails to merge into it, printing `LLVM Profile Error` lines to the stderr of every run. Nothing
+ * reads the pool, and a file another run still holds open is left for the next build.
+ */
+function emptyDiscardPool(): void {
+  const pool = dirname(DISCARD_PROFILE);
+  if (!existsSync(pool)) return;
+  for (const f of readdirSync(pool)) {
+    if (!f.endsWith(".profraw")) continue;
+    try {
+      rmSync(join(pool, f));
+    } catch {}
+  }
+}
+
+/**
  * Builds the `covws` tree, incrementally like any debug build, and returns where its binaries are.
  * Throws with cargo's output when a build fails.
  */
@@ -119,6 +137,7 @@ export async function buildCovws(opts: CovwsOptions = {}): Promise<CovwsBuild> {
     return r.stdout;
   };
   await cargo(["build"]);
+  emptyDiscardPool();
   const dir = abs(`${COVWS_TARGET}/${hostTriple()}/debug`);
   const nvs = `${dir}/nvs${EXE}`;
   if (!existsSync(nvs)) throw new Error(`the covws build left no ${nvs}`);
