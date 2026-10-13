@@ -3,12 +3,12 @@
  * The tool-owned technical block on a method page: the declaration in the
  * canonical multi-line layout of `rule:tooling/fmt-a-list-is-one-line-or-one-item-per-line` (one parameter per line, trailing
  * comma), syntax-coloured, every type name a link to its page (`typeLink` in
- * src/lib/core.ts), and each parameter's registry description (`rule:core-api/reference-card`) as a
+ * src/lib/core.ts) and each `tainted` or `secret` keyword a link to the page
+ * that explains it, and each parameter's registry description (`rule:core-api/reference-card`) as a
  * `//` comment on its own line — a shape-typed parameter or options bag opens
- * across lines, one key each — so the block stays valid Novis. Below it the
- * facts nothing else on the page carries: qualifier classification and the
- * spec note. All rendered from src/data/core.json, so it stays
- * current without touching the page's human prose.
+ * across lines, one key each — so the block stays valid Novis. Below it, when
+ * the member has one, the spec note. All rendered from src/data/core.json, so it
+ * stays current without touching the page's human prose.
  */
 import { findMember, typeLink } from '~/lib/core'
 
@@ -32,10 +32,15 @@ const punct = (s: string) => span('sig-punct', s)
 
 const generics = new Set((member.generics ?? '').match(/[A-Za-z_][A-Za-z0-9_]*/g) ?? [])
 
+/** The page that explains the `tainted` and `secret` keywords. */
+const QUALIFIER_PAGE = '/syntax/values/tainted-and-secret/'
+
 /** One name inside a type: a generic, a qualifier keyword, or a linked type. */
 function nameHtml(name: string): string {
   if (generics.has(name)) return span('sig-generic', name)
-  if (name === 'secret' || name === 'tainted') return span('sig-keyword', name)
+  if (name === 'secret' || name === 'tainted') {
+    return `<a class="sig-keyword sig-link" href="${QUALIFIER_PAGE}">${name}</a>`
+  }
   const href = typeLink(name, cls.name)
   if (!href) return span('sig-generic', name)
   return `<a class="sig-type sig-link" href="${escape(href)}">${escape(name)}</a>`
@@ -166,23 +171,6 @@ if (member.options.length > 0) {
 
 // `): type`, the return description as its comment.
 push(`${punct('): ')}${typeHtml(member.returnType)}`, member.doc?.returnHtml ?? '')
-
-const qualifier = member.qualifier.trim()
-const qualifierKind = qualifier.startsWith('sink')
-  ? 'sink'
-  : qualifier.startsWith('launder')
-    ? 'launder'
-    : qualifier === 'neutral'
-      ? 'neutral'
-      : 'contagious'
-
-const detail = /\(([^)]*)\)/.exec(qualifier)?.[1]
-const qualifierText: Record<string, string> = {
-  sink: `Taint sink${detail ? ` (${detail})` : ''}: refuses a tainted argument in the named position.`,
-  launder: `Launderer${detail ? ` (${detail})` : ''}: removes the taint qualifier from its result.`,
-  neutral: 'Qualifier-neutral: the result never carries a qualifier from the arguments.',
-  contagious: 'Qualifier-contagious: a tainted or secret argument yields a tainted or secret result.',
-}
 ---
 
 <div class="method-signature not-content">
@@ -190,18 +178,14 @@ const qualifierText: Record<string, string> = {
     <pre class="method-signature-decl"><code>{lines.map((l) => <span class="sig-line"><span class="sig-code" set:html={l.code} /><span class="sig-comment" set:html={l.comment ? `// ${l.comment}` : ''} /></span>)}</code></pre>
   </div>
 
-  <dl class="method-signature-facts">
-    <div>
-      <dt>Taint &amp; secret</dt>
-      <dd class:list={['method-qualifier', `method-qualifier-${qualifierKind}`]}>{qualifierText[qualifierKind]}</dd>
-    </div>
-    {
-      member.notes && (
+  {
+    member.notes && (
+      <dl class="method-signature-facts">
         <div>
           <dt>Spec note</dt>
           <dd set:html={ticks(member.notes)} />
         </div>
-      )
-    }
-  </dl>
+      </dl>
+    )
+  }
 </div>

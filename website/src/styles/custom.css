@@ -1240,7 +1240,6 @@ a.nv-card:hover {
 .method-signature-decl-row {
   padding: var(--nv-space-4) var(--nv-space-5);
   background-color: var(--nv-wash-soft);
-  border-bottom: 1px solid var(--nv-hairline);
   overflow-x: auto;
 }
 /* The declaration in `nvs fmt`'s multi-line layout: one line per parameter,
@@ -1332,6 +1331,7 @@ a.nv-card:hover {
 .method-signature-facts {
   margin: 0;
   padding: 0;
+  border-top: 1px solid var(--nv-hairline);
 }
 .method-signature-facts > div {
   display: grid;
@@ -1358,13 +1358,6 @@ a.nv-card:hover {
     gap: 0.15rem;
   }
 }
-.method-qualifier-sink {
-  color: var(--nv-danger);
-}
-.method-qualifier-launder {
-  color: var(--nv-ok);
-}
-
 /* ------------------------------------------------------ parameter lists */
 
 /* A member's parameters, options and errors, and a class's enums and
