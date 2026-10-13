@@ -20,6 +20,7 @@ import MethodExamples from '~/components/MethodExamples.astro'
 import SeeAlso from '~/components/SeeAlso.astro'
 import { classes, type CoreClass, type CoreMember } from '~/lib/core'
 import { aboutFor, changesFor, examplesFor } from '~/lib/feature'
+import { examplesShowing } from '~/lib/example-apps'
 
 export const getStaticPaths = (() =>
   classes.flatMap((cls) => [
@@ -64,6 +65,17 @@ if (member) {
     related: section('related', 'Related', related.length > 0),
   }
 }
+
+// A class page's sections, in the order ClassOverview renders them.
+const apps = member ? [] : await examplesShowing(cls.name)
+if (!member) {
+  section('members', 'Members', cls.members.length > 0)
+  section('enums', 'Enums', cls.enums.length > 0)
+  section('types', 'Shape types', cls.types.length > 0)
+  section('constants', 'Constants', cls.constants.length > 0)
+  section('example-apps', 'Example apps', apps.length > 0)
+  section('further-members', 'Stated in the spec, not yet extracted', cls.unparsed.length > 0)
+}
 ---
 
 <StarlightPage frontmatter={{ title, description }} headings={headings}>
@@ -101,7 +113,7 @@ if (member) {
         {show.related && <SeeAlso ids={related} />}
       </>
     ) : (
-      <ClassOverview id={cls.id} />
+      <ClassOverview id={cls.id} apps={apps} />
     )
   }
 </StarlightPage>

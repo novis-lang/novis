@@ -3,16 +3,19 @@
  * The tool-owned body of a Core class page: what the spec says about the
  * class, the member table, enums, shape types and constants. Renders from
  * src/data/core.json, which holds implemented members only. An enum with a
- * Types page links to it.
+ * Types page links to it. `apps` are the example app pages that show the
+ * class (src/lib/example-apps.ts), listed under "Example apps".
  */
 import { findClass, shapeAnchor, typeLink } from '~/lib/core'
+import type { ExampleApp } from '~/lib/example-apps'
 import { shapeLines } from '~/lib/shape'
 
 interface Props {
   id: string
+  apps: ExampleApp[]
 }
 
-const { id } = Astro.props
+const { id, apps } = Astro.props
 const cls = findClass(id)
 if (!cls) throw new Error(`ClassOverview: unknown class id "${id}" — run \`npm run sync:render\`?`)
 
@@ -133,6 +136,22 @@ const enumPage = (name: string) => {
                 </code>
               </span>
               {c.descHtml && <span class="nv-param-desc" set:html={c.descHtml} />}
+            </li>
+          ))}
+        </ul>
+      </>
+    )
+  }
+
+  {
+    apps.length > 0 && (
+      <>
+        <h2 id="example-apps">Example apps</h2>
+        <p>These complete apps use this class. You can download and run each one.</p>
+        <ul>
+          {apps.map((app) => (
+            <li>
+              <a href={app.url}>{app.title}</a>: {app.description}
             </li>
           ))}
         </ul>
