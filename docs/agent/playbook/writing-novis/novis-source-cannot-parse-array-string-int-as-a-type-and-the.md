@@ -1,0 +1,1 @@
+- **Novis source cannot parse `array<string, int>` as a type, and the parse error breaks `meta.rs` and `agent.rs` far from the file.** A manifest's type text accepts `array<K, V>`, but a `.nvs` file does not. Write a list shape instead, as `extensions/spreadsheet/nvs/Written.nvs` does with its `rows`.

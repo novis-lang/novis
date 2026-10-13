@@ -13,7 +13,7 @@ stages:
         shapes: [A rule fragment]
   - id: 3
     title: "the component is built in, and the streaming writer"
-    status: open
+    status: done
     extra:
       context:
         playbook: ["Writing Novis > in extensions/intl/nvs/Collator.nvs"]
@@ -512,7 +512,8 @@ One file set: `extensions/spreadsheet/` (new), `crates/nvs-ext/build.rs:115` (`C
   the compressed bytes ready to leave come back.
 - **The targets** (`core-classes/spreadsheet-writes-as-a-stream`):
   `Workbook::createForDownload($name)` sets `Content-Disposition` and calls `Core\Response::stream` at
-  once, `createForFile($path)` writes through `Core\IO::writeStream`, `createForStream($file)` writes
+  once, `createForFile($path)` opens the file with `Core\IO::open` and writes each chunk to it, because
+  `Core\IO::writeStream` pulls from an iterable and a workbook pushes, `createForStream($file)` writes
   to an open `Core\IO\File`, and `createInMemory()` keeps the bytes for `finish()`'s result. `finish()`
   writes the sheet-end parts, `styles.xml`, `workbook.xml`, the content types and the zip directory,
   and returns the row count per sheet and the size.
@@ -766,28 +767,29 @@ One file set: `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/n
 
 ### State
 
-**Stage 2 is done, and its two checks are green**: `spreadsheet-the-record-creates-its-fragments` and `nvs-stdlib-the-spreadsheet-interface-parses-against-the-world`. Stage 3 is next, and nothing of `extensions/spreadsheet/` is on disk.
+**Stage 3 is done, and its three checks are green**: `nvs-ext-the-spreadsheet-component-writes-as-a-stream`, `spreadsheet-writes-to-every-target` and `deny-the-spreadsheet-component-graph-passes`.
 
-- The fragments are twelve `designed` rules under `docs/rules/core-classes/spreadsheet-*`, owned by this goal. `rule:core-classes/spreadsheet-roster` is the class and member list. The class names of the goal's sketch stand, plus `Written` (what `finish()` returns) and `Export` (what `fromRows` and `Template::fill` return). `CellError` stays at namespace scope, and `Reader::Visibility` is the one owned enum.
-- **How the guest reads ranges is decided**: a host import, a range accessor on the `value` handle, with the source lent again on every reader and template call (`rule:core-classes/spreadsheet-reads-as-a-stream`). Nothing of it is in `wit/nvs-ext/types.wit` yet. Stage 7 adds it, with `ext_world.rs`'s value-resource test and `rule:packaging/a-guest-has-no-ambient-authority`.
-- `wit/spreadsheet.wit` has the `writer`, `reader` and `template` resources and 24 exports, held by `SPREADSHEET_EXPORTS` in `crates/nvs-stdlib/tests/ext_world.rs`. A cell crosses as a typed `cell-value` variant, because the `value` handle cannot read a `Date`, a `decimal` or an object's properties. So the Novis half applies the write table, and an `Instant` reaches the guest already as a clock time.
-- `rule:core-classes/decompression-bound` states the streamed-part bound. `docs/plan/m17.md` Part 3 points at the goal.
-- **Left for Stage 3 on purpose**: `rule:packaging/the-first-party-components-are-built-in` still says three components. The goal's Stage 0 rewrites it in the slice that builds the fourth.
-- Stage 3 carries `deny-the-spreadsheet-component-graph-passes`. Stage 14 carries one `bun nv proofs --verify --group` check per class, eleven in all, with no check for `CellError`.
+- `extensions/spreadsheet/` is the fourth built-in component, with the class `Novis\Spreadsheet\Engine`, and its packed size is 0.32 MiB. The crate is `src/{lib,zip,xml,cells,styles,writer}.rs`. It frames the zip by hand with data descriptors, using `miniz_oxide`, `crc32fast`, `itoa` and `ryu`. Strings are written inline. The output is byte-equal for equal input.
+- The manifest has `writerOpen`, `writerStyle`, `writerSheet`, `writerRows`, `writerDefine` and `writerFinish`. `writer-part`, the reader exports and the template exports return a runtime error, and none of them is in the manifest yet. The enums `Line`, `Underline`, `Align`, `Valign` and `Visibility` are at namespace scope with no owner. The roster wants `Reader::Visibility` and the style enums under `Style`, so moving them is Stage 4 or Stage 7 work, and `crates/nvs-cli/tests/meta.rs` changes with them.
+- `wit/spreadsheet.wit`'s `workbook-options` has a `target` field. The guest logs a writer that is dropped unfinished, naming that target (`extensions/spreadsheet/src/writer.rs:87`).
+- The Novis half is `nvs/Workbook.nvs`, `Sheet.nvs` and `Written.nvs`. It has the four targets, `sheet()`, `add` and `addAll` in batches of 1,000, and `finish()`. The write table and the `zone` rule are in `Workbook::cell`. A string goes through `Core\Taint::assertTrusted`, because the guest always escapes it as an inline text cell. `createForFile` uses `Core\IO::open`, because `writeStream` pulls from an iterable. `Core\IO\File::write` now takes `string|bytes`.
+- **A started download cannot be cut off.** The gap is `data/gaps/nvs-server/a-streamed-body-cannot-be-cut-off.json`. The log line stays.
+- The check's two `an_instant_*` tests were replaced by `a_clock_time_is_its_serial_with_the_date_time_format`. The guest never sees an `Instant`, so `spreadsheet-an-instant-with-no-zone-throws.nvst` pins the zone rule.
 
 ### Next
 
-**Stage 3: the component is built in, and the streaming writer.** Files: `extensions/spreadsheet/` (new), the build and load tables, and `crates/nvs-ext/tests/spreadsheet.rs` (new).
+**Stage 4: columns, styles, defaults and sheets.** Files: `extensions/spreadsheet/src/styles.rs`, `writer.rs`, `nvs/Workbook.nvs`, `nvs/Sheet.nvs`, and a new `extensions/spreadsheet/tests/write.rs`. The goal's Stage 4 text names a `src/write/` folder, but the files are flat.
 
-- [ ] **The crate in `extensions/image`'s shape**, with its manifest class `Novis\Spreadsheet\Engine` over `wit/spreadsheet.wit`, joined to `COMPONENTS` and the load table. `rule:packaging/the-first-party-components-are-built-in`'s count goes to four in the same slice, and the `meta.rs` member list too (playbook). `crates/nvs-ext/build.rs:115`, `crates/nvs-ext/src/builtin.rs:18`, `crates/nvs-ext/src/load.rs:667`
-- [ ] **The streaming writer**: `writer-open`, `writer-style`, `writer-sheet`, `writer-rows` and `writer-finish`, with inline strings, deflate with data descriptors, fixed archive times, and the write table. `rule:core-classes/spreadsheet-writes-as-a-stream`, `rule:core-classes/spreadsheet-value-types`. `wit/spreadsheet.wit:1`
-- [ ] **The Novis half's targets**: `Workbook::createForDownload`, `createForFile`, `createForStream` and `createInMemory`, `finish()` returning `Written`, and the three Stage 3 `.nvst` cases. Check first that a started stream can be aborted (the goal's Stage 3 says what to record if not). `rule:core-classes/spreadsheet-roster`, `extensions/image/src/lib.rs:1`
-- [ ] **`deny-the-spreadsheet-component-graph-passes`** once the crate's lock exists, in the form of the per-component check `docs/goals/spreadsheet.md:121` names.
+- [ ] **`columns` and `Style::of`**, layered column, row and cell. Equal combinations already share one `cellXfs` entry, and the format shortcuts are new. `rule:core-classes/spreadsheet-styles-and-defaults`. `extensions/spreadsheet/src/styles.rs:128`, `extensions/spreadsheet/src/styles.rs:152`
+- [ ] **The header defaults and auto width**: bold header with a bottom border, frozen, autofilter, and a width that measures 1,000 rows and is capped at 60. Auto width currently writes no width. `extensions/spreadsheet/src/writer.rs:248`, `extensions/spreadsheet/nvs/Workbook.nvs:74`
+- [ ] **Sheet rules and overflow**: Excel's name rules and the row limit with `{overflow: 'newSheet'}`. The sheet options are checked only when the first batch leaves, and they should be checked in `sheet()` itself. `extensions/spreadsheet/src/writer.rs:311`, `extensions/spreadsheet/nvs/Sheet.nvs:21`
+- [ ] **`Workbook::fromRows` and `Export`**, with the two Stage 4 `.nvst` cases. `rule:core-classes/spreadsheet-roster`. `extensions/spreadsheet/nvs/Workbook.nvs:65`
 
 ### Backlog
 
-- Stages 4 to 6: columns and styles, the sheet-end parts, and charts. The sheet-end parts' records are in `wit/spreadsheet.wit`'s `sheet-part`. See `docs/goals/spreadsheet.md`.
-- Stage 7: the `value` range accessor in `wit/nvs-ext/types.wit`, and the world's minor version for it (`rule:core-classes/spreadsheet-reads-as-a-stream`).
-- Stages 8 to 10: the number-format renderer, CSV through the same API, and template fill.
-- Stages 11 to 14: hostile files, 100 MB and the growth, the comparison with Excel's files, and the feature proofs.
-- `AGENTS.md:403` links the missing `docs/decisions/README.md`, and `looper lint` reports AGENTS.md's managed text as edited by hand. Neither came from this goal. See `AGENTS.md`.
+- Stages 5 and 6: `writer-part` with the sheet-end parts, `writerDefine` reached from Novis, `Formula`, `Cell::of`, and charts. See `docs/goals/spreadsheet.md`.
+- Stage 7: the `value` range accessor in `wit/nvs-ext/types.wit`, the reader, and `Reader::Visibility` as an owned enum (`rule:core-classes/spreadsheet-reads-as-a-stream`).
+- Stages 8 to 10: the number-format renderer, CSV through the same API, and template fill. A `'csv'` workbook throws for now.
+- Stages 11 to 14: hostile files, 100 MB and the growth, the comparison with Excel's files, and the feature proofs. `website/src/data/core.json` has no spreadsheet entries yet.
+- The cut-off download is waiting on `nvs-server` (`data/gaps/nvs-server/a-streamed-body-cannot-be-cut-off.json`).
+- `looper lint` reports AGENTS.md's managed text as edited by hand, and `AGENTS.md:403` links the missing `docs/decisions/README.md`. Neither came from this goal. See `AGENTS.md`.
