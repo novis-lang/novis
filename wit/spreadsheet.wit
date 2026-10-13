@@ -609,6 +609,9 @@ interface engine {
     /// letter.
     reader-header: func(reader: borrow<reader>, source: borrow<value>, options: read-options) -> result<list<string>, error>;
     /// The next batch of at most `max` rows of the sheet `options` names.
+    /// A call whose `from` is past the last row the reader gave continues
+    /// where it stopped, and any other starts the sheet again. `limit` is
+    /// the most rows this call may give.
     reader-rows: func(reader: borrow<reader>, source: borrow<value>, options: read-options, max: u64) -> result<read-batch, error>;
     reader-merged: func(reader: borrow<reader>, source: borrow<value>, sheet: string) -> result<list<string>, error>;
     reader-links: func(reader: borrow<reader>, source: borrow<value>, sheet: string) -> result<list<link-info>, error>;

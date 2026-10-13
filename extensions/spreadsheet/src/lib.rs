@@ -23,18 +23,22 @@
 //! ends, and one dropped before `writer-finish` writes an error to the request's log naming the
 //! workbook's `target` ([`writer::unfinished_message`]).
 //!
-//! **Not done yet.** Of `writer-part`'s cases, tables, conditional formats, images and charts
-//! return `runtime`: Stages 5 and 6 of goal `spreadsheet`. The reader and the template exports
-//! return `runtime` too, and are not in `manifest.json`: Stages 7 and 10.
+//! **Reading** is `read`'s module doc: `reader-open`, `reader-sheets`, `reader-header` and
+//! `reader-rows` read an xlsx through the `range` of the source each call is lent.
 //!
-//! Packed as a `.nvsx` and embedded in every `nvs` binary, the component is 0.49 MiB, built for
+//! **Not done yet.** The reader's extras, the other formats and the template exports return
+//! `runtime`, and are not in `manifest.json`: Stages 7 and 10 of goal `spreadsheet`.
+//!
+//! Packed as a `.nvsx` and embedded in every `nvs` binary, the component is 0.62 MiB, built for
 //! release as `crates/nvs-ext/build.rs` always builds it. That is the binary's growth for
 //! spreadsheets, and `crates/nvs-ext/tests/builtin.rs` fails when this figure drifts past 5% of
 //! the bytes the binary carries.
 
 pub mod cells;
+pub mod chart;
 pub mod conditional;
 pub mod drawing;
+pub mod read;
 pub mod styles;
 pub mod table;
 pub mod tail;
@@ -476,10 +480,134 @@ mod guest {
         }
     }
 
-    /// The reader, which Stage 7 of goal `spreadsheet` writes.
-    pub struct Reader;
+    /// A workbook being read, kept by the request that opened it.
+    pub struct Reader {
+        reader: RefCell<crate::read::Reader>,
+    }
 
     impl GuestReader for Reader {}
+
+    /// The source a reader call was lent, read through the host's `range`.
+    struct Lent<'a>(&'a Source);
+
+    fn not_bytes() -> crate::Error {
+        crate::Error::Invalid("A workbook is read from `bytes`.".to_owned())
+    }
+
+    impl crate::read::Source for Lent<'_> {
+        fn size(&self) -> Result<u64, crate::Error> {
+            self.0.size().ok_or_else(not_bytes)
+        }
+
+        fn range(&self, offset: u64, length: u64) -> Result<Vec<u8>, crate::Error> {
+            self.0.range(offset, length).ok_or_else(not_bytes)
+        }
+    }
+
+    fn read_options(options: wit::ReadOptions) -> crate::read::ReadOptions {
+        crate::read::ReadOptions {
+            sheet: options.sheet,
+            header_row: options.header_row,
+            from: options.from,
+            limit: options.limit,
+            columns: options.columns,
+            text: options.text,
+            text_all: options.text_all,
+            formulas: options.formulas,
+            keep_empty_rows: options.keep_empty_rows,
+            fill_merged: options.fill_merged,
+            skip_hidden: options.skip_hidden,
+            locale: options.locale,
+        }
+    }
+
+    fn sheet_info(sheet: crate::read::SheetInfo) -> wit::SheetInfo {
+        wit::SheetInfo {
+            name: sheet.name,
+            position: sheet.position,
+            visibility: match sheet.visibility {
+                crate::Visibility::Visible => wit::Visibility::Visible,
+                crate::Visibility::Hidden => wit::Visibility::Hidden,
+                crate::Visibility::VeryHidden => wit::Visibility::VeryHidden,
+            },
+            rows: sheet.rows,
+            columns: sheet.columns,
+            kind: match sheet.kind {
+                crate::read::SheetKind::Worksheet => wit::SheetKind::Worksheet,
+                crate::read::SheetKind::Chartsheet => wit::SheetKind::Chartsheet,
+            },
+        }
+    }
+
+    fn wit_date(date: crate::Date) -> wit::Date {
+        wit::Date {
+            year: date.year,
+            month: date.month,
+            day: date.day,
+        }
+    }
+
+    fn wit_time(time: crate::TimeOfDay) -> wit::TimeOfDay {
+        wit::TimeOfDay {
+            hour: time.hour,
+            minute: time.minute,
+            second: time.second,
+            nanos: time.nanos,
+        }
+    }
+
+    fn read_value(value: crate::read::Read) -> wit::ReadValue {
+        use crate::read::{CellError, Read};
+        match value {
+            Read::Text(text) => wit::ReadValue::Text(wit::TextCell { text }),
+            Read::Integer(integer) => wit::ReadValue::Integer(wit::IntegerCell { integer }),
+            Read::Number(number) => wit::ReadValue::Number(wit::NumberCell { number }),
+            Read::Boolean(boolean) => wit::ReadValue::Boolean(wit::BoolCell { boolean }),
+            Read::Clock(clock) => wit::ReadValue::Clock(wit::ClockCell {
+                day: wit_date(clock.day),
+                clock: wit_time(clock.clock),
+            }),
+            Read::Date(date) => wit::ReadValue::Date(wit::DateCell {
+                date: wit_date(date),
+            }),
+            Read::Time(time) => wit::ReadValue::Time(wit::TimeCell {
+                time: wit_time(time),
+            }),
+            Read::Duration(nanos) => wit::ReadValue::Duration(wit::DurationCell {
+                duration: wit::Duration { nanos },
+            }),
+            Read::Error(error) => wit::ReadValue::Error(wit::ErrorCell {
+                error: match error {
+                    CellError::Null => wit::CellError::Null,
+                    CellError::DivZero => wit::CellError::DivZero,
+                    CellError::Value => wit::CellError::Value,
+                    CellError::Ref => wit::CellError::Ref,
+                    CellError::Name => wit::CellError::Name,
+                    CellError::Num => wit::CellError::Num,
+                    CellError::NotAvailable => wit::CellError::NotAvailable,
+                    CellError::GettingData => wit::CellError::GettingData,
+                    CellError::Spill => wit::CellError::Spill,
+                    CellError::Calc => wit::CellError::Calc,
+                },
+            }),
+        }
+    }
+
+    fn read_row(row: crate::read::ReadRow) -> wit::ReadRow {
+        wit::ReadRow {
+            number: row.number,
+            cells: row
+                .cells
+                .into_iter()
+                .map(|cell| wit::ReadCell {
+                    column: cell.column,
+                    value: cell.value.map(read_value),
+                    formula: cell.formula,
+                    display: cell.display,
+                })
+                .collect(),
+        }
+    }
 
     /// Template fill, which Stage 10 of goal `spreadsheet` writes.
     pub struct Template;
@@ -790,11 +918,47 @@ mod guest {
                     style: rule.style.map(style),
                 })
             }
-            wit::SheetPart::Chart(_) => {
-                return Err(wit::Error::Runtime(
-                    "This version of Novis cannot add charts to a sheet yet.".to_owned(),
-                ));
-            }
+            wit::SheetPart::Chart(chart) => Part::Chart(crate::chart::Chart {
+                placed: chart.placed,
+                layers: chart
+                    .layers
+                    .into_iter()
+                    .map(|layer| crate::chart::Layer {
+                        kind: match layer.kind {
+                            wit::ChartKind::Column => crate::chart::Kind::Column,
+                            wit::ChartKind::Bar => crate::chart::Kind::Bar,
+                            wit::ChartKind::Line => crate::chart::Kind::Line,
+                            wit::ChartKind::Area => crate::chart::Kind::Area,
+                            wit::ChartKind::Pie => crate::chart::Kind::Pie,
+                            wit::ChartKind::Doughnut => crate::chart::Kind::Doughnut,
+                            wit::ChartKind::Scatter => crate::chart::Kind::Scatter,
+                        },
+                        series: layer
+                            .series
+                            .into_iter()
+                            .map(|series| crate::chart::Series {
+                                values: series.values,
+                                categories: series.categories,
+                                name: series.name,
+                                color: series.color,
+                            })
+                            .collect(),
+                    })
+                    .collect(),
+                title: chart.title,
+                x_title: chart.x_title,
+                y_title: chart.y_title,
+                legend: match chart.legend {
+                    wit::Legend::Hidden => crate::chart::Legend::Hidden,
+                    wit::Legend::Top => crate::chart::Legend::Top,
+                    wit::Legend::Right => crate::chart::Legend::Right,
+                    wit::Legend::Bottom => crate::chart::Legend::Bottom,
+                    wit::Legend::Left => crate::chart::Legend::Left,
+                },
+                labels: chart.labels,
+                width: chart.width,
+                height: chart.height,
+            }),
         })
     }
 
@@ -902,32 +1066,55 @@ mod guest {
             })
         }
 
-        fn reader_open(_source: &Source) -> Result<wit::Reader, wit::Error> {
-            Err(reading())
+        fn reader_open(source: &Source) -> Result<wit::Reader, wit::Error> {
+            let reader = crate::read::Reader::open(&Lent(source)).map_err(error)?;
+            Ok(wit::Reader::new(Reader {
+                reader: RefCell::new(reader),
+            }))
         }
 
         fn reader_sheets(
-            _reader: wit::ReaderBorrow<'_>,
-            _source: &Source,
+            reader: wit::ReaderBorrow<'_>,
+            source: &Source,
         ) -> Result<Vec<wit::SheetInfo>, wit::Error> {
-            Err(reading())
+            let sheets = reader
+                .get::<Reader>()
+                .reader
+                .borrow()
+                .sheets(&Lent(source))
+                .map_err(error)?;
+            Ok(sheets.into_iter().map(sheet_info).collect())
         }
 
         fn reader_header(
-            _reader: wit::ReaderBorrow<'_>,
-            _source: &Source,
-            _options: wit::ReadOptions,
+            reader: wit::ReaderBorrow<'_>,
+            source: &Source,
+            options: wit::ReadOptions,
         ) -> Result<Vec<String>, wit::Error> {
-            Err(reading())
+            reader
+                .get::<Reader>()
+                .reader
+                .borrow_mut()
+                .header(&Lent(source), &read_options(options))
+                .map_err(error)
         }
 
         fn reader_rows(
-            _reader: wit::ReaderBorrow<'_>,
-            _source: &Source,
-            _options: wit::ReadOptions,
-            _max: u64,
+            reader: wit::ReaderBorrow<'_>,
+            source: &Source,
+            options: wit::ReadOptions,
+            max: u64,
         ) -> Result<wit::ReadBatch, wit::Error> {
-            Err(reading())
+            let batch = reader
+                .get::<Reader>()
+                .reader
+                .borrow_mut()
+                .rows(&Lent(source), &read_options(options), max)
+                .map_err(error)?;
+            Ok(wit::ReadBatch {
+                rows: batch.rows.into_iter().map(read_row).collect(),
+                done: batch.done,
+            })
         }
 
         fn reader_merged(

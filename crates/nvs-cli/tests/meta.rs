@@ -331,7 +331,11 @@ fn meta_lists_the_built_in_components_classes_and_enums() {
             "writerDefine",
             "writerCell",
             "writerColumn",
-            "writerFinish"
+            "writerFinish",
+            "readerOpen",
+            "readerSheets",
+            "readerHeader",
+            "readerRows"
         ]
     );
     names(r"Novis\Spreadsheet\Written");
@@ -364,8 +368,24 @@ fn meta_lists_the_built_in_components_classes_and_enums() {
             "table",
             "conditional",
             "image",
+            "chart",
             "print",
             "protect"
+        ]
+    );
+    assert_eq!(
+        names(r"Novis\Spreadsheet\Chart"),
+        [
+            "constructor",
+            "column",
+            "bar",
+            "line",
+            "area",
+            "pie",
+            "doughnut",
+            "scatter",
+            "series",
+            "combine"
         ]
     );
     assert_eq!(names(r"Novis\Spreadsheet\Formula"), ["constructor", "of"]);

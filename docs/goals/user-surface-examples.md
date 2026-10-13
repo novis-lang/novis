@@ -118,6 +118,53 @@ website shows it as a shell block. Home: `docs/examples/README.md`.
 program in a run, the runner brings up the `postgres` service of `tests/db/compose.yaml`, once.
 The website shows the example as usual. Home: `docs/examples/README.md`.
 
+## Stages
+
+### 1. `Image\Diff`'s constructor has its examples
+
+**Does:** `new Novis\Image\Diff(...)` has three examples, and the policy no longer excuses it.
+
+- [ ] Three examples of the constructor (`docs/examples/novis/Image-Diff/constructor/01-a-diff-from-its-values.nvs:1`, `extensions/image/nvs/Diff.nvs:9`)
+- [ ] Its examples skip deleted (`data/proofs/policy.json:71`)
+
+### 2. a built-in component's engine class is internal to its component
+
+**Does:** a call to a built-in component's manifest class from outside that component's Novis source
+does not compile, and the error names the public class to use.
+
+- [ ] The check where a static call resolves its class (`crates/nvs-types/src/expr/calls.rs:263`)
+- [ ] Which classes are a component's engine, from its manifest (`crates/nvs-ext/src/load.rs:78`, `crates/nvs-cli/src/extensions.rs:1`)
+- [ ] The diagnostic and its card (`crates/nvs-diagnostics/src/lib.rs:5499`)
+- [ ] The new case (`tests/conformance/novis/a-program-cannot-call-a-components-engine.nvst:1`)
+- [ ] The cases that call an engine directly, rewritten onto the public classes (`tests/conformance/novis/image-compare-counts-the-pixels-that-differ.nvst:1`)
+- [ ] The new fragment beside `rule:packaging/the-first-party-components-are-built-in` (`docs/rules/packaging/a-components-engine-class-is-internal.md:1`)
+
+### 3. the engine classes leave the roster, the proofs policy and the website
+
+**Does:** an engine class is `"internal": true` in `nvs meta --json`, and no roster feature, policy
+entry or Reference page names one.
+
+- [ ] `"internal": true` on an engine class (`crates/nvs-cli/src/meta.rs:198`)
+- [ ] The roster skips an internal class, with its test (`tools/nv/proofs/roster.ts:1`, `tools/nv/test/roster-novis.test.ts:6`)
+- [ ] The engine entries deleted from the policy (`data/proofs/policy.json:41`)
+- [ ] The website skips an internal class (`tools/nv/renderers/website-core.ts:92`)
+
+### 4. a CLI command's example is a command and its checked output
+
+**Does:** `nvs info` and `nvs agent init` each have examples that are a command line and its output.
+
+- [ ] The `NN-title.cmd` kind and how it is run (`docs/examples/README.md:91`, `tools/nv/proofs/collect.ts:43`)
+- [ ] The website shows one as a shell block (`website/src/lib/feature.ts:1`, `website/src/components/FeatureExamples.astro:10`)
+- [ ] The two commands' examples, and their skips deleted (`data/proofs/policy.json:187`)
+
+### 5. an example may require the Postgres service
+
+**Does:** an example marked `// requires: postgres` runs against the `postgres` service, and
+`Core\Db\Row::instant` has its examples.
+
+- [ ] The marker, beside `requires: samba-ad` (`tools/nv/proofs/run.ts:77`, `docs/examples/README.md:243`, `tests/db/compose.yaml:41`)
+- [ ] `Core\Db\Row::instant`'s examples, and its skip deleted (`data/proofs/policy.json:18`)
+
 ## Handoff
 
 ### State

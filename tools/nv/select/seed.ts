@@ -6,8 +6,9 @@
 //
 // - the case trees, a batch of cases at a time through `recordCases`;
 // - every proof program of the roster, judged by `judgeKept` on the uninstrumented proof binary
-//   (`target/proof`), then run once more on the covws debug `nvs` by `recordingRun` for its footprint;
-//   a recording run that ends differently from the judged run marks the program diverged;
+//   (`target/proof`), then run once more on the covws debug `nvs` by `recordProgram` for its footprint;
+//   a recording run that ends differently from the judged run marks the program diverged, and a program
+//   whose file is gone by then is not recorded;
 // - every Rust test executable of the build, one process each in its package directory, with
 //   `LLVM_PROFILE_FILE` and `NVS_FOOTPRINT_LOG` inherited by every `nvs` it starts, and a compile cache
 //   of its own that starts empty;
@@ -27,10 +28,10 @@ import { ROOT } from "../lib/paths.ts";
 import { run } from "../lib/proc.ts";
 import { readLog, readModules } from "../lib/reads.ts";
 import type { TestExe } from "../accept/accept.ts";
-import { divergence, proofBinary, recordingRun, recordName } from "../proofs/run.ts";
-import { judgeKept } from "../proofs/select.ts";
-import { caseFiles, caseId, nvDef, nvId, proofDef, proofId, proofPrograms, testId } from "./atoms.ts";
-import { type Extracted, recordedIn } from "./extract.ts";
+import { proofBinary, recordName } from "../proofs/run.ts";
+import { judgeKept, recordProgram } from "../proofs/select.ts";
+import { caseFiles, caseId, nvDef, nvId, proofId, proofPrograms, testId } from "./atoms.ts";
+import type { Extracted } from "./extract.ts";
 import { allowedWide } from "../keys/escape.ts";
 import { readsKeys, testsKey, WILD } from "./keys.ts";
 import { advance, chunks, fullChange, pool, Recorder, recordCases } from "./record.ts";
@@ -161,9 +162,8 @@ export async function seed(store: SelectStore, opts: SeedOptions = {}): Promise<
   return report;
 }
 
-/** Judges every program of `programs` on the proof binary, records each one's footprint on the covws
- * `nvs`, and marks a program whose two runs ended differently diverged. `bun nv select --full` runs it
- * too. */
+/** Judges every program of `programs` on the proof binary, then records each one through
+ * `recordProgram`, the way `bun nv proofs` records one. `bun nv select --full` runs it too. */
 export async function seedProofs(ctx: Ctx, programs: { what: "examples" | "hostile"; path: string }[]): Promise<void> {
   if (programs.length === 0) return;
   const bin = await proofBinary();
@@ -177,25 +177,8 @@ export async function seedProofs(ctx: Ctx, programs: { what: "examples" | "hosti
     // machine with the slower recording runs.
     const pass = await judgeKept(ctx.r.store, bin, batch, { valgrind: false, strict: false });
     await pool(batch, ctx.jobs, async ({ what, path }) => {
-      const id = proofId(path);
-      const result = pass.results.get(`${what}:${path}`);
-      const verdict: Verdict = !result || result.verdict === "fail" ? "red" : "green";
-      // A program skipped on this host ran nothing; it is selected again when its own file changes.
-      if (!result?.ran) {
-        ctx.r.record(id, proofDef(path, ctx.root), verdict, new Map([[`file:${path}`, ""]]));
-        ctx.tally("proof", verdict, null);
-        return;
-      }
-      const recorded = await recordingRun(ctx.nvs, what, path, dir, ctx.r.tmpEnv, result.ran);
-      const got = recordedIn(dir).get(recordName(path));
-      const ext = got ? await ctx.r.extract(got, [ctx.nvs]) : null;
-      const keys: Keyed = ext?.keys ?? new Map();
-      if (keys.size === 0) keys.set(`file:${path}`, "");
-      ctx.r.record(id, proofDef(path, ctx.root), verdict, keys);
-      ctx.tally("proof", verdict, ext);
-      const why = divergence(result.ran, recorded);
-      if (why === null) ctx.r.store.clearDiverged(id);
-      else ctx.r.store.markDiverged(id, why);
+      const recorded = await recordProgram(ctx.r, ctx.nvs, dir, what, path, pass.results.get(`${what}:${path}`), ctx.root);
+      if (recorded) ctx.tally("proof", recorded.verdict, recorded.ext);
     });
     done += batch.length;
     ctx.say(`select: proof programs ${done}/${programs.length}`);

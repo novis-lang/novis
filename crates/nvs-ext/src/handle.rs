@@ -3,9 +3,11 @@
 //!
 //! A `mixed` argument crosses as a `borrow<value>` whose rep is an index into the store's
 //! [`Handles`], and the guest reads it through the accessor functions [`link`] defines: `kind`,
-//! `as-bool` to `as-bytes`, `length`, `key`, `element`, `field` and `class-name`. `key`, `element`
-//! and `field` return an owned `value` the guest drops when it is done with it. A rep is never a
-//! pointer: a host function looks it up in the table, and a rep that is not there traps the call.
+//! `as-bool` to `as-bytes`, `size`, `range`, `length`, `key`, `element`, `field` and `class-name`.
+//! `key`, `element` and `field` return an owned `value` the guest drops when it is done with it. A
+//! rep is never a pointer: a host function looks it up in the table, and a rep that is not there
+//! traps the call. `range` copies at most [`RANGE_MOST`] bytes of a byte string, so a guest reads
+//! a large one a block at a time (`rule:core-classes/spreadsheet-reads-as-a-stream`).
 //!
 //! **A handle lives for one call.** The call's arguments are the table's roots, and a handle is a
 //! root and the path of positions to the entry under it, so reading an element copies nothing until
@@ -34,6 +36,9 @@ use crate::convert::{Key, Value};
 
 /// The most handles a guest may hold at once in one call. Past it, the accessor traps.
 pub const MOST: usize = 1 << 16;
+
+/// The most bytes one `range` call gives, so a read of a large value copies one block at a time.
+pub const RANGE_MOST: usize = 1 << 20;
 
 /// The host's side of `nvs:ext/types`'s `value` resource.
 #[derive(Debug)]
@@ -259,6 +264,24 @@ pub(crate) fn link(linker: &mut Linker<Guest>) -> wasmtime::Result<()> {
         },
     )?;
     types.func_wrap(
+        "[method]value.size",
+        |store, (this,): (Resource<Handle>,)| {
+            Ok((match read(&store, &this)? {
+                Value::Bytes(bytes) => u64::try_from(bytes.len()).ok(),
+                _ => None,
+            },))
+        },
+    )?;
+    types.func_wrap(
+        "[method]value.range",
+        |store, (this, offset, length): (Resource<Handle>, u64, u64)| {
+            Ok((match read(&store, &this)? {
+                Value::Bytes(bytes) => Some(range(bytes, offset, length).to_vec()),
+                _ => None,
+            },))
+        },
+    )?;
+    types.func_wrap(
         "[method]value.length",
         |store, (this,): (Resource<Handle>,)| {
             Ok((match read(&store, &this)? {
@@ -312,6 +335,14 @@ fn read<'s>(
         .handles
         .get(this.rep())
         .map_err(|err| wasmtime::format_err!("{err}"))
+}
+
+/// The part of `bytes` that `range` gives: at most [`RANGE_MOST`] bytes from `offset`, clipped at
+/// the end.
+fn range(bytes: &[u8], offset: u64, length: u64) -> &[u8] {
+    let start = usize::try_from(offset).map_or(bytes.len(), |at| at.min(bytes.len()));
+    let take = usize::try_from(length).map_or(RANGE_MOST, |length| length.min(RANGE_MOST));
+    &bytes[start..start + take.min(bytes.len() - start)]
 }
 
 /// The owned handle a `key`, `element` or `field` returns, or a trap.

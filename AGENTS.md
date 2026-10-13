@@ -452,7 +452,9 @@ Every session runs the same steps, in this order, and **stops**:
    `looper orient --full`.
 2. **Do the work: as much of the group as fits.** The handoff names a group of related slices and the
    files they share. Keep taking slices while the next one touches files already loaded and you are under
-   120k with the previous one committed.
+   120k with the previous one committed. Before you take an item, write two to six checkpoints under it
+   in the goal file, each a step you can tick alone. Tick each as you reach it, and the item once all are
+   ticked. Tick on from checkpoints an earlier session left.
 3. **Verify what you touched, once, at the end of the group:** `looper verify`.
 4. **Write the handoff once for the whole group.** Overwrite the live goal's `## Handoff` with where the
    work stands and the next group with its anchors. Tick what you finished. Add a playbook bullet if a

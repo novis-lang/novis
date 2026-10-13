@@ -22,6 +22,7 @@ final class Sheet
         |{table: string, name: ?string, style: ?string, banded: bool, filter: bool, totals: array<{column: string, function: ?TotalFunction, formula: ?string}>}
         |{formatted: string, kind: ConditionalKind, operator: ?Operator, values: array<string>, colors: array<string>, icons: ?string, rank: ?uint, percent: bool, style: ?{font: ?string, size: ?float, bold: ?bool, italic: ?bool, strike: ?bool, underline: ?Underline, color: ?string, fill: ?string, border: ?{top: ?Line, right: ?Line, bottom: ?Line, left: ?Line}, borderColor: ?string, align: ?Align, valign: ?Valign, wrap: ?bool, rotate: ?int, indent: ?uint, format: ?string, locked: ?bool, hideFormula: ?bool}}
         |{at: string, image: bytes, width: ?float, height: ?float, offsetX: ?float, offsetY: ?float}
+        |{placed: string, layers: array<{kind: ChartKind, series: array<{values: string, categories: ?string, name: ?string, color: ?string}>}>, title: ?string, xTitle: ?string, yTitle: ?string, legend: Legend, labels: bool, width: ?float, height: ?float}
         |{orientation: ?Orientation, fitWidth: ?uint, fitHeight: ?uint, margins: ?{top: float, right: float, bottom: float, left: float}, header: ?string, footer: ?string, repeatRows: ?string, area: ?string}
         |{password: ?string, allow: array<string>};
     type PrintOptions ={orientation?: string, fitToPage?: {width?: uint, height?: uint}, margins?: {top: float, right: float, bottom: float, left: float}, header?: string, footer?: string, repeatRows?: string, area?: string};
@@ -247,6 +248,27 @@ final class Sheet
             height: $options?->height ?? null,
             offsetX: $options?->offsetX ?? null,
             offsetY: $options?->offsetY ?? null,
+        });
+    }
+
+    /// `chart` puts `$chart` at the cell `$cell`. `width` and `height` are in pixels. The chart is 480 by 288 pixels if you do not set them.
+    /// A series range from `column` grows with the sheet, so a chart you add before the last row still shows every row.
+    public function chart(string $cell, Chart $chart, ?{width?: float, height?: float} $options = null): Sheet
+    {
+        array<{kind: ChartKind, series: array<{values: string, categories: ?string, name: ?string, color: ?string}>}> $layers = [{kind: $chart->kind, series: $chart->series}];
+        foreach ($chart->combined as var $layer) {
+            $layers[] = $layer;
+        }
+        return $this->part({
+            placed: $cell,
+            layers: $layers,
+            title: $chart->title,
+            xTitle: $chart->xTitle,
+            yTitle: $chart->yTitle,
+            legend: $chart->legend,
+            labels: $chart->labels,
+            width: $options?->width ?? null,
+            height: $options?->height ?? null,
         });
     }
 

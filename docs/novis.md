@@ -249,6 +249,7 @@ Conventions the whole file uses:
 | [`Novis\Pdf\Rendered`](#core-novis-pdf-rendered) |  |
 | [`Novis\Pdf\Engine`](#core-novis-pdf-engine) |  |
 | [`Novis\Spreadsheet\Cell`](#core-novis-spreadsheet-cell) |  |
+| [`Novis\Spreadsheet\Chart`](#core-novis-spreadsheet-chart) |  |
 | [`Novis\Spreadsheet\Export`](#core-novis-spreadsheet-export) |  |
 | [`Novis\Spreadsheet\Formula`](#core-novis-spreadsheet-formula) |  |
 | [`Novis\Spreadsheet\Sheet`](#core-novis-spreadsheet-sheet) |  |
@@ -29995,6 +29996,136 @@ Novis\Spreadsheet\Cell::of(mixed $value, Style $style): Cell
 
 **Returns** `Cell`
 
+<a id="core-novis-spreadsheet-chart"></a>
+### `Novis\Spreadsheet\Chart`
+
+Keywords: constructor, column, bar, line, area, pie, doughnut, scatter, series, combine
+
+| Member | Signature |
+|---|---|
+| [`Novis\Spreadsheet\Chart::constructor`](#core-novis-spreadsheet-chart-constructor) | `constructor(ChartKind $kind, array<Series> $series, array<Layer> $combined, ?string $title, ?string $xTitle, ?string $yTitle, Legend $legend, bool $labels)` |
+| [`Novis\Spreadsheet\Chart::column`](#core-novis-spreadsheet-chart-column) | `column(Options $options = null): Chart` |
+| [`Novis\Spreadsheet\Chart::bar`](#core-novis-spreadsheet-chart-bar) | `bar(Options $options = null): Chart` |
+| [`Novis\Spreadsheet\Chart::line`](#core-novis-spreadsheet-chart-line) | `line(Options $options = null): Chart` |
+| [`Novis\Spreadsheet\Chart::area`](#core-novis-spreadsheet-chart-area) | `area(Options $options = null): Chart` |
+| [`Novis\Spreadsheet\Chart::pie`](#core-novis-spreadsheet-chart-pie) | `pie(Options $options = null): Chart` |
+| [`Novis\Spreadsheet\Chart::doughnut`](#core-novis-spreadsheet-chart-doughnut) | `doughnut(Options $options = null): Chart` |
+| [`Novis\Spreadsheet\Chart::scatter`](#core-novis-spreadsheet-chart-scatter) | `scatter(Options $options = null): Chart` |
+| [`Novis\Spreadsheet\Chart->series`](#core-novis-spreadsheet-chart-series) | `series(string $values, SeriesOptions $options = null): Chart` |
+| [`Novis\Spreadsheet\Chart->combine`](#core-novis-spreadsheet-chart-combine) | `combine(Chart $other): Chart` |
+
+<a id="core-novis-spreadsheet-chart-constructor"></a>
+#### `Novis\Spreadsheet\Chart::constructor`
+
+```nvs skip
+new Novis\Spreadsheet\Chart(ChartKind $kind, array<Series> $series, array<Layer> $combined, ?string $title, ?string $xTitle, ?string $yTitle, Legend $legend, bool $labels)
+```
+
+`new Chart` makes a chart from its values. `Chart::column` and the other types make one for you.
+`combined` has the types and series that `combine` added.
+
+<a id="core-novis-spreadsheet-chart-column"></a>
+#### `Novis\Spreadsheet\Chart::column`
+
+```nvs skip
+Novis\Spreadsheet\Chart::column(Options $options = null): Chart
+```
+
+`Chart::column` starts a chart of vertical bars.
+`title` is the chart's title. `xTitle` and `yTitle` are the titles of its axes. `legend` is `'right'`, `'top'`, `'bottom'`, `'left'` or `'hidden'`. `labels` shows each value on the chart.
+
+**Returns** `Chart`
+
+<a id="core-novis-spreadsheet-chart-bar"></a>
+#### `Novis\Spreadsheet\Chart::bar`
+
+```nvs skip
+Novis\Spreadsheet\Chart::bar(Options $options = null): Chart
+```
+
+`Chart::bar` starts a chart of horizontal bars. It takes the same options as `Chart::column`.
+
+**Returns** `Chart`
+
+<a id="core-novis-spreadsheet-chart-line"></a>
+#### `Novis\Spreadsheet\Chart::line`
+
+```nvs skip
+Novis\Spreadsheet\Chart::line(Options $options = null): Chart
+```
+
+`Chart::line` starts a chart that joins the values of each series with a line. It takes the same options as `Chart::column`.
+
+**Returns** `Chart`
+
+<a id="core-novis-spreadsheet-chart-area"></a>
+#### `Novis\Spreadsheet\Chart::area`
+
+```nvs skip
+Novis\Spreadsheet\Chart::area(Options $options = null): Chart
+```
+
+`Chart::area` starts a line chart with the space under each line filled. It takes the same options as `Chart::column`.
+
+**Returns** `Chart`
+
+<a id="core-novis-spreadsheet-chart-pie"></a>
+#### `Novis\Spreadsheet\Chart::pie`
+
+```nvs skip
+Novis\Spreadsheet\Chart::pie(Options $options = null): Chart
+```
+
+`Chart::pie` starts a pie chart. Each value of the first series is one slice. It takes the same options as `Chart::column`.
+
+**Returns** `Chart`
+
+<a id="core-novis-spreadsheet-chart-doughnut"></a>
+#### `Novis\Spreadsheet\Chart::doughnut`
+
+```nvs skip
+Novis\Spreadsheet\Chart::doughnut(Options $options = null): Chart
+```
+
+`Chart::doughnut` starts a pie chart with a hole in the middle. It takes the same options as `Chart::column`.
+
+**Returns** `Chart`
+
+<a id="core-novis-spreadsheet-chart-scatter"></a>
+#### `Novis\Spreadsheet\Chart::scatter`
+
+```nvs skip
+Novis\Spreadsheet\Chart::scatter(Options $options = null): Chart
+```
+
+`Chart::scatter` starts a chart of points. A series' `categories` are the x values of its points. It takes the same options as `Chart::column`.
+
+**Returns** `Chart`
+
+<a id="core-novis-spreadsheet-chart-series"></a>
+#### `Novis\Spreadsheet\Chart->series`
+
+```nvs skip
+$chart->series(string $values, SeriesOptions $options = null): Chart
+```
+
+`series` returns the chart with one more series. `$values` is a range, such as `$sheet->column('sales')`.
+`categories` is the range of the labels under the values. `name` is the series' name in the legend. `color` is a color such as `'#1F77B4'`.
+
+**Returns** `Chart`
+
+<a id="core-novis-spreadsheet-chart-combine"></a>
+#### `Novis\Spreadsheet\Chart->combine`
+
+```nvs skip
+$chart->combine(Chart $other): Chart
+```
+
+`combine` returns the chart with the type and the series of `$other` drawn on the same axes.
+You can combine two of column, line and area, such as columns of sales with a line of costs. The title and the legend come from this chart.
+
+**Returns** `Chart`
+
 <a id="core-novis-spreadsheet-export"></a>
 ### `Novis\Spreadsheet\Export`
 
@@ -30097,7 +30228,7 @@ Novis\Spreadsheet\Formula::of(string $text, ?{cached?: string|int|float} $option
 <a id="core-novis-spreadsheet-sheet"></a>
 ### `Novis\Spreadsheet\Sheet`
 
-Keywords: constructor, add, addAll, cell, column, merge, link, note, validate, group, table, conditional, image, print, protect
+Keywords: constructor, add, addAll, cell, column, merge, link, note, validate, group, table, conditional, image, chart, print, protect
 
 | Member | Signature |
 |---|---|
@@ -30114,6 +30245,7 @@ Keywords: constructor, add, addAll, cell, column, merge, link, note, validate, g
 | [`Novis\Spreadsheet\Sheet->table`](#core-novis-spreadsheet-sheet-table) | `table(string $range, TableOptions $options = null): Sheet` |
 | [`Novis\Spreadsheet\Sheet->conditional`](#core-novis-spreadsheet-sheet-conditional) | `conditional(string $range, Conditional $rule): Sheet` |
 | [`Novis\Spreadsheet\Sheet->image`](#core-novis-spreadsheet-sheet-image) | `image(string $cell, bytes $data, ?{width?: float, height?: float, offsetX?: float, offsetY?: float} $options = null): Sheet` |
+| [`Novis\Spreadsheet\Sheet->chart`](#core-novis-spreadsheet-sheet-chart) | `chart(string $cell, Chart $chart, ?{width?: float, height?: float} $options = null): Sheet` |
 | [`Novis\Spreadsheet\Sheet->print`](#core-novis-spreadsheet-sheet-print) | `print(PrintOptions $options): Sheet` |
 | [`Novis\Spreadsheet\Sheet->protect`](#core-novis-spreadsheet-sheet-protect) | `protect(?{password?: string, allow?: array<string>} $options = null): Sheet` |
 
@@ -30266,6 +30398,18 @@ $sheet->image(string $cell, bytes $data, ?{width?: float, height?: float, offset
 
 `image` puts the PNG, JPEG or GIF image `$data` at the cell `$cell`. Any other format throws a `LogicError`.
 `width` and `height` are in pixels. `offsetX` and `offsetY` move the image from the corner of the cell.
+
+**Returns** `Sheet`
+
+<a id="core-novis-spreadsheet-sheet-chart"></a>
+#### `Novis\Spreadsheet\Sheet->chart`
+
+```nvs skip
+$sheet->chart(string $cell, Chart $chart, ?{width?: float, height?: float} $options = null): Sheet
+```
+
+`chart` puts `$chart` at the cell `$cell`. `width` and `height` are in pixels. The chart is 480 by 288 pixels if you do not set them.
+A series range from `column` grows with the sheet, so a chart you add before the last row still shows every row.
 
 **Returns** `Sheet`
 
@@ -30456,7 +30600,7 @@ new Novis\Spreadsheet\Written(array<int> $rows, int $size, ?bytes $bytes)
 <a id="core-novis-spreadsheet-engine"></a>
 ### `Novis\Spreadsheet\Engine`
 
-Keywords: writerOpen, writerStyle, writerSheet, writerRows, writerPart, writerDefine, writerCell, writerColumn, writerFinish
+Keywords: writerOpen, writerStyle, writerSheet, writerRows, writerPart, writerDefine, writerCell, writerColumn, writerFinish, readerOpen, readerSheets, readerHeader, readerRows
 
 | Member | Signature |
 |---|---|
@@ -30469,6 +30613,10 @@ Keywords: writerOpen, writerStyle, writerSheet, writerRows, writerPart, writerDe
 | [`Novis\Spreadsheet\Engine::writerCell`](#core-novis-spreadsheet-engine-writercell) | `writerCell(Writer $writer, uint $column, uint $row): string` |
 | [`Novis\Spreadsheet\Engine::writerColumn`](#core-novis-spreadsheet-engine-writercolumn) | `writerColumn(Writer $writer, uint $column): string` |
 | [`Novis\Spreadsheet\Engine::writerFinish`](#core-novis-spreadsheet-engine-writerfinish) | `writerFinish(Writer $writer): {data: bytes, rows: array<{name: string, rows: uint}>, size: uint}` |
+| [`Novis\Spreadsheet\Engine::readerOpen`](#core-novis-spreadsheet-engine-readeropen) | `readerOpen(mixed $source): Reader` |
+| [`Novis\Spreadsheet\Engine::readerSheets`](#core-novis-spreadsheet-engine-readersheets) | `readerSheets(Reader $reader, mixed $source): array<{name: string, position: uint, visibility: Visibility, rows: uint, columns: uint, kind: SheetKind}>` |
+| [`Novis\Spreadsheet\Engine::readerHeader`](#core-novis-spreadsheet-engine-readerheader) | `readerHeader(Reader $reader, mixed $source, {sheet: string, headerRow: ?uint, from: ?uint, limit: ?uint, columns: array<string>, text: array<string>, textAll: bool, formulas: bool, keepEmptyRows: bool, fillMerged: bool, skipHidden: bool, locale: string} $options): array<string>` |
+| [`Novis\Spreadsheet\Engine::readerRows`](#core-novis-spreadsheet-engine-readerrows) | `readerRows(Reader $reader, mixed $source, {sheet: string, headerRow: ?uint, from: ?uint, limit: ?uint, columns: array<string>, text: array<string>, textAll: bool, formulas: bool, keepEmptyRows: bool, fillMerged: bool, skipHidden: bool, locale: string} $options, uint $max): {rows: array<{number: uint, cells: array<{column: uint, value: ?ReadValue, formula: ?string, display: ?string}>}>, done: bool}` |
 
 <a id="core-novis-spreadsheet-engine-writeropen"></a>
 #### `Novis\Spreadsheet\Engine::writerOpen`
@@ -30614,6 +30762,72 @@ Finishes the last sheet and the workbook. Returns the last bytes of the file, th
 | `$writer` | `Writer` |  |
 
 **Returns** `{data: bytes, rows: array<{name: string, rows: uint}>, size: uint}`
+
+<a id="core-novis-spreadsheet-engine-readeropen"></a>
+#### `Novis\Spreadsheet\Engine::readerOpen`
+
+```nvs skip
+Novis\Spreadsheet\Engine::readerOpen(mixed $source): Reader
+```
+
+Opens the workbook in `source`, which is `bytes`. This reads the list of sheets and no rows.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$source` | `mixed` |  |
+
+**Returns** `Reader`
+
+<a id="core-novis-spreadsheet-engine-readersheets"></a>
+#### `Novis\Spreadsheet\Engine::readerSheets`
+
+```nvs skip
+Novis\Spreadsheet\Engine::readerSheets(Reader $reader, mixed $source): array<{name: string, position: uint, visibility: Visibility, rows: uint, columns: uint, kind: SheetKind}>
+```
+
+Returns each sheet of the workbook in tab order. `rows` and `columns` are the size the file gives for the sheet, or 0 when it gives none.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$reader` | `Reader` |  |
+| `$source` | `mixed` |  |
+
+**Returns** `array<{name: string, position: uint, visibility: Visibility, rows: uint, columns: uint, kind: SheetKind}>`
+
+<a id="core-novis-spreadsheet-engine-readerheader"></a>
+#### `Novis\Spreadsheet\Engine::readerHeader`
+
+```nvs skip
+Novis\Spreadsheet\Engine::readerHeader(Reader $reader, mixed $source, {sheet: string, headerRow: ?uint, from: ?uint, limit: ?uint, columns: array<string>, text: array<string>, textAll: bool, formulas: bool, keepEmptyRows: bool, fillMerged: bool, skipHidden: bool, locale: string} $options): array<string>
+```
+
+Returns the names in the header row, one for each column from `A`. A name that is already used gets ` (2)`, ` (3)` and so on. An empty header cell gets its column letter.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$reader` | `Reader` |  |
+| `$source` | `mixed` |  |
+| `$options` | `{sheet: string, headerRow: ?uint, from: ?uint, limit: ?uint, columns: array<string>, text: array<string>, textAll: bool, formulas: bool, keepEmptyRows: bool, fillMerged: bool, skipHidden: bool, locale: string}` |  |
+
+**Returns** `array<string>`
+
+<a id="core-novis-spreadsheet-engine-readerrows"></a>
+#### `Novis\Spreadsheet\Engine::readerRows`
+
+```nvs skip
+Novis\Spreadsheet\Engine::readerRows(Reader $reader, mixed $source, {sheet: string, headerRow: ?uint, from: ?uint, limit: ?uint, columns: array<string>, text: array<string>, textAll: bool, formulas: bool, keepEmptyRows: bool, fillMerged: bool, skipHidden: bool, locale: string} $options, uint $max): {rows: array<{number: uint, cells: array<{column: uint, value: ?ReadValue, formula: ?string, display: ?string}>}>, done: bool}
+```
+
+Returns the next rows of a sheet, at most `max` of them. To get the rows after these, call it again with `from` one past the last row number. `done` is `true` after the last row of the sheet.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$reader` | `Reader` |  |
+| `$source` | `mixed` |  |
+| `$options` | `{sheet: string, headerRow: ?uint, from: ?uint, limit: ?uint, columns: array<string>, text: array<string>, textAll: bool, formulas: bool, keepEmptyRows: bool, fillMerged: bool, skipHidden: bool, locale: string}` |  |
+| `$max` | `uint` |  |
+
+**Returns** `{rows: array<{number: uint, cells: array<{column: uint, value: ?ReadValue, formula: ?string, display: ?string}>}>, done: bool}`
 
 <a id="core-enums"></a>
 ### `Core` enums
@@ -31487,6 +31701,22 @@ Where a chart shows its legend. `Hidden` shows no legend.
 #### `Novis\Spreadsheet\Orientation`
 
 Whether a printed page is tall or wide.
+
+| Case | Meaning |
+|---|---|
+
+<a id="enum-novis-spreadsheet-sheetkind"></a>
+#### `Novis\Spreadsheet\SheetKind`
+
+Whether a sheet has cells or only a chart.
+
+| Case | Meaning |
+|---|---|
+
+<a id="enum-novis-spreadsheet-cellerror"></a>
+#### `Novis\Spreadsheet\CellError`
+
+The error a cell shows: `#NULL!`, `#DIV/0!`, `#VALUE!`, `#REF!`, `#NAME?`, `#NUM!`, `#N/A`, `#GETTING_DATA`, `#SPILL!` or `#CALC!`.
 
 | Case | Meaning |
 |---|---|

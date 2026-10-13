@@ -40,10 +40,11 @@ import { join } from "node:path";
 import type { Options } from "../cmd/scaling.ts";
 import type { Graph } from "../keys/graph.ts";
 import { buildCovws } from "../lib/covws.ts";
-import { abs } from "../lib/paths.ts";
+import { abs, ROOT } from "../lib/paths.ts";
 import { read } from "./roster.ts";
 import { cargoLines } from "../lib/progress.ts";
 import { loadUnrecorded, unrecorded } from "../lib/reads.ts";
+import type { Extracted } from "../select/extract.ts";
 import type { Recorder } from "../select/record.ts";
 import type { ChangeSet, Selected, Selection } from "../select/select.ts";
 import { type Keyed, SelectStore, type Verdict } from "../select/store.ts";
@@ -94,33 +95,42 @@ export interface Diverged {
   why: string;
 }
 
+/** One recorded program: its judged verdict, why its recording run diverged or null, and what that
+ * run's footprint extracted, null for a program that ran nothing. */
+export interface RecordedProgram {
+  verdict: Verdict;
+  why: string | null;
+  ext: Extracted | null;
+}
+
 /**
- * Records one judged program: its recording run on `nvs` into `dir`, the keys that run left, and the
- * judged verdict. A recording run that diverged marks the program, and one that agreed clears its mark.
- * A program whose file is gone by now, renamed or deleted after it was judged, is neither recorded nor
- * marked: its recording run could only fail, and the next selection drops its atom. Returns why it
- * diverged, or null.
+ * Records one judged program of the tree at `root`: its recording run on `nvs` into `dir`, the keys
+ * that run left, its two durations and the judged verdict. A recording run that diverged marks the
+ * program, and one that agreed clears its mark. A program whose file is gone by now, renamed or deleted
+ * after it was judged, is neither recorded nor marked: its recording run could only fail, and the next
+ * selection drops its atom. Returns what was recorded, or null for a program that is gone.
  */
-export async function recordProgram(rec: Recorder, nvs: string, dir: string, what: What, path: string, result: Result | undefined): Promise<string | null> {
-  if (!existsSync(abs(path))) return null;
+export async function recordProgram(rec: Recorder, nvs: string, dir: string, what: What, path: string, result: Result | undefined, root: string = ROOT): Promise<RecordedProgram | null> {
+  if (!existsSync(abs(path, root))) return null;
   const { proofDef, proofId, recordedIn } = await engine();
   const id = proofId(path);
   const verdict: Verdict = !result || result.verdict === "fail" ? "red" : "green";
   // A program skipped on this host ran nothing; it is selected again when its own file changes.
   if (!result?.ran) {
-    rec.record(id, proofDef(path), verdict, new Map([[`file:${path}`, ""]]));
-    return null;
+    rec.record(id, proofDef(path, root), verdict, new Map([[`file:${path}`, ""]]));
+    return { verdict, why: null, ext: null };
   }
   const recorded = await recordingRun(nvs, what, path, dir, rec.tmpEnv, result.ran);
   const got = recordedIn(dir).get(recordName(path));
-  const keys: Keyed = got ? (await rec.extract(got, [nvs])).keys : new Map();
+  const ext = got ? await rec.extract(got, [nvs]) : null;
+  const keys: Keyed = ext?.keys ?? new Map();
   if (keys.size === 0) keys.set(`file:${path}`, "");
-  rec.record(id, proofDef(path), verdict, keys);
+  rec.record(id, proofDef(path, root), verdict, keys);
   rec.store.setDurations(id, result.ran.ms, recorded.ms);
   const why = divergence(result.ran, recorded);
   if (why === null) rec.store.clearDiverged(id);
   else rec.store.markDiverged(id, why);
-  return why;
+  return { verdict, why, ext };
 }
 
 /**
@@ -413,7 +423,7 @@ export async function runSelected(bin: Binary, programs: Program[], opts: RunOpt
       (list) => judgeKept(store, bin, list, judged),
       (width, list, body) => unrecorded(() => pool(list, width, body)),
       async ({ what, path }, result) => {
-        const why = await recordProgram(rec, nvs, dir, what, path, result);
+        const why = (await recordProgram(rec, nvs, dir, what, path, result))?.why ?? null;
         if (why !== null) diverged.push({ path, why });
         ran.add(proofId(path));
         progress(`proofs: ${++recorded}/${chosen.length} programs recorded`);

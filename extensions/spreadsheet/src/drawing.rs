@@ -1,4 +1,4 @@
-//! Images on a sheet: the media entries and the sheet's `drawing<n>.xml`
+//! Images and charts on a sheet: the media entries and the sheet's `drawing<n>.xml`
 //! (`rule:core-classes/spreadsheet-sheet-end-parts`).
 //!
 //! [`read`] checks an image's bytes and finds its format and its size in pixels from the file's
@@ -7,16 +7,19 @@
 //! `xl/media/image<n>.<ext>`, numbered across the workbook, and [`Drawing`] keeps only where each
 //! one is anchored: one cell, an offset from its top-left corner and a size, in pixels, each
 //! written in EMU (9,525 to a pixel). A size the program leaves out is the image's own, and one
-//! side given alone scales the other by the image's aspect ratio. [`Drawing::write`] is the
-//! `xl/drawings/drawing<sheet>.xml` part with one `oneCellAnchor` per image, and
-//! [`Drawing::rels`] its relationships to the media.
+//! side given alone scales the other by the image's aspect ratio. A chart is anchored the same
+//! way, as a `graphicFrame` pointing at its own `xl/charts/chart<n>.xml` (`chart`'s module doc).
+//! [`Drawing::write`] is the `xl/drawings/drawing<sheet>.xml` part with one `oneCellAnchor` per
+//! image or chart, and [`Drawing::rels`] its relationships to the media and the charts.
 //!
-//! Memory: per image, its anchor and its entry's name. The bytes go to the archive at once, or,
-//! when the sheet's own entry is open, wait for it to end (`writer`'s module doc).
+//! Memory: per image, its anchor and its entry's name, and per chart its anchor and what
+//! `chart`'s module doc keeps. The image bytes go to the archive at once, or, when the sheet's own
+//! entry is open, wait for it to end (`writer`'s module doc).
 
 use std::fmt::Write as _;
 
 use crate::Error;
+use crate::chart::{self, Chart, Planned};
 use crate::tail::{bad_cell, cell_at};
 
 const RELS: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
@@ -110,7 +113,15 @@ pub fn read(bytes: &[u8]) -> Option<(Format, u32, u32)> {
     (width > 0 && height > 0).then_some((format, width, height))
 }
 
-/// One image's place on the sheet, every figure in EMU.
+/// What an anchor places: an image by its media entry's name under `xl/media/`, or a chart by
+/// its number in the workbook.
+#[derive(Debug, Clone, PartialEq)]
+enum Placed {
+    Picture(String),
+    Chart(usize, Planned),
+}
+
+/// One image's or chart's place on the sheet, every figure in EMU.
 #[derive(Debug, Clone, PartialEq)]
 struct Anchor {
     column: u32,
@@ -119,11 +130,10 @@ struct Anchor {
     offset_y: u64,
     width: u64,
     height: u64,
-    /// The media entry's name under `xl/media/`.
-    media: String,
+    placed: Placed,
 }
 
-/// The images of one sheet, until it ends.
+/// The images and charts of one sheet, until it ends.
 #[derive(Debug, Default)]
 pub struct Drawing {
     anchors: Vec<Anchor>,
@@ -133,16 +143,17 @@ fn emu(pixels: f64) -> u64 {
     (pixels * EMU_PER_PIXEL).round() as u64
 }
 
+/// Checks a figure in pixels of the image or chart named `part`, as "image at `C3`".
 fn pixels(
     what: &str,
-    cell: &str,
+    part: &str,
     value: Option<f64>,
     positive: bool,
 ) -> Result<Option<f64>, Error> {
     match value {
         Some(value) if !value.is_finite() || value < 0.0 || (positive && value == 0.0) => {
             Err(Error::Invalid(format!(
-                "The image at `{cell}` has the {what} {value}. It must be a number of pixels{}.",
+                "The {part} has the {what} {value}. It must be a number of pixels{}.",
                 if positive { " above 0" } else { ", 0 or more" }
             )))
         }
@@ -161,8 +172,9 @@ impl Drawing {
                 "The image at `{cell}` is not a PNG, JPEG or GIF file. Convert it to one of these formats first."
             )));
         };
-        let width = pixels("width", cell, image.width, true)?;
-        let height = pixels("height", cell, image.height, true)?;
+        let part = format!("image at `{cell}`");
+        let width = pixels("width", &part, image.width, true)?;
+        let height = pixels("height", &part, image.height, true)?;
         let ratio = f64::from(own_height) / f64::from(own_width);
         let (width, height) = match (width, height) {
             (Some(width), Some(height)) => (width, height),
@@ -170,8 +182,8 @@ impl Drawing {
             (None, Some(height)) => (height / ratio, height),
             (None, None) => (f64::from(own_width), f64::from(own_height)),
         };
-        let offset_x = pixels("horizontal offset", cell, image.offset_x, false)?.unwrap_or(0.0);
-        let offset_y = pixels("vertical offset", cell, image.offset_y, false)?.unwrap_or(0.0);
+        let offset_x = pixels("horizontal offset", &part, image.offset_x, false)?.unwrap_or(0.0);
+        let offset_y = pixels("vertical offset", &part, image.offset_y, false)?.unwrap_or(0.0);
         self.anchors.push(Anchor {
             column,
             row,
@@ -179,17 +191,60 @@ impl Drawing {
             offset_y: emu(offset_y),
             width: emu(width).max(1),
             height: emu(height).max(1),
-            media: format!("image{media}.{}", format.extension()),
+            placed: Placed::Picture(format!("image{media}.{}", format.extension())),
         });
         Ok(format)
     }
 
-    /// Whether the sheet has images.
+    /// Checks `chart`, added to the sheet `sheet` when `Writer::column` gives `reach` as a
+    /// column's last row, and keeps it with its anchor, `number` being its part's number in the
+    /// workbook (`chart`'s module doc).
+    pub fn chart(
+        &mut self,
+        chart: &Chart,
+        number: usize,
+        sheet: &str,
+        reach: u32,
+    ) -> Result<(), Error> {
+        let cell = chart.placed.as_str();
+        let (column, row) = cell_at(cell).ok_or_else(|| bad_cell("chart", cell))?;
+        let part = format!("chart at `{cell}`");
+        let width = pixels("width", &part, chart.width, true)?.unwrap_or(chart::DEFAULT_WIDTH);
+        let height = pixels("height", &part, chart.height, true)?.unwrap_or(chart::DEFAULT_HEIGHT);
+        let planned = chart::check(chart, sheet, reach)?;
+        self.anchors.push(Anchor {
+            column,
+            row,
+            offset_x: 0,
+            offset_y: 0,
+            width: emu(width).max(1),
+            height: emu(height).max(1),
+            placed: Placed::Chart(number, planned),
+        });
+        Ok(())
+    }
+
+    /// Whether the sheet has images or charts.
     pub fn is_empty(&self) -> bool {
         self.anchors.is_empty()
     }
 
-    /// The `drawing<n>.xml` part, one `oneCellAnchor` per image in the order they were added.
+    /// The chart parts, `xl/charts/chart<n>.xml` by name, their growing ranges ending at the
+    /// row `last`.
+    pub fn charts(&self, last: u32) -> Vec<(String, String)> {
+        self.anchors
+            .iter()
+            .filter_map(|anchor| match &anchor.placed {
+                Placed::Chart(number, planned) => {
+                    Some((format!("xl/charts/chart{number}.xml"), planned.write(last)))
+                }
+                Placed::Picture(_) => None,
+            })
+            .collect()
+    }
+
+    /// The `drawing<n>.xml` part, one `oneCellAnchor` per image or chart in the order they were
+    /// added.
     pub fn write(&self) -> String {
         let mut out = String::from(crate::writer::XML_HEAD);
         out.push_str(
@@ -204,20 +259,37 @@ impl Drawing {
                 offset_y,
                 width,
                 height,
-                ..
+                placed,
             } = anchor;
             let _ = write!(
                 out,
                 "<xdr:oneCellAnchor><xdr:from><xdr:col>{column}</xdr:col><xdr:colOff>{offset_x}</xdr:colOff>\
                  <xdr:row>{}</xdr:row><xdr:rowOff>{offset_y}</xdr:rowOff></xdr:from>\
-                 <xdr:ext cx=\"{width}\" cy=\"{height}\"/>\
-                 <xdr:pic><xdr:nvPicPr><xdr:cNvPr id=\"{}\" name=\"Picture {}\"/>\
+                 <xdr:ext cx=\"{width}\" cy=\"{height}\"/>",
+                row - 1,
+            );
+            if let Placed::Chart(number, _) = placed {
+                let _ = write!(
+                    out,
+                    "<xdr:graphicFrame macro=\"\"><xdr:nvGraphicFramePr><xdr:cNvPr id=\"{}\" name=\"Chart {number}\"/>\
+                     <xdr:cNvGraphicFramePr/></xdr:nvGraphicFramePr>\
+                     <xdr:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"0\" cy=\"0\"/></xdr:xfrm>\
+                     <a:graphic><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/chart\">\
+                     <c:chart xmlns:c=\"http://schemas.openxmlformats.org/drawingml/2006/chart\" xmlns:r=\"{RELS}\" r:id=\"rId{}\"/>\
+                     </a:graphicData></a:graphic></xdr:graphicFrame><xdr:clientData/></xdr:oneCellAnchor>",
+                    at + 2,
+                    at + 1
+                );
+                continue;
+            }
+            let _ = write!(
+                out,
+                "<xdr:pic><xdr:nvPicPr><xdr:cNvPr id=\"{}\" name=\"Picture {}\"/>\
                  <xdr:cNvPicPr><a:picLocks noChangeAspect=\"1\"/></xdr:cNvPicPr></xdr:nvPicPr>\
                  <xdr:blipFill><a:blip xmlns:r=\"{RELS}\" r:embed=\"rId{}\"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill>\
                  <xdr:spPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"{width}\" cy=\"{height}\"/></a:xfrm>\
                  <a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom></xdr:spPr></xdr:pic>\
                  <xdr:clientData/></xdr:oneCellAnchor>",
-                row - 1,
                 at + 2,
                 at + 1,
                 at + 1
@@ -227,17 +299,23 @@ impl Drawing {
         out
     }
 
-    /// The drawing's relationships part: `rId<n>` is the `n`th image's media entry.
+    /// The drawing's relationships part: `rId<n>` is the `n`th anchor's media entry or chart part.
     pub fn rels(&self) -> String {
         let mut out = String::from(crate::writer::XML_HEAD);
         let _ = write!(out, "<Relationships xmlns=\"{PACKAGE_RELS}\">");
         for (at, anchor) in self.anchors.iter().enumerate() {
-            let _ = write!(
-                out,
-                "<Relationship Id=\"rId{}\" Type=\"{RELS}/image\" Target=\"../media/{}\"/>",
-                at + 1,
-                anchor.media
-            );
+            let _ = match &anchor.placed {
+                Placed::Picture(media) => write!(
+                    out,
+                    "<Relationship Id=\"rId{}\" Type=\"{RELS}/image\" Target=\"../media/{media}\"/>",
+                    at + 1
+                ),
+                Placed::Chart(number, _) => write!(
+                    out,
+                    "<Relationship Id=\"rId{}\" Type=\"{RELS}/chart\" Target=\"../charts/chart{number}.xml\"/>",
+                    at + 1
+                ),
+            };
         }
         out.push_str("</Relationships>");
         out
