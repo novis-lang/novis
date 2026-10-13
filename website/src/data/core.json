@@ -29381,7 +29381,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "<code>QrCode::giroCode</code> returns the text of a SEPA bank transfer, for a QR code that a banking app reads.\nA wrong IBAN, a field that is too long, or both <code>reference</code> and <code>text</code> throw a <code>LogicError</code>."
+            "shortHtml": "<code>QrCode::giroCode</code> returns the text of a SEPA bank transfer, for a QR code that a banking app reads.\nA wrong IBAN, a field that is too long or has a line break, or both <code>reference</code> and <code>text</code> throw a <code>LogicError</code>."
           },
           "slug": "girocode",
           "url": "/reference/core/novis-image-qrcode/girocode/",
@@ -31037,7 +31037,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "<code>invoiceXml</code> attaches the XML of an electronic invoice to the file.\nIt needs the standard <code>Standard::PdfA3b</code>. With any other standard, <code>render</code> throws a <code>LogicError</code>."
+            "shortHtml": "<code>invoiceXml</code> attaches the XML of an electronic invoice to the file.\nIt needs the standard <code>Document::Standard::PdfA3b</code>. With any other standard, <code>render</code> throws a <code>LogicError</code>."
           },
           "slug": "invoicexml",
           "url": "/reference/core/novis-pdf-document/invoicexml/",
@@ -31104,6 +31104,115 @@
           "slug": "created",
           "url": "/reference/core/novis-pdf-document/created/",
           "examples": "core/Novis-Pdf-Document/created"
+        },
+        {
+          "id": "Novis.Pdf.Document.header",
+          "name": "header",
+          "static": false,
+          "receiver": "document",
+          "generics": null,
+          "signature": "header(callable(Page): Core\\Html\\Markup $fn, ?{height?: string} $options = null): Document",
+          "params": [
+            {
+              "kind": "param",
+              "name": "fn",
+              "type": "callable(Page): Core\\Html\\Markup",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "options",
+              "type": "?{height?: string}",
+              "default": "null",
+              "optional": true,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Document",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>header</code> sets a function that returns the header of each page. <code>render</code> calls it once for each page.\nThe header is drawn in the top margin. <code>height</code> sets that margin, such as <code>&quot;2cm&quot;</code>. Without it, the margin is the one <code>@page</code> gives."
+          },
+          "slug": "header",
+          "url": "/reference/core/novis-pdf-document/header/",
+          "examples": "core/Novis-Pdf-Document/header"
+        },
+        {
+          "id": "Novis.Pdf.Document.footer",
+          "name": "footer",
+          "static": false,
+          "receiver": "document",
+          "generics": null,
+          "signature": "footer(callable(Page): Core\\Html\\Markup $fn, ?{height?: string} $options = null): Document",
+          "params": [
+            {
+              "kind": "param",
+              "name": "fn",
+              "type": "callable(Page): Core\\Html\\Markup",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "options",
+              "type": "?{height?: string}",
+              "default": "null",
+              "optional": true,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Document",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>footer</code> sets a function that returns the footer of each page. It works like <code>header</code>, in the bottom margin."
+          },
+          "slug": "footer",
+          "url": "/reference/core/novis-pdf-document/footer/",
+          "examples": "core/Novis-Pdf-Document/footer"
+        },
+        {
+          "id": "Novis.Pdf.Document.slots",
+          "name": "slots",
+          "static": false,
+          "receiver": "document",
+          "generics": null,
+          "signature": "slots(callable(Page): array<Core\\Html\\Markup> $fn): Document",
+          "params": [
+            {
+              "kind": "param",
+              "name": "fn",
+              "type": "callable(Page): array<Core\\Html\\Markup>",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Document",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>slots</code> sets a function that fills each <code>&lt;slot name=&quot;...&quot;&gt;</code> in a table row. <code>render</code> calls it once for each page.\nIt returns the HTML for each slot name. Nothing on the page moves, and HTML too tall for its cell is listed in <code>Rendered::overflows</code>."
+          },
+          "slug": "slots",
+          "url": "/reference/core/novis-pdf-document/slots/",
+          "examples": "core/Novis-Pdf-Document/slots"
         },
         {
           "id": "Novis.Pdf.Document.render",
@@ -31282,6 +31391,433 @@
       "slug": "novis-pdf-engine",
       "url": "/reference/core/novis-pdf-engine/",
       "summaryHtml": "<p>The functions that render, merge and read PDF files. <code>Novis\\Pdf\\Document</code> calls them for you, so most programs use <code>Document</code> instead.</p>",
+      "surfaceHtml": ""
+    },
+    {
+      "id": "Novis.Pdf.Page",
+      "name": "Novis\\Pdf\\Page",
+      "section": "",
+      "summary": "One page of a document. `Document::render` calls a header or footer function once for each page, with that page's `Page`.",
+      "surface": "",
+      "enums": [],
+      "constants": [],
+      "members": [
+        {
+          "id": "Novis.Pdf.Page.constructor",
+          "name": "constructor",
+          "static": false,
+          "receiver": "page",
+          "generics": null,
+          "signature": "constructor(uint $number, uint $count, ?string $name, array<Named> $strings, array<array<Named>> $marks): void",
+          "params": [
+            {
+              "kind": "param",
+              "name": "number",
+              "type": "uint",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "count",
+              "type": "uint",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "name",
+              "type": "?string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "strings",
+              "type": "array<Named>",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "marks",
+              "type": "array<array<Named>>",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "void",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>new Page</code> makes a page from its values. <code>Document::render</code> makes one for you.\n<code>marks</code> has the <code>data-mark</code> values of every page of the document, one list for each page."
+          },
+          "slug": "constructor",
+          "url": "/reference/core/novis-pdf-page/constructor/",
+          "examples": "core/Novis-Pdf-Page/constructor"
+        },
+        {
+          "id": "Novis.Pdf.Page.isFirst",
+          "name": "isFirst",
+          "static": false,
+          "receiver": "page",
+          "generics": null,
+          "signature": "isFirst(): bool",
+          "params": [],
+          "options": [],
+          "returnType": "bool",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>isFirst</code> returns <code>true</code> on the first page."
+          },
+          "slug": "isfirst",
+          "url": "/reference/core/novis-pdf-page/isfirst/",
+          "examples": "core/Novis-Pdf-Page/isFirst"
+        },
+        {
+          "id": "Novis.Pdf.Page.isLast",
+          "name": "isLast",
+          "static": false,
+          "receiver": "page",
+          "generics": null,
+          "signature": "isLast(): bool",
+          "params": [],
+          "options": [],
+          "returnType": "bool",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>isLast</code> returns <code>true</code> on the last page."
+          },
+          "slug": "islast",
+          "url": "/reference/core/novis-pdf-page/islast/",
+          "examples": "core/Novis-Pdf-Page/isLast"
+        },
+        {
+          "id": "Novis.Pdf.Page.string",
+          "name": "string",
+          "static": false,
+          "receiver": "page",
+          "generics": null,
+          "signature": "string(string $name): ?string",
+          "params": [
+            {
+              "kind": "param",
+              "name": "name",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "?string",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>string</code> returns the value that CSS <code>string-set</code> gives <code>$name</code> on this page.\nThe name is compared without case. If no value is set yet, the result is <code>null</code>."
+          },
+          "slug": "string",
+          "url": "/reference/core/novis-pdf-page/string/",
+          "examples": "core/Novis-Pdf-Page/string"
+        },
+        {
+          "id": "Novis.Pdf.Page.marks",
+          "name": "marks",
+          "static": false,
+          "receiver": "page",
+          "generics": null,
+          "signature": "marks(string $name): array<string>",
+          "params": [
+            {
+              "kind": "param",
+              "name": "name",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "array<string>",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>marks</code> returns the values of every <code>data-mark=&quot;name:value&quot;</code> on this page with this name.\nAn element may have several marks, separated by <code>;</code>."
+          },
+          "slug": "marks",
+          "url": "/reference/core/novis-pdf-page/marks/",
+          "examples": "core/Novis-Pdf-Page/marks"
+        },
+        {
+          "id": "Novis.Pdf.Page.marksUpTo",
+          "name": "marksUpTo",
+          "static": false,
+          "receiver": "page",
+          "generics": null,
+          "signature": "marksUpTo(string $name): array<string>",
+          "params": [
+            {
+              "kind": "param",
+              "name": "name",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "array<string>",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>marksUpTo</code> returns the values of the marks with this name on this page and every page before it.\nA carried-forward total adds these values up."
+          },
+          "slug": "marksupto",
+          "url": "/reference/core/novis-pdf-page/marksupto/",
+          "examples": "core/Novis-Pdf-Page/marksUpTo"
+        }
+      ],
+      "unparsed": [],
+      "implemented": true,
+      "slug": "novis-pdf-page",
+      "url": "/reference/core/novis-pdf-page/",
+      "summaryHtml": "<p>One page of a document. <code>Document::render</code> calls a header or footer function once for each page, with that page's <code>Page</code>.</p>",
+      "surfaceHtml": ""
+    },
+    {
+      "id": "Novis.Pdf.Pages",
+      "name": "Novis\\Pdf\\Pages",
+      "section": "",
+      "summary": "Pages chosen from an existing PDF file. `Pages::merge` puts the chosen pages of several files into one file.",
+      "surface": "",
+      "enums": [],
+      "constants": [],
+      "members": [
+        {
+          "id": "Novis.Pdf.Pages.of",
+          "name": "of",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "of(bytes $pdf, ?array<uint> $pages = null): Pages",
+          "params": [
+            {
+              "kind": "param",
+              "name": "pdf",
+              "type": "bytes",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "pages",
+              "type": "?array<uint>",
+              "default": "null",
+              "optional": true,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Pages",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>Pages::of</code> chooses pages of a PDF file, in the order of <code>$pages</code>. Pages count from 1.\nWithout <code>$pages</code>, every page is chosen. A page listed twice is used twice, and a page not listed is left out."
+          },
+          "slug": "of",
+          "url": "/reference/core/novis-pdf-pages/of/",
+          "examples": "core/Novis-Pdf-Pages/of"
+        },
+        {
+          "id": "Novis.Pdf.Pages.merge",
+          "name": "merge",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "merge(array<Pages> $parts): bytes",
+          "params": [
+            {
+              "kind": "param",
+              "name": "parts",
+              "type": "array<Pages>",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "bytes",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>Pages::merge</code> returns one PDF file with the chosen pages of each part, in order.\nA page number past the end of its file throws a <code>LogicError</code>. A file that is encrypted or does not parse throws a <code>ParseError</code>."
+          },
+          "slug": "merge",
+          "url": "/reference/core/novis-pdf-pages/merge/",
+          "examples": "core/Novis-Pdf-Pages/merge"
+        }
+      ],
+      "unparsed": [],
+      "implemented": true,
+      "slug": "novis-pdf-pages",
+      "url": "/reference/core/novis-pdf-pages/",
+      "summaryHtml": "<p>Pages chosen from an existing PDF file. <code>Pages::merge</code> puts the chosen pages of several files into one file.</p>",
+      "surfaceHtml": ""
+    },
+    {
+      "id": "Novis.Pdf.Reader",
+      "name": "Novis\\Pdf\\Reader",
+      "section": "",
+      "summary": "An existing PDF file opened for reading: its page count, its metadata, its attached files and its text.",
+      "surface": "",
+      "enums": [],
+      "constants": [],
+      "members": [
+        {
+          "id": "Novis.Pdf.Reader.open",
+          "name": "open",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "open(bytes $pdf): Reader",
+          "params": [
+            {
+              "kind": "param",
+              "name": "pdf",
+              "type": "bytes",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Reader",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>Reader::open</code> reads the page count, the metadata and the attached files of a PDF file.\nA file that is encrypted or does not parse throws a <code>ParseError</code>."
+          },
+          "slug": "open",
+          "url": "/reference/core/novis-pdf-reader/open/",
+          "examples": "core/Novis-Pdf-Reader/open"
+        },
+        {
+          "id": "Novis.Pdf.Reader.attachments",
+          "name": "attachments",
+          "static": false,
+          "receiver": "reader",
+          "generics": null,
+          "signature": "attachments(): array<Attachment>",
+          "params": [],
+          "options": [],
+          "returnType": "array<Attachment>",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>attachments</code> returns the files attached to the PDF file, each with its name and its bytes."
+          },
+          "slug": "attachments",
+          "url": "/reference/core/novis-pdf-reader/attachments/",
+          "examples": "core/Novis-Pdf-Reader/attachments"
+        },
+        {
+          "id": "Novis.Pdf.Reader.invoiceXml",
+          "name": "invoiceXml",
+          "static": false,
+          "receiver": "reader",
+          "generics": null,
+          "signature": "invoiceXml(): ?string",
+          "params": [],
+          "options": [],
+          "returnType": "?string",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>invoiceXml</code> returns the XML of an electronic invoice attached to the file.\nIf the file is not an electronic invoice, the result is <code>null</code>."
+          },
+          "slug": "invoicexml",
+          "url": "/reference/core/novis-pdf-reader/invoicexml/",
+          "examples": "core/Novis-Pdf-Reader/invoiceXml"
+        },
+        {
+          "id": "Novis.Pdf.Reader.text",
+          "name": "text",
+          "static": false,
+          "receiver": "reader",
+          "generics": null,
+          "signature": "text(uint $page): string",
+          "params": [
+            {
+              "kind": "param",
+              "name": "page",
+              "type": "uint",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "string",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>text</code> returns the text of one page, in the order the file stores it. Pages count from 1.\nTables and columns are not rebuilt. A page number past the end throws a <code>LogicError</code>."
+          },
+          "slug": "text",
+          "url": "/reference/core/novis-pdf-reader/text/",
+          "examples": "core/Novis-Pdf-Reader/text"
+        }
+      ],
+      "unparsed": [],
+      "implemented": true,
+      "slug": "novis-pdf-reader",
+      "url": "/reference/core/novis-pdf-reader/",
+      "summaryHtml": "<p>An existing PDF file opened for reading: its page count, its metadata, its attached files and its text.</p>",
       "surfaceHtml": ""
     },
     {
