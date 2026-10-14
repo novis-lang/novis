@@ -6,7 +6,7 @@ context: [crates/nvs-server/src/statics.rs, crates/nvs-server/src/serve.rs]
 stages:
   - id: 1
     title: a file body is read one chunk at a time
-    status: open
+    status: done
     context: [crates/nvs-server/src/statics.rs, crates/nvs-server/src/serve.rs, crates/nvs-cli/src/serve.rs]
     extra:
       context:
@@ -14,7 +14,7 @@ stages:
         shapes: []
   - id: 2
     title: "`If-Range` is honoured"
-    status: open
+    status: done
     context: [crates/nvs-server/src/statics.rs, crates/nvs-server/src/serve.rs]
     extra:
       context:
@@ -122,9 +122,9 @@ records `exists` and `file` with `nvs_footprint`, the two lines `the_disk_record
 expects.
 
 **A file that ends early ends the body in an error.** `Content-Length` was already sent, so a short
-end would read as a whole file. The body's error type becomes one enum carrying the drain cut that
-exists now (`DrainPeriodEnded`, `crates/nvs-server/src/serve.rs:197`) and this one, and `hyper` aborts
-the connection on either. A read error is the same case.
+end would read as a whole file. The body's error type is one enum, `BodyCut`
+(`crates/nvs-server/src/serve.rs:217`), carrying the drain cut and this one, and `hyper` aborts the
+connection on either. A read error is the same case, and a short stream in stage 4 is too.
 
 **`If-Range` is compared strongly against the current `ETag`.** It is read only when `Range` is
 present and after `If-None-Match`. A match honours the range. Anything else is the whole file with a
@@ -173,20 +173,20 @@ named parameters on `stream` and two methods on `Core\Response\Stream`; `sendFil
 
 **Does:** `sendFile` and static mounts read a file one chunk at a time while `hyper` writes it.
 
-- [ ] `Answer::File` with its `poll_frame`, `is_end_stream` and exact `size_hint`. `crates/nvs-server/src/serve.rs:128`
-- [ ] The body's error type becomes one enum with the drain cut and the short file. `crates/nvs-server/src/serve.rs:197`
-- [ ] `Source::open` replaces `stat` and `read`, and `send` uses it. `crates/nvs-server/src/statics.rs:98`
-- [ ] The two case sources move to `open`. `crates/nvs-server/src/serve.rs:3123`
-- [ ] The module doc's *What it spends* is rewritten for one chunk per response. `crates/nvs-server/src/statics.rs:49`
-- [ ] The live test over a sparse file, and the unit tests the checks name. `crates/nvs-server/src/statics.rs:388`
+- [x] `Answer::File` with its `poll_frame`, `is_end_stream` and exact `size_hint`. `crates/nvs-server/src/serve.rs:128`
+- [x] The body's error type becomes one enum with the drain cut and the short file. `crates/nvs-server/src/serve.rs:197`
+- [x] `Source::open` replaces `stat` and `read`, and `send` uses it. `crates/nvs-server/src/statics.rs:98`
+- [x] The two case sources move to `open`. `crates/nvs-server/src/serve.rs:3123`
+- [x] The module doc's *What it spends* is rewritten for one chunk per response. `crates/nvs-server/src/statics.rs:49`
+- [x] The live test over a sparse file, and the unit tests the checks name. `crates/nvs-server/src/statics.rs:388`
 
 ### 2. `If-Range` is honoured
 
 **Does:** a `Range` with an `If-Range` that does not match the current tag gets the whole file.
 
-- [ ] `asked` copies `If-Range`. `crates/nvs-server/src/statics.rs:153`
-- [ ] `send` evaluates it before the range. `crates/nvs-server/src/statics.rs:196`
-- [ ] A program's file body reads it, through `named`. `crates/nvs-server/src/serve.rs:3222`
+- [x] `asked` copies `If-Range`. `crates/nvs-server/src/statics.rs:153`
+- [x] `send` evaluates it before the range. `crates/nvs-server/src/statics.rs:196`
+- [x] A program's file body reads it, through `named`. `crates/nvs-server/src/serve.rs:3222`
 
 ### 3. the rule, the reference card and the feature proofs
 
@@ -212,21 +212,26 @@ named parameters on `stream` and two methods on `Core\Response\Stream`; `sendFil
 
 ### State
 
-The goal is written; nothing of it is built. The user asked for it after the question of how a web
-application streams a large file behind an access check, and chose the stream design in stage 4.
-§ *Standing decisions* holds the design. The anchors were read when the goal was written.
+Stages 1 and 2 are built and their four checks pass. A file body is `Answer::File`, read one
+`FILE_CHUNK` per poll (`crates/nvs-server/src/serve.rs:129`). `statics::Source` is one `open`
+(`crates/nvs-server/src/statics.rs:137`), and the body error is `BodyCut`. `If-Range` is
+`statics::still_the_same`, and `statics::asked` copies it. The rule fragment, the `sendFile` card and
+the proofs do not mention any of this yet.
+
+The acceptance sweep's nightly failures ran on `origin/main` at `cb7021a24`, which is behind local
+`main`. At HEAD, the docs, lint, conformance, proofs and website jobs are already fixed. The macOS
+warm-start budget passed and failed on that same commit across nights, so it is the runner. The
+supply-chain job was real: `ruzstd` and `rustls` advisories, fixed in `265d4b7ea`.
 
 ### Next
 
-**Stage 1: a file body is read one chunk at a time**, one file set: `crates/nvs-server/src/statics.rs`, `crates/nvs-server/src/serve.rs`.
+**Stage 3: the rule, the reference card and the feature proofs**, one file set: the rule fragment and its record, `crates/nvs-stdlib/src/response.rs`, the `sendFile` examples.
 
-- [ ] `Answer::File` and the error enum (`rule:http-server/static-serving-is-one-policy`). `crates/nvs-server/src/serve.rs:128`
-- [ ] `Source::open`, and `send` over it (`rule:http-server/static-serving-is-one-policy`). `crates/nvs-server/src/statics.rs:98`
-
-**Stage 2: `If-Range` is honoured**, the same two files.
-
-- [ ] `asked` and `send` read `If-Range` (`rule:http-server/static-serving-is-one-policy`). `crates/nvs-server/src/statics.rs:153`
+- [ ] The fragment is rewritten whole, with `If-Range` and a `**Memory:**` bullet (`rule:http-server/static-serving-is-one-policy`). `docs/rules/http-server/static-serving-is-one-policy.md:3`
+- [ ] `guardedBy` names the five new tests (`rule:http-server/static-serving-is-one-policy`). `data/rules/http-server/static-serving-is-one-policy.json:9`
+- [ ] The `sendFile` card says a browser can seek in a video and resume a download (`rule:core-api/reference-card`). `crates/nvs-stdlib/src/response.rs:692`
+- [ ] A fourth example: a download behind an access check (`rule:testing/feature-proofs`). `docs/examples/core/Response/sendFile/about.md:1`
 
 ### Backlog
 
-- Stages 3 and 4 — this file's § *Stages*.
+- Stage 4, a stream with a declared length answers a range — this file's § *Stages*.
