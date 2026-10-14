@@ -7,18 +7,28 @@
 //! written as, by `rule:core-classes/spreadsheet-value-types`. calamine reads values, formulas,
 //! merged ranges and hyperlinks. It does not read notes or data validation, so those are checked
 //! through our reader and through the sheet's own XML.
+//!
+//! **Against Excel's own files.** Each file under `tests/fixtures/excel/` was made by Excel (its
+//! README names where they come from). The writer makes the same workbook, and the parts an area
+//! is about are compared element by element, split the way the suite those files come from
+//! splits them: `xl/styles.xml` for cell formats, the table's part for tables, and the sheet's
+//! `<conditionalFormatting>` and `<dataValidations>` with the `dxf` styles they use. A difference
+//! is fixed in the writer. A fixture is never changed.
 
 use std::io::Cursor;
 
 use calamine::{Data, Dimensions, Reader as _, Xlsx, open_workbook_from_rs};
+use nvs_spreadsheet::cells::reference;
+use nvs_spreadsheet::conditional::{Conditional, Kind};
 use nvs_spreadsheet::read::merge::Merge;
 use nvs_spreadsheet::read::zip::{Bound, Directory};
 use nvs_spreadsheet::read::{Read, ReadCell, ReadOptions, ReadRow, Reader, Source};
-use nvs_spreadsheet::tail::{Link, Note, Operator, Part, RuleKind, Validation};
+use nvs_spreadsheet::table::{Function, Table, Total};
+use nvs_spreadsheet::tail::{Link, Note, Operator, Part, RuleKind, Validation, cell_at};
 use nvs_spreadsheet::template::{Placeholder, Template};
 use nvs_spreadsheet::{
-    Cell, Clock, Date, Error, RichRun, Row, SheetOptions, Style, TimeOfDay, Value, WorkbookOptions,
-    Writer,
+    Align, Border, Cell, Clock, Date, Error, Header, Line, RichRun, Row, SheetOptions, Style,
+    TimeOfDay, Valign, Value, WorkbookOptions, Writer,
 };
 
 // ---------------------------------------------------------------------------------------------
@@ -816,3 +826,592 @@ fn a_filled_template_reads_back_with_its_values_and_shifted_references() {
 // ---------------------------------------------------------------------------------------------
 // Against Excel's own files.
 // ---------------------------------------------------------------------------------------------
+
+/// The Excel-made file `name` under `tests/fixtures/excel/`.
+fn excel_file(name: &str) -> Vec<u8> {
+    let path = format!(
+        "{}/tests/fixtures/excel/{name}.xlsx",
+        env!("CARGO_MANIFEST_DIR")
+    );
+    std::fs::read(&path).unwrap_or_else(|err| panic!("{path}: {err}"))
+}
+
+/// The entry `name` of the archive `archive`, as text.
+fn entry(archive: &[u8], name: &str) -> String {
+    let source = Bytes(archive.to_vec());
+    let directory = Directory::read(&source, Bound::default()).unwrap();
+    let found = directory
+        .find(name)
+        .unwrap_or_else(|| panic!("the archive has {name}"));
+    String::from_utf8(directory.whole(&source, found).unwrap()).unwrap()
+}
+
+/// The text of `xml` from the first `<tag` to the last `</tag>`, both included.
+fn region<'a>(xml: &'a str, tag: &str) -> &'a str {
+    let open = format!("<{tag}");
+    let close = format!("</{tag}>");
+    let from = xml
+        .find(&open)
+        .unwrap_or_else(|| panic!("the part has {open}: {xml}"));
+    let to = xml
+        .rfind(&close)
+        .unwrap_or_else(|| panic!("the part has {close}: {xml}"));
+    &xml[from..to + close.len()]
+}
+
+/// `xml` split into its elements the way rust_xlsxwriter's own comparison splits it: at each
+/// `>` followed by `<`, with the whitespace between them dropped. An element that contains one of
+/// `ignore` is left out, which is how that suite leaves out an element Excel writes and it does
+/// not, such as the `condense` and `extend` of a conditional format's font.
+fn elements(xml: &str, ignore: &[&str]) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut start = 0;
+    for (at, c) in xml.char_indices() {
+        if c == '>' && xml[at + 1..].trim_start().starts_with('<') {
+            out.push(&xml[start..at]);
+            start = at + 1 + (xml[at + 1..].len() - xml[at + 1..].trim_start().len());
+        }
+    }
+    out.push(&xml[start..]);
+    out.into_iter()
+        .map(|token| {
+            let token = token.trim().replace('\r', "");
+            let token = if token.starts_with('<') {
+                token
+            } else {
+                format!("<{token}")
+            };
+            if token.ends_with('>') {
+                token
+            } else {
+                format!("{token}>")
+            }
+        })
+        .filter(|element| !ignore.iter().any(|word| element.contains(word)))
+        .collect()
+}
+
+/// Checks that `ours` and Excel's `excel` have the same elements, in the same order.
+fn same_part(fixture: &str, part: &str, ours: &str, excel: &str, ignore: &[&str]) {
+    assert_eq!(
+        elements(ours, ignore),
+        elements(excel, ignore),
+        "{part} differs from the one Excel wrote in {fixture}.xlsx"
+    );
+}
+
+/// A sheet `Sheet1` with no header defaults, its `parts` added before its `rows`, and the
+/// archive `writer` makes of it.
+fn excel_book(mut writer: Writer, parts: Vec<Part>, rows: Vec<Row>) -> Vec<u8> {
+    let options = SheetOptions {
+        header: Header {
+            default_style: false,
+            style: None,
+            freeze: false,
+            filter: false,
+        },
+        ..SheetOptions::named("Sheet1")
+    };
+    let mut out = writer.sheet(options, &[]).unwrap();
+    for part in parts {
+        out.extend(writer.part(part).unwrap());
+    }
+    out.extend(writer.rows(&rows).unwrap());
+    out.extend(writer.finish().unwrap().data);
+    out
+}
+
+/// The rows from 1 to `last`, or further down to the last row of `cells`, with `cells` placed by
+/// their references, such as `B2`.
+fn grid<S: AsRef<str>>(cells: Vec<(S, Cell)>, last: u32) -> Vec<Row> {
+    let mut rows = vec![Row::default(); last as usize];
+    for (at, placed) in cells {
+        let (column, number) = cell_at(at.as_ref()).unwrap();
+        if rows.len() < number as usize {
+            rows.resize(number as usize, Row::default());
+        }
+        let row = &mut rows[number as usize - 1];
+        if row.cells.len() <= column as usize {
+            row.cells.resize(column as usize + 1, Cell::default());
+        }
+        row.cells[column as usize] = placed;
+    }
+    rows
+}
+
+fn styled(value: Value, style: u64) -> Cell {
+    Cell {
+        value: Some(value),
+        style: Some(style),
+    }
+}
+
+fn number(value: f64) -> Cell {
+    cell(Some(Value::Number(value)))
+}
+
+/// The numbers 10, 20, 30 and 40 down `A1:A4`, the cells most of the conditional format files
+/// hold.
+fn tens() -> Vec<(&'static str, Cell)> {
+    vec![
+        ("A1", number(10.0)),
+        ("A2", number(20.0)),
+        ("A3", number(30.0)),
+        ("A4", number(40.0)),
+    ]
+}
+
+fn thin_box() -> Border {
+    Border {
+        top: Some(Line::Thin),
+        right: Some(Line::Thin),
+        bottom: Some(Line::Thin),
+        left: Some(Line::Thin),
+    }
+}
+
+#[test]
+fn styles_match_the_excel_made_fixtures() {
+    let bold = || Style {
+        bold: Some(true),
+        ..Style::default()
+    };
+    // Each case is the fixture's name, and the writer with its styles and the cells that use
+    // them, in the order the file uses them.
+    type Case = (
+        &'static str,
+        Box<dyn Fn(&mut Writer) -> Vec<(&'static str, Cell)>>,
+    );
+    let cases: Vec<Case> = vec![
+        (
+            "format02",
+            Box::new(move |writer| {
+                let arial = Style {
+                    font: Some("Arial".to_owned()),
+                    bold: Some(true),
+                    valign: Some(Valign::Bottom),
+                    ..Style::default()
+                };
+                let left = writer
+                    .style(Style {
+                        align: Some(Align::Left),
+                        rotate: Some(0),
+                        ..arial.clone()
+                    })
+                    .unwrap();
+                let turned = writer
+                    .style(Style {
+                        align: Some(Align::Center),
+                        rotate: Some(90),
+                        ..arial
+                    })
+                    .unwrap();
+                vec![
+                    ("A1", styled(Value::Text("Foo".to_owned()), left)),
+                    ("B1", styled(Value::Text("Bar".to_owned()), turned)),
+                ]
+            }),
+        ),
+        (
+            "format03",
+            Box::new(move |writer| {
+                let red = Style {
+                    fill: Some("#FF0000".to_owned()),
+                    ..bold()
+                };
+                let first = writer.style(red.clone()).unwrap();
+                let second = writer
+                    .style(Style {
+                        italic: Some(true),
+                        ..red
+                    })
+                    .unwrap();
+                vec![
+                    ("A1", styled(Value::Text("Foo".to_owned()), first)),
+                    ("A2", styled(Value::Text("Bar".to_owned()), second)),
+                ]
+            }),
+        ),
+        (
+            "format05",
+            Box::new(|writer| {
+                let wrap = writer
+                    .style(Style {
+                        wrap: Some(true),
+                        ..Style::default()
+                    })
+                    .unwrap();
+                vec![("A1", styled(Value::Text("Foo\nBar".to_owned()), wrap))]
+            }),
+        ),
+        (
+            "format11",
+            Box::new(|writer| {
+                let centered = writer
+                    .style(Style {
+                        align: Some(Align::Center),
+                        valign: Some(Valign::Center),
+                        ..Style::default()
+                    })
+                    .unwrap();
+                vec![("B2", styled(Value::Text("Foo".to_owned()), centered))]
+            }),
+        ),
+        (
+            "format12",
+            Box::new(|writer| {
+                let mut lines = |left: bool, bottom: bool| {
+                    let border = Border {
+                        top: Some(Line::Thin),
+                        left: left.then_some(Line::Thin),
+                        bottom: bottom.then_some(Line::Thin),
+                        right: None,
+                    };
+                    writer
+                        .style(Style {
+                            border: Some(border),
+                            ..Style::default()
+                        })
+                        .unwrap()
+                };
+                let top_left_bottom = lines(true, true);
+                let top_left = lines(true, false);
+                let top_bottom = lines(false, true);
+                let test = |style| styled(Value::Text("test".to_owned()), style);
+                vec![
+                    ("B2", test(top_left_bottom)),
+                    ("D2", test(top_left)),
+                    ("F2", test(top_bottom)),
+                ]
+            }),
+        ),
+        (
+            "format15",
+            Box::new(move |writer| {
+                let plain = writer.style(bold()).unwrap();
+                let whole = writer
+                    .style(Style {
+                        format: Some("0".to_owned()),
+                        ..bold()
+                    })
+                    .unwrap();
+                vec![
+                    ("A1", styled(Value::Number(1.0), plain)),
+                    ("A2", styled(Value::Number(2.0), whole)),
+                ]
+            }),
+        ),
+        (
+            "format19",
+            Box::new(|writer| {
+                let clock = Style {
+                    format: Some("hh:mm;@".to_owned()),
+                    ..Style::default()
+                };
+                let plain = writer.style(clock.clone()).unwrap();
+                let yellow = writer
+                    .style(Style {
+                        fill: Some("#FFFF00".to_owned()),
+                        ..clock
+                    })
+                    .unwrap();
+                vec![
+                    ("A1", styled(Value::Number(1.0), plain)),
+                    ("A2", styled(Value::Number(2.0), yellow)),
+                ]
+            }),
+        ),
+    ];
+    for (fixture, build) in cases {
+        let mut writer = Writer::open(WorkbookOptions::default()).unwrap();
+        let cells = build(&mut writer);
+        let ours = excel_book(writer, Vec::new(), grid(cells, 0));
+        let excel = excel_file(fixture);
+        let part = "xl/styles.xml";
+        same_part(
+            fixture,
+            part,
+            &entry(&ours, part),
+            &entry(&excel, part),
+            &[],
+        );
+    }
+}
+
+/// A table over `range` with Excel's defaults: no name, the default style, banded rows and a
+/// filter.
+fn excel_table(range: &str, totals: Vec<Total>) -> Table {
+    Table {
+        range: range.to_owned(),
+        name: None,
+        style: None,
+        banded: true,
+        filter: true,
+        totals,
+    }
+}
+
+fn excel_total(column: &str, function: Option<Function>, formula: Option<&str>) -> Total {
+    Total {
+        column: column.to_owned(),
+        function,
+        formula: formula.map(str::to_owned),
+    }
+}
+
+#[test]
+fn tables_match_the_excel_made_fixtures() {
+    // The header cells `names`, from the cell `first` to the right.
+    let columns = |first: &str, names: &[&str]| -> Vec<(String, Cell)> {
+        let (left, row) = cell_at(first).unwrap();
+        names
+            .iter()
+            .enumerate()
+            .map(|(at, name)| (reference(left + at as u32, row), text(name)))
+            .collect()
+    };
+    let four = ["Column1", "Column2", "Column3", "Column4"];
+    let mut medium10 = excel_table("C3:F13", Vec::new());
+    medium10.style = Some("TableStyleMedium10".to_owned());
+    let mut unfiltered = excel_table("C3:F13", Vec::new());
+    unfiltered.filter = false;
+    // Each case is the fixture's name, the table, its header cells and the sheet's last row.
+    type Case = (&'static str, Table, Vec<(String, Cell)>, u32);
+    let cases: Vec<Case> = vec![
+        (
+            "table01",
+            excel_table("C3:F13", Vec::new()),
+            columns("C3", &four),
+            13,
+        ),
+        (
+            "table08",
+            excel_table(
+                "C3:F13",
+                vec![excel_total("Column4", Some(Function::Count), None)],
+            ),
+            columns("C3", &four),
+            13,
+        ),
+        (
+            "table23",
+            excel_table(
+                "B3:F8",
+                ["Column'", "Column#", "Column[", "Column]"]
+                    .into_iter()
+                    .map(|name| excel_total(name, Some(Function::Sum), None))
+                    .collect(),
+            ),
+            columns(
+                "B3",
+                &["Column1", "Column'", "Column#", "Column[", "Column]"],
+            ),
+            8,
+        ),
+        ("table24", medium10, columns("C3", &four), 13),
+        ("table28", unfiltered, columns("C3", &four), 13),
+        (
+            "table32",
+            excel_table(
+                "C3:F13",
+                vec![
+                    excel_total("Column2", None, Some("D5+D9")),
+                    excel_total("Column3", None, Some("SUM([Column3])")),
+                    excel_total("Column4", Some(Function::Count), None),
+                ],
+            ),
+            columns("C3", &four),
+            13,
+        ),
+    ];
+    for (fixture, table, header, last) in cases {
+        let writer = Writer::open(WorkbookOptions::default()).unwrap();
+        let ours = excel_book(writer, vec![Part::Table(table)], grid(header, last));
+        let excel = excel_file(fixture);
+        let part = "xl/tables/table1.xml";
+        same_part(
+            fixture,
+            part,
+            &entry(&ours, part),
+            &entry(&excel, part),
+            &[],
+        );
+    }
+}
+
+/// A `cellIs` rule over `formatted` that compares with `value` and formats with `style`.
+fn excel_rule(formatted: &str, operator: Operator, value: &str, style: Style) -> Conditional {
+    Conditional {
+        formatted: formatted.to_owned(),
+        kind: Kind::Cell,
+        operator: Some(operator),
+        values: vec![value.to_owned()],
+        colors: Vec::new(),
+        icons: None,
+        rank: None,
+        percent: false,
+        style: Some(style),
+    }
+}
+
+#[test]
+fn conditional_formats_match_the_excel_made_fixtures() {
+    let dark_on_light = |color: &str, fill: &str| Style {
+        color: Some(color.to_owned()),
+        fill: Some(fill.to_owned()),
+        ..Style::default()
+    };
+    let bold_italic = Style {
+        bold: Some(true),
+        italic: Some(true),
+        ..Style::default()
+    };
+    // Each case is the fixture's name, its rule, the cell format it uses besides, and its cells.
+    // Excel's preset styles give a font `condense` and `extend`, which rust_xlsxwriter does not
+    // write and its own comparison leaves out for these files.
+    let cases: Vec<(&str, Conditional, Option<Style>, &[&str])> = vec![
+        (
+            "cond_format01",
+            excel_rule(
+                "A1",
+                Operator::Greater,
+                "5",
+                dark_on_light("#9C0006", "#FFC7CE"),
+            ),
+            None,
+            &["condense", "extend"],
+        ),
+        (
+            "cond_format05",
+            excel_rule(
+                "A1",
+                Operator::Equal,
+                "7",
+                Style {
+                    border: Some(thin_box()),
+                    ..Style::default()
+                },
+            ),
+            None,
+            &[],
+        ),
+        (
+            "cond_format08",
+            excel_rule(
+                "A1",
+                Operator::Greater,
+                "5",
+                dark_on_light("#9C6500", "#FFEB9C"),
+            ),
+            None,
+            &["condense", "extend"],
+        ),
+        (
+            "cond_format10",
+            excel_rule("B3:B6", Operator::Greater, "20", bold_italic.clone()),
+            Some(bold_italic),
+            &[],
+        ),
+        (
+            "cond_format19",
+            excel_rule(
+                "A1",
+                Operator::Equal,
+                "\"X\"",
+                dark_on_light("#9C0006", "#FFC7CE"),
+            ),
+            None,
+            &["condense", "extend"],
+        ),
+    ];
+    for (fixture, rule, cell_style, ignore) in cases {
+        let mut writer = Writer::open(WorkbookOptions::default()).unwrap();
+        let cells = match cell_style {
+            // This file writes `Hello` in its rule's style and the numbers in `B3:B6`.
+            Some(style) => {
+                let style = writer.style(style).unwrap();
+                vec![
+                    ("A1", styled(Value::Text("Hello".to_owned()), style)),
+                    ("B3", number(10.0)),
+                    ("B4", number(20.0)),
+                    ("B5", number(30.0)),
+                    ("B6", number(40.0)),
+                ]
+            }
+            None => tens(),
+        };
+        let ours = excel_book(writer, vec![Part::Conditional(rule)], grid(cells, 0));
+        let excel = excel_file(fixture);
+        let sheet = "xl/worksheets/sheet1.xml";
+        let (our_sheet, excel_sheet) = (entry(&ours, sheet), entry(&excel, sheet));
+        same_part(
+            fixture,
+            "The sheet's conditional formats",
+            region(&our_sheet, "conditionalFormatting"),
+            region(&excel_sheet, "conditionalFormatting"),
+            &[],
+        );
+        let styles = "xl/styles.xml";
+        same_part(
+            fixture,
+            styles,
+            &entry(&ours, styles),
+            &entry(&excel, styles),
+            ignore,
+        );
+    }
+}
+
+#[test]
+fn data_validation_matches_the_excel_made_fixtures() {
+    let list = |validated: &str, values: &[&str], prompt: Option<(&str, &str)>| Validation {
+        allow_empty: true,
+        input_title: prompt.map(|(title, _)| title.to_owned()),
+        input_message: prompt.map(|(_, message)| message.to_owned()),
+        ..validation(validated, RuleKind::List, values)
+    };
+    let titled = Some(("This is the input title", "This is the input message"));
+    let longest_message = format!("This is the longest input message {}", "a".repeat(221));
+    let mut long_list: Vec<String> = Vec::new();
+    for second in ['a', 'b'] {
+        for third in 'a'..='z' {
+            let name = format!("Foob{second}{third}");
+            if name.as_str() >= "Foobar" {
+                long_list.push(name);
+            }
+        }
+    }
+    long_list.push("Foobca".to_owned());
+    long_list.push("End".to_owned());
+    let long_list: Vec<&str> = long_list.iter().map(String::as_str).collect();
+    let foo = ["Foo", "Bar", "Baz"];
+    let cases: Vec<(&str, Vec<Validation>)> = vec![
+        ("data_validation01", vec![list("C2", &foo, None)]),
+        ("data_validation02", vec![list("C2", &foo, titled)]),
+        (
+            "data_validation03",
+            vec![
+                list("C2", &foo, titled),
+                list(
+                    "D6",
+                    &long_list,
+                    Some(("This is the longest input title1", &longest_message)),
+                ),
+            ],
+        ),
+    ];
+    for (fixture, rules) in cases {
+        let writer = Writer::open(WorkbookOptions::default()).unwrap();
+        let parts = rules.into_iter().map(Part::Validation).collect();
+        let ours = excel_book(writer, parts, Vec::new());
+        let excel = excel_file(fixture);
+        let sheet = "xl/worksheets/sheet1.xml";
+        same_part(
+            fixture,
+            "The sheet's data validation",
+            region(&entry(&ours, sheet), "dataValidations"),
+            region(&entry(&excel, sheet), "dataValidations"),
+            &[],
+        );
+    }
+}
