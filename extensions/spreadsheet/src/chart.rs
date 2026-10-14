@@ -126,16 +126,17 @@ struct Range {
 }
 
 impl Range {
-    /// The reference the part writes, its bottom moved to `last` when it grows.
+    /// The reference the part writes as element text, its bottom moved to `last` when it grows.
+    /// The sheet name is the program's text, so it is escaped like any other.
     fn write(&self, out: &mut String, last: u32) {
         let mut at = self.area;
         if self.grows {
             at.bottom = at.bottom.max(last);
         }
+        xml::text(out, &self.sheet);
         let _ = write!(
             out,
-            "{}!{}:{}",
-            self.sheet,
+            "!{}:{}",
             absolute(at.left, at.top),
             absolute(at.right, at.bottom)
         );

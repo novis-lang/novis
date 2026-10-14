@@ -365,6 +365,30 @@ fn a_series_over_a_stream_covers_every_row_the_sheet_ends_with() {
 }
 
 #[test]
+fn a_sheet_name_in_a_range_is_escaped_as_element_text() {
+    let book = book(vec![chart(
+        Kind::Pie,
+        vec![series(
+            "'</c:f><x a=\"1\"/>&amp;'!B2:B3",
+            Some("'Sh\u{1}ops'!A2:A3"),
+        )],
+    )]);
+    let part = book.part("xl/charts/chart1.xml");
+    assert!(
+        part.contains("<c:f>'&lt;/c:f&gt;&lt;x a=\"1\"/&gt;&amp;amp;'!$B$2:$B$3</c:f>"),
+        "markup in a sheet name is text: {part}"
+    );
+    assert!(
+        part.contains("<c:f>'Sh_x0001_ops'!$A$2:$A$3</c:f>"),
+        "a control character is Excel's escape: {part}"
+    );
+    assert!(
+        !part.contains("<x a="),
+        "no element of the name is written: {part}"
+    );
+}
+
+#[test]
 fn two_writes_of_equal_charts_are_byte_equal() {
     let charts = || {
         let mut combined = chart(Kind::Area, vec![series("B2:B7", Some("A2:A7"))]);
