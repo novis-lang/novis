@@ -256,6 +256,7 @@ Conventions the whole file uses:
 | [`Novis\Spreadsheet\Row`](#core-novis-spreadsheet-row) |  |
 | [`Novis\Spreadsheet\Sheet`](#core-novis-spreadsheet-sheet) |  |
 | [`Novis\Spreadsheet\Style`](#core-novis-spreadsheet-style) |  |
+| [`Novis\Spreadsheet\Template`](#core-novis-spreadsheet-template) |  |
 | [`Novis\Spreadsheet\Workbook`](#core-novis-spreadsheet-workbook) |  |
 | [`Novis\Spreadsheet\Written`](#core-novis-spreadsheet-written) |  |
 | [`Novis\Spreadsheet\Engine`](#core-novis-spreadsheet-engine) |  |
@@ -30165,7 +30166,7 @@ Keywords: constructor, download, save, to, bytes
 
 | Member | Signature |
 |---|---|
-| [`Novis\Spreadsheet\Export::constructor`](#core-novis-spreadsheet-export-constructor) | `constructor(callable(Workbook): void $write, Options $options)` |
+| [`Novis\Spreadsheet\Export::constructor`](#core-novis-spreadsheet-export-constructor) | `constructor(callable(Workbook): void $write, Options $options, ?callable(callable(bytes): void, bool): Written $fill = null)` |
 | [`Novis\Spreadsheet\Export->download`](#core-novis-spreadsheet-export-download) | `download(string $name): void` |
 | [`Novis\Spreadsheet\Export->save`](#core-novis-spreadsheet-export-save) | `save(string $path): Written` |
 | [`Novis\Spreadsheet\Export->to`](#core-novis-spreadsheet-export-to) | `to(Core\IO\File $file): Written` |
@@ -30175,10 +30176,11 @@ Keywords: constructor, download, save, to, bytes
 #### `Novis\Spreadsheet\Export::constructor`
 
 ```nvs skip
-new Novis\Spreadsheet\Export(callable(Workbook): void $write, Options $options)
+new Novis\Spreadsheet\Export(callable(Workbook): void $write, Options $options, ?callable(callable(bytes): void, bool): Written $fill = null)
 ```
 
-`new Export` makes an export that adds its rows with `$write`. `Workbook::fromRows` makes one for you.
+`new Export` makes an export that adds its rows with `$write`. `Workbook::fromRows` and `Template::fill` make one for you.
+`$fill` writes a filled template instead. It sends each part of the file to its first argument, and keeps the whole file in `Written::bytes` when its second argument is `true`.
 
 <a id="core-novis-spreadsheet-export-download"></a>
 #### `Novis\Spreadsheet\Export->download`
@@ -30669,6 +30671,52 @@ Novis\Spreadsheet\Style::of(Fields $fields): Style
 
 **Returns** `Style`
 
+<a id="core-novis-spreadsheet-template"></a>
+### `Novis\Spreadsheet\Template`
+
+Keywords: open, set, fill
+
+| Member | Signature |
+|---|---|
+| [`Novis\Spreadsheet\Template::open`](#core-novis-spreadsheet-template-open) | `open(tainted bytes\|Core\IO\File $source, Options $options = null): Template` |
+| [`Novis\Spreadsheet\Template->set`](#core-novis-spreadsheet-template-set) | `set(string $address, mixed $value): Template` |
+| [`Novis\Spreadsheet\Template->fill`](#core-novis-spreadsheet-template-fill) | `fill(array<mixed> $data): Export` |
+
+<a id="core-novis-spreadsheet-template-open"></a>
+#### `Novis\Spreadsheet\Template::open`
+
+```nvs skip
+Novis\Spreadsheet\Template::open(tainted bytes|Core\IO\File $source, Options $options = null): Template
+```
+
+`Template::open` opens the template in `$source`, the bytes of an xlsx or xlsm file or a file your program opened.
+`zone` is the time zone for an `Instant`, such as `'Europe/Berlin'`. Without `zone`, an `Instant` throws an error.
+
+**Returns** `Template`
+
+<a id="core-novis-spreadsheet-template-set"></a>
+#### `Novis\Spreadsheet\Template->set`
+
+```nvs skip
+$template->set(string $address, mixed $value): Template
+```
+
+`set` puts `$value` in the cell at `$address`, such as `'Summary!B2'`. Call it before `fill`.
+
+**Returns** `Template`
+
+<a id="core-novis-spreadsheet-template-fill"></a>
+#### `Novis\Spreadsheet\Template->fill`
+
+```nvs skip
+$template->fill(array<mixed> $data): Export
+```
+
+`fill` puts the value at each placeholder's path in `$data` into its cell. A placeholder that `$data` does not have throws an error.
+The file is written when you call `download`, `save`, `to` or `bytes` on the result.
+
+**Returns** `Export`
+
 <a id="core-novis-spreadsheet-workbook"></a>
 ### `Novis\Spreadsheet\Workbook`
 
@@ -30800,7 +30848,7 @@ new Novis\Spreadsheet\Written(array<int> $rows, int $size, ?bytes $bytes)
 <a id="core-novis-spreadsheet-engine"></a>
 ### `Novis\Spreadsheet\Engine`
 
-Keywords: writerOpen, writerStyle, writerSheet, writerRows, writerPart, writerDefine, writerCell, writerColumn, writerFinish, readerOpen, readerSheets, readerMacros, readerMerged, readerLinks, readerNotes, readerNames, readerTables, readerImages, readerProperties, readerHeader, readerRows
+Keywords: writerOpen, writerStyle, writerSheet, writerRows, writerPart, writerDefine, writerCell, writerColumn, writerFinish, readerOpen, readerSheets, readerMacros, readerMerged, readerLinks, readerNotes, readerNames, readerTables, readerImages, readerProperties, readerHeader, readerRows, templateOpen, templateSet, templateFill, templateItems, templateFinish
 
 | Member | Signature |
 |---|---|
@@ -30825,6 +30873,11 @@ Keywords: writerOpen, writerStyle, writerSheet, writerRows, writerPart, writerDe
 | [`Novis\Spreadsheet\Engine::readerProperties`](#core-novis-spreadsheet-engine-readerproperties) | `readerProperties(Reading $reader, mixed $source): {title: ?string, subject: ?string, author: ?string, company: ?string, keywords: ?string, created: ?{day: Core\Time\Date, clock: Core\Time\TimeOfDay}}` |
 | [`Novis\Spreadsheet\Engine::readerHeader`](#core-novis-spreadsheet-engine-readerheader) | `readerHeader(Reading $reader, mixed $source, {sheet: string, headerRow: ?uint, from: ?uint, limit: ?uint, columns: array<string>, text: array<string>, textAll: bool, formulas: bool, keepEmptyRows: bool, fillMerged: bool, skipHidden: bool, locale: string} $options): array<string>` |
 | [`Novis\Spreadsheet\Engine::readerRows`](#core-novis-spreadsheet-engine-readerrows) | `readerRows(Reading $reader, mixed $source, {sheet: string, headerRow: ?uint, from: ?uint, limit: ?uint, columns: array<string>, text: array<string>, textAll: bool, formulas: bool, keepEmptyRows: bool, fillMerged: bool, skipHidden: bool, locale: string} $options, uint $max): {rows: array<{number: uint, cells: array<{column: uint, value: ?ReadValue, formula: ?string, display: ?string}>}>, done: bool}` |
+| [`Novis\Spreadsheet\Engine::templateOpen`](#core-novis-spreadsheet-engine-templateopen) | `templateOpen(mixed $source): Filling` |
+| [`Novis\Spreadsheet\Engine::templateSet`](#core-novis-spreadsheet-engine-templateset) | `templateSet(Filling $template, string $address, ?CellValue $value): void` |
+| [`Novis\Spreadsheet\Engine::templateFill`](#core-novis-spreadsheet-engine-templatefill) | `templateFill(Filling $template, array<{path: string, value: ?CellValue}> $values, array<string> $lists): {data: bytes, lists: array<string>}` |
+| [`Novis\Spreadsheet\Engine::templateItems`](#core-novis-spreadsheet-engine-templateitems) | `templateItems(Filling $template, {name: string, items: array<array<{path: string, value: ?CellValue}>>} $batch): bytes` |
+| [`Novis\Spreadsheet\Engine::templateFinish`](#core-novis-spreadsheet-engine-templatefinish) | `templateFinish(Filling $template, mixed $source): {data: bytes, rows: array<{name: string, rows: uint}>, size: uint}` |
 
 <a id="core-novis-spreadsheet-engine-writeropen"></a>
 #### `Novis\Spreadsheet\Engine::writerOpen`
@@ -31169,6 +31222,87 @@ Returns the next rows of a sheet, at most `max` of them. To get the rows after t
 | `$max` | `uint` |  |
 
 **Returns** `{rows: array<{number: uint, cells: array<{column: uint, value: ?ReadValue, formula: ?string, display: ?string}>}>, done: bool}`
+
+<a id="core-novis-spreadsheet-engine-templateopen"></a>
+#### `Novis\Spreadsheet\Engine::templateOpen`
+
+```nvs skip
+Novis\Spreadsheet\Engine::templateOpen(mixed $source): Filling
+```
+
+Opens the template in `source`, which is `bytes` or an open `Core\IO\File`. A template is a workbook with placeholders such as `{{name}}` in its cells.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$source` | `mixed` |  |
+
+**Returns** `Filling`
+
+<a id="core-novis-spreadsheet-engine-templateset"></a>
+#### `Novis\Spreadsheet\Engine::templateSet`
+
+```nvs skip
+Novis\Spreadsheet\Engine::templateSet(Filling $template, string $address, ?CellValue $value): void
+```
+
+Fills one cell by its address, such as `Summary!B2`. Call it before `templateFill`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$template` | `Filling` |  |
+| `$address` | `string` |  |
+| `$value` | `?CellValue` |  |
+
+**Returns** `void`
+
+<a id="core-novis-spreadsheet-engine-templatefill"></a>
+#### `Novis\Spreadsheet\Engine::templateFill`
+
+```nvs skip
+Novis\Spreadsheet\Engine::templateFill(Filling $template, array<{path: string, value: ?CellValue}> $values, array<string> $lists): {data: bytes, lists: array<string>}
+```
+
+Fills every placeholder that is not in a list. `lists` has the names of the lists. Returns the bytes of the file that are ready to send, and the lists the template uses, in the order of their rows.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$template` | `Filling` |  |
+| `$values` | `array<{path: string, value: ?CellValue}>` |  |
+| `$lists` | `array<string>` |  |
+
+**Returns** `{data: bytes, lists: array<string>}`
+
+<a id="core-novis-spreadsheet-engine-templateitems"></a>
+#### `Novis\Spreadsheet\Engine::templateItems`
+
+```nvs skip
+Novis\Spreadsheet\Engine::templateItems(Filling $template, {name: string, items: array<array<{path: string, value: ?CellValue}>>} $batch): bytes
+```
+
+Writes the rows of some items of the list `name`. The path of a value is its path inside the item, such as `qty`. Returns the bytes of the file that are ready to send.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$template` | `Filling` |  |
+| `$batch` | `{name: string, items: array<array<{path: string, value: ?CellValue}>>}` |  |
+
+**Returns** `bytes`
+
+<a id="core-novis-spreadsheet-engine-templatefinish"></a>
+#### `Novis\Spreadsheet\Engine::templateFinish`
+
+```nvs skip
+Novis\Spreadsheet\Engine::templateFinish(Filling $template, mixed $source): {data: bytes, rows: array<{name: string, rows: uint}>, size: uint}
+```
+
+Writes the rest of the file. Returns the last bytes of the file, the number of rows in each sheet, and the size of the whole file in bytes.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$template` | `Filling` |  |
+| `$source` | `mixed` |  |
+
+**Returns** `{data: bytes, rows: array<{name: string, rows: uint}>, size: uint}`
 
 <a id="core-enums"></a>
 ### `Core` enums

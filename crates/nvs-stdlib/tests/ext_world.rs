@@ -1227,16 +1227,16 @@ const SPREADSHEET_EXPORTS: &[&str] = &[
 ];
 
 /// The resources `engine` exports, each kept by the request that opened it.
-const SPREADSHEET_RESOURCES: &[&str] = &["writer", "reading", "template"];
+const SPREADSHEET_RESOURCES: &[&str] = &["writer", "reading", "filling"];
 
-/// The word each resource's exports start with. `reading`'s are `reader-`, because the resource
-/// is not named `reader`: a manifest's resource is a class in `Novis\Spreadsheet`, where `Reader`
-/// is the Novis class over it.
+/// The word each resource's exports start with. `reading`'s are `reader-` and `filling`'s are
+/// `template-`, because a manifest's resource is a class in `Novis\Spreadsheet`, where `Reader`
+/// and `Template` are the Novis classes over them.
 fn calls_of(resource: &str) -> &str {
-    if resource == "reading" {
-        "reader"
-    } else {
-        resource
+    match resource {
+        "reading" => "reader",
+        "filling" => "template",
+        _ => resource,
     }
 }
 
@@ -1377,7 +1377,7 @@ fn the_spreadsheet_interface_parses_against_the_world_in_wit_types_alone() {
     assert!(problems.is_empty(), "\n{}", problems.join("\n"));
 }
 
-/// `engine` exports a `writer`, a `reading` and a `template`. Each one's `-open` export returns
+/// `engine` exports a `writer`, a `reading` and a `filling`. Each one's `-open` export returns
 /// an `own` of it, which the request keeps, and every other export named for it takes a
 /// `borrow` of it first, so no call gives one away.
 #[test]

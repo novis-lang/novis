@@ -1,20 +1,30 @@
 <?nvs
 namespace Novis\Spreadsheet;
 
-/// A whole workbook from `Workbook::fromRows`. The method you call on it sets where the file goes.
+/// A whole workbook from `Workbook::fromRows` or `Template::fill`. The method you call on it sets where the file goes.
 final class Export
 {
     type Options = ?{zone?: string, format?: string, properties?: {title?: string, subject?: string, author?: string, company?: string, keywords?: string, created?: Core\Time\Instant}};
 
-    /// `new Export` makes an export that adds its rows with `$write`. `Workbook::fromRows` makes one for you.
+    /// `new Export` makes an export that adds its rows with `$write`. `Workbook::fromRows` and `Template::fill` make one for you.
+    /// `$fill` writes a filled template instead. It sends each part of the file to its first argument, and keeps the whole file in `Written::bytes` when its second argument is `true`.
     public function constructor(
         private readonly callable(Workbook): void $write,
         private readonly Options $options,
+        private readonly ?callable(callable(bytes): void, bool): Written $fill = null,
     ) {}
 
     /// `download` sends the file to the browser as a download named `$name`.
     public function download(string $name): void
     {
+        if ($this->fill != null) {
+            Core\Response::setHeader("Content-Disposition", self::disposition($name));
+            var $response = Core\Response::stream("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+            $this->filled(fn (bytes $chunk): void => {
+                $response->write($chunk);
+            }, false);
+            return;
+        }
         $this->run(Workbook::createForDownload($name, $this->options));
     }
 
@@ -22,18 +32,34 @@ final class Export
     /// The path needs the `fs.write` capability in `nvs.toml`.
     public function save(#[Core\Path] string $path): Written
     {
+        if ($this->fill != null) {
+            var $file = Core\IO::open($path, Core\IO::FileMode::Write);
+            var $written = $this->filled(fn (bytes $chunk): void => {
+                $file->write($chunk);
+            }, false);
+            $file->close();
+            return $written;
+        }
         return $this->run(Workbook::createForFile($path, $this->options));
     }
 
     /// `to` writes the file to `$file`, a file that your program opened for writing. It does not close `$file`.
     public function to(Core\IO\File $file): Written
     {
+        if ($this->fill != null) {
+            return $this->filled(fn (bytes $chunk): void => {
+                $file->write($chunk);
+            }, false);
+        }
         return $this->run(Workbook::createForStream($file, $this->options));
     }
 
     /// `bytes` returns the whole file.
     public function bytes(): bytes
     {
+        if ($this->fill != null) {
+            return $this->filled(fn (bytes $chunk): void => {}, true)->bytes ?? Core\Bytes::fill(0, 0);
+        }
         return $this->run(Workbook::createInMemory($this->options))->bytes ?? Core\Bytes::fill(0, 0);
     }
 
@@ -42,5 +68,28 @@ final class Export
         callable(Workbook): void $write = $this->write;
         $write($book);
         return $book->finish();
+    }
+
+    private function filled(callable(bytes): void $send, bool $keep): Written
+    {
+        var $fill = $this->fill;
+        if ($fill == null) {
+            return new Written([], 0, null);
+        }
+        return $fill($send, $keep);
+    }
+
+    // The same header as `Workbook::createForDownload` sends. A name that is not plain ASCII is also sent encoded, in `filename*`.
+    private static function disposition(string $name): string
+    {
+        string $plain = "";
+        foreach (Core\Str::codePoints($name) as uint $code) {
+            if ($code >= 32 && $code < 127 && $code != 34 && $code != 92) {
+                $plain = $plain . Core\Str::fromCodePoint($code);
+            } else {
+                $plain = $plain . "_";
+            }
+        }
+        return "attachment; filename=\"{$plain}\"; filename*=UTF-8''" . Core\Uri::encodeComponent($name);
     }
 }

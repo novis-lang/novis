@@ -36,7 +36,11 @@ memory:** the repeated rows stream, so a template of a thousand items costs what
   the drawings, the parts the shift rewrites), the template's sheet rows as they stream through, and
   one batch of repeated rows, freed when the request ends.
 
-**Not shipped.** Nothing of `Novis\Spreadsheet` is on disk.
+**Not shipped.** Blocks on more than one sheet: every block is on one sheet, or `fill` throws. A
+shared formula (`<f t="shared">`) in a repeated row is copied as it is, so its copies share one
+`si`, and an `x14` conditional format under `extLst` is not moved. A list is an array: an
+`Iterator` in `$data` is not a list. `Template::open`, `set` and `fill`, and an `Export` from `fill`
+to all four targets, are on disk.
 
 **Declined:**
 - **A list inside a list.** It needs nested blocks whose shifts compound, for a layout almost nobody

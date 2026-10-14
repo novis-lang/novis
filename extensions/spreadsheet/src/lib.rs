@@ -26,10 +26,11 @@
 //! **Reading** is `read`'s module doc: every `reader-` export reads the workbook through the
 //! `range` of the source its call is lent.
 //!
-//! **Template fill** is `template`'s module doc. **Not done yet:** its WIT exports return
-//! `runtime` and are not in `manifest.json` (Stage 10 of goal `spreadsheet`).
+//! **Template fill** is `template`'s module doc. Its `filling` resource is not named
+//! `template`, because a manifest's resource is a class in `Novis\Spreadsheet`, where `Template`
+//! is the Novis class over it.
 //!
-//! Packed as a `.nvsx` and embedded in every `nvs` binary, the component is 0.84 MiB, built for
+//! Packed as a `.nvsx` and embedded in every `nvs` binary, the component is 0.96 MiB, built for
 //! release as `crates/nvs-ext/build.rs` always builds it. That is the binary's growth for
 //! spreadsheets, and `crates/nvs-ext/tests/builtin.rs` fails when this figure drifts past 5% of
 //! the bytes the binary carries.
@@ -457,7 +458,7 @@ mod guest {
 
     use crate::tail;
     use exports::nvs::spreadsheet::engine as wit;
-    use exports::nvs::spreadsheet::engine::{Guest, GuestReading, GuestTemplate, GuestWriter};
+    use exports::nvs::spreadsheet::engine::{Guest, GuestFilling, GuestReading, GuestWriter};
     use nvs::ext::log;
     use nvs::ext::types::Value as Source;
 
@@ -625,13 +626,33 @@ mod guest {
         }
     }
 
-    /// Template fill, which Stage 10 of goal `spreadsheet` writes.
-    pub struct Template;
+    /// A template being filled, kept by the request that opened it.
+    pub struct Filling {
+        template: RefCell<crate::template::Template>,
+    }
 
-    impl GuestTemplate for Template {}
+    impl GuestFilling for Filling {}
 
-    fn filling() -> wit::Error {
-        wit::Error::Runtime("This version of Novis cannot fill templates yet.".to_owned())
+    fn placeholders(values: Vec<wit::Placeholder>) -> Vec<crate::template::Placeholder> {
+        values
+            .into_iter()
+            .map(|placeholder| (placeholder.path, placeholder.value.map(value)))
+            .collect()
+    }
+
+    fn finished(finished: crate::Finished) -> wit::Finished {
+        wit::Finished {
+            data: finished.data,
+            rows: finished
+                .rows
+                .into_iter()
+                .map(|sheet| wit::SheetRows {
+                    name: sheet.name,
+                    rows: sheet.rows,
+                })
+                .collect(),
+            size: finished.size,
+        }
     }
 
     fn error(err: crate::Error) -> wit::Error {
@@ -984,7 +1005,7 @@ mod guest {
     impl Guest for Component {
         type Writer = Book;
         type Reading = Reader;
-        type Template = Template;
+        type Filling = Filling;
 
         fn writer_open(options: wit::WorkbookOptions) -> Result<wit::Writer, wit::Error> {
             let properties = options.properties;
@@ -1063,19 +1084,7 @@ mod guest {
         }
 
         fn writer_finish(writer: wit::WriterBorrow<'_>) -> Result<wit::Finished, wit::Error> {
-            let finished = with(writer, crate::Writer::finish)?;
-            Ok(wit::Finished {
-                data: finished.data,
-                rows: finished
-                    .rows
-                    .into_iter()
-                    .map(|sheet| wit::SheetRows {
-                        name: sheet.name,
-                        rows: sheet.rows,
-                    })
-                    .collect(),
-                size: finished.size,
-            })
+            with(writer, crate::Writer::finish).map(finished)
         }
 
         fn reader_open(source: &Source) -> Result<wit::Reading, wit::Error> {
@@ -1285,39 +1294,64 @@ mod guest {
                 .map_err(error)
         }
 
-        fn template_open(_source: &Source) -> Result<wit::Template, wit::Error> {
-            Err(filling())
+        fn template_open(source: &Source) -> Result<wit::Filling, wit::Error> {
+            let template = crate::template::Template::open(&Lent(source)).map_err(error)?;
+            Ok(wit::Filling::new(Filling {
+                template: RefCell::new(template),
+            }))
         }
 
         fn template_set(
-            _template: wit::TemplateBorrow<'_>,
-            _address: String,
-            _value: wit::Cell,
+            template: wit::FillingBorrow<'_>,
+            address: String,
+            cell: Option<wit::CellValue>,
         ) -> Result<(), wit::Error> {
-            Err(filling())
+            template
+                .get::<Filling>()
+                .template
+                .borrow_mut()
+                .set(&address, cell.map(value))
+                .map_err(error)
         }
 
         fn template_fill(
-            _template: wit::TemplateBorrow<'_>,
-            _source: &Source,
-            _values: Vec<wit::Placeholder>,
-        ) -> Result<Vec<u8>, wit::Error> {
-            Err(filling())
+            template: wit::FillingBorrow<'_>,
+            values: Vec<wit::Placeholder>,
+            lists: Vec<String>,
+        ) -> Result<wit::Filled, wit::Error> {
+            let (data, lists) = template
+                .get::<Filling>()
+                .template
+                .borrow_mut()
+                .fill(placeholders(values), &lists)
+                .map_err(error)?;
+            Ok(wit::Filled { data, lists })
         }
 
         fn template_items(
-            _template: wit::TemplateBorrow<'_>,
-            _source: &Source,
-            _batch: wit::ItemBatch,
+            template: wit::FillingBorrow<'_>,
+            batch: wit::ItemBatch,
         ) -> Result<Vec<u8>, wit::Error> {
-            Err(filling())
+            let items = batch.items.into_iter().map(placeholders).collect();
+            template
+                .get::<Filling>()
+                .template
+                .borrow_mut()
+                .items(&batch.name, items)
+                .map_err(error)
         }
 
         fn template_finish(
-            _template: wit::TemplateBorrow<'_>,
-            _source: &Source,
+            template: wit::FillingBorrow<'_>,
+            source: &Source,
         ) -> Result<wit::Finished, wit::Error> {
-            Err(filling())
+            template
+                .get::<Filling>()
+                .template
+                .borrow_mut()
+                .finish(&Lent(source))
+                .map(finished)
+                .map_err(error)
         }
     }
 

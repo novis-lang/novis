@@ -343,7 +343,12 @@ fn meta_lists_the_built_in_components_classes_and_enums() {
             "readerImages",
             "readerProperties",
             "readerHeader",
-            "readerRows"
+            "readerRows",
+            "templateOpen",
+            "templateSet",
+            "templateFill",
+            "templateItems",
+            "templateFinish"
         ]
     );
     names(r"Novis\Spreadsheet\Written");
@@ -420,6 +425,10 @@ fn meta_lists_the_built_in_components_classes_and_enums() {
         ["constructor", "download", "save", "to", "bytes"]
     );
     assert_eq!(names(r"Novis\Spreadsheet\Style"), ["constructor", "of"]);
+    assert_eq!(
+        names(r"Novis\Spreadsheet\Template"),
+        ["open", "set", "fill"]
+    );
     for name in [
         "Line",
         "Underline",
