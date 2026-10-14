@@ -2967,20 +2967,50 @@ crate::nvs_helper! {
     }
 }
 
+/// How many characters of a `string` operand [`quoted_operand`] repeats in a
+/// failed membership test's message.
+///
+/// The operand is whatever the request sent, so a message that repeated all
+/// of it would copy a megabyte name into the exception and into every log
+/// line that records it. Sixty-four characters is longer than any property
+/// name, enum backing text or allowed literal a reader needs to recognise,
+/// and short enough that the message stays one log line. `Debug` escaping
+/// writes at most ten bytes per character (`\u{10ffff}`), so the shown part
+/// is at most 640 bytes whatever arrived.
+const SHOWN_OPERAND_CHARS: usize = 64;
+
+/// A `string` operand as the message shows it, backticks included: `Debug`
+/// quoting over at most [`SHOWN_OPERAND_CHARS`] characters, so a control
+/// character stays visible as its escape. A longer operand is cut on a
+/// character boundary, and the closing quote is followed by `…` and the
+/// whole operand's length in bytes: `` `"ownerowner…"…` (1000000 bytes) ``.
+///
+/// **Memory:** it runs only when a conversion has already failed, so a
+/// conversion that succeeds pays nothing. A failed one builds a message of
+/// at most about 700 bytes for its operand, where a whole copy would be
+/// the operand's own size again, escapes included.
+fn quoted_operand(text: &str) -> String {
+    match text.char_indices().nth(SHOWN_OPERAND_CHARS) {
+        None => format!("`{text:?}`"),
+        Some((end, _)) => format!("`{:?}…` ({} bytes)", &text[..end], text.len()),
+    }
+}
+
 /// One operand of a failed
 /// `rule:types/single-value-types`
-/// membership test, rendered the way § 6's compile-time sibling renders it:
-/// a `string` double-quoted, an integer bare. Only the representations a
-/// set of allowed values can name reach this — `nvs-codegen` boxed the operand
-/// from `Ty::Str`, `Ty::Int`, `Ty::Uint` or `Ty::Tagged` — so the last arm is
-/// a value that arrived through `mixed` carrying some other tag entirely,
-/// which is a miss for the same reason a wrong string is.
+/// membership test, rendered the way § 6's compile-time sibling renders it,
+/// backticks included: a `string` double-quoted ([`quoted_operand`]), an
+/// integer bare. Only the representations a set of allowed values can name
+/// reach this — `nvs-codegen` boxed the operand from `Ty::Str`, `Ty::Int`,
+/// `Ty::Uint` or `Ty::Tagged` — so the last arm is a value that arrived
+/// through `mixed` carrying some other tag entirely, which is a miss for the
+/// same reason a wrong string is.
 fn rendered_operand(value: Value) -> String {
-    match value.tag() {
-        Some(Tag::Str) => str_operand(&value).map_or_else(
-            || "a non-UTF-8 `bytes` value".to_owned(),
-            |text| format!("{text:?}"),
-        ),
+    let bare = match value.tag() {
+        Some(Tag::Str) => {
+            return str_operand(&value)
+                .map_or_else(|| "`a non-UTF-8 `bytes` value`".to_owned(), quoted_operand);
+        }
         Some(Tag::Int) => value.as_int().map_or_else(String::new, |n| n.to_string()),
         Some(Tag::Uint) => value.as_uint().map_or_else(String::new, |n| n.to_string()),
         // `rule:types/grammar`'s two `bool` singletons name a value each, so a miss
@@ -2991,7 +3021,8 @@ fn rendered_operand(value: Value) -> String {
             .map_or_else(String::new, |b| if b { "true" } else { "false" }.to_owned()),
         Some(Tag::Null) | None => "null".to_owned(),
         Some(other) => format!("a `{other:?}` value"),
-    }
+    };
+    format!("`{bare}`")
 }
 
 crate::nvs_helper! {
@@ -3018,7 +3049,7 @@ crate::nvs_helper! {
             .as_str_bytes()
             .and_then(|bytes| str::from_utf8(bytes).ok())
             .ok_or_else(|| wrong_tag("nvs_single_value_mismatch", Tag::Str, args[1]))?;
-        let message = format!("`{}` is not one of {accepted}", rendered_operand(args[0]));
+        let message = format!("{} is not one of {accepted}", rendered_operand(args[0]));
         #[expect(
             unsafe_code,
             reason = "the rendered set is a fresh `ConstStr` this call is the \
@@ -3508,6 +3539,56 @@ mod tests {
             .expect("the helper succeeded")
             .as_bool()
             .expect("a truthiness helper produces a bool")
+    }
+
+    /// A failed membership test repeats a short operand whole and cuts a long
+    /// one at [`SHOWN_OPERAND_CHARS`] characters, naming its length in bytes.
+    /// The multi-byte case puts a three-byte character across the byte that a
+    /// cut by bytes would land on, so a cut that is not on a character
+    /// boundary panics here.
+    #[test]
+    fn a_failed_conversion_repeats_at_most_a_bounded_head_of_its_operand() {
+        assert_eq!(quoted_operand("own\ner"), "`\"own\\ner\"`");
+        let whole = "a".repeat(SHOWN_OPERAND_CHARS);
+        assert_eq!(quoted_operand(&whole), format!("`{whole:?}`"));
+
+        let long = "owner".repeat(200_000);
+        let shown = quoted_operand(&long);
+        let head = &long[..SHOWN_OPERAND_CHARS];
+        assert_eq!(shown, format!("`{head:?}…` (1000000 bytes)"));
+
+        let wide = format!("{}{}", "a".repeat(SHOWN_OPERAND_CHARS - 1), "€".repeat(4));
+        let head = format!("{}€", "a".repeat(SHOWN_OPERAND_CHARS - 1));
+        assert_eq!(
+            quoted_operand(&wide),
+            format!("`{head:?}…` ({} bytes)", wide.len())
+        );
+
+        let mut ctx = Ctx::buffered();
+        let operand = Value::str(NvsStr::new(long.as_bytes()));
+        let accepted = Value::str(NvsStr::new(b"`Account`'s public declared properties"));
+        assert_eq!(
+            call(nvs_single_value_mismatch, &mut ctx, &[operand, accepted]).unwrap_err(),
+            crate::abi::THROWN,
+        );
+        assert_eq!(
+            ctx.take_pending().as_deref(),
+            Some(
+                format!(
+                    "`{:?}…` (1000000 bytes) is not one of `Account`'s public declared properties",
+                    &long[..SHOWN_OPERAND_CHARS]
+                )
+                .as_str()
+            ),
+        );
+        #[expect(
+            unsafe_code,
+            reason = "the operand is this test's own fresh string, which the \
+                      helper borrows and never releases"
+        )]
+        unsafe {
+            operand.release();
+        }
     }
 
     #[test]

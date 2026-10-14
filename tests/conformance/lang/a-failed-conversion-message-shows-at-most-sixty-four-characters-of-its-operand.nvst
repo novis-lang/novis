@@ -1,0 +1,42 @@
+--TEST--
+A failed conversion into a closed set shows at most 64 characters of a string operand, then `…` and the operand's whole length in bytes — `rule:types/single-value-types`
+--FILE--
+<?nvs
+class Account {
+    public string $owner = "ada";
+    public int $balance = 10;
+}
+
+// A name of a million bytes is cut in the message.
+string $long = Core\Str::repeat("owner", 200000);
+try {
+    property<Account> $key = $long as property<Account>;
+    echo "unreachable\n";
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+    echo Core\Str::length($e->message) < 200 ? "short" : "long", "\n";
+}
+
+// A cut never splits a character: the 64th character is the first `€`.
+string $wide = Core\Str::repeat("a", 63) . Core\Str::repeat("€", 4);
+try {
+    "a"|"b" $mode = $wide as "a"|"b";
+    echo "unreachable\n";
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+}
+
+// A short operand is shown whole, and a control character shows as its escape.
+string $short = "a\nb";
+try {
+    "a"|"b" $other = $short as "a"|"b";
+    echo "unreachable\n";
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+}
+// covers: lang:types/property-keys
+--EXPECT--
+`"ownerownerownerownerownerownerownerownerownerownerownerownerowne"…` (1000000 bytes) is not one of `Account`'s public declared properties: `$balance`, `$owner`
+short
+`"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa€"…` (75 bytes) is not one of `"a"`, `"b"`
+`"a\nb"` is not one of `"a"`, `"b"`

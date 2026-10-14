@@ -12,6 +12,7 @@
     "tests/conformance/lang/a-conversion-into-a-set-of-allowed-values-of-mixed-kinds-tags-its-operand.nvst",
     "tests/conformance/lang/a-conversion-the-operand-disproves-is-a-compile-error.nvst",
     "tests/conformance/lang/a-true-or-false-target-is-a-single-value-type-of-bool.nvst",
+    "tests/conformance/lang/a-failed-conversion-message-shows-at-most-sixty-four-characters-of-its-operand.nvst",
     "crates/nvs-types/tests/single_value_types.rs"
   ]
 }

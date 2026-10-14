@@ -24,7 +24,10 @@ and the checked conversion runs a membership test against the small, closed, com
 A failed conversion names the accepted set, generated from the type: ``` `"z"` is not one of `"a"`,
 `"b"`, `"c"` ``` (`E0469`). That is a **compile** error where the operand settles the question by
 itself — the target a closed set, the operand naming one value — and otherwise the ordinary checked
-conversion answered at run time. A `tainted` or `secret` value needs the same laundering it would need
+conversion answered at run time. The run-time message shows at most the first 64 characters of a
+`string` operand, then `…` and the operand's length in bytes, because the operand is often what a
+request sent and a message that repeated all of it would copy that into every log line that records
+it. A `tainted` or `secret` value needs the same laundering it would need
 to leave `mixed` for any other typed binding; neither qualifier gets a rule of its own here.
 
 There is **no `float` single-value type**, because float equality is imprecise enough that a type

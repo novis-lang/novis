@@ -60,6 +60,16 @@ while ($round < 1000) {
 }
 echo '3: refused ', $missed, " long names\n";
 
+// The same name with `as property<Account>`, which throws. The error message
+// shows only the start of the name, so the message stays short.
+try {
+    property<Account> $huge = $long as property<Account>;
+    echo '3: BAD, converted a name of length ', Core\Str::length($long), "\n";
+} catch (RuntimeError $e) {
+    uint $size = Core\Str::length($e->message);
+    echo $size < 1000 ? '3: caught, with a short message' : '3: BAD, the message repeats the name', "\n";
+}
+
 // 4. A key for the subclass `Savings` names `rate`. It tries to become a key
 //    for `Account`, which has no `rate`. This throws, and is caught.
 property<Savings> $rate = 'rate' as property<Savings>;
