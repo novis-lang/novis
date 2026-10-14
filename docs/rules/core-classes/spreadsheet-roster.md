@@ -42,10 +42,13 @@ a lying record length, a bomb — throws `ParseError`. Anything else the compone
 `RuntimeError`. A trap throws `ExtensionError`, and the request's memory or CPU cap ends the request
 (`rule:packaging/a-guest-crash-throws`).
 
+**On disk.** Every member the table names but `Cell::rich`, in `extensions/spreadsheet/nvs/`, and
+the enums in `extensions/spreadsheet/manifest.json`. `Visibility` is at namespace scope with the
+style enums, not owned by `Reader`. A `Style` also has the readonly `fields` and `key` that
+`Workbook` reads.
+
 **Not shipped.** `Cell::rich`: the writer writes rich text, and no Novis method reaches it, so a
-`Cell` is `of` alone. `Visibility` is at namespace scope with the style enums, not owned by `Reader`.
-A `Style` also has the readonly `fields` and `key` that `Workbook` reads. Every other member the
-table names is on disk.
+`Cell` is `of` alone.
 
 **Declined:**
 - **One `Spreadsheet` class with every member.** Writing, reading and filling share no state, and a

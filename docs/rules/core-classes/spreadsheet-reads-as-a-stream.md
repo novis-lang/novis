@@ -105,12 +105,15 @@ one. The engine's resource is `reading`, because a manifest's resource is a clas
 An xlsb stores a formula as parsed tokens and not as text, so with `formulas: true` an xlsb cell
 reads as its stored result and gives no `Formula`.
 
+**On disk.** `Reader::open`, `sheets()`, `rows()` and the extras read xlsx, xlsm, xlsb, xls, ods
+and CSV, from `bytes` or an open `Core\IO\File` (`extensions/spreadsheet/nvs/Reader.nvs`,
+`extensions/spreadsheet/src/read/`). A CSV is read by `Core\Csv` in the Novis half
+(`rule:core-classes/spreadsheet-has-no-io`).
+
 **Not shipped.** `links`, `notes`, `names`, `tables` and `images` from an xlsb, xls or ods file, and
 `properties` from an xls or ods file: each throws naming the format. An ods cell's `text` is
 rendered under the default format of its type, and not under the file's own number style.
-Month and day names are English in every `locale`. `Reader::open`,
-`sheets()` and `rows()` read xlsx, xlsm, xlsb, xls, ods and CSV, from `bytes` or an open
-`Core\IO\File`; a CSV is read by `Core\Csv` in the Novis half (`rule:core-classes/spreadsheet-has-no-io`).
+Month and day names are English in every `locale`.
 
 **Declined:**
 - **A pull loop in the Novis half.** It costs a guest return and a Novis call per block on the request

@@ -10,4 +10,6 @@ and it exists for the same reason: a test that cannot compare bytes ends up comp
 The component's tests owe a filled `.xlsm` template whose output a scanner finds no `vbaProject`
 part in, and the same input written twice and filled twice, each pair compared byte for byte.
 
-**Not shipped.** Nothing: the writer and the template filler both hold the rule.
+**On disk.** The writer (`extensions/spreadsheet/src/writer.rs`) and the template filler
+(`extensions/spreadsheet/src/template/`) both hold the rule, and `extensions/spreadsheet/tests/excel.rs`
+reads what each makes back through two readers.

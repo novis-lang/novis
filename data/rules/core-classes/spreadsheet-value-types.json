@@ -1,11 +1,17 @@
 {
   "title": "Every Novis value writes as one cell type and every cell reads as one Novis type, and an `Instant` needs a zone",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "core-classes/spreadsheet-formula-is-a-value",
     "core-classes/spreadsheet-reads-as-a-stream",
     "core-classes/spreadsheet-writes-as-a-stream"
   ],
-  "guardedBy": [],
-  "goal": "spreadsheet"
+  "guardedBy": [
+    "crates/nvs-ext/tests/spreadsheet.rs",
+    "crates/nvs-ext/tests/spreadsheet_read.rs",
+    "extensions/spreadsheet/tests/format.rs",
+    "tests/conformance/novis/spreadsheet-an-instant-with-no-zone-throws.nvst",
+    "tests/conformance/novis/spreadsheet-reads-back-what-it-wrote.nvst",
+    "tests/conformance/novis/spreadsheet-a-zip-code-column-reads-as-text.nvst"
+  ]
 }

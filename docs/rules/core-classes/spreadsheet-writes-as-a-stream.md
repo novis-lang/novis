@@ -62,11 +62,13 @@ paragraphs, written down once.
   the request's cap and freed when the request ends. A million rows cost one batch, never the sheet,
   so a large export runs in the request and not in a queue.
 
-**Not shipped.** The streaming writer (`extensions/spreadsheet/src/writer.rs`), the four targets,
+**On disk.** The streaming writer (`extensions/spreadsheet/src/writer.rs`), the four targets,
 `sheet`, `finish`, `Written`, `Sheet`'s `add` and `addAll` in batches of 1,000 rows, `fromRows` and
-`Export` are on disk (`extensions/spreadsheet/nvs/Workbook.nvs`, `Sheet.nvs`, `Export.nvs`), with
-every sheet option above, the sheet-name rules, and the row options `height`, `hidden`, `level` and
-`style`, and so are `define` and CSV. Not on disk: the cut-off download, which the server cannot do yet
+`Export` (`extensions/spreadsheet/nvs/Workbook.nvs`, `Sheet.nvs`, `Export.nvs`), with every sheet
+option above, the sheet-name rules, the row options `height`, `hidden`, `level` and `style`,
+`define` and CSV.
+
+**Not shipped.** The cut-off download, which the server cannot do yet
 (`data/gaps/nvs-server/a-streamed-body-cannot-be-cut-off.json`).
 
 **Declined:**

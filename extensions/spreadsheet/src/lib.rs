@@ -34,6 +34,70 @@
 //! release as `crates/nvs-ext/build.rs` always builds it. That is the binary's growth for
 //! spreadsheets, and `crates/nvs-ext/tests/builtin.rs` fails when this figure drifts past 5% of
 //! the bytes the binary carries.
+//!
+//! **Not done yet.** The second wave (`Cell::rich`, writing ods, an evaluate call) and the cut-off
+//! download are named in their rules' fragments. These are the rest, and none of them is checked
+//! against Excel:
+//!
+//! - Tables (`table`): a totals formula `[@x]` is written in its long form `[[#This Row],[x]]`.
+//!   No fixture has one, so opening it in Excel is not checked.
+//! - Template rows (`template`): a shared formula (`<f t="shared">`) in a repeated row is copied as
+//!   it is, so its copies share one `si`, and an `x14` conditional format under `extLst` is not
+//!   shifted.
+//! - Template values (`template`): a NUL in a filled value is written raw. A flat key
+//!   `'customer.name'` and a nested `customer.name` collide. `set('A1', …)` with no sheet name
+//!   writes to the first sheet. A `Date` into a cell with no date format is written as a bare
+//!   serial. When a missing placeholder throws depends on whether the sheet has a list row.
+//!   The `templateFill` export with one list name twice names the wrong problem, and the
+//!   `templateItems` export with an unknown list writes nothing.
+//! - Number formats (`format`): built-in id 14 renders as `m/d/yyyy` and id 22 as
+//!   `m/d/yyyy h:mm`, as Excel shows them in en-US, where SSF uses `m/d/yy`.
+//! - Reading ods and merges (`read::ods`, `read::merge`): an ods cell's `text` uses the default
+//!   format of its type and not the file's own number style, and a merged fill copies no `display`.
+//! - Extras (`read::extras`): links, notes, names, tables and images from xlsb, xls and ods, and
+//!   properties from xls and ods, throw naming the format. `notes` returns the `_x000D_` and
+//!   `_x0000_` escapes undecoded.
+//! - Rows (`read::sheet`): `Reader::rows` skips a row whose cells are all formulas with no cached
+//!   value, so a totals row of formulas this writer wrote does not read back. `rows` accepts an
+//!   unknown locale.
+//! - Sheets (`read`, `nvs/Reader.nvs`): `Reader::sheets` gives `rows: 0, columns: 0` for a file
+//!   [`Writer`] wrote, because the writer writes no sheet dimension, and it reads every sheet on
+//!   each call. A sheet name from `sheets()` is a `tainted string`, and the other methods take
+//!   `string|int`. Bytes that are not a spreadsheet open as a one-sheet CSV.
+//! - The decompression-bound errors (`read::zip`) name a rule id, which a message a user reads
+//!   should not.
+//! - Charts (`chart`): a series range may point into another workbook or a URL
+//!   (`[other.xlsx]Shop!B2:B3`), a sheet name in it may have 10,000 characters or control
+//!   characters, an unclosed quote is read as part of the name, and `Shops!Shops!B2:B3` reads as
+//!   the sheet `Shops!Shops`. The sheet name is escaped as XML text. `Sheet::chart` accepts a
+//!   title of 100,000 characters.
+//! - Sheet-end parts (`drawing`, `tail`, `conditional`, `nvs/Sheet.nvs`): `Sheet::image` accepts a
+//!   PNG cut to 30 bytes and a width of 10,000,000 pixels. `Sheet::validate` writes text limits
+//!   for a `whole` rule. `Sheet::conditional` takes a 10,000-character formula, where Excel allows
+//!   8,192. A second `Sheet::print` replaces the first one's settings.
+//! - Addresses (`nvs/Sheet.nvs`): `Sheet::cell` after the sheet is finished throws "cannot add
+//!   parts to it". `Sheet::column($key)` before any data row returns the header cell, and the
+//!   `writerColumn` export on a sheet with no data row returns a one-cell range. `cell('qty', 2)`
+//!   before the first keyed row reads the key as column letters. The `writerCell` export names a
+//!   column cut to 32 bits in its message.
+//! - Names and values (`writer`, `cells`, `nvs/Workbook.nvs`): `Workbook::define` writes a
+//!   DDE-like reference such as `cmd|'/c calc'!A0`, and takes `R1C1` and a 100,000-character
+//!   name. `Workbook::sheet` takes `History` and a name with NUL. `Formula::of` takes an empty text
+//!   or 1,000,000 characters, where Excel allows 8,192. A sheet with
+//!   `{header: true, autofilter: true}` gets no filter name, where `fromRows` writes one. A NaN
+//!   throws for xlsx and is written for CSV.
+//! - `Export` (`nvs/Export.nvs`): an `Export` over a generator gives no rows the second time.
+//! - Engine exports (`guest`): the reader exports do not check that `source` is the file
+//!   `readerOpen` read. `readerRows` with `max` 0 returns `done: false`. Each `readerProperties`
+//!   call counts against the reading's byte bound.
+//! - Extension contagion does not reach a shape's fields (`crates/nvs-types/src/expr/quals.rs`,
+//!   `rule:security/extension-contagion`), which is why `nvs/Reader.nvs` writes its `tainted`
+//!   types by hand. That is a compiler fix.
+//! - Cost: `Template::open` costs about 2.6 ms and 1.1 MB on a tiny template, and one `set` about
+//!   1.3 ms and 600 KB. 20,000 merges take about 15 s in a debug build. A request keeps every
+//!   extension resource until it ends (`crates/nvs-ext/src/call.rs`), so some hundreds of
+//!   unfinished writers in one request reach the extension's memory limit. That is O(in-flight)
+//!   and under the request's cap.
 
 pub mod cells;
 pub mod chart;
