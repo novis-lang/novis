@@ -749,6 +749,16 @@ impl<'a> Lowering<'a> {
                         cur,
                     );
                 }
+                // A written-out name under the same target. The checker records no
+                // set for one, because `rule:types/property-key` decides it where it
+                // is written: a name outside the set is `E0405` and never reaches
+                // here, so this operand is a member and the conversion cannot miss.
+                // It is the checked form's free `Ty::Str` row with the `?T` tag
+                // put on. Without this arm it would reach `Self::convert_or_null`
+                // as `Str as ?Str`, a pair that function has no row for.
+                if self.is_property_key_target(ty) {
+                    return self.convert(v, from, Ty::Tagged, inner, env, *cur);
+                }
                 // `rule:expressions/nullable-conversion-availability` row 2 — a literal or enum-case target, the
                 // "non-throwing twin" of the checked conversion. The target
                 // is `T|null` minus `null`, which is the one place it still
@@ -1555,7 +1565,8 @@ impl<'a> Lowering<'a> {
     /// `None` for every other annotation, **and for a written-out operand**:
     /// `rule:types/property-key` decides `"email" as property<User>` where it is written, so the
     /// checker records no entry for one and the conversion is the free
-    /// `Ty::Str` → `Ty::Str` row [`Self::convert`] already answers.
+    /// `Ty::Str` → `Ty::Str` row [`Self::convert`] already answers, or under
+    /// `as ?property<T>` that row tagged ([`Self::is_property_key_target`]).
     ///
     /// The rendering is the throw's whole message past the name that failed —
     /// `nvs_runtime`'s `nvs_single_value_mismatch` writes "`x` is not one of " in
@@ -1582,6 +1593,19 @@ impl<'a> Lowering<'a> {
                         .join(", ")
                 )
             },
+        })
+    }
+
+    /// Whether an `as ?T` annotation's `T` is one `property<C>` atom, read off
+    /// the checked type. [`Self::property_key_set`] is the test for a target
+    /// whose set travels to run time; this one holds for a written-out operand
+    /// too, which carries no set.
+    fn is_property_key_target(&self, ty: &Type) -> bool {
+        self.nullable_target_atoms(ty).is_some_and(|atoms| {
+            matches!(
+                atoms.as_slice(),
+                [atom] if matches!(self.checked_types.get(*atom), CheckedTy::PropertyKey(_))
+            )
         })
     }
 

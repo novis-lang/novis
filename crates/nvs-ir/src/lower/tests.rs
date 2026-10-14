@@ -4893,3 +4893,30 @@ fn an_extension_static_call_lowers_to_a_direct_call_of_its_export_trampoline() {
         "a trampoline call can throw, so it has an error edge"
     );
 }
+
+/// `rule:types/property-key`'s written-out operand under `as ?property<T>`.
+/// The checker decided the name where it is written, so the lowering emits
+/// the free `Ty::Str` row with the `?T` tag put on: no membership chain and
+/// no null branch. A computed name beside it still gets the chain, which is
+/// what the two counts compare.
+#[test]
+fn a_written_name_into_a_nullable_property_key_is_tagged_and_tests_nothing() {
+    let (written, map, file) = lower_script_src(
+        "<?nvs
+class Profile { public string $city = \"Vienna\"; }
+?property<Profile> $key = \"city\" as ?property<Profile>;
+",
+    );
+    let written = print_function(&written, map.file(file));
+    let (computed, map, file) = lower_script_src(
+        "<?nvs
+class Profile { public string $city = \"Vienna\"; }
+string $name = \"ci\" . \"ty\";
+?property<Profile> $key = $name as ?property<Profile>;
+",
+    );
+    let computed = print_function(&computed, map.file(file));
+    let phis = |text: &str| text.lines().filter(|l| l.contains(" phi ")).count();
+    assert_eq!(phis(&written), 0, "{written}");
+    assert!(phis(&computed) > 0, "{computed}");
+}
