@@ -11,9 +11,9 @@ class Attack
     {
         try {
             bytes $file = $export->bytes();
-            echo "step ", $step, " ran ", Core\Bytes::length($file) > 0 ? "file" : "empty", "\n";
+            echo 'step ', $step, ' ran ', Core\Bytes::length($file) > 0 ? 'file' : 'empty', "\n";
         } catch (Throwable $e) {
-            echo "step ", $step, " stopped ", $e::class, "\n";
+            echo 'step ', $step, ' stopped ', $e::class, "\n";
         }
     }
 
@@ -21,19 +21,19 @@ class Attack
     public static function rows(): Iterator<array<mixed>>
     {
         for (int $at = 0; $at < 3; $at++) {
-            yield ["order" => $at];
+            yield ['order' => $at];
         }
     }
 }
 
 // 1. A cell of 5,000,000 characters. Excel shows at most 32,767 characters in a cell.
-string $huge = Core\Str::repeat("x", 5000000);
-Attack::attempt(1, Workbook::fromRows([["note" => $huge]]));
-Attack::attempt(1, Workbook::fromRows([["note" => $huge]], {format: "csv"}));
+string $huge = Core\Str::repeat('x', 5000000);
+Attack::attempt(1, Workbook::fromRows([['note' => $huge]]));
+Attack::attempt(1, Workbook::fromRows([['note' => $huge]], { format: 'csv' }));
 
 // 2. A header key of 100,000 characters, and a cell full of quotes and line breaks.
-Attack::attempt(2, Workbook::fromRows([[Core\Str::repeat("k", 100000) => 1]]));
-Attack::attempt(2, Workbook::fromRows([["note" => Core\Str::repeat("\"\r\n,", 50000)]], {format: "csv"}));
+Attack::attempt(2, Workbook::fromRows([[Core\Str::repeat('k', 100000) => 1]]));
+Attack::attempt(2, Workbook::fromRows([['note' => Core\Str::repeat("\"\r\n,", 50000)]], { format: 'csv' }));
 
 // 3. `bytes` is called twice on the same export. Its generator is used up after the first call.
 var $once = Workbook::fromRows(Attack::rows());
@@ -42,7 +42,7 @@ Attack::attempt(3, $once);
 
 // 4. An export whose function throws before it adds a sheet, and one that adds no sheet.
 Attack::attempt(4, new Export(fn (Workbook $book): void => {
-    throw new RuntimeError("the database went away");
+    throw new RuntimeError('the database went away');
 }, null));
 Attack::attempt(4, new Export(fn (Workbook $book): void => {}, null));
 
@@ -51,4 +51,4 @@ array<array<mixed>> $many = [];
 for (int $at = 0; $at < 200000; $at++) {
     $many[] = [$at];
 }
-Attack::attempt(5, Workbook::fromRows($many, {format: "csv"}));
+Attack::attempt(5, Workbook::fromRows($many, { format: 'csv' }));

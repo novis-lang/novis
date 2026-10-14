@@ -10,27 +10,27 @@ class Attack
     {
         try {
             var $book = Workbook::createForFile($path);
-            $book->sheet("Shop")->add(["order" => $step]);
+            $book->sheet('Shop')->add(['order' => $step]);
             $book->finish();
-            echo "step ", $step, " ran\n";
+            echo 'step ', $step, " ran\n";
         } catch (Throwable $e) {
-            echo "step ", $step, " stopped ", $e::class, "\n";
+            echo 'step ', $step, ' stopped ', $e::class, "\n";
         }
     }
 }
 
 // 1. A file in this folder, and one in a folder above it.
-Attack::attempt(1, "orders.xlsx");
-Attack::attempt(1, "../../orders.csv");
+Attack::attempt(1, 'orders.xlsx');
+Attack::attempt(1, '../../orders.csv');
 
 // 2. Paths from the root of the disk.
-Attack::attempt(2, "/etc/cron.d/orders.csv");
+Attack::attempt(2, '/etc/cron.d/orders.csv');
 Attack::attempt(2, "C:\\Windows\\orders.xlsx");
 
 // 3. A NUL byte in the path, an empty path, and a folder.
 Attack::attempt(3, "orders.xlsx\u{0}.txt");
-Attack::attempt(3, "");
-Attack::attempt(3, ".");
+Attack::attempt(3, '');
+Attack::attempt(3, '.');
 
 // 4. A path of 100,000 characters.
-Attack::attempt(4, Core\Str::repeat("a/", 50000) . "orders.xlsx");
+Attack::attempt(4, Core\Str::repeat('a/', 50000) . 'orders.xlsx');

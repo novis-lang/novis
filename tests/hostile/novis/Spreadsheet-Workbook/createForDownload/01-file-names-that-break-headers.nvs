@@ -9,12 +9,12 @@ class Attack
     public static function attempt(int $step, string $name): void
     {
         try {
-            var $book = Workbook::createForDownload($name, {format: "csv"});
-            $book->sheet("Shop")->add(["order" => $step]);
+            var $book = Workbook::createForDownload($name, { format: 'csv' });
+            $book->sheet('Shop')->add(['order' => $step]);
             $book->finish();
             echo "\nstep ", $step, " ran\n";
         } catch (Throwable $e) {
-            echo "\nstep ", $step, " stopped ", $e::class, "\n";
+            echo "\nstep ", $step, ' stopped ', $e::class, "\n";
         }
     }
 }
@@ -29,12 +29,12 @@ Attack::attempt(2, "orders\\\".csv");
 
 // 3. A NUL byte, an empty name, and a path to another folder.
 Attack::attempt(3, "orders\u{0}.exe");
-Attack::attempt(3, "");
-Attack::attempt(3, "../../etc/passwd");
+Attack::attempt(3, '');
+Attack::attempt(3, '../../etc/passwd');
 
 // 4. A name of 100,000 characters, and one with right-to-left marks and emoji.
-Attack::attempt(4, Core\Str::repeat("a", 100000) . ".csv");
+Attack::attempt(4, Core\Str::repeat('a', 100000) . '.csv');
 Attack::attempt(4, "\u{202e}vsc.exe\u{1F4B8}");
 
 // 5. A second download in the same request, after the first one sent its headers.
-Attack::attempt(5, "second.csv");
+Attack::attempt(5, 'second.csv');

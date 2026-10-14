@@ -13,20 +13,21 @@ class Attack
     {
         try {
             $write();
-            echo "step ", $step, " ran\n";
+            echo 'step ', $step, " ran\n";
         } catch (Throwable $e) {
-            echo "step ", $step, " stopped ", $e::class, "\n";
+            echo 'step ', $step, ' stopped ', $e::class, "\n";
         }
     }
 
     // This generator gives 2,000 rows, and calls `finish` on the workbook in the middle of them.
-    public static function rows(): Iterator<array<mixed>> {
+    public static function rows(): Iterator<array<mixed>>
+    {
         int $at = 0;
         while ($at < 2000) {
             if ($at == 1500) {
                 self::$current?->finish();
             }
-            yield ["order" => $at];
+            yield ['order' => $at];
             $at = $at + 1;
         }
     }
@@ -35,7 +36,7 @@ class Attack
 // 1. `finish` twice, and `finish` with no sheet.
 Attack::attempt(1, fn (): void => {
     var $book = Workbook::createInMemory();
-    $book->sheet("Shop")->add(["order" => 1]);
+    $book->sheet('Shop')->add(['order' => 1]);
     $book->finish();
     $book->finish();
 });
@@ -46,11 +47,11 @@ Attack::attempt(1, fn (): void => {
 // 2. A row with a value a cell cannot have, after 1,500 good rows, and then `finish`.
 var $broken = Workbook::createInMemory();
 Attack::attempt(2, fn (): void => {
-    var $sheet = $broken->sheet("Shop");
+    var $sheet = $broken->sheet('Shop');
     for (int $at = 0; $at < 1500; $at++) {
-        $sheet->add(["order" => $at]);
+        $sheet->add(['order' => $at]);
     }
-    $sheet->add(["order" => [1, 2]]);
+    $sheet->add(['order' => [1, 2]]);
 });
 Attack::attempt(2, fn (): void => {
     $broken->finish();
@@ -60,7 +61,7 @@ Attack::attempt(2, fn (): void => {
 Attack::attempt(3, fn (): void => {
     var $book = Workbook::createInMemory();
     Attack::$current = $book;
-    $book->sheet("Shop")->addAll(Attack::rows());
+    $book->sheet('Shop')->addAll(Attack::rows());
     $book->finish();
 });
 
@@ -69,6 +70,6 @@ Attack::attempt(3, fn (): void => {
 echo "step 4\n";
 for (int $at = 0; $at < 5000; $at++) {
     var $book = Workbook::createInMemory();
-    $book->sheet("Blog");
+    $book->sheet('Blog');
     $book->finish();
 }

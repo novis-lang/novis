@@ -1,8 +1,8 @@
 <?nvs
 // Attack: a request defines names from user text: names that look like cells, references with XML,
 // and 5,000 names in one workbook. Each name should be defined or throw an error, and the file should open again.
-use Novis\Spreadsheet\Workbook;
 use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
 
 class Attack
 {
@@ -11,36 +11,36 @@ class Attack
     {
         try {
             var $book = Workbook::createInMemory();
-            $book->sheet("Shop")->add(["order" => 1]);
+            $book->sheet('Shop')->add(['order' => 1]);
             $book->define($name, $reference);
             bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
-            echo "step ", $step, " ran ", Core\Arr::count(Reader::open($file)->names()), " names\n";
+            echo 'step ', $step, ' ran ', Core\Arr::count(Reader::open($file)->names()), " names\n";
         } catch (Throwable $e) {
-            echo "step ", $step, " stopped ", $e::class, "\n";
+            echo 'step ', $step, ' stopped ', $e::class, "\n";
         }
     }
 }
 
 // 1. Names that are cells or ranges: the last cell of a sheet, one past it, and a row and column form.
-Attack::attempt(1, "XFD1048576", "Shop!\$A\$1");
-Attack::attempt(1, "XFE1", "Shop!\$A\$1");
-Attack::attempt(1, "R1C1", "Shop!\$A\$1");
+Attack::attempt(1, 'XFD1048576', "Shop!\$A\$1");
+Attack::attempt(1, 'XFE1', "Shop!\$A\$1");
+Attack::attempt(1, 'R1C1', "Shop!\$A\$1");
 
 // 2. An empty name, a NUL byte, and a name of 100,000 letters.
-Attack::attempt(2, "", "Shop!\$A\$1");
+Attack::attempt(2, '', "Shop!\$A\$1");
 Attack::attempt(2, "Total\u{0}", "Shop!\$A\$1");
-Attack::attempt(2, Core\Str::repeat("a", 100000), "Shop!\$A\$1");
+Attack::attempt(2, Core\Str::repeat('a', 100000), "Shop!\$A\$1");
 
 // 3. References with XML, a formula that calls a program, and an empty reference.
-Attack::attempt(3, "Total", "Shop!\$A\$1</definedName><definedName name=\"x\">1");
-Attack::attempt(3, "Total", "cmd|' /C calc'!A0");
-Attack::attempt(3, "Total", "");
+Attack::attempt(3, 'Total', "Shop!\$A\$1</definedName><definedName name=\"x\">1");
+Attack::attempt(3, 'Total', "cmd|' /C calc'!A0");
+Attack::attempt(3, 'Total', '');
 
 // 4. 5,000 names in one workbook.
 var $book = Workbook::createInMemory();
-$book->sheet("Shop")->add(["order" => 1]);
+$book->sheet('Shop')->add(['order' => 1]);
 for (int $at = 0; $at < 5000; $at++) {
-    $book->define("Name" . ($at as string), "Shop!\$A\$1");
+    $book->define('Name' . ($at as string), "Shop!\$A\$1");
 }
 bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
-echo "step 4 ran ", Core\Arr::count(Reader::open($file)->names()), " names\n";
+echo 'step 4 ran ', Core\Arr::count(Reader::open($file)->names()), " names\n";
