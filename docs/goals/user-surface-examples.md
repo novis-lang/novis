@@ -6,7 +6,7 @@ context: []
 stages:
   - id: 1
     title: "`Image\\Diff`'s constructor has its examples"
-    status: open
+    status: done
     context: [extensions/image/nvs/Diff.nvs, data/proofs/policy.json]
     extra:
       context:
@@ -124,8 +124,8 @@ The website shows the example as usual. Home: `docs/examples/README.md`.
 
 **Does:** `new Novis\Image\Diff(...)` has three examples, and the policy no longer excuses it.
 
-- [ ] Three examples of the constructor (`docs/examples/novis/Image-Diff/constructor/01-a-diff-from-its-values.nvs:1`, `extensions/image/nvs/Diff.nvs:9`)
-- [ ] Its examples skip deleted (`data/proofs/policy.json:71`)
+- [x] Three examples of the constructor (`docs/examples/novis/Image-Diff/constructor/01-a-diff-from-its-values.nvs:1`, `extensions/image/nvs/Diff.nvs:9`)
+- [x] Its examples skip deleted (`data/proofs/policy.json:71`)
 
 ### 2. a built-in component's engine class is internal to its component
 
@@ -169,18 +169,26 @@ entry or Reference page names one.
 
 ### State
 
-Nothing is built. The website already shows each feature's examples (`website/src/lib/feature.ts`)
-and every type's page, and `bun nv site --check reference` is green.
+Stage 1 is done: `new Novis\Image\Diff` has three examples under
+`docs/examples/novis/Image-Diff/constructor/`, and the policy keeps only its `perf` and `hostile`
+skips. `diff-examples` passes. Stages 2 to 5 are not started.
 
 ### Next
 
-Stage 1, then stage 2, over the image component and the type checker:
+Stage 2, over the type checker, the component loader and the image conformance cases:
 
-- `Image\Diff`'s constructor examples, and its skip deleted from `data/proofs/policy.json`
-  (`rule:testing/feature-proofs`).
 - The engine call check, where a static call resolves its class
-  (`crates/nvs-types/src/expr/calls.rs`), and the new packaging fragment.
+  (`crates/nvs-types/src/expr/calls.rs:263`), fed the engine classes from each manifest
+  (`crates/nvs-ext/src/load.rs:78`) (`rule:packaging/the-first-party-components-are-built-in`).
+- Its diagnostic and card (`crates/nvs-diagnostics/src/lib.rs:5499`), the new case
+  `tests/conformance/novis/a-program-cannot-call-a-components-engine.nvst`, and the new fragment
+  `docs/rules/packaging/a-components-engine-class-is-internal.md`.
+- The 26 cases that call an engine directly, rewritten onto the public classes
+  (`tests/conformance/novis/image-compare-counts-the-pixels-that-differ.nvst:1`); a subagent per
+  component fits this best.
 
 ### Backlog
 
-- Stages 3 to 5, as the stages say.
+- Stages 3 to 5, as the stages say (`docs/goals/user-surface-examples.md`).
+- `bun nv side --prepare` does not install `editors/vscode`'s packages, so a side worktree's verify
+  fails its extension step until `npm ci` runs there (`tools/nv/cmd/side.ts:38`).
