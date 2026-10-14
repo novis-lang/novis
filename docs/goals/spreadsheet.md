@@ -768,27 +768,27 @@ One file set: `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/n
 
 ### State
 
-**Stage 9 is done.** `spreadsheet-csv-through-the-same-api` passes, with its three cases under `tests/conformance/novis/`.
+**Stage 10's Rust core is on disk and its check is green**: `cargo test --manifest-path extensions/spreadsheet/Cargo.toml --test template` passes all 13 tests. `spreadsheet-a-template-fills-an-invoice` is still red, because nothing reaches the core from Novis yet.
 
-- **Reading CSV.** `Reader::open` (`extensions/spreadsheet/nvs/Reader.nvs`) reads a source as CSV when it does not start with `PK` and a control byte and its start is UTF-8. `bytes` are decoded whole with `Core\Encoding::decodeText`. A file's first four bytes are read, and its position is put back. Anything else goes to the engine as before. `Reading` is `?Reading`, `null` for CSV, and `engine()` gives it to every engine call.
-- A CSV is one sheet, `Sheet1`. Its extras are empty and its properties `null`. `rows` walks `records()` (`Core\Csv::parse` for `bytes`, `Core\Csv::rows` for a file, after a byte order mark) in the generator `csvWalk`. The header keys are numbered and lettered as the engine does. An empty field is an empty cell, and every value is a `string`.
-- **Writing CSV.** `Workbook` (`extensions/spreadsheet/nvs/Workbook.nvs`) writes CSV for a `.csv` name or `{format: 'csv'}`. `flush` formats each batch with `Core\Csv::format`. The engine writer still opens, checks the sheet name and logs a workbook never finished, and `send` drops its bytes. `finish` counts the CSV rows and bytes itself. A second sheet throws naming both sheets.
-- **A string that starts with `=`, `+`, `-`, `@`, a tab or a carriage return is written to CSV with a `'` first**, so Excel reads it as text. This was the safe default, taken without the user. It changes the data for every tool that reads the file, so the user may want to confirm it. Reading does not strip the `'`. The trade-offs are in `docs/rules/core-classes/spreadsheet-has-no-io.md`.
-- `Core\Csv` needed nothing new.
+- `extensions/spreadsheet/src/template/` is the filler. `mod.rs` has `Template::open`, `set`, `fill(values, lists) -> (bytes, list order)`, `items(list, batch)` and `finish(source) -> Finished`. `sheet.rs` parses a worksheet into rows and cells with byte ranges, so every byte that is not filled is copied as it was. `shift.rs` is the A1 shifter. The module docs say what each one does.
+- **`fill` takes the list names, and returns the lists in the order their blocks stand.** The Novis half sends `items` batches in that order. An item's placeholder paths are relative to the item (`qty`, not `items.qty`).
+- **The block's sheet streams** unless a formula above the last block names a row the first block moves. In that case the items are kept and the sheet is written at `finish` (`Template::must_hold`).
+- These were safe defaults, taken without the user. All blocks must be on one sheet, or `fill` throws. `calcChain.xml` is dropped, and `calcPr` gets `fullCalcOnLoad`. A sheet with a block loses its `<dimension>`. A list with no items removes its rows.
+- **The WIT does not match the core yet.** `template-fill` in `wit/spreadsheet.wit:654` still takes no list names and returns `list<u8>`.
 
 ### Next
 
-**Stage 10, template fill** (`rule:core-classes/spreadsheet-template-fill`). Files: `extensions/spreadsheet/src/template/` (new), `extensions/spreadsheet/src/lib.rs`, `extensions/spreadsheet/nvs/Template.nvs` (new), `wit/spreadsheet.wit`.
+**Stage 10, the Novis half** (`rule:core-classes/spreadsheet-template-fill`). Files: `wit/spreadsheet.wit`, `extensions/spreadsheet/src/lib.rs`, `extensions/spreadsheet/manifest.json`, `extensions/spreadsheet/nvs/Template.nvs` (new), `tests/conformance/novis/`.
 
-- [ ] **Placeholders and one cell.** `template_open` and `template_set` (`extensions/spreadsheet/src/lib.rs:1287`, `wit/spreadsheet.wit:649`) copy every part but the filled cells unchanged. A lone placeholder keeps its value's type, and a value beginning with `=` stays text. Tests in `extensions/spreadsheet/tests/template.rs`.
-- [ ] **Lists and blocks.** `template_fill` and `template_items` (`wit/spreadsheet.wit:654`) repeat a list's row and a defined name's block, and a list inside a list throws.
-- [ ] **The shifter.** Rows below a block move with every part that points at them, and a range over the template row grows (`wit/spreadsheet.wit:656`, `wit/spreadsheet.wit:659`). Then `Template.nvs` and the two Stage 10 cases.
+- [ ] **The WIT and the glue.** Change `template-fill` (`wit/spreadsheet.wit:654`) to take `lists: list<string>` and return a record `{data, lists}`. Wire the five exports in `extensions/spreadsheet/src/lib.rs:1287` to `crate::template::Template` through `Lent`, as `reader_open` does. Add them to `manifest.json`, and add the member list to `crates/nvs-cli/tests/meta.rs` in the same slice (playbook trap).
+- [ ] **`Template.nvs`.** `open(tainted bytes|Core\IO\File)`, `set`, and `fill($data)` returning an `Export`. `fill` flattens `$data` into dotted paths and sends each list as `items` batches. A list inside an item throws, naming both lists. Follow `extensions/spreadsheet/nvs/Workbook.nvs:83` for the targets.
+- [ ] **The two cases**, `tests/conformance/novis/spreadsheet-a-template-fills-an-item-list.nvst` and `spreadsheet-a-missing-placeholder-throws.nvst`. Build the template in the case as `extensions/spreadsheet/tests/template.rs:73` builds one. Then set Stage 10 to done.
 
 ### Backlog
 
+- A shared formula (`<f t="shared">`) in a repeated row is copied as it is, so its copies share one `si`. Its `x14` conditional formats under `extLst` are not shifted either. `extensions/spreadsheet/src/template/mod.rs:@write_cell`
 - Built-in id 14 renders as `m/d/yyyy` and id 22 as `m/d/yyyy h:mm`, which is what Excel shows in en-US. SSF uses `m/d/yy`. `extensions/spreadsheet/src/format/mod.rs:@builtin`
 - An ods cell's `text` uses the default format of its type, not the file's own number style. A merged fill copies no `display`. `extensions/spreadsheet/src/read/ods.rs:1`, `extensions/spreadsheet/src/read/merge.rs:166`
 - The extras from xlsb, xls and ods, which throw naming the format now. `extensions/spreadsheet/src/read/extras.rs:1`
-- Extension contagion does not reach a shape's fields (`crates/nvs-types/src/expr/quals.rs:531`'s `tainted_result`, `rule:security/extension-contagion`). This is a compiler fix, outside this goal.
-- The style enums under `Style` (`rule:core-classes/spreadsheet-styles-and-defaults`, `extensions/spreadsheet/nvs/Style.nvs:23`). `Cell::rich`, and the shapes of `validate`, `conditional` and `Chart`'s options (`rule:core-classes/spreadsheet-sheet-end-parts`).
+- Extension contagion does not reach a shape's fields (`crates/nvs-types/src/expr/quals.rs:531`, `rule:security/extension-contagion`). This is a compiler fix, outside this goal.
 - Stages 11 to 14. Stage 14's proofs owe `Row` a group, and `Reader::rows`'s doc comment is four lines where `bun nv proofs --comments` allows two. Stage 11 owes `an_xlsb_record_whose_length_lies_throws` and `an_xls_sector_chain_that_loops_is_refused` (`extensions/spreadsheet/src/read/cfb.rs`).
