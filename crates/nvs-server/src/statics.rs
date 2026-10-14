@@ -30,6 +30,10 @@
 //!   That is `rule:errors/ambiguous-input-refused`'s direction: serving something other than what was asked
 //!   for is repairing the request, and a client that meant to resume would write
 //!   the wrong bytes to disk on the strength of it.
+//! - **`If-Range` against the same tag, compared strongly.** A range whose
+//!   `If-Range` names anything but the current tag is ignored and the whole
+//!   file is a `200`, so a resumed download of a changed file is never two
+//!   files spliced together ([`still_the_same`]).
 //! - **A fixed extension table**, with `application/octet-stream` for an unknown
 //!   one — which `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`'s
 //!   `nosniff` renders inert rather than leaving to a browser to guess.
@@ -67,7 +71,7 @@ use std::time::SystemTime;
 use hyper::body::Bytes;
 use hyper::header::{
     ACCEPT_RANGES, CACHE_CONTROL, CONTENT_RANGE, CONTENT_TYPE, ETAG, HeaderMap, HeaderValue,
-    IF_NONE_MATCH, RANGE,
+    IF_NONE_MATCH, IF_RANGE, RANGE,
 };
 use hyper::{Response, StatusCode};
 
@@ -174,9 +178,9 @@ impl Source for OnDisk {
 /// A **program's** file body does: `Core\Response::sendFile` declares one only
 /// while the request runs, by which time the request is the isolate's, so
 /// [`crate::serve`] has to decide before the handler what it may still be asked
-/// for. Copying the two named here rather than the whole map is what keeps that
-/// decision free — a request that sent neither leaves an empty map, which
-/// allocates nothing, and one that sent both pays two header values on a
+/// for. Copying the three named here rather than the whole map is what keeps
+/// that decision free — a request that sent none leaves an empty map, which
+/// allocates nothing, and one that sent all three pays three header values on a
 /// response that is about to read a file.
 ///
 /// A header this policy comes to read is added here in the same edit, and a
@@ -185,7 +189,7 @@ impl Source for OnDisk {
 #[must_use]
 pub fn asked(headers: &HeaderMap) -> HeaderMap {
     let mut kept = HeaderMap::new();
-    for name in [IF_NONE_MATCH, RANGE] {
+    for name in [IF_NONE_MATCH, IF_RANGE, RANGE] {
         if let Some(value) = headers.get(&name) {
             kept.insert(name, value.clone());
         }
@@ -234,7 +238,8 @@ pub fn send(file: &Path, headers: &HeaderMap, source: &dyn Source) -> Reply {
         *response.status_mut() = StatusCode::NOT_MODIFIED;
         return Reply::Done(response);
     }
-    let Some(wanted) = asked_for(headers.get(RANGE), stat.len) else {
+    let range = headers.get(RANGE).filter(|_| still_the_same(headers, &tag));
+    let Some(wanted) = asked_for(range, stat.len) else {
         *response.status_mut() = StatusCode::RANGE_NOT_SATISFIABLE;
         response
             .headers_mut()
@@ -295,6 +300,21 @@ fn unchanged(headers: &HeaderMap, tag: &str) -> bool {
     asked.split(',').map(str::trim).any(|candidate| {
         candidate == "*" || candidate.strip_prefix("W/").unwrap_or(candidate) == tag
     })
+}
+
+/// Whether a `Range` may be honoured: there is no `If-Range`, or it names the
+/// tag this file has now.
+///
+/// The comparison is strong (RFC 9110 § 13.1.5), so a `W/` tag never matches.
+/// Nor does a date, because this server sends no `Last-Modified` and so no
+/// date can name this file. Anything that does not match makes the caller
+/// ignore the range and send the whole file with a `200`. A client resuming a
+/// download of a file that changed then gets the new file whole, and never
+/// the new file's bytes spliced onto the old file's.
+fn still_the_same(headers: &HeaderMap, tag: &str) -> bool {
+    headers
+        .get(IF_RANGE)
+        .is_none_or(|asked| asked.to_str().is_ok_and(|asked| asked.trim() == tag))
 }
 
 /// Which bytes of a file of `len` the request asked for, or `None` for a
@@ -532,6 +552,47 @@ mod tests {
             .and_then(|file| file.set_len(u64::try_from(FILE_CHUNK + 10).expect("fits")))
             .expect("the scratch file was not truncated");
         assert_eq!(next(&mut body), Some(Err(BodyCut::FileEndedEarly)));
+    }
+
+    /// `If-Range` with the current tag honours the range. An old tag, the weak
+    /// spelling of the current one, a date and a value that is not a tag all
+    /// send the whole file with a `200`, and so does a range that would
+    /// otherwise be a `416`, because the range is ignored.
+    #[test]
+    fn if_range_with_the_current_tag_gets_the_range_and_any_other_gets_the_whole_file() {
+        let fs = Fake::with(&[("/www/style.css", b"body{}", 7)]);
+        let file = p("/www/style.css");
+        let sent = |headers: &[(&str, &str)]| answered(send(&file, &asking(headers), &fs));
+        let tag = header(&sent(&[]), "etag");
+
+        let part = sent(&[("range", "bytes=1-3"), ("if-range", &tag)]);
+        assert_eq!(part.0, StatusCode::PARTIAL_CONTENT);
+        assert_eq!(part.2, b"ody");
+
+        let weak = format!("W/{tag}");
+        for asked in [
+            "\"6-6\"",
+            weak.as_str(),
+            "Tue, 13 Oct 2026 10:00:00 GMT",
+            "not a tag",
+        ] {
+            let whole = sent(&[("range", "bytes=1-3"), ("if-range", asked)]);
+            assert_eq!(whole.0, StatusCode::OK, "for {asked:?}");
+            assert_eq!(whole.2, b"body{}", "for {asked:?}");
+            assert_eq!(header(&whole, "content-range"), "", "for {asked:?}");
+            let unsatisfiable = sent(&[("range", "bytes=9-"), ("if-range", asked)]);
+            assert_eq!(unsatisfiable.0, StatusCode::OK, "for {asked:?}");
+        }
+
+        // A conditional that matched is answered first, whatever `If-Range` says.
+        let fresh = sent(&[
+            ("if-none-match", &tag),
+            ("range", "bytes=1-3"),
+            ("if-range", "\"6-6\""),
+        ]);
+        assert_eq!(fresh.0, StatusCode::NOT_MODIFIED);
+        // `If-Range` without a `Range` changes nothing.
+        assert_eq!(sent(&[("if-range", "\"6-6\"")]).0, StatusCode::OK);
     }
 
     /// The files a case describes: contents and an `mtime`, which is the pair

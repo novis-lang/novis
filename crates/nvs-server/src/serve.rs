@@ -3207,7 +3207,39 @@ pub(crate) mod tests {
         }
         let mut done = completed("", None);
         done.status = status;
-        sent(done, Path::new(file), &headers, &FILES)
+        // What the door keeps before the handler runs, as `serve_connection`
+        // does, so a header the copy leaves out is a header this case loses.
+        sent(done, Path::new(file), &statics::asked(&headers), &FILES)
+    }
+
+    /// A program's file body reads `If-Range` as a static mount does: the
+    /// current tag gets the range, and an old one gets the whole file.
+    #[test]
+    fn a_declared_file_body_honours_if_range() {
+        let tag = named("page.html", &[], None)
+            .headers()
+            .get(header::ETAG)
+            .expect("the policy states a validator")
+            .to_str()
+            .expect("a validator is ASCII")
+            .to_owned();
+
+        let part = named(
+            "page.html",
+            &[("range", "bytes=3-5"), ("if-range", &tag)],
+            None,
+        );
+        assert_eq!(part.status(), StatusCode::PARTIAL_CONTENT);
+        assert_eq!(part.body().bytes().to_vec(), b"hi<".to_vec());
+
+        let old = named(
+            "page.html",
+            &[("range", "bytes=3-5"), ("if-range", "\"9-6\"")],
+            None,
+        );
+        assert_eq!(old.status(), StatusCode::OK, "an old tag was given a range");
+        assert_eq!(old.body().bytes().to_vec(), b"<p>hi</p>".to_vec());
+        assert!(old.headers().get(header::CONTENT_RANGE).is_none());
     }
 
     /// `rule:security/response-body-is-one-typed-member`'s file row, answered by
