@@ -367,6 +367,42 @@ async function spawnTimed(argv: string[], env: Record<string, string | undefined
 
 const normalise = (text: string) => text.replace(/\r\n/g, "\n").trimEnd();
 
+/** The line of a `.cmd` example's `.out` that matches any number of lines, none included. */
+export const ELISION = "...";
+
+/** The `.out` of the `.cmd` example `path` when it has an `ELISION` line, and null otherwise. */
+export function elidedOut(path: string, root: string = ROOT): string | null {
+  const out = abs(sibling(path, ".out"), root);
+  if (!path.endsWith(".cmd") || !existsSync(out)) return null;
+  const text = readFileSync(out, "utf8");
+  return text.split(/\r?\n/).includes(ELISION) ? text : null;
+}
+
+/**
+ * Whether `stdout` is what the `.out` text `want` says, line endings and trailing blank space aside. In a
+ * `.cmd` example's `.out`, a line that is exactly `ELISION` matches any run of lines, so a command whose
+ * report differs per machine still has the lines that do not differ checked byte for byte.
+ */
+export function matchesOut(stdout: string, want: string, command: boolean): boolean {
+  const got = normalise(stdout);
+  const expected = normalise(want);
+  if (!command || !expected.split("\n").includes(ELISION)) return got === expected;
+  const have = got.split("\n");
+  const pattern = expected.split("\n");
+  // fits[j]: the pattern so far matches the first j lines of the output.
+  let fits: boolean[] = new Array(have.length + 1).fill(false);
+  fits[0] = true;
+  for (const line of pattern) {
+    const next: boolean[] = new Array(have.length + 1).fill(false);
+    for (let j = 0; j <= have.length; j++) {
+      if (line === ELISION) next[j] = fits[j]! || (j > 0 && next[j - 1]!);
+      else next[j] = j > 0 && fits[j - 1]! && have[j - 1] === line;
+    }
+    fits = next;
+  }
+  return fits[have.length]!;
+}
+
 /** The status an example says it ends with, and 0 for every example that says nothing. */
 function declaredExit(source: string): number {
   const m = EXAMPLE_EXIT_RE.exec(source);
@@ -396,7 +432,7 @@ async function runExample(nvs: string, path: string, unlogged = false): Promise<
   }
   const expected = sibling(path, ".out");
   if (!existsSync(abs(expected))) return ["fail", `no ${basename(expected)} beside it`, out];
-  if (normalise(out.stdout) !== normalise(read(expected))) return ["fail", "stdout differs from its .out", out];
+  if (!matchesOut(out.stdout, read(expected), path.endsWith(".cmd"))) return ["fail", "stdout differs from its .out", out];
   return ["ok", "", out];
 }
 
@@ -431,6 +467,11 @@ export async function bless(nvs: string, paths: string[]): Promise<{ lines: stri
     }
     const dest = sibling(path, ".out");
     const existed = existsSync(abs(dest));
+    // An elided `.out` is written by hand, so one that still matches is kept as it is.
+    if (existed && path.endsWith(".cmd") && read(dest).split(/\r?\n/).includes(ELISION) && matchesOut(out.stdout, read(dest), true)) {
+      lines.push(`  kept  ${dest}: its elided lines still match`);
+      continue;
+    }
     const text = out.stdout.replace(/\r\n/g, "\n");
     writeFileSync(abs(dest), text);
     record(abs(dest));
@@ -743,12 +784,15 @@ export function recordingRun(nvs: string, what: What, path: string, dir: string,
  *
  * The two runs are different binaries in different folders, and a program may print its binary's
  * default data folder, `.nvsdata` beside the binary. Each run's own folder is replaced with one
- * placeholder in its output before the two are compared (`ownDataFolder`).
+ * placeholder in its output before the two are compared (`ownDataFolder`). A `.cmd` example whose `.out`
+ * elides lines prints what differs per build in them, so with `elided`, that `.out`, the recording run
+ * agrees when its output matches the `.out`.
  */
-export function divergence(judged: Ran, recorded: Ran): string | null {
+export function divergence(judged: Ran, recorded: Ran, elided: string | null = null): string | null {
   if (judged.timedOut) return null;
   if (recorded.timedOut) return `the recording run was still running after ${Math.round(recorded.ms / 1000)}s`;
   if (recorded.code !== judged.code) return `exit ${recorded.code} on the recording run, ${judged.code} on the judged run`;
+  if (elided !== null) return matchesOut(recorded.stdout, elided, true) ? null : "stdout on the recording run differs from the elided .out";
   const a = normalise(ownDataFolder(judged)).split("\n");
   const b = normalise(ownDataFolder(recorded)).split("\n");
   if (a.join("\n") === b.join("\n")) return null;

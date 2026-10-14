@@ -49,7 +49,7 @@ import type { Recorder } from "../select/record.ts";
 import type { ChangeSet, Selected, Selection } from "../select/select.ts";
 import { type Keyed, SelectStore, type Verdict } from "../select/store.ts";
 import { progress } from "../lib/progress.ts";
-import { type Binary, divergence, HANG_FACTOR, jobsFor, type Pass, type Program, recordingRun, recordName, type Result, type RunOptions, runPrograms, spawnProof, type What } from "./run.ts";
+import { type Binary, divergence, elidedOut, HANG_FACTOR, jobsFor, type Pass, type Program, recordingRun, recordName, type Result, type RunOptions, runPrograms, spawnProof, type What } from "./run.ts";
 
 /** `// bench: iterations 200000` inside a bench program. */
 const ITERATIONS_RE = /(?:\/\/|#)\s*bench:\s*iterations\s+([0-9_]+)/;
@@ -127,7 +127,7 @@ export async function recordProgram(rec: Recorder, nvs: string, dir: string, wha
   if (keys.size === 0) keys.set(`file:${path}`, "");
   rec.record(id, proofDef(path, root), verdict, keys);
   rec.store.setDurations(id, result.ran.ms, recorded.ms);
-  const why = divergence(result.ran, recorded);
+  const why = divergence(result.ran, recorded, elidedOut(path, root));
   if (why === null) rec.store.clearDiverged(id);
   else rec.store.markDiverged(id, why);
   return { verdict, why, ext };

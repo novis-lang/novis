@@ -6,6 +6,7 @@
 //     bun nv proofs --owed [--limit N]     one line per feature still owing a proof: the worklist
 //     bun nv proofs --gaps                 every proof carrying a `proof: gap` marker
 //     bun nv proofs --gate                 exit 0 when nothing in scope is owed; name what is otherwise
+//     bun nv proofs --gate --no-skip PROOF the same, and a feature the policy skips for PROOF owes it
 //     bun nv proofs --json                 the audit as JSON
 //     bun nv proofs --run                  run every example and attack in scope, and report what failed
 //     bun nv proofs --verify               --gate, then --run, for each scope in one pass
@@ -54,7 +55,7 @@ import { resolve } from "node:path";
 import { abs, rel } from "../lib/paths.ts";
 import { ArgError, comparePaths, fixed, parseArgs, pyInt, pyRepr } from "../lib/py.ts";
 import { inPart } from "../lib/reads.ts";
-import { collect, collectParts, commentProblems, gapTitle, HELP_BACKLOG_REASON, implHashes, knownGap, loadPolicy, owed, PROOFS, shownProofs, walk, type Policy, type Proof, type Proofs, type Skips } from "../proofs/collect.ts";
+import { collect, collectParts, commentProblems, gapTitle, HELP_BACKLOG_REASON, implHashes, knownGap, loadPolicy, owed, PROOFS, shownProofs, skippedOf, walk, type Policy, type Proof, type Proofs, type Skips } from "../proofs/collect.ts";
 import { perfReport, recordPerf } from "../proofs/perf.ts";
 import { aboutFile, benchFile, examplesDir, hostileDir, noteRoster, programsIn, read, roster, RosterError, type Entry } from "../proofs/roster.ts";
 import { COVWS_TARGET, hostTriple } from "../lib/covws.ts";
@@ -68,7 +69,7 @@ export const summary =
 const USAGE = [
   "usage: nv proofs [-h] [--group GROUP] [--only ID [ID ...]] [--id FEATURE]",
   "                 [--only-as LABEL ID [ID ...]]",
-  "                 [--owed] [--gaps] [--limit LIMIT] [--json] [--gate]",
+  "                 [--owed] [--gaps] [--limit LIMIT] [--json] [--gate] [--no-skip PROOF]",
   "                 [--run] [--verify] [--valgrind] [--quiet] [--no-cache]",
   "                 [--strict] [--show] [--no-perf] [--nvs NVS]",
   "                 [--bless FILE [FILE ...]] [--comments PATH [PATH ...]]",
@@ -239,9 +240,12 @@ function printOwed(out: string[], scope: Entry[], proofs: Map<string, Proofs>, p
   if (rows.length > limit) out.push(`  ... and ${rows.length - limit} more (--limit 0 for all)`);
 }
 
-/** Exit 0 when nothing in scope is owed. It reads the trees and the ledger and runs nothing. */
-function gate(out: string[], scope: Entry[], proofs: Map<string, Proofs>, policy: Policy, skips: Skips, label: string | null): number {
-  const missing = scope.map((e) => [e, owed(e, proofs.get(e.id)!, policy, skips)] as const).filter(([, m]) => Object.keys(m).length);
+/** Exit 0 when nothing in scope is owed. It reads the trees and the ledger and runs nothing. Each proof
+ * in `noSkip` is owed by a feature the policy skips for it, whatever the feature has on disk. */
+function gate(out: string[], scope: Entry[], proofs: Map<string, Proofs>, policy: Policy, skips: Skips, label: string | null, noSkip: readonly string[] = []): number {
+  const missing = scope
+    .map((e) => [e, { ...owed(e, proofs.get(e.id)!, policy, skips), ...skippedOf(e.id, skips, noSkip) }] as const)
+    .filter(([, m]) => Object.keys(m).length);
   const where = label ?? "the whole roster";
   if (missing.length) {
     out.push(`nv proofs gate: ${missing.length} of ${scope.length} features in ${where} still owe a proof.`);
@@ -437,8 +441,13 @@ export async function run(args: string[]): Promise<number> {
     ({ rest, list: hashed } = takeList(rest, "--impl-hash"));
     ({ flags, values } = parseArgs(rest, {
       flags: ["--owed", "--gaps", "--json", "--gate", "--no-perf", "--run", "--verify", "--valgrind", "--quiet", "--no-cache", "--strict", "--show", "--record-perf", "--force", "--perf-report", "--no-callgrind"],
-      valued: ["--group", "--id", "--limit", "--nvs", "--reps", "--note"],
+      valued: ["--group", "--id", "--limit", "--nvs", "--reps", "--note", "--no-skip"],
     }));
+    const noSkip = values.get("--no-skip");
+    if (noSkip !== undefined && !(PROOFS as readonly string[]).includes(noSkip)) {
+      throw new ArgError(`argument --no-skip: invalid choice: ${pyRepr(noSkip)} (choose from ${PROOFS.join(", ")})`);
+    }
+    if (noSkip !== undefined && !flags.has("--gate")) throw new ArgError("argument --no-skip: only with --gate");
     const int = (flag: string) => {
       const raw = values.get(flag);
       if (raw === undefined) return undefined;
@@ -615,7 +624,7 @@ export async function run(args: string[]): Promise<number> {
     return flush(await runScopes(out, bin!, scopes, flags.has("--verify"), flags, proofs, policy, skips, parted));
   }
 
-  if (flags.has("--gate")) return flush(gate(out, scope, proofs, policy, skips, label));
+  if (flags.has("--gate")) return flush(gate(out, scope, proofs, policy, skips, label, values.has("--no-skip") ? [values.get("--no-skip")!] : []));
   if (flags.has("--json")) {
     const doc = scope.map((e) => {
       const p = proofs.get(e.id)!;

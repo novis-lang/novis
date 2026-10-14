@@ -210,6 +210,12 @@ describe("the judged run and the recording run", () => {
     expect(divergence(ran(1, "", true), ran(0, "x"))).toBeNull();
   });
 
+  test("with an elided `.out`, a recording run agrees when it matches the `.out`, whatever the judged run printed", () => {
+    const out = "Build\n...\nHost\n";
+    expect(divergence(ran(0, "Build\n  profile proof\nHost\n"), ran(0, "Build\n  profile debug\nHost\n"), out)).toBeNull();
+    expect(divergence(ran(0, "Build\nHost\n"), ran(0, "Build\n"), out)).toBe("stdout on the recording run differs from the elided .out");
+  });
+
   test("each run's own data folder is one placeholder, so only a difference elsewhere diverges", () => {
     const judgedExe = abs("target/proof/nvs.exe");
     const recordedExe = abs("target/covws/x86_64-pc-windows-msvc/debug/nvs.exe");

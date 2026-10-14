@@ -426,6 +426,13 @@ export function collect(entries: Entry[], scanned: Scans = scans()): Map<string,
   return out;
 }
 
+/** Each of `named` that `data/proofs/policy.json` skips for the feature `id`, proof -> one sentence. It is
+ * what `--gate --no-skip` adds to what the feature owes. */
+export function skippedOf(id: string, skips: Skips, named: readonly string[]): Record<string, string> {
+  const skip = skips.get(id) ?? {};
+  return Object.fromEntries(named.filter((p) => p in skip).map((p) => [p, "skipped in data/proofs/policy.json"]));
+}
+
 /** What `entry` still owes, proof -> one sentence. Empty means complete. */
 export function owed(entry: Entry, proofs: Proofs, policy: Policy, skips: Skips): Record<string, string> {
   const want = policy[entry.kind];

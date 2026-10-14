@@ -204,8 +204,14 @@ beside it. A word in quotes may hold spaces. `--bless` and the sweep run the com
 under test, in an empty directory of its own that is deleted afterwards, and compare its standard
 output with the `.out` byte for byte, as they do for a program. A `.in` beside it is its standard
 input. The other files above are not read for it. The website shows the line as a shell block, with
-the `.out` below it. The command's output has to be the same on every machine, so a command that
-prints a path, a commit or a CPU count has no `.cmd` example.
+the `.out` below it.
+
+A command may print what differs per machine or per build: a path, a commit, a CPU count. In a
+`.cmd` example's `.out`, a line that is exactly `...` matches any number of lines, none included,
+and every other line still matches byte for byte. `nvs info`'s examples show their section headings
+and elide the rest. Such a `.out` is written by hand, and `--bless` keeps it while it still
+matches. A line it checks that changes with each release, such as the version, is blessed again
+then. A program's `.out` has no such line.
 
 ## A grant the examples need — `nvs.toml`
 
