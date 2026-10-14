@@ -91,7 +91,7 @@ stages:
         shapes: []
   - id: 14
     title: the feature proofs
-    status: open
+    status: done
     extra:
       context:
         playbook: ["Tooling > `bun nv proofs --verify --group`*"]
@@ -770,26 +770,25 @@ One file set: `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/n
 
 ### State
 
-**Stage 14 is half done.** Six groups owe nothing: `Workbook`, `Written`, `Export`, `Style`, `Cell` and `Formula` (`bun nv proofs --nvs target/debug/nvs.exe --gate --group 'Novis\Spreadsheet\<G>'`). Their Rust tests are `crates/nvs-cli/tests/spreadsheet_workbook.rs` and `spreadsheet_values.rs`, which run each member through the binary. Their benches share `benches/members/novis/Spreadsheet-Workbook/nvs.toml`, their budget shares were added to `docs/perf/bench-budget.json` by hand, and each constructor that only stores values has skip entries in `data/proofs/policy.json` modelled on `Novis\Image\Diff::constructor`. The roster's and five fragments' *Not shipped* now name what is missing: `Cell::rich`, the cut-off download, an evaluate call and writing ods.
+**The goal is reached.** Every stage is done and every acceptance check passes, `bun nv proofs --gate` among them: the whole roster owes nothing. Every `Novis\Spreadsheet` class and enum has its proofs, `Engine` with its examples and benches as skip entries. The twelve spreadsheet rules are shipped with their `guardedBy`, and `bun nv owners --closes spreadsheet` exits 0. Every known gap, the Backlog below included, is in the `**Not done yet.**` list of `extensions/spreadsheet/src/lib.rs`'s module doc.
 
-The acceptance sweep's reds were one case: `spreadsheet-a-report-carries-a-chart.nvst` read the old `oneCellAnchor` size and quoted sheet names, and every `bun nv suite` check runs the whole `novis/` tree. It is fixed, and all `tests/conformance/novis/` cases pass. Of the nightly CI reds, the 54 LDAP cases fail because the CI runner has no directory service, the rustdoc link and the stale rules and website renders are fixed on `main`, and the `proofs` jobs fail on stale `Core` perf records, which the sweep repays.
+Two security fixes came out of the attacks: a sheet name in a chart range is escaped as XML text (`extensions/spreadsheet/src/chart.rs:@write`), and a header row of equal cells is numbered in linear time (`extensions/spreadsheet/src/read/mod.rs`, `a_header_of_every_column_equal_is_numbered_in_linear_time`). 175 stale `Core` and language perf records were measured again. `bun nv check` still names `data/rules/routing/a-gate-answers-around-every-handler.json`, a shipped rule that names the goal `route-dispatch`. That finding is outside this goal.
 
 ### Next
 
-**Stage 14, the feature proofs** (`rule:testing/feature-proofs`), the five groups left. Files: `docs/examples/novis/Spreadsheet-*`, `tests/hostile/novis/Spreadsheet-*`, `benches/members/novis/Spreadsheet-*`, `crates/nvs-cli/tests/spreadsheet_*.rs`, `data/proofs/policy.json`, `docs/perf/`. Split them across subagents, one or two groups each, run one after another. Copy the `Workbook` group (`git show --stat 07b757ba8`) and its brief's traps. Run `nvs fmt` over every new attack before verify (playbook).
+Nothing is left in this goal. The chain's next goal is `large-file-responses`. The gaps that a later goal may take are listed in the module doc of `extensions/spreadsheet/src/lib.rs`.
 
-- [ ] **`Template` (3) and `Row` (1).** The monthly report from a template with an item list is an example here. `extensions/spreadsheet/nvs/Template.nvs:1`, `extensions/spreadsheet/nvs/Row.nvs:1`
-- [ ] **`Reader` (11).** The upload import with errors by row number and the zip-code column read as text are examples here. `extensions/spreadsheet/nvs/Reader.nvs:158`
-- [ ] **`Sheet` (16) and `Chart` (10).** The report with totals and a chart is an example here. `extensions/spreadsheet/nvs/Sheet.nvs:1`, `extensions/spreadsheet/nvs/Chart.nvs:1`
-- [ ] **`Engine` (26), the manifest class**: about, tests, attack and help in full, examples and bench as skip entries, as `Novis\Pdf\Engine::render` has (`data/proofs/policy.json:153`). Then `bun nv proofs --gate` for the whole roster.
+- [x] **`Template` (3) and `Row` (1).** `extensions/spreadsheet/nvs/Template.nvs:1`, `extensions/spreadsheet/nvs/Row.nvs:1`
+- [x] **`Reader` (11).** `extensions/spreadsheet/nvs/Reader.nvs:158`
+- [x] **`Sheet` (16) and `Chart` (10).** `extensions/spreadsheet/nvs/Sheet.nvs:1`, `extensions/spreadsheet/nvs/Chart.nvs:1`
+- [x] **`Engine` (26), the manifest class**, and `bun nv proofs --gate` for the whole roster.
 
 ### Backlog
 
-- A table's totals formula `[@x]` is written in the long form `[[#This Row],[x]]` in the table part. No fixture has one, and opening it in Excel is not checked. `extensions/spreadsheet/src/table.rs:410`
-- A shared formula (`<f t="shared">`) in a repeated row is copied as it is, so its copies share one `si`. Its `x14` conditional formats under `extLst` are not shifted either. `extensions/spreadsheet/src/template/mod.rs:@write_cell`, `docs/rules/core-classes/spreadsheet-template-fill.md`
-- Built-in id 14 renders as `m/d/yyyy` and id 22 as `m/d/yyyy h:mm`, which is what Excel shows in en-US. SSF uses `m/d/yy`. `extensions/spreadsheet/src/format/mod.rs:@builtin`
-- An ods cell's `text` uses the default format of its type, not the file's own number style. A merged fill copies no `display`. `extensions/spreadsheet/src/read/ods.rs:1`, `extensions/spreadsheet/src/read/merge.rs:166`
-- The extras from xlsb, xls and ods, which throw naming the format now. `extensions/spreadsheet/src/read/extras.rs:1`
-- Extension contagion does not reach a shape's fields (`crates/nvs-types/src/expr/quals.rs:531`, `rule:security/extension-contagion`). This is a compiler fix, outside this goal.
-- Found by the Stage 14 attacks, not checked against Excel: `define` takes a 100,000-character name and `R1C1`, `sheet` takes a name with NUL, and `Formula::of` takes an empty text or 1,000,000 characters (Excel allows 8,192). A NaN throws for xlsx and writes for CSV. An `Export` over a generator gives no rows the second time (`extensions/spreadsheet/nvs/Export.nvs:58`). `docs/rules/core-classes/spreadsheet-bulk-boundary.md`
-- A request keeps every extension resource until it ends, so some hundreds of `Workbook::create*` in one request reach the extension's memory limit. This is O(in-flight) and under the cap. `crates/nvs-ext/src/call.rs:975`
+Every gap's home is the `**Not done yet.**` list at `extensions/spreadsheet/src/lib.rs:38`. These are the ones that matter most for security:
+
+- Chart ranges and `Workbook::define` accept references to another workbook, a URL or a DDE-like `cmd|'/c calc'!A0`. Excel may ask to update an external link. `extensions/spreadsheet/src/chart.rs`
+- A NUL in a filled template value is written raw, which XML 1.0 does not allow. `extensions/spreadsheet/src/template/mod.rs:@write_cell`
+- Reader exports do not check that `source` is the file `readerOpen` read. `extensions/spreadsheet/nvs/Reader.nvs:1`
+- Extension contagion does not reach a shape's fields. This is a compiler fix. `crates/nvs-types/src/expr/quals.rs:531`, `rule:security/extension-contagion`
+- The decompression-bound error message names a rule id, and a user reads that message. `extensions/spreadsheet/src/read/zip.rs:1`
