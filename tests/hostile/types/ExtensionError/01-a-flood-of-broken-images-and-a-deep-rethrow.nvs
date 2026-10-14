@@ -4,7 +4,7 @@
 // should throw an error the program catches, and both extensions should still work.
 // hostile: timeout-ms 30000
 
-use Novis\Image\Codec;
+use Novis\Image\Image;
 use Shop\Ledger;
 
 // 1. `Ledger::crash` crashes the extension. Each call throws `ExtensionError`.
@@ -30,7 +30,7 @@ final class Flood
         while ($i < $rounds) {
             try {
                 bytes $junk = Core\Encoding::fromHex('89504e470d0a1a0a' . Core\Str::repeat('ff', $i % 64));
-                var $info = Codec::info($junk);
+                var $info = Image::info($junk);
             } catch (RuntimeError $refused) {
                 $caught = $caught + 1;
             }
@@ -73,4 +73,4 @@ bytes $png = Core\Encoding::fromHex(
     '89504e470d0a1a0a0000000d49484452000000030000000208060000009d74661a'
         . '0000000b49444154789c6360c00500001a0001bc3ce0410000000049454e44ae426082',
 );
-echo Codec::info($png)->width, "\n";
+echo Image::info($png)->width, "\n";
