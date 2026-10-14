@@ -71,6 +71,16 @@ export function namesIn(dir: string, ext: string): string[] {
   }
 }
 
+/** The two kinds of example: an `NN-title.nvs` program, and an `NN-title.cmd` command line
+ * (`docs/examples/README.md`). */
+export const PROGRAM_EXTS = [".nvs", ".cmd"];
+
+/** The examples and attacks directly in a repo-relative directory, `.nvs` and `.cmd` alike, sorted as
+ * paths, or none when it is not one. */
+export function programsIn(dir: string): string[] {
+  return PROGRAM_EXTS.flatMap((ext) => namesIn(dir, ext)).sort(comparePaths);
+}
+
 export function slugify(text: string): string {
   const out = text.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
   return out || "unnamed";

@@ -31,7 +31,7 @@ export function changesFor(id: string): Change[] {
 const ROOT = '../../../docs/examples/'
 
 const abouts = import.meta.glob('../../../docs/examples/{core,novis,types,config,tools}/**/about.md', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
-const sources = import.meta.glob('../../../docs/examples/{core,novis,types,config,tools}/**/*.nvs', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
+const sources = import.meta.glob('../../../docs/examples/{core,novis,types,config,tools}/**/*.{nvs,cmd}', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
 const outputs = import.meta.glob('../../../docs/examples/{core,novis,types,config,tools}/**/*.out', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
 const tomls = import.meta.glob('../../../docs/examples/{config,tools}/**/nvs.toml', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
 
@@ -124,6 +124,8 @@ export function aboutFor(feature: Feature): About | null {
 export interface Example {
   title: string
   code: string
+  /** `novis` for a program, `sh` for a command line. */
+  lang: 'novis' | 'sh'
   output: string | undefined
 }
 
@@ -134,7 +136,8 @@ export function configFor(feature: Feature): string | null {
 
 /**
  * Every example of the feature, ordered by filename. `NN-some-title.nvs` is
- * one example, and a sibling `NN-some-title.out` is its output, which
+ * one example, and so is `NN-some-title.cmd`, a command line shown as a
+ * shell block. A sibling `NN-some-title.out` is its output, which
  * `bun nv proofs --run` checks. A file in a subdirectory is a companion file,
  * not an example.
  */
@@ -144,12 +147,13 @@ export function examplesFor(feature: Feature): Example[] {
     .filter((p) => p.startsWith(dir) && !p.slice(dir.length).includes('/'))
     .sort()
     .map((p) => {
-      const base = p.replace(/\.nvs$/, '')
+      const base = p.replace(/\.(nvs|cmd)$/, '')
       const title = base
         .slice(dir.length)
         .replace(/^\d+-/, '')
         .replace(/-/g, ' ')
         .replace(/^./, (c) => c.toUpperCase())
-      return { title, code: sources[p].trim(), output: outputs[`${base}.out`]?.trimEnd() }
+      const lang = p.endsWith('.cmd') ? 'sh' : 'novis'
+      return { title, code: sources[p].trim(), lang, output: outputs[`${base}.out`]?.trimEnd() }
     })
 }

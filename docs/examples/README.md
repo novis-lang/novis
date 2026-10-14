@@ -25,7 +25,8 @@ nothing registers an example anywhere:
 | an `nvs.toml` directive | `config/<key-with-dots-as-dashes>/` |
 
 Inside it, `01-slug.nvs` … `03-slug.nvs`, each with a sibling `01-slug.out` holding exactly what the
-program prints. `bun nv proofs --id 'Core\Str::length'` prints the directory for any
+program prints. A CLI command's example may be a `.cmd` file instead (§ *A command instead of a
+program*). `bun nv proofs --id 'Core\Str::length'` prints the directory for any
 feature rather than making you derive it.
 
 ## The description — `about.md`
@@ -194,6 +195,17 @@ An example of `Core\Sse::upgrade` has a `.nvsr` file as well, because the progra
 opens the stream. The stream then starts when the request ends, and the `.nvse` file feeds that stream.
 Without a `.nvse` file, the stream ends at its first `receive()`. What the stream script itself
 `echo`es prints after the stream.
+
+## A command instead of a program — `<name>.cmd`
+
+A CLI command that reads no program, such as `nvs agent init`, cannot be shown by a `.nvs` file. Its
+example is `NN-title.cmd` instead: one line, a `nvs` command with its arguments, and the `.out`
+beside it. A word in quotes may hold spaces. `--bless` and the sweep run the command with the binary
+under test, in an empty directory of its own that is deleted afterwards, and compare its standard
+output with the `.out` byte for byte, as they do for a program. A `.in` beside it is its standard
+input. The other files above are not read for it. The website shows the line as a shell block, with
+the `.out` below it. The command's output has to be the same on every machine, so a command that
+prints a path, a commit or a CPU count has no `.cmd` example.
 
 ## A grant the examples need — `nvs.toml`
 

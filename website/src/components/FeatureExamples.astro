@@ -3,8 +3,9 @@
  * Every example of one feature, with its output when it has one, read in
  * place from `docs/examples/` by `examplesFor` in src/lib/feature.ts. With a
  * `heading`, the examples sit under an `h2` of that text. Without one, they
- * sit under the caller's own `h2`. Each example's title is an `h3`. A page
- * renders this only when the feature has an example.
+ * sit under the caller's own `h2`. Each example's title is an `h3`. A
+ * command-line example shows as a shell block. A page renders this only when
+ * the feature has an example.
  */
 import { Code } from '@astrojs/starlight/components'
 import { examplesFor, type Feature } from '~/lib/feature'
@@ -24,7 +25,7 @@ const examples = examplesFor(feature)
   {examples.map((ex) => (
     <div class="method-example">
       <h3>{ex.title}</h3>
-      <Code code={ex.code} lang="novis" />
+      <Code code={ex.code} lang={ex.lang} />
       {ex.output !== undefined && <Code code={ex.output} lang="txt" title="Output" />}
     </div>
   ))}

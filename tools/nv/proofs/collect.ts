@@ -18,7 +18,7 @@ import { comparePaths, splitlines } from "../lib/py.ts";
 import { inPart, noteKey, unrecorded } from "../lib/reads.ts";
 import { LEDGER, LEDGER_WHOLE, ledgerRows, perfKey } from "./ledger.ts";
 import { anchorKey, CALL_ROOTS, callsIn, callsKey, coversKey, MARKER_ROOTS, markersIn } from "./markers.ts";
-import { aboutFile, benchFile, examplesDir, hostileDir, implFile, namesIn, noteRoster, read, type Entry, type Kind } from "./roster.ts";
+import { aboutFile, benchFile, examplesDir, hostileDir, implFile, noteRoster, programsIn, read, type Entry, type Kind } from "./roster.ts";
 
 /** Every proof a feature can owe, in the order the audit prints them. */
 export const PROOFS = ["tests", "examples", "perf", "hostile", "about", "help"] as const;
@@ -403,7 +403,7 @@ export function collect(entries: Entry[], scanned: Scans = scans()): Map<string,
       p.inferred = fresh.length;
       p.nvst = sortedSet([...p.nvst, ...fresh]);
     }
-    const programs = (dir: string) => namesIn(dir, ".nvs").map((n) => `${dir}/${n}`);
+    const programs = (dir: string) => programsIn(dir).map((n) => `${dir}/${n}`);
     p.examples = programs(examplesDir(e)).sort();
     p.hostile = programs(hostileDir(e)).sort();
     if (existsSync(abs(aboutFile(e)))) {

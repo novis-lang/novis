@@ -19,7 +19,7 @@ import { dirname, join } from "node:path";
 import type { TestExe } from "../accept/accept.ts";
 import { digest } from "../keys/scan.ts";
 import { abs, ROOT } from "../lib/paths.ts";
-import { EXAMPLES, examplesDir, HOSTILE, hostileDir, namesIn, roster } from "../proofs/roster.ts";
+import { EXAMPLES, examplesDir, HOSTILE, hostileDir, programsIn, roster } from "../proofs/roster.ts";
 
 /** The case trees: every directory under `tests/` whose `.nvst` files `nvs test` runs. */
 export const CASE_ROOT = "tests";
@@ -92,7 +92,7 @@ export function nvTestFiles(root: string = ROOT): string[] {
   return out.sort();
 }
 
-const sibling = (proof: string, suffix: string) => proof.replace(/\.nvs$/, suffix);
+const sibling = (proof: string, suffix: string) => proof.replace(/\.(nvs|cmd)$/, suffix);
 
 /** A proof program's definition: what `bun nv proofs` remembers a green verdict against. The `.nvsr`
  * request file, the `.nvsp` peer file and the `.nvse` events file join only where they exist, so a
@@ -117,8 +117,8 @@ export function nvDef(argv: string[], cwd: string): string {
   return digest(JSON.stringify(argv), cwd);
 }
 
-/** Every proof program of the roster `nvs` answers, sorted: the `.nvs` files directly in each feature's
- * example and attack directories. */
+/** Every proof program of the roster `nvs` answers, sorted: the `.nvs` and `.cmd` files directly in each
+ * feature's example and attack directories. */
 export async function proofPrograms(nvs: string): Promise<{ what: "examples" | "hostile"; path: string }[]> {
   const entries = await roster(nvs);
   const out = new Map<string, "examples" | "hostile">();
@@ -127,7 +127,7 @@ export async function proofPrograms(nvs: string): Promise<{ what: "examples" | "
       ["examples", examplesDir(e)],
       ["hostile", hostileDir(e)],
     ] as const) {
-      for (const n of namesIn(dir, ".nvs")) out.set(`${dir}/${n}`, what);
+      for (const n of programsIn(dir)) out.set(`${dir}/${n}`, what);
     }
   }
   return [...out].map(([path, what]) => ({ what, path })).sort((a, b) => (a.path < b.path ? -1 : 1));
@@ -135,7 +135,7 @@ export async function proofPrograms(nvs: string): Promise<{ what: "examples" | "
 
 /**
  * Every proof program on disk, sorted, found by listing directories and without the roster: each `.nvs`
- * file under the example and attack trees whose directory has no ancestor, from the tree's area
+ * or `.cmd` file under the example and attack trees whose directory has no ancestor, from the tree's area
  * (`docs/examples/<area>`, `tests/hostile/<area>`) down, that holds a `.nvs` file itself. A feature's programs
  * sit directly in its directory, and a file in a directory below them is a helper one of them loads, so
  * this is the set `proofPrograms` reads from the roster, a feature the roster does not know yet included.
@@ -149,7 +149,7 @@ export function proofFiles(root: string = ROOT): string[] {
     } catch {
       return;
     }
-    const here = entries.filter((e) => e.isFile() && e.name.endsWith(".nvs")).map((e) => `${dir}/${e.name}`);
+    const here = entries.filter((e) => e.isFile() && /\.(nvs|cmd)$/.test(e.name)).map((e) => `${dir}/${e.name}`);
     if (!under) out.push(...here);
     // `docs/examples` and `tests/hostile` are depth 2. From an area (depth 3) down, a directory that holds
     // a program makes every `.nvs` file below it a helper.

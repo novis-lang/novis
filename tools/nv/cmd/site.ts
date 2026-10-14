@@ -1268,7 +1268,7 @@ async function referenceProblems(w: World, nvs: string, root: string = ROOT): Pr
       problems.push(`${url}: not in the built site`);
       continue;
     }
-    const want = features.reduce((n, f) => n + filesUnder(root, `${EXAMPLES}/${f}`).filter((p) => p.endsWith(".nvs") && p.split("/").length === `${EXAMPLES}/${f}`.split("/").length + 1).length, 0);
+    const want = features.reduce((n, f) => n + filesUnder(root, `${EXAMPLES}/${f}`).filter((p) => /\.(nvs|cmd)$/.test(p) && p.split("/").length === `${EXAMPLES}/${f}`.split("/").length + 1).length, 0);
     const got = html.split('class="method-example"').length - 1;
     if (got !== want) problems.push(`${url}: shows ${got} example(s), and its features have ${want}`);
   }

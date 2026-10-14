@@ -56,7 +56,7 @@ import { ArgError, comparePaths, fixed, parseArgs, pyInt, pyRepr } from "../lib/
 import { inPart } from "../lib/reads.ts";
 import { collect, collectParts, commentProblems, gapTitle, HELP_BACKLOG_REASON, implHashes, knownGap, loadPolicy, owed, PROOFS, shownProofs, walk, type Policy, type Proof, type Proofs, type Skips } from "../proofs/collect.ts";
 import { perfReport, recordPerf } from "../proofs/perf.ts";
-import { aboutFile, benchFile, examplesDir, hostileDir, namesIn, noteRoster, read, roster, RosterError, type Entry } from "../proofs/roster.ts";
+import { aboutFile, benchFile, examplesDir, hostileDir, noteRoster, programsIn, read, roster, RosterError, type Entry } from "../proofs/roster.ts";
 import { COVWS_TARGET, hostTriple } from "../lib/covws.ts";
 import { bless, namedBinary, type Pass, PROOF_BINARY, proofBinary, releaseBinary, runPrograms, saveReads, showProgram, suiteLines, type Binary, type What } from "../proofs/run.ts";
 import { featureGroup } from "../select/store.ts";
@@ -337,11 +337,11 @@ interface Scope {
   error?: string;
 }
 
-/** The programs a scope runs: the `.nvs` files directly in each feature's own directory, which is the set
- * `owed` counts. A `.nvs` in a subdirectory is material a case loads and does not run on its own. */
+/** The programs a scope runs: the `.nvs` and `.cmd` files directly in each feature's own directory, which
+ * is the set `owed` counts. A `.nvs` in a subdirectory is material a case loads and does not run on its own. */
 function programsOf(scope: Scope, what: What): string[] {
   const dirs = scope.entries.map((e) => (what === "examples" ? examplesDir(e) : hostileDir(e)));
-  return [...new Set(dirs.flatMap((d) => namesIn(d, ".nvs").map((n) => `${d}/${n}`)))].sort();
+  return [...new Set(dirs.flatMap((d) => programsIn(d).map((n) => `${d}/${n}`)))].sort();
 }
 
 /** A group's own paths, which its `proofs: <group>` unit keys on: each feature's example and attack
