@@ -54,7 +54,7 @@ stages:
         shapes: []
   - id: 7
     title: "the `ImagePath` encoder has a fuzz target"
-    status: open
+    status: done
     context: [crates/nvs-cli/src/service.rs, fuzz/Cargo.toml]
     extra:
       context:
@@ -263,9 +263,9 @@ the manifest parser, never by a string search.
 
 **Does:** the encoder and its decoder live in a library crate, and a fuzz target holds their round trip.
 
-- [ ] The encoder and decoder move to a library module, and `nvs-cli` calls it. `crates/nvs-cli/src/service.rs:617`
-- [ ] The `image_path` fuzz target asserts the round trip on any input. `fuzz/fuzz_targets/image_path.rs:1`
-- [ ] The property tests beside the module. `fuzz/Cargo.toml:1`
+- [x] The encoder and decoder move to a library module, and `nvs-cli` calls it. `crates/nvs-cli/src/service.rs:617`
+- [x] The `image_path` fuzz target asserts the round trip on any input. `fuzz/fuzz_targets/image_path.rs:1`
+- [x] The property tests beside the module. `fuzz/Cargo.toml:1`
 
 ### 8. a test holds the image manifest's absence
 
@@ -278,30 +278,30 @@ the manifest parser, never by a string search.
 
 ### State
 
-Stages 1 to 6 are done. The watchdog's sweep writes `nvs_host::Shed`'s two counts and each core's
-wedged flag (`crates/nvs-host/src/watchdog.rs`, `State::recount`). `Admission::subscribe` takes the
-`Shed`, and `admit` refuses on a core `this_core_is_wedged` names and refuses at `max_in_flight` less
-the wedged cores' share (`crates/nvs-server/src/admit.rs`). `nvs serve` subscribes its one watchdog
-(`crates/nvs-cli/src/serve.rs`). `rule:http-server/a-wedged-core-is-shed-never-killed` is `shipped`,
-guarded by `crates/nvs-server/src/admit.rs`.
+Stages 1 to 7 are done. The `ImagePath` encoder and its `CommandLineToArgvW` decoder are
+`nvs_diagnostics::argv` (`crates/nvs-diagnostics/src/argv.rs`), the lowest crate with no platform
+dependency and already in the fuzz workspace. `nvs-cli`'s `service::image_path` and the SCM read-back
+call it. The `image_path` fuzz target is `fuzz/fuzz_targets/image_path.rs`, and the nightly
+`fuzz-smoke` matrix in `.github/workflows/ci.yml` runs it. `rule:packaging/the-argv-lives-in-imagepath`
+is `shipped`, guarded by the module and `crates/nvs-cli/src/service.rs`.
 
-The nightly CI reds are from `origin/main`, still 551 commits behind local `main`. The loop never
-pushes, so they stay until `origin/main` is pushed. The socket legs fail with OS error 95 on
-Windows for every driver, which is the backlog item below.
+The nightly CI reds are from `origin/main`, still far behind local `main`. The loop never pushes, so
+they stay until `origin/main` is pushed. The socket legs fail with OS error 95 on Windows for every
+driver, which is the backlog item below.
 
 ### Next
 
-**Stage 7, the `ImagePath` encoder has a fuzz target**. Files: `crates/nvs-cli/src/service.rs`,
-`fuzz/Cargo.toml`, a new `argv` module in the lowest platform-free library crate.
+**Stage 8, a test holds the image manifest's absence**. Files: `crates/nvs-ext/tests/manifest.rs`,
+`crates/nvs-ext/src/manifest.rs`, `docs/rules/security/image-component-declares-nothing.md`.
 
-- [ ] The encoder and its decoder move to a library `argv` module, and `nvs-cli` calls it. `crates/nvs-cli/src/service.rs:617`
-  The standing decision *The `ImagePath` encoder* says where.
-- [ ] The `argv-round-trip` tests beside the module. `crates/nvs-cli/src/service.rs:665`
-- [ ] The `image_path` fuzz target asserts the round trip on any input. `fuzz/Cargo.toml:1`
+- [ ] `the_image_manifest_declares_no_qualifier_and_no_capability` reads `extensions/image/manifest.json` through `Manifest::parse`. `crates/nvs-ext/src/manifest.rs:414`
+  `rule:security/image-component-declares-nothing`; the test goes in `crates/nvs-ext/tests/manifest.rs:1`.
+- [ ] The fragment's "no test holds the absence" paragraph rewritten, and the rule shipped. `docs/rules/security/image-component-declares-nothing.md:12`
+- [ ] The reach gate: `bun nv owners --closes request-isolation-debts`, then `bun nv verify --doc`. `tools/nv/cmd/owners.ts:1`
 
 ### Backlog
 
-- Stages 7 and 8: this file's § *Stages*.
+- Stage 8: this file's § *Stages*.
 - The macOS warm-start budget in the nightly cost guards, once `origin/main` is pushed: `tools/nv/cmd/bench.ts`.
 - The nightly conformance and proofs reds, checked against local `main` once `origin/main` is pushed: `.github/workflows/`.
 - Every socket leg's OS error 95 on Windows: `crates/nvs-db/src/matrix.rs`.
