@@ -168,9 +168,9 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 
 /// `new Core\Heap`'s reference card — `rule:core-api/reference-card`.
 const CONSTRUCTOR_DOC: MethodDoc = MethodDoc {
-    short: "Builds an empty `Core\\Heap<T>` — a priority queue that replaces `SplPriorityQueue`, \
-            `SplMinHeap` and `SplMaxHeap` — ordered by `$comparator` when one is given, \
-            otherwise by `Comparable::compareTo`, and otherwise by the natural order of scalars.",
+    short: "Builds an empty `Core\\Heap<T>`, a priority queue. It is ordered by `$comparator` when \
+            one is given. Otherwise it uses `Comparable::compareTo`, or else the natural order of \
+            scalars.",
     params: &[ParamDoc {
         name: "comparator",
         desc: "An optional `fn ($a, $b)` answering a negative number, zero or a positive number \

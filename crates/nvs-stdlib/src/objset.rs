@@ -145,8 +145,8 @@ const CARD: ClassDoc = ClassDoc {
 
 /// `new Core\ObjectSet`'s reference card — `rule:core-api/reference-card`.
 const CONSTRUCTOR_DOC: MethodDoc = MethodDoc {
-    short: "Builds an empty `Core\\ObjectSet<T>` — a set keyed by identity, which replaces \
-            `SplObjectStorage` used as a set.",
+    short: "Builds an empty `Core\\ObjectSet<T>`. Two entries are the same only when they are the \
+            same object.",
     params: &[],
     ret: "A fresh set holding nothing, whose iteration order is insertion order.",
     errors: &[],

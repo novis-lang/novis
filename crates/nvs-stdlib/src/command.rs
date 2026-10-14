@@ -183,10 +183,9 @@ const RUN_DOC: MethodDoc = MethodDoc {
             compiling, calls the handler the first word names, and answers the status the process \
             should exit with.",
     params: &[],
-    ret: "The handler's own `uint`, or `0` where it is declared `void`. A command line this \
-          program's table does not answer is a **usage error**: the page goes to standard error \
-          and the status is `2`, which is the status a command line nobody can act on has meant \
-          since `getopt`.",
+    ret: "The handler's own `uint`, or `0` when it is declared `void`. A command line that matches \
+          no command of this program is a **usage error**. The help page goes to standard error, \
+          and the status is `2`.",
     errors: &[ErrorDoc {
         error: "LogicError",
         desc: "The named command's handler is not a method this program declares, or one of its \

@@ -229,9 +229,8 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 
 /// `Core\Mime::detect`'s reference card — `rule:core-api/reference-card`.
 const DETECT_DOC: MethodDoc = MethodDoc {
-    short: "Reports what `$data` is, read from the octets themselves — replacing \
-            `mime_content_type`, `finfo_buffer` and `exif_imagetype`. There is no parameter for a \
-            file name, because a type read off an extension is a type an attacker chose.",
+    short: "Returns the type of `$data`, read from the bytes themselves. There is no parameter for \
+            a file name, because an attacker can choose a file name's extension.",
     params: &[ParamDoc {
         name: "data",
         desc: "The octets to inspect. Only the first few are read — the widest signature in the \

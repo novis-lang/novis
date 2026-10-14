@@ -1517,10 +1517,9 @@ const READ_ALL_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Request\Part::saveTo`'s reference card — `rule:core-api/reference-card`.
 const SAVE_TO_DOC: MethodDoc = MethodDoc {
-    short: "Writes this part straight to `$path`, holding one chunk at a time — the path 99.9% of \
-            uploads take, replacing `move_uploaded_file` of a temporary file the host chose. Needs \
-            the `fs.write` capability for the path, and the part's own `filename()` is `tainted`, \
-            so it reaches this only through `Core\\IO::within`.",
+    short: "Writes this part directly to `$path`, one chunk at a time. Use it to save an upload. It \
+            needs the `fs.write` capability for the path. The part's own `filename()` is \
+            `tainted`, so it must pass through `Core\\IO::within` before it is used here.",
     params: &[
         ParamDoc {
             name: "path",

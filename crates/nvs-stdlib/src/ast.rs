@@ -147,8 +147,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 
 /// `Core\Ast::parse`'s reference card — `rule:core-api/reference-card`.
 const PARSE_DOC: MethodDoc = MethodDoc {
-    short: "Parses `$source` with the compiler's own parser and answers the file's node tree. \
-            Replaces `token_get_all` and every userland parser over it.",
+    short: "Parses `$source` with the compiler's own parser and returns the file's node tree.",
     params: &[ParamDoc {
         name: "source",
         desc: "Novis source, starting outside `<?nvs` the way a file does.",
