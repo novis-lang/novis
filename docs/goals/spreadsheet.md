@@ -768,20 +768,19 @@ One file set: `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/n
 
 ### State
 
-**Stage 11 is half done.** `nvs-stdlib-a-streamed-part-is-bounded-by-the-ratio` is green. `nvs-ext-the-spreadsheet-bomb-corpus` has 1 of its 10 tests.
+**Stage 11 is two thirds done.** `nvs-stdlib-a-streamed-part-is-bounded-by-the-ratio` is green. `nvs-ext-the-spreadsheet-bomb-corpus` has 6 of its 10 tests, all passing.
 
-- `Core\Zip`'s `Budget::stream` bounds a part by the ratio alone and spends nothing. No member calls it, so it carries an `expect(dead_code)` outside tests. `Budget::read` and it share `inflate`.
-- `readerOpen` and `templateOpen` take a second argument, `{maxBytes: ?uint, maxRatio: ?uint}` (`wit/spreadsheet.wit`'s `decompression-bound`). `crates/nvs-cli/src/extensions.rs` clamps it with `nvs_ext::builtin::cap_decompression` to `nvs_stdlib::decompression_ceiling`. The Novis half passes both `null`.
-- The guest's `zip::Directory::read` takes a `Bound`. A `Part` stops past `packed × ratio`, and `Directory::whole` stops past what the archive has left of `bytes` and charges it. `zip::whole` is gone.
+- `crates/nvs-ext/tests/spreadsheet_hostile.rs` has a one-sheet `xlsx(sheet, shared)` builder, `declared` for a DTD after the XML declaration, and `read`/`read_filling`, which open with the shipped bound and read every row of `Orders` under a 256 MiB `CAP`. Its `Watched` budget counts outbound sends.
+- The reader's XML scanner already refused a `<!DOCTYPE` and every entity past the five predefines (`extensions/spreadsheet/src/read/xml.rs:10`). The new tests pin it in a sheet and in `sharedStrings.xml`.
+- An xlsx cell past `XFD1048576` throws naming the cell, and a row past 1,048,576 with no cell names the row (`extensions/spreadsheet/src/read/sheet.rs:@within`). The grid size has one home, `MOST_ROWS` and `MOST_COLUMNS` in `extensions/spreadsheet/src/read/mod.rs`.
+- The xlsb reader has no grid check yet (`extensions/spreadsheet/src/read/binary.rs:@cell_of`).
 
 ### Next
 
-**Stage 11, the rest of the hostile corpus** (`rule:core-classes/decompression-bound`). Files: `crates/nvs-ext/tests/spreadsheet_hostile.rs`, `extensions/spreadsheet/src/read/`.
+**Stage 11, the binary formats and the writing attacks** (`rule:core-classes/decompression-bound`). Files: `crates/nvs-ext/tests/spreadsheet_hostile.rs`, `extensions/spreadsheet/src/read/cfb.rs`, `extensions/spreadsheet/src/read/binary.rs`.
 
-- [ ] **The bombs and the entities**: `the_spreadsheet_bomb_corpus_ends_in_a_throw_or_a_contained_trap` (a bomb in a sheet and in `sharedStrings.xml`), `an_entity_is_never_expanded_and_no_dtd_is_loaded`, `an_external_entity_naming_a_file_or_a_url_reads_nothing`. The test file has its own deflating `zip` helper; `crates/nvs-ext/tests/spreadsheet_read.rs:96` has the full xlsx `package` to share or copy.
-- [ ] **The grid**: `a_row_index_past_the_grid_throws_naming_the_cell` (row 2^31) and `a_merged_range_past_the_grid_throws` (`extensions/spreadsheet/src/read/sheet.rs:189`).
-- [ ] **The binary formats**: `an_xls_sector_chain_that_loops_is_refused` (`extensions/spreadsheet/src/read/cfb.rs:177`) and `an_xlsb_record_whose_length_lies_throws` (`extensions/spreadsheet/src/read/binary.rs:57`).
-- [ ] **Writing**: `a_template_list_past_the_memory_cap_is_a_contained_trap` (a `Meter` with a small memory limit, `extensions/spreadsheet/src/template/mod.rs:757`) and `an_export_string_beginning_with_equals_is_a_text_cell`.
+- [ ] **The binary formats**: `an_xls_sector_chain_that_loops_is_refused` (`extensions/spreadsheet/src/read/cfb.rs:177`) and `an_xlsb_record_whose_length_lies_throws` (`extensions/spreadsheet/src/read/binary.rs:57`). Give an xlsb cell the same grid check as xlsx's `within`. `crates/nvs-ext/tests/spreadsheet_read.rs:@compound_with` and `:@xlsb` build both formats.
+- [ ] **Writing**: `a_template_list_past_the_memory_cap_is_a_contained_trap` (a `Meter` with a small memory limit, `extensions/spreadsheet/src/template/mod.rs:757`) and `an_export_string_beginning_with_equals_is_a_text_cell`. Then Stage 11's status goes to done in the front matter, once `looper check --name nvs-ext-the-spreadsheet-bomb-corpus` is green.
 
 ### Backlog
 
@@ -790,5 +789,4 @@ One file set: `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/n
 - An ods cell's `text` uses the default format of its type, not the file's own number style. A merged fill copies no `display`. `extensions/spreadsheet/src/read/ods.rs:1`, `extensions/spreadsheet/src/read/merge.rs:166`
 - The extras from xlsb, xls and ods, which throw naming the format now. `extensions/spreadsheet/src/read/extras.rs:1`
 - Extension contagion does not reach a shape's fields (`crates/nvs-types/src/expr/quals.rs:531`, `rule:security/extension-contagion`). This is a compiler fix, outside this goal.
-- `docs/rules/core-classes/spreadsheet-roster.md`'s *Not shipped* still says only the writer is on disk. Rewrite it at Stage 14.
-- Stages 12 to 14. Stage 14's proofs owe `Row` a group, and `Reader::rows`'s doc comment is four lines where `bun nv proofs --comments` allows two. The ten Stage 11 attacks under `tests/hostile/novis/` are Stage 14's, with the proofs.
+- `docs/rules/core-classes/spreadsheet-roster.md`'s *Not shipped* still says only the writer is on disk. Rewrite it at Stage 14. Stage 14's proofs owe `Row` a group, `Reader::rows`'s doc comment is four lines where `bun nv proofs --comments` allows two, and the ten Stage 11 attacks under `tests/hostile/novis/` are Stage 14's.
