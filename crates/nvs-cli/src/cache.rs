@@ -46,35 +46,35 @@
 //!
 //! # § 3's read path
 //!
-//! `mmap` the file read-only — never starting from an executable mapping — then check magic,
-//! `format_version` and `env_hash` against what this process expects, check `payload_len` against
-//! the mapping's own length, and hash the payload. Every failure is a cache miss, and none of them
-//! is visible to the script being run: § 3 is explicit that a bad entry is exactly as invisible as a
-//! cold cache, so nothing here returns a diagnostic, panics or throws.
+//! Read the whole file into a heap buffer with one `fs::read`, then check magic, `format_version`
+//! and `env_hash` against what this process expects, check `payload_len` against the buffer's own
+//! length, and hash the payload. Every failure is a cache miss, and none of them is visible to the
+//! script being run: § 3 is explicit that a bad entry is exactly as invisible as a cold cache, so
+//! nothing here returns a diagnostic, panics or throws.
 //!
-//! **The mapping itself is overturned, not yet replaced.** `rule:packaging/the-artifact-cache-is-read-not-mapped`
-//! decides the entry is read into a heap buffer — a file replaced under a mapping raises `SIGBUS`,
-//! which nothing in-process contains — and that read path is not built; until it is, the hit cost
-//! below is the mapped one.
+//! **The file is read, never mapped** (`rule:packaging/the-artifact-cache-is-read-not-mapped`). A
+//! file truncated or replaced under a mapping raises `SIGBUS` in the reader, which nothing
+//! in-process contains; a buffer the read filled is this process's own, so nothing done to the file
+//! after the read can reach it. That is also why this crate needs no `unsafe` to read the cache.
 //!
 //! **Verification is a property of the type, not of a caller's discipline.** [`Cache::load`] hands
 //! back a [`Verified`], which is constructed on exactly one code path — the far side of the
-//! checksum comparison — and holds the mapping privately. A caller cannot reach the bytes without
-//! going through it, so the step that would make those pages executable cannot be reached from an
-//! unverified mapping even by mistake.
+//! checksum comparison — and holds the buffer privately. A caller cannot reach the bytes without
+//! going through it, so the step that would make those pages executable cannot be reached from
+//! unverified bytes even by mistake.
 //!
 //! **Which failures also delete the file.** A checksum mismatch does, which is § 3's own
 //! instruction: the key is the content hash, so a file at that path whose contents hash differently
 //! can only be corrupt or tampered and can never become a second valid version. A `payload_len` that
-//! disagrees with the mapping is treated the same way, one step earlier — that field exists to catch
+//! disagrees with the file's length is treated the same way, one step earlier — that field exists to catch
 //! a truncation before the checksum does, the entry is corrupt on the same argument, and leaving it
 //! costs a re-open on every future run. A wrong magic, `format_version` or `env_hash` is *not*
 //! deleted: each of them means "not this process's file" rather than "broken", and deleting on them
 //! would let one build of the compiler evict another's entries out of a shared cache directory.
 //!
-//! Cost of a hit: one `open`, one `mmap`, one BLAKE3 pass over the payload. A mapping rather than
-//! a read into a heap buffer lets the page cache do the I/O once and the hash run over it with no
-//! copy. The loader below adds one more pass, and
+//! Cost of a hit: one read of the whole file into a heap buffer, which is one copy of the unit per
+//! process for as long as the [`Verified`] lives, and one BLAKE3 pass over the payload. The loader
+//! below adds one more pass, and
 //! `rule:packaging/an-artifact-is-verified-whole-before-a-page-is-executable` is where that trade
 //! is argued.
 //!
@@ -89,8 +89,8 @@
 //!
 //! **The pages that run are never the file's.** § 3 owns the argument — a relocatable object's
 //! sections are laid out for a linker to place, not for a header of any length to leave aligned.
-//! What it means in this module is that [`Cache::load`]'s mapping is read-only for its whole life
-//! and exists only to be hashed.
+//! What it means in this module is that [`Cache::load`]'s buffer is never written after the read
+//! and exists only to be hashed and copied out of.
 //!
 //! **A landing area is the answer to the >2 GB relocation, and to the GOT.** A symbol reached
 //! through one gets [`LANDING_LEN`] bytes inside that same mapping: eight holding the symbol's full
@@ -156,7 +156,7 @@
 //! entries down to a floor below that cap. [`Cache::store`] is the only caller,
 //! [`gc`](Cache::gc) is the same walk without the roll — § 6's `nvs cache gc` — and nothing on the
 //! read path calls either. **A warm hit performs no directory walk, checks no size and pays
-//! nothing beyond § 3's verify-then-map**, which is what keeps M6's warm-start bullet reachable.
+//! nothing beyond § 3's read, verify and load**, which is what keeps M6's warm-start bullet reachable.
 //!
 //! The roll is PHP's `session.gc_probability`/`gc_divisor` shape deliberately, and the floor is
 //! hysteresis: evicting to exactly the cap leaves the next miss's roll finding work again, so a
@@ -288,17 +288,19 @@ enum Miss {
     Corrupt,
 }
 
-/// One artifact that passed every one of § 3's checks, still mapped read-only.
+/// One artifact that passed every one of § 3's checks, held in a buffer of this process's own.
 ///
 /// This type is the whole of "verified before a single page is executable": it is constructed on
 /// exactly one code path, the far side of the checksum comparison in [`Cache::load`], and it owns
-/// the mapping privately, so there is no way to reach an artifact's bytes without having verified
-/// them. The mapping is a [`Mmap`] and not an `MmapMut`, so the pages stay read-only for its whole
-/// life; the step that would change that is the module doc's *Known gaps* entry.
+/// the bytes privately, so there is no way to reach an artifact's bytes without having verified
+/// them. Nothing ever hands out a mutable view of the buffer, and no page of it is ever executable:
+/// [`Verified::relocate`] copies the sections into a mapping of its own.
+///
+/// **Costs** one copy of the whole file per loaded unit, freed with this value.
 #[derive(Debug)]
 pub(crate) struct Verified {
-    /// The whole file, header included, as the page cache holds it.
-    map: Mmap,
+    /// The whole file, header included, as one read returned it.
+    bytes: Box<[u8]>,
     /// The decoded header, already checked against this process.
     header: Header,
 }
@@ -307,7 +309,7 @@ impl Verified {
     /// The artifact's payload — the bytes the header's checksum covers, and nothing else.
     #[must_use]
     pub(crate) fn payload(&self) -> &[u8] {
-        &self.map[HEADER_LEN..]
+        &self.bytes[HEADER_LEN..]
     }
 
     /// § 2's header, as it was read.
@@ -381,7 +383,7 @@ impl Verified {
         // Every function this payload defines, by the name `nvs-codegen` gave it. The entry frame
         // is one of them, and the rest are what § 3's binding step asks for by name once the pages
         // are executable — one walk answers both questions, and neither is answerable later,
-        // since `object` borrows the file mapping and [`Loaded`] does not hold it.
+        // since `object` borrows [`Verified`]'s buffer and [`Loaded`] does not hold it.
         let mut functions = BTreeMap::new();
         for symbol in object.symbols() {
             if symbol.kind() != SymbolKind::Text {
@@ -1068,8 +1070,9 @@ fn write_page_offset12(field: &mut [u8], offset: i64) -> Result<(), Unloadable> 
 /// The pages are this loader's own mapping and never the file's: § 2's header leaves a payload's
 /// sections at whatever offset the object writer chose, which is not the alignment they have to
 /// run at, and a relocation against a far-away helper needs a [`Landing`] placed beside the code
-/// that no file mapping has room for. What the file mapping is for is the checksum, and it stays
-/// read-only for its whole life so no patch can reach the bytes that were hashed.
+/// that no file's bytes have room for. The file is read into [`Verified`]'s buffer only to be
+/// hashed and copied out of, and nothing writes to that buffer, so no patch can reach the bytes
+/// that were hashed.
 #[derive(Debug)]
 pub(crate) struct Loaded {
     /// The mapping, `PROT_READ | PROT_EXEC` since [`Verified::relocate`] returned and never
@@ -1303,46 +1306,33 @@ impl Cache {
     /// an unreadable directory — because § 3 makes a bad cache entry exactly as invisible to the
     /// running script as a cold cache is. Nothing here reports, and the caller's next move is the
     /// compile it would have done anyway.
-    #[expect(
-        unsafe_code,
-        reason = "`Mmap::map` is unsafe because another process could rewrite the file underneath \
-                  the mapping; § 4 publishes an artifact by rename and never rewrites one, and § 5's \
-                  ownership check on the cache directory is what bounds who could, so this is the \
-                  one call in this crate and the block below states the argument"
-    )]
+    ///
+    /// The file is read whole into a buffer this process owns, and the file is closed before the
+    /// first check runs, so nothing done to the file after this returns can reach the bytes it
+    /// verified (`rule:packaging/the-artifact-cache-is-read-not-mapped`).
     pub(crate) fn load(&self, key: Digest) -> Option<Verified> {
         let path = self.path(key);
-        let file = File::open(&path).ok()?;
-        // SAFETY: a published artifact is immutable — § 4 writes it under a temp name and publishes
-        // it by one rename, and § 5's ownership check on the cache directory is what keeps any
-        // other principal from replacing or truncating it underneath this mapping. Every byte is
-        // hashed below before any caller sees one.
-        let map = unsafe { Mmap::map(&file) }.ok()?;
-        drop(file);
+        let bytes = fs::read(&path).ok()?.into_boxed_slice();
 
-        match Self::verify(self.env, &map) {
-            Ok(header) => Some(Verified { map, header }),
+        match Self::verify(self.env, &bytes) {
+            Ok(header) => Some(Verified { bytes, header }),
             Err(Miss::Foreign) => None,
             Err(Miss::Corrupt) => {
-                // The unmap comes first: Windows keeps a file open for as long as a mapping over it
-                // is alive, so deleting while mapped fails there and would leave the entry to be
-                // re-read on every future run.
-                drop(map);
                 drop(fs::remove_file(&path));
                 None
             }
         }
     }
 
-    /// § 3's checks over a mapped artifact, cheapest first, hash last.
+    /// § 3's checks over an artifact's bytes, cheapest first, hash last.
     fn verify(env: EnvHash, bytes: &[u8]) -> Result<Header, Miss> {
         let header = Header::decode(bytes).ok_or(Miss::Foreign)?;
         if header.format_version != FORMAT_VERSION || header.env_hash != *env.digest().as_bytes() {
             return Err(Miss::Foreign);
         }
         let payload = &bytes[HEADER_LEN..];
-        let mapped = u64::try_from(payload.len()).expect("a mapping's length fits a u64");
-        if header.payload_len != mapped {
+        let read = u64::try_from(payload.len()).expect("a buffer's length fits a u64");
+        if header.payload_len != read {
             return Err(Miss::Corrupt);
         }
         if *blake3::hash(payload).as_bytes() != header.checksum {
@@ -2902,6 +2892,75 @@ mod tests {
             "7",
             "a miss cost one recompile, no more"
         );
+
+        drop(fs::remove_dir_all(&dir));
+    }
+
+    /// `rule:packaging/the-artifact-cache-is-read-not-mapped`: a loaded unit's bytes are a copy of
+    /// this process's own. The file is rewritten in place after the load, at the same length, and
+    /// the payload still reads as it was. A mapping would show the new bytes on every platform: a
+    /// write to a mapped file reaches the mapping's pages.
+    #[test]
+    fn a_cached_unit_is_read_into_memory_and_never_mapped() {
+        let dir = scratch("read-not-mapped");
+        let payload = b"a payload this case never runs, only reads back".to_vec();
+        let cache = Cache::new(dir.join("cache"), env()).expect("a directory of this test's own");
+        let key = artifact_key(content_hash(&payload), cache.env());
+        cache.store(key, &payload).expect("writable");
+
+        let verified = cache.load(key).expect("the published artifact verifies");
+        let path = cache.path(key);
+        let length = fs::metadata(&path).expect("the artifact exists").len();
+        let mut file = File::options()
+            .write(true)
+            .open(&path)
+            .expect("the account that wrote the artifact can rewrite it");
+        file.write_all(&vec![0xAA; usize::try_from(length).expect("a small file")])
+            .expect("a file with no mapping over it takes a write");
+        drop(file);
+
+        assert_eq!(
+            verified.payload(),
+            payload.as_slice(),
+            "the loaded bytes are the ones that were verified, whatever the file says now"
+        );
+        assert!(
+            cache.load(key).is_none(),
+            "and the rewritten file is a miss of its own"
+        );
+
+        drop(fs::remove_dir_all(&dir));
+    }
+
+    /// `rule:packaging/the-artifact-cache-is-read-not-mapped`: truncating the file after its load
+    /// cannot reach the unit. Over a mapping this is the `SIGBUS` the rule exists to prevent on
+    /// Unix, and a refused truncation on Windows; over a read it is nothing at all.
+    #[test]
+    // A warm hit is a loaded host's; see `a_payload_is_a_miss_elsewhere`.
+    #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+    fn truncating_a_cached_file_after_its_load_leaves_the_loaded_unit_whole() {
+        let dir = scratch("truncated-after-load");
+        let source = dir.join("program.nvs");
+        fs::write(&source, "<?nvs\necho 7;\n")
+            .expect("a scratch directory of this test's own is writable");
+        let (payload, descriptors) = unit_of(&source);
+        let cache = Cache::new(dir.join("cache"), env()).expect("a directory of this test's own");
+        let key = artifact_key(content_hash(&payload), cache.env());
+        cache.store(key, &payload).expect("writable");
+
+        let verified = cache.load(key).expect("the published artifact verifies");
+        File::options()
+            .write(true)
+            .open(cache.path(key))
+            .expect("the account that wrote the artifact can open it")
+            .set_len(0)
+            .expect("a file with no mapping over it can be truncated");
+
+        assert_eq!(verified.payload(), payload.as_slice());
+        let loaded = verified
+            .relocate(&this_process(&descriptors))
+            .expect("every symbol resolves");
+        assert_eq!(output_of(&loaded), "7", "the truncation reached nothing");
 
         drop(fs::remove_dir_all(&dir));
     }

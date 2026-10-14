@@ -5,7 +5,7 @@ being run sees exactly what it would see with a cold cache. This is `rule:errors
 checked-return discipline extended to a compile-pipeline internal that never had a caller to report to.
 
 Which failures delete the file is decided by what the failure means. A checksum mismatch, or a
-`payload_len` that disagrees with the mapping, deletes it: the key is the content hash, so a file at that
+`payload_len` that disagrees with the file's length, deletes it: the key is the content hash, so a file at that
 path whose bytes hash differently can only be corrupt or tampered, never a second valid version, and
 leaving it costs a re-open on every future run. A wrong magic, `format_version` or `env_hash`, and an
 unresolvable symbol, do **not**: those say "not this process's file" rather than "broken", and deleting

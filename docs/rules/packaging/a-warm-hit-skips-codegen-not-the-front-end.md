@@ -11,4 +11,4 @@ brought place-relocate-bind within that factor of codegen is the one thing that 
 format — with an IR class list versioned alongside the file, never a serialised runtime type.
 
 A cold run pays its compile once per distinct (content, environment) pair, ever; every later run, in any
-process, is an `mmap`, a verify, a relocate and an `mprotect`.
+process, is a read, a verify, a relocate and an `mprotect`.

@@ -3,7 +3,7 @@
 
 # Packaging
 
-*19 of 79 rules below are **designed** rather than shipped, and are marked where they appear.*
+*18 of 79 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="packaging-an-artifact-is-one-immutable-content-addressed-file"></a>
 
@@ -105,15 +105,18 @@ file becomes a plain miss rather than one relocated under yesterday's rules.
 
 <a id="packaging-the-artifact-cache-is-read-not-mapped"></a>
 
-## A compiled-unit cache entry is read into memory, never mapped  *(designed — owned by goal request-isolation-debts)*
+## A compiled-unit cache entry is read into memory, never mapped
 
 `rule:packaging/the-artifact-cache-is-read-not-mapped`
 
-The compiled-unit cache is **read into memory**, never mapped. A mapped file that is truncated or
-replaced underneath a reader raises `SIGBUS` in the reader — a signal, which no in-process mechanism
-contains: `catch_unwind` catches a panic, not a signal, and a signal in a worker is the one thing left
-that can cost more than the request that provoked it ([`errors/panics-bypass-user-code`](errors.md#errors-panics-bypass-user-code) is the
-boundary this sits outside of).
+The compiled-unit cache is **read into memory**, never mapped. A reader reads the whole file into a
+buffer of its own with one read and closes it before the first check runs. A mapped file that is
+truncated or replaced underneath a reader raises `SIGBUS` in the reader — a signal, which no
+in-process mechanism contains: `catch_unwind` catches a panic, not a signal, and a signal in a worker
+is the one thing left that can cost more than the request that provoked it
+([`errors/panics-bypass-user-code`](errors.md#errors-panics-bypass-user-code) is the boundary this sits outside of). A buffer is the
+process's own, so nothing done to the file after the read reaches the unit, and reading the cache
+needs no `unsafe` block.
 
 The cost is one copy per unit at load, on the compile pool that single-flight compilation already
 keeps off every request core, against a whole class of fault that has no answer once it fires. Memory
@@ -121,10 +124,8 @@ buys isolation, which is the direction the priority ordering exists to permit.
 
 What the entry contains, how it is verified before it becomes executable, and why its key carries the
 extension set ([`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key)) are unchanged by how its bytes
-arrive; only the read path is.
-
-**Not on disk.** `crates/nvs-cli/src/cache.rs` maps a cached unit's file with `memmap2` and verifies
-the mapping, so a file truncated or replaced after the load can still raise `SIGBUS` in the reader.
+arrive; only the read path is. The pages that run stay an anonymous mapping of the loader's own,
+which no file can truncate.
 
 **Memory:** one in-memory copy of each loaded unit's bytes for the process. It grows with the units a
 program loads, never with requests served.
@@ -150,7 +151,7 @@ brought place-relocate-bind within that factor of codegen is the one thing that 
 format — with an IR class list versioned alongside the file, never a serialised runtime type.
 
 A cold run pays its compile once per distinct (content, environment) pair, ever; every later run, in any
-process, is an `mmap`, a verify, a relocate and an `mprotect`.
+process, is a read, a verify, a relocate and an `mprotect`.
 
 <sub>See also [`packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header`](packaging.md#packaging-an-artifact-is-a-relocatable-object-behind-a-self-describing-header), [`packaging/an-artifact-is-verified-whole-before-a-page-is-executable`](packaging.md#packaging-an-artifact-is-verified-whole-before-a-page-is-executable).</sub>
 
@@ -160,13 +161,12 @@ process, is an `mmap`, a verify, a relocate and an `mprotect`.
 
 `rule:packaging/an-artifact-is-verified-whole-before-a-page-is-executable`
 
-A reader `mmap`s the file read-only, never starting from an executable mapping. It checks `magic`,
-`format_version` and `env_hash` against what this process expects, checks `payload_len` against the
-mapping's own length, and computes BLAKE3 over the mapped payload bytes against the header's checksum.
-Every mismatch is a cache miss ([`packaging/a-bad-cache-entry-is-a-miss-never-an-error`](packaging.md#packaging-a-bad-cache-entry-is-a-miss-never-an-error)), and not
-one byte of the payload is touched before the checksum matches. Mapping lets the page cache do the I/O
-once and the hash run over it with no copy into a buffer; replacing the mapping with a read is
-[`packaging/the-artifact-cache-is-read-not-mapped`](packaging.md#packaging-the-artifact-cache-is-read-not-mapped).
+A reader reads the whole file into a buffer of its own
+([`packaging/the-artifact-cache-is-read-not-mapped`](packaging.md#packaging-the-artifact-cache-is-read-not-mapped)). It checks `magic`, `format_version` and
+`env_hash` against what this process expects, checks `payload_len` against the buffer's own length, and
+computes BLAKE3 over the payload bytes against the header's checksum. Every mismatch is a cache miss
+([`packaging/a-bad-cache-entry-is-a-miss-never-an-error`](packaging.md#packaging-a-bad-cache-entry-is-a-miss-never-an-error)), and not one byte of the payload is
+touched before the checksum matches.
 
 Then **place, relocate, protect, bind.** The reader maps a second region of its own — private,
 anonymous, writable — and copies each allocatable section into it at the alignment that section runs
@@ -177,7 +177,7 @@ writable or executable, never both, and the transition runs one way. Descriptors
 relocation and their method rows are filled with code addresses after protection, writing into the
 descriptors and never back into the pages.
 
-**The pages that run are the reader's, never the file's.** The file's mapping is never writable, so
+**The pages that run are the reader's, never the file's.** The buffer the file was read into is never written, so
 nothing can reach the bytes the checksum covered and no relocation can launder a corrupt payload past
 the check. Owning the layout also lets the reader place a landing area beside the code: a symbol
 further away than a PC-relative call can reach gets an eight-byte cell holding its full address and a
@@ -232,7 +232,7 @@ being run sees exactly what it would see with a cold cache. This is [`errors/pro
 checked-return discipline extended to a compile-pipeline internal that never had a caller to report to.
 
 Which failures delete the file is decided by what the failure means. A checksum mismatch, or a
-`payload_len` that disagrees with the mapping, deletes it: the key is the content hash, so a file at that
+`payload_len` that disagrees with the file's length, deletes it: the key is the content hash, so a file at that
 path whose bytes hash differently can only be corrupt or tampered, never a second valid version, and
 leaving it costs a re-open on every future run. A wrong magic, `format_version` or `env_hash`, and an
 unresolvable symbol, do **not**: those say "not this process's file" rather than "broken", and deleting
@@ -1666,7 +1666,10 @@ The engine is plumbing. Its methods take the records the component's Novis class
 shape the WIT interface needs, and every one of them is called by those classes, so a program loses
 no capability and has one way to do each job. The engine stays in the binary, is loaded and typed
 like every manifest class ([`packaging/extension-calls-are-statically-typed`](packaging.md#packaging-extension-calls-are-statically-typed)), and keeps its
-`nvs meta --json` entry.
+`nvs meta --json` entry, which carries `"internal": true`. So does a manifest enum or a source
+class's type alias that no public member's signature of the component names, directly or through a
+type alias such a signature uses: only the engine takes it. Neither is a feature, so neither is on the proofs roster
+([`testing/feature-proofs`](testing.md#testing-feature-proofs)), in `data/proofs/policy.json` or on the website.
 
 A file is the component's own when `nvs_hir`'s graph walk added it from the component's `nvs.source`
 section: it carries the name `<class>:<path>` and no path on disk, so no file a program writes or
