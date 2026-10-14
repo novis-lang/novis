@@ -1,6 +1,6 @@
 ---
 looper: 1
-title: "The request-isolation rules that are designed are built"
+title: The request-isolation rules that are designed are built
 summary: "Every rule this goal owns is `shipped` with a guard test, and `bun nv owners --closes request-isolation-debts` passes."
 context: []
 stages:
@@ -14,7 +14,7 @@ stages:
         shapes: ["A `.nvst` test case"]
   - id: 2
     title: a queue payload keeps its qualifiers
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/queue.rs, crates/nvs-stdlib/src/script.rs]
     extra:
       context:
@@ -76,7 +76,7 @@ checks:
     tests: [a_host_with_a_port_a_capital_and_a_trailing_dot_matches_its_mount, a_non_ascii_host_reaches_no_mount, an_unknown_host_on_a_host_mounted_table_reaches_no_mount]
   - id: host-matching-config
     stage: 1
-    name: "nvs-config (a declared host is one key in any case to the duplicate check and to an override)"
+    name: nvs-config (a declared host is one key in any case to the duplicate check and to an override)
     run: [cargo, test, --test, mount]
     tests: [two_mounts_whose_hosts_differ_only_in_case_are_a_duplicate, a_declared_host_is_held_in_ascii_lower_case]
   - id: host-matching-door
@@ -122,16 +122,16 @@ checks:
   - id: argv-fuzz-target
     stage: 7
     name: "the fuzz workspace declares an `image_path` target"
-    file: fuzz/Cargo.toml
     output_contains: ["name = \"image_path\""]
+    file: fuzz/Cargo.toml
   - id: image-manifest-declares-nothing
     stage: 8
-    name: "nvs-ext (the image manifest declares no qualifier deviation and no capability)"
+    name: nvs-ext (the image manifest declares no qualifier deviation and no capability)
     run: [cargo, test, --test, manifest]
     tests: [the_image_manifest_declares_no_qualifier_and_no_capability]
   - id: owners-closes
     stage: 8
-    name: "no designed rule or gap names this goal"
+    name: no designed rule or gap names this goal
     run: [bun, nv, owners, --closes, request-isolation-debts]
     reach: true
 ---
@@ -222,7 +222,7 @@ the manifest parser, never by a string search.
 
 - [x] Every text read out of `Core\Script::args()` is `tainted`, so a value enqueued `tainted` comes back `tainted`, and the rule is shipped. `crates/nvs-stdlib/src/script.rs:158`
 - [x] A `secret` argument to `push` does not compile, with a diagnostic naming configuration as the place for a credential. `crates/nvs-stdlib/src/queue.rs:2019`
-- [ ] The conformance cases, and the feature proofs of `Core\Queue::push` and `Core\Script::args`: an attack that pushes a `tainted` value and echoes it in the job. `docs/examples/core/Queue/push/about.md:1`
+- [x] The conformance cases, and the feature proofs of `Core\Queue::push` and `Core\Script::args`: an attack that pushes a `tainted` value and echoes it in the job. `docs/examples/core/Queue/push/about.md:1`
 
 ### 3. the artifact cache is read, not mapped
 
@@ -273,21 +273,25 @@ the manifest parser, never by a string search.
 
 ### State
 
-Stage 1 is done. In stage 2 the user chose the static result: every text read out of
-`Core\Script::args()` is `tainted`, a clean value included, and nothing is recorded in the row.
-`rule:concurrency/a-payload-refuses-secret-and-keeps-its-qualifiers` is shipped on the two
-`payload-qualifiers` conformance cases, and the per-value recording is its Declined entry. Stage 2's
-one open item is the feature proofs. The macOS warm-start budget is still *not checked*.
+Stages 1 and 2 are done. Stage 2's feature proofs are in: the attack
+`tests/hostile/core/Queue/push/02-a-tainted-payload-used-in-the-job.nvs` pushes a `tainted` path
+and has the job use it as a file path and in SQL, and both `about.md`s say a payload text is
+`tainted`. The sweep's `payload-qualifiers-decode` red is a check the previous commit already removed.
+The floor's `ExtensionError` attack called the now-internal `Novis\Image\Codec` (E0856) and uses
+`Novis\Image\Image` now. The nightly CI reds are from `origin/main`, 532 commits behind local `main`. The
+two causes checked (`records --check` and `ruzstd` 0.9.0) are already fixed locally, and the other jobs
+are *not checked*. The macOS warm-start budget is still *not checked*.
 
 ### Next
 
-**Stage 2's feature proofs**, file set: `docs/examples/core/Queue/push/`, `docs/examples/core/Script/args/`, `tests/hostile/`.
+**Stage 3, the artifact cache is read, not mapped**, file set: `crates/nvs-cli/src/cache.rs`, `docs/rules/packaging/the-artifact-cache-is-read-not-mapped.md`.
 
-- [ ] The feature proofs of `Core\Queue::push` and `Core\Script::args` (`bun nv proofs --id 'Core\Queue::push'`): an attack that pushes a `tainted` value and uses it in the job, and its about.md says a payload text comes back `tainted` (`rule:concurrency/a-payload-refuses-secret-and-keeps-its-qualifiers`). `docs/examples/core/Queue/push/about.md:1`
-
-Stage 3 does not depend on this and can run first: `crates/nvs-cli/src/cache.rs:1313`.
+- [ ] `load` reads the unit with one read into an owned buffer and verifies it, and `Verified` holds the buffer (`rule:packaging/the-artifact-cache-is-read-not-mapped`). `crates/nvs-cli/src/cache.rs:1313`
+- [ ] The `unsafe` `Mmap::map` block and the `memmap2` import go, and the anonymous executable mapping stays. `crates/nvs-cli/src/cache.rs:1320` `crates/nvs-cli/src/cache.rs:191`
+- [ ] The `cache-is-read` tests, and the rule shipped with its fragment rewritten. `crates/nvs-cli/src/cache.rs:1313`
 
 ### Backlog
 
-- Stages 3 to 8 — this file's § *Stages*.
+- Stages 4 to 8 — this file's § *Stages*.
 - The macOS warm-start budget in the nightly cost guards, once `origin/main` is pushed — `tools/nv/cmd/bench.ts`.
+- The nightly CI jobs not checked against local `main`, once `origin/main` is pushed — `.github/workflows/`.

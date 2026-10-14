@@ -7,5 +7,9 @@ The value can be anything that `args:` accepts: a string, a number, an array or 
 type is `mixed`, so you convert it before you use it. When no value was given, the result is `null`.
 This is also the result in the first script, because no other script started it.
 
+Every string that you read from this value is `tainted`. Tainted means the text came from outside the
+program, so you must check it before you use it in SQL or as a file path. This is also true for a job
+that `Core\Queue::push` started.
+
 **The examples below** show a script that greets the name it was given, a script that uses a default
 when it was given nothing, and a list of orders split between three scripts that run at the same time.
