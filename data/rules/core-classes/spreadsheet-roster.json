@@ -9,7 +9,12 @@
   ],
   "guardedBy": [
     "crates/nvs-stdlib/tests/ext_world.rs",
-    "crates/nvs-cli/tests/spreadsheet_engine.rs",
+    "crates/nvs-cli/tests/spreadsheet_workbook.rs",
+    "crates/nvs-cli/tests/spreadsheet_sheet.rs",
+    "crates/nvs-cli/tests/spreadsheet_reader.rs",
+    "crates/nvs-cli/tests/spreadsheet_template.rs",
+    "crates/nvs-cli/tests/spreadsheet_chart.rs",
+    "crates/nvs-cli/tests/spreadsheet_values.rs",
     "tests/conformance/novis/spreadsheet-writes-with-no-configuration.nvst"
   ]
 }
