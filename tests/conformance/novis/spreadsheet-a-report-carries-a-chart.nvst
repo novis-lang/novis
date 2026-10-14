@@ -8,7 +8,6 @@ A streamed report carries a column chart combined with a line, its ranges from `
 // covers: Novis\Spreadsheet\Chart::pie
 // covers: Novis\Spreadsheet\Chart::series
 // covers: Novis\Spreadsheet\Chart::combine
-// covers: Novis\Spreadsheet\Engine::writerPart
 use Novis\Spreadsheet\Chart;
 use Novis\Spreadsheet\Workbook;
 

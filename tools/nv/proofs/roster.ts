@@ -4,6 +4,8 @@
 // a tool feature is one under `docs/reference/tools/`. Each feature has one path, `core/Str/length`,
 // that the example, attack and bench trees share; a member of a built-in component's `Novis\` class
 // has one under `novis/`, `novis/Image-Image/open`. `rule:testing/feature-proofs` is what each one owes.
+// A class or enum `nvs meta --json` calls `internal` — a component's engine, and an enum only its
+// signature uses — is no feature, since a program never calls it.
 //
 // An anchor, `crates/…/file.rs:NN`, is where the feature is implemented when the roster can find it. It
 // keys the perf ledger's currency, and a feature with no anchor is still on the roster.
@@ -213,7 +215,7 @@ function chapterFeatures(directory: string, area: "lang" | "tools"): Entry[] {
 
 type Doc = { short?: string } | null | undefined;
 export interface Meta {
-  classes?: { name: string; doc?: Doc; members?: { name: string; doc?: Doc; signature?: string }[] }[];
+  classes?: { name: string; internal?: boolean; doc?: Doc; members?: { name: string; doc?: Doc; signature?: string }[] }[];
   exceptions?: unknown[];
   enums?: unknown[];
   interfaces?: unknown[];
@@ -267,6 +269,7 @@ export async function roster(nvs: string, doc?: Meta): Promise<Entry[]> {
   const out: Entry[] = [];
 
   for (const klass of doc.classes ?? []) {
+    if (klass.internal) continue;
     const cname = klass.name;
     // A member's own card is enforced by the registry test. What the binary can still be missing is
     // the class's card, which a completion list and `show` print above the member.
@@ -292,6 +295,7 @@ export async function roster(nvs: string, doc?: Meta): Promise<Entry[]> {
 
   for (const [kind, key] of [["exception", "exceptions"], ["enum", "enums"], ["interface", "interfaces"]] as const) {
     for (const item of doc[key] ?? []) {
+      if (isObject(item) && item.internal === true) continue;
       const name = isObject(item) ? String(item.name) : pyStr(item);
       const short = isObject(item) ? ((item.doc as Doc)?.short ?? "") : "";
       out.push({

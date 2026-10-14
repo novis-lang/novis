@@ -5,7 +5,6 @@
 // covers: Novis\Spreadsheet\Workbook::createForFile
 // covers: Novis\Spreadsheet\Workbook::createForStream
 // covers: Novis\Spreadsheet\Workbook::createInMemory
-// covers: Novis\Spreadsheet\Engine::writerRows
 // covers: Core\IO\File::write
 use Novis\Spreadsheet\Workbook;
 

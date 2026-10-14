@@ -3758,6 +3758,7 @@ command option be declared at that class and arrive as an object:
 | `LateInit` | — |
 | `Iterable` | T |
 | `Iterator` | T |
+| `Core\Router\Gate` | — |
 
 An `interface` declares methods a class must provide. It may also carry:
 

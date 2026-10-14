@@ -6,9 +6,6 @@ A table added after its rows writes its totals row at once, a formula row after 
 // covers: Novis\Spreadsheet\Sheet::column
 // covers: Novis\Spreadsheet\Sheet::cell
 // covers: Novis\Spreadsheet\Formula::of
-// covers: Novis\Spreadsheet\Engine::writerPart
-// covers: Novis\Spreadsheet\Engine::writerColumn
-// covers: Novis\Spreadsheet\Engine::writerCell
 use Novis\Spreadsheet\Formula;
 use Novis\Spreadsheet\Workbook;
 

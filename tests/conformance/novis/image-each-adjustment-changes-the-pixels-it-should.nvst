@@ -2,7 +2,7 @@
 Each adjustment step of a `Novis\Image\Image` changes a known pixel the way its card says, `metadata` and `variants` run on an opened file, and an adjustment never changes the image it was called on — rule:core-classes/image-pipeline
 --FILE--
 <?nvs
-// covers: Novis\Image\Image::trim, Novis\Image\Image::flatten, Novis\Image\Image::sharpen, Novis\Image\Image::blur, Novis\Image\Image::brightness, Novis\Image\Image::contrast, Novis\Image\Image::gamma, Novis\Image\Image::tint, Novis\Image\Image::metadata, Novis\Image\Image::variants, Novis\Image\Codec::variants, Novis\Image\Color::rgba
+// covers: Novis\Image\Image::trim, Novis\Image\Image::flatten, Novis\Image\Image::sharpen, Novis\Image\Image::blur, Novis\Image\Image::brightness, Novis\Image\Image::contrast, Novis\Image\Image::gamma, Novis\Image\Image::tint, Novis\Image\Image::metadata, Novis\Image\Image::variants, Novis\Image\Color::rgba
 use Novis\Image\Image;
 use Novis\Image\Color;
 use Novis\Image\Format;

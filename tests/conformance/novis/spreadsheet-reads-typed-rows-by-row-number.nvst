@@ -6,11 +6,6 @@
 // covers: Novis\Spreadsheet\Reader::sheets
 // covers: Novis\Spreadsheet\Reader::rows
 // covers: Novis\Spreadsheet\Reader::macros
-// covers: Novis\Spreadsheet\Engine::readerOpen
-// covers: Novis\Spreadsheet\Engine::readerSheets
-// covers: Novis\Spreadsheet\Engine::readerHeader
-// covers: Novis\Spreadsheet\Engine::readerRows
-// covers: Novis\Spreadsheet\Engine::readerMacros
 use Novis\Spreadsheet\Reader;
 use Novis\Spreadsheet\Row;
 use Novis\Spreadsheet\Workbook;

@@ -25,6 +25,11 @@
 //! method is a `static` member whose card is its `help`, a manifest enum's
 //! card is its `help`, and a source class is the program half's shape over
 //! its public members, its cards the `///` runs. See [`builtin_json`].
+//! A component's manifest class is its engine, which a program never calls
+//! (`rule:packaging/a-components-engine-class-is-internal`), so it carries
+//! `"internal": true`, and so does a manifest enum or a source class's type
+//! alias that no public signature reaches. A consumer that publishes features — the proofs roster, the
+//! website — leaves both out.
 //!
 //! ## What is omitted, and why
 //!
@@ -54,7 +59,8 @@
 //! constant its `type` and `value`. Beside `classes` and `enums` sit the
 //! rosters declared outside the registry's own class table: `exceptions`
 //! ([`nvs_hir::errors::TREE`]), `interfaces`
-//! ([`nvs_hir::interfaces::RESERVED`]), `attributes`
+//! ([`nvs_hir::interfaces::RESERVED`], then
+//! [`nvs_stdlib::registry::CONTRACTS`] with their cards), `attributes`
 //! ([`nvs_types::derive::ATTRIBUTES`]), `directives`
 //! ([`nvs_config::DIRECTIVES`]) and `capabilities`
 //! ([`nvs_stdlib::registry::CAPABILITIES`]). Each is a table already, so this
@@ -184,7 +190,11 @@ pub(crate) fn document() -> Value {
         "classes": CLASSES.iter().map(class_json).chain(builtin_classes).collect::<Vec<_>>(),
         "enums": ENUMS.iter().map(enum_json).chain(builtin_enums).collect::<Vec<_>>(),
         "exceptions": nvs_hir::errors::TREE.iter().map(exception_json).collect::<Vec<_>>(),
-        "interfaces": nvs_hir::interfaces::RESERVED.iter().map(interface_json).collect::<Vec<_>>(),
+        "interfaces": nvs_hir::interfaces::RESERVED
+            .iter()
+            .map(interface_json)
+            .chain(nvs_stdlib::registry::CONTRACTS.iter().map(contract_json))
+            .collect::<Vec<_>>(),
         "attributes": nvs_types::derive::ATTRIBUTES.iter().map(|name| Value::from(*name)).collect::<Vec<_>>(),
         "directives": nvs_config::DIRECTIVES.iter().map(directive_json).collect::<Vec<_>>(),
         "capabilities": CAPABILITIES.iter().map(capability_json).collect::<Vec<_>>(),
@@ -244,6 +254,19 @@ fn exception_json(row: &(&str, Option<&str>)) -> Value {
     put_list(&mut out, "properties", own, |property| {
         Value::from(*property)
     });
+    Value::Object(out)
+}
+
+/// One `Core` interface a program's class implements: its name, and its
+/// class card's `short` as its `doc`, as a class carries it.
+fn contract_json(contract: &nvs_stdlib::registry::CoreContract) -> Value {
+    let mut out = Map::new();
+    out.insert("name".into(), Value::from(contract.name));
+    if let Some(doc) = contract.doc {
+        let mut card = Map::new();
+        put_str(&mut card, "short", doc.short);
+        out.insert("doc".into(), Value::Object(card));
+    }
     Value::Object(out)
 }
 
@@ -573,22 +596,107 @@ fn builtin_json() -> (Vec<Value>, Vec<Value>) {
     let mut enums = Vec::new();
     for manifest in &manifests {
         let mut declared = Declared::default();
+        let mut promoted = Vec::new();
         for file in &manifest.source {
             let mut map = SourceMap::new();
             let id = map.add(file.path.as_str(), file.text.as_str());
             let stmts = nvs_syntax::parse_file(map.file(id), &mut Diagnostics::new());
             collect(&stmts, map.file(id), "", &mut declared);
+            promoted_types(&stmts, map.file(id), &mut promoted);
         }
-        classes.extend(declared.classes.into_iter().map(public_surface));
+        let mut public: Vec<Value> = declared.classes.into_iter().map(public_surface).collect();
+        let reached = reached_words(&public, &promoted);
+        for alias in public
+            .iter_mut()
+            .filter_map(|class| class["types"].as_array_mut())
+            .flatten()
+        {
+            let name = alias["name"].as_str().unwrap_or_default();
+            if !reached.contains(name.rsplit("::").next().unwrap_or(name)) {
+                alias["internal"] = Value::Bool(true);
+            }
+        }
+        classes.extend(public);
         classes.push(manifest_class_json(manifest));
-        enums.extend(
-            manifest
-                .enums
-                .iter()
-                .map(|declared| manifest_enum_json(manifest, declared)),
-        );
+        enums.extend(manifest.enums.iter().map(|declared| {
+            let mut out = manifest_enum_json(manifest, declared);
+            if !reached.contains(declared.name.as_str()) {
+                out["internal"] = Value::Bool(true);
+            }
+            out
+        }));
     }
     (classes, enums)
+}
+
+/// The type of every public property a constructor declares in its parameter
+/// list, which a program reads even when the constructor itself is private.
+fn promoted_types(stmts: &[Stmt], src: &SourceFile, out: &mut Vec<String>) {
+    for stmt in stmts {
+        match &stmt.kind {
+            StmtKind::NamespaceDecl(decl) => {
+                if let Some(block) = &decl.body {
+                    promoted_types(&block.stmts, src, out);
+                }
+            }
+            StmtKind::ClassDecl(decl) => {
+                for member in &decl.members {
+                    let ClassMemberKind::Method(method) = &member.kind else {
+                        continue;
+                    };
+                    if text(src, method.name) != "constructor" {
+                        continue;
+                    }
+                    for param in &method.params {
+                        if param.modifiers.contains(&Modifier::Public)
+                            && let Some(ty) = &param.ty
+                        {
+                            out.push(text(src, ty.span).to_owned());
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+/// Every word a program meets in a component's public classes: the words of
+/// each public member's signature and of each public property `promoted`
+/// gives, and of each type alias such a word names, followed until no new
+/// alias is reached. A manifest enum or a type alias
+/// none of them names is one only the engine's signature uses, so it is
+/// internal with the engine
+/// (`rule:packaging/a-components-engine-class-is-internal`).
+fn reached_words(public: &[Value], promoted: &[String]) -> rustc_hash::FxHashSet<String> {
+    let words = |text: &str| -> Vec<String> {
+        text.split(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
+            .filter(|word| !word.is_empty())
+            .map(str::to_owned)
+            .collect()
+    };
+    let mut aliases: FxHashMap<String, Vec<String>> = FxHashMap::default();
+    let mut pending: Vec<String> = promoted.iter().flat_map(|ty| words(ty)).collect();
+    for class in public {
+        for alias in class["types"].as_array().into_iter().flatten() {
+            let name = alias["name"].as_str().unwrap_or_default();
+            let tail = name.rsplit("::").next().unwrap_or(name);
+            let body = words(alias["type"].as_str().unwrap_or_default());
+            aliases.entry(tail.to_owned()).or_default().extend(body);
+        }
+        for member in class["members"].as_array().into_iter().flatten() {
+            pending.extend(words(member["signature"].as_str().unwrap_or_default()));
+        }
+    }
+    let mut reached = rustc_hash::FxHashSet::default();
+    while let Some(word) = pending.pop() {
+        if reached.insert(word.clone())
+            && let Some(body) = aliases.get(&word)
+        {
+            pending.extend(body.iter().cloned());
+        }
+    }
+    reached
 }
 
 /// A source class with its private and protected members left out, and each
@@ -683,6 +791,7 @@ fn manifest_class_json(manifest: &nvs_ext::manifest::Manifest) -> Value {
         .collect();
     let mut out = Map::new();
     out.insert("name".into(), Value::from(manifest.class.as_str()));
+    out.insert("internal".into(), Value::Bool(true));
     if let Some(help) = &manifest.help {
         out.insert("doc".into(), json!({ "short": help }));
     }
@@ -1456,6 +1565,44 @@ mod tests {
             let expected: Vec<&str> = class.constants.iter().map(|c| c.name).collect();
             assert_eq!(constants, expected, "{}", class.name);
         }
+    }
+
+    /// A component's engine class is internal, and so is an enum only the
+    /// engine's signature uses, while one a public class's signature names
+    /// is not.
+    #[test]
+    fn an_engine_class_and_its_own_enums_are_internal() {
+        let document = document();
+        let internal = |roster: &str, name: &str| {
+            document[roster]
+                .as_array()
+                .expect("an array")
+                .iter()
+                .find(|item| item["name"] == name)
+                .unwrap_or_else(|| panic!("{name} is listed"))["internal"]
+                == true
+        };
+        assert!(internal("classes", r"Novis\Image\Codec"));
+        assert!(!internal("classes", r"Novis\Image\Image"));
+        assert!(internal("enums", r"Novis\Image\Image::Output"));
+        assert!(!internal("enums", r"Novis\Image\Image::Fit"));
+        let image = document["classes"]
+            .as_array()
+            .expect("an array")
+            .iter()
+            .find(|class| class["name"] == r"Novis\Image\Image")
+            .expect("Image is listed");
+        let alias = |name: &str| {
+            image["types"]
+                .as_array()
+                .expect("an array")
+                .iter()
+                .find(|alias| alias["name"] == name)
+                .unwrap_or_else(|| panic!("{name} is listed"))["internal"]
+                == true
+        };
+        assert!(alias(r"Novis\Image\Image::Plan"));
+        assert!(!alias(r"Novis\Image\Image::Info"));
     }
 
     /// Every enum in the registry appears, top-level, in the roster's order,

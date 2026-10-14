@@ -5,7 +5,6 @@
 // covers: Novis\Spreadsheet\Reader::open
 // covers: Novis\Spreadsheet\Reader::sheets
 // covers: Novis\Spreadsheet\Reader::rows
-// covers: Novis\Spreadsheet\Engine::readerRows
 // covers: Core\IO\File::read
 use Novis\Spreadsheet\Reader;
 use Novis\Spreadsheet\Row;

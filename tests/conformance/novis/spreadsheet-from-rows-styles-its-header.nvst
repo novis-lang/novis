@@ -5,8 +5,6 @@
 // covers: Novis\Spreadsheet\Workbook::fromRows
 // covers: Novis\Spreadsheet\Export::bytes
 // covers: Novis\Spreadsheet\Export::download
-// covers: Novis\Spreadsheet\Engine::writerStyle
-// covers: Novis\Spreadsheet\Engine::writerRows
 use Novis\Spreadsheet\Workbook;
 
 final class Xml

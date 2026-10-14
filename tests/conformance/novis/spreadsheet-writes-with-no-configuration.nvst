@@ -8,9 +8,6 @@
 // covers: Novis\Spreadsheet\Workbook::finish
 // covers: Novis\Spreadsheet\Sheet::add
 // covers: Novis\Spreadsheet\Sheet::addAll
-// covers: Novis\Spreadsheet\Engine::writerOpen
-// covers: Novis\Spreadsheet\Engine::writerSheet
-// covers: Novis\Spreadsheet\Engine::writerFinish
 use Novis\Spreadsheet\Workbook;
 
 // Each value is one cell. A `string` is text, a number is a number, and a date is a date.

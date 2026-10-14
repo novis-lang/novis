@@ -10,7 +10,9 @@
 // member, enum case and constant. `website/config/spec-overrides.mjs` corrects what the chapter states
 // only in prose.
 //
-// Every registered member is published, and nothing else. A member the spec's tables state takes its
+// Every registered member is published, and nothing else. A class, enum or type alias the registry calls
+// `internal`, a built-in component's engine and what only it uses, is not published, since a program
+// never calls it. A member the spec's tables state takes its
 // signature, notes and section from there; a registered class or member they do not name is built from
 // the registry's own signature, so the published set is the proofs roster's Core features. Where the
 // registry carries a card field it wins; where it lacks one, the website's `Method*` components fall
@@ -96,17 +98,19 @@ function registry(root: string): Registry {
   const parsed = JSON.parse(run.stdout);
   const out: Registry = { implemented: new Map(), classes: [], enums: [], docs: new Map(), enumDocs: new Map(), constDocs: new Map(), meta: parsed };
   for (const cls of parsed.classes ?? []) {
+    if (cls.internal) continue;
     out.implemented.set(cls.name, (cls.members ?? []).map((m: { name: string }) => m.name));
     out.classes.push({
       name: cls.name,
       short: typeof cls.doc?.short === "string" ? cls.doc.short : "",
       members: (cls.members ?? []).map((m: RegistryMember) => ({ name: m.name, kind: m.kind, signature: m.signature })),
-      types: (cls.types ?? []).map((t: { name: string; type: string }) => ({ name: t.name.slice(t.name.lastIndexOf("::") + 2), type: t.type })),
+      types: (cls.types ?? []).filter((t: { internal?: boolean }) => !t.internal).map((t: { name: string; type: string }) => ({ name: t.name.slice(t.name.lastIndexOf("::") + 2), type: t.type })),
     });
     for (const m of cls.members ?? []) if (m.doc) out.docs.set(`${cls.name}::${m.name}`, m.doc);
     for (const c of cls.constants ?? []) if (typeof c.doc === "string" && c.doc) out.constDocs.set(`${cls.name}::${c.name}`, c.doc);
   }
   for (const e of parsed.enums ?? []) {
+    if (e.internal) continue;
     out.enums.push({ name: e.name, cases: (e.cases ?? []).map((c: { name: string }) => c.name) });
     if (!e.doc) continue;
     const cases = new Map<string, string>();

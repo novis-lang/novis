@@ -14,9 +14,20 @@ describe("the roster's paths for a built-in component's class", () => {
     const path = (id: string) => entries.find((e) => e.id === id)?.path;
     expect(path("Novis\\Image\\Image::open")).toBe("novis/Image-Image/open");
     expect(path("Novis\\Image\\Color::hex")).toBe("novis/Image-Color/hex");
-    expect(path("Novis\\Image\\Codec::info")).toBe("novis/Image-Codec/info");
     expect(path("Core\\Str::length")).toBe("core/Str/length");
     expect(entries.find((e) => e.id === "Novis\\Image\\Image::Fit")?.path).toBe("types/Novis-Image-Image-Fit");
     expect(entries.filter((e) => e.kind === "member" && e.id.startsWith("Novis\\")).every((e) => e.path.startsWith("novis/"))).toBe(true);
+  }, 120_000);
+
+  test("a built-in component's engine class is no feature", async () => {
+    const nvs = covwsNvs();
+    if (!existsSync(nvs)) throw new Error(`${nvs} is built by \`bun nv verify\` before this test runs`);
+    const meta = await metaJson(nvs);
+    const engines = (meta.classes ?? []).filter((c) => c.internal).map((c) => c.name);
+    expect(engines).toEqual(["Novis\\Image\\Codec", "Novis\\Intl\\Icu", "Novis\\Pdf\\Engine", "Novis\\Spreadsheet\\Engine"]);
+    const ids = new Set((await roster(nvs, meta)).map((e) => e.id));
+    expect([...ids].filter((id) => engines.some((name) => id.startsWith(`${name}::`)))).toEqual([]);
+    expect(ids.has("Novis\\Image\\Image::Output")).toBe(false);
+    expect(ids.has("Novis\\Image\\Image::open")).toBe(true);
   }, 120_000);
 });

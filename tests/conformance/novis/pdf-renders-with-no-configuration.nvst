@@ -4,7 +4,6 @@
 <?nvs
 // covers: Novis\Pdf\Document::fromHtml
 // covers: Novis\Pdf\Document::render
-// covers: Novis\Pdf\Engine::render
 use Novis\Image\Image;
 use Novis\Pdf\Document;
 

@@ -1612,6 +1612,19 @@
     },
     {
       "area": "types",
+      "slug": "router-refusal",
+      "url": "/reference/types/router-refusal/",
+      "title": "Core\\Router\\Refusal",
+      "group": "Enums",
+      "intro": {
+        "id": "Core\\Router\\Refusal",
+        "title": "Core\\Router\\Refusal",
+        "examples": "types/Router-Refusal"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
       "slug": "script-exitreport-reason",
       "url": "/reference/types/script-exitreport-reason/",
       "title": "Core\\Script\\ExitReport::Reason",
@@ -1794,19 +1807,6 @@
     },
     {
       "area": "types",
-      "slug": "novis-image-image-output",
-      "url": "/reference/types/novis-image-image-output/",
-      "title": "Novis\\Image\\Image::Output",
-      "group": "Enums",
-      "intro": {
-        "id": "Novis\\Image\\Image::Output",
-        "title": "Novis\\Image\\Image::Output",
-        "examples": "types/Novis-Image-Image-Output"
-      },
-      "keys": []
-    },
-    {
-      "area": "types",
       "slug": "novis-image-image-placeholderkind",
       "url": "/reference/types/novis-image-image-placeholderkind/",
       "title": "Novis\\Image\\Image::PlaceholderKind",
@@ -1937,45 +1937,6 @@
     },
     {
       "area": "types",
-      "slug": "novis-intl-numberformat-style",
-      "url": "/reference/types/novis-intl-numberformat-style/",
-      "title": "Novis\\Intl\\NumberFormat::Style",
-      "group": "Enums",
-      "intro": {
-        "id": "Novis\\Intl\\NumberFormat::Style",
-        "title": "Novis\\Intl\\NumberFormat::Style",
-        "examples": "types/Novis-Intl-NumberFormat-Style"
-      },
-      "keys": []
-    },
-    {
-      "area": "types",
-      "slug": "novis-intl-pluralrules-category",
-      "url": "/reference/types/novis-intl-pluralrules-category/",
-      "title": "Novis\\Intl\\PluralRules::Category",
-      "group": "Enums",
-      "intro": {
-        "id": "Novis\\Intl\\PluralRules::Category",
-        "title": "Novis\\Intl\\PluralRules::Category",
-        "examples": "types/Novis-Intl-PluralRules-Category"
-      },
-      "keys": []
-    },
-    {
-      "area": "types",
-      "slug": "novis-intl-pluralrules-kind",
-      "url": "/reference/types/novis-intl-pluralrules-kind/",
-      "title": "Novis\\Intl\\PluralRules::Kind",
-      "group": "Enums",
-      "intro": {
-        "id": "Novis\\Intl\\PluralRules::Kind",
-        "title": "Novis\\Intl\\PluralRules::Kind",
-        "examples": "types/Novis-Intl-PluralRules-Kind"
-      },
-      "keys": []
-    },
-    {
-      "area": "types",
       "slug": "novis-intl-relativetime-numeric",
       "url": "/reference/types/novis-intl-relativetime-numeric/",
       "title": "Novis\\Intl\\RelativeTime::Numeric",
@@ -2041,19 +2002,6 @@
     },
     {
       "area": "types",
-      "slug": "novis-spreadsheet-cellerror",
-      "url": "/reference/types/novis-spreadsheet-cellerror/",
-      "title": "Novis\\Spreadsheet\\CellError",
-      "group": "Enums",
-      "intro": {
-        "id": "Novis\\Spreadsheet\\CellError",
-        "title": "Novis\\Spreadsheet\\CellError",
-        "examples": "types/Novis-Spreadsheet-CellError"
-      },
-      "keys": []
-    },
-    {
-      "area": "types",
       "slug": "novis-spreadsheet-chartkind",
       "url": "/reference/types/novis-spreadsheet-chartkind/",
       "title": "Novis\\Spreadsheet\\ChartKind",
@@ -2062,19 +2010,6 @@
         "id": "Novis\\Spreadsheet\\ChartKind",
         "title": "Novis\\Spreadsheet\\ChartKind",
         "examples": "types/Novis-Spreadsheet-ChartKind"
-      },
-      "keys": []
-    },
-    {
-      "area": "types",
-      "slug": "novis-spreadsheet-conditionalkind",
-      "url": "/reference/types/novis-spreadsheet-conditionalkind/",
-      "title": "Novis\\Spreadsheet\\ConditionalKind",
-      "group": "Enums",
-      "intro": {
-        "id": "Novis\\Spreadsheet\\ConditionalKind",
-        "title": "Novis\\Spreadsheet\\ConditionalKind",
-        "examples": "types/Novis-Spreadsheet-ConditionalKind"
       },
       "keys": []
     },
@@ -2106,45 +2041,6 @@
     },
     {
       "area": "types",
-      "slug": "novis-spreadsheet-operator",
-      "url": "/reference/types/novis-spreadsheet-operator/",
-      "title": "Novis\\Spreadsheet\\Operator",
-      "group": "Enums",
-      "intro": {
-        "id": "Novis\\Spreadsheet\\Operator",
-        "title": "Novis\\Spreadsheet\\Operator",
-        "examples": "types/Novis-Spreadsheet-Operator"
-      },
-      "keys": []
-    },
-    {
-      "area": "types",
-      "slug": "novis-spreadsheet-orientation",
-      "url": "/reference/types/novis-spreadsheet-orientation/",
-      "title": "Novis\\Spreadsheet\\Orientation",
-      "group": "Enums",
-      "intro": {
-        "id": "Novis\\Spreadsheet\\Orientation",
-        "title": "Novis\\Spreadsheet\\Orientation",
-        "examples": "types/Novis-Spreadsheet-Orientation"
-      },
-      "keys": []
-    },
-    {
-      "area": "types",
-      "slug": "novis-spreadsheet-rulekind",
-      "url": "/reference/types/novis-spreadsheet-rulekind/",
-      "title": "Novis\\Spreadsheet\\RuleKind",
-      "group": "Enums",
-      "intro": {
-        "id": "Novis\\Spreadsheet\\RuleKind",
-        "title": "Novis\\Spreadsheet\\RuleKind",
-        "examples": "types/Novis-Spreadsheet-RuleKind"
-      },
-      "keys": []
-    },
-    {
-      "area": "types",
       "slug": "novis-spreadsheet-sheetkind",
       "url": "/reference/types/novis-spreadsheet-sheetkind/",
       "title": "Novis\\Spreadsheet\\SheetKind",
@@ -2153,19 +2049,6 @@
         "id": "Novis\\Spreadsheet\\SheetKind",
         "title": "Novis\\Spreadsheet\\SheetKind",
         "examples": "types/Novis-Spreadsheet-SheetKind"
-      },
-      "keys": []
-    },
-    {
-      "area": "types",
-      "slug": "novis-spreadsheet-totalfunction",
-      "url": "/reference/types/novis-spreadsheet-totalfunction/",
-      "title": "Novis\\Spreadsheet\\TotalFunction",
-      "group": "Enums",
-      "intro": {
-        "id": "Novis\\Spreadsheet\\TotalFunction",
-        "title": "Novis\\Spreadsheet\\TotalFunction",
-        "examples": "types/Novis-Spreadsheet-TotalFunction"
       },
       "keys": []
     },
@@ -2426,6 +2309,19 @@
         "id": "Comparable",
         "title": "Comparable",
         "examples": "types/Comparable"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "router-gate",
+      "url": "/reference/types/router-gate/",
+      "title": "Core\\Router\\Gate",
+      "group": "Interfaces",
+      "intro": {
+        "id": "Core\\Router\\Gate",
+        "title": "Core\\Router\\Gate",
+        "examples": "types/Router-Gate"
       },
       "keys": []
     },
