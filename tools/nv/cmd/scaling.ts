@@ -40,8 +40,9 @@
 // does not fail it.
 //
 // The ramp. The first batch is `START` operations and each next batch doubles the one before. A batch
-// is one `nvs run --count` (the counting run of `tools/nv/proofs/perf.ts`) and the fastest of `--reps`
-// plain runs. A batch's *increment* is what it cost beyond the batch before, per added operation, so
+// is the fastest of `--reps` plain runs and then one `nvs run --count` (the counting run of
+// `tools/nv/proofs/perf.ts`), in that order, so a component compiled into the module cache on a fresh
+// binary's first run is never counted as the batch's work. A batch's *increment* is what it cost beyond the batch before, per added operation, so
 // the program's fixed start-up and set-up cancel out exactly. The ramp stops when the last three
 // increments agree, or when the next batch would pass `CEILING` or the bench's own N, whichever is
 // lower. No session raises `CEILING`.
@@ -489,7 +490,12 @@ export interface Measure {
 const RUN: Measure = {
   keys: COUNTS,
   rewrites: true,
-  take: async (copy, bench, opts) => ({ counts: await countProgram(opts.nvs, copy), ns: await timeRun(opts.nvs, copy, bench, opts.reps) }),
+  take: async (copy, bench, opts) => {
+    // The timed runs go first. The first run of a binary compiles each component it calls into the
+    // module cache, and a counting run that paid for that would count a one-time cost as the batch's.
+    const ns = await timeRun(opts.nvs, copy, bench, Math.max(1, opts.reps));
+    return { counts: await countProgram(opts.nvs, copy), ns };
+  },
   clock: (copy, bench, opts) => timeRun(opts.nvs, copy, bench, opts.reps),
   callgrind: (copy, bench, opts) => instructions(opts, "run", copy, bench),
 };
