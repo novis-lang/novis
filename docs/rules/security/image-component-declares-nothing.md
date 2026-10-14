@@ -9,5 +9,7 @@ program's side of the boundary, where the grant already is
 (`rule:security/capability-check-at-the-door`) — and it is recorded because "declares nothing" is a
 claim worth being able to check rather than an absence nobody looked at.
 
-**Partly on disk.** `extensions/image/manifest.json` declares no qualifier and no capability, and no
-test holds the absence.
+`extensions/image/manifest.json` declares neither, and
+`crates/nvs-ext/tests/manifest.rs`'s `the_image_manifest_declares_no_qualifier_and_no_capability`
+reads it through the manifest parser and fails on any `source`, `secret` or `sink` mark and on any
+entry under `requests`.

@@ -1,12 +1,13 @@
 {
   "title": "The image component declares no qualifier deviation and requests no capability",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "security/extension-contagion",
     "security/capability-declaration-is-one-table",
     "security/secret-does-not-cross-an-extension",
     "core-classes/image-pipeline"
   ],
-  "guardedBy": [],
-  "goal": "request-isolation-debts"
+  "guardedBy": [
+    "crates/nvs-ext/tests/manifest.rs"
+  ]
 }

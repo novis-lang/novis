@@ -123,6 +123,37 @@ fn a_full_manifest_reads_with_its_qualifiers_settings_and_requests() {
     assert_eq!(m.memory, Some(64 << 20));
 }
 
+/// `rule:security/image-component-declares-nothing`: the image manifest marks no method a `source`
+/// or `secret` and no parameter a `sink`, and requests no file and no host, so a thumbnail keeps
+/// its input's qualifiers by ordinary contagion and the component holds no I/O of its own.
+#[test]
+fn the_image_manifest_declares_no_qualifier_and_no_capability() {
+    let path = nvs_repo::path("extensions/image/manifest.json");
+    let bytes = std::fs::read(&path).expect("the image manifest is on disk");
+    let m = Manifest::parse(&bytes).expect("the image manifest reads");
+
+    let qualified: Vec<String> = m
+        .methods
+        .iter()
+        .flat_map(|method| {
+            let own = [("source", method.source), ("secret", method.secret)]
+                .into_iter()
+                .filter(|(_, set)| *set)
+                .map(|(what, _)| format!("{}: {what}", method.name));
+            let sinks = method
+                .params
+                .iter()
+                .filter(|param| param.sink)
+                .map(|param| format!("{}({}): sink", method.name, param.name));
+            own.chain(sinks).collect::<Vec<_>>()
+        })
+        .collect();
+    assert!(qualified.is_empty(), "qualifier deviations: {qualified:?}");
+    assert!(m.requests.read.is_empty(), "{:?}", m.requests.read);
+    assert!(m.requests.write.is_empty(), "{:?}", m.requests.write);
+    assert!(m.requests.connect.is_empty(), "{:?}", m.requests.connect);
+}
+
 #[test]
 fn a_newer_format_is_refused_by_its_number_before_its_keys() {
     let said = manifest(r#"{"manifest": 2, "anything": "new"}"#).expect_err("refused");
