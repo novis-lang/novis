@@ -223,3 +223,35 @@ echo $cell->value, " ", $cell->style->fields->italic == true ? "italic" : "plain
         "{\"A\":\"Pens\",\"B\":\"1,249.50\",\"C\":\"25%\"}\npercent and bold\nitem,price\nPen,1.5\n1042 italic\n"
     );
 }
+
+/// A `Formula` lands as a formula cell with its cached value and no `=`, a string that starts
+/// with `=` lands as a text cell, the reader gives the formula back, and `new Formula` keeps the
+/// values it is made from.
+// covers: Novis\Spreadsheet\Formula::of, Novis\Spreadsheet\Formula::constructor
+#[test]
+fn only_a_formula_value_is_written_as_a_formula() {
+    let out = run(
+        "formula",
+        r#"
+tainted string $typed = "=1+1";
+bytes $file = Workbook::fromRows([["total" => Formula::of("=SUM(B1:B1)", {cached: 1249.5}), "note" => $typed]], {header: false})->bytes();
+var $sheet = Core\Zip::read($file, "xl/worksheets/sheet1.xml") as string;
+echo Core\Str::contains($sheet, "<c r=\"A1\"><f>SUM(B1:B1)</f><v>1249.5</v></c>") ? "formula cell" : "no formula cell", "\n";
+echo Core\Str::contains($sheet, "<c r=\"B1\" t=\"inlineStr\"><is><t>=1+1</t></is></c>") ? "text cell" : "no text cell", "\n";
+foreach (Reader::open($file)->rows("Sheet1", {formulas: true}) as var $row) {
+    mixed $total = $row->values["A"];
+    if ($total is Formula) {
+        echo Core\Taint::assertTrusted($total->text, "the test wrote it"), " = ", $total->cached, "\n";
+    }
+}
+var $plain = Formula::of("A1*2");
+echo $plain->cached == null ? "no cached value" : "a cached value", "\n";
+var $made = new Formula("B2*C2", "ten");
+echo Core\Taint::assertTrusted($made->text, "the test wrote it"), " ", $made->cached, "\n";
+"#,
+    );
+    assert_eq!(
+        out,
+        "formula cell\ntext cell\nSUM(B1:B1) = 1249.5\nno cached value\nB2*C2 ten\n"
+    );
+}
