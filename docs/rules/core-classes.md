@@ -4423,10 +4423,10 @@ a lying record length, a bomb — throws `ParseError`. Anything else the compone
 `RuntimeError`. A trap throws `ExtensionError`, and the request's memory or CPU cap ends the request
 ([`packaging/a-guest-crash-throws`](packaging.md#packaging-a-guest-crash-throws)).
 
-**Not shipped.** `Engine`, `Written`, `Export`, `Style::of`, `Sheet`'s `add` and `addAll`, and
-`Workbook`'s four targets, `fromRows`, `sheet` and `finish` are on disk. A `Style` also has the
-readonly `fields` and `key` that `Workbook` reads, and the style enums are at namespace scope. The
-other members and classes are not.
+**Not shipped.** `Cell::rich`: the writer writes rich text, and no Novis method reaches it, so a
+`Cell` is `of` alone. `Visibility` is at namespace scope with the style enums, not owned by `Reader`.
+A `Style` also has the readonly `fields` and `key` that `Workbook` reads. Every other member the
+table names is on disk.
 
 **Declined:**
 - **One `Spreadsheet` class with every member.** Writing, reading and filling share no state, and a
@@ -4806,7 +4806,7 @@ A series names its ranges with `$sheet->column($key)`, so a chart over a stream 
 sheet ends with: the chart is written when the sheet ends, and a range on its own sheet that ends at
 the row `column` gives when the chart is added ends at the sheet's last row. Any other range is
 written as given, and the chart holds no values. **A series' categories are a number reference**
-when they are a column of the chart's own sheet whose every value is a number or a date, which the
+when they are a column of the chart's own sheet whose every value below its header is a number or a date, which the
 writer knows from one flag per column kept as rows pass, and a text reference otherwise. Its XML
 follows `rust_xlsxwriter`'s output for the same chart, ported for the subset and attributed in the
 module that writes it.
