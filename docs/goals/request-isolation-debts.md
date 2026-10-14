@@ -89,11 +89,6 @@ checks:
     name: "a `tainted` payload value comes back `tainted` from `Core\\Script::args`, and a `secret` one does not compile"
     run: [bun, nv, suite, tests/conformance/, --case, tests/conformance/core/queue-a-tainted-payload-value-comes-back-tainted.nvst, --case, tests/conformance/core/queue-a-secret-payload-value-does-not-compile.nvst]
     tests: [tests/conformance/core/queue-a-tainted-payload-value-comes-back-tainted.nvst, tests/conformance/core/queue-a-secret-payload-value-does-not-compile.nvst]
-  - id: payload-qualifiers-decode
-    stage: 2
-    name: "nvs-stdlib (the payload column records each value's qualifiers and the decoder restores them)"
-    run: [cargo, test, --lib, "queue::"]
-    tests: [a_payload_records_the_qualifiers_of_each_value, a_payload_decodes_with_the_qualifiers_it_recorded]
   - id: cache-is-read
     stage: 3
     name: "nvs-cli (a cached unit is read into memory, and a file truncated after the load leaves the loaded unit whole)"
@@ -172,12 +167,9 @@ absent `Host` on HTTP/1.1 is a `400` at the door as well, so the comment at
 (`website/src/content/docs/guides/production/reverse-proxy.mdx`), in the voice AGENTS.md § *Text an
 end user reads* sets.
 
-**Queue qualifiers** are recorded per value in the payload column and restored by
-`nvs_stdlib::queue::payload` (`crates/nvs-stdlib/src/queue.rs:3234`). `Core\Script::args()` keeps its
-`mixed` return type (`crates/nvs-stdlib/src/script.rs:158`); its value carries the qualifiers the
-enqueue recorded. A `secret` in a payload is a compile error. Fallback if a per-value mark cannot be
-encoded: mark a whole argument `tainted` when any part of it was, never drop a mark. A job that runs
-from a row written by an older binary with no record of marks reads every value `tainted`.
+**Queue qualifiers** are static: every text read out of `Core\Script::args()` is `tainted`, whether it
+was enqueued `tainted` or clean, and nothing is recorded in the row. A `secret` in a payload is a
+compile error. Home: `rule:concurrency/a-payload-refuses-secret-and-keeps-its-qualifiers`.
 
 **The artifact cache** reads a unit with one read into an owned buffer
 (`crates/nvs-cli/src/cache.rs:1320`), and the `unsafe` mapping block goes. The executable pages stay an
@@ -228,8 +220,7 @@ the manifest parser, never by a string search.
 
 **Does:** a value enqueued `tainted` comes back `tainted`, and a `secret` cannot be enqueued.
 
-- [ ] The encoder records each value's qualifiers in the payload column. `crates/nvs-stdlib/src/queue.rs:3234`
-- [ ] The decoder restores them on the value `Core\Script::args()` returns. `crates/nvs-stdlib/src/script.rs:158`
+- [x] Every text read out of `Core\Script::args()` is `tainted`, so a value enqueued `tainted` comes back `tainted`, and the rule is shipped. `crates/nvs-stdlib/src/script.rs:158`
 - [x] A `secret` argument to `push` does not compile, with a diagnostic naming configuration as the place for a credential. `crates/nvs-stdlib/src/queue.rs:2019`
 - [ ] The conformance cases, and the feature proofs of `Core\Queue::push` and `Core\Script::args`: an attack that pushes a `tainted` value and echoes it in the job. `docs/examples/core/Queue/push/about.md:1`
 
@@ -282,23 +273,17 @@ the manifest parser, never by a string search.
 
 ### State
 
-Stage 1 is done. Stage 2 is **blocked on a design conflict**. The standing decision *Queue
-qualifiers* wants each value's qualifiers recorded in the row and restored on decode. But
-`rule:security/taint-propagation` erases every qualifier before codegen ("no tag at run time"), and
-its Declined list refuses a hidden, source-marked `mixed`. That is exactly what a restored per-value
-mark would be. What already holds: text read out of `Core\Script::args()` (a `mixed`) is `tainted`,
-so a `tainted` payload value comes back `tainted`, and so does a clean one. The `payload-qualifiers`
-check is green on that. `payload-qualifiers-decode` names two `queue::` lib tests for a recording that
-nothing could read back, so it stays red until the user decides.
-The `secret` refusal's diagnostic now names configuration (`crates/nvs-types/src/expr/quals.rs:1357`).
-The macOS warm-start budget is still *not checked*.
+Stage 1 is done. In stage 2 the user chose the static result: every text read out of
+`Core\Script::args()` is `tainted`, a clean value included, and nothing is recorded in the row.
+`rule:concurrency/a-payload-refuses-secret-and-keeps-its-qualifiers` is shipped on the two
+`payload-qualifiers` conformance cases, and the per-value recording is its Declined entry. Stage 2's
+one open item is the feature proofs. The macOS warm-start budget is still *not checked*.
 
 ### Next
 
-**Stage 2, once the user picks**, file set: `crates/nvs-stdlib/src/queue.rs`, `docs/goals/request-isolation-debts.md`, `docs/rules/concurrency/a-payload-refuses-secret-and-keeps-its-qualifiers.md`.
+**Stage 2's feature proofs**, file set: `docs/examples/core/Queue/push/`, `docs/examples/core/Script/args/`, `tests/hostile/`.
 
-- [ ] Either (a) accept the static result: drop `payload-qualifiers-decode`, rewrite the fragment to say every payload text comes back `tainted`, ship the rule (`rule:concurrency/a-payload-refuses-secret-and-keeps-its-qualifiers`), or (b) overturn `rule:security/taint-propagation`'s Declined *hidden, source-marked `mixed`* and build a run-time mark. `crates/nvs-stdlib/src/queue.rs:3234`
-- [ ] The feature proofs of `Core\Queue::push` and `Core\Script::args`: an attack that pushes a `tainted` value and uses it in the job. `docs/examples/core/Queue/push/about.md:1`
+- [ ] The feature proofs of `Core\Queue::push` and `Core\Script::args` (`bun nv proofs --id 'Core\Queue::push'`): an attack that pushes a `tainted` value and uses it in the job, and its about.md says a payload text comes back `tainted` (`rule:concurrency/a-payload-refuses-secret-and-keeps-its-qualifiers`). `docs/examples/core/Queue/push/about.md:1`
 
 Stage 3 does not depend on this and can run first: `crates/nvs-cli/src/cache.rs:1313`.
 

@@ -3,7 +3,7 @@
 
 # Concurrency
 
-*6 of 68 rules below are **designed** rather than shipped, and are marked where they appear.*
+*5 of 68 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="concurrency-one-scheduler"></a>
 
@@ -1845,27 +1845,33 @@ beside it, and its argv is written into units on disk ([`packaging/a-service-is-
 
 <a id="concurrency-a-payload-refuses-secret-and-keeps-its-qualifiers"></a>
 
-## A durable payload refuses `secret`, and a `tainted` value comes back `tainted`  *(designed — owned by goal request-isolation-debts)*
+## A durable payload refuses `secret`, and a `tainted` value comes back `tainted`
 
 `rule:concurrency/a-payload-refuses-secret-and-keeps-its-qualifiers`
 
 A durable row is an output, and an output refuses `secret` ([`security/secret-qualifier`](security.md#security-secret-qualifier)). So a
-`secret` cannot enter a job payload — the enqueue does not compile. A job that needs a credential
-reads it from configuration when it runs, which is where credentials live anyway and which keeps them
-out of a table, a backup and a replica.
+`secret` cannot enter a job payload — the enqueue does not compile, and its help names configuration
+(`crates/nvs-types/src/expr/quals.rs:1357`). A job that needs a credential reads it from configuration
+when it runs, which is where credentials live anyway and which keeps them out of a table, a backup and
+a replica.
 
-A payload's other qualifiers are recorded with it and restored on decode: a `tainted` value enqueued
-comes back `tainted` ([`security/tainted-qualifier`](security.md#security-tainted-qualifier)), so the analysis survives the round trip
-instead of being laundered by a database. The queue's table is trusted exactly as far as the rest of
-the application's database is — an attacker who can write to it has already won — which is a better
-answer than returning every field `tainted` and training every job to launder reflexively.
+Every text a job reads out of its payload is `tainted` ([`security/tainted-qualifier`](security.md#security-tainted-qualifier)), whether it
+was enqueued `tainted` or clean. `Core\Script::args()` answers `mixed`, and text out of `mixed` is
+`tainted` ([`security/taint-propagation`](security.md#security-taint-propagation)), so the analysis survives the round trip instead of being
+laundered by a database. This is the trust every other stored value gets: a row's `get`,
+`Core\Cache::get` and `Core\Session::get` answer `mixed` too. A job recovers a number, a flag or an enum
+case with the checked `as` that removes the qualifier on success, and free text with the sink's own
+launderer or [`security/assert-trusted`](security.md#security-assert-trusted). Nothing is recorded in the row and nothing is checked at
+run time.
 
-**Not on disk.** A `secret` argument to an enqueue does not compile, and its help names configuration
-(`crates/nvs-types/src/expr/quals.rs:1279`). A `tainted` value comes back `tainted` only because
-`Core\Script::args()` answers `mixed` and every text read out of `mixed` is `tainted`
-([`security/taint-propagation`](security.md#security-taint-propagation)), so a value enqueued clean comes back `tainted` as well. Nothing
-records a qualifier in the row: the qualifier is erased before codegen, and a run-time mark on a
-`mixed` value is that rule's Declined *hidden, source-marked `mixed`*.
+- **Memory:** none. The qualifier is erased before codegen.
+
+**Declined:**
+- **Recording each value's qualifiers in the row and restoring them on decode.** The restored mark is
+  [`security/taint-propagation`](security.md#security-taint-propagation)'s Declined *hidden, source-marked `mixed`*: it is lost at the first
+  `mixed` parameter or property, it cannot be written in a declaration, and it puts a tag on every
+  payload value at run time. A clean value coming back `tainted` over-taints, which is the safe
+  direction, and one checked `as` clears every non-text field.
 
 <sub>See also [`security/secret-qualifier`](security.md#security-secret-qualifier), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`concurrency/a-job-names-a-file`](concurrency.md#concurrency-a-job-names-a-file).</sub>
 
