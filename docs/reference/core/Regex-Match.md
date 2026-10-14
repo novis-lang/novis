@@ -1,13 +1,14 @@
 ---
 summary: one match of a pattern — its text, its groups by number or name, and where it starts
-keywords: preg_match $matches, PREG_OFFSET_CAPTURE, PREG_UNMATCHED_AS_NULL, capture group, named group, match result
+keywords: regex match, matches, match offset, unmatched group, capture group, named group, match result
 ---
 
-A `Core\Regex\Match` is what `Core\Regex::match` answers (`null` when nothing matched), what
-`Core\Regex::matchAll` lists, and what `Core\Regex::replaceWith` hands its callback; it is never
-constructed by hand. `text()` is the whole match, `group()` one group by number or by name — `null`
-for a declared group that did not take part — `groups()` every group in `preg_match`'s order, and
-`offset()` where the match starts, counted in graphemes.
+`Core\Regex::match` returns a `Core\Regex\Match`, or `null` when nothing matched. `Core\Regex::matchAll`
+returns a list of them, and `Core\Regex::replaceWith` gives one to its callback. You never create one
+yourself. `text()` returns the whole match. `group()` returns one group by number or by name. It
+returns `null` for a group the pattern declares but this match did not use. `groups()` returns every
+group in pattern order: a named group appears under its name, then under its number. `offset()` returns
+where the match starts, counted in graphemes.
 
 ```nvs
 <?nvs

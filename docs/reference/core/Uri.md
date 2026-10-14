@@ -1,6 +1,6 @@
 ---
-summary: RFC 3986 URI references read, rebuilt, resolved and compared, with the two percent-encoders and PHP's query-string convention
-keywords: parse_url, filter_var, FILTER_VALIDATE_URL, rawurlencode, rawurldecode, urlencode, urldecode, parse_str, http_build_query, URL, URI, query string, percent-encoding
+summary: RFC 3986 URI references read, rebuilt, resolved and compared, with the two percent-encoders and the bracket query-string convention
+keywords: parse a URL, validate a URL, URL encode, URL decode, form encoding, parse a query string, build a query string, URL, URI, query string, percent-encoding
 ---
 
 `Core\Uri::parse` reads a URI *reference* and answers an instance whose readers report each
@@ -13,7 +13,7 @@ convention, and `queryParameter`/`withQueryParameter` are the same convention ov
 by name — a name `with` cannot take as a bag key, because a bag's keys are declared and a parameter's
 name is chosen at run time. The name is top-level, so an array `$value` is what writes `a[b]`; a
 `null` `$value` removes the pair, and removing the last one leaves no query at all rather than a bare
-`?`. `encodeComponent`/`encodeFormValue` are `rawurlencode`'s and `urlencode`'s two escapes.
+`?`. `encodeComponent` writes a space as `%20`, and `encodeFormValue` writes it as `+`.
 The two **decoders answer `bytes`**, because percent-decoding is defined over octets and a client may
 send any of them: `Core\Uri::decodeComponent("%FF")` has an answer, and text is one `as string` away —
 which throws for octets no `string` can hold, exactly where a `string`-returning decoder would have.

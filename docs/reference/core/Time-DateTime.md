@@ -1,6 +1,6 @@
 ---
 summary: a civil date and time in a zone — calendar arithmetic and CLDR formatting
-keywords: date, gmdate, idate, strftime, date_format, date_add, date_sub, modify, strtotime, setDate, setTime, setISODate, date_diff, DateInterval, date("N"), date("z"), date("L"), DateTimeImmutable, CLDR, format pattern, calendar arithmetic, DST, next monday, last day of month
+keywords: date, time, datetime, format a date, add days, add months, date difference, weekday, day of year, leap year, immutable date, CLDR, format pattern, calendar arithmetic, DST, next monday, last day of month
 ---
 
 A `DateTime` is a civil reading — year, month, day, hour, minute, second, nanosecond — in one `Zone`,
@@ -8,11 +8,10 @@ built by `Core\Time::at` or `Core\Time::parse` or read off an `Instant` with `->
 immutable: every member answers a new value. Its arithmetic is calendar arithmetic: `plus(1,
 Core\Unit::Month)` keeps the day-of-month clamped to the new month's length, `plus(1, Core\Unit::Day)`
 across a DST boundary is a 23- or 25-hour day, and `difference` counts whole units in the receiver's
-zone. `format` takes a **CLDR pattern**, not PHP's `date()` letters — the same grammar `Core\Time::parse`
-reads and `Date::format` and `TimeOfDay::format` take for their own fields. A pattern written directly
+zone. `format` takes a **CLDR pattern**. `Core\Time::parse` reads the same patterns, and `Date::format`
+and `TimeOfDay::format` use them for their own fields. A pattern written directly
 in the code is checked when the program compiles, so a letter outside the table below is a compile error; a pattern
-computed at run time throws a `LogicError` instead. Names render in English only; there is no
-`setlocale`.
+computed at run time throws a `LogicError` instead. Month and weekday names are always in English.
 
 | Letter | Field | Counts |
 |---|---|---|
