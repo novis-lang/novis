@@ -349,6 +349,18 @@ pub struct CancelKey {
     pub secret_key: i32,
 }
 
+/// Where a [`CancelKey`] is sent: the endpoint the connection was opened to,
+/// and what its certificate is checked against.
+///
+/// The cancel goes over TLS like the connection it cancels, because the key
+/// is what lets anyone holding it cancel this connection's statements.
+#[derive(Debug, Clone)]
+pub(crate) struct Peer {
+    endpoint: Endpoint,
+    host: String,
+    tls_ca_file: Option<std::path::PathBuf>,
+}
+
 /// The socket underneath a PostgreSQL connection: TLS over TCP, or a
 /// Unix-domain socket carrying the protocol in the clear.
 ///
@@ -491,6 +503,13 @@ pub fn socket_endpoint(directory: &str, _port: u16) -> io::Result<crate::conn::E
 pub(crate) struct Wire<S: Read + Write = PgStream> {
     stream: S,
     inbox: BytesMut,
+    /// Whether the last failure was a read this end stopped — its deadline
+    /// passed, or its task was cancelled — with every write whole.
+    ///
+    /// Only such a wire can be settled: the inbox holds whole messages and the
+    /// head of one, and the server still owes the rest. A failed write or a
+    /// frame that did not decode clears it, because neither leaves a boundary.
+    stalled: bool,
 }
 
 impl<S: Read + Write> std::fmt::Debug for Wire<S> {
@@ -509,6 +528,7 @@ impl<S: Read + Write> Wire<S> {
         Wire {
             stream,
             inbox: BytesMut::new(),
+            stalled: false,
         }
     }
 
@@ -555,6 +575,9 @@ impl<S: Read + Write> Wire<S> {
             .write_all(out)
             .and_then(|()| self.stream.flush());
         out.clear();
+        if result.is_err() {
+            self.stalled = false;
+        }
         result
     }
 
@@ -569,7 +592,9 @@ impl<S: Read + Write> Wire<S> {
     /// frame that does not decode, and whatever the stream reported.
     pub(crate) fn read_message(&mut self) -> io::Result<backend::Message> {
         loop {
-            if let Some(message) = backend::Message::parse(&mut self.inbox)? {
+            if let Some(message) = backend::Message::parse(&mut self.inbox).inspect_err(|_| {
+                self.stalled = false;
+            })? {
                 return Ok(message);
             }
 
@@ -582,12 +607,17 @@ impl<S: Read + Write> Wire<S> {
                 Ok(read) => read,
                 Err(e) => {
                     self.inbox.truncate(filled);
+                    self.stalled = matches!(
+                        e.kind(),
+                        io::ErrorKind::TimedOut | io::ErrorKind::ConnectionAborted
+                    );
                     return Err(e);
                 }
             };
             self.inbox.truncate(filled + read);
 
             if read == 0 {
+                self.stalled = false;
                 return Err(io::Error::new(
                     io::ErrorKind::UnexpectedEof,
                     "the server closed the connection part-way through a message",
@@ -630,40 +660,12 @@ impl PgConn {
         target: &PgTarget<'_>,
         deadline: Option<Instant>,
     ) -> io::Result<PgConn> {
-        let stream = match endpoint.into() {
-            Endpoint::Tcp(addr) => {
-                let mut tcp = match deadline {
-                    Some(at) => {
-                        NvsTcp::connect_timeout(addr, at.saturating_duration_since(Instant::now()))?
-                    }
-                    None => NvsTcp::connect(addr)?,
-                };
-                tcp.set_deadline(deadline);
-
-                request_tls(&mut tcp)?;
-                PgStream::Tls(match target.tls_ca_file {
-                    Some(bundle) => NvsTls::over_bundle(tcp, target.host, bundle)?,
-                    None => NvsTls::over(tcp, target.host)?,
-                })
-            }
-            // Nothing is upgraded on this arm, so no `SSLRequest` goes out:
-            // asking for TLS over a socket that never leaves the machine would
-            // refuse every engine built without it, for a threat this transport
-            // does not have — `PgStream` owns that argument in full.
-            #[cfg(unix)]
-            Endpoint::Socket(path) => {
-                let mut local = match deadline {
-                    Some(at) => NvsUnix::connect_timeout(
-                        path,
-                        at.saturating_duration_since(Instant::now()),
-                    )?,
-                    None => NvsUnix::connect(path)?,
-                };
-                local.set_deadline(deadline);
-                PgStream::Local(local)
-            }
+        let peer = Peer {
+            endpoint: endpoint.into(),
+            host: target.host.to_owned(),
+            tls_ca_file: target.tls_ca_file.map(Path::to_path_buf),
         };
-        let mut wire = Wire::new(stream);
+        let mut wire = Wire::new(open_stream(&peer, deadline)?);
         let startup = authenticate(&mut wire, target)?;
         // The handshake's budget ends with the handshake. `NvsTcp::connect_timeout`
         // lifts its own bound before it hands a stream back, and the one re-filed
@@ -681,6 +683,7 @@ impl PgConn {
             wire,
             state: Cell::new(State::Idle),
             cancel: startup.cancel,
+            peer,
             // What the startup exchange already said — see the field.
             server_version: startup.server_version,
             // `rule:core-classes/db-one-api`'s size, already read off the `[db.<name>]` block by
@@ -960,6 +963,113 @@ impl PgConn {
         self.reading = None;
         Ok(self)
     }
+
+    /// Cancels the statement a deadline interrupted and reads this connection
+    /// back to a boundary before `at` —
+    /// `rule:concurrency/a-deadline-bounds-the-cancel-not-the-return`.
+    ///
+    /// The [`CancelKey`] goes out over a second connection to the same
+    /// [`Peer`], because the server reads nothing else from this one while the
+    /// statement runs. The statement then ends with `57014`, and its own `Sync`
+    /// guarantees the `ReadyForQuery` that [`drain_to_ready`] reads to. The
+    /// cancel and the drain share the one instant.
+    ///
+    /// An `Idle` connection answers `Ok` and sends nothing. A connection
+    /// whose wire did not stall answers `Err`: a failed write or a bad frame
+    /// leaves no boundary to read to.
+    ///
+    /// # Errors
+    ///
+    /// `InvalidInput` for a wire that did not stall, and whatever opening the
+    /// second connection or reading this one reported — `TimedOut` once `at`
+    /// passes. The connection stays [`State::Poisoned`] on every error.
+    pub fn settle(&mut self, at: Instant) -> io::Result<()> {
+        if self.state.get() != State::Poisoned {
+            return Ok(());
+        }
+        if !self.wire.stalled {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "the connection failed part-way through a message, so it has no boundary \
+                 to return to and is closed",
+            ));
+        }
+        send_cancel(&self.peer, self.cancel, at)?;
+        self.wire.set_deadline(Some(at));
+        let drained = drain_to_ready(&mut self.wire, &self.state);
+        self.wire.set_deadline(None);
+        drained?;
+        self.wire.stalled = false;
+        // A stream the deadline stopped is over: its rows went with the drain.
+        self.reading = None;
+        Ok(())
+    }
+}
+
+/// Opens the socket a [`Peer`] names, upgraded to TLS where it is a network
+/// address, with every wait bounded by `deadline`.
+///
+/// [`PgConn::connect`] and [`send_cancel`] both open their socket here, so the
+/// cancel is checked against the same certificate as the connection.
+///
+/// # Errors
+///
+/// What [`PgConn::connect`] names for its first two exchanges.
+fn open_stream(peer: &Peer, deadline: Option<Instant>) -> io::Result<PgStream> {
+    match &peer.endpoint {
+        Endpoint::Tcp(addr) => {
+            let mut tcp = match deadline {
+                Some(at) => {
+                    NvsTcp::connect_timeout(*addr, at.saturating_duration_since(Instant::now()))?
+                }
+                None => NvsTcp::connect(*addr)?,
+            };
+            tcp.set_deadline(deadline);
+
+            request_tls(&mut tcp)?;
+            Ok(PgStream::Tls(match &peer.tls_ca_file {
+                Some(bundle) => NvsTls::over_bundle(tcp, &peer.host, bundle)?,
+                None => NvsTls::over(tcp, &peer.host)?,
+            }))
+        }
+        // Nothing is upgraded on this arm, so no `SSLRequest` goes out:
+        // asking for TLS over a socket that never leaves the machine would
+        // refuse every engine built without it, for a threat this transport
+        // does not have — `PgStream` owns that argument in full.
+        #[cfg(unix)]
+        Endpoint::Socket(path) => {
+            let mut local = match deadline {
+                Some(at) => {
+                    NvsUnix::connect_timeout(path, at.saturating_duration_since(Instant::now()))?
+                }
+                None => NvsUnix::connect(path)?,
+            };
+            local.set_deadline(deadline);
+            Ok(PgStream::Local(local))
+        }
+    }
+}
+
+/// Sends `CancelRequest` with `key` over a new connection to `peer`, and waits
+/// until the server closes it or `at` passes.
+///
+/// The server answers a cancel with nothing and closes the socket once it has
+/// signalled the backend. Waiting for that close means the drain that follows
+/// starts after the signal, so the statement it reads to is the one cancelled.
+///
+/// # Errors
+///
+/// What [`open_stream`] or the write reported. The wait for the close reports
+/// nothing: by then the request is sent.
+fn send_cancel(peer: &Peer, key: CancelKey, at: Instant) -> io::Result<()> {
+    let mut stream = open_stream(peer, Some(at))?;
+    let mut out = BytesMut::new();
+    frontend::cancel_request(key.process_id, key.secret_key, &mut out);
+    stream.write_all(&out)?;
+    stream.flush()?;
+    let mut rest = [0_u8; 64];
+    while matches!(stream.read(&mut rest), Ok(read) if read > 0) {}
+    Ok(())
 }
 
 impl Drop for PgConn {
@@ -3779,8 +3889,8 @@ mod tests {
 
     use super::{
         BlockError, CancelKey, PgColumn, PgConn, PgDate, PgScalar, PgTarget, PgTime, State, Wire,
-        affected_rows, authenticate, execute_many, next_row_of, oid, open_portal, posix_time_zone,
-        request_tls, start_statement,
+        affected_rows, authenticate, drain_to_ready, execute_many, next_row_of, oid, open_portal,
+        posix_time_zone, read_or_poison, request_tls, start_statement,
     };
     use crate::conn::{ColumnType, DbErrorKind, Driver, Isolation, ServerError};
     use crate::sql::{DEFAULT_STATEMENT_CACHE, StatementCache};
@@ -7635,5 +7745,73 @@ mod tests {
             Some("1.25".to_owned())
         );
         assert_eq!(absent.as_int(), None);
+    }
+
+    /// A server that answers in the chunks it was given, one per read, where a
+    /// `None` chunk is a read the deadline stopped.
+    struct Stalling {
+        chunks: std::collections::VecDeque<Option<Vec<u8>>>,
+    }
+
+    impl Write for Stalling {
+        fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+            Ok(buf.len())
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+
+    impl Read for Stalling {
+        fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+            match self.chunks.pop_front() {
+                None => Ok(0),
+                Some(None) => Err(io::Error::new(
+                    io::ErrorKind::TimedOut,
+                    "the deadline passed",
+                )),
+                Some(Some(chunk)) => {
+                    buf[..chunk.len()].copy_from_slice(&chunk);
+                    Ok(chunk.len())
+                }
+            }
+        }
+    }
+
+    /// `PgConn::settle`'s precondition: a read the deadline stopped leaves the
+    /// wire stalled, and the drain after it reads the head already buffered
+    /// and the rest of the message to `Idle`. A peer that closed leaves no
+    /// boundary, so it is not stalled.
+    #[test]
+    fn a_read_the_deadline_stopped_leaves_a_wire_that_drains_to_idle() {
+        let ready = message(b'Z', b"I");
+        let (head, tail) = ready.split_at(2);
+        let mut wire = Wire::new(Stalling {
+            chunks: [Some(head.to_vec()), None, Some(tail.to_vec())].into(),
+        });
+        let state = Cell::new(State::Executing);
+
+        let Err(stopped) = read_or_poison(&mut wire, &state) else {
+            panic!("a read the deadline stopped answered a message");
+        };
+        assert_eq!(stopped.kind(), io::ErrorKind::TimedOut);
+        assert!(
+            wire.stalled,
+            "a read the deadline stopped leaves the wire stalled"
+        );
+        assert_eq!(state.get(), State::Poisoned);
+
+        drain_to_ready(&mut wire, &state).expect("the rest of the message arrived");
+        assert_eq!(state.get(), State::Idle);
+
+        let mut closed = Wire::new(Stalling {
+            chunks: [None].into(),
+        });
+        let state = Cell::new(State::Executing);
+        drop(read_or_poison(&mut closed, &state));
+        assert!(closed.stalled);
+        drop(read_or_poison(&mut closed, &state));
+        assert!(!closed.stalled, "a peer that closed leaves no boundary");
     }
 }

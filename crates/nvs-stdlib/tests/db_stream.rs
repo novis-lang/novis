@@ -644,6 +644,71 @@ fn a_second_statement_on_a_streaming_connection_is_a_logic_error_on_every_driver
     probe(&mut conn).expect("an ended walk left the connection able to run a statement");
 }
 
+/// How long the statement a deadline interrupts would run if nothing
+/// cancelled it, in seconds.
+///
+/// Three times [`DEADLINE`], so a settle that returned only because the
+/// statement ended by itself is past the bound this case asserts.
+const SLEEP: u64 = 30;
+
+/// How long a statement runs before the deadline under it fires.
+const INTERRUPTED_AFTER: Duration = Duration::from_millis(200);
+
+/// `rule:concurrency/a-deadline-bounds-the-cancel-not-the-return`'s cancel:
+/// a statement whose deadline fires mid-run is cancelled through the
+/// driver's own mechanism, and the connection reads back to a boundary.
+///
+/// The statement sleeps for [`SLEEP`] seconds and the deadline fires after
+/// [`INTERRUPTED_AFTER`]. A settle that came back before [`DEADLINE`] did so
+/// because the server stopped the statement, so the cancel reached it. The
+/// connection is then `Idle`, poolable, and runs the next statement.
+///
+/// **PostgreSQL's leg is the one that asserts.** The other drivers send no
+/// cancel yet, and their connection is closed at the deadline instead, which
+/// `nvs_db::Connection::settle` owns.
+#[test]
+fn a_deadline_cancels_a_running_statement_through_the_driver() {
+    let Some(mut conn) = leg() else {
+        return;
+    };
+    let Connection::Postgres(pg) = &mut conn else {
+        return;
+    };
+
+    pg.set_deadline(Some(Instant::now() + INTERRUPTED_AFTER));
+    let interrupted = match pg.query(&format!("select pg_sleep({SLEEP})"), &[]) {
+        Ok(mut rows) => loop {
+            match rows.next_row() {
+                Ok(Some(_)) => {}
+                Ok(None) => panic!("a statement {SLEEP}s long finished inside its deadline"),
+                Err(stopped) => break stopped,
+            }
+        },
+        Err(stopped) => stopped,
+    };
+    assert_eq!(
+        interrupted.kind(),
+        io::ErrorKind::TimedOut,
+        "the deadline stopped the read: {interrupted}"
+    );
+    assert_eq!(
+        conn.state(),
+        State::Poisoned,
+        "an interrupted read leaves the wire mid-statement"
+    );
+
+    let started = Instant::now();
+    conn.settle(started + DEADLINE)
+        .expect("the cancel reached the server and the wire read back to a boundary");
+    assert!(
+        started.elapsed() < DEADLINE,
+        "the settle waited for the statement to end by itself"
+    );
+    assert_eq!(conn.state(), State::Idle, "a settled connection is idle");
+    assert!(conn.is_poolable(), "a settled connection may be pooled");
+    probe(&mut conn).expect("a settled connection runs the next statement");
+}
+
 /// `rule:core-classes/server-version-is-what-the-server-said`'s member, asserted where the string
 /// can be wrong: against the server that produced it.
 ///

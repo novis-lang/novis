@@ -38,7 +38,7 @@ use std::sync::{Arc, Mutex};
 use mysql_common::constants::CapabilityFlags;
 
 use crate::mysql::Wire as MyWire;
-use crate::pg::{CancelKey, Wire};
+use crate::pg::{CancelKey, Peer, Wire};
 use crate::sql::StatementCache;
 use crate::tds::Wire as TdsWire;
 
@@ -765,6 +765,12 @@ pub struct PgConn {
     /// unrepeatable: the key arrives once, during the handshake, and a
     /// connection that dropped it cannot ask again.
     pub(crate) cancel: CancelKey,
+    /// Where that second connection is opened to, and the name its certificate
+    /// is checked against — `crate::pg::PgConn::settle` is its one reader.
+    ///
+    /// **What it spends:** the endpoint, the host and the CA bundle's path, per
+    /// open connection. The password is not kept: a cancel needs only the key.
+    pub(crate) peer: Peer,
     /// The `server_version` the backend reported during startup, verbatim —
     /// `rule:core-classes/server-version-is-what-the-server-said`'s answer for this driver.
     ///
@@ -1225,6 +1231,35 @@ impl Connection {
     #[must_use]
     pub fn is_poolable(&self) -> bool {
         self.state().is_poolable()
+    }
+
+    /// Cancels the statement a deadline interrupted, through the driver's own
+    /// mechanism, and waits until `at` for the wire to reach a boundary again —
+    /// `rule:concurrency/a-deadline-bounds-the-cancel-not-the-return`.
+    ///
+    /// A connection that is not [`State::Poisoned`] has nothing to settle and
+    /// answers `Ok` at once. A connection that settles is [`State::Idle`] and
+    /// poolable; one that does not stays poisoned, so the release closes it
+    /// rather than pooling it.
+    ///
+    /// PostgreSQL's arm is [`crate::PgConn::settle`]. The other drivers send no
+    /// cancel yet, and their connection is closed at the deadline instead,
+    /// which is the rule's fallback for a cancel that is not built.
+    ///
+    /// # Errors
+    ///
+    /// The driver's, and `Unsupported` for a poisoned connection on a driver
+    /// whose cancel is not built. Either way the connection stays poisoned.
+    pub fn settle(&mut self, at: std::time::Instant) -> std::io::Result<()> {
+        match self {
+            Connection::Postgres(c) => c.settle(at),
+            _ if self.state() != State::Poisoned => Ok(()),
+            _ => Err(std::io::Error::new(
+                std::io::ErrorKind::Unsupported,
+                "this driver sends no cancel yet, so an interrupted connection is closed \
+                 rather than settled",
+            )),
+        }
     }
 }
 

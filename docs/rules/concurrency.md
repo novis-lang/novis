@@ -374,8 +374,10 @@ connection back to a pool, where it would fail some later, unrelated request. A 
 on when the work stops being asked for; it is not a hard wall-clock guarantee on return.
 
 **Not on disk.** A deadline cancels every child still running, and the call waits for them
-(`crates/nvs-host/src/group.rs:60`). Nothing sends the driver's own cancel: the Postgres cancel key is
-kept (`crates/nvs-db/src/pg.rs:337`) and never used, no `KILL QUERY` is sent, and the drain is not
+(`crates/nvs-host/src/group.rs:60`). `nvs_db::Connection::settle` sends PostgreSQL's
+`CancelRequest` over a second TLS connection and drains the wire back to `Idle` before an instant
+(`crates/nvs-db/src/pg.rs`). Nothing calls it yet: an interrupted statement still closes its
+connection, no `KILL QUERY`, `sqlite3_interrupt` or TDS attention is sent, and the drain is not
 bounded by the connection's `timeout`.
 
 **Declined:**
