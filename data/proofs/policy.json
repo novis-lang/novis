@@ -154,6 +154,11 @@
       "examples": "The manifest export `Document::render` calls once, or twice for a header, a footer or slots, after it builds every shape; a reader learns from that member's examples, and one here would teach shapes a program never writes.",
       "perf": "`Document::render` is one or two of these crossings plus building the shapes, so its figure bounds this export's."
     },
+    "Novis\\Spreadsheet\\Export::constructor": {
+      "examples": "`new Export` stores its function and options and calls nothing; a program meets an `Export` from `Workbook::fromRows` or `Template::fill`, and the examples of `save`, `to`, `bytes` and `download` show it, one of them through `new Export`.",
+      "perf": "`new Export` stores three values and calls nothing; `Workbook::fromRows` builds one on every call, so the benches of `download`, `save`, `to` and `bytes` include this one.",
+      "hostile": "`new Export` stores three typed read-only values and calls nothing, so a wrong value does not compile; the function it stores runs only in the four write methods, whose attacks give it a function that throws and one that adds no sheet."
+    },
     "Novis\\Spreadsheet\\Written::constructor": {
       "examples": "`new Written` stores three values and calls nothing; a program meets a `Written` as the result of `Workbook::finish`, whose examples read every one of them.",
       "perf": "`new Written` stores three values and calls nothing; `Workbook::finish` builds one on every call, so its figure includes this one.",

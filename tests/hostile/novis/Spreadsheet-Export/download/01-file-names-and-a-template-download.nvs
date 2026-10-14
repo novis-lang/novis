@@ -1,0 +1,56 @@
+<?nvs
+// Attack: a request downloads an export and a filled template under names that try to add headers or break out of quotes.
+// The name should never become a new header. Each download should finish or throw an error.
+use Novis\Spreadsheet\Template;
+use Novis\Spreadsheet\Workbook;
+
+class Attack
+{
+    // This method sends a small CSV export named `$name`, and prints whether it finished or threw.
+    public static function rows(int $step, string $name): void
+    {
+        try {
+            Workbook::fromRows([["order" => $step]])->download($name);
+            echo "\nstep ", $step, " ran\n";
+        } catch (Throwable $e) {
+            echo "\nstep ", $step, " stopped ", $e::class, "\n";
+        }
+    }
+
+    // This method fills a small template and sends it as a download named `$name`.
+    public static function template(int $step, bytes $template, string $name): void
+    {
+        try {
+            Template::open($template)->fill(["shop" => "Shop"])->download($name);
+            echo "\nstep ", $step, " ran\n";
+        } catch (Throwable $e) {
+            echo "\nstep ", $step, " stopped ", $e::class, "\n";
+        }
+    }
+}
+
+// The template has one placeholder.
+var $design = Workbook::createInMemory();
+$design->sheet("Invoice")->add(["{{shop}}"]);
+bytes $template = $design->finish()->bytes ?? Core\Bytes::fill(0, 0);
+
+// 1. A line break and a second header in the name.
+Attack::rows(1, "orders.csv\r\nSet-Cookie: session=stolen");
+Attack::template(1, $template, "invoice.xlsx\r\nLocation: https://example.com/");
+
+// 2. Quotes, backslashes and a semicolon that try to end the file name early.
+Attack::template(2, $template, "invoice\"; filename=\"evil.exe");
+Attack::template(2, $template, "invoice\\\";.xlsx");
+
+// 3. A NUL byte, an empty name, a path to another folder, and right-to-left marks.
+Attack::template(3, $template, "invoice\u{0}.exe");
+Attack::template(3, $template, "");
+Attack::template(3, $template, "../../etc/passwd");
+Attack::template(3, $template, "\u{202e}xslx.exe\u{1F4B8}");
+
+// 4. A name of 100,000 characters.
+Attack::template(4, $template, Core\Str::repeat("ä", 100000) . ".xlsx");
+
+// 5. A third and a fourth download in the same request, after the first ones sent their headers.
+Attack::rows(5, "second.csv");
+Attack::template(5, $template, "second.xlsx");
