@@ -20068,7 +20068,7 @@ Sends the file at `$path` as the whole response. The server reads the file in sm
 |---|---|---|
 | `$path` | `string` (sink) | The file to send. `fs.read` in `nvs.toml` must allow it. A `tainted` value does not compile, because the path decides which file is read. To give a download its own name, set `Content-Disposition` with `Core\Response::setHeader`. |
 
-**Returns** `void` — Nothing. The server also answers a browser that asks for only part of the file. Using this and `echo` in one response does not compile.
+**Returns** `void` — Nothing. The server also answers a browser that asks for only part of the file, so a browser can jump to any point in a video and resume a download that stopped. If the file changed since the download started, the browser gets the whole new file. Using this and `echo` in one response does not compile.
 
 **Throws** `RuntimeError` — `fs.read` does not allow `$path`. This error comes whether or not the file exists, the same as for `Core\IO::read`.; `IOError` — There is no file at `$path`, or the operating system does not allow this program to read it.; `LogicError` — `$path` is a folder, or something else that is not a regular file. Nothing is sent.
 
