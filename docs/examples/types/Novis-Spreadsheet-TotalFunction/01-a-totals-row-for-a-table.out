@@ -1,0 +1,2 @@
+SUBTOTAL(109,Orders[qty])
+SUBTOTAL(101,Orders[price])

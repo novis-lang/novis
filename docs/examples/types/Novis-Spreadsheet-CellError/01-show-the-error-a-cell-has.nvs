@@ -1,0 +1,36 @@
+<?nvs
+// Shows how to print the text Excel shows for a cell with an error.
+use Novis\Spreadsheet\CellError;
+
+class Errors
+{
+    // Returns the text Excel shows in a cell with this error.
+    public static function text(CellError $error): string
+    {
+        return match ($error) {
+            CellError::Null => '#NULL!',
+            CellError::DivZero => '#DIV/0!',
+            CellError::Value => '#VALUE!',
+            CellError::Ref => '#REF!',
+            CellError::Name => '#NAME?',
+            CellError::Num => '#NUM!',
+            CellError::NotAvailable => '#N/A',
+            CellError::GettingData => '#GETTING_DATA',
+            CellError::Spill => '#SPILL!',
+            CellError::Calc => '#CALC!',
+        };
+    }
+}
+
+// These are the values of one row, as `Reader::rows` gives them.
+// The second cell divides 10 by 0 in Excel, so it has an error.
+array<mixed> $values = ['Tea', CellError::DivZero, 3];
+
+// This prints "Tea", "#DIV/0!" and "3".
+foreach ($values as mixed $value) {
+    if ($value is CellError) {
+        echo Errors::text($value), "\n";
+    } else {
+        echo $value as string, "\n";
+    }
+}
