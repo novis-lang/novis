@@ -14,7 +14,7 @@ stages:
         shapes: ["An example"]
   - id: 2
     title: "a built-in component's engine class is internal to its component"
-    status: open
+    status: done
     context: [crates/nvs-types/src/expr/calls.rs, crates/nvs-ext/src/load.rs, crates/nvs-cli/src/extensions.rs, crates/nvs-diagnostics/src/lib.rs]
     extra:
       context:
@@ -57,7 +57,7 @@ checks:
   - id: engine-internal-diff
     stage: 2
     name: "the conformance cases that called an engine directly pass on the public classes"
-    run: [bun, nv, suite, tests/conformance/novis/]
+    run: [bun, nv, suite, tests/conformance/]
   - id: engine-off-roster
     stage: 3
     name: "no roster feature is a member of a built-in component's engine class"
@@ -132,12 +132,12 @@ The website shows the example as usual. Home: `docs/examples/README.md`.
 **Does:** a call to a built-in component's manifest class from outside that component's Novis source
 does not compile, and the error names the public class to use.
 
-- [ ] The check where a static call resolves its class (`crates/nvs-types/src/expr/calls.rs:263`)
-- [ ] Which classes are a component's engine, from its manifest (`crates/nvs-ext/src/load.rs:78`, `crates/nvs-cli/src/extensions.rs:1`)
-- [ ] The diagnostic and its card (`crates/nvs-diagnostics/src/lib.rs:5499`)
-- [ ] The new case (`tests/conformance/novis/a-program-cannot-call-a-components-engine.nvst:1`)
-- [ ] The cases that call an engine directly, rewritten onto the public classes (`tests/conformance/novis/image-compare-counts-the-pixels-that-differ.nvst:1`)
-- [ ] The new fragment beside `rule:packaging/the-first-party-components-are-built-in` (`docs/rules/packaging/a-components-engine-class-is-internal.md:1`)
+- [x] The check where a static call resolves its class (`crates/nvs-types/src/expr/calls.rs:359`)
+- [x] Which classes are a component's engine, from its manifest (`crates/nvs-types/src/ext_lib.rs:204`)
+- [x] The diagnostic and its card (`crates/nvs-diagnostics/src/lib.rs:5516`)
+- [x] The new case (`tests/conformance/novis/a-program-cannot-call-a-components-engine.nvst:1`)
+- [x] The cases that call an engine directly, rewritten onto the public classes (`tests/conformance/novis/intl-each-job-class-answers-for-its-export.nvst:1`)
+- [x] The new fragment beside `rule:packaging/the-first-party-components-are-built-in` (`docs/rules/packaging/a-components-engine-class-is-internal.md:1`)
 
 ### 3. the engine classes leave the roster, the proofs policy and the website
 
@@ -169,23 +169,34 @@ entry or Reference page names one.
 
 ### State
 
-Stage 1 is done: `new Novis\Image\Diff` has three examples under
-`docs/examples/novis/Image-Diff/constructor/`, and the policy keeps only its `perf` and `hostile`
-skips. `diff-examples` passes. Stages 2 to 5 are not started.
+Stages 1 and 2 are done. A call of `Novis\Image\Codec`, `Novis\Intl\Icu`, `Novis\Pdf\Engine` or
+`Novis\Spreadsheet\Engine` outside its component's own source is `E0856`, whose help is the
+manifest's card (`rule:packaging/a-components-engine-class-is-internal`). Seven conformance cases
+called an engine and now use the public classes. About twenty more only name an engine member in
+`// covers:`; those lines stay until stage 3.
+
+Since stage 2, these no longer compile, and stage 3 deletes them with the roster entries:
+`docs/examples/novis/Image-Codec/{info,run,variants}/`, `benches/members/novis/Image-Codec/`,
+`tests/hostile/novis/Image-Codec/` and `tests/hostile/novis/Pdf-Engine/`. The same holds for three
+type examples whose enum only an engine's signature uses: `docs/examples/types/Novis-Intl-NumberFormat-Style/`,
+`Novis-Intl-PluralRules-Category/` and `Novis-Intl-PluralRules-Kind/`. `Novis\Image\Image::Output`
+is the same kind: only `Codec::run` takes it. Stage 3 takes the safe default and treats such an
+enum as internal with its engine. Say so to the user when stage 3 lands.
 
 ### Next
 
-Stage 2, over the type checker, the component loader and the image conformance cases:
+Stage 3, over the roster, the proofs policy, `nvs meta` and the website renderer:
 
-- The engine call check, where a static call resolves its class
-  (`crates/nvs-types/src/expr/calls.rs:263`), fed the engine classes from each manifest
-  (`crates/nvs-ext/src/load.rs:78`) (`rule:packaging/the-first-party-components-are-built-in`).
-- Its diagnostic and card (`crates/nvs-diagnostics/src/lib.rs:5499`), the new case
-  `tests/conformance/novis/a-program-cannot-call-a-components-engine.nvst`, and the new fragment
-  `docs/rules/packaging/a-components-engine-class-is-internal.md`.
-- The 26 cases that call an engine directly, rewritten onto the public classes
-  (`tests/conformance/novis/image-compare-counts-the-pixels-that-differ.nvst:1`); a subagent per
-  component fits this best.
+- `"internal": true` on an engine class in `nvs meta --json` (`crates/nvs-cli/src/meta.rs:198`),
+  read from `ClassSignature::engine` or the manifest's `builtin` (`crates/nvs-types/src/signatures.rs:570`).
+- The roster skips an internal class and an enum only an engine's signature names, with the
+  test `a built-in component's engine class is no feature` (`tools/nv/proofs/roster.ts:1`,
+  `tools/nv/test/roster-novis.test.ts:6`) (`rule:testing/feature-proofs`).
+- The engine entries leave `data/proofs/policy.json:41`, the engine's examples, benches and attack
+  files listed under State are deleted, and every `// covers:` naming an engine member is dropped
+  (`git grep -n "covers:.*\(Codec\|Icu\|Engine\)::" tests/`).
+- The website skips an internal class (`tools/nv/renderers/website-core.ts:92`), and
+  `bun nv site --check reference` passes.
 
 ### Backlog
 
