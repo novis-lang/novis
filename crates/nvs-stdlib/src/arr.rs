@@ -745,7 +745,7 @@ pub const CLASS: CoreClass = CoreClass {
 
 /// `Core\Arr::count`'s reference card — `rule:core-api/reference-card`.
 const COUNT_DOC: MethodDoc = MethodDoc {
-    short: "Counts the entries in `$a`, as `count` and `sizeof` do.",
+    short: "Returns the number of entries in `$a`.",
     params: &[ParamDoc {
         name: "a",
         desc: "The array to count.",
@@ -757,9 +757,8 @@ const COUNT_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Arr::filter`'s reference card — `rule:core-api/reference-card`.
 const FILTER_DOC: MethodDoc = MethodDoc {
-    short: "Keeps the entries `$predicate` answers truthily for, as `array_filter` does — with \
-            both of its flags folded in, since the callback receives `($value, $key)` and may \
-            declare fewer parameters.",
+    short: "Returns the entries for which `$predicate` returns a truthy value. The callback \
+            receives `($value, $key)` and may declare fewer parameters.",
     params: &[
         ParamDoc {
             name: "a",
@@ -780,8 +779,7 @@ const FILTER_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Arr::map`'s reference card — `rule:core-api/reference-card`.
 const MAP_DOC: MethodDoc = MethodDoc {
-    short: "Replaces every value with what `$fn` answers for it, as `array_map` does over one \
-            array; keys are preserved.",
+    short: "Replaces every value with the result of `$fn` for it. The keys stay the same.",
     params: &[
         ParamDoc {
             name: "a",
@@ -801,8 +799,7 @@ const MAP_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Arr::mapKeys`'s reference card — `rule:core-api/reference-card`.
 const MAP_KEYS_DOC: MethodDoc = MethodDoc {
-    short: "Stores every value under the key `$fn` answers for it — the `keyBy` idiom, and \
-            `array_combine(array_map(…), …)` as one member.",
+    short: "Stores every value under the key that `$fn` returns for it.",
     params: &[
         ParamDoc {
             name: "a",
@@ -845,8 +842,8 @@ const GROUP_BY_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Arr::reduce`'s reference card — `rule:core-api/reference-card`.
 const REDUCE_DOC: MethodDoc = MethodDoc {
-    short: "Folds the entries into one value from `$initial`, as `array_reduce` does; the \
-            callback receives `($carry, $value, $key)` and may declare fewer parameters.",
+    short: "Combines the entries into one value, starting from `$initial`. The callback receives \
+            `($carry, $value, $key)` and may declare fewer parameters.",
     params: &[
         ParamDoc {
             name: "a",
@@ -870,8 +867,8 @@ const REDUCE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Arr::find`'s reference card — `rule:core-api/reference-card`.
 const FIND_DOC: MethodDoc = MethodDoc {
-    short: "The first value `$predicate` answers truthily for, as `array_find` does; the walk \
-            stops at the match.",
+    short: "Returns the first value for which `$predicate` returns a truthy value. The search \
+            stops at the first match.",
     params: &[
         ParamDoc {
             name: "a",
@@ -891,8 +888,8 @@ const FIND_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Arr::findKey`'s reference card — `rule:core-api/reference-card`.
 const FIND_KEY_DOC: MethodDoc = MethodDoc {
-    short: "The key of the first entry `$predicate` answers truthily for, as `array_find_key` \
-            does; the walk stops at the match.",
+    short: "Returns the key of the first entry for which `$predicate` returns a truthy value. \
+            The search stops at the first match.",
     params: &[
         ParamDoc {
             name: "a",
@@ -911,8 +908,8 @@ const FIND_KEY_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Arr::any`'s reference card — `rule:core-api/reference-card`.
 const ANY_DOC: MethodDoc = MethodDoc {
-    short: "Whether at least one entry satisfies `$predicate`, as `array_any` does; the walk \
-            stops at the first match.",
+    short: "Checks whether at least one entry passes `$predicate`. The search stops at the first \
+            match.",
     params: &[
         ParamDoc {
             name: "a",
@@ -931,8 +928,8 @@ const ANY_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Arr::all`'s reference card — `rule:core-api/reference-card`.
 const ALL_DOC: MethodDoc = MethodDoc {
-    short: "Whether every entry satisfies `$predicate`, as `array_all` does; the walk stops at \
-            the first failure.",
+    short: "Checks whether every entry passes `$predicate`. The search stops at the first entry \
+            that fails.",
     params: &[
         ParamDoc {
             name: "a",
@@ -951,7 +948,7 @@ const ALL_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Arr::isEmpty`'s reference card — `rule:core-api/reference-card`.
 const IS_EMPTY_DOC: MethodDoc = MethodDoc {
-    short: "Whether `$a` holds no entries — `empty($a)` and `count($a) === 0` as one member.",
+    short: "Checks whether `$a` has no entries.",
     params: &[ParamDoc {
         name: "a",
         desc: "The array to test.",
@@ -963,8 +960,8 @@ const IS_EMPTY_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Arr::hasKey`'s reference card — `rule:core-api/reference-card`.
 const HAS_KEY_DOC: MethodDoc = MethodDoc {
-    short: "Whether `$a` holds an entry under `$key`, as `array_key_exists` does — and as \
-            `isset($a[$k])` does, since a stored `null` still counts.",
+    short: "Checks whether `$a` has an entry under `$key`. An entry whose value is `null` still \
+            counts.",
     params: &[
         ParamDoc {
             name: "a",
@@ -983,8 +980,7 @@ const HAS_KEY_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Arr::contains`'s reference card — `rule:core-api/reference-card`.
 const CONTAINS_DOC: MethodDoc = MethodDoc {
-    short: "Whether some entry is `$needle` under strict identity, as `in_array` with `strict: \
-            true` does — there is no loose form.",
+    short: "Checks whether some entry is identical to `$needle`. There is no loose comparison.",
     params: &[
         ParamDoc {
             name: "haystack",
@@ -1004,8 +1000,8 @@ const CONTAINS_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Arr::keyOf`'s reference card — `rule:core-api/reference-card`.
 const KEY_OF_DOC: MethodDoc = MethodDoc {
-    short: "The key of the first entry that is `$needle` under strict identity, as `array_search` \
-            with `strict: true` does.",
+    short: "Returns the key of the first entry that is identical to `$needle`. There is no loose \
+            comparison.",
     params: &[
         ParamDoc {
             name: "haystack",
@@ -1024,8 +1020,7 @@ const KEY_OF_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Arr::isList`'s reference card — `rule:core-api/reference-card`.
 const IS_LIST_DOC: MethodDoc = MethodDoc {
-    short: "Whether the keys are exactly `\"0\", \"1\", …` in that order, as `array_is_list` \
-            does.",
+    short: "Checks whether the keys are exactly `\"0\", \"1\", …` in that order.",
     params: &[ParamDoc {
         name: "a",
         desc: "The array to test.",
@@ -1038,7 +1033,7 @@ const IS_LIST_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Arr::keys`'s reference card — `rule:core-api/reference-card`.
 const KEYS_DOC: MethodDoc = MethodDoc {
-    short: "Every key in insertion order, as `array_keys` does without its search argument.",
+    short: "Returns every key in insertion order.",
     params: &[ParamDoc {
         name: "a",
         desc: "The array whose keys are wanted.",
@@ -1051,7 +1046,7 @@ const KEYS_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Arr::values`'s reference card — `rule:core-api/reference-card`.
 const VALUES_DOC: MethodDoc = MethodDoc {
-    short: "Every value in insertion order under fresh keys, as `array_values` does.",
+    short: "Returns every value in insertion order, under new keys from `\"0\"`.",
     params: &[ParamDoc {
         name: "a",
         desc: "The array whose values are wanted.",
@@ -1063,8 +1058,7 @@ const VALUES_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Arr::first`'s reference card — `rule:core-api/reference-card`.
 const FIRST_DOC: MethodDoc = MethodDoc {
-    short: "The first entry's value, as `reset`, `current` and `$a[array_key_first($a)]` answer \
-            it — with no internal pointer to move.",
+    short: "Returns the value of the first entry.",
     params: &[ParamDoc {
         name: "a",
         desc: "The array to read.",
@@ -1077,7 +1071,7 @@ const FIRST_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Arr::last`'s reference card — `rule:core-api/reference-card`.
 const LAST_DOC: MethodDoc = MethodDoc {
-    short: "The last entry's value, as `end` and `$a[array_key_last($a)]` answer it.",
+    short: "Returns the value of the last entry.",
     params: &[ParamDoc {
         name: "a",
         desc: "The array to read.",
@@ -1090,7 +1084,7 @@ const LAST_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Arr::firstKey`'s reference card — `rule:core-api/reference-card`.
 const FIRST_KEY_DOC: MethodDoc = MethodDoc {
-    short: "The first entry's key, as `array_key_first` and `key` answer it.",
+    short: "Returns the key of the first entry.",
     params: &[ParamDoc {
         name: "a",
         desc: "The array to read.",
@@ -1102,7 +1096,7 @@ const FIRST_KEY_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Arr::lastKey`'s reference card — `rule:core-api/reference-card`.
 const LAST_KEY_DOC: MethodDoc = MethodDoc {
-    short: "The last entry's key, as `array_key_last` answers it.",
+    short: "Returns the key of the last entry.",
     params: &[ParamDoc {
         name: "a",
         desc: "The array to read.",
@@ -1114,8 +1108,8 @@ const LAST_KEY_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Arr::slice`'s reference card — `rule:core-api/reference-card`.
 const SLICE_DOC: MethodDoc = MethodDoc {
-    short: "The entries in one window of positions, as `array_slice` does; a position is \
-            ordinal, whatever the keys are.",
+    short: "Returns the entries in one range of positions. A position counts entries from the \
+            start, whatever the keys are.",
     params: &[
         ParamDoc {
             name: "a",
@@ -1147,8 +1141,8 @@ const SLICE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Arr::replaceRange`'s reference card — `rule:core-api/reference-card`.
 const REPLACE_RANGE_DOC: MethodDoc = MethodDoc {
-    short: "The array with one window of positions replaced by `$replacement`'s values — what \
-            `array_splice` returns, never what it does by reference.",
+    short: "Returns a copy of the array with one range of positions replaced by the values of \
+            `$replacement`. The original array does not change.",
     params: &[
         ParamDoc {
             name: "a",
@@ -1180,8 +1174,8 @@ const REPLACE_RANGE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Arr::chunk`'s reference card — `rule:core-api/reference-card`.
 const CHUNK_DOC: MethodDoc = MethodDoc {
-    short: "The entries in consecutive runs of `$size`, as `array_chunk` does; the last run is \
-            short when the count does not divide.",
+    short: "Splits the entries into runs of `$size` entries. The last run is shorter when the \
+            count does not divide evenly.",
     params: &[
         ParamDoc {
             name: "a",
@@ -1209,8 +1203,8 @@ const CHUNK_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Arr::append`'s reference card — `rule:core-api/reference-card`.
 const APPEND_DOC: MethodDoc = MethodDoc {
-    short: "The array with every trailing value added after its last entry, as `array_push` does \
-            — `$a[] = $v` in expression position.",
+    short: "Returns the array with every given value added after its last entry. It works like \
+            `$a[] = $v`, written as an expression.",
     params: &[
         ParamDoc {
             name: "a",
@@ -1231,7 +1225,7 @@ const APPEND_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Arr::prepend`'s reference card — `rule:core-api/reference-card`.
 const PREPEND_DOC: MethodDoc = MethodDoc {
-    short: "The trailing values, then the array's values, as `array_unshift` does.",
+    short: "Returns the given values, then the values of the array.",
     params: &[
         ParamDoc {
             name: "a",
@@ -1251,8 +1245,7 @@ const PREPEND_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Arr::withoutFirst`'s reference card — `rule:core-api/reference-card`.
 const WITHOUT_FIRST_DOC: MethodDoc = MethodDoc {
-    short: "Every entry but the first — what `array_shift` leaves behind, with `first` answering \
-            the element it removes.",
+    short: "Returns every entry except the first. `first` returns the value it removes.",
     params: &[ParamDoc {
         name: "a",
         desc: "The array to shorten.",
@@ -1265,8 +1258,7 @@ const WITHOUT_FIRST_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Arr::withoutLast`'s reference card — `rule:core-api/reference-card`.
 const WITHOUT_LAST_DOC: MethodDoc = MethodDoc {
-    short: "Every entry but the last — what `array_pop` leaves behind, with `last` answering the \
-            element it removes.",
+    short: "Returns every entry except the last. `last` returns the value it removes.",
     params: &[ParamDoc {
         name: "a",
         desc: "The array to shorten.",
@@ -1279,8 +1271,7 @@ const WITHOUT_LAST_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Arr::padStart`'s reference card — `rule:core-api/reference-card`.
 const PAD_START_DOC: MethodDoc = MethodDoc {
-    short: "Copies of `$value` in front until the array holds `$size` entries, as `array_pad` \
-            with a negative length does.",
+    short: "Adds copies of `$value` in front until the array has `$size` entries.",
     params: &[
         ParamDoc {
             name: "a",
@@ -1307,8 +1298,7 @@ const PAD_START_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Arr::padEnd`'s reference card — `rule:core-api/reference-card`.
 const PAD_END_DOC: MethodDoc = MethodDoc {
-    short: "Copies of `$value` after the last entry until the array holds `$size` entries, as \
-            `array_pad` with a positive length does.",
+    short: "Adds copies of `$value` after the last entry until the array has `$size` entries.",
     params: &[
         ParamDoc {
             name: "a",
@@ -1335,7 +1325,7 @@ const PAD_END_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Arr::reverse`'s reference card — `rule:core-api/reference-card`.
 const REVERSE_DOC: MethodDoc = MethodDoc {
-    short: "The entries in the opposite order, as `array_reverse` does.",
+    short: "Returns the entries in the opposite order.",
     params: &[
         ParamDoc {
             name: "a",
@@ -1355,7 +1345,7 @@ const REVERSE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Arr::flip`'s reference card — `rule:core-api/reference-card`.
 const FLIP_DOC: MethodDoc = MethodDoc {
-    short: "Every value made a key and every key made its value, as `array_flip` does.",
+    short: "Makes every value a key, and every key its value.",
     params: &[ParamDoc {
         name: "a",
         desc: "The array to flip; every value is an `int` or a `string`, and `1` and `\"1\"` \
@@ -1383,9 +1373,8 @@ const FLATTEN_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Arr::flattenDeep`'s reference card — `rule:core-api/reference-card`.
 const FLATTEN_DEEP_DOC: MethodDoc = MethodDoc {
-    short: "Every level of nesting removed, as a recursive walk or `iterator_to_array` over a \
-            `RecursiveIteratorIterator` does; there is no depth count, since `flatten` is the \
-            other real case.",
+    short: "Removes every level of nesting. There is no depth argument. Use `flatten` to remove \
+            one level.",
     params: &[ParamDoc {
         name: "a",
         desc: "An array nested to any depth.",
@@ -1398,7 +1387,7 @@ const FLATTEN_DEEP_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Arr::column`'s reference card — `rule:core-api/reference-card`.
 const COLUMN_DOC: MethodDoc = MethodDoc {
-    short: "One named cell out of every row, as `array_column` does.",
+    short: "Takes the cell with one key out of every row.",
     params: &[
         ParamDoc {
             name: "a",
@@ -1426,9 +1415,8 @@ const COLUMN_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Arr::sort`'s reference card — `rule:core-api/reference-card`.
 const SORT_DOC: MethodDoc = MethodDoc {
-    short: "The entries in order, stably — `sort`, `rsort`, `asort`, `arsort`, `usort`, \
-            `uasort`, `natsort`, `natcasesort` and `array_multisort` as one member and four \
-            options.",
+    short: "Returns the entries in order. The sort is stable, so equal entries keep their order. \
+            Four options choose the sort value, the direction, the comparison and the keys.",
     params: &[
         ParamDoc {
             name: "a",
@@ -1449,15 +1437,13 @@ const SORT_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "comparator",
-            desc: "Called as `($a, $b)` on two values — or on two `by` answers — and answering a \
-                   negative, zero or positive number, as `usort`'s callback does; it replaces \
-                   the natural order.",
+            desc: "Called as `($a, $b)` on two values, or on two results of `by`. It returns a \
+                   negative number, zero or a positive number. It replaces the natural order.",
             shape: &[],
         },
         ParamDoc {
             name: "preserveKeys",
-            desc: "Keep each entry's own key, as `asort` does; the default renumbers from \
-                   `\"0\"`, as `sort` does.",
+            desc: "Keeps the key of each entry. By default, the result has new keys from `\"0\"`.",
             shape: &[],
         },
     ],
@@ -1473,8 +1459,7 @@ const SORT_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Arr::sortByKey`'s reference card — `rule:core-api/reference-card`.
 const SORT_BY_KEY_DOC: MethodDoc = MethodDoc {
-    short: "The entries in key order, stably, every key kept — `ksort`, `krsort` and `uksort` as \
-            one member.",
+    short: "Returns the entries in key order. The sort is stable, and every key is kept.",
     params: &[
         ParamDoc {
             name: "a",
@@ -1489,9 +1474,8 @@ const SORT_BY_KEY_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "comparator",
-            desc: "Called as `($a, $b)` on two keys, both `string`s, and answering a negative, \
-                   zero or positive number, as `uksort`'s callback does; it replaces the \
-                   natural order.",
+            desc: "Called as `($a, $b)` on two keys, both `string`s. It returns a negative \
+                   number, zero or a positive number. It replaces the natural order.",
             shape: &[],
         },
     ],
@@ -1505,8 +1489,8 @@ const SORT_BY_KEY_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Arr::fill`'s reference card — `rule:core-api/reference-card`.
 const FILL_DOC: MethodDoc = MethodDoc {
-    short: "`$count` copies of `$value` under `\"0\", \"1\", …`, as `array_fill` does from index \
-            zero; there is no start index, since `fillKeys` takes the keys a caller wants.",
+    short: "Returns `$count` copies of `$value` under the keys `\"0\", \"1\", …`. There is no \
+            start index. Use `fillKeys` to choose the keys.",
     params: &[
         ParamDoc {
             name: "count",
@@ -1528,7 +1512,7 @@ const FILL_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Arr::fillKeys`'s reference card — `rule:core-api/reference-card`.
 const FILL_KEYS_DOC: MethodDoc = MethodDoc {
-    short: "`$value` stored under every key in `$keys`, as `array_fill_keys` does.",
+    short: "Stores `$value` under every key in `$keys`.",
     params: &[
         ParamDoc {
             name: "keys",
@@ -1548,8 +1532,8 @@ const FILL_KEYS_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Arr::range`'s reference card — `rule:core-api/reference-card`.
 const RANGE_DOC: MethodDoc = MethodDoc {
-    short: "The integers from `$start` to `$end` inclusive, as `range` does; the direction is \
-            the bounds', so `$start > $end` counts down.",
+    short: "Returns the integers from `$start` to `$end`, both included. When `$start` is \
+            greater than `$end`, it counts down.",
     params: &[
         ParamDoc {
             name: "start",
@@ -1578,8 +1562,8 @@ const RANGE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Arr::fromKeysAndValues`'s reference card — `rule:core-api/reference-card`.
 const FROM_KEYS_AND_VALUES_DOC: MethodDoc = MethodDoc {
-    short: "`$values`' entries stored under `$keys`' entries, paired in order, as \
-            `array_combine` does.",
+    short: "Pairs the entries of `$keys` and `$values` in order. Each value is stored under its \
+            key.",
     params: &[
         ParamDoc {
             name: "keys",
@@ -1603,9 +1587,8 @@ const FROM_KEYS_AND_VALUES_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Arr::from`'s reference card — `rule:core-api/reference-card`.
 const FROM_DOC: MethodDoc = MethodDoc {
-    short: "A sequence materialised as an array, as `iterator_to_array` does with \
-            `preserve_keys: false` — an `Iterable<T>`, an `Iterator<T>` or an array, whatever \
-            `foreach` would take.",
+    short: "Reads a sequence into an array. The sequence can be an `Iterable<T>`, an \
+            `Iterator<T>` or an array: anything `foreach` accepts.",
     params: &[
         ParamDoc {
             name: "items",
@@ -1625,9 +1608,8 @@ const FROM_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Arr::overlay`'s reference card — `rule:core-api/reference-card`.
 const OVERLAY_DOC: MethodDoc = MethodDoc {
-    short: "`$base` with every layer's entries written over it, the right-hand value winning, as \
-            `array_replace` does — and as `array_merge` over maps does, with every key treated \
-            alike.",
+    short: "Writes the entries of every layer over `$base`. Where two have the same key, the \
+            value further right is kept. Integer keys and string keys work the same way.",
     params: &[
         ParamDoc {
             name: "base",
@@ -1647,8 +1629,8 @@ const OVERLAY_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Arr::overlayDeep`'s reference card — `rule:core-api/reference-card`.
 const OVERLAY_DEEP_DOC: MethodDoc = MethodDoc {
-    short: "`overlay` recursing wherever both sides of a key hold an array and neither is a \
-            list, as `array_replace_recursive` does; a list is replaced wholesale.",
+    short: "Works like `overlay`. Where both sides of a key are arrays and neither is a list, it \
+            combines them the same way. A list is replaced as a whole.",
     params: &[
         ParamDoc {
             name: "base",
@@ -1689,8 +1671,7 @@ const UNDERLAY_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Arr::appendAll`'s reference card — `rule:core-api/reference-card`.
 const APPEND_ALL_DOC: MethodDoc = MethodDoc {
-    short: "Every value of `$a`, then of each of `$others`, under fresh keys — `array_merge` \
-            over lists, and the `array_merge(...$arrays)` idiom.",
+    short: "Returns every value of `$a`, then of each array in `$others`, under new keys.",
     params: &[
         ParamDoc {
             name: "a",
@@ -1709,8 +1690,8 @@ const APPEND_ALL_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Arr::diff`'s reference card — `rule:core-api/reference-card`.
 const DIFF_DOC: MethodDoc = MethodDoc {
-    short: "The entries of `$a` that `$b` does not have, under strict identity — `array_diff`, \
-            `array_diff_key`, `array_diff_assoc` and their three `u` variants as one member.",
+    short: "Returns the entries of `$a` that `$b` does not have. Entries are compared by strict \
+            identity. The options choose what is compared, and how.",
     params: &[
         ParamDoc {
             name: "a",
@@ -1737,9 +1718,9 @@ const DIFF_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "comparator",
-            desc: "Called as `($a, $b)` on two selected parts and answering a negative, zero or \
-                   positive number, as `array_udiff`'s callback does; it replaces identity, and \
-                   makes the walk pairwise.",
+            desc: "Called as `($a, $b)` on two selected parts. It returns a negative number, zero \
+                   or a positive number. It replaces identity, and every entry of `$a` is then \
+                   compared with every entry of `$b`.",
             shape: &[],
         },
     ],
@@ -1752,8 +1733,8 @@ const DIFF_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Arr::intersect`'s reference card — `rule:core-api/reference-card`.
 const INTERSECT_DOC: MethodDoc = MethodDoc {
-    short: "The entries of `$a` that `$b` also has, under strict identity — `array_intersect` \
-            and its five variants as one member.",
+    short: "Returns the entries of `$a` that `$b` also has. Entries are compared by strict \
+            identity. The options choose what is compared, and how.",
     params: &[
         ParamDoc {
             name: "a",
@@ -1780,9 +1761,9 @@ const INTERSECT_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "comparator",
-            desc: "Called as `($a, $b)` on two selected parts and answering a negative, zero or \
-                   positive number, as `array_uintersect`'s callback does; it replaces \
-                   identity, and makes the walk pairwise.",
+            desc: "Called as `($a, $b)` on two selected parts. It returns a negative number, zero \
+                   or a positive number. It replaces identity, and every entry of `$a` is then \
+                   compared with every entry of `$b`.",
             shape: &[],
         },
     ],
@@ -1818,8 +1799,8 @@ const COUNT_BY_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Arr::unique`'s reference card — `rule:core-api/reference-card`.
 const UNIQUE_DOC: MethodDoc = MethodDoc {
-    short: "The entries whose value has not been seen before, as `array_unique` does — by strict \
-            identity, so `1` and `\"1\"` are two entries, never `SORT_STRING`'s cast.",
+    short: "Returns the entries whose value has not appeared before. Values are compared by \
+            strict identity, so `1` and `\"1\"` are two different values.",
     params: &[
         ParamDoc {
             name: "a",
@@ -1876,9 +1857,8 @@ const MAX_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Arr::sum`'s reference card — `rule:core-api/reference-card`.
 const SUM_DOC: MethodDoc = MethodDoc {
-    short: "The entries added up, as `array_sum` does, promoting entry by entry: `int` with `int` \
-            stays `int`, a `float` anywhere makes the total `float`, a `decimal` anywhere makes \
-            it `decimal`.",
+    short: "Adds the entries together. `int` with `int` stays `int`. A `float` anywhere makes the \
+            total a `float`, and a `decimal` anywhere makes it a `decimal`.",
     params: &[ParamDoc {
         name: "a",
         desc: "The numbers to add.",
@@ -1895,8 +1875,7 @@ const SUM_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Arr::product`'s reference card — `rule:core-api/reference-card`.
 const PRODUCT_DOC: MethodDoc = MethodDoc {
-    short: "The entries multiplied together, as `array_product` does, promoting entry by entry \
-            exactly as `sum` does.",
+    short: "Multiplies the entries together. The result type follows the same rules as `sum`.",
     params: &[ParamDoc {
         name: "a",
         desc: "The numbers to multiply.",
@@ -1913,7 +1892,7 @@ const PRODUCT_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Arr::average`'s reference card — `rule:core-api/reference-card`.
 const AVERAGE_DOC: MethodDoc = MethodDoc {
-    short: "The entries' mean — `array_sum($a) / count($a)` with the empty case answered.",
+    short: "Returns the mean of the entries.",
     params: &[ParamDoc {
         name: "a",
         desc: "The numbers to average.",
@@ -1989,8 +1968,7 @@ const ORDER_DOC: EnumDoc = EnumDoc {
         },
         CaseDoc {
             name: "Desc",
-            desc: "Largest first — `rsort`, `arsort` and `krsort` as one option rather than \
-                   three names.",
+            desc: "Largest first.",
         },
     ],
 };
@@ -2017,17 +1995,16 @@ const SET_ON_DOC: EnumDoc = EnumDoc {
     cases: &[
         CaseDoc {
             name: "Values",
-            desc: "The value alone — `array_diff`, `array_intersect` and their `u` forms.",
+            desc: "Compares the value alone.",
         },
         CaseDoc {
             name: "Keys",
-            desc: "The key alone — `array_diff_key`, `array_intersect_key` and their `u` \
-                   forms; a `by` here maps the key.",
+            desc: "Compares the key alone. With `by`, the callback changes the key before the \
+                   comparison.",
         },
         CaseDoc {
             name: "Both",
-            desc: "The key and the value together — `array_diff_assoc`, \
-                   `array_intersect_assoc` and their `u` forms.",
+            desc: "Compares the key and the value together.",
         },
     ],
 };
