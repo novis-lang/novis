@@ -9,16 +9,24 @@
 //! `writerFinish` returns each sheet's row count and the archive's size, two writes of equal
 //! input are byte-equal, and a writer the request ends before `writerFinish` logs an error
 //! naming its target.
+//!
+//! **The big file** (`rule:testing/feature-proofs`' growth): a workbook of about 100 MB in 20
+//! columns is generated under `.agent-tmp/`, written to a file batch by batch and read back
+//! through ranges of it, and the guest's memory is the same after the last batch as after the
+//! sixteenth, writing and reading. A workbook of shared strings, laid out as another tool writes
+//! one, costs the reader its strings and no more than one batch beside them.
 
+use std::fs::{self, File};
 use std::future::Future;
-use std::io::Read as _;
+use std::io::{Read as _, Seek as _, SeekFrom, Write as _};
+use std::path::{Path, PathBuf};
 use std::pin::pin;
 use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll, Waker};
 use std::time::Duration;
 
 use nvs_ext::builtin::SPREADSHEET_CLASS;
-use nvs_ext::call::{Budget, Host, Level, Meter, Request};
+use nvs_ext::call::{Budget, Host, Lending, Level, Meter, Request};
 use nvs_ext::convert::{Key, Value};
 use nvs_ext::load::{Extension, Loader};
 
@@ -615,6 +623,507 @@ fn the_guest_holds_no_row_of_an_earlier_batch() {
     );
     // Many times the rows went in, and the guest's memory is the same.
     assert_eq!(after, warm, "the guest grew past one batch's memory");
+}
+
+/// A folder of its own under `.agent-tmp/`, removed when the test ends.
+struct Scratch(PathBuf);
+
+impl Scratch {
+    fn new(case: &str) -> Self {
+        let root = nvs_repo::path(".agent-tmp")
+            .join(format!("ext-spreadsheet-{case}-{}", std::process::id()));
+        drop(fs::remove_dir_all(&root));
+        fs::create_dir_all(&root).expect("the scratch folder is made");
+        Self(root)
+    }
+
+    fn at(&self, name: &str) -> PathBuf {
+        self.0.join(name)
+    }
+}
+
+impl Drop for Scratch {
+    fn drop(&mut self) {
+        drop(fs::remove_dir_all(&self.0));
+    }
+}
+
+/// xorshift64*, seeded per row, so every row of a generated workbook is made again to check
+/// what was read back.
+struct Noise(u64);
+
+impl Noise {
+    fn next(&mut self) -> u64 {
+        self.0 ^= self.0 >> 12;
+        self.0 ^= self.0 << 25;
+        self.0 ^= self.0 >> 27;
+        self.0.wrapping_mul(0x2545_F491_4F6C_DD1D)
+    }
+
+    /// `length` letters and digits, which deflate barely shrinks.
+    fn word(&mut self, length: usize) -> String {
+        const LETTERS: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+        (0..length)
+            .map(|_| {
+                let at = usize::try_from(self.next() % LETTERS.len() as u64).unwrap();
+                char::from(LETTERS[at])
+            })
+            .collect()
+    }
+}
+
+/// The 20 cell values of row `number` of a wide workbook: the number, seven fractions, four dates
+/// and eight words. Each is the `cell-value` a write takes and the value a read gives.
+fn wide_values(number: u32) -> Vec<Value> {
+    let mut noise = Noise(u64::from(number).wrapping_mul(0x9E37_79B9_7F4A_7C15) | 1);
+    let mut out = vec![shape(vec![("integer", Value::Int(i64::from(number)))])];
+    for _ in 0..7 {
+        // An odd count of 1024ths below 2^42 is exact and never whole, so it reads as a number.
+        let fraction = ((noise.next() >> 22) | 1) as f64 / 1024.0;
+        out.push(shape(vec![("number", Value::Float(fraction))]));
+    }
+    for _ in 0..4 {
+        let n = i64::try_from(noise.next() >> 1).unwrap();
+        let day = date(2000 + n % 30, 1 + n / 30 % 12, 1 + n / 360 % 28);
+        out.push(shape(vec![("date", day)]));
+    }
+    for _ in 0..8 {
+        out.push(shape(vec![("text", Value::String(noise.word(24)))]));
+    }
+    out
+}
+
+/// Rows in one batch of a wide workbook, written and read.
+const WIDE_BATCH: u32 = 2000;
+
+/// Batches of a wide workbook after which the guest's memory stays the same. Batches differ in
+/// size, so the guest grows over the first few of them before it reaches what one batch needs.
+const WARM_BATCHES: u32 = 16;
+
+/// What the guest's memory was charged in one request over a wide workbook.
+struct Peak {
+    rows: u32,
+    /// After the first [`WARM_BATCHES`] batches, once the guest has grown to what one batch needs.
+    warm: u64,
+    /// When the last batch is done. A guest's memory never shrinks, so this is its peak.
+    last: u64,
+}
+
+/// Writes a wide workbook to `path` a batch at a time until `done(rows, bytes)` holds, and
+/// returns the guest's memory over it.
+fn write_wide(path: &Path, done: impl Fn(u32, u64) -> bool) -> Peak {
+    let host = Host::new(4, |_| Ok(())).expect("the host starts");
+    let extension = spreadsheet(&host);
+    // A `Meter`'s CPU budget is wall-clock time, and this measures memory, not time.
+    let meter = Arc::new(Meter::new(Duration::from_secs(3600), None));
+    let request = host.request(Arc::clone(&meter) as Arc<dyn Budget>);
+    let mut file = File::create(path).expect("the workbook's file is made");
+    let mut size = 0u64;
+    let mut put = |chunk: Vec<u8>| {
+        file.write_all(&chunk).expect("the chunk is written");
+        size += chunk.len() as u64;
+        size
+    };
+    let writer = call(
+        &request,
+        &extension,
+        "writerOpen",
+        vec![options("orders.xlsx")],
+    );
+    put(bytes(call(
+        &request,
+        &extension,
+        "writerSheet",
+        vec![writer.clone(), sheet("Orders"), list(vec![])],
+    )));
+    let mut rows = 0u32;
+    let mut warm = 0;
+    let mut written = 0;
+    while !done(rows, written) {
+        let batch = (rows + 1..=rows + WIDE_BATCH)
+            .map(|number| {
+                row(wide_values(number)
+                    .into_iter()
+                    .map(|value| shape(vec![("value", value), ("style", Value::Null)]))
+                    .collect())
+            })
+            .collect();
+        written = put(bytes(call(
+            &request,
+            &extension,
+            "writerRows",
+            vec![writer.clone(), list(batch)],
+        )));
+        rows += WIDE_BATCH;
+        if rows == WARM_BATCHES * WIDE_BATCH {
+            warm = meter.charged();
+        }
+    }
+    let last = meter.charged();
+    let finished = call(&request, &extension, "writerFinish", vec![writer]);
+    let Value::Bytes(tail) = field(&finished, "data").clone() else {
+        panic!("`data` is bytes");
+    };
+    put(tail);
+    block_on(request.end()).expect("the request ends");
+    Peak { rows, warm, last }
+}
+
+/// A budget that lends one file, as the host lends a file the program opened.
+struct Opened {
+    meter: Meter,
+    file: Mutex<File>,
+}
+
+impl Budget for Opened {
+    fn cpu_spent(&self) -> bool {
+        self.meter.cpu_spent()
+    }
+
+    fn charge(&self, bytes: i64) -> bool {
+        self.meter.charge(bytes)
+    }
+
+    fn log(&self, level: Level, channel: &str, message: &str) {
+        self.meter.log(level, channel, message);
+    }
+
+    fn wall_clock(&self) -> Duration {
+        self.meter.wall_clock()
+    }
+
+    fn monotonic_clock(&self) -> u64 {
+        self.meter.monotonic_clock()
+    }
+
+    fn random(&self, out: &mut [u8]) {
+        self.meter.random(out);
+    }
+
+    fn setting(&self, block: &str, key: &str) -> Option<serde_json::Value> {
+        self.meter.setting(block, key)
+    }
+
+    fn read(&self, id: u64, offset: u64, length: u64) -> Lending {
+        assert_eq!(id, 0, "the guest reads the one file it was lent");
+        let mut file = self.file.lock().expect("the file locks");
+        let mut out = Vec::new();
+        file.seek(SeekFrom::Start(offset)).expect("the file seeks");
+        (&mut *file)
+            .take(length)
+            .read_to_end(&mut out)
+            .expect("the file reads");
+        Lending::ready(Ok(out))
+    }
+}
+
+/// `readerOpen`'s bound with neither half set, which the guest reads as the shipped default.
+fn shipped() -> Value {
+    shape(vec![("maxBytes", Value::Null), ("maxRatio", Value::Null)])
+}
+
+/// `readerRows`'s options for the sheet `name` from the row `from`, every other one its default.
+fn read_options(name: &str, from: Option<u64>) -> Value {
+    shape(vec![
+        ("sheet", Value::String(name.to_owned())),
+        ("headerRow", Value::Null),
+        ("from", from.map_or(Value::Null, Value::Uint)),
+        ("limit", Value::Null),
+        ("columns", list(vec![])),
+        ("text", list(vec![])),
+        ("textAll", Value::Bool(false)),
+        ("formulas", Value::Bool(false)),
+        ("keepEmptyRows", Value::Bool(false)),
+        ("fillMerged", Value::Bool(false)),
+        ("skipHidden", Value::Bool(false)),
+        ("locale", Value::String("en".to_owned())),
+    ])
+}
+
+/// Reads every row of the sheet `name` from `source`, a batch of `max` at a time, hands each to
+/// `check` as its number and its cells' values in column order, and returns the guest's memory
+/// over it.
+fn read_all(
+    request: &Request,
+    extension: &Extension,
+    meter: &Meter,
+    source: Value,
+    name: &str,
+    max: u32,
+    mut check: impl FnMut(u64, Vec<Value>),
+) -> Peak {
+    let reader = call(
+        request,
+        extension,
+        "readerOpen",
+        vec![source.clone(), shipped()],
+    );
+    let mut from = None;
+    let mut rows = 0u32;
+    let mut batches = 0;
+    let mut warm = 0;
+    loop {
+        let args = vec![
+            reader.clone(),
+            source.clone(),
+            read_options(name, from),
+            Value::Uint(u64::from(max)),
+        ];
+        let batch = call(request, extension, "readerRows", args);
+        let Value::Array(read) = field(&batch, "rows") else {
+            panic!("`rows` is a list");
+        };
+        for (_, read) in read {
+            let Value::Uint(number) = field(read, "number") else {
+                panic!("a row number is a uint");
+            };
+            let Value::Array(cells) = field(read, "cells") else {
+                panic!("`cells` is a list");
+            };
+            let values = cells
+                .iter()
+                .enumerate()
+                .map(|(at, (_, cell))| {
+                    assert_eq!(
+                        field(cell, "column"),
+                        &Value::Uint(at as u64 + 1),
+                        "row {number}"
+                    );
+                    field(cell, "value").clone()
+                })
+                .collect();
+            check(*number, values);
+            from = Some(number + 1);
+            rows += 1;
+        }
+        batches += 1;
+        if batches == WARM_BATCHES {
+            warm = meter.charged();
+        }
+        if field(&batch, "done") == &Value::Bool(true) {
+            return Peak {
+                rows,
+                warm,
+                last: meter.charged(),
+            };
+        }
+    }
+}
+
+/// Reads the wide workbook at `path` through ranges of the file, checks every row against
+/// [`wide_values`], and returns the guest's memory over it.
+fn read_wide(path: &Path) -> Peak {
+    let host = Host::new(2, |_| Ok(())).expect("the host starts");
+    let extension = spreadsheet(&host);
+    let size = fs::metadata(path).expect("the workbook is on disk").len();
+    let opened = Arc::new(Opened {
+        meter: Meter::new(Duration::from_secs(3600), None),
+        file: Mutex::new(File::open(path).expect("the workbook opens")),
+    });
+    let request = host.request(Arc::clone(&opened) as Arc<dyn Budget>);
+    let peak = read_all(
+        &request,
+        &extension,
+        &opened.meter,
+        Value::Lent { id: 0, size },
+        "Orders",
+        WIDE_BATCH,
+        |number, values| {
+            assert_eq!(
+                values,
+                wide_values(u32::try_from(number).unwrap()),
+                "row {number} reads back as it was written"
+            );
+        },
+    );
+    block_on(request.end()).expect("the request ends");
+    peak
+}
+
+/// About 100 MB: the size of the big workbook.
+const BIG: u64 = 100_000_000;
+
+#[test]
+fn a_100_mb_workbook_writes_and_reads_back() {
+    let scratch = Scratch::new("big");
+    let path = scratch.at("orders.xlsx");
+    let written = write_wide(&path, |_, bytes| bytes >= BIG);
+    let size = fs::metadata(&path).expect("the workbook is on disk").len();
+    assert!(size >= BIG, "the workbook is {size} bytes");
+    let read = read_wide(&path);
+    assert_eq!(read.rows, written.rows, "every row reads back");
+    assert_eq!(
+        written.last, written.warm,
+        "the writer grew past one batch's memory"
+    );
+    assert_eq!(
+        read.last, read.warm,
+        "the reader grew past one batch's memory"
+    );
+}
+
+#[test]
+fn the_guest_peak_stays_flat_as_rows_grow() {
+    let scratch = Scratch::new("flat");
+    let mut peaks = Vec::new();
+    for rows in [WARM_BATCHES * WIDE_BATCH, 4 * WARM_BATCHES * WIDE_BATCH] {
+        let path = scratch.at(&format!("orders-{rows}.xlsx"));
+        let written = write_wide(&path, |done, _| done >= rows);
+        let read = read_wide(&path);
+        assert_eq!(read.rows, rows);
+        peaks.push((written.last, read.last));
+    }
+    // Four times the rows, and the guest's peak is the same writing and reading.
+    assert_eq!(peaks[0], peaks[1], "the peak grew with the rows");
+}
+
+/// A zip archive of `parts`, each stored, as another tool may lay one out.
+fn stored_zip(parts: &[(&str, Vec<u8>)]) -> Vec<u8> {
+    let mut out = Vec::new();
+    let mut central = Vec::new();
+    for (name, data) in parts {
+        let mut crc = flate2::Crc::new();
+        crc.update(data);
+        let mut header = Vec::new();
+        header.extend_from_slice(&20u16.to_le_bytes());
+        // The flags and the method: stored.
+        header.extend_from_slice(&[0; 4]);
+        // The time and the date.
+        header.extend_from_slice(&[0; 4]);
+        header.extend_from_slice(&crc.sum().to_le_bytes());
+        let length = u32::try_from(data.len()).unwrap().to_le_bytes();
+        header.extend_from_slice(&length);
+        header.extend_from_slice(&length);
+        header.extend_from_slice(&u16::try_from(name.len()).unwrap().to_le_bytes());
+        header.extend_from_slice(&0u16.to_le_bytes());
+        let offset = u32::try_from(out.len()).unwrap();
+        out.extend_from_slice(&0x0403_4b50u32.to_le_bytes());
+        out.extend_from_slice(&header);
+        out.extend_from_slice(name.as_bytes());
+        out.extend_from_slice(data);
+        central.extend_from_slice(&0x0201_4b50u32.to_le_bytes());
+        central.extend_from_slice(&20u16.to_le_bytes());
+        central.extend_from_slice(&header);
+        // The comment's length, the disk, the internal and the external attributes.
+        central.extend_from_slice(&[0; 10]);
+        central.extend_from_slice(&offset.to_le_bytes());
+        central.extend_from_slice(name.as_bytes());
+    }
+    let start = u32::try_from(out.len()).unwrap();
+    let count = u16::try_from(parts.len()).unwrap();
+    out.extend_from_slice(&central);
+    out.extend_from_slice(&0x0605_4b50u32.to_le_bytes());
+    out.extend_from_slice(&[0; 4]);
+    out.extend_from_slice(&count.to_le_bytes());
+    out.extend_from_slice(&count.to_le_bytes());
+    out.extend_from_slice(&u32::try_from(central.len()).unwrap().to_le_bytes());
+    out.extend_from_slice(&start.to_le_bytes());
+    out.extend_from_slice(&0u16.to_le_bytes());
+    out
+}
+
+/// An xlsx whose one sheet, `Notes`, has `sheet_data` inside its `<sheetData>`, and whose shared
+/// strings are `shared`.
+fn shared_xlsx(sheet_data: &str, shared: &[String]) -> Vec<u8> {
+    let main = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+    let rel = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+    let package = "http://schemas.openxmlformats.org/package/2006/relationships";
+    let mut sst = format!(r#"<?xml version="1.0"?><sst xmlns="{main}">"#);
+    for text in shared {
+        sst.push_str(&format!("<si><t>{text}</t></si>"));
+    }
+    sst.push_str("</sst>");
+    stored_zip(&[
+        ("[Content_Types].xml", b"<Types/>".to_vec()),
+        (
+            "_rels/.rels",
+            format!(r#"<Relationships xmlns="{package}"><Relationship Id="rId1" Type="{rel}/officeDocument" Target="xl/workbook.xml"/></Relationships>"#).into_bytes(),
+        ),
+        (
+            "xl/workbook.xml",
+            format!(r#"<?xml version="1.0"?><workbook xmlns="{main}" xmlns:r="{rel}"><sheets><sheet name="Notes" sheetId="1" r:id="rId1"/></sheets></workbook>"#).into_bytes(),
+        ),
+        (
+            "xl/_rels/workbook.xml.rels",
+            format!(r#"<?xml version="1.0"?><Relationships xmlns="{package}"><Relationship Id="rId1" Type="{rel}/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rIdT" Type="{rel}/sharedStrings" Target="sharedStrings.xml"/></Relationships>"#).into_bytes(),
+        ),
+        ("xl/sharedStrings.xml", sst.into_bytes()),
+        (
+            "xl/worksheets/sheet1.xml",
+            format!(r#"<?xml version="1.0"?><worksheet xmlns="{main}"><sheetData>{sheet_data}</sheetData></worksheet>"#).into_bytes(),
+        ),
+    ])
+}
+
+/// Reads every row of `bytes`'s sheet `Notes`, checks each cell is the text `texts` gives it,
+/// and returns the guest's memory at the end.
+fn read_notes(bytes: Vec<u8>, texts: &[String], columns: usize) -> u64 {
+    let host = Host::new(2, |_| Ok(())).expect("the host starts");
+    let extension = spreadsheet(&host);
+    let meter = Arc::new(Meter::new(Duration::from_secs(3600), None));
+    let request = host.request(Arc::clone(&meter) as Arc<dyn Budget>);
+    let peak = read_all(
+        &request,
+        &extension,
+        &meter,
+        Value::Bytes(bytes),
+        "Notes",
+        WIDE_BATCH,
+        |number, values| {
+            let first = (usize::try_from(number).unwrap() - 1) * columns;
+            let expected: Vec<Value> = texts[first..first + columns]
+                .iter()
+                .map(|text| shape(vec![("text", Value::String(text.clone()))]))
+                .collect();
+            assert_eq!(values, expected, "row {number}");
+        },
+    );
+    block_on(request.end()).expect("the request ends");
+    peak.last
+}
+
+#[test]
+fn a_text_heavy_workbook_peaks_at_its_strings_plus_a_batch() {
+    const ROWS: usize = 20_000;
+    const COLUMNS: usize = 10;
+    let mut noise = Noise(0x5eed);
+    let texts: Vec<String> = (0..ROWS * COLUMNS).map(|_| noise.word(40)).collect();
+    let column = |at: usize| char::from(b'A' + u8::try_from(at).unwrap());
+    let mut shared = String::new();
+    let mut inline = String::new();
+    for number in 1..=ROWS {
+        shared.push_str(&format!(r#"<row r="{number}">"#));
+        inline.push_str(&format!(r#"<row r="{number}">"#));
+        for at in 0..COLUMNS {
+            let index = (number - 1) * COLUMNS + at;
+            let cell = column(at);
+            shared.push_str(&format!(
+                r#"<c r="{cell}{number}" t="s"><v>{index}</v></c>"#
+            ));
+            inline.push_str(&format!(
+                r#"<c r="{cell}{number}" t="inlineStr"><is><t>{}</t></is></c>"#,
+                texts[index]
+            ));
+        }
+        shared.push_str("</row>");
+        inline.push_str("</row>");
+    }
+    // The same rows twice: once with every string in the file's string table, once with each
+    // string in its cell. What the first costs past the second is what the table costs.
+    let with_table = read_notes(shared_xlsx(&shared, &texts), &texts, COLUMNS);
+    let batch_alone = read_notes(shared_xlsx(&inline, &[]), &texts, COLUMNS);
+    let strings: usize = texts.iter().map(String::len).sum();
+    let table = with_table - batch_alone;
+    assert!(
+        table >= strings as u64,
+        "the table cost {table} bytes, less than its {strings} bytes of text"
+    );
+    // Each string's text and a four-byte end, with room for the arena to double.
+    let most = 2 * (strings + 4 * texts.len()) as u64;
+    assert!(
+        table <= most,
+        "the table cost {table} bytes, past {most} for {strings} bytes of text"
+    );
 }
 
 #[test]
