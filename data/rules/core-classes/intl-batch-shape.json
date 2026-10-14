@@ -10,6 +10,6 @@
     "crates/nvs-stdlib/tests/ext_world.rs",
     "crates/nvs-ext/tests/intl.rs",
     "tests/conformance/novis/intl-collation-sorts-by-locale.nvst",
-    "tests/conformance/novis/intl-icu-exports-answer-when-called-directly.nvst"
+    "tests/conformance/novis/intl-each-job-class-answers-for-its-export.nvst"
   ]
 }

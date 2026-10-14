@@ -1,0 +1,11 @@
+{
+  "title": "A built-in component's engine class is internal to its component, and a call to it from a program does not compile",
+  "status": "shipped",
+  "seeAlso": [
+    "packaging/the-first-party-components-are-built-in",
+    "packaging/extension-calls-are-statically-typed"
+  ],
+  "guardedBy": [
+    "tests/conformance/novis/a-program-cannot-call-a-components-engine.nvst"
+  ]
+}

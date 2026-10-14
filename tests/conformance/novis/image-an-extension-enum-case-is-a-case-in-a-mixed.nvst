@@ -1,0 +1,26 @@
+--TEST--
+An enum case an extension returns in a record is written as a case, so a callable declaring the enum accepts it, `is` finds its enum, and a case backed by `0` is truthy: rule:enums/representation
+--FILE--
+<?nvs
+// covers: Novis\Image\Format
+use Novis\Image\Format;
+use Novis\Image\Image;
+
+// `Jpeg` is the first case of `Format`, so its number is `0`.
+bytes $jpeg = Image::create(1, 1)->format(Format::Jpeg)->encode();
+bytes $png = Image::create(1, 1)->encode();
+array<Format> $formats = [Image::info($jpeg)->format, Image::info($png)->format];
+
+// `Core\Arr::map` calls the function, which checks that each element is a `Format`.
+echo Core\Str::join(Core\Arr::map($formats, fn(Format $f): string => $f == Format::Jpeg ? "Jpeg" : "Png"), " "), "\n";
+
+// A case in a `mixed` is still a case, it is not an `int`, and it is always truthy.
+mixed $first = $formats[0];
+echo ($first is Format) ? "a format" : "not a format", "\n";
+echo ($first is int) ? "an int" : "not an int", "\n";
+echo $first ? "truthy" : "falsy", "\n";
+--EXPECT--
+Jpeg Png
+a format
+not an int
+truthy

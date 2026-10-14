@@ -54,6 +54,7 @@
     "packaging/the-sweep-is-fired-by-a-human",
     "packaging/an-extension-is-a-sandboxed-wasm-component",
     "packaging/the-first-party-components-are-built-in",
+    "packaging/a-components-engine-class-is-internal",
     "packaging/a-prebuilt-wasm-library-is-rebuilt-in-ci",
     "packaging/an-nvsx-is-one-file-carrying-its-manifest",
     "packaging/an-extension-package-carries-two-payloads",

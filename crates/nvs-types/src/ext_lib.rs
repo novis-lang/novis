@@ -13,6 +13,11 @@
 //! after the natives and before any user declaration is collected. It spends one signature per
 //! loaded class per check, and nothing for a program checked with no set.
 //!
+//! **A built-in component's manifest class is its engine**, and [`seed`] records it with the
+//! component's name and the class's card ([`ClassSignature::engine`](crate::signatures::ClassSignature::engine)). A call to it outside
+//! the component's own Novis source does not compile
+//! (`rule:packaging/a-components-engine-class-is-internal`).
+//!
 //! **What a manifest declares, read the way it only tightens:**
 //!
 //! - A parameter with `"sink": true` is [`Qual::Sink`], which refuses a `tainted` argument. Every
@@ -195,6 +200,13 @@ pub(crate) fn seed(
             })
             .collect();
         table.seed_constants(qname.clone(), constants);
+        if let Some(component) = &manifest.builtin {
+            table.seed_engine(
+                qname.clone(),
+                component.clone(),
+                manifest.help.clone().unwrap_or_default(),
+            );
+        }
         table.seed_extension(qname);
         for declared in &manifest.resources {
             let qname = declared_name(manifest, &declared.name);

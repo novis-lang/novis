@@ -563,6 +563,11 @@ pub struct ClassSignature {
     /// A call to one of its methods is a call of the export's trampoline, not of a compiled
     /// Novis function ([`crate::expr_table::ResolvedCall::extension`]).
     pub extension: bool,
+    /// On a built-in component's manifest class, the component's name and the class's card,
+    /// which names the public class a program calls instead. A call to it from outside the
+    /// component's own Novis source does not compile
+    /// (`rule:packaging/a-components-engine-class-is-internal`).
+    pub engine: Option<(String, String)>,
 }
 
 /// One class constant, as a **read** of it sees it: the type
@@ -759,6 +764,21 @@ impl SignatureTable {
     /// Records that `qname` is a loaded extension's class. Only [`crate::ext_lib`] calls it.
     pub(crate) fn seed_extension(&mut self, qname: QName) {
         self.entry(qname).extension = true;
+    }
+
+    /// Records that `qname` is the manifest class of the built-in component `component`, whose
+    /// card is `help`. Only [`crate::ext_lib`] calls it.
+    pub(crate) fn seed_engine(&mut self, qname: QName, component: String, help: String) {
+        self.entry(qname).engine = Some((component, help));
+    }
+
+    /// The component and the card of `qname` when it is a built-in component's manifest class —
+    /// [`ClassSignature::engine`].
+    #[must_use]
+    pub fn engine(&self, qname: &QName) -> Option<(&str, &str)> {
+        self.get(qname)
+            .and_then(|sig| sig.engine.as_ref())
+            .map(|(component, help)| (component.as_str(), help.as_str()))
     }
 
     /// Whether `qname` is a loaded extension's class — [`ClassSignature::extension`].

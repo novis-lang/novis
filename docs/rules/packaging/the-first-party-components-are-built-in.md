@@ -40,7 +40,7 @@ its manifest without compiling, and `Builtin::extension` compiles and checks it 
 (`crates/nvs-ext/tests/builtin.rs`). `nvs` folds the digest into `env_hash` at start. Every compile
 types a program against the built-in manifests beside the entries' (`nvs_ext::load::builtin_manifests`),
 and a call no `[[extension]]` entry answers reaches the built-in component, compiled on that first
-call (`crates/nvs-cli/src/extensions.rs`), so `Novis\Image\Codec::info` answers with no `nvs.toml`
+call (`crates/nvs-cli/src/extensions.rs`), so `Novis\Image\Image::info` answers with no `nvs.toml`
 (`tests/conformance/novis/image-info-answers-with-no-configuration.nvst`). The loader refuses a
 `Novis\` class from every `[[extension]]` entry. The intl crate is `extensions/intl/`, built and
 embedded the same way as `nvs_ext::builtin::INTL` with its digest folded in beside the image's. Its

@@ -1,0 +1,69 @@
+--TEST--
+Each export of the intl component answers through the job class that calls it, so every record the classes build crosses to the engine and back: rule:core-classes/intl-batch-shape
+--FILE--
+<?nvs
+// covers: Novis\Intl\Locale::Service
+use Novis\Intl\Collator;
+use Novis\Intl\DateFormat;
+use Novis\Intl\ListFormat;
+use Novis\Intl\Locale;
+use Novis\Intl\NumberFormat;
+use Novis\Intl\PluralRules;
+use Novis\Intl\RelativeTime;
+use Novis\Intl\Segmenter;
+
+// `Collator::sort` uses the engine's sorted order, and `sortKeys` returns one key per string.
+echo Core\Str::join(Collator::sort(["b", "a", "ä"], "de"), " "), "\n";
+echo Core\Arr::count(Collator::sortKeys(["b", "a"], "sv")) as string, "\n";
+
+// Numbers cross as decimal text.
+echo Core\Str::join(NumberFormat::decimal([1234.5, -0.25], "de"), " | "), "\n";
+echo Core\Arr::count(PluralRules::cardinal([1, 2, 5], "ru")) as string, "\n";
+
+// The engine's plural categories come back for counting and for places.
+array<array<Core\Cldr::PluralCategory>> $lists = [PluralRules::cardinal([1, 2, 3, 5], "en"), PluralRules::ordinal([1, 2, 3, 5], "en")];
+foreach ($lists as array<Core\Cldr::PluralCategory> $categories) {
+    array<string> $names = [];
+    foreach ($categories as Core\Cldr::PluralCategory $category) {
+        $names[] = match ($category) {
+            Core\Cldr::PluralCategory::Zero => "Zero",
+            Core\Cldr::PluralCategory::One => "One",
+            Core\Cldr::PluralCategory::Two => "Two",
+            Core\Cldr::PluralCategory::Few => "Few",
+            Core\Cldr::PluralCategory::Many => "Many",
+            Core\Cldr::PluralCategory::Other => "Other",
+        };
+    }
+    echo Core\Str::join($names, " "), "\n";
+}
+
+// A date and time crosses as local fields, an offset and a zone id.
+var $evening = Core\Time::at(2026, 3, 1, Core\Time\Zone::of("Europe/Vienna"), {hour: 21, minute: 30});
+echo Core\Str::join(DateFormat::dateTimes([$evening], "de"), " | "), "\n";
+echo Core\Str::join(DateFormat::dates([Core\Time\Date::at(2026, 3, 1)], "en-US", {length: DateFormat::Length::Long}), " | "), "\n";
+echo Core\Str::join(DateFormat::times([Core\Time\TimeOfDay::at(21, 30)], "de"), " | "), "\n";
+echo Core\Str::join(RelativeTime::format([{count: -1, unit: RelativeTime::Unit::Day}, {count: 3, unit: RelativeTime::Unit::Hour}], "en"), " | "), "\n";
+echo Core\Str::join(ListFormat::join([["Shop", "Blog", "Wiki"]], "de"), " | "), "\n";
+
+// Segments keep the text between them, so a sentence keeps its trailing space.
+echo Core\Arr::count(Segmenter::words(["Hello, Shop!"], "en")[0]) as string, "\n";
+echo Core\Str::join(Segmenter::sentences(["One. Two? Three!"], "en")[0], "|"), "\n";
+
+echo Core\Str::join(Locale::resolve(["de-AT", "zz"], Locale::Service::Dates), " | "), "\n";
+echo Locale::negotiate("de-AT, en;q=0.5", ["en", "de"], "en"), "\n";
+--EXPECT--
+a ä b
+2
+1.234,5 | -0,25
+3
+One Other Other Other
+One Two Few Other
+01.03.2026, 21:30
+March 1, 2026
+21:30
+1 day ago | in 3 hours
+Shop, Blog und Wiki
+5
+One. |Two? |Three!
+de | und
+de

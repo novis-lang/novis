@@ -5509,6 +5509,15 @@ pub mod code {
          constructor the class inherits must not be `private`. To fix it, make the method \
          `static`.",
     );
+    /// A call of a built-in component's manifest class, or a reference to one of its methods,
+    /// outside that component's own Novis source
+    /// (`rule:packaging/a-components-engine-class-is-internal`). The help is the class's card,
+    /// which names the public class to use.
+    pub const E_ENGINE_CALL: Code = Code::new("E0856").card(
+        "This class is internal to a built-in component. Only the component's own classes call \
+         it. Use the public class that the help line names. For example, call \
+         `Novis\\Image\\Image::info` and not `Novis\\Image\\Codec::info`.",
+    );
 
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.

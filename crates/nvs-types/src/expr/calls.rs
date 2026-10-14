@@ -257,6 +257,29 @@ pub(crate) fn infer_method_call(
     nullsafe_result(nullsafe, object_ty, returned, env)
 }
 
+/// `rule:packaging/a-components-engine-class-is-internal`: a call of a built-in component's
+/// manifest class, or a reference to one of its methods, compiles only in a file of that
+/// component's own Novis source. Such a file is the one `nvs_hir`'s graph walk added under the
+/// name `<class>:<path>`, with no path on disk, so a file a program writes is never one.
+fn reject_engine_call(qname: &QName, name: &str, span: Span, env: &mut Env<'_>) {
+    let Some((component, help)) = env.signatures.engine(qname) else {
+        return;
+    };
+    let carried = format!("{qname}:");
+    if env.src.path().is_none() && env.src.name().starts_with(&carried) {
+        return;
+    }
+    let mut diagnostic = Diagnostic::error(
+        code::E_ENGINE_CALL,
+        format!("`{qname}::{name}` is internal to the `{component}` component"),
+    )
+    .with_primary(span, "a program cannot call this class");
+    if !help.is_empty() {
+        diagnostic = diagnostic.with_help(help.to_owned());
+    }
+    env.diags.report(diagnostic);
+}
+
 /// `Class::method(...)` — [`super::infer`]'s `ExprKind::StaticCall` arm.
 ///
 /// `nvs_hir::members` already checks this reference's existence
@@ -333,6 +356,7 @@ pub(crate) fn infer_static_call(
                     if found.is_none() && qname.is_core() {
                         report_unknown_member(expr.span, &qname, &name, "member", env);
                     }
+                    reject_engine_call(&qname, &name, expr.span, env);
                     // `rule:security/response-body-is-one-typed-member`'s sixth row, noted here because this is the
                     // one site where a `Core\Response::…` call has a resolved
                     // class name to be recognized by — `crate::response` owns

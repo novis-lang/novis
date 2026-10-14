@@ -428,7 +428,7 @@ fn a_bundled_extension_runs_identically_to_its_entry_under_nvs_run() {
 /// built-in component, a PNG of 3 by 2 pixels written as hex, a sort by locale and a one-page
 /// render.
 const BUILTIN_APP: &str = "<?nvs
-use Novis\\Image\\Codec;
+use Novis\\Image\\Image;
 use Novis\\Intl\\Collator;
 use Novis\\Pdf\\Document;
 
@@ -436,7 +436,7 @@ bytes $png = Core\\Encoding::fromHex(
     \"89504e470d0a1a0a0000000d49484452000000030000000208060000009d74661a\"
     . \"0000000b49444154789c6360c00500001a0001bc3ce0410000000049454e44ae426082\"
 );
-var $info = Codec::info($png);
+var $info = Image::info($png);
 echo $info->width, \"x\", $info->height, \"\\n\";
 echo Core\\Str::join(Collator::sort([\"pear\", \"apple\", \"fig\"], \"en\"), \" \"), \"\\n\";
 echo Document::fromHtml(\"<p>Shop</p>\")->render()->pageCount, \" page\\n\";
