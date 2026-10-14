@@ -77,7 +77,7 @@ stages:
         shapes: []
   - id: 12
     title: "100 MB, the growth and the benches"
-    status: open
+    status: done
     extra:
       context:
         rules: [testing/feature-proofs, packaging/the-first-party-components-are-built-in]
@@ -768,22 +768,19 @@ One file set: `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/n
 
 ### State
 
-**Both Stage 12 checks are green.** Only the benches are left in this stage.
+**Stage 12 is done.** Its two checks were green last session, and its four benches are recorded in `docs/perf/members.ndjson`, each with growth flat.
 
-- `crates/nvs-ext/tests/spreadsheet.rs` writes a wide workbook (20 columns: a number, fractions, dates and random words, `wide_values`) to `.agent-tmp/` until it passes 100 MB, which is about 308,000 rows. It reads the file back through `Budget::read` ranges (`Opened`) and checks every row. The test takes about 95 s.
-- The guest's memory grows over the first few batches, because they differ in size, and then stays the same. So `warm` is measured after `WARM_BATCHES` (16) batches. At 100 MB the writer's guest is about 12 MB and the reader's about 7 MB.
-- The text-heavy test reads one table of 8 MB of strings. It compares that with the same rows written inline, and the difference is about 2× the text. The bound allows that: the text, plus four bytes per string, doubled.
-- The recorded growth (0.96 MiB, `extensions/spreadsheet/src/lib.rs:33`) already passes `the_recorded_growth_matches_the_embedded_components`, so it needed no change.
+- `benches/members/novis/Spreadsheet-Workbook/fromRows.nvs` and `benches/members/novis/Spreadsheet-Reader/rows.nvs` measure 100 rows. Their `.scale.nvs` siblings stream rows from a generator from 1,024 up to 1,048,576 rows, and the size counts the header row. A full sheet writes 17 MB and reads back in about 18 s on a release build under the default memory limit.
+- `benches/members/novis/Spreadsheet-Sheet/chart.nvs` is a styled 50-row report with a combined chart, `complexity constant`. `benches/members/novis/Spreadsheet-Template/fill.nvs` fills 100 items, and its ramp runs up to 16,384.
+- `docs/perf/bench-budget.json` has the four new shares and nothing else. `bun nv scaling --budget` still fails, because about 200 benches outside this goal have no share, every `novis/` bench among them. `--budget --write` would also raise `core/Process-Handle/readStderr.nvs`, so that rewrite is the owner's to decide.
 
 ### Next
 
-**Stage 12, the benches** (`rule:testing/feature-proofs`, `benches/members/README.md`). Files: new ones under `benches/members/novis/Spreadsheet-*/`. Run `bun nv proofs --id '<member>'` to get each path, shaped as `benches/members/novis/Image-Codec/run.nvs:1`.
+**Stage 13, what opens in Excel** (`rule:core-classes/spreadsheet-output-is-inert`, the stage's text in this file). Files: a new `extensions/spreadsheet/tests/excel.rs`, fixtures under `extensions/spreadsheet/tests/fixtures/excel/`, and `extensions/spreadsheet/Cargo.toml`.
 
-- [x] **The big file**: `a_100_mb_workbook_writes_and_reads_back`, `the_guest_peak_stays_flat_as_rows_grow`, `a_text_heavy_workbook_peaks_at_its_strings_plus_a_batch`.
-- [x] **The growth**: `the_recorded_growth_matches_the_embedded_components` passes with the 0.96 MiB figure.
-- [ ] **A million-row export and import**: `Workbook::fromRows` (`extensions/spreadsheet/nvs/Workbook.nvs:92`) or `Sheet::addAll` (`extensions/spreadsheet/nvs/Sheet.nvs:52`), and `Reader::rows` (`extensions/spreadsheet/nvs/Reader.nvs:158`). Each is `complexity linear` with a `.scale.nvs` sibling. Check the README's budget rule before choosing a million as `max`.
-- [ ] **A styled report with a chart** over `Sheet::chart` (`extensions/spreadsheet/nvs/Sheet.nvs:256`), and **a template of 10,000 rows** over `Template::fill` (`extensions/spreadsheet/nvs/Template.nvs:54`), each with its growth.
-- [ ] Run `bun nv proofs --comments benches/members/novis` over the new benches, then `bun nv proofs --record-perf --id '<member>'` for each, judged as `benches/members/README.md:1` says.
+- [ ] **The round trip**: `every_write_fixture_reads_back_through_our_reader_and_calamine` and `a_filled_template_reads_back_with_its_values_and_shifted_references`. The crate has no calamine (`extensions/spreadsheet/src/read/mod.rs:4` says why). Add it as a host-only `[dev-dependencies]` entry, and check that the `deny-the-spreadsheet-component-graph-passes` check still passes over the `wasm32-wasip2` graph. Read through `extensions/spreadsheet/src/read/mod.rs:783`.
+- [ ] **Against Excel's own files**: copy the `rust_xlsxwriter` test fixtures for styles, tables, conditional formats, data validation, images and each chart type in the subset, with attribution (MIT/Apache-2.0). Compare each part as XML with that suite's normalisation. A difference is fixed in the writer (`extensions/spreadsheet/src/styles.rs:1`, `extensions/spreadsheet/src/chart.rs:1`), never in the fixture.
+- [ ] Run `cargo test --manifest-path extensions/spreadsheet/Cargo.toml --test excel`, then `looper check --name spreadsheet-what-opens-in-excel`. Its test names are in this file's front matter, `docs/goals/spreadsheet.md:87`.
 
 ### Backlog
 
@@ -792,4 +789,4 @@ One file set: `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/n
 - An ods cell's `text` uses the default format of its type, not the file's own number style. A merged fill copies no `display`. `extensions/spreadsheet/src/read/ods.rs:1`, `extensions/spreadsheet/src/read/merge.rs:166`
 - The extras from xlsb, xls and ods, which throw naming the format now. `extensions/spreadsheet/src/read/extras.rs:1`
 - Extension contagion does not reach a shape's fields (`crates/nvs-types/src/expr/quals.rs:531`, `rule:security/extension-contagion`). This is a compiler fix, outside this goal.
-- `docs/rules/core-classes/spreadsheet-roster.md`'s *Not shipped* still says only the writer is on disk. Rewrite it at Stage 14. Stage 14's proofs owe `Row` a group, `Reader::rows`'s doc comment is four lines where `bun nv proofs --comments` allows two, and the ten Stage 11 attacks under `tests/hostile/novis/` are Stage 14's.
+- `docs/rules/core-classes/spreadsheet-roster.md`'s *Not shipped* still says only the writer is on disk. Rewrite it at Stage 14. Stage 14's proofs owe `Row` a group, `Reader::rows`'s doc comment is four lines where `bun nv proofs --comments` allows two, and the ten Stage 11 attacks under `tests/hostile/novis/` are Stage 14's. `bun nv proofs` without `--nvs target/debug/nvs.exe` reads a stale roster that has no `Template`.
