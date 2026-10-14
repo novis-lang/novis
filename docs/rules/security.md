@@ -3,7 +3,7 @@
 
 # Security and isolation
 
-*8 of 94 rules below are **designed** rather than shipped, and are marked where they appear.*
+*7 of 94 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="security-isolate-shares-nothing"></a>
 
@@ -2461,7 +2461,7 @@ declaring a `secret` return does not load (`crates/nvs-ext/tests/load.rs`).
 
 <a id="security-image-component-declares-nothing"></a>
 
-## The image component declares no qualifier deviation and requests no capability  *(designed — owned by goal request-isolation-debts)*
+## The image component declares no qualifier deviation and requests no capability
 
 `rule:security/image-component-declares-nothing`
 
@@ -2476,8 +2476,10 @@ program's side of the boundary, where the grant already is
 ([`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door)) — and it is recorded because "declares nothing" is a
 claim worth being able to check rather than an absence nobody looked at.
 
-**Partly on disk.** `extensions/image/manifest.json` declares no qualifier and no capability, and no
-test holds the absence.
+`extensions/image/manifest.json` declares neither, and
+`crates/nvs-ext/tests/manifest.rs`'s `the_image_manifest_declares_no_qualifier_and_no_capability`
+reads it through the manifest parser and fails on any `source`, `secret` or `sink` mark and on any
+entry under `requests`.
 
 <sub>See also [`security/extension-contagion`](security.md#security-extension-contagion), [`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table), [`security/secret-does-not-cross-an-extension`](security.md#security-secret-does-not-cross-an-extension), [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline).</sub>
 
