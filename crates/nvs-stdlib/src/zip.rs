@@ -737,12 +737,15 @@ fn frame<'a>(archive: &'a [u8], entry: &Entry) -> Result<&'a [u8], Fault> {
 /// [`Bound::output_ceiling`]'s and leaves no second piece of arithmetic to hold
 /// in step with the first.
 ///
-/// Only the octet ceiling is spent. The ratio is a property of the entry being
-/// read rather than of the archive, and an archive of many small well-compressed
-/// entries is not the attack — the octets it lands on the machine are.
+/// Only the octet ceiling is spent, and only by a part held whole. The ratio is
+/// a property of the entry being read rather than of the archive, and an
+/// archive of many small well-compressed entries is not the attack — the octets
+/// it lands on the machine are. A part [`Budget::stream`] walks and never holds
+/// is bounded by its ratio alone and spends nothing.
 ///
-/// Every decompression this module does goes through [`Budget::read`], so there
-/// is no route by which an entry is read without being charged for.
+/// Every decompression this module does goes through [`Budget::read`] or
+/// [`Budget::stream`], so there is no route by which an entry is read without
+/// being bounded.
 pub(crate) struct Budget {
     /// The bound the call runs under: what it asked for, lowered to the
     /// operator's `[limits]`.
@@ -761,20 +764,9 @@ impl Budget {
         }
     }
 
-    /// One entry's octets, decompressed under what the archive has left and
-    /// charged against it.
-    ///
-    /// The bound is applied **while** the output grows rather than to the size
-    /// the entry's own header claims, which is the difference between refusing
-    /// a bomb and surviving one: the decoder is driven as a `Read` and stopped
-    /// one octet past the ceiling, so a hostile entry costs the ceiling and
-    /// never the gigabyte it declared.
-    ///
-    /// What came out is then checked against the CRC-32 the archive recorded
-    /// for it, and a mismatch refuses rather than answers. That check is here
-    /// rather than in each member because this is the one route: `read`
-    /// answers what it returns and `extract` writes it, so a corrupt entry has
-    /// no spelling that reaches either.
+    /// One entry's octets, held whole: decompressed by [`inflate`] under both
+    /// halves of the bound, its ceiling what the archive has left, and charged
+    /// against it.
     pub(crate) fn read(&mut self, archive: &[u8], entry: &Entry) -> Result<Vec<u8>, Fault> {
         let frame = frame(archive, entry)?;
         let ceiling = Bound {
@@ -782,46 +774,110 @@ impl Budget {
             ..self.bound
         }
         .output_ceiling(frame.len());
-        let out = match entry.method {
-            STORED => frame.to_vec(),
-            DEFLATE => {
-                let mut out = Vec::new();
-                flate2::read::DeflateDecoder::new(frame)
-                    .take(ceiling.saturating_add(1))
-                    .read_to_end(&mut out)
-                    .map_err(|_| malformed_entry(&entry.name))?;
-                out
-            }
-            other => {
-                return Err(refuses_entry(
-                    &format!(
-                        "it is compressed by method {other}, and this class reads stored and \
-                         deflate"
-                    ),
-                    &entry.name,
-                ));
-            }
+        let mut out = Vec::new();
+        let sink = &mut |block: &[u8]| {
+            out.extend_from_slice(block);
+            Ok(())
         };
-        if out.len() as u64 > ceiling {
-            return Err(over_bound(&entry.name, frame.len(), self, ceiling));
+        let Some(size) = inflate(frame, entry, ceiling, sink)? else {
+            return Err(over_bound(&entry.name, frame.len(), self, ceiling, false));
+        };
+        self.left = self.left.saturating_sub(size);
+        Ok(out)
+    }
+
+    /// One entry's octets, handed to `sink` a block at a time and never held,
+    /// so bounded by `input × ratio` alone and not charged against what the
+    /// archive has left. Returns the octets the entry decompressed to.
+    ///
+    /// The ceiling bounds what a request holds and the ratio what it spends,
+    /// so a part a consumer only walks needs the second alone. The CRC-32 is
+    /// compared after the last block, so `sink` has seen every octet by the
+    /// time a corrupt entry is refused.
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "every `Core\\Zip` member holds its output; the spreadsheet component's reader \
+                      streams its sheets under the same split in its own zip reader"
+        )
+    )]
+    pub(crate) fn stream(
+        &self,
+        archive: &[u8],
+        entry: &Entry,
+        sink: &mut dyn FnMut(&[u8]) -> Result<(), Fault>,
+    ) -> Result<u64, Fault> {
+        let frame = frame(archive, entry)?;
+        let ceiling = Bound {
+            bytes: u64::MAX,
+            ..self.bound
         }
-        let mut sum = crc32fast::Hasher::new();
-        sum.update(&out);
-        let sum = sum.finalize();
-        if sum != entry.crc {
+        .output_ceiling(frame.len());
+        inflate(frame, entry, ceiling, sink)?
+            .ok_or_else(|| over_bound(&entry.name, frame.len(), self, ceiling, true))
+    }
+}
+
+/// Decompresses `entry`'s `frame` a block at a time into `sink`, and returns
+/// the octets it came to, or `None` once they pass `ceiling`.
+///
+/// The bound is applied **while** the output grows rather than to the size
+/// the entry's own header claims, which is the difference between refusing a
+/// bomb and surviving one: a hostile entry costs one block past the ceiling
+/// and never the gigabyte it declared.
+///
+/// What came out is then checked against the CRC-32 the archive recorded for
+/// it, and a mismatch refuses rather than answers. That check is here because
+/// this is the one route: `read` answers what it returns and `extract` writes
+/// it, so a corrupt entry has no spelling that reaches either.
+fn inflate(
+    frame: &[u8],
+    entry: &Entry,
+    ceiling: u64,
+    sink: &mut dyn FnMut(&[u8]) -> Result<(), Fault>,
+) -> Result<Option<u64>, Fault> {
+    let mut decoder: Box<dyn std::io::Read + '_> = match entry.method {
+        STORED => Box::new(frame),
+        DEFLATE => Box::new(flate2::read::DeflateDecoder::new(frame)),
+        other => {
             return Err(refuses_entry(
                 &format!(
-                    "its octets do not match the CRC-32 the archive recorded for them \
-                     ({sum:#010x} against {:#010x}), so what is in the archive is not what was \
-                     put there",
-                    entry.crc
+                    "it is compressed by method {other}, and this class reads stored and deflate"
                 ),
                 &entry.name,
             ));
         }
-        self.left = self.left.saturating_sub(out.len() as u64);
-        Ok(out)
+    };
+    let mut block = vec![0_u8; 64 * 1024];
+    let mut size = 0_u64;
+    let mut sum = crc32fast::Hasher::new();
+    loop {
+        let read = decoder
+            .read(&mut block)
+            .map_err(|_| malformed_entry(&entry.name))?;
+        if read == 0 {
+            break;
+        }
+        size += read as u64;
+        if size > ceiling {
+            return Ok(None);
+        }
+        sum.update(&block[..read]);
+        sink(&block[..read])?;
     }
+    let sum = sum.finalize();
+    if sum != entry.crc {
+        return Err(refuses_entry(
+            &format!(
+                "its octets do not match the CRC-32 the archive recorded for them ({sum:#010x} \
+                 against {:#010x}), so what is in the archive is not what was put there",
+                entry.crc
+            ),
+            &entry.name,
+        ));
+    }
+    Ok(Some(size))
 }
 
 /// The path one entry is written to, with every directory above it created and
@@ -948,8 +1004,8 @@ fn refuses_entry(what: &str, name: &str) -> Fault {
 /// `[limits]`, and only one of those two is ever the answer. An archive that
 /// ran out part way says so rather than naming the remainder alone, which would
 /// read as a ceiling nobody configured.
-fn over_bound(name: &str, input: usize, budget: &Budget, ceiling: u64) -> Fault {
-    let half = if ceiling < budget.left {
+fn over_bound(name: &str, input: usize, budget: &Budget, ceiling: u64, streamed: bool) -> Fault {
+    let half = if streamed || ceiling < budget.left {
         format!(
             "the {}:1 ratio over {input} octets of input",
             budget.bound.ratio
@@ -1141,11 +1197,13 @@ mod tests {
     struct Written<'a> {
         /// The entry's name, exactly as it goes on the wire.
         name: &'a str,
-        /// The entry's octets, stored rather than deflated.
+        /// The entry's octets, before they are compressed.
         data: Vec<u8>,
         /// The high half of the external attributes — the Unix mode, where the
         /// symlink bit lives.
         mode: u32,
+        /// Whether [`archive`] deflates the entry. [`zip64`] stores every entry.
+        deflate: bool,
     }
 
     impl<'a> Written<'a> {
@@ -1155,6 +1213,7 @@ mod tests {
                 name,
                 data: data.as_bytes().to_vec(),
                 mode: 0o100_644,
+                deflate: false,
             }
         }
 
@@ -1165,6 +1224,15 @@ mod tests {
                 name,
                 data: target.as_bytes().to_vec(),
                 mode: 0o120_777,
+                deflate: false,
+            }
+        }
+
+        /// An ordinary entry, deflated.
+        fn deflated(name: &'a str, data: &str) -> Self {
+            Self {
+                deflate: true,
+                ..Self::plain(name, data)
             }
         }
     }
@@ -1179,7 +1247,8 @@ mod tests {
         sum.finalize()
     }
 
-    /// A zip archive carrying `written`, stored rather than deflated.
+    /// A zip archive carrying `written`, each entry stored unless it is
+    /// [`Written::deflated`].
     ///
     /// Written here rather than fetched from a fixture directory so that a
     /// hostile archive is *derived from the attack* rather than from a blob
@@ -1195,10 +1264,22 @@ mod tests {
             let name = entry.name.as_bytes();
             let size = u32::try_from(entry.data.len()).expect("a test entry is small");
             let crc = crc_of(&entry.data);
+            let (method, body) = if entry.deflate {
+                let mut encoder =
+                    flate2::write::DeflateEncoder::new(Vec::new(), flate2::Compression::best());
+                encoder
+                    .write_all(&entry.data)
+                    .expect("a Vec takes every write");
+                (DEFLATE, encoder.finish().expect("a Vec takes every write"))
+            } else {
+                (STORED, entry.data.clone())
+            };
+            let packed = u32::try_from(body.len()).expect("a test entry is small");
+            let [low, high] = method.to_le_bytes();
             out.extend_from_slice(&LOCAL_SIGNATURE.to_le_bytes());
-            out.extend_from_slice(&[20, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+            out.extend_from_slice(&[20, 0, 0, 0, low, high, 0, 0, 0, 0]);
             out.extend_from_slice(&crc.to_le_bytes());
-            out.extend_from_slice(&size.to_le_bytes());
+            out.extend_from_slice(&packed.to_le_bytes());
             out.extend_from_slice(&size.to_le_bytes());
             out.extend_from_slice(
                 &u16::try_from(name.len())
@@ -1207,12 +1288,12 @@ mod tests {
             );
             out.extend_from_slice(&0_u16.to_le_bytes());
             out.extend_from_slice(name);
-            out.extend_from_slice(&entry.data);
+            out.extend_from_slice(&body);
 
             directory.extend_from_slice(&CENTRAL_SIGNATURE.to_le_bytes());
-            directory.extend_from_slice(&[20, 3, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+            directory.extend_from_slice(&[20, 3, 20, 0, 0, 0, low, high, 0, 0, 0, 0]);
             directory.extend_from_slice(&crc.to_le_bytes());
-            directory.extend_from_slice(&size.to_le_bytes());
+            directory.extend_from_slice(&packed.to_le_bytes());
             directory.extend_from_slice(&size.to_le_bytes());
             directory.extend_from_slice(
                 &u16::try_from(name.len())
@@ -1700,6 +1781,7 @@ mod tests {
                 name,
                 data: b"root:x:0:0".to_vec(),
                 mode: 0o100_644,
+                deflate: false,
             }]);
             assert!(message.contains("`..` component"), "{name}: {message}");
         }
@@ -1724,6 +1806,7 @@ mod tests {
                     name,
                     data: b"pwned".to_vec(),
                     mode: 0o100_644,
+                    deflate: false,
                 },
             ]);
             assert!(
@@ -1912,6 +1995,132 @@ mod tests {
         );
     }
 
+    /// A deflated entry of 100,000 octets, its archive, its entry and its
+    /// compressed length, for the tests of the two halves of the bound.
+    fn sheet() -> (Vec<u8>, Entry, u64) {
+        let raw = archive(&[Written::deflated("sheet.xml", &"A".repeat(100_000))]);
+        let entry = directory(&raw).expect("the archive reads").remove(0);
+        let input = frame(&raw, &entry).expect("the entry has a frame").len() as u64;
+        (raw, entry, input)
+    }
+
+    /// The octets `budget` streams out of `entry`, or its refusal.
+    fn streamed(budget: &Budget, raw: &[u8], entry: &Entry) -> Result<usize, Fault> {
+        let mut seen = 0;
+        budget.stream(raw, entry, &mut |block| {
+            seen += block.len();
+            Ok(())
+        })?;
+        Ok(seen)
+    }
+
+    /// A part streamed and never held passes a ceiling far below its size,
+    /// and is stopped by `input × ratio` alone, on both sides of it.
+    #[test]
+    fn a_streamed_part_is_bounded_by_the_ratio_alone() {
+        let (raw, entry, input) = sheet();
+        let enough = 100_000_u64.div_ceil(input);
+        let tight = Bound {
+            bytes: 1000,
+            ratio: enough,
+        };
+
+        assert_eq!(
+            streamed(&Budget::new(tight), &raw, &entry)
+                .expect("the ceiling does not bound a stream"),
+            100_000
+        );
+        let message = refusal(
+            Budget::new(tight)
+                .read(&raw, &entry)
+                .expect_err("the same part held is over the ceiling"),
+        );
+        assert!(message.contains("the 1000 octet ceiling"), "{message}");
+
+        let message = refusal(
+            streamed(
+                &Budget::new(Bound {
+                    bytes: 1000,
+                    ratio: enough - 1,
+                }),
+                &raw,
+                &entry,
+            )
+            .expect_err("one step under the ratio is refused"),
+        );
+        assert!(
+            message.contains(&format!("the {}:1 ratio over {input} octets", enough - 1)),
+            "{message}"
+        );
+        assert!(
+            message.contains("rule:core-classes/decompression-bound"),
+            "{message}"
+        );
+    }
+
+    /// A part held whole is refused by whichever half is smaller, each on both
+    /// sides of its boundary.
+    #[test]
+    fn a_held_part_stays_under_both_bounds() {
+        let (raw, entry, input) = sheet();
+        let enough = 100_000_u64.div_ceil(input);
+        let read = |bytes, ratio| Budget::new(Bound { bytes, ratio }).read(&raw, &entry);
+
+        assert_eq!(
+            read(100_000, enough).expect("both halves fit").len(),
+            100_000
+        );
+        let message = refusal(read(99_999, enough).expect_err("one octet under the ceiling"));
+        assert!(message.contains("the 99999 octet ceiling"), "{message}");
+        let message = refusal(read(100_000, enough - 1).expect_err("one step under the ratio"));
+        assert!(
+            message.contains(&format!("the {}:1 ratio", enough - 1)),
+            "{message}"
+        );
+    }
+
+    /// What the archive has left is spent by held parts only: a streamed part
+    /// leaves it as it was, and streams again once the held parts spent it.
+    #[test]
+    fn the_archive_total_counts_held_parts_only() {
+        let raw = archive(&[
+            Written::deflated("sheet.xml", &"A".repeat(100_000)),
+            Written::plain("strings.xml", &"B".repeat(4096)),
+        ]);
+        let entries = directory(&raw).expect("the archive reads");
+        let mut budget = Budget::new(Bound {
+            bytes: 6000,
+            ratio: 1 << 20,
+        });
+
+        assert_eq!(
+            streamed(&budget, &raw, &entries[0]).expect("a stream"),
+            100_000
+        );
+        assert_eq!(budget.left, 6000);
+        assert_eq!(
+            budget
+                .read(&raw, &entries[1])
+                .expect("the held part fits")
+                .len(),
+            4096
+        );
+        assert_eq!(budget.left, 6000 - 4096);
+        let message = refusal(
+            budget
+                .read(&raw, &entries[1])
+                .expect_err("a second hold passes what is left"),
+        );
+        assert!(
+            message.contains("this archive had left of its 6000 octet ceiling"),
+            "{message}"
+        );
+        assert_eq!(
+            streamed(&budget, &raw, &entries[0]).expect("a stream spends nothing"),
+            100_000
+        );
+    }
+
     /// Every refusal this module writes is a `ParseError`, so a caller never
     /// has to tell a hostile archive from a full disk by reading a message.
     ///
@@ -1929,6 +2138,7 @@ mod tests {
                 name: "",
                 data: b"x".to_vec(),
                 mode: 0o100_644,
+                deflate: false,
             }],
         ];
         let mut refusals = 0;
