@@ -30,6 +30,10 @@
 //!   That is `rule:errors/ambiguous-input-refused`'s direction: serving something other than what was asked
 //!   for is repairing the request, and a client that meant to resume would write
 //!   the wrong bytes to disk on the strength of it.
+//! - **`If-Range` against the same tag, compared strongly.** A range whose
+//!   `If-Range` names anything but the current tag is ignored and the whole
+//!   file is a `200`, so a resumed download of a changed file is never two
+//!   files spliced together ([`still_the_same`]).
 //! - **A fixed extension table**, with `application/octet-stream` for an unknown
 //!   one — which `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`'s
 //!   `nosniff` renders inert rather than leaving to a browser to guess.
@@ -48,26 +52,26 @@
 //!
 //! # What it spends
 //!
-//! Per `rule:programs/memory-priority`: one buffer
-//! per in-flight static request, holding exactly the bytes that response
-//! carries — the whole file, or the one range that was asked for. Nothing is
-//! cached between requests, so it is O(in-flight) and not O(files served): a
-//! second request for the same asset reads it again. That is a deliberate
-//! spend of latency for simplicity at this stage, and a cheap one — a development server's
-//! asset traffic is a handful of files on a local disk the OS has already
-//! cached — and the place a byte cache would go is behind [`Source`], where the
-//! [`OnDisk`] implementation is the only thing that would change.
+//! Per `rule:programs/memory-priority`: one open file handle and one chunk of
+//! [`crate::serve::FILE_CHUNK`] bytes per in-flight file response, plus what
+//! `hyper` holds in its write buffer, whatever the file's size or the range's.
+//! `hyper` polls the body only when that buffer has room, so a slow peer holds
+//! the read back rather than letting it run ahead. Nothing is cached between
+//! requests, so it is O(in-flight) and not O(files served): a second request
+//! for the same asset reads it again, from a disk the OS has usually cached
+//! already. The place a byte cache would go is behind [`Source`], whose
+//! [`Contents::Bytes`] is the shape it would hand over.
 //!
 //! [`What::Static`]: crate::mount::What::Static
 
 use std::ffi::OsStr;
-use std::io::{Read as _, Seek as _, SeekFrom};
 use std::path::Path;
 use std::time::SystemTime;
 
+use hyper::body::Bytes;
 use hyper::header::{
     ACCEPT_RANGES, CACHE_CONTROL, CONTENT_RANGE, CONTENT_TYPE, ETAG, HeaderMap, HeaderValue,
-    IF_NONE_MATCH, RANGE,
+    IF_NONE_MATCH, IF_RANGE, RANGE,
 };
 use hyper::{Response, StatusCode};
 
@@ -88,7 +92,42 @@ pub struct Stat {
     pub mtime_nanos: i128,
 }
 
-/// The two questions this module asks of a filesystem.
+/// A file [`Source::open`] opened: the [`Stat`] read off the open handle, and
+/// where its bytes are.
+///
+/// One value rather than a stat and a later read, so the `ETag` and the bytes
+/// are always the same file's: a file replaced between two path lookups would
+/// otherwise pair the old file's tag with the new file's bytes.
+#[derive(Debug)]
+pub struct Opened {
+    /// The size and modification time, read from the handle `contents` reads.
+    pub stat: Stat,
+    /// The bytes themselves.
+    pub contents: Contents,
+}
+
+/// Where an opened file's bytes are.
+#[derive(Debug)]
+pub enum Contents {
+    /// A file on disk, read one chunk at a time while the response is written
+    /// ([`Answer::File`]).
+    File(std::fs::File),
+    /// Bytes already in memory, which is what the cases' sources hold and what
+    /// a byte cache behind [`Source`] would hold.
+    Bytes(Bytes),
+}
+
+/// Why [`Source::open`] has no file to give.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Unopened {
+    /// Nothing is there, or what is there is not a regular file: a `404`.
+    Missing,
+    /// A regular file is there and cannot be opened: a `500`, since that is a
+    /// deployment's problem and not the peer's.
+    Unreadable,
+}
+
+/// The one question this module asks of a filesystem.
 ///
 /// A trait for the reason [`crate::mount::Existing`] is one: a policy asserted
 /// against a real directory is a test that needs a disk, a clock the case does
@@ -96,39 +135,39 @@ pub struct Stat {
 /// exactly the edge the `ETag` exists for. [`OnDisk`] is the production
 /// implementation and the cases below script the other one.
 pub trait Source {
-    /// The size and modification time of the regular file at `path`, or `None`
-    /// for anything that is not one.
-    fn stat(&self, path: &Path) -> Option<Stat>;
-
-    /// Exactly `len` bytes of `path` starting at `at`, or `None` if that many
-    /// are not there to be read.
-    fn read(&self, path: &Path, at: u64, len: u64) -> Option<Vec<u8>>;
+    /// The regular file at `path`, opened, with the size and modification time
+    /// of what was opened.
+    ///
+    /// # Errors
+    ///
+    /// [`Unopened::Missing`] for anything that is not a regular file, and
+    /// [`Unopened::Unreadable`] for one that cannot be opened.
+    fn open(&self, path: &Path) -> Result<Opened, Unopened>;
 }
 
-// Each stat and read is recorded when `NVS_FOOTPRINT_LOG` names a log, so a check that serves a
-// static file is selected again when that file changes.
+// The lookup and the open are recorded when `NVS_FOOTPRINT_LOG` names a log, so a check that
+// serves a static file is selected again when that file changes.
 impl Source for OnDisk {
-    fn stat(&self, path: &Path) -> Option<Stat> {
+    fn open(&self, path: &Path) -> Result<Opened, Unopened> {
         nvs_footprint::exists(path);
-        let meta = std::fs::metadata(path).ok()?;
-        if !meta.is_file() {
-            return None;
+        // Asked of the path before it is opened: opening a FIFO waits for a
+        // writer, and this open blocks the connection's own thread.
+        if !std::fs::metadata(path).is_ok_and(|meta| meta.is_file()) {
+            return Err(Unopened::Missing);
         }
-        Some(Stat {
-            len: meta.len(),
-            mtime_nanos: meta.modified().ok().map_or(0, nanos),
-        })
-    }
-
-    fn read(&self, path: &Path, at: u64, len: u64) -> Option<Vec<u8>> {
         nvs_footprint::file(path);
-        let mut file = std::fs::File::open(path).ok()?;
-        if at > 0 {
-            file.seek(SeekFrom::Start(at)).ok()?;
+        let file = std::fs::File::open(path).map_err(|_| Unopened::Unreadable)?;
+        let meta = file.metadata().map_err(|_| Unopened::Unreadable)?;
+        if !meta.is_file() {
+            return Err(Unopened::Missing);
         }
-        let mut bytes = vec![0_u8; usize::try_from(len).ok()?];
-        file.read_exact(&mut bytes).ok()?;
-        Some(bytes)
+        Ok(Opened {
+            stat: Stat {
+                len: meta.len(),
+                mtime_nanos: meta.modified().ok().map_or(0, nanos),
+            },
+            contents: Contents::File(file),
+        })
     }
 }
 
@@ -139,9 +178,9 @@ impl Source for OnDisk {
 /// A **program's** file body does: `Core\Response::sendFile` declares one only
 /// while the request runs, by which time the request is the isolate's, so
 /// [`crate::serve`] has to decide before the handler what it may still be asked
-/// for. Copying the two named here rather than the whole map is what keeps that
-/// decision free — a request that sent neither leaves an empty map, which
-/// allocates nothing, and one that sent both pays two header values on a
+/// for. Copying the three named here rather than the whole map is what keeps
+/// that decision free — a request that sent none leaves an empty map, which
+/// allocates nothing, and one that sent all three pays three header values on a
 /// response that is about to read a file.
 ///
 /// A header this policy comes to read is added here in the same edit, and a
@@ -150,7 +189,7 @@ impl Source for OnDisk {
 #[must_use]
 pub fn asked(headers: &HeaderMap) -> HeaderMap {
     let mut kept = HeaderMap::new();
-    for name in [IF_NONE_MATCH, RANGE] {
+    for name in [IF_NONE_MATCH, IF_RANGE, RANGE] {
         if let Some(value) = headers.get(&name) {
             kept.insert(name, value.clone());
         }
@@ -171,11 +210,17 @@ pub fn asked(headers: &HeaderMap) -> HeaderMap {
 /// not there. A file that is there and unreadable is a `500`, since that is a
 /// deployment's problem and not the peer's.
 ///
+/// The body carries exactly the bytes that were asked for, so its length is
+/// stated up front. A file on disk is read while it is sent, one chunk at a
+/// time, and is never held whole ([`Answer::File`]).
 #[must_use]
 pub fn send(file: &Path, headers: &HeaderMap, source: &dyn Source) -> Reply {
-    let Some(stat) = source.stat(file) else {
-        return Reply::status(StatusCode::NOT_FOUND);
+    let opened = match source.open(file) {
+        Ok(opened) => opened,
+        Err(Unopened::Missing) => return Reply::status(StatusCode::NOT_FOUND),
+        Err(Unopened::Unreadable) => return Reply::status(StatusCode::INTERNAL_SERVER_ERROR),
     };
+    let stat = opened.stat;
     let tag = etag(stat);
     let mut response = Response::new(Answer::empty());
     // On every answer this function gives, including the two that carry no
@@ -193,7 +238,8 @@ pub fn send(file: &Path, headers: &HeaderMap, source: &dyn Source) -> Reply {
         *response.status_mut() = StatusCode::NOT_MODIFIED;
         return Reply::Done(response);
     }
-    let Some(wanted) = asked_for(headers.get(RANGE), stat.len) else {
+    let range = headers.get(RANGE).filter(|_| still_the_same(headers, &tag));
+    let Some(wanted) = asked_for(range, stat.len) else {
         *response.status_mut() = StatusCode::RANGE_NOT_SATISFIABLE;
         response
             .headers_mut()
@@ -203,7 +249,7 @@ pub fn send(file: &Path, headers: &HeaderMap, source: &dyn Source) -> Reply {
     response
         .headers_mut()
         .insert(CONTENT_TYPE, HeaderValue::from_static(mime(file)));
-    let Some(bytes) = source.read(file, wanted.at, wanted.len) else {
+    let Some(body) = body(opened.contents, wanted) else {
         return Reply::status(StatusCode::INTERNAL_SERVER_ERROR);
     };
     if wanted.partial {
@@ -214,8 +260,22 @@ pub fn send(file: &Path, headers: &HeaderMap, source: &dyn Source) -> Reply {
             ascii(&format!("bytes {}-{last}/{}", wanted.at, stat.len)),
         );
     }
-    *response.body_mut() = Answer::new(bytes);
+    *response.body_mut() = body;
     Reply::Done(response)
+}
+
+/// The body that carries the `wanted` bytes of `contents`, or `None` where they
+/// cannot be reached: a file that cannot seek to their start, or bytes in
+/// memory that are fewer than the stat said.
+fn body(contents: Contents, wanted: Wanted) -> Option<Answer> {
+    match contents {
+        Contents::File(file) => Answer::file(file, wanted.at, wanted.len).ok(),
+        Contents::Bytes(bytes) => {
+            let at = usize::try_from(wanted.at).ok()?;
+            let end = at.checked_add(usize::try_from(wanted.len).ok()?)?;
+            (end <= bytes.len()).then(|| Answer::new(bytes.slice(at..end)))
+        }
+    }
 }
 
 /// § 4's strong validator: `(size, mtime_nanos)` and nothing else, so two
@@ -240,6 +300,21 @@ fn unchanged(headers: &HeaderMap, tag: &str) -> bool {
     asked.split(',').map(str::trim).any(|candidate| {
         candidate == "*" || candidate.strip_prefix("W/").unwrap_or(candidate) == tag
     })
+}
+
+/// Whether a `Range` may be honoured: there is no `If-Range`, or it names the
+/// tag this file has now.
+///
+/// The comparison is strong (RFC 9110 § 13.1.5), so a `W/` tag never matches.
+/// Nor does a date, because this server sends no `Last-Modified` and so no
+/// date can name this file. Anything that does not match makes the caller
+/// ignore the range and send the whole file with a `200`. A client resuming a
+/// download of a file that changed then gets the new file whole, and never
+/// the new file's bytes spliced onto the old file's.
+fn still_the_same(headers: &HeaderMap, tag: &str) -> bool {
+    headers
+        .get(IF_RANGE)
+        .is_none_or(|asked| asked.to_str().is_ok_and(|asked| asked.trim() == tag))
 }
 
 /// Which bytes of a file of `len` the request asked for, or `None` for a
@@ -366,6 +441,8 @@ fn nanos(time: SystemTime) -> i128 {
 mod tests {
     use super::*;
     use crate::mount::{Dispatch, Existing, Table, What};
+    use crate::serve::{BodyCut, FILE_CHUNK};
+    use hyper::body::Body as _;
     use nvs_config::mount::Mounted;
     use std::collections::BTreeMap;
     use std::path::PathBuf;
@@ -379,16 +456,143 @@ mod tests {
     fn the_disk_records_each_stat_and_read() {
         // The test binary itself: a file that is certainly there, inside this package's build.
         let manifest = std::env::current_exe().expect("the test binary's path");
-        let (bytes, lines) = nvs_footprint::capture(|| {
-            let stat = OnDisk.stat(&manifest).expect("the manifest is a file");
-            OnDisk.read(&manifest, 0, stat.len.min(4))
-        });
-        assert!(bytes.is_some());
+        let (opened, lines) = nvs_footprint::capture(|| OnDisk.open(&manifest));
+        assert!(opened.is_ok_and(|opened| matches!(opened.contents, Contents::File(_))));
         let shown = nvs_footprint::shown(&manifest);
         assert_eq!(
             lines,
             [format!("exists\t{shown}"), format!("file\t{shown}")]
         );
+    }
+
+    /// The next frame `body` gives, as its bytes or the error it ended in, and
+    /// `None` at its end. A file body never waits, so a poll that would is a
+    /// failure of the case.
+    fn next(body: &mut Answer) -> Option<Result<Vec<u8>, BodyCut>> {
+        let mut cx = std::task::Context::from_waker(std::task::Waker::noop());
+        let std::task::Poll::Ready(frame) = std::pin::Pin::new(body).poll_frame(&mut cx) else {
+            panic!("a file body waited");
+        };
+        frame.map(|frame| frame.map(|frame| frame.into_data().expect("a data frame").to_vec()))
+    }
+
+    /// `len` bytes that differ from one offset to the next, so a chunk read from
+    /// the wrong place cannot compare equal.
+    fn numbered(len: usize) -> Vec<u8> {
+        (0..len)
+            .map(|at| u8::try_from(at % 251).expect("under 251"))
+            .collect()
+    }
+
+    /// The body of what `send` answered for the file at `path` under `headers`,
+    /// with the status.
+    fn sent_from_disk(path: &Path, headers: &[(&str, &str)]) -> (StatusCode, Answer) {
+        let Reply::Done(response) = send(path, &asking(headers), &OnDisk) else {
+            panic!("a static file is never a program");
+        };
+        (response.status(), response.into_body())
+    }
+
+    /// A file on disk goes out as one frame per [`FILE_CHUNK`] under an exact
+    /// length, and a range is read from its own start: the response never
+    /// holds more than one chunk of the file.
+    #[test]
+    fn a_file_on_disk_is_sent_one_chunk_at_a_time() {
+        let dir = nvs_repo::scratch("statics-chunks");
+        let path = dir.path().join("big.bin");
+        let contents = numbered(2 * FILE_CHUNK + 5);
+        std::fs::write(&path, &contents).expect("the scratch file was not written");
+
+        let (status, mut body) = sent_from_disk(&path, &[]);
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(
+            body.size_hint().exact(),
+            Some(u64::try_from(contents.len()).expect("fits")),
+            "the length is stated up front"
+        );
+        let mut sizes = Vec::new();
+        let mut whole = Vec::new();
+        while let Some(frame) = next(&mut body) {
+            let frame = frame.expect("the file ended early");
+            sizes.push(frame.len());
+            whole.extend(frame);
+        }
+        assert_eq!(sizes, [FILE_CHUNK, FILE_CHUNK, 5]);
+        assert!(whole == contents, "the bytes sent are not the file's");
+        assert!(body.is_end_stream());
+
+        let (status, mut part) = sent_from_disk(&path, &[("range", "bytes=-3")]);
+        assert_eq!(status, StatusCode::PARTIAL_CONTENT);
+        assert_eq!(part.size_hint().exact(), Some(3));
+        assert_eq!(
+            next(&mut part).map(Result::ok),
+            Some(Some(contents[contents.len() - 3..].to_vec()))
+        );
+        assert_eq!(next(&mut part), None);
+    }
+
+    /// A file that shrinks after its length was stated ends the body in an
+    /// error, so `hyper` cuts the connection and the peer never reads a short
+    /// body as a whole one.
+    #[test]
+    fn a_file_that_shrinks_while_it_is_sent_ends_in_an_error() {
+        let dir = nvs_repo::scratch("statics-shrinks");
+        let path = dir.path().join("big.bin");
+        std::fs::write(&path, numbered(3 * FILE_CHUNK)).expect("the scratch file was not written");
+
+        let (status, mut body) = sent_from_disk(&path, &[]);
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(
+            next(&mut body).map(|frame| frame.map(|frame| frame.len())),
+            Some(Ok(FILE_CHUNK))
+        );
+        std::fs::OpenOptions::new()
+            .write(true)
+            .open(&path)
+            .and_then(|file| file.set_len(u64::try_from(FILE_CHUNK + 10).expect("fits")))
+            .expect("the scratch file was not truncated");
+        assert_eq!(next(&mut body), Some(Err(BodyCut::FileEndedEarly)));
+    }
+
+    /// `If-Range` with the current tag honours the range. An old tag, the weak
+    /// spelling of the current one, a date and a value that is not a tag all
+    /// send the whole file with a `200`, and so does a range that would
+    /// otherwise be a `416`, because the range is ignored.
+    #[test]
+    fn if_range_with_the_current_tag_gets_the_range_and_any_other_gets_the_whole_file() {
+        let fs = Fake::with(&[("/www/style.css", b"body{}", 7)]);
+        let file = p("/www/style.css");
+        let sent = |headers: &[(&str, &str)]| answered(send(&file, &asking(headers), &fs));
+        let tag = header(&sent(&[]), "etag");
+
+        let part = sent(&[("range", "bytes=1-3"), ("if-range", &tag)]);
+        assert_eq!(part.0, StatusCode::PARTIAL_CONTENT);
+        assert_eq!(part.2, b"ody");
+
+        let weak = format!("W/{tag}");
+        for asked in [
+            "\"6-6\"",
+            weak.as_str(),
+            "Tue, 13 Oct 2026 10:00:00 GMT",
+            "not a tag",
+        ] {
+            let whole = sent(&[("range", "bytes=1-3"), ("if-range", asked)]);
+            assert_eq!(whole.0, StatusCode::OK, "for {asked:?}");
+            assert_eq!(whole.2, b"body{}", "for {asked:?}");
+            assert_eq!(header(&whole, "content-range"), "", "for {asked:?}");
+            let unsatisfiable = sent(&[("range", "bytes=9-"), ("if-range", asked)]);
+            assert_eq!(unsatisfiable.0, StatusCode::OK, "for {asked:?}");
+        }
+
+        // A conditional that matched is answered first, whatever `If-Range` says.
+        let fresh = sent(&[
+            ("if-none-match", &tag),
+            ("range", "bytes=1-3"),
+            ("if-range", "\"6-6\""),
+        ]);
+        assert_eq!(fresh.0, StatusCode::NOT_MODIFIED);
+        // `If-Range` without a `Range` changes nothing.
+        assert_eq!(sent(&[("if-range", "\"6-6\"")]).0, StatusCode::OK);
     }
 
     /// The files a case describes: contents and an `mtime`, which is the pair
@@ -414,19 +618,15 @@ mod tests {
     }
 
     impl Source for Fake {
-        fn stat(&self, path: &Path) -> Option<Stat> {
-            let (bytes, mtime_nanos) = self.0.get(path)?;
-            Some(Stat {
-                len: u64::try_from(bytes.len()).ok()?,
-                mtime_nanos: *mtime_nanos,
+        fn open(&self, path: &Path) -> Result<Opened, Unopened> {
+            let (bytes, mtime_nanos) = self.0.get(path).ok_or(Unopened::Missing)?;
+            Ok(Opened {
+                stat: Stat {
+                    len: u64::try_from(bytes.len()).expect("a case's file fits in a u64"),
+                    mtime_nanos: *mtime_nanos,
+                },
+                contents: Contents::Bytes(Bytes::from(bytes.clone())),
             })
-        }
-
-        fn read(&self, path: &Path, at: u64, len: u64) -> Option<Vec<u8>> {
-            let (bytes, _) = self.0.get(path)?;
-            let at = usize::try_from(at).ok()?;
-            let len = usize::try_from(len).ok()?;
-            bytes.get(at..at.checked_add(len)?).map(<[u8]>::to_vec)
         }
     }
 

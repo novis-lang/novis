@@ -338,6 +338,26 @@ export interface LostBatch {
   fresh: string[] | string;
 }
 
+/**
+ * The recording of the case at `path` in a batch's listing, by its record name. When the map's lookup
+ * misses, the name is computed again and the listing's entries are compared with it one by one, which
+ * does not use the map's hash. A recording found that way is the case's, and `missed` says which of the
+ * two gave a wrong answer: the map's lookup, or `recordName`, which returned two different names. Under
+ * load in a long `verify`, the lookup has missed names the same map held. That has not been reproduced
+ * alone, so the scan keeps the verdict right and the line says which part failed.
+ */
+export function recordingOf(recorded: Map<string, Recorded>, path: string): { rec: Recorded | null; missed: string | null } {
+  const name = recordName(path);
+  const rec = recorded.get(name);
+  if (rec !== undefined) return { rec, missed: null };
+  const again = recordName(path);
+  for (const [k, v] of recorded) {
+    if (k !== again) continue;
+    return { rec: v, missed: again === name ? "the map's lookup missed a name it holds" : `recordName returned ${JSON.stringify(name)} and then ${JSON.stringify(again)}` };
+  }
+  return { rec: null, missed: null };
+}
+
 const few = (xs: string[], n: number): string => xs.slice(0, n).join(", ") + (xs.length > n ? ` (+${xs.length - n} more)` : "");
 
 /** The few lines a batch with lost recordings adds to the step's output. When the first listing holds a
@@ -396,8 +416,9 @@ const CASES_RE = /(\d+) passed, (\d+) failed, (\d+) skipped/;
  * its batch; its listings of the tree are not, since what else a tree holds decides nothing about one
  * case's verdict. A case is red for the reason `redReason` gives: it failed, it left no record and was
  * not skipped, or its batch ran out of time or printed no count line. Each case's record is looked up
- * once per batch, and both its verdict and the batch's lost list are read from that one lookup, so a
- * batch with a passed case red for a missing record always adds `lostBlock`'s lines to the output.
+ * once per batch with `recordingOf`, and both its verdict and the batch's lost list are read from that
+ * one lookup, so a batch with a passed case red for a missing record always adds `lostBlock`'s lines to
+ * the output, and a recording only the scan found adds one `select:` line.
  * `stop` is asked before each batch starts, and once it says yes no other batch starts.
  */
 export async function recordCases(
@@ -452,7 +473,12 @@ export async function recordCases(
       }
       // One lookup per case, before any extraction starts: the verdict and the lost list are both read
       // from it, so a case red for a missing recording is always one the lost block names.
-      const found = new Map(batch.map((path) => [path, recorded.get(recordName(path)) ?? null]));
+      const looked = batch.map((path) => [path, recordingOf(recorded, path)] as const);
+      const found = new Map(looked.map(([path, l]) => [path, l.rec]));
+      const scanned = looked.filter(([, l]) => l.missed !== null);
+      if (scanned.length > 0) {
+        result.out += `select: batch ${index + 1}/${batches.length} of ${tree}: ${scanned.length} recording(s) found by a scan of the listing: ${scanned[0]![1].missed}: ${few(scanned.map(([path]) => path), 3)}\n`;
+      }
       const reasons = new Map(batch.map((path) => [path, redReason({ failed: failed.has(path), recorded: found.get(path) !== null, skipped: skipped.has(path), timedOut: p.timedOut, counted: !!counts })]));
       const lost = p.timedOut || !counts ? [] : batch.filter((path) => reasons.get(path) === NO_RECORDING);
       await pool(batch, o.jobs, async (path) => {

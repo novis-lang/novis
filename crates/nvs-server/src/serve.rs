@@ -75,6 +75,7 @@
 use std::cell::{Cell, RefCell};
 use std::convert::Infallible;
 use std::io;
+use std::io::{Read as _, Seek as _};
 use std::ops::ControlFlow;
 use std::path::Path;
 use std::pin::Pin;
@@ -120,14 +121,28 @@ use crate::statics;
 /// an adapter crate would want is a `futures` `Stream` to adapt *from*, which
 /// neither arm is.
 ///
-/// The two arms differ on the wire in exactly one place, and it is
-/// [`Body::size_hint`]. A whole body reports its exact length, which is what
-/// makes `hyper` send a `Content-Length`; a stream reports no exact size, which
-/// is what makes `hyper` chunk it.
+/// The arms differ on the wire in exactly one place, and it is
+/// [`Body::size_hint`]. A whole body and a file report their exact length,
+/// which is what makes `hyper` send a `Content-Length`; a stream reports no
+/// exact size, which is what makes `hyper` chunk it.
 #[derive(Debug)]
 pub enum Answer {
     /// The bytes are already here, and go out as one frame.
     Whole(Option<Bytes>),
+    /// A file on disk, read one [`FILE_CHUNK`] at a time while `hyper` writes
+    /// it ([`crate::statics`]'s body for a file it opened).
+    ///
+    /// `hyper` polls a body only when its write buffer has room, so what one
+    /// response holds is one chunk and that buffer, whatever the file's size.
+    /// The reads are blocking reads on the connection's own thread, as its
+    /// socket reads are. A `HEAD` reads nothing, because `hyper` never polls
+    /// its body.
+    File {
+        /// The open file, positioned at the next byte to send.
+        file: std::fs::File,
+        /// How many bytes are still to be sent, which `Content-Length` stated.
+        left: u64,
+    },
     /// The bytes arrive while the response is being sent —
     /// `rule:concurrency/a-stream-that-outlives-its-request-is-a-connection`'s
     /// two spellings, which differ in whose isolate holds the writing half and
@@ -187,22 +202,37 @@ impl Drop for DrainCut {
     }
 }
 
-/// The error a request-scoped stream ends in when the drain period ends while
-/// it is still being written.
-///
-/// An error rather than an end, because an end makes `hyper` write the
-/// terminating chunk and a client would read a cut body as a whole one. On an
-/// error `hyper` aborts the connection with no terminating chunk.
-#[derive(Debug)]
-pub struct DrainPeriodEnded;
+/// How many bytes of a file [`Answer::File`] reads per frame: the size
+/// `Core\Response::sendFile` writes in off a request, so a file costs the same
+/// per step on both paths.
+pub const FILE_CHUNK: usize = 64 * 1024;
 
-impl std::fmt::Display for DrainPeriodEnded {
+/// Why a response body ended before all of it was sent.
+///
+/// An error rather than an end, because an end makes `hyper` finish the
+/// response — the terminating chunk of a stream, or nothing more of a body
+/// whose `Content-Length` was stated — and a client would read a cut body as a
+/// whole one. On an error `hyper` aborts the connection instead.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BodyCut {
+    /// A request-scoped stream was still being written when the drain period
+    /// ended.
+    DrainPeriodEnded,
+    /// A file had fewer bytes than its `Content-Length` stated, because it
+    /// shrank while it was sent or a read failed.
+    FileEndedEarly,
+}
+
+impl std::fmt::Display for BodyCut {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("the drain period ended while the response was being written")
+        f.write_str(match self {
+            Self::DrainPeriodEnded => "the drain period ended while the response was being written",
+            Self::FileEndedEarly => "the file ended before the length the response stated",
+        })
     }
 }
 
-impl std::error::Error for DrainPeriodEnded {}
+impl std::error::Error for BodyCut {}
 
 impl Answer {
     /// The body a caller already has the bytes of.
@@ -215,6 +245,18 @@ impl Answer {
     #[must_use]
     pub fn empty() -> Self {
         Self::Whole(None)
+    }
+
+    /// The `len` bytes of `file` starting at `at`, read while they are sent.
+    ///
+    /// # Errors
+    ///
+    /// The seek's error, where `file` cannot be positioned at `at`.
+    pub fn file(mut file: std::fs::File, at: u64, len: u64) -> io::Result<Self> {
+        if at > 0 {
+            file.seek(io::SeekFrom::Start(at))?;
+        }
+        Ok(Self::File { file, left: len })
     }
 
     /// A body an isolate writes over time, and the writing half to hand it.
@@ -278,7 +320,7 @@ impl Answer {
     }
 
     /// The bytes a whole body carries, empty where it carries none and empty
-    /// for a stream, whose bytes no caller here holds.
+    /// for a file or a stream, whose bytes no caller here holds.
     ///
     /// A whole response body is one buffer this crate already has, so reading it
     /// needs no poll and no `Context`. That is what makes [`crate::statics`]'s
@@ -289,16 +331,18 @@ impl Answer {
     pub fn bytes(&self) -> &[u8] {
         match self {
             Self::Whole(bytes) => bytes.as_deref().unwrap_or_default(),
-            Self::Streaming { .. } => &[],
+            Self::File { .. } | Self::Streaming { .. } => &[],
         }
     }
 }
 
 impl Body for Answer {
     type Data = Bytes;
-    type Error = DrainPeriodEnded;
+    type Error = BodyCut;
 
-    /// A whole body's one frame, then the end of the stream — or, for a stream,
+    /// A whole body's one frame, then the end of the stream. A file's next
+    /// chunk, read now, and [`BodyCut::FileEndedEarly`] where the file has
+    /// fewer bytes than are left to send. Or, for a stream,
     /// whatever chunk the writing isolate has put in the cell, and
     /// [`Poll::Pending`] with this poll's waker left where the writer will fire
     /// it.
@@ -328,7 +372,7 @@ impl Body for Answer {
     /// peer reads a stream that finished rather than a connection that was
     /// reset, and the hint above is what paces its way back.
     ///
-    /// **A request-scoped stream ends in [`DrainPeriodEnded`] at the drain
+    /// **A request-scoped stream ends in [`BodyCut::DrainPeriodEnded`] at the drain
     /// period's end**, also ahead of the cell. It has no way to say it was
     /// cut, so the error is what stops `hyper` from writing the terminating
     /// chunk, and the end of `serve_connection` abandons the program still
@@ -339,9 +383,24 @@ impl Body for Answer {
     ) -> Poll<Option<Result<Frame<Self::Data>, Self::Error>>> {
         match &mut *self {
             Self::Whole(bytes) => Poll::Ready(bytes.take().map(|bytes| Ok(Frame::data(bytes)))),
+            Self::File { file, left } => {
+                if *left == 0 {
+                    return Poll::Ready(None);
+                }
+                let take = usize::try_from(*left).map_or(FILE_CHUNK, |left| left.min(FILE_CHUNK));
+                let mut chunk = vec![0_u8; take];
+                if file.read_exact(&mut chunk).is_err() {
+                    *left = 0;
+                    return Poll::Ready(Some(Err(BodyCut::FileEndedEarly)));
+                }
+                // `take` is at most `left`, so this neither widens past it nor
+                // wraps.
+                *left -= u64::try_from(take).unwrap_or(*left);
+                Poll::Ready(Some(Ok(Frame::data(Bytes::from(chunk)))))
+            }
             Self::Streaming { drain, alive, cut } => {
                 if cut.as_ref().is_some_and(DrainCut::reached) {
-                    return Poll::Ready(Some(Err(DrainPeriodEnded)));
+                    return Poll::Ready(Some(Err(BodyCut::DrainPeriodEnded)));
                 }
                 if let Some(alive) = alive {
                     if let Some(opening) = alive.opening() {
@@ -388,6 +447,7 @@ impl Body for Answer {
     fn is_end_stream(&self) -> bool {
         match self {
             Self::Whole(bytes) => bytes.is_none(),
+            Self::File { left, .. } => *left == 0,
             // Whether a stream is over is the cell's answer and it is given by
             // taking from it, so the honest answer before a poll is "no".
             Self::Streaming { .. } => false,
@@ -403,6 +463,7 @@ impl Body for Answer {
                 // a cast that happens to be safe.
                 SizeHint::with_exact(u64::try_from(len).unwrap_or(u64::MAX))
             }
+            Self::File { left, .. } => SizeHint::with_exact(*left),
             // No exact size, which is what leaves `hyper` chunking it.
             Self::Streaming { .. } => SizeHint::default(),
         }
@@ -2335,8 +2396,8 @@ fn finished(mut done: Completion, asked: &HeaderMap) -> Response<Answer> {
 /// (`rule:security/response-body-is-one-typed-member`), and it is the same policy in both
 /// deployments. So a program that sends a file gets what a mount table serving
 /// the same file gets, rather than a second answer this loop would have to keep
-/// correct — and the bytes are read at the connection, one range's worth,
-/// instead of ever having passed through the request.
+/// correct — and the bytes are read at the connection, one chunk at a time
+/// while they are sent, instead of ever having passed through the request.
 ///
 /// **Nothing about the program's authority is re-asked here.** The member
 /// resolved the name under the calling namespace's `fs.read` and refused
@@ -3011,7 +3072,7 @@ pub(crate) mod tests {
     use nvs_config::Capacity;
     use nvs_host::{Output, Program};
     use nvs_runtime::Value;
-    use std::io::{Read as _, Write as _};
+    use std::io::Write as _;
     use std::net::TcpStream;
     use std::time::Duration;
 
@@ -3121,18 +3182,15 @@ pub(crate) mod tests {
     }
 
     impl statics::Source for Files {
-        fn stat(&self, path: &Path) -> Option<statics::Stat> {
-            Some(statics::Stat {
-                len: u64::try_from(self.at(path)?.len()).ok()?,
-                mtime_nanos: 7,
+        fn open(&self, path: &Path) -> Result<statics::Opened, statics::Unopened> {
+            let bytes = self.at(path).ok_or(statics::Unopened::Missing)?;
+            Ok(statics::Opened {
+                stat: statics::Stat {
+                    len: u64::try_from(bytes.len()).expect("a case's file fits in a u64"),
+                    mtime_nanos: 7,
+                },
+                contents: statics::Contents::Bytes(Bytes::from_static(bytes)),
             })
-        }
-
-        fn read(&self, path: &Path, at: u64, len: u64) -> Option<Vec<u8>> {
-            let bytes = self.at(path)?;
-            let at = usize::try_from(at).ok()?;
-            let len = usize::try_from(len).ok()?;
-            bytes.get(at..at.checked_add(len)?).map(<[u8]>::to_vec)
         }
     }
 
@@ -3149,7 +3207,39 @@ pub(crate) mod tests {
         }
         let mut done = completed("", None);
         done.status = status;
-        sent(done, Path::new(file), &headers, &FILES)
+        // What the door keeps before the handler runs, as `serve_connection`
+        // does, so a header the copy leaves out is a header this case loses.
+        sent(done, Path::new(file), &statics::asked(&headers), &FILES)
+    }
+
+    /// A program's file body reads `If-Range` as a static mount does: the
+    /// current tag gets the range, and an old one gets the whole file.
+    #[test]
+    fn a_declared_file_body_honours_if_range() {
+        let tag = named("page.html", &[], None)
+            .headers()
+            .get(header::ETAG)
+            .expect("the policy states a validator")
+            .to_str()
+            .expect("a validator is ASCII")
+            .to_owned();
+
+        let part = named(
+            "page.html",
+            &[("range", "bytes=3-5"), ("if-range", &tag)],
+            None,
+        );
+        assert_eq!(part.status(), StatusCode::PARTIAL_CONTENT);
+        assert_eq!(part.body().bytes().to_vec(), b"hi<".to_vec());
+
+        let old = named(
+            "page.html",
+            &[("range", "bytes=3-5"), ("if-range", "\"9-6\"")],
+            None,
+        );
+        assert_eq!(old.status(), StatusCode::OK, "an old tag was given a range");
+        assert_eq!(old.body().bytes().to_vec(), b"<p>hi</p>".to_vec());
+        assert!(old.headers().get(header::CONTENT_RANGE).is_none());
     }
 
     /// `rule:security/response-body-is-one-typed-member`'s file row, answered by
@@ -3668,6 +3758,122 @@ pub(crate) mod tests {
         assert!(
             answer.ends_with("GET /greet who=world 7 8"),
             "the request did not reach the program as the peer sent it: {answer}"
+        );
+    }
+
+    /// A file of four gigabytes is answered at once, from a range near its end
+    /// and whole, and the server never holds it: a body read whole would need
+    /// four gigabytes before the head went out. The file is sparse, so the
+    /// disk does not hold it either.
+    ///
+    /// The client reads the ranged answer, then the whole answer's head and its
+    /// first chunk, and closes. The server finds the peer gone at its next
+    /// write, and the connection ends there.
+    #[test]
+    fn a_sparse_file_of_four_gigabytes_is_sent_without_holding_it() {
+        const SIZE: u64 = 4 << 30;
+        let dir = nvs_repo::scratch("serve-sparse");
+        let path = dir.path().join("big.bin");
+        drop(std::fs::File::create(&path).expect("the scratch file was not made"));
+        // NTFS keeps a file sparse only when it is flagged as one.
+        #[cfg(windows)]
+        assert!(
+            nvs_repo::spawn("fsutil", &[])
+                .args(["sparse", "setflag"])
+                .arg(&path)
+                .status()
+                .is_ok_and(|status| status.success()),
+            "the scratch file was not flagged sparse"
+        );
+        std::fs::OpenOptions::new()
+            .write(true)
+            .open(&path)
+            .and_then(|file| file.set_len(SIZE))
+            .expect("the scratch file was not grown");
+
+        let mut listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+            .expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+        let client = std::thread::spawn(move || {
+            let mut socket = TcpStream::connect(addr).expect("the loopback refused a connection");
+            socket
+                .write_all(
+                    format!(
+                        "GET /big.bin HTTP/1.1\r\nHost: localhost\r\nRange: bytes={}-\r\n\r\n\
+                         GET /big.bin HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n",
+                        SIZE - 6
+                    )
+                    .as_bytes(),
+                )
+                .expect("the write failed");
+            // The file is zeros, so a head's blank line is the only `\r\n\r\n`.
+            let mut seen = Vec::new();
+            let mut buffer = [0_u8; 16 * 1024];
+            loop {
+                let read = socket
+                    .read(&mut buffer)
+                    .expect("the response could not be read");
+                if read == 0 {
+                    break;
+                }
+                seen.extend_from_slice(&buffer[..read]);
+                let heads: Vec<usize> = seen
+                    .windows(4)
+                    .enumerate()
+                    .filter(|(_, window)| *window == b"\r\n\r\n")
+                    .map(|(at, _)| at + 4)
+                    .collect();
+                if heads.len() >= 2 && seen.len() >= heads[1] + FILE_CHUNK {
+                    break;
+                }
+            }
+            String::from_utf8_lossy(&seen).to_ascii_lowercase()
+        });
+
+        let served = path.clone();
+        let handler = Rc::new(move |request: Request<Incoming>, _origin: Origin| {
+            statics::send(&served, request.headers(), &OnDisk)
+        });
+        let mut sched = nvs_host::Scheduler::new();
+        let _installed =
+            nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
+        sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
+            serve_on_this_core(
+                &mut listener,
+                &handler,
+                Waits::default(),
+                &wide_open(),
+                &Draining::detached(),
+                |_note| {},
+                || ControlFlow::Break(()),
+            )
+            .expect("the accept loop failed");
+        });
+        nvs_host::run_until_idle(&mut sched).expect("the loop failed");
+
+        let seen = client.join().expect("the client thread panicked");
+        let (ranged, whole) = seen
+            .split_once("http/1.1 200")
+            .expect("the whole file was not answered");
+        assert!(ranged.starts_with("http/1.1 206"), "{ranged}");
+        assert!(
+            ranged.contains(&format!(
+                "content-range: bytes {}-{}/{SIZE}",
+                SIZE - 6,
+                SIZE - 1
+            )),
+            "{ranged}"
+        );
+        assert!(ranged.contains("content-length: 6\r\n"), "{ranged}");
+        assert!(
+            whole.contains(&format!("content-length: {SIZE}\r\n")),
+            "the whole file's length was not stated"
+        );
+        assert!(
+            !whole.contains("transfer-encoding"),
+            "a file is not chunk-encoded"
         );
     }
 

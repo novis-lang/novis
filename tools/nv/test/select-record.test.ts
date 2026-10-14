@@ -2,9 +2,9 @@ import { describe, expect, test } from "bun:test";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { sinceOverlay } from "../select/change.ts";
-import { CovMap, recordedIn } from "../select/extract.ts";
+import { CovMap, recordedIn, recordsIn } from "../select/extract.ts";
 import { ALL_NAMES, pathKeys, readsKeys, spawnKeys } from "../select/keys.ts";
-import { advance, caseLabels, depInfoPaths, lostBlock, NO_ADVANCE_ENV, Recorder, redReason, unexplainedReds } from "../select/record.ts";
+import { advance, caseLabels, depInfoPaths, lostBlock, NO_ADVANCE_ENV, recordingOf, Recorder, redReason, unexplainedReds } from "../select/record.ts";
 import { type ChangeSet, query } from "../select/select.ts";
 import { SelectStore, type Verdict } from "../select/store.ts";
 import { digest } from "../keys/scan.ts";
@@ -195,6 +195,20 @@ describe("the readers a recorded run needs", () => {
     expect(unexplainedReds(got)).toBe("1 case(s) are red, and nothing above says why:\n  1: no reason was kept: tests/t/c.nvst\n");
     got.verdicts.set("tests/t/c.nvst", "green");
     expect(unexplainedReds(got)).toBe("");
+  });
+
+  test("a recording the map's lookup misses is found by a scan of the listing, and the miss is named", () => {
+    const listed = recordsIn("cases", ["tests~t~a.nvst-1.profraw", "tests~t~a.nvst.log", "tests~t~b.nvst.log"]);
+    expect(recordingOf(listed, "tests/t/a.nvst")).toEqual({ rec: listed.get("tests~t~a.nvst")!, missed: null });
+    expect(recordingOf(listed, "tests/t/c.nvst")).toEqual({ rec: null, missed: null });
+    // A map whose lookup misses one name it holds, which is what a long `verify` has seen.
+    class Missing<K, V> extends Map<K, V> {
+      override get(k: K): V | undefined {
+        return k === "tests~t~b.nvst" ? undefined : super.get(k);
+      }
+    }
+    const missing = new Missing(listed);
+    expect(recordingOf(missing, "tests/t/b.nvst")).toEqual({ rec: listed.get("tests~t~b.nvst")!, missed: "the map's lookup missed a name it holds" });
   });
 
   test("a record directory that cannot be listed is an error, and one that does not exist is empty", () => {
