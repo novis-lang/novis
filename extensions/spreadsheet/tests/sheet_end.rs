@@ -1050,13 +1050,26 @@ fn an_image_is_its_own_entry_anchored_to_its_cell() {
     assert!(rels.contains("Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing\" Target=\"../drawings/drawing1.xml\""));
 
     let drawing = book.part("xl/drawings/drawing1.xml");
-    assert_eq!(drawing.matches("<xdr:oneCellAnchor>").count(), 2);
+    assert_eq!(
+        drawing
+            .matches("<xdr:twoCellAnchor editAs=\"oneCell\">")
+            .count(),
+        2
+    );
     assert!(drawing.contains(
-        "<xdr:from><xdr:col>0</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>0</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from><xdr:ext cx=\"19050\" cy=\"9525\"/>"
-    ), "the logo is its own size at A1: {drawing}");
+        "<xdr:from><xdr:col>0</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>0</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from>"
+    ), "the logo is at A1: {drawing}");
+    assert!(
+        drawing.contains("<a:off x=\"0\" y=\"0\"/><a:ext cx=\"19050\" cy=\"9525\"/>"),
+        "the logo is its own size: {drawing}"
+    );
     assert!(drawing.contains(
-        "<xdr:from><xdr:col>1</xdr:col><xdr:colOff>28575</xdr:colOff><xdr:row>4</xdr:row><xdr:rowOff>19050</xdr:rowOff></xdr:from><xdr:ext cx=\"381000\" cy=\"285750\"/>"
-    ), "a width alone scales the height by the image's ratio");
+        "<xdr:from><xdr:col>1</xdr:col><xdr:colOff>28575</xdr:colOff><xdr:row>4</xdr:row><xdr:rowOff>19050</xdr:rowOff></xdr:from>"
+    ), "an offset is kept inside the cell: {drawing}");
+    assert!(
+        drawing.contains("<a:ext cx=\"381000\" cy=\"285750\"/>"),
+        "a width alone scales the height by the image's ratio"
+    );
     let drawing_rels = book.part("xl/drawings/_rels/drawing1.xml.rels");
     assert!(drawing_rels.contains("Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/image\" Target=\"../media/image1.png\""));
     assert!(drawing_rels.contains("Id=\"rId2\""));

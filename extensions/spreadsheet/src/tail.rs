@@ -34,7 +34,7 @@ use std::fmt::Write as _;
 
 use crate::chart::Chart;
 use crate::conditional::Conditional;
-use crate::drawing::{Drawing, Format, Image};
+use crate::drawing::{Drawing, Format, Grid, Image};
 use crate::table::{Placed, Table};
 use crate::{Error, Row, cells, xml};
 
@@ -1087,23 +1087,23 @@ impl Tail {
     }
 
     /// The drawing's entries by name: `drawing<sheet>.xml`, its relationships and each chart
-    /// part, whose growing ranges end at the row `last`. Empty when the sheet has no images and
-    /// no charts.
-    pub fn drawing(&self, sheet: usize, last: u32) -> Vec<(String, String)> {
+    /// part, whose growing ranges end at the row `last`, over the sheet's `grid`. Empty when the
+    /// sheet has no images and no charts.
+    pub fn drawing(&self, sheet: usize, last: u32, grid: &Grid) -> Vec<(String, String)> {
         if !self.has_drawing() {
             return Vec::new();
         }
         let mut entries = vec![
             (
                 format!("xl/drawings/drawing{sheet}.xml"),
-                self.drawing.write(),
+                self.drawing.write(grid),
             ),
             (
                 format!("xl/drawings/_rels/drawing{sheet}.xml.rels"),
                 self.drawing.rels(),
             ),
         ];
-        entries.extend(self.drawing.charts(last));
+        entries.extend(self.drawing.charts(last, grid));
         entries
     }
 
