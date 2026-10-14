@@ -2,7 +2,7 @@
 `Core\Router::dispatch` sets the status and calls `refused` for a missing path, a wrong verb, a denied route and a capture that does not parse, and calls `failed` when the route method throws — `rule:routing/a-gate-answers-around-every-handler`
 --FILE--
 <?nvs
-// covers: Core\Router\Refusal
+// covers: Core\Router\Refusal, Core\Router\Gate
 // Each request below is one that no route method can answer.
 // `dispatch` sets the status first, and then it calls the gate.
 

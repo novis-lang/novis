@@ -41392,7 +41392,7 @@
                 "descHtml": "The file to send. <code>fs.read</code> in <code>nvs.toml</code> must allow it. A <code>tainted</code> value does not compile, because the path decides which file is read. To give a download its own name, set <code>Content-Disposition</code> with <code>Core\\Response::setHeader</code>."
               }
             ],
-            "returnHtml": "Nothing. The server also answers a browser that asks for only part of the file. Using this and <code>echo</code> in one response does not compile.",
+            "returnHtml": "Nothing. The server also answers a browser that asks for only part of the file, so a browser can jump to any point in a video and resume a download that stopped. If the file changed since the download started, the browser gets the whole new file. Using this and <code>echo</code> in one response does not compile.",
             "errors": [
               {
                 "error": "RuntimeError",
@@ -41418,7 +41418,7 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "stream(string $contentType): Core\\Response\\Stream",
+          "signature": "stream(string $contentType, ?int $length = null, ?string $etag = null): Core\\Response\\Stream",
           "params": [
             {
               "kind": "param",
@@ -41426,6 +41426,22 @@
               "type": "string",
               "default": null,
               "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "length",
+              "type": "?int",
+              "default": "null",
+              "optional": true,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "etag",
+              "type": "?string",
+              "default": "null",
+              "optional": true,
               "variadic": false
             }
           ],
@@ -41442,13 +41458,21 @@
               {
                 "name": "contentType",
                 "descHtml": "The content type of the body, for example <code>text/csv</code>. It becomes a header, so a <code>tainted</code> value does not compile. It must be printable ASCII and not empty."
+              },
+              {
+                "name": "length",
+                "descHtml": "The size of the whole body in bytes, or <code>null</code> if you do not know it. With a size, the response has a <code>Content-Length</code> header and a browser can ask for one part of the body, for example to seek in a video. The request header <code>Range</code> says which part. Then <code>offset()</code> and <code>length()</code> of the stream say which bytes to write. Without a size, the whole body is sent and <code>Range</code> is ignored."
+              },
+              {
+                "name": "etag",
+                "descHtml": "A version name for the body, or <code>null</code>. It is sent as the <code>ETag</code> header. Give a new name when the bytes change. A browser that resumes a download sends the name back, and gets the whole body if the name is old. It becomes a header, so a <code>tainted</code> value does not compile."
               }
             ],
             "returnHtml": "A <code>Core\\Response\\Stream</code>. Call its <code>write()</code> method to send each part. Set the status and the headers before you call this method. Using this and <code>echo</code> in one response does not compile. A browser that reads this body with <code>EventSource</code> connects again when the body ends. For events that a page receives while it is open, use <code>Core\\Sse::upgrade</code>.",
             "errors": [
               {
                 "error": "LogicError",
-                "descHtml": "<code>$contentType</code> is empty, or it contains a character a header cannot contain: a control character, a line break, or a character that is not ASCII. It is also thrown when this request already started a body stream, because a response has one body."
+                "descHtml": "<code>$contentType</code> is empty, or it contains a character a header cannot contain: a control character, a line break, or a character that is not ASCII. It is also thrown when <code>$length</code> is negative, when <code>$etag</code> contains such a character or a <code>&quot;</code>, and when this request already started a body stream, because a response has one body."
               }
             ]
           },
@@ -41801,12 +41825,74 @@
               {
                 "error": "RuntimeError",
                 "descHtml": "The part is larger than the server allows for one part. Nothing is sent, and you can still send smaller parts."
+              },
+              {
+                "error": "LogicError",
+                "descHtml": "The stream was started with a <code>$length</code>, and this part goes past the end of <code>length()</code>. Nothing is sent."
               }
             ]
           },
           "slug": "write",
           "url": "/reference/core/response-stream/write/",
           "examples": "core/Response-Stream/write"
+        },
+        {
+          "id": "Response.Stream.offset",
+          "name": "offset",
+          "static": false,
+          "receiver": "stream",
+          "generics": null,
+          "signature": "offset(): int",
+          "params": [],
+          "options": [],
+          "returnType": "int",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "Returns the position of the first byte your program writes, counted from the start of the whole body. It is <code>0</code> unless the browser asked for a part of the body.",
+            "returnHtml": "An <code>int</code>. Start writing the body at this byte.",
+            "errors": [
+              {
+                "error": "LogicError",
+                "descHtml": "The stream was started without a <code>$length</code>."
+              }
+            ]
+          },
+          "slug": "offset",
+          "url": "/reference/core/response-stream/offset/",
+          "examples": "core/Response-Stream/offset"
+        },
+        {
+          "id": "Response.Stream.length",
+          "name": "length",
+          "static": false,
+          "receiver": "stream",
+          "generics": null,
+          "signature": "length(): int",
+          "params": [],
+          "options": [],
+          "returnType": "int",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "Returns how many bytes your program writes. This is the whole body, or the part the browser asked for.",
+            "returnHtml": "An <code>int</code>. It is <code>0</code> when nothing is sent: the browser already has this version, or it asked for a part the body does not have. Your writes must add up to exactly this number. If the program ends before that, the connection is closed, so the browser knows the body is not complete.",
+            "errors": [
+              {
+                "error": "LogicError",
+                "descHtml": "The stream was started without a <code>$length</code>."
+              }
+            ]
+          },
+          "slug": "length",
+          "url": "/reference/core/response-stream/length/",
+          "examples": "core/Response-Stream/length"
         }
       ],
       "unparsed": [],
