@@ -1,7 +1,7 @@
 ---
 looper: 1
 title: "A file response of any size is streamed from disk, and a resumed download is never spliced"
-summary: "`Core\\Response::sendFile` and a static mount send a file of several gigabytes with memory bounded per connection, and a `Range` whose `If-Range` names an old tag gets the whole file."
+summary: "`Core\\Response::sendFile` and a static mount send a file of several gigabytes with memory bounded per connection, a `Range` whose `If-Range` names an old tag gets the whole file, and `Core\\Response::stream` with a declared length answers a range under the same policy."
 context: [crates/nvs-server/src/statics.rs, crates/nvs-server/src/serve.rs]
 stages:
   - id: 1
@@ -28,6 +28,14 @@ stages:
       context:
         rules: [http-server/static-serving-is-one-policy, core-api/reference-card, testing/feature-proofs]
         shapes: [A rule fragment, A `Core` member]
+  - id: 4
+    title: "a stream with a declared length answers a range"
+    status: open
+    context: [crates/nvs-stdlib/src/response.rs, crates/nvs-server/src/serve.rs, crates/nvs-server/src/statics.rs]
+    extra:
+      context:
+        rules: [http-server/static-serving-is-one-policy, concurrency/a-stream-that-outlives-its-request-is-a-connection, security/response-body-is-one-typed-member, core-api/reference-card, testing/feature-proofs]
+        shapes: [A `Core` member, A diagnostic]
 checks:
   - id: file-body-chunked
     stage: 1
@@ -51,6 +59,15 @@ checks:
     tests: [a_declared_file_body_honours_if_range]
   - id: rules-check
     stage: 3
+    name: "the rulebook is consistent"
+    run: [bun, nv, rules, --check]
+  - id: stream-range
+    stage: 4
+    name: "nvs-server (a stream with a length answers a range with its window, a write past the window throws, a short stream cuts the connection, and a stream without a length ignores `Range`)"
+    run: [cargo, test, --lib, "serve::"]
+    tests: [a_stream_with_a_length_answers_a_range_with_its_window, a_stream_that_writes_past_its_window_throws, a_stream_that_ends_before_its_window_is_full_cuts_the_connection, a_stream_without_a_length_ignores_range]
+  - id: rules-check-end
+    stage: 4
     name: "the rulebook is consistent"
     run: [bun, nv, rules, --check]
     reach: true
@@ -77,6 +94,11 @@ since, RFC 9110 § 13.1.5 requires the whole file with a `200`; this server send
 file, and the browser joins it to the old bytes.
 
 Static mounts use the same policy (`crates/nvs-cli/src/serve.rs:964`), so both are fixed at once.
+
+Data that is not a file on this disk — an object in storage, a blob in a database, a generated export —
+goes out through `Core\Response::stream`, which answers no `Range` at all: its headers go out when it
+is called (`crates/nvs-stdlib/src/response.rs:585`) and its body is chunked. A video from storage
+cannot be seeked in, and a broken download from it starts again from the first byte.
 
 ## Standing decisions
 
@@ -111,13 +133,39 @@ can match), or a value that does not parse. A range that would be a `416` but wh
 not match is that `200` as well, because the range is ignored. `statics::asked` copies `If-Range` too,
 so a program's file body reads it (`crates/nvs-server/src/serve.rs:1606`).
 
-**The trade-offs, which the user asked for.** Memory: from the whole range per response to about one
-chunk plus `hyper`'s write buffer, O(in-flight) and independent of file size. Latency: the first byte
-goes out after one chunk read rather than after the whole range. Simplicity: one more `Answer` arm and
-a narrower `Source`. The language does not change: `sendFile` keeps its signature.
+**A stream answers a range when the program states the length, and the program writes the window.**
+The user's call, over the server discarding bytes the program wrote from byte 0: a seek near the end
+of a large stream would make the program produce everything before it.
 
-**Out of this goal:** `Range` over `Core\Response::stream()`, whose length a program may not know.
-A program that wants it parses the header itself.
+- `Core\Response::stream(string $contentType, ?int $length = null, ?string $etag = null)`. With no
+  `length` it is what it is now: chunked, no `Accept-Ranges`, and `Range` ignored, which RFC 9110
+  allows.
+- With `length`, the server applies the same decision a file gets — `If-None-Match`, `If-Range`,
+  `Range`, `304`, `206` and `416` — states `Content-Length` and `Accept-Ranges: bytes`, and sends the
+  head. `Core\Response\Stream::offset(): int` and `Core\Response\Stream::length(): int` give the window
+  the program writes: the whole body, the asked-for range, or nothing for a `304` and a `416`.
+- `etag` is the program's version of the bytes, sent as a strong tag. Without it, `If-None-Match` and
+  `If-Range` never match, so a resumed download gets the whole body and a bare `Range` still seeks. It
+  is a header, so a `tainted` value does not compile, and a value a header cannot carry, or one with a
+  `"`, throws a `LogicError`, as `$contentType` does now. A negative `length` throws one too.
+- The count is exact. A `write` that would pass the window's end throws a `LogicError` and sends
+  nothing. A program that ends, or throws, before the window is full ends the body in the error the
+  short file uses, so the connection is cut.
+- A declared status wins only over the decision's `200`, as it does for a file body, and the
+  program's own headers apply after the decision's.
+- Off a request there is no `Range`: the window is the whole length, and the exact count still holds.
+
+**One decision, two callers.** The rule says a second policy is a second security model, so the
+conditional and range decision is one pure function over header text, in `nvs-runtime`, which both
+`nvs-server` and `nvs-stdlib` reach. `statics::send` and `stream` call it. The media type, the
+`Cache-Control` and the file's own tag stay the static policy's.
+
+**The trade-offs, which the user asked for.** Memory: from the whole range per file response to about
+one chunk plus `hyper`'s write buffer, O(in-flight) and independent of size; a stream holds one part
+in flight, as now. Latency: the first byte goes out after one chunk read rather than after the whole
+range, and a seek in a stream reads only what the browser asked for. Simplicity: one more `Answer`
+arm, a narrower `Source`, and one decision shared by files and streams. The language grows by two
+named parameters on `stream` and two methods on `Core\Response\Stream`; `sendFile` keeps its signature.
 
 ## Stages
 
@@ -149,13 +197,24 @@ A program that wants it parses the header itself.
 - [ ] The `sendFile` card says that a browser can seek in a video and resume a download. `crates/nvs-stdlib/src/response.rs:788`
 - [ ] A fourth example: a download behind an access check, with `Content-Disposition`. `docs/examples/core/Response/sendFile/about.md:1`
 
+### 4. a stream with a declared length answers a range
+
+**Does:** `Core\Response::stream` with `length` answers `Range`, `If-Range` and `If-None-Match`, and the program writes the window.
+
+- [ ] The decision moves to `nvs-runtime` as one function, and `statics::send` calls it. `crates/nvs-server/src/statics.rs:196`
+- [ ] `stream` takes `length` and `etag`, decides, and sends the head. `crates/nvs-stdlib/src/response.rs:1882`
+- [ ] `Core\Response\Stream::offset` and `length`, and `write` holds the exact count. `crates/nvs-stdlib/src/response.rs:556`
+- [ ] A streamed body with a length has an exact `size_hint`, and a short end is the body error. `crates/nvs-server/src/serve.rs:2392`
+- [ ] The cards of `stream`, `offset` and `length`, and their feature proofs, including a video from storage that a browser can seek in. `crates/nvs-stdlib/src/response.rs:584`
+- [ ] The fragment states that a stream with a length gets the same decision. `docs/rules/http-server/static-serving-is-one-policy.md:3`
+
 ## Handoff
 
 ### State
 
 The goal is written; nothing of it is built. The user asked for it after the question of how a web
-application streams a large file behind an access check. § *Standing decisions* holds the design.
-The anchors were read when the goal was written.
+application streams a large file behind an access check, and chose the stream design in stage 4.
+§ *Standing decisions* holds the design. The anchors were read when the goal was written.
 
 ### Next
 
@@ -170,4 +229,4 @@ The anchors were read when the goal was written.
 
 ### Backlog
 
-- Stage 3 — this file's § *Stages*.
+- Stages 3 and 4 — this file's § *Stages*.
