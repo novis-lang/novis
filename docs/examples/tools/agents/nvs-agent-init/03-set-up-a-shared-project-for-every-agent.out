@@ -1,0 +1,6 @@
+agent: every one (--all)
+wrote AGENTS.md
+wrote .claude/skills/novis/SKILL.md
+wrote .github/instructions/novis.instructions.md
+added hook to .claude/settings.json
+added hook to .cursor/hooks.json

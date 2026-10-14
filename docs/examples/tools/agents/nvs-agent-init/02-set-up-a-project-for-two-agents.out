@@ -1,0 +1,5 @@
+agent: claude-code, cursor (--agent)
+wrote AGENTS.md
+wrote .claude/skills/novis/SKILL.md
+added hook to .claude/settings.json
+added hook to .cursor/hooks.json
