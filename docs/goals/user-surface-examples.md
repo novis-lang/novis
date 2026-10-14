@@ -22,7 +22,7 @@ stages:
         shapes: ["A `.nvst` test case", A diagnostic, A rule fragment]
   - id: 3
     title: "the engine classes leave the roster, the proofs policy and the website"
-    status: open
+    status: done
     context: [tools/nv/proofs/roster.ts, tools/nv/renderers/website-core.ts, crates/nvs-cli/src/meta.rs, data/proofs/policy.json]
     extra:
       context:
@@ -144,10 +144,10 @@ does not compile, and the error names the public class to use.
 **Does:** an engine class is `"internal": true` in `nvs meta --json`, and no roster feature, policy
 entry or Reference page names one.
 
-- [ ] `"internal": true` on an engine class (`crates/nvs-cli/src/meta.rs:198`)
-- [ ] The roster skips an internal class, with its test (`tools/nv/proofs/roster.ts:1`, `tools/nv/test/roster-novis.test.ts:6`)
-- [ ] The engine entries deleted from the policy (`data/proofs/policy.json:41`)
-- [ ] The website skips an internal class (`tools/nv/renderers/website-core.ts:92`)
+- [x] `"internal": true` on an engine class (`crates/nvs-cli/src/meta.rs:198`)
+- [x] The roster skips an internal class, with its test (`tools/nv/proofs/roster.ts:1`, `tools/nv/test/roster-novis.test.ts:6`)
+- [x] The engine entries deleted from the policy (`data/proofs/policy.json:41`)
+- [x] The website skips an internal class (`tools/nv/renderers/website-core.ts:92`)
 
 ### 4. a CLI command's example is a command and its checked output
 
@@ -169,37 +169,32 @@ entry or Reference page names one.
 
 ### State
 
-Stages 1 and 2 are done. A call of `Novis\Image\Codec`, `Novis\Intl\Icu`, `Novis\Pdf\Engine` or
-`Novis\Spreadsheet\Engine` outside its component's own source is `E0856`, whose help is the
-manifest's card (`rule:packaging/a-components-engine-class-is-internal`). Seven conformance cases
-called an engine and now use the public classes. About twenty more only name an engine member in
-`// covers:`; those lines stay until stage 3.
+Stages 1 to 3 are done. `nvs meta --json` marks `"internal": true` on each component's manifest
+class, and on each manifest enum or source type alias that no public signature of the component
+reaches (`rule:packaging/a-components-engine-class-is-internal`). The roster, the policy and the
+website leave them out. Internal enums: `Image::Output`, `NumberFormat::Style`,
+`PluralRules::{Kind,Category}` and six `Novis\Spreadsheet` enums. Their examples, the engines'
+examples, benches and attacks, and every `// covers:` naming an engine member are deleted.
 
-Since stage 2, these no longer compile, and stage 3 deletes them with the roster entries:
-`docs/examples/novis/Image-Codec/{info,run,variants}/`, `benches/members/novis/Image-Codec/`,
-`tests/hostile/novis/Image-Codec/` and `tests/hostile/novis/Pdf-Engine/`. The same holds for three
-type examples whose enum only an engine's signature uses: `docs/examples/types/Novis-Intl-NumberFormat-Style/`,
-`Novis-Intl-PluralRules-Category/` and `Novis-Intl-PluralRules-Kind/`. `Novis\Image\Image::Output`
-is the same kind: only `Codec::run` takes it. Stage 3 takes the safe default and treats such an
-enum as internal with its engine. Say so to the user when stage 3 lands.
+`Core\Router\Gate` (a `CoreContract`) is now in meta's `interfaces` roster, so it has a Reference
+page. It is a new interface feature on the roster and owes its proofs.
+
+`engine-off-roster` passes for the driver. Run by hand inside an agent session, bun prints no
+`(pass)` lines, so it looks red (playbook: *bun test prints no pass lines*).
 
 ### Next
 
-Stage 3, over the roster, the proofs policy, `nvs meta` and the website renderer:
+Stage 4, over the examples README, the proofs collector and runner, and the website's example view:
 
-- `"internal": true` on an engine class in `nvs meta --json` (`crates/nvs-cli/src/meta.rs:198`),
-  read from `ClassSignature::engine` or the manifest's `builtin` (`crates/nvs-types/src/signatures.rs:570`).
-- The roster skips an internal class and an enum only an engine's signature names, with the
-  test `a built-in component's engine class is no feature` (`tools/nv/proofs/roster.ts:1`,
-  `tools/nv/test/roster-novis.test.ts:6`) (`rule:testing/feature-proofs`).
-- The engine entries leave `data/proofs/policy.json:41`, the engine's examples, benches and attack
-  files listed under State are deleted, and every `// covers:` naming an engine member is dropped
-  (`git grep -n "covers:.*\(Codec\|Icu\|Engine\)::" tests/`).
-- The website skips an internal class (`tools/nv/renderers/website-core.ts:92`), and
-  `bun nv site --check reference` passes.
+- The `NN-title.cmd` example kind, beside `.nvsr` (`docs/examples/README.md:157`,
+  `tools/nv/proofs/collect.ts:406`, `tools/nv/proofs/run.ts:253`) (`rule:testing/feature-proofs`).
+- The website shows it as a shell block (`website/src/lib/feature.ts:34`,
+  `website/src/components/FeatureExamples.astro:10`).
+- Examples for `nvs info` and `nvs agent init`, and their skips deleted (`data/proofs/policy.json:75`).
 
 ### Backlog
 
-- Stages 3 to 5, as the stages say (`docs/goals/user-surface-examples.md`).
-- `bun nv side --prepare` does not install `editors/vscode`'s packages, so a side worktree's verify
-  fails its extension step until `npm ci` runs there (`tools/nv/cmd/side.ts:38`).
+- Stage 5, as the stage says (`docs/goals/user-surface-examples.md`).
+- `Core\Router\Gate` owes its examples, tests and attack as an interface feature (`bun nv proofs --id 'Core\Router\Gate'`).
+- `bun nv side --prepare` installs neither `editors/vscode`'s nor `website`'s packages, so a side
+  worktree's verify and `bun nv site --build` fail until `npm ci` runs there (`tools/nv/cmd/side.ts:90`).
