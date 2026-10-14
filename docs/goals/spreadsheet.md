@@ -63,7 +63,7 @@ stages:
         shapes: ["A `.nvst` test case"]
   - id: 10
     title: template fill
-    status: open
+    status: done
     extra:
       context:
         rules: [core-classes/spreadsheet-output-is-inert, core-classes/spreadsheet-formula-is-a-value]
@@ -768,27 +768,28 @@ One file set: `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/n
 
 ### State
 
-**Stage 10's Rust core is on disk and its check is green**: `cargo test --manifest-path extensions/spreadsheet/Cargo.toml --test template` passes all 13 tests. `spreadsheet-a-template-fills-an-invoice` is still red, because nothing reaches the core from Novis yet.
+**Stage 10 is done.** `spreadsheet-template-fill`, `spreadsheet-a-template-fills-an-invoice` and the WIT check are green.
 
-- `extensions/spreadsheet/src/template/` is the filler. `mod.rs` has `Template::open`, `set`, `fill(values, lists) -> (bytes, list order)`, `items(list, batch)` and `finish(source) -> Finished`. `sheet.rs` parses a worksheet into rows and cells with byte ranges, so every byte that is not filled is copied as it was. `shift.rs` is the A1 shifter. The module docs say what each one does.
-- **`fill` takes the list names, and returns the lists in the order their blocks stand.** The Novis half sends `items` batches in that order. An item's placeholder paths are relative to the item (`qty`, not `items.qty`).
-- **The block's sheet streams** unless a formula above the last block names a row the first block moves. In that case the items are kept and the sheet is written at `finish` (`Template::must_hold`).
-- These were safe defaults, taken without the user. All blocks must be on one sheet, or `fill` throws. `calcChain.xml` is dropped, and `calcPr` gets `fullCalcOnLoad`. A sheet with a block loses its `<dimension>`. A list with no items removes its rows.
-- **The WIT does not match the core yet.** `template-fill` in `wit/spreadsheet.wit:654` still takes no list names and returns `list<u8>`.
+- `Template::open($source, {zone})->set($address, $value)->fill($data)` returns an `Export`. `extensions/spreadsheet/nvs/Template.nvs` calls `templateFill` inside `fill`, so a missing value throws there. The items stream in batches of 1,000 when a target method runs.
+- `Export` has a third, optional constructor parameter, `$fill`. When it is set, the four targets send the template's chunks and do not use a `Workbook`. Its `disposition` is a private copy of `Workbook`'s.
+- The WIT resource is `filling`, not `template`, because `Novis\Spreadsheet\Template` is the Novis class. `crates/nvs-stdlib/tests/ext_world.rs`'s `calls_of` maps it to `template-`.
+- The component is 0.96 MiB now (`extensions/spreadsheet/src/lib.rs`).
+- Safe defaults taken without the user, all in the fragment's *Not shipped*: blocks on one sheet only, a list is an array and not an `Iterator`, and a `Cell::of` value in `$data` throws.
 
 ### Next
 
-**Stage 10, the Novis half** (`rule:core-classes/spreadsheet-template-fill`). Files: `wit/spreadsheet.wit`, `extensions/spreadsheet/src/lib.rs`, `extensions/spreadsheet/manifest.json`, `extensions/spreadsheet/nvs/Template.nvs` (new), `tests/conformance/novis/`.
+**Stage 11, the decompression bound and the hostile corpus** (`rule:core-classes/decompression-bound`). Files: `crates/nvs-stdlib/src/zip.rs`, `docs/rules/core-classes/decompression-bound.md`, `extensions/spreadsheet/src/read/zip.rs`, `crates/nvs-ext/tests/spreadsheet_hostile.rs` (new).
 
-- [ ] **The WIT and the glue.** Change `template-fill` (`wit/spreadsheet.wit:654`) to take `lists: list<string>` and return a record `{data, lists}`. Wire the five exports in `extensions/spreadsheet/src/lib.rs:1287` to `crate::template::Template` through `Lent`, as `reader_open` does. Add them to `manifest.json`, and add the member list to `crates/nvs-cli/tests/meta.rs` in the same slice (playbook trap).
-- [ ] **`Template.nvs`.** `open(tainted bytes|Core\IO\File)`, `set`, and `fill($data)` returning an `Export`. `fill` flattens `$data` into dotted paths and sends each list as `items` batches. A list inside an item throws, naming both lists. Follow `extensions/spreadsheet/nvs/Workbook.nvs:83` for the targets.
-- [ ] **The two cases**, `tests/conformance/novis/spreadsheet-a-template-fills-an-item-list.nvst` and `spreadsheet-a-missing-placeholder-throws.nvst`. Build the template in the case as `extensions/spreadsheet/tests/template.rs:73` builds one. Then set Stage 10 to done.
+- [ ] **The streamed-part bound in `Core\Zip`.** A part streamed and never held is bounded by the ratio alone, and the archive total counts held parts only (`crates/nvs-stdlib/src/zip.rs:35`, `crates/nvs-stdlib/src/zip.rs:740`). The four `zip::` tests of `nvs-stdlib-a-streamed-part-is-bounded-by-the-ratio`.
+- [ ] **The configured bound reaches the guest**, clamped before the call as `crates/nvs-ext/src/builtin.rs:62` clamps `max_pixels`, and read by `extensions/spreadsheet/src/read/zip.rs:233`.
+- [ ] **The corpus**, `crates/nvs-ext/tests/spreadsheet_hostile.rs`: the ten tests of `nvs-ext-the-spreadsheet-bomb-corpus`, with the xls sector loop (`extensions/spreadsheet/src/read/cfb.rs:177`) and the lying xlsb record.
 
 ### Backlog
 
-- A shared formula (`<f t="shared">`) in a repeated row is copied as it is, so its copies share one `si`. Its `x14` conditional formats under `extLst` are not shifted either. `extensions/spreadsheet/src/template/mod.rs:@write_cell`
+- A shared formula (`<f t="shared">`) in a repeated row is copied as it is, so its copies share one `si`. Its `x14` conditional formats under `extLst` are not shifted either. `extensions/spreadsheet/src/template/mod.rs:@write_cell`, `docs/rules/core-classes/spreadsheet-template-fill.md`
 - Built-in id 14 renders as `m/d/yyyy` and id 22 as `m/d/yyyy h:mm`, which is what Excel shows in en-US. SSF uses `m/d/yy`. `extensions/spreadsheet/src/format/mod.rs:@builtin`
 - An ods cell's `text` uses the default format of its type, not the file's own number style. A merged fill copies no `display`. `extensions/spreadsheet/src/read/ods.rs:1`, `extensions/spreadsheet/src/read/merge.rs:166`
 - The extras from xlsb, xls and ods, which throw naming the format now. `extensions/spreadsheet/src/read/extras.rs:1`
 - Extension contagion does not reach a shape's fields (`crates/nvs-types/src/expr/quals.rs:531`, `rule:security/extension-contagion`). This is a compiler fix, outside this goal.
-- Stages 11 to 14. Stage 14's proofs owe `Row` a group, and `Reader::rows`'s doc comment is four lines where `bun nv proofs --comments` allows two. Stage 11 owes `an_xlsb_record_whose_length_lies_throws` and `an_xls_sector_chain_that_loops_is_refused` (`extensions/spreadsheet/src/read/cfb.rs`).
+- `docs/rules/core-classes/spreadsheet-roster.md`'s *Not shipped* still says only the writer is on disk. Rewrite it at Stage 14.
+- Stages 12 to 14. Stage 14's proofs owe `Row` a group, and `Reader::rows`'s doc comment is four lines where `bun nv proofs --comments` allows two. Stage 11 owes `an_xlsb_record_whose_length_lies_throws` and `an_xls_sector_chain_that_loops_is_refused` (`extensions/spreadsheet/src/read/cfb.rs`).
