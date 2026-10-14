@@ -35,9 +35,11 @@
 //! normally dropped on the request's core. A tree whose last task finished on another core is
 //! dropped there, and its resources' destructors run on that core.
 //!
-//! The request's budget is a [`Spent`] made at the first call from the request's `[limits]`: its
-//! CPU time from then on, and its memory as a second allowance beside the one the runtime counts.
-//! A guest's log lines are the request's log records, its wall clock and random bytes are the
+//! The request's budget is a [`Spent`] made at the first call
+//! (`rule:packaging/a-guest-runs-under-the-requests-budget`). A guest's CPU time is the request's
+//! own, counted from the request's start, and its linear memory is charged to the memory count the
+//! runtime keeps for the request. A guest past either limit ends the request with the
+//! resource-limit `FATAL`, after the request's limit handler. A guest's log lines are the request's log records, its wall clock and random bytes are the
 //! request's, so a test's fixed clock and seed reach it, and `nvs:ext/settings` reads the
 //! `[ext.<name>]` block of the request's snapshot. A shape argument crosses as its set fields by name
 //! (`nvs_runtime::Value::shape_fields`). A returned record is converted by the manifest's declared
@@ -79,7 +81,7 @@
 
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex, OnceLock, PoisonError};
-use std::time::Duration;
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use nvs_config::cache::{Digest, artifact_key, content_hash, env_hash};
 use nvs_config::resolve::Origin;
@@ -87,15 +89,18 @@ use nvs_config::tree::{Config, Extension};
 use nvs_config::value::{Quantity, Unit};
 use nvs_diagnostics::{Diagnostic, SourceMap};
 use nvs_ext::call::{
-    Answer, Budget, Host, Incoming, Lender, Lending, Level, Limit, Meter, Outbound, Outcome,
-    Outgoing, Request, Unsent,
+    Answer, Budget, Host, Incoming, Lender, Lending, Level, Limit, Outbound, Outcome, Outgoing,
+    Request, Unsent,
 };
 use nvs_ext::convert::{Key, Value as Crossed, fits};
 use nvs_ext::grants::Caller;
 use nvs_ext::load::{Builtin, CacheKey, Entry, Extension as Loaded, Loader, ModuleCache, Set};
 use nvs_ext::manifest::Manifest;
 use nvs_ext::types::{CORE_CLASSES, CoreRecord, Field, NovisType};
-use nvs_runtime::{Ctx, Fault, HelperResult, NvsArray, NvsStr, SlotKey, Tag, ThrownClass, Value};
+use nvs_runtime::{
+    Ctx, Fault, HelperResult, NvsArray, NvsStr, SafepointFlags, SafepointView, SlotKey, Tag,
+    ThrownClass, Value,
+};
 use nvs_stdlib::ext_record::Part;
 
 use crate::cache::Cache;
@@ -103,9 +108,6 @@ use crate::cache::Cache;
 /// How many instances the process's host has room for at once, across every request. Each slot
 /// reserves address space for one instance, not committed memory.
 const SLOTS: u32 = 64;
-
-/// The CPU time a request with no `[limits] cpu_time` gives its guests.
-const UNCAPPED: Duration = Duration::from_secs(365 * 24 * 60 * 60);
 
 /// The process's one host, made by the first [`loaded`] that has an entry to load, or by the first
 /// call into a built-in component.
@@ -354,31 +356,15 @@ impl Calls {
         }
     }
 
-    /// The request and its budget, made at the first call from `ctx`'s limits and configuration.
+    /// The request and its budget, made at the first call from `ctx`'s request tree and
+    /// configuration.
     fn request(&self, ctx: &Ctx) -> Result<&(Request, Arc<Spent>), Fault> {
         if let Some(request) = self.request.get() {
             return Ok(request);
         }
         let host = host().map_err(|reason| Fault::thrown_as(ThrownClass::Extension, reason))?;
-        let cpu = match ctx.cpu_limit() {
-            0 => UNCAPPED,
-            nanos => Duration::from_nanos(nanos),
-        };
-        let memory = match ctx.memory_limit() {
-            0 => None,
-            bytes => u64::try_from(bytes).ok(),
-        };
         Ok(self.request.get_or_init(|| {
-            let spent = Arc::new(Spent {
-                meter: Meter::new(cpu, memory),
-                snapshot: ctx.config().map(|config| Arc::clone(config.snapshot())),
-                narrowed: ctx.grant_filter().map(<[_]>::to_vec),
-                clock: Mutex::new(None),
-                seed: Mutex::new(None),
-                lines: Mutex::new(Vec::new()),
-                outbound: Mutex::new(Vec::new()),
-                reads: Mutex::new(Vec::new()),
-            });
+            let spent = Arc::new(Spent::of(ctx));
             (host.request(spent.clone()), spent)
         }))
     }
@@ -392,8 +378,15 @@ impl Drop for Calls {
     }
 }
 
-/// A request's budget for its guests: [`Meter`]'s CPU deadline and memory count, and the
-/// request's own log, clock, generator and configuration.
+/// A request's budget for its guests: the request's own CPU deadline and memory count, and its
+/// own log, clock, generator and configuration.
+///
+/// The CPU deadline is the request tree's: a guest's time is spent when the tree's safepoint word
+/// carries `CPU_LIMIT`, which the watchdog raises against everything the request has run since it
+/// started, the guest's turns on its core included. A guest's linear memory is charged to the
+/// memory count the runtime keeps for the running request (`nvs_runtime::budget`), so it meets
+/// the one `[limits] memory` ceiling the program's own values meet. Memory a tree gives back on
+/// another core leaves that core's count, as every other block the tree frees there does.
 ///
 /// A guest runs while the request's context is borrowed by the call, so this keeps what it needs
 /// of the context beside it. [`Spent::enter`] copies the context's fixed clock and seed in
@@ -417,7 +410,8 @@ impl Drop for Calls {
 /// made the request, each logged line until the call that wrote it returns, each outbound
 /// request until it is sent, and each read until it is served.
 pub(crate) struct Spent {
-    meter: Meter,
+    tree: SafepointView,
+    started: Instant,
     snapshot: Option<Arc<nvs_config::Snapshot>>,
     narrowed: Option<Vec<nvs_config::capability::Cap>>,
     clock: Mutex<Option<i128>>,
@@ -428,6 +422,21 @@ pub(crate) struct Spent {
 }
 
 impl Spent {
+    /// The budget of the request `ctx` runs: its tree, its snapshot and its grants.
+    fn of(ctx: &Ctx) -> Self {
+        Self {
+            tree: ctx.safepoint_view(),
+            started: Instant::now(),
+            snapshot: ctx.config().map(|config| Arc::clone(config.snapshot())),
+            narrowed: ctx.grant_filter().map(<[_]>::to_vec),
+            clock: Mutex::new(None),
+            seed: Mutex::new(None),
+            lines: Mutex::new(Vec::new()),
+            outbound: Mutex::new(Vec::new()),
+            reads: Mutex::new(Vec::new()),
+        }
+    }
+
     /// Copies `ctx`'s fixed clock and seed in, before a call.
     fn enter(&self, ctx: &Ctx) {
         *self.clock.lock().unwrap_or_else(PoisonError::into_inner) = ctx.fixed_clock();
@@ -529,15 +538,23 @@ fn sent(ctx: &mut Ctx, request: Outgoing) -> Result<Incoming, Unsent> {
 
 impl Budget for Spent {
     fn cpu_spent(&self) -> bool {
-        self.meter.cpu_spent()
+        self.tree.flags().contains(SafepointFlags::CPU_LIMIT)
     }
 
+    /// A growth the request cannot afford charges nothing and records no refusal of its own, so
+    /// the `FATAL` is the call's.
     fn charge(&self, bytes: i64) -> bool {
-        self.meter.charge(bytes)
+        let delta =
+            isize::try_from(bytes).unwrap_or(if bytes > 0 { isize::MAX } else { isize::MIN });
+        if delta > 0 && self.left().is_some_and(|left| bytes.unsigned_abs() > left) {
+            return false;
+        }
+        nvs_runtime::budget::carry(delta);
+        true
     }
 
     fn left(&self) -> Option<u64> {
-        self.meter.left()
+        nvs_runtime::budget::headroom().map(|bytes| u64::try_from(bytes).unwrap_or(u64::MAX))
     }
 
     fn log(&self, level: Level, channel: &str, message: &str) {
@@ -550,20 +567,22 @@ impl Budget for Spent {
     fn wall_clock(&self) -> Duration {
         match *self.clock.lock().unwrap_or_else(PoisonError::into_inner) {
             Some(nanos) => u64::try_from(nanos).map_or(Duration::ZERO, Duration::from_nanos),
-            None => self.meter.wall_clock(),
+            None => SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default(),
         }
     }
 
-    /// The meter's: a monotonic reading measures an interval that really elapsed, so a fixed
-    /// clock does not fix it, as it does not fix `Core\Time::monotonic`.
+    /// The time since the budget was made: a monotonic reading measures an interval that really
+    /// elapsed, so a fixed clock does not fix it, as it does not fix `Core\Time::monotonic`.
     fn monotonic_clock(&self) -> u64 {
-        self.meter.monotonic_clock()
+        u64::try_from(self.started.elapsed().as_nanos()).unwrap_or(u64::MAX)
     }
 
     fn random(&self, out: &mut [u8]) {
         match &mut *self.seed.lock().unwrap_or_else(PoisonError::into_inner) {
             Some(state) => nvs_stdlib::random::fill_seeded(state, out),
-            None => self.meter.random(out),
+            None => rand::Rng::fill_bytes(&mut rand::rng(), out),
         }
     }
 
@@ -689,16 +708,20 @@ impl nvs_runtime::extension::Extensions for Calls {
                         .unwrap_or(ThrownClass::Extension);
                     Fault::thrown_as(thrown, message)
                 }
-                Outcome::Fatal(limit, message) => {
-                    ctx.run_limit_handler(match limit {
-                        Limit::Cpu => nvs_runtime::Limit::CpuTime,
-                        Limit::Memory => nvs_runtime::Limit::Memory,
-                    });
-                    Fault::fatal(message)
-                }
+                Outcome::Fatal(limit, message) => past(ctx, limit, message),
             }),
         }
     }
+}
+
+/// The request's end for a guest past `limit`: runs the request's limit handler, then is the
+/// resource-limit `FATAL` with `message` (`rule:errors/on-limit`).
+fn past(ctx: &mut Ctx, limit: Limit, message: String) -> Fault {
+    ctx.run_limit_handler(match limit {
+        Limit::Cpu => nvs_runtime::Limit::CpuTime,
+        Limit::Memory => nvs_runtime::Limit::Memory,
+    });
+    Fault::fatal(message)
 }
 
 /// Runs `call` to the end on the calling task, with `nvs_host::block_on::block_on_yielding`.
@@ -1060,16 +1083,7 @@ mod tests {
         }));
         ctx.set_fixed_clock(1_500_000_000);
         ctx.set_random_state(7);
-        let spent = Spent {
-            meter: Meter::new(UNCAPPED, None),
-            snapshot: ctx.config().map(|config| Arc::clone(config.snapshot())),
-            narrowed: None,
-            clock: Mutex::new(None),
-            seed: Mutex::new(None),
-            lines: Mutex::new(Vec::new()),
-            outbound: Mutex::new(Vec::new()),
-            reads: Mutex::new(Vec::new()),
-        };
+        let spent = Spent::of(&ctx);
 
         spent.enter(&ctx);
         let mut drawn = [0; 12];
@@ -1134,16 +1148,7 @@ mod tests {
     #[test]
     fn a_guest_request_is_sent_at_the_next_poll_under_the_contexts_grants() {
         let mut ctx = Ctx::buffered();
-        let spent = Spent {
-            meter: Meter::new(UNCAPPED, None),
-            snapshot: None,
-            narrowed: None,
-            clock: Mutex::new(None),
-            seed: Mutex::new(None),
-            lines: Mutex::new(Vec::new()),
-            outbound: Mutex::new(Vec::new()),
-            reads: Mutex::new(Vec::new()),
-        };
+        let spent = Spent::of(&ctx);
         let outbound = spent.send(Outgoing {
             method: "GET".to_owned(),
             url: "http://example.com/".to_owned(),
@@ -1158,5 +1163,73 @@ mod tests {
             matches!(&answer, Err(Unsent::Refused(message)) if message.contains("example.com")),
             "{answer:?}"
         );
+    }
+
+    /// A guest's CPU time is the request's, counted from the request's start: a request whose
+    /// time was spent before its first call into an extension gives its guest none. The flag is
+    /// the one the watchdog raises when the request passes its `[limits] cpu_time`.
+    #[test]
+    fn a_guest_spends_the_requests_own_cpu_deadline() {
+        let mut ctx = Ctx::buffered();
+        ctx.set_cpu_limit(1_000_000);
+        let fresh = Spent::of(&ctx);
+        assert!(!fresh.cpu_spent());
+
+        ctx.safepoint_view().request(SafepointFlags::CPU_LIMIT);
+        assert!(
+            fresh.cpu_spent(),
+            "a budget made earlier reads the same deadline"
+        );
+        let late = Spent::of(&ctx);
+        assert!(
+            late.cpu_spent(),
+            "a first call after the deadline has no time left"
+        );
+    }
+
+    /// A guest's growth is charged to the memory count the runtime keeps for the request, and
+    /// given back to it. A growth past the request's `[limits] memory` charges nothing.
+    #[test]
+    fn a_guest_growth_is_charged_to_the_requests_memory_count() {
+        const PAGE: i64 = 65536;
+        let mut ctx = Ctx::buffered();
+        ctx.set_memory_limit(64 << 20);
+        let spent = Spent::of(&ctx);
+
+        let before = ctx.memory_used();
+        let left = spent
+            .left()
+            .expect("a request with a memory limit has a remainder");
+        assert!(spent.charge(PAGE));
+        assert_eq!(ctx.memory_used(), before + 65536);
+        assert_eq!(spent.left(), Some(left - 65536));
+        assert!(spent.charge(-PAGE));
+        assert_eq!(ctx.memory_used(), before);
+
+        let past = i64::try_from(left).expect("a remainder under 64 MiB") + PAGE;
+        assert!(!spent.charge(past));
+        assert_eq!(
+            ctx.memory_used(),
+            before,
+            "a refused growth charges nothing"
+        );
+    }
+
+    /// A guest past either of the request's limits runs the request's limit handler and ends the
+    /// request with a resource-limit `FATAL`, which no `catch` sees.
+    #[test]
+    fn a_guest_past_the_requests_limit_ends_it_with_a_resource_limit_fatal() {
+        for (limit, reached) in [
+            (Limit::Cpu, nvs_runtime::Limit::CpuTime),
+            (Limit::Memory, nvs_runtime::Limit::Memory),
+        ] {
+            let mut ctx = Ctx::buffered();
+            let fault = past(&mut ctx, limit, "the extension ran out".to_owned());
+            assert!(
+                matches!(&fault, Fault::Fatal(message) if message == "the extension ran out"),
+                "{fault:?}"
+            );
+            assert_eq!(ctx.limit_reached(), Some(reached));
+        }
     }
 }

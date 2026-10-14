@@ -3,7 +3,7 @@
 
 # Packaging
 
-*18 of 79 rules below are **designed** rather than shipped, and are marked where they appear.*
+*17 of 79 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="packaging-an-artifact-is-one-immutable-content-addressed-file"></a>
 
@@ -2063,7 +2063,7 @@ first is parked inside wasm, and the CPU deadline traps a call that keeps yieldi
 
 <a id="packaging-a-guest-runs-under-the-requests-budget"></a>
 
-## A guest runs under the request's CPU and memory caps, and a runaway guest traps rather than hanging a core  *(designed — owned by goal request-isolation-debts)*
+## A guest runs under the request's CPU and memory caps, and a runaway guest traps rather than hanging a core
 
 `rule:packaging/a-guest-runs-under-the-requests-budget`
 
@@ -2094,15 +2094,16 @@ memory. That is the
 dynamic crossing's cost on the request path, paid once per call; a typed crossing for `bytes` is what
 would lower it, at the price of a second conversion path.
 
-**Partly on disk.** `nvs_ext::call` charges every growth to a `Budget` and traps a guest past its
-CPU deadline or the least of the three memory limits (`crates/nvs-ext/tests/call.rs`). A limit's
-outcome is a `FATAL` naming the limit as `onLimit` receives it (`crates/nvs-ext/tests/failure.rs`),
-and `nvs run` runs the request's limit handler before it
-(`tests/conformance/ext/an-extension-that-reaches-the-memory-limit-runs-the-limit-handler.nvst`).
-The budget `nvs run` and `nvs serve` hand a guest is not the request's own:
-`nvs_cli::extensions::Spent` is made at the request's first call from its `[limits]`, so its CPU
-deadline starts there rather than at the request's start, and its memory is a second allowance beside
-the count the runtime keeps for the request.
+`nvs_ext::call` charges every growth to a `Budget` and traps a guest past its CPU deadline or the
+least of the three memory limits (`crates/nvs-ext/tests/call.rs`). The budget `nvs run` and
+`nvs serve` hand a guest, `nvs_cli::extensions::Spent`, is the request's own: its CPU deadline is the
+`CPU_LIMIT` flag the watchdog raises on the request tree, against everything the request has run since
+it started, and each growth is charged to the memory count the runtime keeps for the request, under the
+same `[limits] memory` ceiling as the program's own values. A limit's outcome is a `FATAL` naming the
+limit as `onLimit` receives it (`crates/nvs-ext/tests/failure.rs`), and the request's limit handler
+runs before it, in `nvs run`
+(`tests/conformance/ext/an-extension-that-reaches-the-memory-limit-runs-the-limit-handler.nvst`) and
+in `nvs serve`, which then serves the next request (`crates/nvs-cli/tests/serve_isolation.rs`).
 
 <sub>See also [`errors/on-limit`](errors.md#errors-on-limit), [`packaging/a-fresh-instance-per-request`](packaging.md#packaging-a-fresh-instance-per-request).</sub>
 

@@ -1,7 +1,9 @@
 //! `rule:concurrency/cross-request-state-is-explicit` and
 //! `rule:statements/an-isolate-has-its-own-statics`, from outside the process: the built
 //! `nvs serve` over a program that writes a class static from the query, and
-//! the value the next request reads before it writes its own.
+//! the value the next request reads before it writes its own. And
+//! `rule:packaging/a-guest-runs-under-the-requests-budget`: a guest that loops
+//! forever reaches the request's limit handler, and the next request is served.
 //!
 //! [`Server`] starts the binary this test was built beside on a port the
 //! platform chose and reads the port back from the `listening on` line, as
@@ -65,15 +67,41 @@ impl Server {
     /// line within [`BOOT`]; the message carries what it wrote to standard
     /// error.
     fn start(case: &str, workers: u32) -> Self {
+        Self::serving(case, workers, PROGRAM, "", &[])
+    }
+
+    /// Writes `program` as `app.nvs`, each of `files`, and an `nvs.toml` in production mode
+    /// with `workers` accept loops followed by `config`, into a fresh directory named for
+    /// `case`, and starts `nvs serve app.nvs` there, on a free loopback port.
+    ///
+    /// # Panics
+    ///
+    /// As [`Server::start`] does.
+    fn serving(
+        case: &str,
+        workers: u32,
+        program: &str,
+        config: &str,
+        files: &[(&str, &[u8])],
+    ) -> Self {
         let dir = Path::new(env!("CARGO_TARGET_TMPDIR"))
             .join(format!("serve-isolation-{case}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).expect("the case's directory is created");
-        write_file(&dir.join("app.nvs"), PROGRAM);
+        write_file(&dir.join("app.nvs"), program);
         write_file(
             &dir.join("nvs.toml"),
-            &format!("[mode]\ndefault = \"production\"\n\n[server]\nworkers = {workers}\n"),
+            &format!(
+                "[mode]\ndefault = \"production\"\n\n[server]\nworkers = {workers}\n\n{config}"
+            ),
         );
+        for (name, bytes) in files {
+            let path = dir.join(name);
+            if let Some(parent) = path.parent() {
+                std::fs::create_dir_all(parent).expect("the file's folder is created");
+            }
+            std::fs::write(path, bytes).expect("the case's file is written");
+        }
         let data = nvs_repo::scratch_private("nvsdata");
 
         let mut child = Command::new(env!("CARGO_BIN_EXE_nvs"))
@@ -101,8 +129,14 @@ impl Server {
         });
         let out_pipe = child.stdout.take().expect("standard output is piped");
         let (sent, bound) = mpsc::channel();
+        let collected = Arc::clone(&stderr);
         thread::spawn(move || {
             for line in BufReader::new(out_pipe).lines().map_while(Result::ok) {
+                {
+                    let mut all = collected.lock().expect("no reader panicked");
+                    all.push_str(&line);
+                    all.push('\n');
+                }
                 if let Some(rest) = line.strip_prefix("listening on http://") {
                     let addr = rest
                         .split_whitespace()
@@ -196,16 +230,32 @@ impl Client {
     ///
     /// When the answer is not a `200`, is cut off, or closes the connection.
     fn get(&mut self, path: &str) -> String {
+        let (status, body, closes) = self.answer(path);
+        assert!(
+            status.split_whitespace().nth(1) == Some("200"),
+            "`{path}` answered `{status}`"
+        );
+        assert!(
+            !closes,
+            "`{path}` closed the connection, so the next request would not reuse it"
+        );
+        body
+    }
+
+    /// One `GET` of `path` on this connection, whatever its status. Returns the status line,
+    /// the body, and whether the answer closes the connection.
+    ///
+    /// # Panics
+    ///
+    /// When the answer is cut off, or does not arrive within [`BOUND`].
+    fn answer(&mut self, path: &str) -> (String, String, bool) {
         write!(
             self.reader.get_mut(),
             "GET {path} HTTP/1.1\r\nHost: localhost\r\n\r\n"
         )
         .expect("the request is sent");
         let status = self.line(path);
-        assert!(
-            status.split_whitespace().nth(1) == Some("200"),
-            "`{path}` answered `{status}`"
-        );
+        let mut closes = false;
         let mut length = None;
         let mut chunked = false;
         loop {
@@ -220,7 +270,7 @@ impl Client {
             } else if name == "transfer-encoding" && value.eq_ignore_ascii_case("chunked") {
                 chunked = true;
             } else if name == "connection" && value.eq_ignore_ascii_case("close") {
-                panic!("`{path}` closed the connection, so the next request would not reuse it");
+                closes = true;
             }
         }
         let mut body = Vec::new();
@@ -240,7 +290,8 @@ impl Client {
             let length = length.unwrap_or_else(|| panic!("the answer to `{path}` has no framing"));
             self.exact(path, length, &mut body);
         }
-        String::from_utf8(body).expect("the body is UTF-8")
+        let body = String::from_utf8(body).expect("the body is UTF-8");
+        (status, body, closes)
     }
 
     /// One line of the answer to `path`, without its line ending.
@@ -290,4 +341,64 @@ fn assert_isolated(server: &Server) {
 fn a_static_set_by_one_request_is_not_seen_by_the_next() {
     assert_isolated(&Server::start("one-worker", 1));
     assert_isolated(&Server::start("four-workers", 4));
+}
+
+/// An extension `Shop\Spin` whose one method, `forever`, loops and never returns, as a core
+/// module the packer componentizes.
+const SPIN: &str = r#"(module
+  (memory (export "memory") 1)
+  (func (export "shop:spin/api#forever") (result i32)
+    (loop $again (br $again))
+    (i32.const 0)))"#;
+
+const SPIN_WIT: &str = "package shop:spin;\n\ninterface api {\n    use nvs:ext/types@1.0.0.{error};\n\n    forever: func() -> result<_, error>;\n}\n";
+
+const SPIN_MANIFEST: &str = r#"{"manifest": 1, "world": "1.0.0", "class": "Shop\\Spin", "interface": "shop:spin/api",
+  "methods": [{"name": "forever", "help": "Loops and never returns."}]}"#;
+
+/// A program that calls the looping guest when the query asks for it, and greets otherwise.
+const SPINNING: &str = "<?nvs\n\
+Core\\Fatal::onLimit(fn (array<string> $report): void => {\n    \
+Core\\IO::write('marks/limit.txt', $report['limit']);\n});\n\
+if (Core\\Request::query(\"spin\") == \"yes\") {\n    Shop\\Spin::forever();\n}\n\
+echo \"served\";\n";
+
+/// A guest that loops forever runs under the request's own `[limits] cpu_time`. The request
+/// reaches its `Core\Fatal::onLimit` handler and ends, and the same worker serves the next
+/// request (`rule:packaging/a-guest-runs-under-the-requests-budget`).
+#[test]
+fn a_looping_guest_reaches_on_limit_and_the_next_request_is_served() {
+    let nvsx = nvs_ext::pack::pack(&nvs_ext::pack::Inputs {
+        wasm: &wat::parse_str(SPIN).expect("the module's text parses"),
+        wit: &[("api.wit", SPIN_WIT)],
+        manifest: SPIN_MANIFEST.as_bytes(),
+        files: &[],
+    })
+    .expect("the module packs");
+    let config = format!(
+        "[limits]\ncpu_time = \"300ms\"\n\n[capabilities.fs]\nwrite = [\"marks/\"]\n\n[[extension]]\npath = 'spin.nvsx'\nsha256 = \"{}\"\n",
+        nvs_ext::load::pin(&nvsx)
+    );
+    let server = Server::serving(
+        "looping-guest",
+        1,
+        SPINNING,
+        &config,
+        &[("spin.nvsx", &nvsx), ("marks/.keep", b"")],
+    );
+
+    let (status, _, _) = Client::connect(server.addr).answer("/?spin=yes");
+    assert!(
+        status.split_whitespace().nth(1) == Some("500"),
+        "the looping request answered `{status}`; the server wrote: {}",
+        server.said()
+    );
+    let mark = server.dir.join("marks").join("limit.txt");
+    assert_eq!(
+        std::fs::read_to_string(&mark).ok().as_deref(),
+        Some("cpu_time"),
+        "the limit handler did not run; the server wrote: {}",
+        server.said()
+    );
+    assert_eq!(Client::connect(server.addr).get("/"), "served");
 }

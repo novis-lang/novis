@@ -1,6 +1,6 @@
 {
   "title": "A guest runs under the request's CPU and memory caps, and a runaway guest traps rather than hanging a core",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "errors/on-limit",
     "packaging/a-fresh-instance-per-request"
@@ -8,7 +8,8 @@
   "guardedBy": [
     "benches/abi-probe/tests/wasm_sandbox.rs",
     "crates/nvs-ext/tests/call.rs",
-    "crates/nvs-ext/tests/failure.rs"
-  ],
-  "goal": "request-isolation-debts"
+    "crates/nvs-ext/tests/failure.rs",
+    "crates/nvs-cli/src/extensions.rs",
+    "crates/nvs-cli/tests/serve_isolation.rs"
+  ]
 }
