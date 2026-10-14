@@ -50,12 +50,27 @@
 //! The sum of the gauges is stale by at most one publish step per core, which
 //! is what the runtime's stop at the limit covers.
 //!
-//! **What it spends**, per `rule:programs/memory-priority`: four words for the
-//! whole process — the count and the three numbers a reload moves — one
-//! [`InFlight`] guard per request being served, which is a borrow and nothing
-//! else, and the response above, which allocates no body at all. Each
-//! admission reads one gauge per core and publishes the admitting core's own.
+//! # A wedged core is shed
+//!
+//! `rule:http-server/a-wedged-core-is-shed-never-killed`: admission reads the
+//! watchdog's report through [`Admission::subscribe`] and has no detector of
+//! its own. A core the watchdog reports takes no new work, because
+//! [`Admission::admit`] refuses on a thread [`nvs_host::this_core_is_wedged`]
+//! names. `max_in_flight` drops by the wedged cores' share, so the cores
+//! still turning are not asked to carry a ceiling that counts the wedged one.
+//! When a sweep finds the core turning again, its share returns. Nothing is
+//! killed. A valve with no subscription, which is every test and `nvs run`,
+//! sheds nothing.
+//!
+//! **What it spends**, per `rule:programs/memory-priority`: five words for the
+//! whole process — the count, the three numbers a reload moves and the
+//! watchdog's counts — one [`InFlight`] guard per request being served, which
+//! is a borrow and nothing else, and the response above, which allocates no
+//! body at all. Each admission reads one gauge per core, publishes the
+//! admitting core's own and reads the watchdog's counts with three relaxed
+//! loads.
 
+use std::sync::OnceLock;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 
 use hyper::{Response, StatusCode};
@@ -141,6 +156,8 @@ pub struct Admission {
     /// What every core holds now, in bytes: `nvs_runtime::budget::held_by_cores`
     /// outside this crate's own tests.
     held: fn() -> isize,
+    /// The watchdog's counts, once [`Admission::subscribe`] is called.
+    shed: OnceLock<nvs_host::Shed>,
 }
 
 impl Admission {
@@ -154,6 +171,7 @@ impl Admission {
             room: AtomicU64::new(NO_BUDGET),
             in_flight: AtomicUsize::new(0),
             held: nvs_runtime::budget::held_by_cores,
+            shed: OnceLock::new(),
         };
         admission.resize(ceiling);
         admission
@@ -197,10 +215,17 @@ impl Admission {
     /// back, and something has to be true about a number named "in flight"
     /// for [`in_flight`](Self::in_flight) to be worth exporting under
     /// `rule:observability/the-runtime-exports-what-it-already-measures`.
+    ///
+    /// A core the watchdog reports as wedged is given no place, and the count
+    /// refuses at `max_in_flight` less the wedged cores' share. The module
+    /// doc's *A wedged core is shed* owns both.
     #[must_use]
     pub fn admit(&self) -> Option<InFlight<'_>> {
+        if nvs_host::this_core_is_wedged() {
+            return None;
+        }
         nvs_runtime::budget::publish_held();
-        let max_in_flight = self.max_in_flight();
+        let max_in_flight = self.available();
         let fits = self.memory_fits();
         self.in_flight
             .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
@@ -208,6 +233,32 @@ impl Admission {
             })
             .ok()
             .map(|_| InFlight { admission: self })
+    }
+
+    /// Sheds onto the watchdog's report from the next [`admit`](Self::admit)
+    /// on. The process's boot calls it once, with the one watchdog it builds,
+    /// and a second call changes nothing.
+    pub fn subscribe(&self, shed: nvs_host::Shed) {
+        let _ = self.shed.set(shed);
+    }
+
+    /// `max_in_flight` less the share of the cores the watchdog reports as
+    /// wedged, rounded so that a wedged core takes no more than its share.
+    /// Every core wedged leaves `0`.
+    fn available(&self) -> usize {
+        let max_in_flight = self.max_in_flight();
+        let Some(shed) = self.shed.get() else {
+            return max_in_flight;
+        };
+        let cores = shed.cores();
+        // Two loads, so a core leaving between them can read one more wedged
+        // core than there are cores.
+        let wedged = shed.wedged().min(cores);
+        if cores == 0 || wedged == 0 {
+            return max_in_flight;
+        }
+        let share = (max_in_flight as u128 * wedged as u128) / cores as u128;
+        max_in_flight - usize::try_from(share).unwrap_or(max_in_flight)
     }
 
     /// Whether the memory every core holds now leaves room for one more
@@ -230,7 +281,8 @@ impl Admission {
         self.in_flight.load(Ordering::Relaxed)
     }
 
-    /// The count this valve refuses at, as the last boot or reload set it.
+    /// The count this valve refuses at while no core is wedged, as the last
+    /// boot or reload set it.
     #[must_use]
     pub fn max_in_flight(&self) -> usize {
         self.max_in_flight.load(Ordering::Relaxed)
@@ -280,6 +332,9 @@ pub fn over_capacity() -> Response<Answer> {
 #[cfg(test)]
 mod tests {
     use std::sync::atomic::AtomicIsize;
+    use std::time::{Duration, Instant};
+
+    use nvs_runtime::{Ctx, OutputSink, TaskRoot};
 
     use super::*;
 
@@ -483,5 +538,132 @@ mod tests {
         assert_eq!(admission.in_flight(), 2, "a resize dropped a place");
         drop((second, third));
         assert_eq!(admission.in_flight(), 0, "the count did not return to zero");
+    }
+
+    /// A watchdog that reports a core a millisecond past its deadline, and
+    /// sweeps every millisecond.
+    fn a_quick_watchdog() -> nvs_host::Watchdog {
+        nvs_host::Watchdog::with(Duration::from_millis(1), Duration::from_millis(1), |_| {})
+    }
+
+    /// A task id to file a deadline under. The task never runs: a deadline
+    /// table only keys on the id.
+    fn a_task() -> nvs_host::TaskId {
+        let mut sched = nvs_host::Scheduler::new();
+        sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, |_| {})
+    }
+
+    /// A deadline table with one deadline filed a millisecond from now, which
+    /// no core will take: the table of a core that stopped turning.
+    fn a_wedged_table(task: nvs_host::TaskId) -> nvs_host::Timers {
+        let mut timers = nvs_host::Timers::default();
+        timers.arm(task, Instant::now() + Duration::from_millis(1));
+        timers
+    }
+
+    fn a_cpu() -> nvs_host::CpuId {
+        *nvs_host::cpus()
+            .first()
+            .expect("the platform reported no CPUs")
+    }
+
+    /// Waits for the watchdog's thread to sweep until `done` holds.
+    fn until(what: &str, done: impl Fn() -> bool) {
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while !done() {
+            assert!(Instant::now() < deadline, "{what}");
+            std::thread::sleep(Duration::from_millis(1));
+        }
+    }
+
+    /// The core the watchdog reports is refused a place even with the count
+    /// at zero, and a core beside it is still admitted.
+    #[test]
+    fn a_wedged_core_takes_no_new_work() {
+        let dog = a_quick_watchdog();
+        let admission = Admission::new(&Ceiling::of(&capacity(4, None, None)));
+        admission.subscribe(dog.shed());
+        let turning = nvs_host::Timers::default();
+        let _turning = dog.register(a_cpu(), turning.view());
+        let wedged = a_wedged_table(a_task());
+        // Registered last, so this thread is the wedged core.
+        let _wedged = dog.register(a_cpu(), wedged.view());
+
+        until("the watchdog never reported the wedged core", || {
+            dog.shed().wedged() == 1
+        });
+        assert!(nvs_host::this_core_is_wedged());
+        assert!(
+            admission.admit().is_none(),
+            "a wedged core was given a place"
+        );
+        assert_eq!(admission.in_flight(), 0);
+
+        let beside = std::thread::scope(|scope| {
+            scope
+                .spawn(|| admission.admit().is_some())
+                .join()
+                .expect("the other core panicked")
+        });
+        assert!(beside, "a core that is not wedged was refused");
+    }
+
+    /// One wedged core of two takes half of `max_in_flight` with it.
+    #[test]
+    fn max_in_flight_drops_by_a_wedged_cores_share() {
+        let dog = a_quick_watchdog();
+        let admission = Admission::new(&Ceiling::of(&capacity(4, None, None)));
+        admission.subscribe(dog.shed());
+        let wedged = a_wedged_table(a_task());
+        let _wedged = dog.register(a_cpu(), wedged.view());
+        // Registered last, so this thread is the core that still turns.
+        let turning = nvs_host::Timers::default();
+        let _turning = dog.register(a_cpu(), turning.view());
+
+        until("the watchdog never reported the wedged core", || {
+            dog.shed().wedged() == 1
+        });
+        assert_eq!(dog.shed().cores(), 2);
+        let first = admission.admit().expect("the first request was refused");
+        let second = admission.admit().expect("the second request was refused");
+        assert!(
+            admission.admit().is_none(),
+            "a third request was admitted past half of a ceiling of four"
+        );
+        assert_eq!(admission.max_in_flight(), 4, "the configured number moved");
+        drop((first, second));
+    }
+
+    /// A wedged core whose deadline clears gets its share back on the next
+    /// sweep, and takes work again.
+    #[test]
+    fn a_core_that_turns_again_gets_its_share_back() {
+        let dog = a_quick_watchdog();
+        let admission = Admission::new(&Ceiling::of(&capacity(2, None, None)));
+        admission.subscribe(dog.shed());
+        let task = a_task();
+        let mut wedged = a_wedged_table(task);
+        let _wedged = dog.register(a_cpu(), wedged.view());
+
+        until("the watchdog never reported the wedged core", || {
+            dog.shed().wedged() == 1
+        });
+        assert!(
+            admission.admit().is_none(),
+            "a wedged core was given a place"
+        );
+
+        assert!(wedged.disarm(task), "the deadline was not filed");
+        until("the core that turned again was still reported", || {
+            dog.shed().wedged() == 0
+        });
+        assert!(!nvs_host::this_core_is_wedged());
+        let first = admission
+            .admit()
+            .expect("a core that turned again was refused");
+        let second = admission
+            .admit()
+            .expect("the share did not return to the ceiling");
+        drop((first, second));
     }
 }

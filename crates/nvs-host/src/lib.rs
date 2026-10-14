@@ -159,7 +159,7 @@ pub use scheduler::{
 };
 pub use stack::{MAX_POOLED_STACKS, SPARE_STACK_SIZE, TASK_STACK_SIZE, on_spare_stack};
 pub use timer::{DeadlineView, Timers, park_until, sleep};
-pub use watchdog::{Registration, RunningRequest, Stall, Watchdog};
+pub use watchdog::{Registration, RunningRequest, Shed, Stall, Watchdog, this_core_is_wedged};
 
 /// One OS thread, pinned to one CPU, running one [`Scheduler`].
 ///

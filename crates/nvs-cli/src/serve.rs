@@ -670,6 +670,10 @@ pub(crate) fn run(
     // where the fleet is joined, rather than by whichever core happened to end
     // last; its own thread starts with the first registration a core makes.
     let watchdog = Arc::new(nvs_host::Watchdog::reporting_after(margin));
+    // `rule:http-server/a-wedged-core-is-shed-never-killed`: a core this
+    // watchdog reports takes no new work, and its share of `max_in_flight`
+    // stays unused until it turns again (`nvs_server::admit`'s module doc).
+    admission.subscribe(watchdog.shed());
     // What answers the `WatchdogSec=` line `nvs service unit` renders, gated on
     // that same detector so the ping is evidence the fleet is turning rather
     // than evidence this thread is. Held in this frame like the watchdog it

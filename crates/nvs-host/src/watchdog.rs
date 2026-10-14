@@ -28,12 +28,13 @@
 //! default target — and does nothing else to the core. A thread cannot be
 //! safely killed in-process and `rule:http-server/the-residue-is-one-named-fault-class` declines the process boundary
 //! that would make it possible, so detection is the whole of what happens here.
-//! The other half of the rule's sentence — the core stops accepting new work and
-//! `max_in_flight` accounts for its share as unavailable — belongs to admission
-//! control, which is `nvs_server::admit` and does not subscribe to this report
-//! yet (`rule:http-server/a-wedged-core-is-shed-never-killed` is `designed`);
-//! when it does, it subscribes to the same report rather than growing a second
-//! detector.
+//! The other half of `rule:http-server/a-wedged-core-is-shed-never-killed` is
+//! admission control's, which is `nvs_server::admit`, and it reads this
+//! report rather than growing a second detector. Every sweep writes [`Shed`]'s
+//! two counts and each core's own flag: admission refuses a request on a core
+//! [`this_core_is_wedged`] names, and takes the wedged cores' share off
+//! `max_in_flight`. The sweep that finds the core turning again clears both,
+//! so the share returns within one interval.
 //!
 //! A stall is reported **once per deadline**, not once per sweep: a wedged core
 //! republishes nothing, so its earliest deadline is a stable identity for the
@@ -169,7 +170,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::io::Write;
 use std::rc::Rc;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
@@ -406,6 +407,79 @@ thread_local! {
     /// one the scheduler charges through. Empty on a thread that registered
     /// nothing, or that has no clock to charge with.
     static METER: RefCell<Option<Rc<Local>>> = const { RefCell::new(None) };
+
+    /// Whether the core this thread registered last is reported as wedged now.
+    /// Empty on a thread that registered no core.
+    static WEDGED: RefCell<Option<Arc<AtomicBool>>> = const { RefCell::new(None) };
+}
+
+/// Whether the core this thread runs is reported as wedged now.
+///
+/// What `nvs_server::admit` checks before it gives a request a place: a core
+/// the watchdog reported takes no new work until a sweep finds it turning
+/// again. `false` on a thread that registered no core. One thread-local read
+/// and one relaxed load.
+#[must_use]
+pub fn this_core_is_wedged() -> bool {
+    WEDGED
+        .try_with(|slot| {
+            slot.borrow()
+                .as_ref()
+                .is_some_and(|wedged| wedged.load(Ordering::Relaxed))
+        })
+        .unwrap_or(false)
+}
+
+/// What admission control reads of the watchdog's report: how many cores are
+/// watched, and how many of them are wedged now.
+///
+/// `rule:http-server/a-wedged-core-is-shed-never-killed` has admission
+/// subscribe to this and grow no detector of its own. The two counts are
+/// written under the watchdog's lock, by every change to the watched set and
+/// by every sweep, so they lag an episode by at most one interval. A request
+/// reads them with two relaxed loads and takes no lock. A thread that is no
+/// core is counted on neither side, for [`Watchdog::turning`]'s reason.
+#[derive(Clone, Debug, Default)]
+pub struct Shed(Arc<Counts>);
+
+/// [`Shed`]'s two numbers.
+#[derive(Debug, Default)]
+struct Counts {
+    cores: AtomicUsize,
+    wedged: AtomicUsize,
+}
+
+impl Shed {
+    /// How many cores are registered.
+    #[must_use]
+    pub fn cores(&self) -> usize {
+        self.0.cores.load(Ordering::Relaxed)
+    }
+
+    /// How many registered cores the last sweep found wedged.
+    #[must_use]
+    pub fn wedged(&self) -> usize {
+        self.0.wedged.load(Ordering::Relaxed)
+    }
+}
+
+impl State {
+    /// Writes the watched set's counts into `shed` and each core's wedged flag
+    /// from what has been reported about it. Called with the lock held.
+    fn recount(&self, shed: &Shed) {
+        let mut cores = 0_usize;
+        let mut wedged = 0_usize;
+        for watched in &self.watching {
+            let is_wedged = watched.core.is_some() && watched.reported.is_some();
+            watched.wedged.store(is_wedged, Ordering::Relaxed);
+            if watched.core.is_some() {
+                cores += 1;
+                wedged += usize::from(is_wedged);
+            }
+        }
+        shed.0.cores.store(cores, Ordering::Relaxed);
+        shed.0.wedged.store(wedged, Ordering::Relaxed);
+    }
 }
 
 /// Charges the CPU time this thread spends from now on to `tree`, as
@@ -523,6 +597,9 @@ struct Watched {
     /// record rather than one per sweep. Cleared whenever the core is not
     /// overdue, which is what makes a later stall a new episode.
     reported: Option<Instant>,
+    /// Whether `reported` is set on a core, for [`this_core_is_wedged`] to
+    /// read on the core's own thread without the lock.
+    wedged: Arc<AtomicBool>,
 }
 
 /// What the watchdog thread and the cores registering with it share.
@@ -531,6 +608,8 @@ struct Shared {
     interval: Duration,
     sink: Sink,
     state: Mutex<State>,
+    /// What admission reads of the report, which [`State::recount`] writes.
+    shed: Shed,
     /// Signalled to end the wait early — at shutdown, so a drop does not have
     /// to wait out an interval to join.
     change: Condvar,
@@ -644,6 +723,7 @@ impl Watchdog {
                     next_id: 0,
                     thread: None,
                 }),
+                shed: Shed::default(),
                 change: Condvar::new(),
             }),
         }
@@ -679,6 +759,13 @@ impl Watchdog {
 
     fn watch(&self, core: Option<(CpuId, DeadlineView)>) -> Registration {
         enroll(&self.shared, core)
+    }
+
+    /// The counts admission subscribes to. Every handle reads the same two
+    /// numbers, for as long as any of them is held.
+    #[must_use]
+    pub fn shed(&self) -> Shed {
+        self.shared.shed.clone()
     }
 
     /// How many threads are registered.
@@ -782,6 +869,12 @@ pub struct Registration {
     /// The registration [`METER`] held before this one replaced it, put back
     /// when this one is dropped.
     outer_meter: Option<Rc<Local>>,
+    /// This core's wedged flag, which [`WEDGED`] holds while this registration
+    /// does. `None` for a thread that is no core.
+    wedged: Option<Arc<AtomicBool>>,
+    /// The flag [`WEDGED`] held before this one replaced it, put back when this
+    /// one is dropped.
+    outer_wedged: Option<Arc<AtomicBool>>,
 }
 
 /// Registers the calling thread with `shared`: [`Watchdog::register`] and
@@ -791,6 +884,8 @@ fn enroll(shared: &Arc<Shared>, core: Option<(CpuId, DeadlineView)>) -> Registra
     let mut state = lock(&shared.state);
     let id = state.next_id;
     state.next_id += 1;
+    let wedged = Arc::new(AtomicBool::new(false));
+    let is_core = core.is_some();
     state.watching.push(Watched {
         id,
         core,
@@ -799,7 +894,9 @@ fn enroll(shared: &Arc<Shared>, core: Option<(CpuId, DeadlineView)>) -> Registra
         // publication, and never as a second argument here.
         running: Vec::new(),
         reported: None,
+        wedged: Arc::clone(&wedged),
     });
+    state.recount(&shared.shed);
     if state.thread.is_none() && state.running {
         let shared = Arc::clone(shared);
         state.thread = std::thread::Builder::new()
@@ -826,11 +923,17 @@ fn enroll(shared: &Arc<Shared>, core: Option<(CpuId, DeadlineView)>) -> Registra
     let outer_meter = meter
         .as_ref()
         .and_then(|meter| METER.replace(Some(Rc::clone(meter))));
+    let wedged = is_core.then_some(wedged);
+    let outer_wedged = wedged
+        .as_ref()
+        .and_then(|wedged| WEDGED.replace(Some(Arc::clone(wedged))));
     Registration {
         shared: Arc::clone(shared),
         id,
         meter,
         outer_meter,
+        wedged,
+        outer_wedged,
     }
 }
 
@@ -972,7 +1075,18 @@ impl Drop for Registration {
     fn drop(&mut self) {
         let mut state = lock(&self.shared.state);
         state.watching.retain(|watched| watched.id != self.id);
+        state.recount(&self.shared.shed);
         drop(state);
+        let _ = WEDGED.try_with(|slot| {
+            let mut slot = slot.borrow_mut();
+            let ours = match (slot.as_ref(), self.wedged.as_ref()) {
+                (Some(installed), Some(wedged)) => Arc::ptr_eq(installed, wedged),
+                _ => false,
+            };
+            if ours {
+                *slot = self.outer_wedged.take();
+            }
+        });
         // `try_with`, because a registration a thread-local owns may be dropped
         // after this one is gone, and there is nothing left to put back then.
         let _ = METER.try_with(|slot| {
@@ -1090,6 +1204,7 @@ impl Shared {
                 overdue_by,
             });
         }
+        state.recount(&self.shed);
         stalls
     }
 }
