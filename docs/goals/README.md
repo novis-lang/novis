@@ -16,7 +16,5 @@ The chain holds 4 goal(s). `spreadsheet` is live.
 | 3 | [`server-rule-debts`](server-rule-debts.md) | Every rule this goal owns is `shipped` with a guard test, and `bun nv owners --closes server-rule-debts` passes. | **1 `request_body` and `upload_total` are configuration rows** · 2 the access log · 3 a Unix spelling with no `AF_UNIX` transport refuses at boot · 4 the resolved root is announced and stored · 5 an upgrade takes `limits`, `grants` and `on` · 6 deferred work cannot write the response · 7 a foreign-connection enqueue is counted · 8 `receive()` is the one wait · 9 the trace id is on the response |
 | 4 | [`language-rule-debts`](language-rule-debts.md) | Every rule this goal owns is `shipped` with a guard test, and `bun nv owners --closes language-rule-debts` passes. | **1 an `ESC` in source text is a compile error** · 2 `let` and `is` name nothing · 3 the renderings match the rule · 4 a generator does not `clone` · 5 `?T $x = null` decodes an absent key · 6 `nvs check` warns on a nullable condition · 7 a member reached from two sources is a compile error |
 
-Off the chain (side goals): [`user-surface-examples`](user-surface-examples.md).
-
 The floor holds 0 check(s) carried from reached goals; every goal keeps them green.
 The format is `docs/goal-format.md`.
