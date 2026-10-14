@@ -38,7 +38,7 @@ stages:
         shapes: []
   - id: 5
     title: a deadline sends the driver-side cancel
-    status: open
+    status: done
     context: [crates/nvs-db/src/pg.rs, crates/nvs-db/src/conn.rs, crates/nvs-stdlib/src/db/execute.rs, crates/nvs-stdlib/src/db/pool.rs]
     extra:
       context:
@@ -244,12 +244,12 @@ the manifest parser, never by a string search.
 **Does:** a deadline that fires on a running statement cancels it through the driver and never pools a dirty connection.
 
 - [x] PostgreSQL sends `CancelRequest` with the kept key. `crates/nvs-db/src/pg.rs:986`
-- [ ] MySQL and MariaDB send `KILL QUERY`, SQLite calls `sqlite3_interrupt`, and TDS sends attention. `crates/nvs-db/src/mysql.rs:1693`
+- [x] MySQL and MariaDB send `KILL QUERY`, SQLite calls `sqlite3_interrupt`, and TDS sends attention. `crates/nvs-db/src/mysql.rs:1693`
   - [x] SQLite interrupts a running statement in the engine when the filed deadline passes. `crates/nvs-db/src/sqlite.rs:795`
   - [x] A `stream`'s opening call settles on failure. `crates/nvs-stdlib/src/db/stream.rs:508`
   - [x] MySQL and MariaDB send `KILL QUERY` over a second connection and drain to the interrupted statement's error. `crates/nvs-db/src/mysql.rs:810`
-  - [ ] TDS sends attention and reads to the `DONE` with the attention bit. `crates/nvs-db/src/tds/framing.rs:34`
-  - [ ] The `deadline-cancel` cases run on every driver's leg. `crates/nvs-stdlib/tests/db_stream.rs:756`
+  - [x] TDS sends attention and reads to the `DONE` with the attention bit. `crates/nvs-db/src/tds/framing.rs:34`
+  - [x] The `deadline-cancel` cases run on every driver's leg. `crates/nvs-stdlib/tests/db_stream.rs:756`
 - [x] The call waits for the connection under its own `timeout`, and closes one that misses it. `crates/nvs-stdlib/src/db/execute.rs:70`
 
 ### 6. admission subtracts a wedged core
@@ -278,35 +278,26 @@ the manifest parser, never by a string search.
 
 ### State
 
-Stages 1 to 4 are done. Stage 5 has PostgreSQL's cancel, SQLite's interrupt, MySQL's and MariaDB's
-`KILL QUERY`, and the stdlib wait on every statement member, `stream` step and `stream` opening call.
-`MySqlConn::settle` (`crates/nvs-db/src/mysql.rs:1771`) and `MariaConn::settle`
-(`crates/nvs-db/src/maria.rs:474`) open a second connection from the connection's `Peer`
-(`crates/nvs-db/src/mysql.rs:3684`), which keeps the greeting's connection id and the credential.
-`settle_interrupted` (`crates/nvs-db/src/mysql.rs:3792`) then drains the first wire from its `Owed`
-phase to the error or terminator. The `deadline-cancel` cases pass on the PostgreSQL, MySQL and
-MariaDB TCP legs. SQL Server still answers `Unsupported` and closes at the deadline, so the rule
-stays `designed`, and its fragment's "Not on disk" paragraph names TDS as the one driver still owed.
+Stages 1 to 5 are done. SQL Server's `TdsConn::settle` (`crates/nvs-db/src/tds/mod.rs`) sends an
+attention on the same socket through `Wire::cancel` (`crates/nvs-db/src/tds/wire.rs`) and reads to
+the message whose last `DONE` carries `DONE_ATTN`. The `deadline-cancel` cases pass on the
+`mssql` leg of `bun nv db-matrix`, and `cancelling_leg` now takes every driver but SQLite.
+`rule:concurrency/a-deadline-bounds-the-cancel-not-the-return` is `shipped`, guarded by
+`crates/nvs-stdlib/tests/db_stream.rs`.
 
-All three TCP legs pass in `bun nv db-matrix`. The socket legs fail with OS error 95 on Windows for
-every driver, which is the backlog item below. The nightly CI reds are from `origin/main`
-(`cb7021a24`), still 547 commits behind local `main`. The loop never pushes, so they stay until
-`origin/main` is pushed.
+The nightly CI reds are from `origin/main`, still 549 commits behind local `main`. The loop never
+pushes, so they stay until `origin/main` is pushed. The socket legs fail with OS error 95 on
+Windows for every driver, which is the backlog item below.
 
 ### Next
 
-**Stage 5, the TDS attention and the rule's ship**. Files: `crates/nvs-db/src/tds/`,
-`crates/nvs-db/src/conn.rs`, `crates/nvs-stdlib/tests/db_stream.rs`,
-`docs/rules/concurrency/`, `data/rules/concurrency/`. The SQL Server container is up
-(`docker compose -f tests/db/compose.yaml up -d --wait mssql` if not).
+**Stage 6, admission subtracts a wedged core**. Files: `crates/nvs-server/src/admit.rs`,
+`crates/nvs-host/src/watchdog.rs`.
 
-- [ ] TDS: give the wire a `stalled` flag as MySQL's has. `crates/nvs-db/src/tds/wire.rs:204` Then
-  send `PacketType::Attention` on the same socket, read tokens to the `DONE` with the attention
-  bit (`0x20`), then `Idle`. `rule:concurrency/a-deadline-bounds-the-cancel-not-the-return`.
-  `crates/nvs-db/src/tds/wire.rs:204` `crates/nvs-db/src/tds/framing.rs:34` `crates/nvs-db/src/conn.rs:1270`
-- [ ] Add SQL Server to `cancelling_leg` and `interrupt` (`WAITFOR DELAY`). `crates/nvs-stdlib/tests/db_stream.rs:756`
-- [ ] Ship the rule once TDS lands. `docs/rules/concurrency/a-deadline-bounds-the-cancel-not-the-return.md:15`
-  The record gets `shipped`, `guardedBy` and no `goal`, and the fragment loses "Not on disk".
+- [ ] `Admission` drops a reported core's share of `max_in_flight`. `crates/nvs-server/src/admit.rs:201`
+  The standing decision *A wedged core is shed* says how. `crates/nvs-host/src/watchdog.rs:201`
+- [ ] The share returns when the core turns again, with the `wedged-core-shed` tests. `crates/nvs-host/src/watchdog.rs:714`
+- [ ] The watchdog's module doc says what admission does with its report. `crates/nvs-host/src/watchdog.rs:25`
 
 ### Backlog
 
