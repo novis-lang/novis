@@ -6,6 +6,7 @@
 // covers: Novis\Spreadsheet\Workbook::createForDownload
 // covers: Novis\Spreadsheet\Workbook::sheet
 // covers: Novis\Spreadsheet\Workbook::finish
+// covers: Novis\Spreadsheet\Written::constructor
 // covers: Novis\Spreadsheet\Sheet::add
 // covers: Novis\Spreadsheet\Sheet::addAll
 use Novis\Spreadsheet\Workbook;

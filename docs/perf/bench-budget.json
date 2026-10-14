@@ -1,5 +1,5 @@
 {
-  "total": 112613465,
+  "total": 112771816,
   "benches": {
     "benches/members/core/Arr/all.nvs": 1542,
     "benches/members/core/Arr/any.nvs": 1542,
@@ -998,9 +998,23 @@
     "benches/members/lang/types/void-never-self-static.nvs": 2565,
     "benches/members/lang/types/what-does-not-exist.nvs": 1884,
     "benches/members/lang/types/widening-without-as.nvs": 5125,
+    "benches/members/novis/Spreadsheet-Cell/of.nvs": 12310,
+    "benches/members/novis/Spreadsheet-Export/bytes.nvs": 7589,
+    "benches/members/novis/Spreadsheet-Export/download.nvs": 10853,
+    "benches/members/novis/Spreadsheet-Export/save.nvs": 7462,
+    "benches/members/novis/Spreadsheet-Export/to.nvs": 9160,
+    "benches/members/novis/Spreadsheet-Formula/of.nvs": 14342,
     "benches/members/novis/Spreadsheet-Reader/rows.nvs": 300916,
     "benches/members/novis/Spreadsheet-Sheet/chart.nvs": 147862,
+    "benches/members/novis/Spreadsheet-Style/of.nvs": 7942,
     "benches/members/novis/Spreadsheet-Template/fill.nvs": 78972,
-    "benches/members/novis/Spreadsheet-Workbook/fromRows.nvs": 249972
+    "benches/members/novis/Spreadsheet-Workbook/createForDownload.nvs": 10405,
+    "benches/members/novis/Spreadsheet-Workbook/createForFile.nvs": 7014,
+    "benches/members/novis/Spreadsheet-Workbook/createForStream.nvs": 8711,
+    "benches/members/novis/Spreadsheet-Workbook/createInMemory.nvs": 26022,
+    "benches/members/novis/Spreadsheet-Workbook/define.nvs": 453,
+    "benches/members/novis/Spreadsheet-Workbook/finish.nvs": 17093,
+    "benches/members/novis/Spreadsheet-Workbook/fromRows.nvs": 249972,
+    "benches/members/novis/Spreadsheet-Workbook/sheet.nvs": 18995
   }
 }

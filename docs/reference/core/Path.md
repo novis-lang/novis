@@ -1,6 +1,6 @@
 ---
 summary: path text taken apart and put together — basename, extension, join, normalize, relative paths — without touching the filesystem
-keywords: basename, dirname, pathinfo, PATHINFO_EXTENSION, PATHINFO_BASENAME, realpath, DIRECTORY_SEPARATOR, explode(DIRECTORY_SEPARATOR), path, file extension, absolute path, relative path, normalize, ..
+keywords: path, file name, file extension, directory name, parent directory, join paths, path separator, absolute path, relative path, normalize, ..
 ---
 
 `Core\Path` is string algebra over path text: no member reads the disk, so nothing here needs a

@@ -1,0 +1,66 @@
+<?nvs
+// Attack: a program with no `fs.write` grant saves exports and a filled template to paths it should not reach.
+// Each save should throw an error and write nothing. The server keeps running.
+use Novis\Spreadsheet\Template;
+use Novis\Spreadsheet\Workbook;
+
+class Attack
+{
+    // This method saves a small export to `$path`, and prints whether it ran or threw.
+    public static function rows(int $step, string $path): void
+    {
+        try {
+            Workbook::fromRows([['order' => $step]])->save($path);
+            echo 'step ', $step, " ran\n";
+        } catch (Throwable $e) {
+            echo 'step ', $step, ' stopped ', $e::class, "\n";
+        }
+    }
+
+    // This method fills a small template and saves it to `$path`.
+    public static function template(int $step, bytes $template, string $path): void
+    {
+        try {
+            Template::open($template)->fill(['shop' => 'Shop'])->save($path);
+            echo 'step ', $step, " ran\n";
+        } catch (Throwable $e) {
+            echo 'step ', $step, ' stopped ', $e::class, "\n";
+        }
+    }
+
+    // This generator gives one row, then saves another export before the next row.
+    public static function nested(): Iterator<array<mixed>>
+    {
+        yield ['order' => 1];
+        Attack::rows(4, 'inner.xlsx');
+        yield ['order' => 2];
+    }
+}
+
+var $design = Workbook::createInMemory();
+$design->sheet('Invoice')->add(['{{shop}}']);
+bytes $template = $design->finish()->bytes ?? Core\Bytes::fill(0, 0);
+
+// 1. A plain path, a CSV path and a template, with no grant at all.
+Attack::rows(1, 'orders.xlsx');
+Attack::rows(1, 'orders.csv');
+Attack::template(1, $template, 'invoice.xlsx');
+
+// 2. Paths that climb out of the folder, or point at a system file.
+Attack::rows(2, '../../orders.xlsx');
+Attack::template(2, $template, '/etc/passwd');
+Attack::template(2, $template, "C:\\Windows\\win.ini");
+
+// 3. An empty path, a NUL byte, a folder, and a path of 100,000 characters.
+Attack::rows(3, '');
+Attack::rows(3, "orders\u{0}.xlsx");
+Attack::template(3, $template, '.');
+Attack::rows(3, Core\Str::repeat('a', 100000) . '.xlsx');
+
+// 4. The rows come from a generator that saves a second export while the first one is written.
+try {
+    Workbook::fromRows(Attack::nested())->save('outer.xlsx');
+    echo "step 4 ran\n";
+} catch (Throwable $e) {
+    echo 'step 4 stopped ', $e::class, "\n";
+}

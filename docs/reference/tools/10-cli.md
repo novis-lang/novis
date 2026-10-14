@@ -2,7 +2,7 @@
 id: cli
 title: The nvs command
 summary: every subcommand of the `nvs` binary — run, check, test, build, api, config, info, meta, ast — with its flags, its exit status and what it prints
-keywords: nvs, nvs run, nvs check, nvs test, nvs build, --compile, --openapi, nvs api diff, nvs config check, nvs config dump, nvs info, nvs meta --json, nvs ast, --config, --dump-ir, --dump-asm, --filter, --format, exit status, exit code, .nvs, .php, shebang, cache, single-file executable, bundle, php -l, php -i, php -r, phpunit, composer, phpdbg
+keywords: nvs, nvs run, nvs check, nvs test, nvs build, --compile, --openapi, nvs api diff, nvs config check, nvs config dump, nvs info, nvs meta --json, nvs ast, --config, --dump-ir, --dump-asm, --filter, --format, exit status, exit code, .nvs, shebang, cache, single-file executable, bundle, syntax check, version, licenses
 ---
 
 # One binary
@@ -49,22 +49,11 @@ Every subcommand also takes `--config <PATH>` (see `nvs run`), `--data <PATH>` a
 - A program is a `.nvs` file. The extension is a convention, not a rule: the front end never reads
   it, `nvs run` accepts any path, and what matters is the content. `nvs test` is the one command
   that decides anything from an extension, because it has two suites to choose between.
-- **Novis does not run PHP.** There is no PHP mode and no PHP front end in this binary: a file
-  opening with `<?php` is refused with `E0229` whatever it is named, and renaming a PHP file to
-  `.nvs` changes nothing about that. `<?` alone is not a tag at all — the file stays in HTML mode
-  and is copied to the output.
+- `<?` alone is not a tag. The file stays in HTML mode, and `<?` is copied to the output as text.
 - A `#!` first line opens code mode. When the first two bytes of a file are `#!`, Novis skips that
   line and reads the rest as code, as if `<?nvs` stood there, so `#!/usr/bin/env nvs` makes a
   script you run as `./tool` on Linux and macOS. An `<?nvs` in such a file before any `?>` is
   `E0009`. `#!` anywhere else is ordinary text.
-
-```nvs error
-<?php
-echo "old tag";
-```
-```output
-E0229
-```
 
 # nvs run
 
@@ -517,7 +506,7 @@ Prints what this binary is: the version, commit, build profile, target triple, R
 versions under **Build**; the operating system, architecture, CPU parallelism and executable path
 under **Host**; and under **Licensing** the `nvs` license (MIT) followed by every third-party
 component with its version and the license Novis takes it under. `--licenses` appends every
-license text in full. It answers what `php -i` answers, but there is no `nvs -i`: that is an
+license text in full. There is no `nvs -i`: that is an
 unknown argument, and `nvs` exits with status 2. The output below is trimmed at each `...`.
 
 ```text

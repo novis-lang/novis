@@ -1,6 +1,6 @@
 ---
 summary: HTML as a page writes it — the ``html`…` `` template, `Core\Html\Markup`, escaping, sanitizing and parsing
-keywords: html, markup, template, html template, page, view, render, escape, escaping, xss, htmlspecialchars, htmlentities, html_entity_decode, strip_tags, DOMDocument, loadHTML, sanitize, parse
+keywords: html, markup, template, html template, page, view, render, escape, escaping, xss, html entities, sanitize, parse
 ---
 
 `Core\Html\Markup` is the one type an HTTP request writes raw; every `string` written into a

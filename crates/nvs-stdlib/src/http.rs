@@ -1873,8 +1873,7 @@ const UNJOINABLE_FIELD: &str = "set-cookie";
 
 /// `Core\Http\Response::status`'s reference card — `rule:core-api/reference-card`.
 const STATUS_DOC: MethodDoc = MethodDoc {
-    short: "The reply's HTTP status code, as the origin sent it and with nothing read into it — \
-            replacing `curl_getinfo`'s `CURLINFO_RESPONSE_CODE` key.",
+    short: "Returns the reply's HTTP status code, exactly as the server sent it.",
     params: &[],
     ret: "The status line's three-digit code. A `404` and a `500` are answers, so they arrive \
           here rather than as a throw; only a request that got no reply at all throws.",
@@ -1883,8 +1882,7 @@ const STATUS_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Http\Response::text`'s reference card — `rule:core-api/reference-card`.
 const TEXT_DOC: MethodDoc = MethodDoc {
-    short: "The reply's body as text, replacing `curl_exec`'s return value and the \
-            `CURLOPT_RETURNTRANSFER` flag that decided whether there was one.",
+    short: "Returns the reply's body as text.",
     params: &[],
     ret: "The body, `tainted`: it is bytes another host chose, and a pinned address settles where \
           they came from rather than what is in them. A sink's own launderer is the way out of \
@@ -1941,8 +1939,8 @@ const JSON_AS_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Http\Response::header`'s reference card — `rule:core-api/reference-card`.
 const HEADER_DOC: MethodDoc = MethodDoc {
-    short: "One reply header, read by a name that matches however the origin capitalised it — \
-            replacing `curl_getinfo`'s header string and the hand-written parse under it.",
+    short: "Returns one header of the reply. The name matches in upper or lower case, whichever \
+            the server used.",
     params: &[ParamDoc {
         name: "name",
         desc: "The field name, matched case-insensitively as RFC 9110 § 5.1 defines it.",
@@ -1975,8 +1973,8 @@ const HEADERS_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Http\Response::tls`'s reference card — `rule:core-api/reference-card`.
 const TLS_DOC: MethodDoc = MethodDoc {
-    short: "The TLS session this reply arrived over: what the handshake settled, and whether it \
-            checked the peer — replacing the scattered `CURLINFO_SSL_*` keys of `curl_getinfo`.",
+    short: "Returns the details of the TLS connection this reply came over. They include the \
+            settings both sides agreed on, and whether the server's certificate was checked.",
     params: &[],
     ret: "The session, or `null` where the reply arrived over none at all — a plain `http` \
           exchange, or a call a test's answer table served.",

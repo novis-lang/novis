@@ -1310,8 +1310,7 @@ const INSTANT_PLUS_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Time\Instant::minus`'s reference card — `rule:core-api/reference-card`.
 const INSTANT_MINUS_DOC: MethodDoc = MethodDoc {
-    short: "Moves the instant back by an exact `Duration`, replacing `date_sub` for an exact \
-            offset.",
+    short: "Moves the instant back by an exact `Duration`.",
     params: &[ParamDoc {
         name: "d",
         desc: "The exact duration to subtract; a negative one moves the instant forward.",
@@ -1517,10 +1516,9 @@ pub const WEEKDAY: CoreEnum = CoreEnum {
 
 /// [`WEEKDAY`]'s reference card — `rule:core-api/reference-card`.
 const WEEKDAY_DOC: EnumDoc = EnumDoc {
-    short: "A day of the week, Monday first as ISO 8601 and `date(\"N\")` order them — what \
-            `$d->weekday()` answers and `next`/`previous` take. The order is theirs and the \
-            numbering is not: the cases are zero-based, `Monday as int` is `0` and `Sunday` \
-            is `6`, where `date(\"N\")` numbers that same order `1` through `7`.",
+    short: "A day of the week, in ISO 8601 order with Monday first. `$d->weekday()` returns one, \
+            and `next` and `previous` take one. The cases are numbered from zero: `Monday as int` \
+            is `0` and `Sunday` is `6`.",
     cases: &[
         CaseDoc {
             name: "Monday",
@@ -1788,9 +1786,8 @@ const DATETIME_CARD: ClassDoc = ClassDoc {
 
 /// `Core\Time\DateTime::format`'s reference card — `rule:core-api/reference-card`.
 const DATETIME_FORMAT_DOC: MethodDoc = MethodDoc {
-    short: "Renders the civil date and time through a CLDR pattern — `yyyy-MM-dd HH:mm:ss`, \
-            `EEEE, d MMMM yyyy` — replacing `date`, `gmdate`, `idate`, `strftime` and \
-            `date_format`; names render in CLDR's root locale, since there is no `setlocale`.",
+    short: "Turns the date and time into text with a CLDR pattern, such as `yyyy-MM-dd HH:mm:ss` \
+            or `EEEE, d MMMM yyyy`. Day and month names always use CLDR's root locale.",
     params: &[ParamDoc {
         name: "pattern",
         desc: "A CLDR pattern in the subset `crates/nvs-stdlib/src/cldr.rs` implements — a \
@@ -1811,10 +1808,9 @@ const DATETIME_FORMAT_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Time\DateTime::plus`'s reference card — `rule:core-api/reference-card`.
 const DATETIME_PLUS_DOC: MethodDoc = MethodDoc {
-    short: "Moves the value forward by `$count` calendar steps of `$unit`, replacing `date_add`, \
-            `modify` and `strtotime`'s relative half: `1, Unit::Month` lands on the same \
-            day-of-month clamped to the month's length, and a day across a DST boundary is 23 \
-            or 25 hours. The exact half is `$d->toInstant()->plus(24h)`.",
+    short: "Moves the value forward by `$count` calendar steps of `$unit`. `1, Unit::Month` gives \
+            the same day of the month, limited to the length of the new month. A day across a DST \
+            change is 23 or 25 hours long. For an exact step, use `$d->toInstant()->plus(24h)`.",
     params: &[
         ParamDoc {
             name: "count",
@@ -1837,8 +1833,8 @@ const DATETIME_PLUS_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Time\DateTime::minus`'s reference card — `rule:core-api/reference-card`.
 const DATETIME_MINUS_DOC: MethodDoc = MethodDoc {
-    short: "Moves the value back by `$count` calendar steps of `$unit`, replacing `date_sub` — \
-            `plus` with the count negated, so the two agree at a month end and a DST boundary.",
+    short: "Moves the value back by `$count` calendar steps of `$unit`. It is `plus` with the \
+            count negated, so the two give the same results at a month end and at a DST change.",
     params: &[
         ParamDoc {
             name: "count",
@@ -1861,8 +1857,8 @@ const DATETIME_MINUS_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Time\DateTime::next`'s reference card — `rule:core-api/reference-card`.
 const DATETIME_NEXT_DOC: MethodDoc = MethodDoc {
-    short: "Finds the nearest strictly later day that falls on `$w`, with the time of day \
-            preserved — `strtotime(\"next monday\")` as a typed call.",
+    short: "Finds the first day after this one that falls on `$w`. The time of day stays the \
+            same.",
     params: &[ParamDoc {
         name: "w",
         desc: "The weekday to move to.",
@@ -1878,8 +1874,8 @@ const DATETIME_NEXT_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Time\DateTime::previous`'s reference card — `rule:core-api/reference-card`.
 const DATETIME_PREVIOUS_DOC: MethodDoc = MethodDoc {
-    short: "Finds the nearest strictly earlier day that falls on `$w`, with the time of day \
-            preserved — `strtotime(\"last monday\")` as a typed call.",
+    short: "Finds the last day before this one that falls on `$w`. The time of day stays the \
+            same.",
     params: &[ParamDoc {
         name: "w",
         desc: "The weekday to move to.",
@@ -1895,9 +1891,8 @@ const DATETIME_PREVIOUS_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Time\DateTime::with`'s reference card — `rule:core-api/reference-card`.
 const DATETIME_WITH_DOC: MethodDoc = MethodDoc {
-    short: "Replaces any of the seven civil fields and leaves the rest, replacing `setDate`, \
-            `setTime` and `setISODate`; a civil time the zone skips resolves forward past the \
-            gap.",
+    short: "Replaces any of the seven date and time fields and keeps the others. If the zone skips \
+            the new time, the result moves forward past the gap.",
     params: &[
         ParamDoc {
             name: "year",
@@ -1963,10 +1958,10 @@ const DATETIME_WITH_TIME_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Time\DateTime::startOf`'s reference card — `rule:core-api/reference-card`.
 const DATETIME_START_OF_DOC: MethodDoc = MethodDoc {
-    short: "Truncates the value down to the first instant of the enclosing `$u` — \
-            `startOf(Unit::Day)` is the local midnight, `strtotime(\"today\")`, and \
-            `startOf(Unit::Month)` its first day — computed on the civil fields and then placed \
-            back in the zone.",
+    short: "Moves the value back to the first instant of the `$u` that contains it. \
+            `startOf(Unit::Day)` is local midnight, and `startOf(Unit::Month)` is the first day of \
+            the month. It is calculated on the date and time fields and then placed back in the \
+            zone.",
     params: &[ParamDoc {
         name: "u",
         desc: "The unit to truncate to; `Unit::Week` starts on Monday and `Unit::Quarter` on \
@@ -1982,10 +1977,10 @@ const DATETIME_START_OF_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Time\DateTime::endOf`'s reference card — `rule:core-api/reference-card`.
 const DATETIME_END_OF_DOC: MethodDoc = MethodDoc {
-    short: "Moves the value to the last instant of the enclosing `$u`, one nanosecond before \
-            the next one starts — `endOf(Unit::Month)` is `strtotime(\"last day of this \
-            month\")`; a distinct operation from `startOf` on a day a DST boundary lengthens \
-            or shortens.",
+    short: "Moves the value to the last instant of the `$u` that contains it, one nanosecond before \
+            the next one starts. `endOf(Unit::Month)` is the end of the month's last day. It is \
+            calculated separately from `startOf`. This matters on a day that a DST change makes \
+            longer or shorter.",
     params: &[ParamDoc {
         name: "u",
         desc: "The unit whose last instant to find.",
@@ -2000,9 +1995,8 @@ const DATETIME_END_OF_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Time\DateTime::difference`'s reference card — `rule:core-api/reference-card`.
 const DATETIME_DIFFERENCE_DOC: MethodDoc = MethodDoc {
-    short: "Counts whole units of `$unit` from the receiver to `$other`, in the receiver's \
-            zone — an age in years, a term in months — replacing `date_diff` and \
-            `DateInterval`'s `y`/`m`/`d` fields.",
+    short: "Counts the whole units of `$unit` from this value to `$other`, in this value's zone. \
+            Use it for an age in years or a term in months.",
     params: &[
         ParamDoc {
             name: "other",
@@ -2064,8 +2058,7 @@ const DATETIME_ZONE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Time\DateTime::weekday`'s reference card — `rule:core-api/reference-card`.
 const DATETIME_WEEKDAY_DOC: MethodDoc = MethodDoc {
-    short: "Answers the day of the week, replacing `date(\"N\")` — as the enum case rather \
-            than the number.",
+    short: "Returns the day of the week, as a `Weekday` enum case.",
     params: &[],
     ret: "The `Weekday` case, `Weekday::Monday` through `Weekday::Sunday`.",
     errors: &[],
@@ -2073,18 +2066,16 @@ const DATETIME_WEEKDAY_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Time\DateTime::dayOfYear`'s reference card — `rule:core-api/reference-card`.
 const DATETIME_DAY_OF_YEAR_DOC: MethodDoc = MethodDoc {
-    short: "Answers the ordinal day within the year, replacing `date(\"z\")`.",
+    short: "Returns the day of the year, counted from `1`.",
     params: &[],
-    ret: "`1` for 1 January through `365` or `366` — one-based where `date(\"z\")` is \
-          zero-based, as every other day count here is.",
+    ret: "`1` for 1 January through `365` or `366`. It counts from one, as every other day count \
+          in this class does.",
     errors: &[],
 };
 
 /// `Core\Time\DateTime::isLeapYear`'s reference card — `rule:core-api/reference-card`.
 const DATETIME_IS_LEAP_YEAR_DOC: MethodDoc = MethodDoc {
-    short: "Answers whether the value's year has a 29 February, replacing `date(\"L\")` and \
-            `checkdate`'s year half; the day half has no equivalent because a date that does \
-            not exist throws where it is built.",
+    short: "Checks whether the value's year has a 29 February.",
     params: &[],
     ret: "`true` in a leap year of the proleptic Gregorian calendar.",
     errors: &[],
@@ -2283,10 +2274,8 @@ const TIME_MONOTONIC_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Time::sleep`'s reference card — `rule:core-api/reference-card`.
 const TIME_SLEEP_DOC: MethodDoc = MethodDoc {
-    short: "Waits for `$d`, replacing `sleep`, `usleep`, `time_nanosleep` and \
-            `time_sleep_until` — parking the task rather than blocking the core, so a \
-            neighbour on the same core runs meanwhile; a request cancelled mid-sleep stops \
-            here.",
+    short: "Waits for `$d`. Only this task waits, so other work on the same core keeps running. \
+            If the request is cancelled during the wait, it stops here.",
     params: &[ParamDoc {
         name: "d",
         desc: "How long to wait; zero or negative returns at once.",
@@ -2298,9 +2287,8 @@ const TIME_SLEEP_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Time::fromEpoch`'s reference card — `rule:core-api/reference-card`.
 const TIME_FROM_EPOCH_DOC: MethodDoc = MethodDoc {
-    short: "Builds the instant at a Unix timestamp, replacing `DateTime::setTimestamp`; the \
-            `nanos` option is added after the second, so `-1` with `{nanos: 1}` is one \
-            nanosecond after `-1`, not before it.",
+    short: "Builds the instant at a Unix timestamp. The `nanos` option is added after the second, \
+            so `-1` with `{nanos: 1}` is one nanosecond after `-1`.",
     params: &[
         ParamDoc {
             name: "seconds",
@@ -2325,10 +2313,10 @@ const TIME_FROM_EPOCH_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Time::fromIso`'s reference card — `rule:core-api/reference-card`.
 const TIME_FROM_ISO_DOC: MethodDoc = MethodDoc {
-    short: "Reads an ISO-8601 / RFC 3339 timestamp that carries its own offset — \
-            `2024-03-01T12:00:00Z`, `2024-03-01T13:00:00+01:00` — which is all of `strtotime` \
-            and `DateTime::__construct` that survives: a civil time with no offset is \
-            `Time::parse` with a zone, and a relative expression is a typed call.",
+    short: "Reads an ISO 8601 or RFC 3339 timestamp that includes its own offset, such as \
+            `2024-03-01T12:00:00Z` or `2024-03-01T13:00:00+01:00`. For a date and time with no \
+            offset, use `Time::parse` with a zone. For a relative time, use a method such as \
+            `plus` or `next`.",
     params: &[ParamDoc {
         name: "text",
         desc: "The timestamp text, with a date, a time and a `Z` or `±HH:MM` offset.",
@@ -2344,10 +2332,9 @@ const TIME_FROM_ISO_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Time::parse`'s reference card — `rule:core-api/reference-card`.
 const TIME_PARSE_DOC: MethodDoc = MethodDoc {
-    short: "Reads a civil date and time through a CLDR pattern and places it in `$zone`, \
-            replacing `DateTime::createFromFormat` and `strptime`. A `$format` written \
-            directly in the code is checked when the program compiles, and a malformed one is \
-            error `E0769`. A field the pattern does not name is left at the start of its range.",
+    short: "Reads a date and time with a CLDR pattern and places it in `$zone`. A `$format` \
+            written directly in the code is checked when the program compiles. A malformed one is \
+            error `E0769`. A field the pattern does not contain is set to the start of its range.",
     params: &[
         ParamDoc {
             name: "text",
@@ -2391,10 +2378,9 @@ const TIME_PARSE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Time::at`'s reference card — `rule:core-api/reference-card`.
 const TIME_AT_DOC: MethodDoc = MethodDoc {
-    short: "Builds a civil date and time in `$zone` from its fields, replacing `mktime`, \
-            `gmmktime` and `DateTime::setDate`; the clock fields default to midnight, and a \
-            time the zone skips — 02:30 on a spring-forward morning — resolves forward rather \
-            than throwing.",
+    short: "Builds a date and time in `$zone` from its fields. The clock fields default to \
+            midnight. If the zone skips the time, such as 02:30 on the morning the clocks go \
+            forward, the result moves forward past the gap.",
     params: &[
         ParamDoc {
             name: "year",
@@ -2441,9 +2427,9 @@ const TIME_AT_DOC: MethodDoc = MethodDoc {
     ret: "The `DateTime` in `$zone`.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "A field is outside its range, the fields together are not a date that exists \
-               — `30` February — which is what `checkdate` used to answer, or the time lies \
-               past either end of the range `$year` names.",
+        desc: "A field is outside its range, or the fields together are not a date that exists, \
+               such as `30` February. Or the time is past either end of the range `$year` \
+               allows.",
     }],
 };
 
@@ -2584,8 +2570,8 @@ const DATE_CARD: ClassDoc = ClassDoc {
 
 /// `Core\Time\Date::at`'s reference card — `rule:core-api/reference-card`.
 const DATE_AT_DOC: MethodDoc = MethodDoc {
-    short: "Builds a zone-free civil date from its three fields — the one place a date that \
-            does not exist throws, which is why there is no `checkdate`.",
+    short: "Builds a date with no zone from its three fields. A date that does not exist, such as \
+            30 February, throws an error.",
     params: &[
         ParamDoc {
             name: "y",

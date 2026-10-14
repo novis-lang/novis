@@ -1,6 +1,6 @@
 ---
-summary: a priority queue that answers its smallest element first — `SplPriorityQueue`, `SplMinHeap` and `SplMaxHeap` in one class
-keywords: SplPriorityQueue, SplMinHeap, SplMaxHeap, SplHeap, priority queue, min-heap, max-heap, comparator, Comparable, compareTo, scheduling
+summary: a priority queue that answers its smallest element first, and a max-heap when its comparator is reversed
+keywords: priority queue, heap, binary heap, min-heap, max-heap, smallest first, comparator, Comparable, compareTo, scheduling
 ---
 
 `Core\Heap<T>` keeps its elements ordered so that `peek` and `pop` always answer the **smallest** one. The

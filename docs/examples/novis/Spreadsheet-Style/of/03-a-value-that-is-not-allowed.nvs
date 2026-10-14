@@ -1,0 +1,20 @@
+<?nvs
+// Shows what happens when a style field has a value that is not allowed.
+use Novis\Spreadsheet\Style;
+
+// `border` accepts six names. Any other name throws a `LogicError` that lists them.
+try {
+    Style::of({border: "wavy"});
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+
+// `align` works the same way.
+try {
+    Style::of({align: "middle"});
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+
+// Two styles with the same fields have the same `key`, so the file has one entry for both.
+echo Style::of({bold: true})->key == Style::of({bold: true})->key ? "same style" : "two styles", "\n";

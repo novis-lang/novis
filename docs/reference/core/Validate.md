@@ -1,6 +1,6 @@
 ---
 summary: the format predicates — is this text an email address, a hostname, an IP or MAC address, ASCII, printable — answering `bool` and laundering nothing
-keywords: filter_var, FILTER_VALIDATE_EMAIL, FILTER_VALIDATE_IP, FILTER_VALIDATE_DOMAIN, FILTER_VALIDATE_MAC, FILTER_FLAG_IPV4, FILTER_FLAG_IPV6, ctype_print, validation, predicate
+keywords: validation, validate, predicate, email address, IP address, IPv4, IPv6, domain name, MAC address, printable characters
 ---
 
 Every `Core\Validate` member is a predicate over a `string` naming a *format*: `isEmail`,

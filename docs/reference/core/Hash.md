@@ -1,6 +1,6 @@
 ---
 summary: digests and HMACs over text or bytes, answered as raw `bytes` — the algorithm is an argument, never part of the member's name
-keywords: hash, md5, sha1, sha256, crc32, hash_hmac, hash_equals, openssl_digest, digest, HMAC, checksum, constant-time comparison
+keywords: hash, md5, sha1, sha256, crc32, digest, HMAC, checksum, fingerprint, constant-time comparison
 ---
 
 `Core\Hash::of` computes any `Core\Hash::Digest` case over a `string` or `bytes` and answers the raw

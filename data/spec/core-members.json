@@ -62,7 +62,7 @@
         [
           "ask whether a key exists",
           "`Arr::hasKey($a, $k)`",
-          "`isset()`/`array_key_exists` both collapse here"
+          "the one way to test for a key"
         ],
         [
           "combine two arrays",
@@ -872,41 +872,41 @@
         "Entry points on `Core\\Time`"
       ],
       "columns": [
-        "PHP",
+        "Task",
         "Novis"
       ],
       "rows": [
         [
-          "`strtotime(\"now\")`",
+          "the current time in a zone",
           "`Time::now()->in($z)`"
         ],
         [
-          "`strtotime(\"+3 days\")`",
+          "three days from now",
           "`Time::now()->in($z)->plus(3, Unit::Day)` — or `Time::now()->plus(72h)` for an exact offset"
         ],
         [
-          "`strtotime(\"today\")`",
+          "the start of today",
           "`Time::now()->in($z)->startOf(Unit::Day)`"
         ],
         [
-          "`strtotime(\"next monday\")`",
+          "next Monday",
           "`Time::now()->in($z)->next(DateTime::Weekday::Monday)`"
         ],
         [
-          "`strtotime(\"first day of next month\")`",
+          "the first day of next month",
           "`Time::now()->in($z)->startOf(Unit::Month)->plus(1, Unit::Month)`"
         ],
         [
-          "`strtotime(\"last day of this month\")`",
+          "the last day of this month",
           "`Time::now()->in($z)->endOf(Unit::Month)`"
         ],
         [
-          "`strtotime(\"2024-03-01\")`",
+          "a date in a known format",
           "`Time::parse($t, \"yyyy-MM-dd\", $z)`"
         ],
         [
-          "`strtotime($userSuppliedRelativeString)`",
-          "`Duration::parse($s)`, for the exact-duration subset only"
+          "a relative length a user supplied",
+          "`Duration::parse($s)`, for exact durations only"
         ]
       ]
     },
@@ -930,22 +930,22 @@
         [
           "`toEpochSeconds`",
           "`$i->toEpochSeconds(): int`",
-          "replaces `getTimestamp`, `date(\"U\")`"
+          "the whole seconds since 1970-01-01 UTC"
         ],
         [
           "`toEpochMillis`",
           "`$i->toEpochMillis(): int`",
-          "plus `toEpochMicros`, replacing `microtime(true)`'s two halves"
+          "the milliseconds since 1970-01-01 UTC. `toEpochMicros` gives microseconds"
         ],
         [
           "`plus` / `minus`",
           "`$i->plus(Duration $d): Instant`",
-          "replaces `date_add`, `date_sub`, `modify`"
+          "moves the instant by an exact duration"
         ],
         [
           "`since`",
           "`$i->since(Instant $earlier): Duration`",
-          "replaces `date_diff`, `DateInterval` arithmetic"
+          "the exact time between two instants"
         ],
         [
           "`compareTo`",
@@ -955,7 +955,7 @@
         [
           "`toIso`",
           "`$i->toIso(): string`",
-          "replaces `date(DATE_ATOM)`"
+          "the instant as an ISO 8601 string"
         ]
       ]
     },
@@ -974,22 +974,22 @@
         [
           "`format`",
           "`$d->format(string $pattern): string`",
-          "`rule:expressions/intrinsic-constant-arguments` intrinsic, CLDR patterns. Replaces `date`, `gmdate`, `idate`, `strftime`, `date_format`"
+          "`rule:expressions/intrinsic-constant-arguments` intrinsic, CLDR patterns"
         ],
         [
           "`plus` / `minus`",
           "`$d->plus(int $count, Unit $unit): DateTime`",
-          "calendar arithmetic: adding `1, Unit::Month` lands on the same day-of-month, clamped to the month's length, and crossing a DST boundary is a 23- or 25-hour day. Replaces `date_add`, `date_sub`, `modify`, `strtotime`'s relative half"
+          "calendar arithmetic: adding `1, Unit::Month` lands on the same day-of-month, clamped to the month's length, and crossing a DST boundary is a 23- or 25-hour day"
         ],
         [
           "`next` / `previous`",
           "`$d->next(Weekday $w): DateTime`",
-          "the nearest strictly later (earlier) day with that weekday, time-of-day preserved. Replaces `strtotime(\"next monday\")`"
+          "the nearest strictly later (earlier) day with that weekday, time-of-day preserved"
         ],
         [
           "`with`",
           "`$d->with({year?, month?, day?, hour?, minute?, second?, nanos?}): DateTime`",
-          "replaces `setDate`, `setTime`, `setISODate`"
+          "a copy with the named fields changed"
         ],
         [
           "`withTime`",
@@ -1004,7 +1004,7 @@
         [
           "`difference`",
           "`$d->difference(DateTime $other, Unit $unit): int`",
-          "whole units from the receiver **to** `$other`, counted in the *receiver's* zone — an age in years, a term in months. Replaces `date_diff` + `DateInterval`'s `y`/`m`/`d` fields"
+          "whole units from the receiver **to** `$other`, counted in the *receiver's* zone — an age in years, a term in months"
         ],
         [
           "`toInstant`",
@@ -1019,17 +1019,17 @@
         [
           "`weekday`",
           "`$d->weekday(): Weekday`",
-          "replaces `date(\"N\")`"
+          "the day of the week"
         ],
         [
           "`dayOfYear`",
           "`$d->dayOfYear(): uint`",
-          "replaces `date(\"z\")`"
+          "the day of the year, counted from `1`"
         ],
         [
           "`isLeapYear`",
           "`$d->isLeapYear(): bool`",
-          "replaces `date(\"L\")`, `checkdate`'s year half"
+          "`true` when the date's year is a leap year"
         ]
       ]
     },
@@ -1068,7 +1068,7 @@
         [
           "`Zone::of`",
           "`of(string $id): Zone`",
-          "IANA identifier; throws on an unknown one. Replaces `DateTimeZone`"
+          "IANA identifier; throws on an unknown one"
         ],
         [
           "`Zone::fixed`",
@@ -1078,7 +1078,7 @@
         [
           "`Zone::system`",
           "`system(): Zone`",
-          "the host's configured zone, read once at boot. Replaces `date_default_timezone_get`"
+          "the host's configured zone, read once at boot"
         ],
         [
           "`Zone::UTC`",
@@ -1088,7 +1088,7 @@
         [
           "`$z->offsetAt`",
           "`$z->offsetAt(Instant $i): Duration`",
-          "replaces `getOffset`"
+          "the zone's offset from UTC at that instant"
         ]
       ]
     },
@@ -1164,12 +1164,12 @@
         [
           "`groups`",
           "`$match->groups(): array<?string>`",
-          "every group at once, in `preg_match`'s own order: a named group under its name, then under its number"
+          "every group at once, in pattern order. A named group appears under its name, then under its number"
         ],
         [
           "`offset`",
           "`$match->offset(): int`",
-          "where the whole match starts, in `rule:types/string-is-utf8`'s unit — not `PREG_OFFSET_CAPTURE`'s bytes"
+          "where the whole match starts, counted in graphemes (`rule:types/string-is-utf8`), not bytes"
         ],
         [
           "`text`",
@@ -1511,7 +1511,7 @@
           "`Digest::Crc32`",
           "4",
           "",
-          "CRC-32/ISO-HDLC, PHP's `crc32b`. A checksum: accidental corruption only"
+          "CRC-32/ISO-HDLC, the CRC-32 that zip and gzip use. A checksum: accidental corruption only"
         ],
         [
           "`Digest::Crc32c`",
@@ -1595,7 +1595,7 @@
           "`Digest::Blake3`",
           "32",
           "",
-          "The fastest here, and the one algorithm PHP cannot compute"
+          "The fastest here"
         ]
       ]
     },
@@ -1733,7 +1733,7 @@
       "rows": [
         [
           "`Core\\Reflect`",
-          "`forClass`, `forObject`, `typeOf(mixed): TypeKind`, and the visibility-respecting walk. Replaces `ReflectionClass` **and** `get_class`, `get_object_vars`, `get_class_methods`, `method_exists`, `property_exists`, `class_exists`, `is_a`, `is_subclass_of`, `class_implements`, `spl_object_id`",
+          "`forClass`, `forObject`, `typeOf(mixed): TypeKind`, and the visibility-respecting walk",
           "`rule:core-classes/reflect`"
         ],
         [
@@ -1768,12 +1768,12 @@
         ],
         [
           "`Core\\Decimal`, `Core\\BigInt`",
-          "the non-operator members of the `decimal` scalar and arbitrary-precision integers. Replaces `bcmath`, `gmp`",
+          "the non-operator members of the `decimal` scalar and arbitrary-precision integers",
           "`rule:types/decimal`"
         ],
         [
           "`Core\\Serialize`",
-          "`encode(mixed $value): bytes` and `decode(bytes $data): mixed` — the user-facing half of the one graph-copy operation the `spawn` boundary already runs. `decode` is a **`tainted` sink**. Replaces `serialize`, `unserialize`",
+          "`encode(mixed $value): bytes` and `decode(bytes $data): mixed` — the user-facing half of the one graph-copy operation the `spawn` boundary already runs. `decode` is a **`tainted` sink**",
           "`rule:classes/serialize-is-a-closed-format`"
         ],
         [
@@ -1806,7 +1806,7 @@
       "rows": [
         [
           "`Core\\Http\\Client`",
-          "`get`, `post`, `put`, `patch`, `delete`, `head`, plus `request(Core\\Http\\Method, …)` for a verb chosen at run time and `stream(Core\\Http\\Method, …)` for a body read as it arrives — each over `string \\| Core\\Http\\Target`, and there is no `Core\\Http\\Request` class. `Core\\Http::allowUrl` is the SSRF launderer, and the `Target` it answers carries every approved address. `Core\\Http::methodName(Core\\Http\\Method): string` answers a case's wire token (`GET`), for an `Allow` header or a log line. Replaces all ~30 `curl_*` functions and their handle. One trailing `Core\\Http\\Options` shape — the bounds `{deadline?, connectTimeout?, idle?, maxDuration?}`, the retry keys `{retryAttempts?, retryBackoff?, retryIdempotencyKey?}`, `{headers?, followRedirects?}`, at most one body of `{json?, form?, body? + contentType?, multipart?}`, and the connection keys `{identity?, connectTo?, redirectToHttp?, tlsCa?, tlsPin?, tlsVerifyHost?, tlsVerify?, tlsMinVersion?}` — with **no spelling for an unbounded wait**: `deadline` covers every attempt and every hop, `idle` and `maxDuration` bound a streamed body, retry is jittered, and two body keys, a body on `get`, or `post`/`patch` with `retryAttempts` and no `retryIdempotencyKey`, are compile errors. A reply answers `status`, `text`, `bytes`, `header`, `headers`, `jsonAs<T>` and `tls`, all of it `tainted`; a `Core\\Http\\Stream` answers the head and then `events`, `lines`, `chunks` or `saveTo` — one of them, once. `Http\\Part::file`/`::bytes` are a body sent without being held, `Http\\Identity::read` is a client certificate, and `Core\\Test::answerHttp`/`::sentHttp` answer outbound calls from a table so a test needs no network",
+          "`get`, `post`, `put`, `patch`, `delete`, `head`, plus `request(Core\\Http\\Method, …)` for a verb chosen at run time and `stream(Core\\Http\\Method, …)` for a body read as it arrives — each over `string \\| Core\\Http\\Target`, and there is no `Core\\Http\\Request` class. `Core\\Http::allowUrl` is the SSRF launderer, and the `Target` it answers carries every approved address. `Core\\Http::methodName(Core\\Http\\Method): string` answers a case's wire token (`GET`), for an `Allow` header or a log line. One trailing `Core\\Http\\Options` shape — the bounds `{deadline?, connectTimeout?, idle?, maxDuration?}`, the retry keys `{retryAttempts?, retryBackoff?, retryIdempotencyKey?}`, `{headers?, followRedirects?}`, at most one body of `{json?, form?, body? + contentType?, multipart?}`, and the connection keys `{identity?, connectTo?, redirectToHttp?, tlsCa?, tlsPin?, tlsVerifyHost?, tlsVerify?, tlsMinVersion?}` — with **no spelling for an unbounded wait**: `deadline` covers every attempt and every hop, `idle` and `maxDuration` bound a streamed body, retry is jittered, and two body keys, a body on `get`, or `post`/`patch` with `retryAttempts` and no `retryIdempotencyKey`, are compile errors. A reply answers `status`, `text`, `bytes`, `header`, `headers`, `jsonAs<T>` and `tls`, all of it `tainted`; a `Core\\Http\\Stream` answers the head and then `events`, `lines`, `chunks` or `saveTo` — one of them, once. `Http\\Part::file`/`::bytes` are a body sent without being held, `Http\\Identity::read` is a client certificate, and `Core\\Test::answerHttp`/`::sentHttp` answer outbound calls from a table so a test needs no network",
           "`rule:http-server/allow-url-pins-the-address`, `rule:http-server/no-spelling-for-an-unbounded-wait`"
         ],
         [
@@ -1826,7 +1826,7 @@
         ],
         [
           "`Core\\Net`",
-          "TCP/UDP/Unix sockets over the runtime's own reactor. Replaces `socket_*`, `stream_socket_*`, `fsockopen` — three PHP APIs for one job",
+          "TCP, UDP and Unix sockets. One class covers all three",
           "`rule:core-api/tier-roster`"
         ],
         [
@@ -1836,17 +1836,17 @@
         ],
         [
           "`Core\\Db`",
-          "the full surface is § 18 below — the one subsystem in Part II too large for a row. Replaces `PDO` **and** the procedural `mysqli`/`pgsql`/`sqlite3` APIs",
+          "the full surface is § 18 below — the one subsystem in Part II too large for a row. One API covers every supported database",
           "`rule:core-classes/db-one-api`"
         ],
         [
           "`Core\\Crypto`, `Core\\Crypto\\PublicKey`, `Core\\Crypto\\KeyPair`",
-          "AEAD only, no ECB, no unauthenticated CBC, no cipher-name-as-string — and no algorithm argument with a default. `generateKey`, `seal`/`open` over a required `Crypto::Cipher` (`XChaCha20Poly1305`, `Aes256Gcm`), `deriveKey` (PBKDF2-HMAC-SHA256, a required iteration count bounded at 100,000 and 2,000,000), `expandKey` (HKDF-SHA256), `generateKeyPair`/`agree` over `Crypto\\KeyKind`, and `sign`/`verify`, whose scheme is the key's kind. On the two key types: `read`/`write` over `Crypto\\PublicKey::Format` (`Raw`, `Spki`, `Jwk`) and PKCS#8, with every public key validated at `read` and no RSA pair ever generated. AES-GCM seals as `nonce(12) ‖ ciphertext ‖ tag(16)`, which is what WebCrypto answers. Replaces `openssl_*`'s primitive half and `sodium_*`",
+          "AEAD only, no ECB, no unauthenticated CBC, no cipher-name-as-string — and no algorithm argument with a default. `generateKey`, `seal`/`open` over a required `Crypto::Cipher` (`XChaCha20Poly1305`, `Aes256Gcm`), `deriveKey` (PBKDF2-HMAC-SHA256, a required iteration count bounded at 100,000 and 2,000,000), `expandKey` (HKDF-SHA256), `generateKeyPair`/`agree` over `Crypto\\KeyKind`, and `sign`/`verify`, whose scheme is the key's kind. On the two key types: `read`/`write` over `Crypto\\PublicKey::Format` (`Raw`, `Spki`, `Jwk`) and PKCS#8, with every public key validated at `read` and no RSA pair ever generated. AES-GCM seals as `nonce(12) ‖ ciphertext ‖ tag(16)`, which is what WebCrypto answers",
           "`rule:core-api/tier-roster`, `rule:core-classes/crypto-interop-tier`"
         ],
         [
           "`Core\\Password`",
-          "`hash(secret string): string`, `verify(secret string, string): bool`, `needsRehash(string): bool` — **no algorithm argument**. `verify` and `needsRehash` also read a PHP-stored bcrypt hash (`verify` verifies it, `needsRehash` answers `true`); `hash` writes only Argon2id. Replaces `password_hash`, `password_verify`, `crypt`",
+          "`hash(secret string): string`, `verify(secret string, string): bool`, `needsRehash(string): bool` — **no algorithm argument**. `verify` and `needsRehash` also read a bcrypt hash that PHP wrote. `verify` checks it, and `needsRehash` returns `true` for it. `hash` writes only Argon2id",
           "`rule:core-api/no-mode-strings`, `rule:security/bcrypt-read-roster`"
         ],
         [
@@ -1861,12 +1861,12 @@
         ],
         [
           "`Core\\Mail`",
-          "an SMTP client with structured headers. Replaces `mail()`",
+          "an SMTP client with structured headers",
           "`rule:core-api/tier-roster`"
         ],
         [
           "`Core\\Cache`",
-          "`local(): Cache\\Store`, `process(): Cache\\Store`, `shared(): Cache\\Store` — a member per tier, none of them taking an argument. `process()` is one store per serving process, coherent across its cores, in memory only and bounded by `[cache.process] max_size`. On the store: `put(string $key, mixed $value, {ttl?: Duration}): void` / `get(string $key): mixed` — copy-in/copy-out, and a miss answers `null` rather than throwing — plus `forget(string $key): void`, all three tiers gaining a lifetime and a `forget` together. A secret meets a cache only through `putSecret(string $key, secret string $value, Duration $ttl, array<secret bytes> $keys): void` and `getSecret(string $key, array<secret bytes> $keys, {fill?: callable(): Cache\\SecretEntry, wait?: Duration}): ?secret string`, which store XChaCha20-Poly1305 **ciphertext** bound to the app, the entry's name and its expiry — so no `secret` crosses the boundary, `put` still refuses one and `get` answers `null` for a sealed entry. A sealed entry that does not open, under any key of the ring or past its sealed expiry, is a **miss**; on a miss `fill` runs in exactly one caller per process while every other waits for at most its `wait` (`[cache.process] fill_wait`) and then throws `TimeoutError`, a throwing `fill` releases the waiters with nothing, and an entry inside the last fifth of its lifetime is answered to everyone while one caller replaces it. `Cache\\SecretEntry::of(secret string $value, Duration $ttl)` is what a `fill` answers. Sealing hides a secret from code that knows an entry's name but not the ring and keeps it out of the shared store in the clear; it does not protect it from a compromised process. Replaces `apcu_*`, `memcached` for the local case",
+          "`local(): Cache\\Store`, `process(): Cache\\Store`, `shared(): Cache\\Store` — a member per tier, none of them taking an argument. `process()` is one store per serving process, coherent across its cores, in memory only and bounded by `[cache.process] max_size`. On the store: `put(string $key, mixed $value, {ttl?: Duration}): void` / `get(string $key): mixed` — copy-in/copy-out, and a miss answers `null` rather than throwing — plus `forget(string $key): void`, all three tiers gaining a lifetime and a `forget` together. A secret meets a cache only through `putSecret(string $key, secret string $value, Duration $ttl, array<secret bytes> $keys): void` and `getSecret(string $key, array<secret bytes> $keys, {fill?: callable(): Cache\\SecretEntry, wait?: Duration}): ?secret string`, which store XChaCha20-Poly1305 **ciphertext** bound to the app, the entry's name and its expiry — so no `secret` crosses the boundary, `put` still refuses one and `get` answers `null` for a sealed entry. A sealed entry that does not open, under any key of the ring or past its sealed expiry, is a **miss**; on a miss `fill` runs in exactly one caller per process while every other waits for at most its `wait` (`[cache.process] fill_wait`) and then throws `TimeoutError`, a throwing `fill` releases the waiters with nothing, and an entry inside the last fifth of its lifetime is answered to everyone while one caller replaces it. `Cache\\SecretEntry::of(secret string $value, Duration $ttl)` is what a `fill` answers. Sealing hides a secret from code that knows an entry's name but not the ring and keeps it out of the shared store in the clear; it does not protect it from a compromised process",
           "`rule:core-api/two-cache-tiers`, `rule:concurrency/a-secret-is-cached-only-sealed`"
         ],
         [
@@ -1876,32 +1876,32 @@
         ],
         [
           "`Core\\Debug`",
-          "`dump(mixed ...$values)` and `render(mixed)` — replacing `var_dump`, `print_r`, `var_export`, `debug_zval_refcount` — plus the coverage, tracing and profiling controls",
+          "`dump(mixed ...$values)` and `render(mixed)`, plus the coverage, tracing and profiling controls",
           "`dump`/`render`: `rule:errors/debug-dump`; the probes: `rule:testing/debug-probes`"
         ],
         [
           "`Core\\Signal`",
-          "graceful shutdown only. What remains of `pcntl_*` after `fork` is refused",
+          "graceful shutdown only. There is no `fork`",
           "`rule:core-api/tier-roster`"
         ],
         [
           "`Core\\Script`",
-          "`onExit(callable(Script\\ExitReport): mixed $hook): void` — FIFO end-of-script hooks, run once as the last user code at every non-fatal ending (normal, `exit`, uncaught throw, `finish`); each receives a readonly `Script\\ExitReport` — `reason: Script\\ExitReport::Reason` (`Normal`, `ExitCall`, `UncaughtThrow`, `Finish`), `status: int`, `error: ?Throwable` — and may declare no parameter. Never fires on a `FATAL` or a cancellation, and observes the ending rather than changing it. Replaces `register_shutdown_function`'s non-fatal uses. `finish(): void` ends the script where it is called and does not return: every `finally` between the call and the root runs, then that queue drains with `reason: Finish` at status `0`, which is the ending `exit` is not. The value it raises is a second, parentless root of the exception tree, so no `catch` arm admits it and an arm naming that class is refused at compile time",
+          "`onExit(callable(Script\\ExitReport): mixed $hook): void` — FIFO end-of-script hooks, run once as the last user code at every non-fatal ending (normal, `exit`, uncaught throw, `finish`); each receives a readonly `Script\\ExitReport` — `reason: Script\\ExitReport::Reason` (`Normal`, `ExitCall`, `UncaughtThrow`, `Finish`), `status: int`, `error: ?Throwable` — and may declare no parameter. Never fires on a `FATAL` or a cancellation, and observes the ending rather than changing it. `finish(): void` ends the script where it is called and does not return: every `finally` between the call and the root runs, then that queue drains with `reason: Finish` at status `0`, which is the ending `exit` is not. The value it raises is a second, parentless root of the exception tree, so no `catch` arm admits it and an arm naming that class is refused at compile time",
           "`rule:observability/script-on-exit`, `rule:observability/three-endings-fire-the-exit-queue`"
         ],
         [
           "`Core\\Os`",
-          "host and process facts (`pid`, `hostname`, `cpuCount`, `residentBytes`, `loadAverage`). Replaces `posix_*` minus fork, `php_uname`, `getrusage`, `sys_getloadavg`. A **request's** memory is `Core\\Budget`'s and never here — `residentBytes` is the process's resident set, which is the question `Core\\Os` is entitled to answer",
+          "host and process facts (`pid`, `hostname`, `cpuCount`, `residentBytes`, `loadAverage`). A **request's** memory is `Core\\Budget`'s and never here — `residentBytes` is the process's resident set, which is the question `Core\\Os` is entitled to answer",
           "`rule:core-api/tier-roster`, `rule:observability/memory-is-three-numbers-on-core-budget`"
         ],
         [
           "`Core\\Budget`",
-          "`memoryHeld(): int`, `memoryPeak(): int`, `memoryLimit(): int` — this request's held bytes, its high-water mark and the ceiling both are measured against. Three members and no `$real_usage` boolean; an uncapped request answers `0` from `memoryLimit`. Replaces `memory_get_usage` and `memory_get_peak_usage`",
+          "`memoryHeld(): int`, `memoryPeak(): int`, `memoryLimit(): int` — this request's held bytes, its high-water mark and the ceiling both are measured against. There are three members and no flag argument. An uncapped request gets `0` from `memoryLimit`",
           "`rule:observability/memory-is-three-numbers-on-core-budget`, `rule:config/ceilings-are-their-own-directives`"
         ],
         [
           "`Core\\Config`",
-          "`set(string, string): bool`, `get(string): ?string`, `restore(string): void`, `all(): array<string, string>` — the request-local overlay over `nvs.toml`. Replaces `ini_set`, `ini_get`, `ini_restore`, `ini_get_all`, `set_time_limit`. String-in/string-out because the directive name is dynamic; the registry parses with the same parser the boot path uses",
+          "`set(string, string): bool`, `get(string): ?string`, `restore(string): void`, `all(): array<string, string>` — the request-local overlay over `nvs.toml`. String-in/string-out because the directive name is dynamic; the registry parses with the same parser the boot path uses",
           "`rule:config/a-runtime-set-is-request-local`, `rule:config/ini-set-is-core-config-set`"
         ]
       ]
@@ -1924,17 +1924,17 @@
         ],
         [
           "`Core\\Xml`",
-          "one API replacing DOM, SimpleXML, XMLReader, XMLWriter, `xml_parser_*` and XSLTProcessor. Its **tree** API and its **streaming** reader/writer are different jobs, not twins — the tree materialises, the stream does not, and no operation is available through both",
+          "one API for XML. Its **tree** API and its **streaming** reader/writer are different jobs, not twins — the tree materialises, the stream does not, and no operation is available through both",
           "the one place in this file where two shapes of the same subsystem coexist, stated explicitly so it is not read as an exception to R17. The tree is also what `Core\\Html`'s parser produces (`rule:core-classes/html-parsing`), and lands with it"
         ],
         [
           "`Core\\Compress`",
-          "`compress(bytes\\|string $data, Codec $codec): bytes` and `decompress(bytes $data, Codec $codec, uint $maxBytes = 67108864, uint $maxRatio = 1000): bytes` — one API replacing `gzopen` handles, `deflate_init` contexts and `zlib.*` stream filters. `Core\\Compress::Codec` is five cases, not four: `Gzip`, `Zlib` and `Deflate` are one stream under three headers, which is what PHP spelled as three function names, plus `Brotli` and `Zstd`. The incremental half is `compressor(Codec $codec): Compress\\Compressor` and `decompressor(Codec $codec, uint $maxBytes = 67108864, uint $maxRatio = 1000): Compress\\Decompressor`, each an object with `add` and `finish`, replacing `deflate_init`/`deflate_add` and `inflate_init`/`inflate_add` — two classes because a `Compress\\Decompressor`'s `finish` answers `tainted bytes` and a `Compress\\Compressor`'s answers `bytes`",
+          "`compress(bytes\\|string $data, Codec $codec): bytes` and `decompress(bytes $data, Codec $codec, uint $maxBytes = 67108864, uint $maxRatio = 1000): bytes`. `Core\\Compress::Codec` has five cases: `Gzip`, `Zlib` and `Deflate`, which are one stream under three headers, plus `Brotli` and `Zstd`. The incremental half is `compressor(Codec $codec): Compress\\Compressor` and `decompressor(Codec $codec, uint $maxBytes = 67108864, uint $maxRatio = 1000): Compress\\Decompressor`, each an object with `add` and `finish` — two classes because a `Compress\\Decompressor`'s `finish` answers `tainted bytes` and a `Compress\\Compressor`'s answers `bytes`",
           "the bound is `rule:core-classes/decompression-bound`, and a decompressing stream carries it once for the whole stream rather than once per chunk; `crates/nvs-stdlib/src/compress.rs` owns why the streams hold their chunks and what that spends"
         ],
         [
           "`Core\\Zip`",
-          "`entries(bytes $archive): array<tainted string>`, `read(bytes $archive, string $name, uint $maxBytes = 67108864, uint $maxRatio = 1000): tainted bytes` and `extract(bytes $archive, string $destination, uint $maxBytes = 67108864, uint $maxRatio = 1000): uint` — replacing `zip_*`, `ZipArchive` and the checking every caller of `extractTo` was supposed to remember. Core rather than an extension because `../` entries, absolute-path entries, symlink entries and decompression bombs are *policy*, and policy must be non-optional. **The refusals are the reader's**, so a program that walks the entries itself has nothing left it could have checked; the bomb half is `Core\\Compress`'s bound applied per entry and across the archive, not a second rule",
+          "`entries(bytes $archive): array<tainted string>`, `read(bytes $archive, string $name, uint $maxBytes = 67108864, uint $maxRatio = 1000): tainted bytes` and `extract(bytes $archive, string $destination, uint $maxBytes = 67108864, uint $maxRatio = 1000): uint`. The reader checks every entry, so no caller has to remember the checks. Core rather than an extension because `../` entries, absolute-path entries, symlink entries and decompression bombs are *policy*, and policy must be non-optional. **The refusals are the reader's**, so a program that walks the entries itself has nothing left it could have checked; the bomb half is `Core\\Compress`'s bound applied per entry and across the archive, not a second rule",
           "`rule:core-api/tier-roster`, `rule:core-classes/decompression-bound`; the names are tainted for `rule:security/tainted-sources`' reason, and what is on disk is `crates/nvs-stdlib/src/zip.rs`'s known gaps"
         ],
         [
@@ -2106,84 +2106,6 @@
           "`afterResponse`",
           "`afterResponse(callable(): mixed $fn, {deadline?: Duration}): void`",
           ""
-        ]
-      ]
-    },
-    {
-      "section": [
-        "Part II — the capability-bearing half (M8)",
-        "Counting the result"
-      ],
-      "columns": [
-        "",
-        "PHP",
-        "Novis"
-      ],
-      "rows": [
-        [
-          "Global functions / `Core` members",
-          "~1,900",
-          "~450"
-        ],
-        [
-          "Sort functions",
-          "11 + `array_multisort`",
-          "2"
-        ],
-        [
-          "`array_diff`/`array_intersect` variants",
-          "12",
-          "2"
-        ],
-        [
-          "Array-combining rules",
-          "5, chosen by a key's type",
-          "4, chosen by the member's name"
-        ],
-        [
-          "`strpos` variants",
-          "12",
-          "4"
-        ],
-        [
-          "`printf` variants",
-          "9",
-          "2"
-        ],
-        [
-          "Date APIs",
-          "~40 procedural + 2 mutable/immutable class trees",
-          "1 immutable object tree"
-        ],
-        [
-          "XML APIs",
-          "6",
-          "1"
-        ],
-        [
-          "Socket APIs",
-          "3",
-          "1"
-        ],
-        [
-          "Ways to run a program",
-          "7",
-          "1"
-        ],
-        [
-          "Ways to hash",
-          "3",
-          "1"
-        ],
-        [
-          "Database APIs",
-          "4 (`PDO`, `mysqli` ×2, `pgsql`, `sqlite3`)",
-          "1"
-        ],
-        [
-          "Exception classes in the stdlib",
-          "13 SPL + 8 `Error`",
-          "9"
         ]
       ]
     }

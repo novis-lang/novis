@@ -66,7 +66,7 @@ paragraphs, written down once.
 `sheet`, `finish`, `Written`, `Sheet`'s `add` and `addAll` in batches of 1,000 rows, `fromRows` and
 `Export` are on disk (`extensions/spreadsheet/nvs/Workbook.nvs`, `Sheet.nvs`, `Export.nvs`), with
 every sheet option above, the sheet-name rules, and the row options `height`, `hidden`, `level` and
-`style`. Not on disk: `define`, CSV, and the cut-off download, which the server cannot do yet
+`style`, and so are `define` and CSV. Not on disk: the cut-off download, which the server cannot do yet
 (`data/gaps/nvs-server/a-streamed-body-cannot-be-cut-off.json`).
 
 **Declined:**

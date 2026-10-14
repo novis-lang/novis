@@ -5,6 +5,7 @@ A second `sheet` finishes the first, so adding a row to the first throws naming 
 // covers: Novis\Spreadsheet\Workbook::sheet
 // covers: Novis\Spreadsheet\Sheet::add
 // covers: Novis\Spreadsheet\Style::of
+// covers: Novis\Spreadsheet\Style::constructor
 use Novis\Spreadsheet\Style;
 use Novis\Spreadsheet\Workbook;
 

@@ -1,6 +1,6 @@
 ---
 summary: the interop primitives — authenticated encryption under a cipher named by a closed enum, two key derivations, key pairs over three curves, agreement and signatures, with no algorithm ever a string and none with a default
-keywords: crypto, encrypt, decrypt, seal, open, generateKey, deriveKey, expandKey, generateKeyPair, agree, sign, verify, publicKey, keypair, aead, cipher, chacha20, poly1305, xchacha20, aes, aes-256-gcm, webcrypto, openssl, sodium, nonce, key, tamper, forgery, authenticated, pbkdf2, hkdf, derivation, salt, iterations, hash_pbkdf2, hash_hkdf, p256, x25519, ed25519, rsa, ecdh, ecdsa, eddsa, curve, spki, pkcs8, jwk, signature, openssl_sign, openssl_verify, openssl_pkey_new, sodium_crypto_sign, sodium_crypto_box
+keywords: crypto, encrypt, decrypt, seal, open, generateKey, deriveKey, expandKey, generateKeyPair, agree, sign, verify, publicKey, keypair, aead, cipher, chacha20, poly1305, xchacha20, aes, aes-256-gcm, webcrypto, openssl, sodium, nonce, key, tamper, forgery, authenticated, pbkdf2, hkdf, derivation, salt, iterations, p256, x25519, ed25519, rsa, ecdh, ecdsa, eddsa, curve, spki, pkcs8, jwk, signature, public key, private key, key exchange
 ---
 
 `Core\Crypto` holds the primitives a Novis program shares with something that is not Novis: a browser's
@@ -9,13 +9,12 @@ password and spreads uniform material into keys, draws key pairs, agrees a share
 signs and verifies a message. **No algorithm is ever a string, and none has a default** — a cipher, a
 key's kind and a key's encoding are each a case of a closed enum that the call names.
 
-`openssl_encrypt($data, "aes-256-cbc", $key, 0, $iv)` puts the primitive in a string and the nonce at
-the call site, which is how a program ends up with `aes-256-ecb` in one file, an all-zero IV in another
-and no authentication in either — "encrypted" and "authenticated" become two decisions a caller can get
-half right. Here the enum is closed and every case authenticates, so a misspelling is a compile error
-and there is no unauthenticated spelling to reach for; the mode, the padding and the nonce stay the
-library's, exactly as `Core\Password`'s parameters do. `XChaCha20Poly1305` is the one to prefer when both
-ends are Novis, and `Aes256Gcm` is what a browser reads.
+When a call takes the cipher as a string and the nonce from the caller, mistakes are easy. One file uses
+`aes-256-ecb`, another uses an all-zero IV, and neither authenticates the data. Here the enum is closed
+and every case authenticates. A misspelled cipher is a compile error, and no unauthenticated cipher
+exists to choose. The library chooses the mode, the padding and the nonce, as it chooses
+`Core\Password`'s parameters. Prefer `XChaCha20Poly1305` when both ends are Novis. A browser reads
+`Aes256Gcm`.
 
 **A key is a `secret bytes`, and that is part of its type.** `::generateKey` answers one, and the
 compiler will not let a program put it in a plain `bytes` — so a key cannot be echoed, logged, dumped or

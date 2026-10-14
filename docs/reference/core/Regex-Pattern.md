@@ -1,6 +1,6 @@
 ---
 summary: a compiled pattern carrying its flags, taken by every `Core\Regex` member in place of a pattern string
-keywords: /i, /m, /s, /U, pattern modifiers, compiled regex, case-insensitive, multiline, dotall, ungreedy
+keywords: pattern modifiers, flags, compiled regex, compile once, case-insensitive, multiline, dotall, ungreedy
 ---
 
 A `Core\Regex\Pattern` is a compiled pattern with its four flags — `caseInsensitive`, `multiline`,

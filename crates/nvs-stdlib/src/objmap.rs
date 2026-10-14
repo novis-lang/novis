@@ -171,8 +171,8 @@ const CARD: ClassDoc = ClassDoc {
 
 /// `new Core\ObjectMap`'s reference card — `rule:core-api/reference-card`.
 const CONSTRUCTOR_DOC: MethodDoc = MethodDoc {
-    short: "Builds an empty `Core\\ObjectMap<K, V>` — a map keyed by identity, which replaces \
-            `SplObjectStorage` used as a map and every `spl_object_id` side table.",
+    short: "Builds an empty `Core\\ObjectMap<K, V>`. Its keys are objects, and two keys are the \
+            same only when they are the same object.",
     params: &[],
     ret: "A fresh map holding nothing, whose iteration order is insertion order.",
     errors: &[],

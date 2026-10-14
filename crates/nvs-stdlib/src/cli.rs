@@ -415,10 +415,10 @@ const COLOR_DEPTH_MEMBER_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Cli::displayWidth`'s reference card — `rule:core-api/reference-card`.
 const DISPLAY_WIDTH_DOC: MethodDoc = MethodDoc {
-    short: "How many terminal columns `$value` will occupy when it is written — UAX #11 widths \
-            over grapheme clusters, replacing `mb_strwidth`. A CJK ideograph and a fullwidth \
-            Latin letter are two columns, a combining mark is none, and a control byte is the \
-            one its Control Picture costs, because that is what the terminal sink shows.",
+    short: "Returns how many terminal columns `$value` uses when it is written. Widths follow \
+            UAX #11 and are counted per grapheme (what a person counts as one character). A CJK \
+            ideograph and a fullwidth Latin letter use two columns, and a combining mark uses \
+            none. A control byte uses the width of the visible symbol the terminal shows for it.",
     params: &[ParamDoc {
         name: "value",
         desc: "The text to measure. A `tainted` one is accepted: a column count carries nothing \
@@ -482,10 +482,9 @@ const ARGUMENTS_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Cli::write`'s reference card — `rule:core-api/reference-card`.
 const WRITE_DOC: MethodDoc = MethodDoc {
-    short: "Writes `$value` to a standard stream, replacing `fwrite(STDOUT, …)` and `print`. A \
-            `string` has every control byte replaced by the visible glyph `Core\\Cli::escape` \
-            gives it; a `Core\\Cli\\Text` is written through unchanged, because it is the sink's \
-            own carrier and its bytes have already been neutralized.",
+    short: "Writes `$value` to a standard stream. In a `string`, every control byte is replaced by \
+            the visible symbol that `Core\\Cli::escape` gives it. A `Core\\Cli\\Text` is written \
+            unchanged, because its control bytes were already made safe.",
     params: &[
         ParamDoc {
             name: "value",

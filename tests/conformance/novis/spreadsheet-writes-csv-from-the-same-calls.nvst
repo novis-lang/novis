@@ -7,6 +7,7 @@ A `Workbook` writes CSV through `Core\Csv::format` when its name ends in `.csv` 
 // covers: Novis\Spreadsheet\Workbook::createForDownload
 // covers: Novis\Spreadsheet\Workbook::fromRows
 // covers: Novis\Spreadsheet\Workbook::finish
+// covers: Novis\Spreadsheet\Cell::constructor
 use Novis\Spreadsheet\Cell;
 use Novis\Spreadsheet\Formula;
 use Novis\Spreadsheet\Style;

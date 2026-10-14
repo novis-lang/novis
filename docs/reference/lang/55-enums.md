@@ -2,7 +2,7 @@
 id: enums
 title: Enums
 summary: `enum` declares a closed set of named integers — how cases get their values, how a case converts to and from its integer, and what an enum does not have
-keywords: enum, case, backed enum, BackedEnum, UnitEnum, int enum, uint enum, string enum, ->name, ->value, cases(), from(), tryFrom(), as int, as E, enum match, enum switch, enum case type, closed set, Core\Arr::Order
+keywords: enum, case, backed enum, int enum, uint enum, string enum, ->name, ->value, cases(), from(), tryFrom(), as int, as E, enum match, enum switch, enum case type, closed set, Core\Arr::Order
 ---
 
 # Declaring an enum
@@ -401,8 +401,8 @@ an import cannot name a member of a class
 
 A case has no properties and an enum has no methods. So `E::A->value`, `E::A->name`,
 `E::from($n)`, `E::tryFrom($n)` and `E::cases()` are compile errors. An enum body has only
-cases: a method, a constant or an `implements` clause does not compile. There is no `BackedEnum`
-or `UnitEnum`, because every enum is backed by an integer. Write these instead:
+cases: a method, a constant or an `implements` clause does not compile. Every enum is backed by an
+integer. Write these instead:
 
 - The integer of a case is `E::A as int`, or `E::A as uint`.
 - `$n as E` gives the case for an integer, and throws `RuntimeError` when no case matches.

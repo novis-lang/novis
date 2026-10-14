@@ -472,9 +472,9 @@ nvs_runtime::nvs_helper! {
             // doubling at a time.
             if cost > MAX_BCRYPT_COST {
                 return Err(Fault::thrown(format!(
-                    "Core\\Password::verify(): $hash asks for a bcrypt cost of {cost}, past \
-                     this class's {MAX_BCRYPT_COST} ceiling — no hash PHP writes needs that, \
-                     and each step past it doubles the work"
+                    "Core\\Password::verify(): $hash has a bcrypt cost of {cost}, and the \
+                     highest cost this class accepts is {MAX_BCRYPT_COST}. Each step doubles the \
+                     work"
                 )));
             }
             return match bcrypt::verify(password.as_bytes(), stored) {
@@ -663,7 +663,7 @@ mod tests {
         let refusal = answer(nvs_core_password_verify, &["hunter2", &ruinous])
             .expect_err("a cost of 31 is minutes of CPU one `UPDATE` away");
         assert!(
-            refusal.contains("bcrypt cost of 31") && refusal.contains("17 ceiling"),
+            refusal.contains("bcrypt cost of 31") && refusal.contains("accepts is 17"),
             "the sentence names what was asked and what is allowed: {refusal}"
         );
         assert!(

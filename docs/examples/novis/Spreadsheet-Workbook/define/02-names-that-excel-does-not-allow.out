@@ -1,0 +1,5 @@
+C3: `C3` is a cell reference, so it cannot be a name.
+1st: `1st` is not a name Excel allows. A name starts with a letter or `_`, and has only letters, digits, `_` and `.`.
+Price list: `Price list` is not a name Excel allows. A name starts with a letter or `_`, and has only letters, digits, `_` and `.`.
+Prices.pen: defined
+PRICES.PEN: The name `PRICES.PEN` is defined twice.

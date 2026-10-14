@@ -6,6 +6,8 @@ What `Workbook` writes, `Reader` reads back equal by the read table: text, whole
 // covers: Novis\Spreadsheet\Reader::rows
 // covers: Novis\Spreadsheet\Row::number
 // covers: Novis\Spreadsheet\Row::values
+// covers: Novis\Spreadsheet\Formula::of
+// covers: Novis\Spreadsheet\Formula::constructor
 use Novis\Spreadsheet\Formula;
 use Novis\Spreadsheet\Reader;
 use Novis\Spreadsheet\Row;

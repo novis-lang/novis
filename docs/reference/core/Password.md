@@ -1,13 +1,12 @@
 ---
 summary: password hashing with no algorithm and no cost argument — the library picks the parameters, and `needsRehash` is how a stored hash learns it has fallen behind
-keywords: password, hash, verify, needsRehash, argon2, argon2id, bcrypt, crypt, login, credential, rehash, salt, phc
+keywords: password, hash, verify, needsRehash, argon2, argon2id, bcrypt, login, credential, rehash, salt, phc
 ---
 
-`Core\Password::hash` takes a password and answers the string to store. It takes **nothing else**: no
-algorithm, no memory cost, no time cost, no salt. PHP writes those at every call site, which means a
-program's real cost is whichever call site was copied last and raising it is a grep. Here the parameters
-belong to the library — Argon2id at OWASP's recommended floor — and `::needsRehash` is how a *stored*
-hash finds out it has fallen behind. That is the whole reason a caller never names a cost.
+`Core\Password::hash` takes a password and returns the string to store. It takes **nothing else**: no
+algorithm, no memory cost, no time cost and no salt. The library chooses the parameters. It uses
+Argon2id at the minimum settings OWASP recommends. `::needsRehash` tells you when a *stored* hash uses
+weaker settings than the current ones.
 
 The answer is a PHC string: the algorithm, the version, the cost parameters and the salt travel with the
 digest. That is what lets `::verify` recompute under the settings a hash was *made* with, so credentials
@@ -20,19 +19,17 @@ reaches the sinks a password never could.
 Every call draws its own salt, so hashing one password twice answers two different strings and two users
 who chose the same password are indistinguishable in the store. Compare with `::verify`, never with `==`.
 
-**`::needsRehash` asks whether a hash is *weaker*, not whether it *differs*.** PHP compares the stored
-options to the current ones for equality, so a hash written under stronger settings asks to be rehashed —
-and a program doing as it was told silently downgrades it. Here a stronger stored hash is left alone.
+**`::needsRehash` returns `true` only when a hash is *weaker* than the current settings.** A hash
+written under stronger settings returns `false`, so it is never replaced by a weaker one.
 
-**A PHP user table verifies on day one, and upgrades itself one login at a time.** `::verify` reads two
-shapes: the Argon2id string `::hash` writes, and a bcrypt hash under `$2y$`, `$2a$` or `$2b$` — the column
-PHP's `PASSWORD_DEFAULT` has been writing since 5.5. `::needsRehash` answers `true` for every one of them,
-because a different algorithm is weaker by its own rule, so the ordinary login-time loop below *is* the
-migration: verify the password, notice the row has fallen behind, rehash what was just proved. Nothing is
-converted offline, because a stored hash is not invertible — only a presented password can rewrite the
-row — and nothing writes bcrypt ever again, since `::hash` has no algorithm argument to ask it with. A
-stored cost above 17 is refused before any work, and `$2x$` — the tag that exists to be bug-compatible
-with `crypt_blowfish`'s sign-extension overflow — is not read at all.
+**A user table of bcrypt hashes that PHP wrote works at once, and upgrades itself one login at a time.**
+`::verify` reads two formats: the Argon2id string that `::hash` writes, and a bcrypt hash that starts
+with `$2y$`, `$2a$` or `$2b$`. `::needsRehash` returns `true` for every bcrypt hash, because a different
+algorithm counts as weaker. So the usual login code below is the whole migration. It verifies the
+password, sees that the hash is old, and hashes the password again. Nothing is converted offline,
+because only the password itself can produce a new hash. `::hash` has no algorithm argument, so it
+never writes bcrypt. A bcrypt hash with a cost above 17 throws an error before any work is done. A hash
+that starts with `$2x$` also throws, because that tag exists only to reproduce an old bug.
 
 A stored value outside those two shapes **throws** rather than answering `false`. A storage layer handing
 back the wrong column otherwise looks exactly like every user typing the wrong password at once, and one

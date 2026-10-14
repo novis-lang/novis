@@ -2,7 +2,7 @@
 id: testing
 title: Testing
 summary: `#[Test]` methods, `nvs test`, a directory of test files as one program, fixtures, data rows, the assertion roster, fixed clocks and seeds, and the report formats
-keywords: test, #[Test], nvs test, test directory, test suite, bootstrap, PHPUnit, TestCase, assertEquals, assertSame, assertTrue, assertNull, assertCount, expectException, assertThrows, dataProvider, TestWith, Fixture, setUp, skip, markTestSkipped, retries, flaky, Core\Test, Core\Test\Failure, --format json, junit, fixed clock, seed, .nvst, how to test, unit test, which test, expected output, phpt
+keywords: test, #[Test], nvs test, test directory, test suite, bootstrap, assertEquals, assertSame, assertTrue, assertNull, assertCount, assertThrows, expected exception, data rows, TestWith, Fixture, setup, skip, retries, flaky, Core\Test, Core\Test\Failure, --format json, junit, fixed clock, seed, .nvst, how to test, unit test, which test, expected output
 ---
 
 # A test is a method marked `#[Test]`
@@ -294,7 +294,7 @@ every failed assertion of a test is reported, not only the first.
 | `assertTrue($a)` | the `bool` is `true`; the argument is a declared `bool`, not anything truthy |
 | `assertNull($a)` | the value is `null` |
 | `assertCount($array, $n)` | the array holds exactly `$n` entries |
-| `assertThrows($body, C::class)` | running the callable throws `C` or a subclass (`expectException`); the throw is consumed, and the failure names what was thrown instead |
+| `assertThrows($body, C::class)` | running the callable throws `C` or a subclass; the throw is consumed, and the failure names what was thrown instead |
 | `assertDoesNotThrow($body)` | running the callable returns |
 | `expectFailure($body)` | an assertion inside the callable failed; those failures are discharged from the ledger, and a body in which nothing failed is itself a failure |
 | `advance($duration)` | not an assertion: moves the clock a `#[Test(at:)]` fixed |

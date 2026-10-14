@@ -1,12 +1,12 @@
 ---
-summary: the request a program is answering — `$_GET`, `$_POST`, `$_COOKIE`, `$_FILES` and `php://input` as one class, every answer of it `tainted`
-keywords: $_GET, $_POST, $_COOKIE, $_FILES, $_SERVER, $_REQUEST, superglobal, filter_input, getallheaders, php://input, file_get_contents, json_decode, request body, form fields, multipart, upload, HEAD, request method
+summary: the request a program is answering — query, form fields, cookies, headers, uploads and the body in one class, every answer of it `tainted`
+keywords: request, query string, query parameters, form fields, POST data, cookies, headers, request body, JSON body, multipart, upload, HEAD, request method, path, tainted input
 ---
 
 `Core\Request` is the whole of what arrived: `method`, `isHead`, `path`, `query`, `header`, `headers`,
-`cookie` and the body readers, plus `route` and `mount` for where the router put it. There are no
-superglobals — no variable is ever populated by the host — and `$_REQUEST`, which merged three sources
-into one lookup, has no replacement of any kind. Every member throws `LogicError` in a program that is
+`cookie` and the body readers, plus `route` and `mount` for where the router put it. The host never
+fills a variable for the program. No lookup merges the query, the form fields and the cookies into
+one. Every member throws `LogicError` in a program that is
 not answering a request, so a CLI run, a scheduled script and a job worker say "no request arrived"
 rather than answering empty.
 
@@ -29,7 +29,7 @@ document that is malformed, too deep, or absent altogether. `json()` keeps what 
 `query()` and `post()` parse as the type written at the call site — an inline shape, `{page: uint}`, or a
 class carrying `#[Core\Json\Derive]` — converting every named field with `as` and leaving the keys the
 type does not name behind. Called with nothing, the whole parameter set is the subject, and that is the
-only way a program reaches it: there is no `query(): array<mixed>` and no `$_GET`. Called with
+only way a program reaches it: there is no `query(): array<mixed>`. Called with
 `{name: "filter"}`, the subject is the one bracket-named subtree under that name. A field that is absent,
 or that holds a value `as` refuses for its declared type, is a `ParseError` listing every field that
 failed at its own path — so a form reports the whole list rather than the first item of it.

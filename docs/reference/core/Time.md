@@ -1,6 +1,6 @@
 ---
 summary: the clock and the constructors — an absolute `Instant`, or a civil `DateTime` built in a named `Zone`
-keywords: time, microtime, date_create, hrtime, sleep, usleep, time_nanosleep, time_sleep_until, DateTime::setTimestamp, strtotime, DateTime::__construct, DateTime::createFromFormat, strptime, mktime, gmmktime, DateTime::setDate, DateTimeImmutable, checkdate, date_default_timezone_set, clock, timestamp
+keywords: time, current time, now, clock, timestamp, from timestamp, epoch, date, datetime, create a date, parse a date, date format, ISO 8601, sleep, immutable
 ---
 
 `Core\Time` is where a time value starts: `now()` reads the clock as an `Instant`, `fromIso` and
@@ -9,8 +9,8 @@ text. Every value it answers is immutable, and there is no ambient time zone —
 built in a `Zone` the call names, and an `Instant` becomes a calendar reading only through
 `->in($zone)`. The two arithmetics are told apart by type: an `Instant` moves by an exact `Duration`
 (`->plus(24h)`), a `DateTime` moves by a calendar step (`->plus(1, Core\Unit::Day)`), and across a
-DST boundary the two land an hour apart. `strtotime`'s free-form text does not exist; each of its
-phrases is a typed call, and a run-time offset such as `"30d"` is `Core\Time\Duration::parse`.
+DST boundary the two land an hour apart. There is no free-form date text: each phrase such as
+"next Monday" is a typed call, and a run-time offset such as `"30d"` is `Core\Time\Duration::parse`.
 
 ```nvs
 <?nvs

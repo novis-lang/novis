@@ -214,8 +214,8 @@ const MISMATCH_DESC: &str = "The name is already fixed to another kind or to ano
 
 /// `Core\Metrics::increment`'s reference card — `rule:core-api/reference-card`.
 const INCREMENT_DOC: MethodDoc = MethodDoc {
-    short: "Adds to a counter, fixing `$name` to a counter on its first use — the replacement for \
-            every hand-rolled `$GLOBALS` tally and for a `statsd` client's `increment`.",
+    short: "Adds to a counter. The first call with `$name` makes that name a counter, and it stays \
+            a counter.",
     params: &[
         ParamDoc {
             name: "name",

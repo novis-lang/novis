@@ -234,9 +234,8 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// `Core\Env::get`'s reference card — `rule:core-api/reference-card`.
 const GET_DOC: MethodDoc = MethodDoc {
-    short: "The environment variable `$name`, replacing `getenv` and `$_ENV`. The environment is \
-            read-only: there is no `putenv`, because a process-global mutation is unsound across \
-            cores.",
+    short: "Returns the value of the environment variable `$name`. The environment is read-only, \
+            so a program cannot change a variable.",
     params: &[ParamDoc {
         name: "name",
         desc: "The variable's name, exactly as the operator spelled it. A sink, so it may not be \
@@ -257,8 +256,7 @@ const GET_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Env::all`'s reference card — `rule:core-api/reference-card`.
 const ALL_DOC: MethodDoc = MethodDoc {
-    short: "Every environment variable, keyed by name — the whole of `$_ENV`, and `getenv` with \
-            no argument.",
+    short: "Returns every environment variable, with the variable names as keys.",
     params: &[],
     ret: "An `array<string, tainted string>` in name order, so two calls in one run and two runs \
           on two platforms agree. A variable whose name or value is not valid UTF-8 is omitted \

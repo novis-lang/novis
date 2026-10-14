@@ -2,7 +2,7 @@
 id: programs
 title: Programs, files and names
 summary: what a `.nvs` file is, how it runs, how names are spelled and resolved, and how one file reaches another
-keywords: <?nvs, <?=, ?>, inline HTML, shebang, nvs run, echo, print, comments, doc comment, ///, docblock, PHPDoc, @see, @example, exit, namespace, use, require, autoload, discover, class name, casing, constructor, visibility, top-level statements, main
+keywords: <?nvs, <?=, ?>, inline HTML, shebang, nvs run, echo, print, comments, doc comment, ///, docblock, @see, @example, exit, namespace, use, require, autoload, discover, class name, casing, constructor, visibility, top-level statements, main
 ---
 
 # A program is a file of top-level statements
@@ -77,8 +77,7 @@ string $who = "world";
   the tag stands. The `;` before `?>` is optional in both forms.
 - A `?>` followed directly by one newline swallows that newline, so a template line ending in a
   closing tag emits no blank line.
-- `<?php` is refused with a diagnostic naming `<?nvs`, and there is no short open tag `<?`, so a
-  `<?xml` declaration stays text.
+- There is no short open tag `<?`, so a `<?xml` declaration stays text.
 - A file whose first two bytes are `#!` is in code mode from line 2 with no opening tag: line 1 is
   trivia rather than output, and an `<?nvs` before the first `?>` is `E0009`
   (`rule:tooling/shebang-opens-code-mode`).

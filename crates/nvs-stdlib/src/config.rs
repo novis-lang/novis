@@ -89,9 +89,9 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 
 /// `Core\Config::get`'s reference card — `rule:core-api/reference-card`.
 const GET_DOC: MethodDoc = MethodDoc {
-    short: "Returns the value of one setting for this request. It replaces `ini_get`. A setting \
-            this request changed with `set` gives the new value. Any other setting gives the \
-            value from the configuration file, or its built-in default.",
+    short: "Returns the value of one setting for this request. A setting this request changed with \
+            `set` gives the new value. Any other setting gives the value from the configuration \
+            file, or its built-in default.",
     params: &[ParamDoc {
         name: "name",
         desc: "The directive's dotted name, `log.level`. A bare limit name — `memory`, \
@@ -107,9 +107,8 @@ const GET_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Config::set`'s reference card — `rule:core-api/reference-card`.
 const SET_DOC: MethodDoc = MethodDoc {
-    short: "Sets a directive for this request only, replacing `ini_set`. The change is written to \
-            a copy-on-write overlay over the configuration snapshot, so it is invisible to every \
-            other request and is gone when this one ends.",
+    short: "Changes a setting for this request only. Other requests do not see the change, and it \
+            ends when this request ends.",
     params: &[
         ParamDoc {
             name: "name",
@@ -136,7 +135,7 @@ const SET_DOC: MethodDoc = MethodDoc {
 const RESTORE_DOC: MethodDoc = MethodDoc {
     short: "Deletes this request's change to one setting. The value from the configuration file \
             is in force again, or the built-in default when the file does not write the \
-            setting. It replaces `ini_restore`.",
+            setting.",
     params: &[ParamDoc {
         name: "name",
         desc: "The directive's name, read exactly as `get` reads it.",
@@ -148,9 +147,9 @@ const RESTORE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Config::all`'s reference card — `rule:core-api/reference-card`.
 const ALL_DOC: MethodDoc = MethodDoc {
-    short: "Returns every setting in force for this request, with the dotted names as keys. It \
-            replaces `ini_get_all`. A setting this request changed has the new value. A setting \
-            the configuration file does not write has its built-in default.",
+    short: "Returns every setting in force for this request, with the dotted names as keys. A \
+            setting this request changed has the new value. A setting the configuration file does \
+            not write has its built-in default.",
     params: &[],
     ret: "An `array<string, string>` sorted by name, with one entry per value. A name that has a \
           group of settings gives one entry for each setting in it. A name that has a list gives \

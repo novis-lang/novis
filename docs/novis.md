@@ -37,17 +37,17 @@ Conventions the whole file uses:
 
 ### Part A — The language
 
-- A.1 [Programs, files and names](#lang-programs) — what a `.nvs` file is, how it runs, how names are spelled and resolved, and how one file reaches another *(<?nvs, <?=, ?>, inline HTML, shebang, nvs run, echo, print, comments, doc comment, ///, docblock, PHPDoc, @see, @example, exit, namespace, use, require, autoload, discover, class name, casing, constructor, visibility, top-level statements, main)*
-- A.2 [Types, declarations and conversions](#lang-types) — every type, how a binding declares one, every value written in the code, the `as` conversion and its table, implicit widening, narrowing, truthiness, and the `tainted`/`secret` qualifiers *(bool, int, uint, float, decimal, string, bytes, array<T>, callable, class<T>, class reference, mixed, object, nullable, ?T, union, single-value type, enum, shape, anonymous object, type alias, void, never, self, static, iterable, intersection, var, declaration, inout, variadic, default parameter, constant, string literal, numeric literal, heredoc, nowdoc, interpolation, duration, html, markup, template, html template, page, escape, xss, as, conversion, cast, (int), (string), (float), (bool), (array), intval, strval, floatval, boolval, settype, gettype, is_int, is_string, is_array, is_null, is_numeric, widening, narrowing, is, truthy, falsy, tainted, secret, resource)*
-- A.3 [Expressions and operators](#lang-expressions) — every operator with its precedence and what it accepts, calls, anonymous functions and method references, `match`, arrays and anonymous objects in expression position, and the operators and forms that do not parse *(operators, precedence, associativity, arithmetic, +, -, *, /, %, **, pow, concatenation, ., .=, ==, !=, ===, !==, <>, <=>, spaceship, comparison, <, <=, >, >=, &&, ||, !, and, or, xor, ??, ??=, ??+=, ??-=, ??.=, defaulting assignment, ?:, elvis, ternary, ?->, nullsafe, match, is, new, clone, throw expression, print, isset, empty, unset, anonymous function, fn, function, use, callable, method reference, named arguments, spread, ..., variadic, inout, array literal, subscript, append, [], destructuring, list(), anonymous object, shape, ++, --, increment, bitwise, &, |, ^, ~, <<, >>, shift, overflow, ArithmeticError, division by zero, @, backticks, eval, extract, compact, settype, variable variables, $$, =&, reference, |>, pipeline, pipe, $_, hole, substitution)*
-- A.4 [Statements and control flow](#lang-statements) — expression statements, blocks and local declarations, `if`, the four loops, `switch`, `break`/`continue` with levels, `return`, `try`/`catch`/`finally`, `throw`, `echo`, `unset`, and the statement forms that do not parse *(statement, block, scope, definite assignment, if, elseif, else if, else, endif, alternative syntax, while, endwhile, do while, for, foreach, endforeach, as, key, value, inout, by reference, Iterator, Iterable, switch, case, default, fallthrough, break, continue, break 2, continue 2, levels, return, try, catch, finally, multi-catch, throw, echo, print, unset, exit, yield, goto, label, declare, strict_types, global, static variable)*
+- A.1 [Programs, files and names](#lang-programs) — what a `.nvs` file is, how it runs, how names are spelled and resolved, and how one file reaches another *(<?nvs, <?=, ?>, inline HTML, shebang, nvs run, echo, print, comments, doc comment, ///, docblock, @see, @example, exit, namespace, use, require, autoload, discover, class name, casing, constructor, visibility, top-level statements, main)*
+- A.2 [Types, declarations and conversions](#lang-types) — every type, how a binding declares one, every value written in the code, the `as` conversion and its table, implicit widening, narrowing, truthiness, and the `tainted`/`secret` qualifiers *(bool, int, uint, float, decimal, string, bytes, array<T>, callable, class<T>, class reference, mixed, object, nullable, ?T, union, single-value type, enum, shape, anonymous object, type alias, void, never, self, static, iterable, intersection, var, declaration, inout, variadic, default parameter, constant, string literal, numeric literal, heredoc, nowdoc, interpolation, duration, html, markup, template, html template, page, escape, xss, as, conversion, cast, convert to int, convert to string, type check, type of a value, widening, narrowing, is, truthy, falsy, tainted, secret)*
+- A.3 [Expressions and operators](#lang-expressions) — every operator with its precedence and what it accepts, calls, anonymous functions and method references, `match`, arrays and anonymous objects in expression position, and the operators and forms that do not parse *(operators, precedence, associativity, arithmetic, +, -, *, /, %, **, pow, concatenation, ., .=, ==, !=, ===, !==, <>, <=>, spaceship, comparison, <, <=, >, >=, &&, ||, !, and, or, xor, ??, ??=, ??+=, ??-=, ??.=, defaulting assignment, ?:, elvis, ternary, ?->, nullsafe, match, is, new, clone, throw expression, print, isset, empty, unset, anonymous function, fn, function, use, callable, method reference, named arguments, spread, ..., variadic, inout, array literal, subscript, append, [], destructuring, anonymous object, shape, ++, --, increment, bitwise, &, |, ^, ~, <<, >>, shift, overflow, ArithmeticError, division by zero, @, backticks, eval, reference, |>, pipeline, pipe, $_, hole, substitution)*
+- A.4 [Statements and control flow](#lang-statements) — expression statements, blocks and local declarations, `if`, the four loops, `switch`, `break`/`continue` with levels, `return`, `try`/`catch`/`finally`, `throw`, `echo`, `unset`, and the statement forms that do not parse *(statement, block, scope, definite assignment, if, elseif, else if, else, endif, alternative syntax, while, endwhile, do while, for, foreach, endforeach, as, key, value, inout, by reference, Iterator, Iterable, switch, case, default, fallthrough, break, continue, break 2, continue 2, levels, return, try, catch, finally, multi-catch, throw, echo, print, unset, exit, yield, goto, label, declare, global, static variable)*
 - A.5 [Classes, interfaces and objects](#lang-classes) — declaring a class, its properties, methods and constants; inheritance; interfaces, default methods and `by` delegation; hooks, `LateInit`, guards, observers, `Stringable`, `Comparable`; what an object is and what `clone` copies *(class, constructor, __construct, new, public, protected, private, static, self, parent, $this, abstract, final, extends, implements, interface, trait, delegation, by, readonly, lateinit, isinit, LateInit, initProperty, property hooks, get, set, PropertyGuard, beforePropertySet, beforePropertyUnset, PropertyObserver, Stringable, __toString, Comparable, compareTo, clone, __clone, is, object, ?->, nullsafe, __get, __set, __call, __callStatic, __invoke, __destruct, anonymous class, const, ::class, class<T>, class reference, new $cls, late static binding)*
-- A.6 [Enums](#lang-enums) — `enum` declares a closed set of named integers — how cases get their values, how a case converts to and from its integer, and what an enum does not have *(enum, case, backed enum, BackedEnum, UnitEnum, int enum, uint enum, string enum, ->name, ->value, cases(), from(), tryFrom(), as int, as E, enum match, enum switch, enum case type, closed set, Core\Arr::Order)*
-- A.7 [Iteration and generators](#lang-iteration) — what `foreach` accepts — arrays, `Iterable<T>`, `Iterator<T>` — how a class becomes iterable, and how a method with `yield` is a lazy `Iterator<T>` *(foreach, Iterable, Iterator, iterate, advance, current, yield, generator, Generator, yield from, IteratorAggregate, Traversable, ArrayAccess, Countable, iterator_to_array, Core\Arr::from, lazy, finally, ObjectMap, ObjectSet, Heap, Channel)*
-- A.8 [Errors, exceptions and limits](#lang-errors) — the throwable tree, `throw`/`try`/`catch`/`finally`, what an uncaught throw does, and the fatal limits no `catch` sees *(Throwable, Exception, Error, LogicError, RuntimeError, IOError, ParseError, TimeoutError, RecursionError, ArithmeticError, throw, try, catch, finally, rethrow, previous, backtrace, location, message, getMessage, getPrevious, getTrace, getCode, set_error_handler, set_exception_handler, trigger_error, error_reporting, fatal, FATAL, memory limit, onLimit, capability, fs.read, script.spawn, Core\Fatal, Core\Debug, var_dump, print_r, assert, Core\Test\Failure)*
-- A.9 [Tasks, channels and isolates](#lang-concurrency) — structured concurrency with `Core\Task`, bounded channels, and `spawn script` isolates that share nothing *(Core\Task, all, map, limit, deadline, TimeoutError, sleep, usleep, Core\Task\Channel, send, close, spawn script, await, Core\Script\Handle, isolate, ScriptResult, script.spawn, args, output, capture, inherit, async, await, Fiber, pcntl, pcntl_fork, pthreads, parallel, curl_multi, threads, workers, shared state)*
-- A.10 [Attributes, routes, commands and derived codecs](#lang-attributes) — `#[...]` metadata as anonymous objects, how it is read back, and the names the compiler acts on — JSON codecs, the route table, the command table, and program enumeration *(attribute, #[...], Attribute, Reflection, ReflectionAttribute, getAttributes, Core\Attributes, get, all, #[Route], Symfony route, Laravel route, Route, Access, Query, Api, OpenAPI, Router::url, urlAbsolute, Command, Option, Symfony Console, Json\Derive, Json\Field, JsonSerializable, decodeAs, Program::implementing, autoload)*
-- A.11 [Testing](#lang-testing) — `#[Test]` methods, `nvs test`, a directory of test files as one program, fixtures, data rows, the assertion roster, fixed clocks and seeds, and the report formats *(test, #[Test], nvs test, test directory, test suite, bootstrap, PHPUnit, TestCase, assertEquals, assertSame, assertTrue, assertNull, assertCount, expectException, assertThrows, dataProvider, TestWith, Fixture, setUp, skip, markTestSkipped, retries, flaky, Core\Test, Core\Test\Failure, --format json, junit, fixed clock, seed, .nvst, how to test, unit test, which test, expected output, phpt)*
+- A.6 [Enums](#lang-enums) — `enum` declares a closed set of named integers — how cases get their values, how a case converts to and from its integer, and what an enum does not have *(enum, case, backed enum, int enum, uint enum, string enum, ->name, ->value, cases(), from(), tryFrom(), as int, as E, enum match, enum switch, enum case type, closed set, Core\Arr::Order)*
+- A.7 [Iteration and generators](#lang-iteration) — what `foreach` accepts — arrays, `Iterable<T>`, `Iterator<T>` — how a class becomes iterable, and how a method with `yield` is a lazy `Iterator<T>` *(foreach, Iterable, Iterator, iterate, advance, current, yield, generator, Generator, yield from, Core\Arr::from, lazy, finally, ObjectMap, ObjectSet, Heap, Channel)*
+- A.8 [Errors, exceptions and limits](#lang-errors) — the throwable tree, `throw`/`try`/`catch`/`finally`, what an uncaught throw does, and the fatal limits no `catch` sees *(Throwable, Exception, Error, LogicError, RuntimeError, IOError, ParseError, TimeoutError, RecursionError, ArithmeticError, throw, try, catch, finally, rethrow, previous, backtrace, location, message, getMessage, getPrevious, getTrace, getCode, uncaught exception, error handler, fatal, FATAL, memory limit, onLimit, capability, fs.read, script.spawn, Core\Fatal, Core\Debug, dump a value, assertion, Core\Test\Failure)*
+- A.9 [Tasks, channels and isolates](#lang-concurrency) — structured concurrency with `Core\Task`, bounded channels, and `spawn script` isolates that share nothing *(Core\Task, all, map, limit, deadline, TimeoutError, sleep, Core\Task\Channel, send, close, spawn script, await, Core\Script\Handle, isolate, ScriptResult, script.spawn, args, output, capture, inherit, async, await, fibers, fork, parallel, concurrent requests, threads, workers, shared state)*
+- A.10 [Attributes, routes, commands and derived codecs](#lang-attributes) — `#[...]` metadata as anonymous objects, how it is read back, and the names the compiler acts on — JSON codecs, the route table, the command table, and program enumeration *(attribute, #[...], Attribute, reflection, read attributes, Core\Attributes, get, all, #[Route], route attribute, Route, Access, Query, Api, OpenAPI, Router::url, urlAbsolute, Command, Option, console command, Json\Derive, Json\Field, JSON encoding, decodeAs, Program::implementing, autoload)*
+- A.11 [Testing](#lang-testing) — `#[Test]` methods, `nvs test`, a directory of test files as one program, fixtures, data rows, the assertion roster, fixed clocks and seeds, and the report formats *(test, #[Test], nvs test, test directory, test suite, bootstrap, assertEquals, assertSame, assertTrue, assertNull, assertCount, assertThrows, expected exception, data rows, TestWith, Fixture, setup, skip, retries, flaky, Core\Test, Core\Test\Failure, --format json, junit, fixed clock, seed, .nvst, how to test, unit test, which test, expected output)*
 
 ### Part B — The `Core` library
 
@@ -81,15 +81,15 @@ Conventions the whole file uses:
 | [`Core\Time\TimeOfDay`](#core-core-time-timeofday) | a wall-clock reading with no date and no zone, wrapping within the day |
 | [`Core\Time\Duration`](#core-core-time-duration) | an exact, signed span of nanoseconds — a duration written like `1h30m` is a value of this class |
 | [`Core\Time\Zone`](#core-core-time-zone) | a time zone — an IANA region, a fixed offset, or `UTC` — named explicitly at every conversion |
-| [`Core\ObjectMap<K, V>`](#core-core-objectmap) | a map keyed by object identity — the typed replacement for `SplObjectStorage` used as a map and for every `spl_object_id` side table |
-| [`Core\ObjectSet<T>`](#core-core-objectset) | a set of objects held by identity — the typed replacement for `SplObjectStorage` used as a set |
-| [`Core\Heap<T>`](#core-core-heap) | a priority queue that answers its smallest element first — `SplPriorityQueue`, `SplMinHeap` and `SplMaxHeap` in one class |
+| [`Core\ObjectMap<K, V>`](#core-core-objectmap) | a map keyed by object identity — a typed side table that keeps a value for each object |
+| [`Core\ObjectSet<T>`](#core-core-objectset) | a typed set of objects held by identity |
+| [`Core\Heap<T>`](#core-core-heap) | a priority queue that answers its smallest element first, and a max-heap when its comparator is reversed |
 | [`Core\Random`](#core-core-random) | cryptographically secure random integers, floats, bytes, tokens and array draws |
 | [`Core\Random\Seeded`](#core-core-random-seeded) |  |
 | [`Core\Uuid`](#core-core-uuid) | a 128-bit UUID value — random v4, time-ordered v7, parsed from canonical text |
 | [`Core\Hash`](#core-core-hash) | digests and HMACs over text or bytes, answered as raw `bytes` — the algorithm is an argument, never part of the member's name |
 | [`Core\Hash\Stream`](#core-core-hash-stream) | an incremental digest — fed piece by piece with `update`, closed once with `finish` |
-| [`Core\Uri`](#core-core-uri) | RFC 3986 URI references read, rebuilt, resolved and compared, with the two percent-encoders and PHP's query-string convention |
+| [`Core\Uri`](#core-core-uri) | RFC 3986 URI references read, rebuilt, resolved and compared, with the two percent-encoders and the bracket query-string convention |
 | [`Core\Router`](#core-core-router) | reverse routing — a link to a route by its declared `name`, as a rooted path or with the configured origin in front — and the verbs a path claims |
 | [`Core\Router\Match`](#core-core-router-match) | the route a request matched — its declared `name`, the captures its path filled, its verb and its access decision, decided once at the door |
 | [`Core\Csv`](#core-core-csv) | RFC 4180 documents read into rows of `string` fields and written back, with an optional header row and dialect |
@@ -98,7 +98,7 @@ Conventions the whole file uses:
 | [`Core\Validate`](#core-core-validate) | the format predicates — is this text an email address, a hostname, an IP or MAC address, ASCII, printable — answering `bool` and laundering nothing |
 | [`Core\Out`](#core-core-out) | output buffering scoped to a callable — what it echoes is captured as the sink's carrier instead of reaching the output |
 | [`Core\Debug`](#core-core-debug) | one readable rendering of any value — `dump` writes it to stderr, `render` answers it as text |
-| [`Core\Test`](#core-core-test) | the typed assertion roster a `#[Test]` method calls — what PHPUnit's `assert*` family becomes when testing is part of the language |
+| [`Core\Test`](#core-core-test) | the typed assertions a `#[Test]` method calls, built into the language |
 | [`Core\Test\Response`](#core-core-test-response) | what `Core\Test::request` answers — the status, the headers, the cookies and the body one in-process request produced |
 | [`Core\Test\SentRequest`](#core-core-test-sentrequest) |  |
 | [`Core\Task`](#core-core-task) | structured concurrency — run a fixed set or a whole array of callables as child tasks and get every result back before the call returns |
@@ -120,10 +120,10 @@ Conventions the whole file uses:
 | [`Core\Server`](#core-core-server) |  |
 | [`Core\Signal`](#core-core-signal) |  |
 | [`Core\Budget`](#core-core-budget) |  |
-| [`Core\Request`](#core-core-request) | the request a program is answering — `$_GET`, `$_POST`, `$_COOKIE`, `$_FILES` and `php://input` as one class, every answer of it `tainted` |
+| [`Core\Request`](#core-core-request) | the request a program is answering — query, form fields, cookies, headers, uploads and the body in one class, every answer of it `tainted` |
 | [`Core\Request\Mount`](#core-core-request-mount) | the door a request came through — the prefix the server stripped and the glob captures of the mount row that took it, so one compiled program serves many tenants |
 | [`Core\Request\BodyStream`](#core-core-request-bodystream) | the request body as a walk over its chunks — `bodyStream()`'s answer, consumed once, holding one chunk at a time |
-| [`Core\Request\Files`](#core-core-request-files) | the uploads a request carries, as a walk over its parts — `$_FILES` and `move_uploaded_file` replaced by a stream that touches no temporary directory |
+| [`Core\Request\Files`](#core-core-request-files) | the uploads a request carries, as a walk over its parts that writes no temporary file |
 | [`Core\Request\Part`](#core-core-request-part) | one uploaded part — what it declared about itself, and the three ways to spend its bytes |
 | [`Core\Request\PartContent`](#core-core-request-partcontent) | one uploaded part's bytes as a walk over its chunks — `Core\Request\Part::content()`'s answer, holding one chunk at a time and valid only while its part is the current one |
 | [`Core\Response`](#core-core-response) |  |
@@ -134,7 +134,7 @@ Conventions the whole file uses:
 | [`Core\Topic`](#core-core-topic) |  |
 | [`Core\Sse`](#core-core-sse) |  |
 | [`Core\Sse\Message`](#core-core-sse-message) |  |
-| [`Core\Fatal`](#core-core-fatal) | the one hook that runs after a resource limit has stopped the request — what `register_shutdown_function` was for on a fatal |
+| [`Core\Fatal`](#core-core-fatal) | the one hook that runs after a resource limit has stopped the request |
 | [`Core\Log`](#core-core-log) |  |
 | [`Core\Taint`](#core-core-taint) | the one way a value loses the `tainted` qualifier when no sink-named launderer fits — a call that says so by name and carries a written reason |
 | [`Core\Secret`](#core-core-secret) | the one narrow way a value loses the `secret` qualifier — a call that says so by name and carries a written reason |
@@ -264,10 +264,10 @@ Conventions the whole file uses:
 
 ### Part C — The toolchain
 
-- C.1 [The nvs command](#tools-cli) — every subcommand of the `nvs` binary — run, check, test, build, api, config, info, meta, ast — with its flags, its exit status and what it prints *(nvs, nvs run, nvs check, nvs test, nvs build, --compile, --openapi, nvs api diff, nvs config check, nvs config dump, nvs info, nvs meta --json, nvs ast, --config, --dump-ir, --dump-asm, --filter, --format, exit status, exit code, .nvs, .php, shebang, cache, single-file executable, bundle, php -l, php -i, php -r, phpunit, composer, phpdbg)*
+- C.1 [The nvs command](#tools-cli) — every subcommand of the `nvs` binary — run, check, test, build, api, config, info, meta, ast — with its flags, its exit status and what it prints *(nvs, nvs run, nvs check, nvs test, nvs build, --compile, --openapi, nvs api diff, nvs config check, nvs config dump, nvs info, nvs meta --json, nvs ast, --config, --dump-ir, --dump-asm, --filter, --format, exit status, exit code, .nvs, shebang, cache, single-file executable, bundle, syntax check, version, licenses)*
 - C.2 [Installing on a host: folders and permissions](#tools-install) — the data folder where Novis keeps its own files; where to put the `nvs` binary, the configuration, the compile cache and the logs on a server; which folder permissions Novis checks and when; the commands that set them on Windows and on Linux; and what each refusal message means *(install, installation, setup, deploy, deployment, server, host, folder, directory, permissions, ACL, DACL, icacls, chmod, chown, owner, ownership, Authenticated Users, Users, Everyone, SID, S-1-5-11, S-1-5-32-545, inheritance, E0607, access denied, os error 5, nvs init, nvs serve, --config, --data, data folder, .nvsdata, file_cache_dir, opcache, cache, log, logs, log target, Windows, Linux, PATH, service account, elevated prompt, administrator)*
-- C.3 [Configuration: nvs.toml, limits and capabilities](#tools-config) — the `nvs.toml` file — where it is read from, every block the binary accepts, resource limits and their ceilings, capability grants, per-application blocks, includes, secrets, and reading it from a program with `Core\Config` *(nvs.toml, configuration, config, TOML, limits, memory_limit, max_execution_time, limits.hard, ceiling, capabilities, fs.read, fs.write, script.spawn, net.connect, net.listen, net.local, process.exec, cache.shared, capability, permission, sandbox, [[app]], entry, root, include, mode, development, production, ini_get, ini_set, ini_restore, ini_get_all, php.ini, .htaccess, secret, secrets, password_file, /run/secrets, SOPS, sops, age, encrypted secrets, sealed secrets, Vault, LoadCredential, mail, Core\Config)*
-- C.4 [The HTTP server](#tools-server) — `nvs serve`, the `[server]` block and its mounts, how a request finds the file that answers it, what a program reads about the door it came through, what reaches a running server, the drain, what happens when the client goes away and `nvs service` *(nvs serve, server, HTTP, disconnect, client disconnect, client goes away, cancel_on_disconnect, disconnect_grace, ignore_user_abort, restart, restart required, deploy, hot reload, zero downtime, symlink, settle, revalidate_freq, listen, port, --listen, --port, [server], [[server.mount]], mount, prefix, host, scan, entry, origin, root, dispatch, static, static files, trusted_proxies, X-Forwarded-For, X-Forwarded-Proto, client IP, health_path, health check, max_in_flight, workers, timeout, drain, drain_timeout, graceful shutdown, reload, nvs service, service, systemd, Windows service, Core\Request::mount, Core\Request\Mount, Core\Router::url, multi-tenant, subdirectory, virtual host, front controller, try_files, php -S, php-fpm, nginx, Apache, .htaccess, RewriteBase, SCRIPT_NAME, PATH_INFO, DocumentRoot)*
+- C.3 [Configuration: nvs.toml, limits and capabilities](#tools-config) — the `nvs.toml` file — where it is read from, every block the binary accepts, resource limits and their ceilings, capability grants, per-application blocks, includes, secrets, and reading it from a program with `Core\Config` *(nvs.toml, configuration, config, TOML, limits, memory limit, time limit, limits.hard, ceiling, capabilities, fs.read, fs.write, script.spawn, net.connect, net.listen, net.local, process.exec, cache.shared, capability, permission, sandbox, [[app]], entry, root, include, mode, development, production, read a setting, change a setting, .htaccess, secret, secrets, password_file, /run/secrets, SOPS, sops, age, encrypted secrets, sealed secrets, Vault, LoadCredential, mail, Core\Config)*
+- C.4 [The HTTP server](#tools-server) — `nvs serve`, the `[server]` block and its mounts, how a request finds the file that answers it, what a program reads about the door it came through, what reaches a running server, the drain, what happens when the client goes away and `nvs service` *(nvs serve, server, HTTP, disconnect, client disconnect, client goes away, cancel_on_disconnect, disconnect_grace, restart, restart required, deploy, hot reload, zero downtime, symlink, settle, revalidate_freq, listen, port, --listen, --port, [server], [[server.mount]], mount, prefix, host, scan, entry, origin, root, dispatch, static, static files, trusted_proxies, X-Forwarded-For, X-Forwarded-Proto, client IP, health_path, health check, max_in_flight, workers, timeout, drain, drain_timeout, graceful shutdown, reload, nvs service, service, systemd, Windows service, Core\Request::mount, Core\Request\Mount, Core\Router::url, multi-tenant, subdirectory, virtual host, front controller, try_files, development server, nginx, Apache, .htaccess, RewriteBase, SCRIPT_NAME, PATH_INFO, DocumentRoot)*
 - C.5 [Coming from PHP: how Novis is different, and how to port a program](#tools-php-differences) — how Novis is different from PHP, what Novis can do that PHP cannot, and how to port a program by writing it again; there is no converter and no list of PHP names *(PHP, coming from PHP, switch from PHP, differences, port, porting, rewrite, migration, converter, AI agent, coding agent, nvs agent, PHPUnit, PHPStan, Psalm, PHP CS Fixer, PHP_CodeSniffer, Composer)*
 - C.6 [The editor: nvs lsp, nvs lsp-test and the VS Code extension](#tools-editor) — the language server — every request it answers, the diagnostics it publishes, the positions it speaks and the secrets it conceals — `nvs lsp-test`, the suite that freezes an editor answer as text, and the VS Code extension that is the reference client *(nvs lsp, language server, LSP, Language Server Protocol, editor, IDE, VS Code, stdio, initialize, hover, go to definition, completion, autocomplete, semantic tokens, syntax highlighting, document symbol, outline, selection range, folding, document link, code action, quick fix, refactor, convert to html template, publishDiagnostics, nvs/redactions, secret, position encoding, utf-8, utf-16, nvs lsp-test, .lspt, --coverage, extension, vsix, TextMate grammar, nvs.path, nvs.lsp.enable, nvs.secrets.redact, nvs.taint.mark, reveal secret, restart language server, activation)*
 - C.7 [Coding agents: nvs agent, and what nvs agent init installs](#tools-agents) — the four commands a coding agent reads the language through — `primer`, `index`, `find` and `show` — over the `Core` registry and the chapters of this reference, the `nvs check` loop that closes them, and `nvs agent init`, which writes an `AGENTS.md` stanza and what the coding agent you run needs beside it, naming these commands and `nvs code` for the project's own code, and states no language fact *(nvs agent, nvs code, nvs agent primer, nvs agent index, nvs agent find, nvs agent show, nvs agent init, nvs agent hook, --agent, --all, --force, --check, --no-hooks, --json, hook, check hook, check on edit, PostToolUse, postToolUse, settings.json, .claude/settings.json, hooks.json, .cursor/hooks.json, JSON, fingerprint, coding agent, LLM, AI assistant, agent instructions, AGENTS.md, SKILL.md, .claude, Claude Code, skill, Cursor, Codex, OpenCode, GitHub Copilot, .instructions.md, adapter, pointer, stale documentation, hallucinated member, nvs check loop)*
@@ -277,7 +277,7 @@ Conventions the whole file uses:
 <a id="lang-programs"></a>
 ## A.1 Programs, files and names
 
-Keywords: <?nvs, <?=, ?>, inline HTML, shebang, nvs run, echo, print, comments, doc comment, ///, docblock, PHPDoc, @see, @example, exit, namespace, use, require, autoload, discover, class name, casing, constructor, visibility, top-level statements, main
+Keywords: <?nvs, <?=, ?>, inline HTML, shebang, nvs run, echo, print, comments, doc comment, ///, docblock, @see, @example, exit, namespace, use, require, autoload, discover, class name, casing, constructor, visibility, top-level statements, main
 
 ### A program is a file of top-level statements
 
@@ -350,8 +350,7 @@ string $who = "world";
   the tag stands. The `;` before `?>` is optional in both forms.
 - A `?>` followed directly by one newline swallows that newline, so a template line ending in a
   closing tag emits no blank line.
-- `<?php` is refused with a diagnostic naming `<?nvs`, and there is no short open tag `<?`, so a
-  `<?xml` declaration stays text.
+- There is no short open tag `<?`, so a `<?xml` declaration stays text.
 - A file whose first two bytes are `#!` is in code mode from line 2 with no opening tag: line 1 is
   trivia rather than output, and an `<?nvs` before the first `?>` is `E0009`
 .
@@ -634,7 +633,7 @@ stopping
 <a id="lang-types"></a>
 ## A.2 Types, declarations and conversions
 
-Keywords: bool, int, uint, float, decimal, string, bytes, array<T>, callable, class<T>, class reference, mixed, object, nullable, ?T, union, single-value type, enum, shape, anonymous object, type alias, void, never, self, static, iterable, intersection, var, declaration, inout, variadic, default parameter, constant, string literal, numeric literal, heredoc, nowdoc, interpolation, duration, html, markup, template, html template, page, escape, xss, as, conversion, cast, (int), (string), (float), (bool), (array), intval, strval, floatval, boolval, settype, gettype, is_int, is_string, is_array, is_null, is_numeric, widening, narrowing, is, truthy, falsy, tainted, secret, resource
+Keywords: bool, int, uint, float, decimal, string, bytes, array<T>, callable, class<T>, class reference, mixed, object, nullable, ?T, union, single-value type, enum, shape, anonymous object, type alias, void, never, self, static, iterable, intersection, var, declaration, inout, variadic, default parameter, constant, string literal, numeric literal, heredoc, nowdoc, interpolation, duration, html, markup, template, html template, page, escape, xss, as, conversion, cast, convert to int, convert to string, type check, type of a value, widening, narrowing, is, truthy, falsy, tainted, secret
 
 ### Every binding has a type
 
@@ -1803,7 +1802,7 @@ cannot be passed to `Core\Json::encode`
 - No free function converts a value or tests its type. A variable's type never changes, so a
   conversion goes into a new variable. A `mixed` is tested with `is` for a class,
   `($m as ?int) != null` for a scalar and `== null` for `null`.
-- There is no `resource` type. A handle is a `Core` object.
+- A handle, such as an open file or a connection, is a `Core` object.
 - A string or an array is never a `callable`. A `callable` comes from an anonymous function
   `fn (…) => …` or a method reference such as `Foo::bar(...)`.
 - `$s[0]` on a string is a compile error. Write `Core\Str::at` or `Core\Str::slice`.
@@ -1833,7 +1832,7 @@ no free function has this name
 <a id="lang-expressions"></a>
 ## A.3 Expressions and operators
 
-Keywords: operators, precedence, associativity, arithmetic, +, -, *, /, %, **, pow, concatenation, ., .=, ==, !=, ===, !==, <>, <=>, spaceship, comparison, <, <=, >, >=, &&, ||, !, and, or, xor, ??, ??=, ??+=, ??-=, ??.=, defaulting assignment, ?:, elvis, ternary, ?->, nullsafe, match, is, new, clone, throw expression, print, isset, empty, unset, anonymous function, fn, function, use, callable, method reference, named arguments, spread, ..., variadic, inout, array literal, subscript, append, [], destructuring, list(), anonymous object, shape, ++, --, increment, bitwise, &, |, ^, ~, <<, >>, shift, overflow, ArithmeticError, division by zero, @, backticks, eval, extract, compact, settype, variable variables, $$, =&, reference, |>, pipeline, pipe, $_, hole, substitution
+Keywords: operators, precedence, associativity, arithmetic, +, -, *, /, %, **, pow, concatenation, ., .=, ==, !=, ===, !==, <>, <=>, spaceship, comparison, <, <=, >, >=, &&, ||, !, and, or, xor, ??, ??=, ??+=, ??-=, ??.=, defaulting assignment, ?:, elvis, ternary, ?->, nullsafe, match, is, new, clone, throw expression, print, isset, empty, unset, anonymous function, fn, function, use, callable, method reference, named arguments, spread, ..., variadic, inout, array literal, subscript, append, [], destructuring, anonymous object, shape, ++, --, increment, bitwise, &, |, ^, ~, <<, >>, shift, overflow, ArithmeticError, division by zero, @, backticks, eval, reference, |>, pipeline, pipe, $_, hole, substitution
 
 ### Precedence and associativity
 
@@ -2417,7 +2416,7 @@ anonymous `function` expressions are not supported
 
 ### Arrays in expressions
 
-An array literal is `[a, b]`, `["k" => v]`, or both mixed. An array literal is checked against its declared target type, as in `array<int> $a = [1, 2]`. Under `var` it has no target: `var $a = [1, 2]` is an `array<int>` because every element is an `int`, and an array literal whose elements have different types, or an empty one, needs its type written. `[...$a, x]` copies `$a`'s entries into the new array, renumbering an integer-looking key under the new array's own counter and preserving every other, which is PHP's own spread. Every key is a `string`: an `int` or `uint` subscript names the same entry as its decimal spelling, so `$a[8]` and `$a["8"]` are one key while `"08"` is another, and a `foreach` key binding is always `string`.
+An array literal is `[a, b]`, `["k" => v]`, or both mixed. An array literal is checked against its declared target type, as in `array<int> $a = [1, 2]`. Under `var` it has no target: `var $a = [1, 2]` is an `array<int>` because every element is an `int`, and an array literal whose elements have different types, or an empty one, needs its type written. `[...$a, x]` copies `$a`'s entries into the new array, renumbering an integer-looking key under the new array's own counter and preserving every other. Every key is a `string`: an `int` or `uint` subscript names the same entry as its decimal spelling, so `$a[8]` and `$a["8"]` are one key while `"08"` is another, and a `foreach` key binding is always `string`.
 
 - `$a["k"]` reads; an absent key **throws** a `RuntimeError` (`undefined array key`). `$a["k"] ?? $d` is the read that does not.
 - `$a["k"] = v` writes, `$a[] = v` appends at the highest integer key so far plus one (`0` in an empty array), and both reach into nested arrays: `$g["r"]["c"] = 1` creates the inner array. `[]` is only a write target.
@@ -2526,7 +2525,7 @@ variable variables
 <a id="lang-statements"></a>
 ## A.4 Statements and control flow
 
-Keywords: statement, block, scope, definite assignment, if, elseif, else if, else, endif, alternative syntax, while, endwhile, do while, for, foreach, endforeach, as, key, value, inout, by reference, Iterator, Iterable, switch, case, default, fallthrough, break, continue, break 2, continue 2, levels, return, try, catch, finally, multi-catch, throw, echo, print, unset, exit, yield, goto, label, declare, strict_types, global, static variable
+Keywords: statement, block, scope, definite assignment, if, elseif, else if, else, endif, alternative syntax, while, endwhile, do while, for, foreach, endforeach, as, key, value, inout, by reference, Iterator, Iterable, switch, case, default, fallthrough, break, continue, break 2, continue 2, levels, return, try, catch, finally, multi-catch, throw, echo, print, unset, exit, yield, goto, label, declare, global, static variable
 
 ### Expression statements, blocks and declarations
 
@@ -4328,7 +4327,7 @@ it: assigning it, passing it, or storing it never copies the object, and a write
 handle is seen through every other. `==` on two objects is identity — true only for the same
 object. `clone` makes a new object of the same class (a subclass clone keeps its class) with a
 copy of every property: an array property is copied, an object property is shared, and no
-method runs. `__clone` does not exist.
+method runs.
 
 ```nvs
 <?nvs
@@ -4484,7 +4483,7 @@ a class or an interface is not declared in a class body
 <a id="lang-enums"></a>
 ## A.6 Enums
 
-Keywords: enum, case, backed enum, BackedEnum, UnitEnum, int enum, uint enum, string enum, ->name, ->value, cases(), from(), tryFrom(), as int, as E, enum match, enum switch, enum case type, closed set, Core\Arr::Order
+Keywords: enum, case, backed enum, int enum, uint enum, string enum, ->name, ->value, cases(), from(), tryFrom(), as int, as E, enum match, enum switch, enum case type, closed set, Core\Arr::Order
 
 ### Declaring an enum
 
@@ -4878,8 +4877,8 @@ an import cannot name a member of a class
 
 A case has no properties and an enum has no methods. So `E::A->value`, `E::A->name`,
 `E::from($n)`, `E::tryFrom($n)` and `E::cases()` are compile errors. An enum body has only
-cases: a method, a constant or an `implements` clause does not compile. There is no `BackedEnum`
-or `UnitEnum`, because every enum is backed by an integer. Write these instead:
+cases: a method, a constant or an `implements` clause does not compile. Every enum is backed by an
+integer. Write these instead:
 
 - The integer of a case is `E::A as int`, or `E::A as uint`.
 - `$n as E` gives the case for an integer, and throws `RuntimeError` when no case matches.
@@ -4960,7 +4959,7 @@ echo " ", Core\Arr::Order::Desc as int, "\n";
 <a id="lang-iteration"></a>
 ## A.7 Iteration and generators
 
-Keywords: foreach, Iterable, Iterator, iterate, advance, current, yield, generator, Generator, yield from, IteratorAggregate, Traversable, ArrayAccess, Countable, iterator_to_array, Core\Arr::from, lazy, finally, ObjectMap, ObjectSet, Heap, Channel
+Keywords: foreach, Iterable, Iterator, iterate, advance, current, yield, generator, Generator, yield from, Core\Arr::from, lazy, finally, ObjectMap, ObjectSet, Heap, Channel
 
 ### What `foreach` walks
 
@@ -5393,9 +5392,8 @@ echo Core\Arr::count($b), "\n";
 ### What does not exist
 
 `ArrayAccess`, `Countable`, `IteratorAggregate`, `Traversable` and the `Generator` class are not
-declared — naming one is a compile error. `iterator_to_array`, `count`, `current`, `next`,
-`reset` and every other free function do not exist; a generator's own members and `Core\Arr` are
-the replacements. Element access on an object (`$obj[0]`) has no interface to implement: give
+declared — naming one is a compile error. There are no free functions: use a generator's own
+members and `Core\Arr`. Element access on an object (`$obj[0]`) has no interface to implement: give
 the class a method.
 
 ```nvs error
@@ -5427,7 +5425,7 @@ is not a function that exists
 <a id="lang-errors"></a>
 ## A.8 Errors, exceptions and limits
 
-Keywords: Throwable, Exception, Error, LogicError, RuntimeError, IOError, ParseError, TimeoutError, RecursionError, ArithmeticError, throw, try, catch, finally, rethrow, previous, backtrace, location, message, getMessage, getPrevious, getTrace, getCode, set_error_handler, set_exception_handler, trigger_error, error_reporting, fatal, FATAL, memory limit, onLimit, capability, fs.read, script.spawn, Core\Fatal, Core\Debug, var_dump, print_r, assert, Core\Test\Failure
+Keywords: Throwable, Exception, Error, LogicError, RuntimeError, IOError, ParseError, TimeoutError, RecursionError, ArithmeticError, throw, try, catch, finally, rethrow, previous, backtrace, location, message, getMessage, getPrevious, getTrace, getCode, uncaught exception, error handler, fatal, FATAL, memory limit, onLimit, capability, fs.read, script.spawn, Core\Fatal, Core\Debug, dump a value, assertion, Core\Test\Failure
 
 ### The throwable tree
 
@@ -5781,8 +5779,7 @@ A throw that no `catch` handles ends the program with exit status 1. Standard ou
 everything written before it; standard error gets one log record holding the message, the error's
 class and one entry per frame, innermost first, ending with the top-level frame `<script>()`.
 `[log] format` picks how that record is written: one JSON line by default, readable text under
-`format = "text"`. There is no `set_exception_handler` and no `set_error_handler`:
-catch it, or let it end the program.
+`format = "text"`. No global handler can intercept the throw: catch it, or let it end the program.
 
 ```nvs exit=1
 <?nvs
@@ -5959,8 +5956,8 @@ flag should be set: Core\Test::assertTrue failed: `$actual` is false
 
 ### Inspecting a value
 
-`Core\Debug::dump` writes one rendering per argument to standard error — never to standard
-output, and never into a captured buffer — which is what `var_dump` is for. `Core\Debug::render`
+`Core\Debug::dump` writes one rendering per argument to standard error. It never writes to standard
+output or into a captured buffer. `Core\Debug::render`
 returns the same rendering as text, so it can be echoed or embedded. Control bytes are made
 visible, a deep or long structure is elided, a cycle is marked, and a `secret` property is redacted.
 
@@ -5988,18 +5985,18 @@ array(2) [
 <a id="lang-concurrency"></a>
 ## A.9 Tasks, channels and isolates
 
-Keywords: Core\Task, all, map, limit, deadline, TimeoutError, sleep, usleep, Core\Task\Channel, send, close, spawn script, await, Core\Script\Handle, isolate, ScriptResult, script.spawn, args, output, capture, inherit, async, await, Fiber, pcntl, pcntl_fork, pthreads, parallel, curl_multi, threads, workers, shared state
+Keywords: Core\Task, all, map, limit, deadline, TimeoutError, sleep, Core\Task\Channel, send, close, spawn script, await, Core\Script\Handle, isolate, ScriptResult, script.spawn, args, output, capture, inherit, async, await, fibers, fork, parallel, concurrent requests, threads, workers, shared state
 
 ### No colouring: I/O just waits
 
-There is no `async`, no `await` on a promise, no `Fiber`, no callback style. A member that waits
+There is no `async`, no `await` on a promise and no callback style. A member that waits
 — `Core\Time::sleep`, a file read, a channel `send` — parks the calling task and returns when it
 is done; the code around it is ordinary sequential code. Concurrency is expressed by *running
 several tasks*, and every task is a child of the call that started it: the call does not return
 while any child is still running.
 
-`async function`, `new Fiber(…)`, `pcntl_fork()` and threads do not exist; `Core\Task::map` is
-what `curl_multi_*` was for. Nothing is shared between requests: there are no globals that outlive
+`async function`, fibers, process forking and threads do not exist. `Core\Task::map` runs many
+calls at once, such as many HTTP requests. Nothing is shared between requests: there are no globals that outlive
 one, and no `Core` member that keeps state across them.
 
 ```nvs
@@ -6391,9 +6388,9 @@ try {
 
 ### What does not exist
 
-- `async`, a promise-style `await`, `Fiber`, generators as coroutines: a task is a callable handed to
+- `async`, a promise-style `await`, fibers, generators as coroutines: a task is a callable handed to
   `Core\Task`, and waiting is implicit.
-- `pcntl_fork`, `pthreads`, `parallel`, a `spawn worker`: an isolate is the one unit of separate
+- Process forking, threads, a `spawn worker`: an isolate is the one unit of separate
   execution, and its entry is a whole file or a static method.
 - An anonymous function as a spawn entry: refused. It would carry the variables it captures into
   a child that shares nothing but compiled code.
@@ -6412,7 +6409,7 @@ var $fiber = new Fiber(fn(): int => 1);
 <a id="lang-attributes"></a>
 ## A.10 Attributes, routes, commands and derived codecs
 
-Keywords: attribute, #[...], Attribute, Reflection, ReflectionAttribute, getAttributes, Core\Attributes, get, all, #[Route], Symfony route, Laravel route, Route, Access, Query, Api, OpenAPI, Router::url, urlAbsolute, Command, Option, Symfony Console, Json\Derive, Json\Field, JsonSerializable, decodeAs, Program::implementing, autoload
+Keywords: attribute, #[...], Attribute, reflection, read attributes, Core\Attributes, get, all, #[Route], route attribute, Route, Access, Query, Api, OpenAPI, Router::url, urlAbsolute, Command, Option, console command, Json\Derive, Json\Field, JSON encoding, decodeAs, Program::implementing, autoload
 
 ### An attribute is an anonymous object attached to a declaration
 
@@ -6521,8 +6518,7 @@ payload, so nothing is reflected on at run time.
   value a read of that same name inlines — folded in the scope the attribute was *written* in, not
   the one it is read from. A constant whose own declaration folds to nothing is the one refusal
   left.
-- There is no reflection API, so `ReflectionClass` and `ReflectionAttribute` do not exist. A
-  retrieved payload is a plain shape value, read with `->`.
+- There is no reflection API. A retrieved payload is a plain shape value, read with `->`.
 
 ```nvs
 <?nvs
@@ -6596,7 +6592,7 @@ The rest are below.
 
 `#[Core\Json\Derive]` on a class gives it an encoder and a decoder, so `Core\Json::encode` accepts
 its instances and `Core\Json::decodeAs<T>` builds them. Without the attribute both refuse the class
-with a `LogicError` — there is no `JsonSerializable` and no automatic encoding of an object.
+with a `LogicError`. An object is never encoded automatically.
 
 ```nvs
 <?nvs
@@ -7164,7 +7160,7 @@ foreach (Core\Program::implementingWith<Page, {path: string}>("render") as {inst
 <a id="lang-testing"></a>
 ## A.11 Testing
 
-Keywords: test, #[Test], nvs test, test directory, test suite, bootstrap, PHPUnit, TestCase, assertEquals, assertSame, assertTrue, assertNull, assertCount, expectException, assertThrows, dataProvider, TestWith, Fixture, setUp, skip, markTestSkipped, retries, flaky, Core\Test, Core\Test\Failure, --format json, junit, fixed clock, seed, .nvst, how to test, unit test, which test, expected output, phpt
+Keywords: test, #[Test], nvs test, test directory, test suite, bootstrap, assertEquals, assertSame, assertTrue, assertNull, assertCount, assertThrows, expected exception, data rows, TestWith, Fixture, setup, skip, retries, flaky, Core\Test, Core\Test\Failure, --format json, junit, fixed clock, seed, .nvst, how to test, unit test, which test, expected output
 
 ### A test is a method marked `#[Test]`
 
@@ -7455,7 +7451,7 @@ every failed assertion of a test is reported, not only the first.
 | `assertTrue($a)` | the `bool` is `true`; the argument is a declared `bool`, not anything truthy |
 | `assertNull($a)` | the value is `null` |
 | `assertCount($array, $n)` | the array holds exactly `$n` entries |
-| `assertThrows($body, C::class)` | running the callable throws `C` or a subclass (`expectException`); the throw is consumed, and the failure names what was thrown instead |
+| `assertThrows($body, C::class)` | running the callable throws `C` or a subclass; the throw is consumed, and the failure names what was thrown instead |
 | `assertDoesNotThrow($body)` | running the callable returns |
 | `expectFailure($body)` | an assertion inside the callable failed; those failures are discharged from the ledger, and a body in which nothing failed is itself a failure |
 | `advance($duration)` | not an assertion: moves the clock a `#[Test(at:)]` fixed |
@@ -7593,7 +7589,7 @@ Every function and constant in Novis is a member of a class under the reserved `
 <a id="core-core-str"></a>
 ### `Core\Str`
 
-Keywords: strlen, mb_strlen, substr, mb_substr, strpos, stripos, strrpos, str_contains, str_starts_with, str_ends_with, substr_count, strcmp, strcasecmp, strnatcmp, strstr, strrchr, explode, implode, join, str_split, mb_str_split, str_replace, str_ireplace, strtr, substr_replace, trim, ltrim, rtrim, str_pad, str_repeat, strrev, wordwrap, strtolower, strtoupper, mb_strtolower, mb_strtoupper, ucfirst, lcfirst, mb_convert_case, Normalizer, chr, mb_chr, mb_ord, sprintf, vsprintf, printf, grapheme, unicode, string, length, at, isEmpty, contains, startsWith, endsWith, slice, indexOf, lastIndexOf, countOf, compare, before, after, join, split, chunk, lines, graphemes, codePoints, replace, replaceAll, replaceRange, padStart, padEnd, trim, trimStart, trimEnd, repeat, reverse, wrap, lower, upper, upperFirst, lowerFirst, fold, normalize, fromCodePoint, fromCodePoints, format
+Keywords: string, text, grapheme, unicode, length, substring, slice, search, index of, contains, starts with, ends with, count occurrences, compare, natural order, case-insensitive, split, join, replace, trim, pad, repeat, reverse, word wrap, lowercase, uppercase, capitalize, case conversion, normalize, character code, printf-style formatting, length, at, isEmpty, contains, startsWith, endsWith, slice, indexOf, lastIndexOf, countOf, compare, before, after, join, split, chunk, lines, graphemes, codePoints, replace, replaceAll, replaceRange, padStart, padEnd, trim, trimStart, trimEnd, repeat, reverse, wrap, lower, upper, upperFirst, lowerFirst, fold, normalize, fromCodePoint, fromCodePoints, format
 
 Every member of `Core\Str` is a static function over a `string` that answers a new value; none
 changes its argument. Every position, length and count is in **graphemes** — user-perceived
@@ -8326,16 +8322,15 @@ Fills the placeholders in `$template` with `$arguments` and returns the text. Th
 <a id="core-core-arr"></a>
 ### `Core\Arr`
 
-Keywords: count, sizeof, array_filter, array_map, array_reduce, array_keys, array_values, array_key_first, array_key_last, reset, end, in_array, array_search, array_slice, array_splice, array_chunk, array_push, array_pop, array_shift, array_unshift, array_pad, array_reverse, array_flip, array_fill, array_fill_keys, range, array_combine, iterator_to_array, array_column, array_merge, array_replace, array_replace_recursive, array_diff, array_intersect, array_unique, array_count_values, array_find, array_any, array_all, array_sum, array_product, min, max, sort, rsort, asort, arsort, usort, uasort, ksort, krsort, uksort, natsort, array_multisort, array_is_list, array_key_exists, isset, array + array, group by, copy-on-write, immutable, count, filter, map, mapKeys, groupBy, reduce, find, findKey, any, all, isEmpty, hasKey, contains, keyOf, isList, keys, values, first, last, firstKey, lastKey, slice, replaceRange, chunk, append, prepend, withoutFirst, withoutLast, padStart, padEnd, reverse, flip, flatten, flattenDeep, column, sort, sortByKey, fill, fillKeys, range, fromKeysAndValues, from, overlay, overlayDeep, underlay, appendAll, diff, intersect, countBy, unique, min, max, sum, product, average, shapeAs
+Keywords: array, list, dictionary, count, filter, map, reduce, keys, values, first, last, search, slice, chunk, push, pop, append, prepend, pad, reverse, flip, fill, range, combine, column, merge, overlay, underlay, diff, intersect, unique, sum, product, average, min, max, sort, natural sort, stable sort, isset, array + array, group by, copy-on-write, immutable, count, filter, map, mapKeys, groupBy, reduce, find, findKey, any, all, isEmpty, hasKey, contains, keyOf, isList, keys, values, first, last, firstKey, lastKey, slice, replaceRange, chunk, append, prepend, withoutFirst, withoutLast, padStart, padEnd, reverse, flip, flatten, flattenDeep, column, sort, sortByKey, fill, fillKeys, range, fromKeysAndValues, from, overlay, overlayDeep, underlay, appendAll, diff, intersect, countBy, unique, min, max, sum, product, average, shapeAs
 
-`Core\Arr` is every PHP array function as a static member that answers a **new** array and never
-changes its argument: there is no `sort($a)` by reference — `Core\Arr::sort` returns the sorted
-array, and `append` returns the longer one. Keys are always `string`: `$a[0]` and `$a["0"]` name
-the same entry, `keys` answers `array<string>`, and a callback's key parameter is `string`. A
-callback receives `($value, $key)` and may declare fewer parameters; `reduce` puts the carry first.
-Absence is `null` — `first`, `last`, `find`, `keyOf`, `min` over an empty array — and `count`
-answers a `uint`. `$a + $b` does not compile: it is `underlay`; `array_merge` is `overlay` over
-maps and `appendAll` over lists.
+`Core\Arr` has the array functions as static methods. Each one returns a **new** array and never
+changes its argument. `Core\Arr::sort` returns the sorted array, and `append` returns the longer one.
+Keys are always `string`: `$a[0]` and `$a["0"]` are the same entry, `keys` returns `array<string>`,
+and a callback's key parameter is `string`. A callback receives `($value, $key)` and may declare
+fewer parameters. `reduce` passes the carry first. A missing value is `null`: `first`, `last`,
+`find`, `keyOf` and `min` return `null` for an empty array. `count` returns a `uint`. `$a + $b` does
+not compile. `overlay` and `underlay` combine maps, and `appendAll` joins lists.
 
 `shapeAs<T>` is the one member that answers something other than an array. It reads its subject as the
 type written at the call site — an inline shape, `{name: string, score: int}`, or a class carrying
@@ -8449,7 +8444,7 @@ ada 92 no note
 Core\Arr::count(array<T> $a): uint
 ```
 
-Counts the entries in `$a`, as `count` and `sizeof` do.
+Returns the number of entries in `$a`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -8464,7 +8459,7 @@ Counts the entries in `$a`, as `count` and `sizeof` do.
 Core\Arr::filter(array<T> $a, callable(T, string): bool $predicate): array<T>
 ```
 
-Keeps the entries `$predicate` answers truthily for, as `array_filter` does — with both of its flags folded in, since the callback receives `($value, $key)` and may declare fewer parameters.
+Returns the entries for which `$predicate` returns a truthy value. The callback receives `($value, $key)` and may declare fewer parameters.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -8480,7 +8475,7 @@ Keeps the entries `$predicate` answers truthily for, as `array_filter` does — 
 Core\Arr::map(array<T> $a, callable(T, string): U $fn): array<U>
 ```
 
-Replaces every value with what `$fn` answers for it, as `array_map` does over one array; keys are preserved.
+Replaces every value with the result of `$fn` for it. The keys stay the same.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -8496,7 +8491,7 @@ Replaces every value with what `$fn` answers for it, as `array_map` does over on
 Core\Arr::mapKeys(array<T> $a, callable(T, string): int|string $fn): array<T>
 ```
 
-Stores every value under the key `$fn` answers for it — the `keyBy` idiom, and `array_combine(array_map(…), …)` as one member.
+Stores every value under the key that `$fn` returns for it.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -8528,7 +8523,7 @@ Puts the entries into groups. `$key` is called for each entry, and its result is
 Core\Arr::reduce(array<T> $a, callable(U, T, string): U $fn, U $initial): U
 ```
 
-Folds the entries into one value from `$initial`, as `array_reduce` does; the callback receives `($carry, $value, $key)` and may declare fewer parameters.
+Combines the entries into one value, starting from `$initial`. The callback receives `($carry, $value, $key)` and may declare fewer parameters.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -8545,7 +8540,7 @@ Folds the entries into one value from `$initial`, as `array_reduce` does; the ca
 Core\Arr::find(array<T> $a, callable(T, string): bool $predicate): ?T
 ```
 
-The first value `$predicate` answers truthily for, as `array_find` does; the walk stops at the match.
+Returns the first value for which `$predicate` returns a truthy value. The search stops at the first match.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -8561,7 +8556,7 @@ The first value `$predicate` answers truthily for, as `array_find` does; the wal
 Core\Arr::findKey(array<T> $a, callable(T, string): bool $predicate): ?string
 ```
 
-The key of the first entry `$predicate` answers truthily for, as `array_find_key` does; the walk stops at the match.
+Returns the key of the first entry for which `$predicate` returns a truthy value. The search stops at the first match.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -8577,7 +8572,7 @@ The key of the first entry `$predicate` answers truthily for, as `array_find_key
 Core\Arr::any(array<T> $a, callable(T, string): bool $predicate): bool
 ```
 
-Whether at least one entry satisfies `$predicate`, as `array_any` does; the walk stops at the first match.
+Checks whether at least one entry passes `$predicate`. The search stops at the first match.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -8593,7 +8588,7 @@ Whether at least one entry satisfies `$predicate`, as `array_any` does; the walk
 Core\Arr::all(array<T> $a, callable(T, string): bool $predicate): bool
 ```
 
-Whether every entry satisfies `$predicate`, as `array_all` does; the walk stops at the first failure.
+Checks whether every entry passes `$predicate`. The search stops at the first entry that fails.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -8609,7 +8604,7 @@ Whether every entry satisfies `$predicate`, as `array_all` does; the walk stops 
 Core\Arr::isEmpty(array<T> $a): bool
 ```
 
-Whether `$a` holds no entries — `empty($a)` and `count($a) === 0` as one member.
+Checks whether `$a` has no entries.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -8624,7 +8619,7 @@ Whether `$a` holds no entries — `empty($a)` and `count($a) === 0` as one membe
 Core\Arr::hasKey(array<T> $a, int|string $key): bool
 ```
 
-Whether `$a` holds an entry under `$key`, as `array_key_exists` does — and as `isset($a[$k])` does, since a stored `null` still counts.
+Checks whether `$a` has an entry under `$key`. An entry whose value is `null` still counts.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -8640,7 +8635,7 @@ Whether `$a` holds an entry under `$key`, as `array_key_exists` does — and as 
 Core\Arr::contains(array<T> $haystack, T $needle): bool
 ```
 
-Whether some entry is `$needle` under strict identity, as `in_array` with `strict: true` does — there is no loose form.
+Checks whether some entry is identical to `$needle`. There is no loose comparison.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -8656,7 +8651,7 @@ Whether some entry is `$needle` under strict identity, as `in_array` with `stric
 Core\Arr::keyOf(array<T> $haystack, T $needle): ?string
 ```
 
-The key of the first entry that is `$needle` under strict identity, as `array_search` with `strict: true` does.
+Returns the key of the first entry that is identical to `$needle`. There is no loose comparison.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -8672,7 +8667,7 @@ The key of the first entry that is `$needle` under strict identity, as `array_se
 Core\Arr::isList(array<T> $a): bool
 ```
 
-Whether the keys are exactly `"0", "1", …` in that order, as `array_is_list` does.
+Checks whether the keys are exactly `"0", "1", …` in that order.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -8687,7 +8682,7 @@ Whether the keys are exactly `"0", "1", …` in that order, as `array_is_list` d
 Core\Arr::keys(array<T> $a): array<string>
 ```
 
-Every key in insertion order, as `array_keys` does without its search argument.
+Returns every key in insertion order.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -8702,7 +8697,7 @@ Every key in insertion order, as `array_keys` does without its search argument.
 Core\Arr::values(array<T> $a): array<T>
 ```
 
-Every value in insertion order under fresh keys, as `array_values` does.
+Returns every value in insertion order, under new keys from `"0"`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -8717,7 +8712,7 @@ Every value in insertion order under fresh keys, as `array_values` does.
 Core\Arr::first(array<T> $a): ?T
 ```
 
-The first entry's value, as `reset`, `current` and `$a[array_key_first($a)]` answer it — with no internal pointer to move.
+Returns the value of the first entry.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -8732,7 +8727,7 @@ The first entry's value, as `reset`, `current` and `$a[array_key_first($a)]` ans
 Core\Arr::last(array<T> $a): ?T
 ```
 
-The last entry's value, as `end` and `$a[array_key_last($a)]` answer it.
+Returns the value of the last entry.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -8747,7 +8742,7 @@ The last entry's value, as `end` and `$a[array_key_last($a)]` answer it.
 Core\Arr::firstKey(array<T> $a): ?string
 ```
 
-The first entry's key, as `array_key_first` and `key` answer it.
+Returns the key of the first entry.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -8762,7 +8757,7 @@ The first entry's key, as `array_key_first` and `key` answer it.
 Core\Arr::lastKey(array<T> $a): ?string
 ```
 
-The last entry's key, as `array_key_last` answers it.
+Returns the key of the last entry.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -8777,7 +8772,7 @@ The last entry's key, as `array_key_last` answers it.
 Core\Arr::slice(array<T> $a, int $offset, ?int $length = null, {preserveKeys?: bool}): array<T>
 ```
 
-The entries in one window of positions, as `array_slice` does; a position is ordinal, whatever the keys are.
+Returns the entries in one range of positions. A position counts entries from the start, whatever the keys are.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -8795,7 +8790,7 @@ The entries in one window of positions, as `array_slice` does; a position is ord
 Core\Arr::replaceRange(array<T> $a, int $offset, ?int $length, array<T> $replacement = []): array<T>
 ```
 
-The array with one window of positions replaced by `$replacement`'s values — what `array_splice` returns, never what it does by reference.
+Returns a copy of the array with one range of positions replaced by the values of `$replacement`. The original array does not change.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -8813,7 +8808,7 @@ The array with one window of positions replaced by `$replacement`'s values — w
 Core\Arr::chunk(array<T> $a, uint $size, {preserveKeys?: bool}): array<array<T>>
 ```
 
-The entries in consecutive runs of `$size`, as `array_chunk` does; the last run is short when the count does not divide.
+Splits the entries into runs of `$size` entries. The last run is shorter when the count does not divide evenly.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -8832,7 +8827,7 @@ The entries in consecutive runs of `$size`, as `array_chunk` does; the last run 
 Core\Arr::append(array<T> $a, T ...$values): array<T>
 ```
 
-The array with every trailing value added after its last entry, as `array_push` does — `$a[] = $v` in expression position.
+Returns the array with every given value added after its last entry. It works like `$a[] = $v`, written as an expression.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -8848,7 +8843,7 @@ The array with every trailing value added after its last entry, as `array_push` 
 Core\Arr::prepend(array<T> $a, T ...$values): array<T>
 ```
 
-The trailing values, then the array's values, as `array_unshift` does.
+Returns the given values, then the values of the array.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -8864,7 +8859,7 @@ The trailing values, then the array's values, as `array_unshift` does.
 Core\Arr::withoutFirst(array<T> $a): array<T>
 ```
 
-Every entry but the first — what `array_shift` leaves behind, with `first` answering the element it removes.
+Returns every entry except the first. `first` returns the value it removes.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -8879,7 +8874,7 @@ Every entry but the first — what `array_shift` leaves behind, with `first` ans
 Core\Arr::withoutLast(array<T> $a): array<T>
 ```
 
-Every entry but the last — what `array_pop` leaves behind, with `last` answering the element it removes.
+Returns every entry except the last. `last` returns the value it removes.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -8894,7 +8889,7 @@ Every entry but the last — what `array_pop` leaves behind, with `last` answeri
 Core\Arr::padStart(array<T> $a, uint $size, T $value): array<T>
 ```
 
-Copies of `$value` in front until the array holds `$size` entries, as `array_pad` with a negative length does.
+Adds copies of `$value` in front until the array has `$size` entries.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -8913,7 +8908,7 @@ Copies of `$value` in front until the array holds `$size` entries, as `array_pad
 Core\Arr::padEnd(array<T> $a, uint $size, T $value): array<T>
 ```
 
-Copies of `$value` after the last entry until the array holds `$size` entries, as `array_pad` with a positive length does.
+Adds copies of `$value` after the last entry until the array has `$size` entries.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -8932,7 +8927,7 @@ Copies of `$value` after the last entry until the array holds `$size` entries, a
 Core\Arr::reverse(array<T> $a, {preserveKeys?: bool}): array<T>
 ```
 
-The entries in the opposite order, as `array_reverse` does.
+Returns the entries in the opposite order.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -8948,7 +8943,7 @@ The entries in the opposite order, as `array_reverse` does.
 Core\Arr::flip(array<int|string> $a): array<string>
 ```
 
-Every value made a key and every key made its value, as `array_flip` does.
+Makes every value a key, and every key its value.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -8978,7 +8973,7 @@ One level of nesting removed — every inner array's values in order, as a hand-
 Core\Arr::flattenDeep(array<mixed> $a): array<mixed>
 ```
 
-Every level of nesting removed, as a recursive walk or `iterator_to_array` over a `RecursiveIteratorIterator` does; there is no depth count, since `flatten` is the other real case.
+Removes every level of nesting. There is no depth argument. Use `flatten` to remove one level.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -8993,7 +8988,7 @@ Every level of nesting removed, as a recursive walk or `iterator_to_array` over 
 Core\Arr::column(array<array<T>> $a, int|string $column, {indexBy?: int|string}): array<T>
 ```
 
-One named cell out of every row, as `array_column` does.
+Takes the cell with one key out of every row.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -9010,15 +9005,15 @@ One named cell out of every row, as `array_column` does.
 Core\Arr::sort(array<T> $a, {by?: callable, order?: Core\Arr::Order, comparator?: callable, preserveKeys?: bool}): array<T>
 ```
 
-The entries in order, stably — `sort`, `rsort`, `asort`, `arsort`, `usort`, `uasort`, `natsort`, `natcasesort` and `array_multisort` as one member and four options.
+Returns the entries in order. The sort is stable, so equal entries keep their order. Four options choose the sort value, the direction, the comparison and the keys.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$a` | `array<T>` | The array to sort. |
 | `{by: …}` | `callable` (default `null`) | Called once per entry as `($value, $key)`, and may declare fewer parameters; what it answers is compared in the entry's place. |
 | `{order: …}` | `Core\Arr::Order` (default `Core\Arr::Order::Asc`) | `Core\Arr::Order::Asc` (the default) or `Core\Arr::Order::Desc`. `Desc` reverses the comparison, so equal entries keep their relative order. |
-| `{comparator: …}` | `callable` (default `null`) | Called as `($a, $b)` on two values — or on two `by` answers — and answering a negative, zero or positive number, as `usort`'s callback does; it replaces the natural order. |
-| `{preserveKeys: …}` | `bool` (default `false`) | Keep each entry's own key, as `asort` does; the default renumbers from `"0"`, as `sort` does. |
+| `{comparator: …}` | `callable` (default `null`) | Called as `($a, $b)` on two values, or on two results of `by`. It returns a negative number, zero or a positive number. It replaces the natural order. |
+| `{preserveKeys: …}` | `bool` (default `false`) | Keeps the key of each entry. By default, the result has new keys from `"0"`. |
 
 **Returns** `array<T>` — The sorted entries. The natural order is between two numbers, two strings bytewise, two bools or two nulls — `"10"` sorts before `"9"` — and nothing else.
 
@@ -9031,13 +9026,13 @@ The entries in order, stably — `sort`, `rsort`, `asort`, `arsort`, `usort`, `u
 Core\Arr::sortByKey(array<T> $a, {order?: Core\Arr::Order, comparator?: callable}): array<T>
 ```
 
-The entries in key order, stably, every key kept — `ksort`, `krsort` and `uksort` as one member.
+Returns the entries in key order. The sort is stable, and every key is kept.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$a` | `array<T>` | The array to sort. |
 | `{order: …}` | `Core\Arr::Order` (default `Core\Arr::Order::Asc`) | `Core\Arr::Order::Asc` (the default) or `Core\Arr::Order::Desc`. `Desc` reverses the comparison, so equal keys keep their insertion order. |
-| `{comparator: …}` | `callable` (default `null`) | Called as `($a, $b)` on two keys, both `string`s, and answering a negative, zero or positive number, as `uksort`'s callback does; it replaces the natural order. |
+| `{comparator: …}` | `callable` (default `null`) | Called as `($a, $b)` on two keys, both `string`s. It returns a negative number, zero or a positive number. It replaces the natural order. |
 
 **Returns** `array<T>` — The same entries under the same keys, ordered by key; the natural order is bytewise, so `"10"` precedes `"9"`.
 
@@ -9050,7 +9045,7 @@ The entries in key order, stably, every key kept — `ksort`, `krsort` and `ukso
 Core\Arr::fill(uint $count, T $value): array<T>
 ```
 
-`$count` copies of `$value` under `"0", "1", …`, as `array_fill` does from index zero; there is no start index, since `fillKeys` takes the keys a caller wants.
+Returns `$count` copies of `$value` under the keys `"0", "1", …`. There is no start index. Use `fillKeys` to choose the keys.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -9068,7 +9063,7 @@ Core\Arr::fill(uint $count, T $value): array<T>
 Core\Arr::fillKeys(array<int|string> $keys, T $value): array<T>
 ```
 
-`$value` stored under every key in `$keys`, as `array_fill_keys` does.
+Stores `$value` under every key in `$keys`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -9084,7 +9079,7 @@ Core\Arr::fillKeys(array<int|string> $keys, T $value): array<T>
 Core\Arr::range(int $start, int $end, {step?: int}): array<int>
 ```
 
-The integers from `$start` to `$end` inclusive, as `range` does; the direction is the bounds', so `$start > $end` counts down.
+Returns the integers from `$start` to `$end`, both included. When `$start` is greater than `$end`, it counts down.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -9103,7 +9098,7 @@ The integers from `$start` to `$end` inclusive, as `range` does; the direction i
 Core\Arr::fromKeysAndValues(array<int|string> $keys, array<T> $values): array<T>
 ```
 
-`$values`' entries stored under `$keys`' entries, paired in order, as `array_combine` does.
+Pairs the entries of `$keys` and `$values` in order. Each value is stored under its key.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -9121,7 +9116,7 @@ Core\Arr::fromKeysAndValues(array<int|string> $keys, array<T> $values): array<T>
 Core\Arr::from(array<T>|Iterable<T>|Iterator<T> $items, {limit?: uint}): array<T>
 ```
 
-A sequence materialised as an array, as `iterator_to_array` does with `preserve_keys: false` — an `Iterable<T>`, an `Iterator<T>` or an array, whatever `foreach` would take.
+Reads a sequence into an array. The sequence can be an `Iterable<T>`, an `Iterator<T>` or an array: anything `foreach` accepts.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -9137,7 +9132,7 @@ A sequence materialised as an array, as `iterator_to_array` does with `preserve_
 Core\Arr::overlay(array<T> $base, array<U> ...$layers): array<T|U>
 ```
 
-`$base` with every layer's entries written over it, the right-hand value winning, as `array_replace` does — and as `array_merge` over maps does, with every key treated alike.
+Writes the entries of every layer over `$base`. Where two have the same key, the value further right is kept. Integer keys and string keys work the same way.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -9153,7 +9148,7 @@ Core\Arr::overlay(array<T> $base, array<U> ...$layers): array<T|U>
 Core\Arr::overlayDeep(array<T> $base, array<U> ...$layers): array<T|U>
 ```
 
-`overlay` recursing wherever both sides of a key hold an array and neither is a list, as `array_replace_recursive` does; a list is replaced wholesale.
+Works like `overlay`. Where both sides of a key are arrays and neither is a list, it combines them the same way. A list is replaced as a whole.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -9185,7 +9180,7 @@ Returns `$base` with the entries of every layer added under it. Where two have t
 Core\Arr::appendAll(array<T> $a, array<U> ...$others): array<T|U>
 ```
 
-Every value of `$a`, then of each of `$others`, under fresh keys — `array_merge` over lists, and the `array_merge(...$arrays)` idiom.
+Returns every value of `$a`, then of each array in `$others`, under new keys.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -9201,7 +9196,7 @@ Every value of `$a`, then of each of `$others`, under fresh keys — `array_merg
 Core\Arr::diff(array<T> $a, array<T> $b, {on?: Core\Arr::SetOn, by?: callable, comparator?: callable}): array<T>
 ```
 
-The entries of `$a` that `$b` does not have, under strict identity — `array_diff`, `array_diff_key`, `array_diff_assoc` and their three `u` variants as one member.
+Returns the entries of `$a` that `$b` does not have. Entries are compared by strict identity. The options choose what is compared, and how.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -9209,7 +9204,7 @@ The entries of `$a` that `$b` does not have, under strict identity — `array_di
 | `$b` | `array<T>` | The array whose entries exclude. |
 | `{on: …}` | `Core\Arr::SetOn` (default `Core\Arr::SetOn::Values`) | Which part of an entry is compared: `Core\Arr::SetOn::Values` (the default), `Core\Arr::SetOn::Keys` or `Core\Arr::SetOn::Both`. |
 | `{by: …}` | `callable` (default `null`) | Called once per entry as `($value, $key)`, and may declare fewer parameters. Its result replaces the part `on` selected. Under `Core\Arr::SetOn::Keys`, that part is the key. |
-| `{comparator: …}` | `callable` (default `null`) | Called as `($a, $b)` on two selected parts and answering a negative, zero or positive number, as `array_udiff`'s callback does; it replaces identity, and makes the walk pairwise. |
+| `{comparator: …}` | `callable` (default `null`) | Called as `($a, $b)` on two selected parts. It returns a negative number, zero or a positive number. It replaces identity, and every entry of `$a` is then compared with every entry of `$b`. |
 
 **Returns** `array<T>` — The kept entries of `$a` under their own keys, in `$a`'s order.
 
@@ -9222,7 +9217,7 @@ The entries of `$a` that `$b` does not have, under strict identity — `array_di
 Core\Arr::intersect(array<T> $a, array<T> $b, {on?: Core\Arr::SetOn, by?: callable, comparator?: callable}): array<T>
 ```
 
-The entries of `$a` that `$b` also has, under strict identity — `array_intersect` and its five variants as one member.
+Returns the entries of `$a` that `$b` also has. Entries are compared by strict identity. The options choose what is compared, and how.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -9230,7 +9225,7 @@ The entries of `$a` that `$b` also has, under strict identity — `array_interse
 | `$b` | `array<T>` | The array an entry must also be in. |
 | `{on: …}` | `Core\Arr::SetOn` (default `Core\Arr::SetOn::Values`) | Which part of an entry is compared: `Core\Arr::SetOn::Values` (the default), `Core\Arr::SetOn::Keys` or `Core\Arr::SetOn::Both`. |
 | `{by: …}` | `callable` (default `null`) | Called once per entry as `($value, $key)`, and may declare fewer parameters. Its result replaces the part `on` selected. Under `Core\Arr::SetOn::Keys`, that part is the key. |
-| `{comparator: …}` | `callable` (default `null`) | Called as `($a, $b)` on two selected parts and answering a negative, zero or positive number, as `array_uintersect`'s callback does; it replaces identity, and makes the walk pairwise. |
+| `{comparator: …}` | `callable` (default `null`) | Called as `($a, $b)` on two selected parts. It returns a negative number, zero or a positive number. It replaces identity, and every entry of `$a` is then compared with every entry of `$b`. |
 
 **Returns** `array<T>` — The kept entries of `$a` under their own keys, in `$a`'s order.
 
@@ -9259,7 +9254,7 @@ Counts how many entries have each distinct value. With `by`, it counts how many 
 Core\Arr::unique(array<T> $a, {by?: callable}): array<T>
 ```
 
-The entries whose value has not been seen before, as `array_unique` does — by strict identity, so `1` and `"1"` are two entries, never `SORT_STRING`'s cast.
+Returns the entries whose value has not appeared before. Values are compared by strict identity, so `1` and `"1"` are two different values.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -9309,7 +9304,7 @@ Returns the largest entry. Entries are compared in the order `sort` uses without
 Core\Arr::sum(array<int|float|decimal> $a): int|float|decimal
 ```
 
-The entries added up, as `array_sum` does, promoting entry by entry: `int` with `int` stays `int`, a `float` anywhere makes the total `float`, a `decimal` anywhere makes it `decimal`.
+Adds the entries together. `int` with `int` stays `int`. A `float` anywhere makes the total a `float`, and a `decimal` anywhere makes it a `decimal`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -9326,7 +9321,7 @@ The entries added up, as `array_sum` does, promoting entry by entry: `int` with 
 Core\Arr::product(array<int|float|decimal> $a): int|float|decimal
 ```
 
-The entries multiplied together, as `array_product` does, promoting entry by entry exactly as `sum` does.
+Multiplies the entries together. The result type follows the same rules as `sum`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -9343,7 +9338,7 @@ The entries multiplied together, as `array_product` does, promoting entry by ent
 Core\Arr::average(array<int|float|decimal> $a): ?float|decimal
 ```
 
-The entries' mean — `array_sum($a) / count($a)` with the empty case answered.
+Returns the mean of the entries.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -9373,7 +9368,7 @@ Reads `$a` as the type `T` written at the call site — an inline shape, `{name:
 <a id="core-core-attributes"></a>
 ### `Core\Attributes`
 
-Keywords: ReflectionAttribute, getAttributes, newInstance, attribute, metadata, annotation, #[...], anonymous object, get, all
+Keywords: attribute, metadata, annotation, #[...], read attributes, attribute arguments, anonymous object, get, all
 
 `Core\Attributes::get<T>` returns the one attribute on a target whose payload object satisfies the
 shape `T` written at the call site, or `null`; `all<T>` returns every one in declaration order, as
@@ -9459,7 +9454,7 @@ Returns every attribute on `$target`, or on its member `$member`, whose payload 
 <a id="core-core-math"></a>
 ### `Core\Math`
 
-Keywords: abs, min, max, ceil, floor, round, intdiv, fmod, fdiv, sqrt, pow, hypot, exp, log, log10, log2, sin, cos, tan, asin, acos, atan, atan2, sinh, cosh, tanh, deg2rad, rad2deg, is_nan, is_finite, is_infinite, decbin, dechex, decoct, bindec, hexdec, octdec, base_convert, number_format, gmp_gcd, gmp_lcm, M_PI, M_E, PHP_INT_MAX, PHP_INT_MIN, PHP_FLOAT_EPSILON, PHP_FLOAT_MAX, NAN, INF, PHP_ROUND_HALF_UP, PHP_ROUND_HALF_EVEN, abs, sign, min, max, clamp, ceil, floor, truncate, round, intDiv, mod, fdiv, gcd, lcm, sqrt, cbrt, hypot, exp, log, sin, cos, tan, asin, acos, atan, atan2, sinh, cosh, tanh, asinh, acosh, atanh, toRadians, toDegrees, isNan, isFinite, toBase, fromBase, format
+Keywords: math, abs, absolute value, min, max, clamp, ceil, floor, round, rounding mode, half up, half even, truncate, integer division, modulo, remainder, sqrt, square root, pow, power, hypot, exp, log, logarithm, sin, cos, tan, trigonometry, degrees, radians, NaN, infinity, base conversion, binary, hexadecimal, octal, number format, thousands separator, gcd, lcm, pi, INT_MAX, EPSILON, abs, sign, min, max, clamp, ceil, floor, truncate, round, intDiv, mod, fdiv, gcd, lcm, sqrt, cbrt, hypot, exp, log, sin, cos, tan, asin, acos, atan, atan2, sinh, cosh, tanh, asinh, acosh, atanh, toRadians, toDegrees, isNan, isFinite, toBase, fromBase, format
 
 `Core\Math` is the numeric function set; the arithmetic operators `+ - * / % **` and `<=>` are the
 language's and have no member here. `abs`, `sign`, `min`, `max` and `clamp` take an `int`, a
@@ -10187,13 +10182,13 @@ Writes a number as text for a person to read, with a fixed number of decimals. T
 <a id="core-core-decimal"></a>
 ### `Core\Decimal`
 
-Keywords: decimal, division, divExact, divRound, allocate, penny split, remainder, pow, power, rounding, scale, money, currency, banker's rounding, half-even, bcmath, bcdiv, exact, floor, ceil, truncate, round, divExact, divRound, allocate, pow, floor, ceil, truncate, round
+Keywords: decimal, division, divExact, divRound, allocate, penny split, remainder, pow, power, rounding, scale, money, currency, banker's rounding, half-even, arbitrary precision, fixed-point, exact, floor, ceil, truncate, round, divExact, divRound, allocate, pow, floor, ceil, truncate, round
 
 Novis's `decimal` scalar carries its own arithmetic as operators — `+`, `-`, `*`, `%` and `/` all work
 directly on it, exactly, with no class in the way. Division is the one operation that may be inexact, and
 the `/` operator's answer to that is fixed in the language: round half to even, at the widest scale the
-result admits. There is no `bcscale()` and never will be, because an ambient precision that unrelated later
-code reads is a global by another name.
+result admits. No setting changes this precision for the whole program. Such a setting would be a global
+variable that unrelated code reads.
 
 `Core\Decimal` is where a program says something the operator cannot. These questions come up in money
 code, and nowhere else does the type system help with them:
@@ -10657,7 +10652,7 @@ The remainder of this value divided by `$divisor`, carrying the dividend's sign 
 $bigInt->pow(uint $exponent): Core\BigInt
 ```
 
-This value raised to `$exponent`, which is the member `bcpow` with a large exponent becomes.
+Returns this value raised to `$exponent`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -10674,7 +10669,7 @@ This value raised to `$exponent`, which is the member `bcpow` with a large expon
 $bigInt->powMod(Core\BigInt $exponent, Core\BigInt $modulus): Core\BigInt
 ```
 
-This value raised to `$exponent`, modulo `$modulus`, computed without ever holding the whole power — `bcpowmod`, and the member every modular exponentiation wants.
+Returns this value raised to `$exponent`, modulo `$modulus`. It never computes the whole power, so it stays fast for a large exponent.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -10878,7 +10873,7 @@ This value in the radix asked for, using `a`-`z` for the digits past `9` — `to
 <a id="core-core-regex"></a>
 ### `Core\Regex`
 
-Keywords: preg_match, preg_match_all, preg_replace, preg_replace_callback, preg_split, preg_quote, PREG_OFFSET_CAPTURE, PREG_SET_ORDER, PREG_UNMATCHED_AS_NULL, pcre.backtrack_limit, regex, regexp, pattern, named group, lookahead, lookbehind, backreference, ReDoS, compile, matches, match, matchAll, replace, replaceWith, split, quote
+Keywords: regex, regexp, regular expression, pattern, match, replace, split, capture group, named group, match offset, lookahead, lookbehind, backreference, backtracking limit, escape a pattern, ReDoS, compile, matches, match, matchAll, replace, replaceWith, split, quote
 
 A `Core\Regex` pattern is a plain string — no `/…/` delimiters and no trailing modifiers; the
 flags are options to `Core\Regex::compile`, which answers a `Core\Regex\Pattern` every other
@@ -11084,13 +11079,14 @@ Puts a `\` before every character that has a special meaning in a pattern. The r
 <a id="core-core-regex-match"></a>
 ### `Core\Regex\Match`
 
-Keywords: preg_match $matches, PREG_OFFSET_CAPTURE, PREG_UNMATCHED_AS_NULL, capture group, named group, match result, group, groups, offset, text
+Keywords: regex match, matches, match offset, unmatched group, capture group, named group, match result, group, groups, offset, text
 
-A `Core\Regex\Match` is what `Core\Regex::match` answers (`null` when nothing matched), what
-`Core\Regex::matchAll` lists, and what `Core\Regex::replaceWith` hands its callback; it is never
-constructed by hand. `text()` is the whole match, `group()` one group by number or by name — `null`
-for a declared group that did not take part — `groups()` every group in `preg_match`'s order, and
-`offset()` where the match starts, counted in graphemes.
+`Core\Regex::match` returns a `Core\Regex\Match`, or `null` when nothing matched. `Core\Regex::matchAll`
+returns a list of them, and `Core\Regex::replaceWith` gives one to its callback. You never create one
+yourself. `text()` returns the whole match. `group()` returns one group by number or by name. It
+returns `null` for a group the pattern declares but this match did not use. `groups()` returns every
+group in pattern order: a named group appears under its name, then under its number. `offset()` returns
+where the match starts, counted in graphemes.
 
 ```nvs
 <?nvs
@@ -11171,7 +11167,7 @@ Returns the whole text that the pattern matched. This is the same text as `group
 <a id="core-core-regex-pattern"></a>
 ### `Core\Regex\Pattern`
 
-Keywords: /i, /m, /s, /U, pattern modifiers, compiled regex, case-insensitive, multiline, dotall, ungreedy, 
+Keywords: pattern modifiers, flags, compiled regex, compile once, case-insensitive, multiline, dotall, ungreedy, 
 
 A `Core\Regex\Pattern` is a compiled pattern with its four flags — `caseInsensitive`, `multiline`,
 `dotAll`, `ungreedy` — answered by `Core\Regex::compile` and accepted wherever a `Core\Regex` member
@@ -11205,13 +11201,13 @@ refused
 <a id="core-core-json"></a>
 ### `Core\Json`
 
-Keywords: json_encode, json_decode, json_validate, json_last_error, json_last_error_msg, JSON_PRETTY_PRINT, JSON_UNESCAPED_UNICODE, JSON_THROW_ON_ERROR, JsonSerializable, hydration, typed decoding, Derive, Field, encode, decode, decodeAs, isValid
+Keywords: JSON, encode, decode, parse JSON, validate JSON, pretty print, hydration, typed decoding, JSON to class, Derive, Field, encode, decode, decodeAs, isValid
 
 `Core\Json::encode` writes any scalar, array or instance of a class carrying `#[Core\Json\Derive]`
 as JSON: a list becomes a JSON array, any other array a JSON object with its insertion order kept,
 and an instance of a class without the attribute is refused. `decode` answers `mixed` — an object
-as a string-keyed array — and throws `ParseError` on a malformed or too-deep document, so there is
-no `json_last_error`. `decodeAs<T>` reads a document straight into a class that carries
+as a string-keyed array — and throws `ParseError` on a malformed or too-deep document.
+`decodeAs<T>` reads a document straight into a class that carries
 `#[Core\Json\Derive]`, checking every declared field — private ones included — against its type
 (`?T` is the only way a field admits `null`) and reporting every failure at once in one
 `ParseError`'s `issues`. `#[Core\Json\Field(name: "…")]` gives one field its wire name. `T` is that
@@ -11277,8 +11273,8 @@ Serializes `$value` as JSON text. It can be a scalar, an array, an anonymous obj
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$value` | `mixed` | The value to encode: `null`, `bool`, `int`, `uint`, `float`, `decimal`, `string`, an array, a `{name: value}` shape, or an instance of a class carrying `#[Json\Derive]`. |
-| `{pretty: …}` | `bool` (default `false`) | Indent the output across lines, as `JSON_PRETTY_PRINT` does; the default is one line. |
-| `{escapeUnicode: …}` | `bool` (default `false`) | Write every non-ASCII character as a `\uXXXX` escape, as `json_encode` does by default; the default here keeps UTF-8 as it is. |
+| `{pretty: …}` | `bool` (default `false`) | Writes the output across several lines, with indentation. By default, the output is on one line. |
+| `{escapeUnicode: …}` | `bool` (default `false`) | Writes every non-ASCII character as a `\uXXXX` escape. By default, UTF-8 text is written as it is. |
 
 **Returns** `string` — The JSON text. It is a `tainted string` when `$value` can contain text from outside the program. That is a `tainted` string, or a `mixed` or `object` value, anywhere inside it.
 
@@ -11291,7 +11287,7 @@ Serializes `$value` as JSON text. It can be a scalar, an array, an anonymous obj
 Core\Json::decode(string $json, {maxDepth?: uint}): mixed
 ```
 
-Parses the JSON text `$json` into a value, as `json_decode` does with `$associative` set: an object becomes a string-keyed array, an array a list, and a scalar itself. A malformed document throws rather than answering `null`, so there is no `json_last_error`.
+Parses the JSON text `$json` into a value. A JSON object becomes a string-keyed array, a JSON array becomes a list, and a scalar stays a scalar. Text that is not valid JSON throws an error.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -11327,7 +11323,7 @@ Parses the JSON object `$json` into an instance of `T`, a class carrying `#[Json
 Core\Json::isValid(string $json): bool
 ```
 
-Tells whether `$json` is a document `decode` would accept at the default depth of `512`, as `json_validate` does, by parsing it.
+Checks whether `decode` accepts `$json` at the default depth of `512`. It parses the text to check it.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -11338,7 +11334,7 @@ Tells whether `$json` is a document `decode` would accept at the default depth o
 <a id="core-core-encoding"></a>
 ### `Core\Encoding`
 
-Keywords: iconv, mb_convert_encoding, mb_check_encoding, utf8_encode, utf8_decode, base64_encode, base64_decode, bin2hex, hex2bin, unpack("H*"), base32, charset, UTF-8, Latin1, ISO-8859-1, Windows-1252, UTF-16, Shift_JIS, encodeText, decodeText, isValidText, toBase64, fromBase64, toBase64Url, fromBase64Url, toBase32, fromBase32, toHex, fromHex
+Keywords: encoding, charset, character set, convert encoding, text to bytes, valid UTF-8, base64, base64url, base32, hex, UTF-8, Latin1, ISO-8859-1, Windows-1252, UTF-16, Shift_JIS, encodeText, decodeText, isValidText, toBase64, fromBase64, toBase64Url, fromBase64Url, toBase32, fromBase32, toHex, fromHex
 
 `Core\Encoding` is where a `string` becomes `bytes` and back: `encodeText` and `decodeText` convert
 text through a `Core\Charset` case, and the base64, base64url, base32 and hex pairs spell a buffer
@@ -11397,7 +11393,7 @@ refused
 Core\Encoding::encodeText(string $s, Core\Charset $charset): bytes
 ```
 
-Writes `$s` as `$charset`'s octets, as `iconv`, `mb_convert_encoding` and `utf8_encode` do — exactly, with no `//IGNORE` or `//TRANSLIT` mode: a character the charset cannot spell throws rather than becoming `?` or `&#NNNN;`.
+Converts the text `$s` to bytes in the encoding `$charset`. The conversion is exact. A character that `$charset` cannot represent throws an error.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -11415,7 +11411,7 @@ Writes `$s` as `$charset`'s octets, as `iconv`, `mb_convert_encoding` and `utf8_
 Core\Encoding::decodeText(bytes $b, Core\Charset $charset): string
 ```
 
-Reads the octets `$b` as `$charset` into a string, as `iconv`, `mb_convert_encoding` and `utf8_decode` do — exactly: a sequence the charset cannot read throws rather than becoming U+FFFD or being dropped.
+Converts the bytes `$b` from the encoding `$charset` to a string. The conversion is exact. A byte sequence that is not valid in `$charset` throws an error.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -11433,7 +11429,7 @@ Reads the octets `$b` as `$charset` into a string, as `iconv`, `mb_convert_encod
 Core\Encoding::isValidText(bytes $b, Core\Charset $charset): bool
 ```
 
-Tells whether every byte sequence in `$b` is one `$charset` reads, as `mb_check_encoding` does — `decodeText`'s question without the throw.
+Checks whether `$b` is valid text in the encoding `$charset`. It makes the same test as `decodeText`, but returns `false` instead of throwing an error.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -11449,7 +11445,7 @@ Tells whether every byte sequence in `$b` is one `$charset` reads, as `mb_check_
 Core\Encoding::toBase64(bytes $b): string
 ```
 
-Spells `$b` in RFC 4648 § 4's base64 alphabet, padded — byte for byte what `base64_encode` answers.
+Writes `$b` as base64 text, with the alphabet of RFC 4648 § 4 and with padding.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -11464,7 +11460,7 @@ Spells `$b` in RFC 4648 § 4's base64 alphabet, padded — byte for byte what `b
 Core\Encoding::fromBase64(string $s): bytes
 ```
 
-Reads base64 text `$s` back to octets, as `base64_decode` does in strict mode and stricter: § 4's alphabet only, padding required and canonical, and no unread bits in the last symbol. URL-safe text is `fromBase64Url`'s to read.
+Reads the base64 text `$s` back to bytes. It accepts only the alphabet of RFC 4648 § 4, with correct padding and no unused bits in the last symbol. Use `fromBase64Url` for URL-safe text.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -11481,7 +11477,7 @@ Reads base64 text `$s` back to octets, as `base64_decode` does in strict mode an
 Core\Encoding::toBase64Url(bytes $b): string
 ```
 
-Spells `$b` in RFC 4648 § 5's URL-safe base64 alphabet, unpadded — the `rtrim(strtr(base64_encode($b), "+/", "-_"), "=")` idiom, as a JWT or a query string expects it.
+Writes `$b` as URL-safe base64 text, with the alphabet of RFC 4648 § 5 and no padding. A JWT or a query string uses this form.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -11545,7 +11541,7 @@ Reads base32 text `$s` back to octets — `toBase32`'s other half, taking either
 Core\Encoding::toHex(bytes $b): string
 ```
 
-Spells `$b` as lowercase hexadecimal, two digits per octet, as `bin2hex` and the `unpack("H*", …)` idiom do.
+Writes `$b` as lowercase hexadecimal text, two digits per byte.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -11560,7 +11556,7 @@ Spells `$b` as lowercase hexadecimal, two digits per octet, as `bin2hex` and the
 Core\Encoding::fromHex(string $s): bytes
 ```
 
-Reads hexadecimal text `$s` back to octets, as `hex2bin` does but throwing where it warned and answered `false`: either case, two digits per octet, and nothing between the pairs.
+Reads the hexadecimal text `$s` back to bytes. It accepts upper and lower case, two digits per byte, and nothing between the pairs. Other text throws an error.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -11573,7 +11569,7 @@ Reads hexadecimal text `$s` back to octets, as `hex2bin` does but throwing where
 <a id="core-core-bytes"></a>
 ### `Core\Bytes`
 
-Keywords: strlen, ord, chr, substr, strpos, strcmp, str_contains, str_starts_with, str_ends_with, str_repeat, implode, pack, unpack, binary string, byte offset, magic bytes, wire format, bytes, length, at, slice, indexOf, compare, contains, startsWith, endsWith, fill, repeat, join, pack, unpack
+Keywords: bytes, binary data, binary string, byte length, byte offset, byte order, endianness, compare bytes, search bytes, magic bytes, wire format, pack, unpack, length, at, slice, indexOf, compare, contains, startsWith, endsWith, fill, repeat, join, pack, unpack
 
 `Core\Bytes` reads and builds `bytes` — a buffer of octets with no character in it. Every position,
 length and count is a **byte** offset: `length` is O(1), `at` answers one octet as a `uint`, and a
@@ -11631,7 +11627,7 @@ png
 Core\Bytes::length(bytes $b): uint
 ```
 
-Counts the octets in `$b`, as `strlen` does on binary data; O(1), where `Core\Str::length` walks its subject.
+Returns the number of bytes in `$b`. It takes the same time for any length. `Core\Str::length` reads the whole string.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -11646,7 +11642,7 @@ Counts the octets in `$b`, as `strlen` does on binary data; O(1), where `Core\St
 Core\Bytes::at(bytes $b, int $index): uint
 ```
 
-Answers the one octet at `$index` of `$b` as a number, as `ord($s[$i])` does; a negative index counts from the end.
+Returns the byte at `$index` of `$b` as a number. A negative index counts from the end.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -11664,7 +11660,7 @@ Answers the one octet at `$index` of `$b` as a number, as `ord($s[$i])` does; a 
 Core\Bytes::slice(bytes $b, int $offset, ?int $length = null): bytes
 ```
 
-Copies a window of `$b`, as `substr` does on binary data, counted in bytes.
+Copies a part of `$b`. Positions and lengths are counted in bytes.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -11681,7 +11677,7 @@ Copies a window of `$b`, as `substr` does on binary data, counted in bytes.
 Core\Bytes::indexOf(bytes $haystack, bytes $needle, {from?: int}): ?uint
 ```
 
-Finds where `$needle` first occurs in `$haystack`, as `strpos` does on binary data, as a byte offset `slice` takes directly. There is no case-insensitive option, because a byte string has no case.
+Finds where `$needle` first occurs in `$haystack`. The result is a byte offset that you can pass to `slice`. There is no case-insensitive option, because bytes have no case.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -11698,7 +11694,7 @@ Finds where `$needle` first occurs in `$haystack`, as `strpos` does on binary da
 Core\Bytes::compare(bytes $a, bytes $b): int
 ```
 
-Orders `$a` against `$b` lexicographically over unsigned octets, as `strcmp` does on binary data; a shorter buffer that is a prefix of a longer one sorts first. For equality alone, `==` is the operator.
+Compares `$a` with `$b` byte by byte, each byte as an unsigned number. A shorter buffer that is the start of a longer one sorts first. To test equality, use `==`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -11714,7 +11710,7 @@ Orders `$a` against `$b` lexicographically over unsigned octets, as `strcmp` doe
 Core\Bytes::contains(bytes $haystack, bytes $needle): bool
 ```
 
-Tells whether `$needle` occurs anywhere in `$haystack`, as `str_contains` does on binary data.
+Checks whether `$needle` occurs anywhere in `$haystack`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -11730,7 +11726,7 @@ Tells whether `$needle` occurs anywhere in `$haystack`, as `str_contains` does o
 Core\Bytes::startsWith(bytes $b, bytes $prefix): bool
 ```
 
-Tells whether `$b` begins with `$prefix`, as `str_starts_with` does on binary data — the member a magic-byte sniff writes.
+Checks whether `$b` begins with `$prefix`. Use it to detect a file type from its first bytes.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -11746,7 +11742,7 @@ Tells whether `$b` begins with `$prefix`, as `str_starts_with` does on binary da
 Core\Bytes::endsWith(bytes $b, bytes $suffix): bool
 ```
 
-Tells whether `$b` ends with `$suffix`, as `str_ends_with` does on binary data.
+Checks whether `$b` ends with `$suffix`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -11762,7 +11758,7 @@ Tells whether `$b` ends with `$suffix`, as `str_ends_with` does on binary data.
 Core\Bytes::fill(uint $length, uint $byte): bytes
 ```
 
-Builds a buffer of `$length` copies of the octet `$byte`, as the `str_repeat(chr($b), $n)` idiom does; a zero-filled header is `fill(16, 0)`.
+Returns a buffer of `$length` copies of the byte `$byte`. For example, `fill(16, 0)` gives 16 zero bytes.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -11780,7 +11776,7 @@ Builds a buffer of `$length` copies of the octet `$byte`, as the `str_repeat(chr
 Core\Bytes::repeat(bytes $b, uint $times): bytes
 ```
 
-Builds a buffer of `$b` repeated `$times` times, as `str_repeat` does on binary data.
+Returns a buffer of `$b` repeated `$times` times.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -11798,7 +11794,7 @@ Builds a buffer of `$b` repeated `$times` times, as `str_repeat` does on binary 
 Core\Bytes::join(array<bytes> $parts, bytes $separator = bytes()): bytes
 ```
 
-Concatenates every buffer in `$parts` with `$separator` between neighbours, as `implode` does on binary data — `Core\Str::join`'s row over buffers, and this class's only concatenation. No element is converted.
+Joins every buffer in `$parts`, with `$separator` between each pair. It is the only way to concatenate buffers in this class. No element is converted.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -11816,7 +11812,7 @@ Concatenates every buffer in `$parts` with `$separator` between neighbours, as `
 Core\Bytes::pack(string $format, mixed ...$values): bytes
 ```
 
-Writes `$values` as the octets `$format` describes, as `pack` does, over a closed code table: `a`/`A`/`Z` a buffer NUL-padded, space-padded, or NUL-padded and NUL-terminated; `c`/`C` one octet; `n`/`v`, `N`/`V` and `J`/`P` 16, 32 and 64 bits most or least significant octet first; `G`/`g` binary32 and `E`/`e` binary64 the same way; `x` one NUL octet. A bare code takes the whole argument, never one octet, and an integer field takes the union of its width's signed and unsigned ranges in two's complement.
+Writes `$values` as bytes, in the layout `$format` describes. The format uses a fixed set of codes. `a`, `A` and `Z` write a buffer padded with NUL bytes, padded with spaces, or padded with NUL bytes and ended with a NUL. `c` and `C` write one byte. `n`/`v`, `N`/`V` and `J`/`P` write 16, 32 and 64 bits, with the most or the least significant byte first. `G`/`g` write a binary32 float and `E`/`e` a binary64 float, in the same two byte orders. `x` writes one NUL byte. A code without a count takes the whole argument, not one byte. An integer field accepts any value that fits its width as signed or unsigned, in two's complement.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -11834,7 +11830,7 @@ Writes `$values` as the octets `$format` describes, as `pack` does, over a close
 Core\Bytes::unpack(bytes $b, string $format): array<mixed>
 ```
 
-Reads `$b` back through `$format`, as `unpack` does, over `pack`'s code table in reverse — so `unpack(pack($f, ...$v), $f)` is `$v`, field for field. Octets the format does not describe throw rather than being ignored.
+Reads `$b` back with `$format`, using the codes of `pack` in reverse. So `unpack(pack($f, ...$v), $f)` gives `$v` again, field for field. Bytes that the format does not describe throw an error.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -11848,7 +11844,7 @@ Reads `$b` back through `$format`, as `unpack` does, over `pack`'s code table in
 <a id="core-core-path"></a>
 ### `Core\Path`
 
-Keywords: basename, dirname, pathinfo, PATHINFO_EXTENSION, PATHINFO_BASENAME, realpath, DIRECTORY_SEPARATOR, explode(DIRECTORY_SEPARATOR), path, file extension, absolute path, relative path, normalize, .., basename, dirname, extension, withExtension, join, split, normalize, isAbsolute, relativeTo, fromCwd, thisFile, thisDir
+Keywords: path, file name, file extension, directory name, parent directory, join paths, path separator, absolute path, relative path, normalize, .., basename, dirname, extension, withExtension, join, split, normalize, isAbsolute, relativeTo, fromCwd, thisFile, thisDir
 
 `Core\Path` is string algebra over path text: no member reads the disk, so nothing here needs a
 capability, follows a symlink or checks that a file exists — that is `Core\IO`. Both `/` and `\`
@@ -12095,7 +12091,7 @@ Returns the full path of the folder that contains this source file. The compiler
 <a id="core-core-io"></a>
 ### `Core\IO`
 
-Keywords: file_get_contents, file_put_contents, fopen, fread, fwrite, fs.read, fs.write, capability, nvs.toml, path, read, write, append, writeStream, exists, isFile, isDir, isReadable, isWritable, size, modifiedAt, stat, copy, move, remove, makeDir, removeDir, list, walk, temporaryDir, canonicalize, within, readText, lines, open, stdin
+Keywords: file, read a file, write a file, file system, fs.read, fs.write, capability, permission, nvs.toml, path, read, write, append, writeStream, exists, isFile, isDir, isReadable, isWritable, size, modifiedAt, stat, copy, move, remove, makeDir, removeDir, list, walk, temporaryDir, canonicalize, within, readText, lines, open, stdin
 
 `Core\IO` reads or replaces a whole file as text. Every call is a capability check first: the path
 must fall under a root that `nvs.toml` grants as `fs.read` or `fs.write`, and a read grant is not a
@@ -12178,7 +12174,7 @@ outside: refused
 Core\IO::read(string $path): string
 ```
 
-The whole content of a file, as text — `file_get_contents`. Needs the `fs.read` capability for the path, which is checked against its canonical spelling, so a symlink or a `..` that leaves the granted roots is refused.
+Returns the whole content of a file as text. It needs the `fs.read` capability for the path. The check uses the resolved path, so a symlink or a `..` that leaves the allowed folders throws an error.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -12195,7 +12191,7 @@ The whole content of a file, as text — `file_get_contents`. Needs the `fs.read
 Core\IO::write(string $path, string $content): void
 ```
 
-Replaces a file's whole content, creating it if it does not exist — `file_put_contents`. Needs the `fs.write` capability for the path; being allowed to read a root is not permission to write in it.
+Replaces a file's whole content. It creates the file if it does not exist. It needs the `fs.write` capability for the path. Permission to read a folder does not give permission to write in it.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -12213,7 +12209,7 @@ Replaces a file's whole content, creating it if it does not exist — `file_put_
 Core\IO::append(string $path, string $content): void
 ```
 
-Adds to the end of a file, creating it if it is not there — `file_put_contents` with `FILE_APPEND`, which is a member here rather than a flag on the member that replaces. Needs the `fs.write` capability for the path.
+Adds content to the end of a file. It creates the file if it does not exist. It needs the `fs.write` capability for the path.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -12251,7 +12247,7 @@ Writes a sequence of `bytes` chunks to `$path` as they arrive, holding no more t
 Core\IO::exists(string $path): bool
 ```
 
-Reports whether anything is at `$path` — `file_exists`, and true for a directory as well as a file. Needs the `fs.read` capability, which is asked before the path is touched, so an ungranted path throws rather than answering `false`.
+Checks whether anything is at `$path`. The result is `true` for a directory as well as a file. It needs the `fs.read` capability. The capability is checked before the path is used, so a path outside it throws an error.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -12268,7 +12264,7 @@ Reports whether anything is at `$path` — `file_exists`, and true for a directo
 Core\IO::isFile(string $path): bool
 ```
 
-Reports whether `$path` names a regular file — `is_file`. Symbolic links are followed, so a link to a file answers `true`. Needs the `fs.read` capability, which is asked before the path is touched.
+Checks whether `$path` is a regular file. Symbolic links are followed, so a link to a file gives `true`. It needs the `fs.read` capability, which is checked before the path is used.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -12285,7 +12281,7 @@ Reports whether `$path` names a regular file — `is_file`. Symbolic links are f
 Core\IO::isDir(string $path): bool
 ```
 
-Reports whether `$path` names a directory — `is_dir`. Symbolic links are followed, so a link to a directory answers `true`. Needs the `fs.read` capability.
+Checks whether `$path` is a directory. Symbolic links are followed, so a link to a directory gives `true`. It needs the `fs.read` capability.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -12302,7 +12298,7 @@ Reports whether `$path` names a directory — `is_dir`. Symbolic links are follo
 Core\IO::isReadable(string $path): bool
 ```
 
-Whether this process could read what is at `$path` right now — `is_readable`. Needs the `fs.read` capability, which is a separate and earlier gate: a path outside the grant is refused rather than reported as unreadable.
+Checks whether this process can read what is at `$path` right now. It needs the `fs.read` capability, which is checked first. A path outside that capability throws an error.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -12319,7 +12315,7 @@ Whether this process could read what is at `$path` right now — `is_readable`. 
 Core\IO::isWritable(string $path): bool
 ```
 
-Whether this process could write what is at `$path` right now — `is_writable`. Needs the `fs.write` capability, because the whole question is about writing: a program granted only reads cannot ask where it could write.
+Checks whether this process can write to what is at `$path` right now. It needs the `fs.write` capability. A program that may only read cannot check where it could write.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -12336,7 +12332,7 @@ Whether this process could write what is at `$path` right now — `is_writable`.
 Core\IO::size(string $path): uint
 ```
 
-The size of the file at `$path` in bytes, as the operating system reports it — `filesize`. Needs the `fs.read` capability: measuring a file is reading it.
+Returns the size of the file at `$path` in bytes, as the operating system reports it. It needs the `fs.read` capability.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -12353,7 +12349,7 @@ The size of the file at `$path` in bytes, as the operating system reports it —
 Core\IO::modifiedAt(string $path): Core\Time\Instant
 ```
 
-When the file at `$path` was last written, as a `Core\Time\Instant` — `filemtime`, with the unit in the type instead of in the caller's memory. Needs the `fs.read` capability: asking when a file changed is reading it.
+Returns the time the file at `$path` was last written, as a `Core\Time\Instant`. It needs the `fs.read` capability.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -12370,7 +12366,7 @@ When the file at `$path` was last written, as a `Core\Time\Instant` — `filemti
 Core\IO::stat(string $path): Core\IO\Metadata
 ```
 
-Everything one `stat` answers about `$path`, as a `Core\IO\Metadata` — `stat`, `lstat` and `filemtime` in one call, so a program asking more than one question about a file pays for one syscall rather than one per question. Needs the `fs.read` capability.
+Returns what the operating system reports about `$path`, as a `Core\IO\Metadata`. A program that needs several facts about a file makes only one system call. It needs the `fs.read` capability.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -12387,7 +12383,7 @@ Everything one `stat` answers about `$path`, as a `Core\IO\Metadata` — `stat`,
 Core\IO::copy(string $from, string $to): void
 ```
 
-Duplicates a file — `copy`. Needs `fs.read` for the source and `fs.write` for the destination, which are two grants and not one: reading a directory is never permission to fill it.
+Copies a file. It needs `fs.read` for the source and `fs.write` for the destination. Permission to read a folder never gives permission to write in it.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -12405,7 +12401,7 @@ Duplicates a file — `copy`. Needs `fs.read` for the source and `fs.write` for 
 Core\IO::move(string $from, string $to): void
 ```
 
-Renames a file, which is how it is moved — `rename`. Needs `fs.write` for **both** paths, and not `copy`'s read for the source: a move takes the source away, and taking a file away is destroying it.
+Moves a file by renaming it. It needs `fs.write` for **both** paths. The source needs `fs.write` too, because a move removes the source file.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -12423,7 +12419,7 @@ Renames a file, which is how it is moved — `rename`. Needs `fs.write` for **bo
 Core\IO::remove(string $path): void
 ```
 
-Deletes the file at `$path` — `unlink`. Needs the `fs.write` capability: removal is a write, because an account that may replace a file's whole content can already destroy it.
+Deletes the file at `$path`. It needs the `fs.write` capability, because deleting a file is a write.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -12431,7 +12427,7 @@ Deletes the file at `$path` — `unlink`. Needs the `fs.write` capability: remov
 
 **Returns** `void` — Nothing. Removing a name that is not there throws rather than answering quietly, so a program that deleted nothing has not been told it succeeded.
 
-**Throws** `RuntimeError` — The configuration does not grant `fs.write` for this path; being allowed to read a root is not permission to empty it.; `IOError` — The capability allowed it and the operating system did not — nothing is at the path, it is a directory, or the process may not unlink it.
+**Throws** `RuntimeError` — The configuration does not grant `fs.write` for this path; being allowed to read a root is not permission to empty it.; `IOError` — The capability allowed the call, but the operating system did not. Nothing is at the path, it is a directory, or the process may not delete it.
 
 <a id="core-core-io-makedir"></a>
 #### `Core\IO::makeDir`
@@ -12440,7 +12436,7 @@ Deletes the file at `$path` — `unlink`. Needs the `fs.write` capability: remov
 Core\IO::makeDir(string $path): void
 ```
 
-Makes sure a directory exists at `$path`, creating any missing parent along the way — `mkdir` with `$recursive` true, which is a parameter there and the only behaviour here. Needs the `fs.write` capability.
+Makes sure a directory exists at `$path`. It also creates every missing parent directory. It needs the `fs.write` capability.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -12457,7 +12453,7 @@ Makes sure a directory exists at `$path`, creating any missing parent along the 
 Core\IO::removeDir(string $path): void
 ```
 
-Deletes the **empty** directory at `$path` — `rmdir`. Needs the `fs.write` capability. There is no recursive form: a tree deleted by one grant check is one wrong argument away from deleting everything under it, so a program that means to empty a directory walks it and removes each entry the capability was asked about.
+Deletes the **empty** directory at `$path`. It needs the `fs.write` capability. There is no recursive form, so one wrong argument cannot delete a whole tree. To empty a directory, a program walks it and removes each entry.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -12474,7 +12470,7 @@ Deletes the **empty** directory at `$path` — `rmdir`. Needs the `fs.write` cap
 Core\IO::list(string $path): array<string>
 ```
 
-The entries of the directory at `$path`, as an `array<string>` of bare names — replacing `scandir`, `glob` and the whole `opendir`/`readdir`/`closedir` sequence. `.` and `..` are not entries: they are the two names every `scandir` caller filters out, so they are never handed over. Needs the `fs.read` capability. The order is the operating system's own and nothing here sorts it — `Core\Arr::sort` is one call and a member that sorted by default would charge every caller for a guarantee most do not need.
+Returns the names of the entries in the directory at `$path`, as an `array<string>`. The list never contains `.` and `..`. It needs the `fs.read` capability. The order is the operating system's own, and the list is not sorted. `Core\Arr::sort` sorts it.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -12491,7 +12487,7 @@ The entries of the directory at `$path`, as an `array<string>` of bare names —
 Core\IO::walk(string $path): Core\IO\Walk
 ```
 
-Every entry of the tree under `$path`, as an `Iterable<string>` of paths relative to it — replacing `RecursiveDirectoryIterator`, `RecursiveIteratorIterator` and a recursive `glob`. `list` is the one-directory member and this is the whole-tree one; needs the `fs.read` capability, which is asked for **every** directory the walk enters and not only for the root. A symbolic link is an entry and is never descended into, so the walk is finite whatever the links say.
+Returns every entry in the tree under `$path`, as an `Iterable<string>` of paths relative to `$path`. `list` reads one directory, and this method reads the whole tree. It needs the `fs.read` capability for **every** directory it enters, including the first one. A symbolic link is returned as an entry and is never followed, so the walk always ends.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -12508,7 +12504,7 @@ Every entry of the tree under `$path`, as an `Iterable<string>` of paths relativ
 Core\IO::temporaryDir(): string
 ```
 
-Creates a new, empty, private directory under the root Novis owns — `[io] temp_root`, or the `tmp` folder in the data folder — and answers its path. `sys_get_temp_dir` and `tempnam` in one member, and the directory is made rather than merely named, so there is no window between choosing a name and owning it. Needs the `fs.write` capability **for the path it creates**: the name is chosen first and asked about second, so a configuration granting only the working directory does not reach the temporary root.
+Creates a new, empty, private directory and returns its path. The directory is under `[io] temp_root`, or under the `tmp` folder in the data folder. It is created at once, so no other program can take its name first. It needs the `fs.write` capability **for the path it creates**. A configuration that allows only the working directory does not cover the temporary folder.
 
 **Returns** `string` — The absolute path of a directory that exists, holds nothing, and belongs to this script. The runtime deletes it, and everything in it, when the script ends — after the last user code and whatever the ending was — so a program never has to remember and can never leak one. Removing it early is allowed and is not an error; a file that must outlive its script is storage, not a temporary.
 
@@ -12521,7 +12517,7 @@ Creates a new, empty, private directory under the root Novis owns — `[io] temp
 Core\IO::canonicalize(string $path): string
 ```
 
-The absolute path `$path` resolves to, with every `.`, `..` and symbolic link followed by the operating system — `realpath`. Needs the `fs.read` capability: resolving a name reads the directories on the way to it. **This is not the traversal check.** It resolves and stops there; `within` is the member that resolves and then proves containment, and it is the one an untrusted path has to pass through.
+Returns the absolute path that `$path` resolves to. The operating system follows every `.`, `..` and symbolic link. It needs the `fs.read` capability, because resolving a name reads the directories on the way. **This is not a path traversal check.** Use `within` for a path from outside: it resolves the path and checks that it stays inside a folder.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -12556,7 +12552,7 @@ Resolves `$path` against `$base` and then **proves** the answer is still under i
 Core\IO::readText(string $path, {charset?: Core\Charset}): string
 ```
 
-The whole content of a file, decoded from the charset it is written in — `file_get_contents` and the `mb_convert_encoding` a caller writes after it, with the failure that pair does not have. Needs the `fs.read` capability for the path, exactly as `read` does.
+Returns the whole content of a file, converted from the charset it is written in. If a byte cannot be converted exactly, it throws an error. It needs the `fs.read` capability for the path, as `read` does.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -12574,7 +12570,7 @@ The whole content of a file, decoded from the charset it is written in — `file
 Core\IO::lines(string $path): Core\IO\Lines
 ```
 
-Every line of a file, without its terminator — `file()` and the `fgets` loop that replaces it, over the one definition of a line `Core\Str::lines` already uses. Needs the `fs.read` capability for the path, exactly as `read` does.
+Returns every line of a file, without its line ending. The file is split into lines the same way `Core\Str::lines` splits a string. It needs the `fs.read` capability for the path, as `read` does.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -12591,7 +12587,7 @@ Every line of a file, without its terminator — `file()` and the `fgets` loop t
 Core\IO::open(string $path, Core\IO::FileMode $mode): Core\IO\File
 ```
 
-Opens a file and answers the handle every later read and write goes through — `fopen`, with the mode string replaced by an enum. Needs `fs.read` for `Read`, `fs.write` for `Write` and `Append`, and both for `ReadWrite`.
+Opens a file and returns a handle to read and write it. The mode is an enum value. It needs `fs.read` for `Read`, `fs.write` for `Write` and `Append`, and both for `ReadWrite`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -12609,7 +12605,7 @@ Opens a file and answers the handle every later read and write goes through — 
 Core\IO::stdin(): tainted string
 ```
 
-Reads everything the program's standard input will produce, in one call — the `fgets(STDIN)` loop and every wrapper spelling of the same stream, with no wrapper grammar in front of either. The result is `tainted`: the bytes are the invoker's, not the program's. Needs no capability, because the descriptor is a grant the program was started with.
+Reads everything from the program's standard input in one call. The result is `tainted`, because the bytes come from whoever started the program. It needs no capability, because the program starts with its standard input already open.
 
 **Returns** `tainted string` — Every byte until end of input, as one `tainted string` — the empty string when input is already closed, which is what a program started with no input sees. Input ends when its writer ends it, so at a terminal this waits for the person there; a program that means to ask someone a question uses `Core\Cli`'s prompts, which have a deadline.
 
@@ -12655,7 +12651,7 @@ Keywords: read, readLine, write, seek, tell, truncate, flush, lock, close
 $file->read(uint $max): string
 ```
 
-Reads up to `$max` bytes from where the handle is, and moves it past them — `fread`. Needs no capability of its own: the descriptor was checked when `open` produced it.
+Reads up to `$max` bytes from the handle's position and moves the position past them. It needs no capability of its own, because `open` already checked it.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -12672,7 +12668,7 @@ Reads up to `$max` bytes from where the handle is, and moves it past them — `f
 $file->readLine(): ?string
 ```
 
-Reads the next line and moves the handle past it — `fgets`. The terminator is consumed and never returned, and `\n`, `\r\n` and `\r` all end a line, exactly as `Core\Str::lines` and `Core\IO::lines` divide one.
+Reads the next line and moves the handle past it. The line ending is read but not returned. `\n`, `\r\n` and `\r` all end a line, as they do for `Core\Str::lines` and `Core\IO::lines`.
 
 **Returns** `?string` — The line without its terminator, or `null` at the end of the file — which is R5's spelling of an absence, and the reason this member needs no separate `eof`. A last line with no terminator on it is still a line.
 
@@ -12685,7 +12681,7 @@ Reads the next line and moves the handle past it — `fgets`. The terminator is 
 $file->write(string|bytes $data): uint
 ```
 
-Writes `$data` at the handle's position and moves it past what went out — `fwrite`. Needs no capability of its own: the descriptor was checked when `open` produced it.
+Writes `$data` at the handle's position and moves the position past it. It needs no capability of its own, because `open` already checked it.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -12702,7 +12698,7 @@ Writes `$data` at the handle's position and moves it past what went out — `fwr
 $file->seek(uint $offset): void
 ```
 
-Moves the handle to `$offset` bytes from the start of the file — `fseek`, with no `whence`. Seeking past the end is allowed and is how a sparse file is written: the gap becomes zeroes when something is written after it.
+Moves the handle to `$offset` bytes from the start of the file. You can move past the end of the file. If you then write, the gap is filled with zeroes.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -12719,7 +12715,7 @@ Moves the handle to `$offset` bytes from the start of the file — `fseek`, with
 $file->tell(): uint
 ```
 
-Answers where the handle is, in bytes from the start of the file — `ftell`. It is the position the next `read` or `write` acts at, which every member of this class leaves just past what it touched.
+Returns the handle's position, in bytes from the start of the file. The next `read` or `write` happens at this position. Every method of this class leaves the position just after the bytes it used.
 
 **Returns** `uint` — The position, as a `uint`. Zero on a handle nothing has read or written yet, unless `FileMode::Append` put it at the end.
 
@@ -12732,7 +12728,7 @@ Answers where the handle is, in bytes from the start of the file — `ftell`. It
 $file->truncate(uint $size): void
 ```
 
-Sets the file's length to `$size` bytes — `ftruncate`. A smaller size drops everything past it; a larger one extends the file with zeroes, which is the same hole a write past the end leaves.
+Sets the file's length to `$size` bytes. A smaller size deletes everything after it. A larger size fills the new part with zeroes.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -12749,9 +12745,9 @@ Sets the file's length to `$size` bytes — `ftruncate`. A smaller size drops ev
 $file->flush(): void
 ```
 
-Hands everything written on this handle to the operating system — `fflush`. Novis writes straight to the descriptor, so there is nothing of its own left to push, and this member is the promise that a program never has to know that.
+Sends everything written on this handle to the operating system. Novis writes directly to the operating system, so there is never data waiting in the handle.
 
-**Returns** `void` — Nothing. It is **not** `fsync`: reaching the operating system is not reaching the disk, and durability is not something this member promises.
+**Returns** `void` — Nothing. This method does not wait until the data is on the disk.
 
 **Throws** `RuntimeError` — The handle has already been closed.; `IOError` — The flush itself failed. Nothing this class does can provoke one today, and the row is here because the answer belongs to the operating system rather than to this member.
 
@@ -12762,7 +12758,7 @@ Hands everything written on this handle to the operating system — `fflush`. No
 $file->lock(): void
 ```
 
-Takes an exclusive lock on the file and holds it until the handle closes — `flock` with `LOCK_EX`. It never waits: a lock another handle holds is refused rather than queued for, so there is no `LOCK_NB` to remember and no unbounded wait to forget.
+Takes an exclusive lock on the file. The lock lasts until the handle closes. It never waits: if another handle has the lock, it throws an error at once.
 
 **Returns** `void` — Nothing, and there is no `unlock` — the lock's lifetime is the handle's, so `close` releases it and so does the end of the request.
 
@@ -12775,7 +12771,7 @@ Takes an exclusive lock on the file and holds it until the handle closes — `fl
 $file->close(): void
 ```
 
-Closes the handle and releases the descriptor — `fclose`. Calling it is optional: a handle the program never closes is closed when the request ends.
+Closes the handle and frees the file descriptor. Calling it is optional, because every open handle is closed when the request ends.
 
 **Returns** `void` — Nothing.
 
@@ -13018,7 +13014,7 @@ Stops the program at once, whatever it is doing. If the program has already ende
 <a id="core-core-time"></a>
 ### `Core\Time`
 
-Keywords: time, microtime, date_create, hrtime, sleep, usleep, time_nanosleep, time_sleep_until, DateTime::setTimestamp, strtotime, DateTime::__construct, DateTime::createFromFormat, strptime, mktime, gmmktime, DateTime::setDate, DateTimeImmutable, checkdate, date_default_timezone_set, clock, timestamp, now, monotonic, sleep, fromEpoch, fromIso, parse, at
+Keywords: time, current time, now, clock, timestamp, from timestamp, epoch, date, datetime, create a date, parse a date, date format, ISO 8601, sleep, immutable, now, monotonic, sleep, fromEpoch, fromIso, parse, at
 
 `Core\Time` is where a time value starts: `now()` reads the clock as an `Instant`, `fromIso` and
 `fromEpoch` build one from a timestamp, and `at` and `parse` build a `DateTime` from civil fields or
@@ -13026,8 +13022,8 @@ text. Every value it answers is immutable, and there is no ambient time zone —
 built in a `Zone` the call names, and an `Instant` becomes a calendar reading only through
 `->in($zone)`. The two arithmetics are told apart by type: an `Instant` moves by an exact `Duration`
 (`->plus(24h)`), a `DateTime` moves by a calendar step (`->plus(1, Core\Unit::Day)`), and across a
-DST boundary the two land an hour apart. `strtotime`'s free-form text does not exist; each of its
-phrases is a typed call, and a run-time offset such as `"30d"` is `Core\Time\Duration::parse`.
+DST boundary the two land an hour apart. There is no free-form date text: each phrase such as
+"next Monday" is a typed call, and a run-time offset such as `"30d"` is `Core\Time\Duration::parse`.
 
 ```nvs
 <?nvs
@@ -13108,7 +13104,7 @@ Reads a clock that only moves forward, for measuring how long something takes. S
 Core\Time::sleep(Core\Time\Duration $d): void
 ```
 
-Waits for `$d`, replacing `sleep`, `usleep`, `time_nanosleep` and `time_sleep_until` — parking the task rather than blocking the core, so a neighbour on the same core runs meanwhile; a request cancelled mid-sleep stops here.
+Waits for `$d`. Only this task waits, so other work on the same core keeps running. If the request is cancelled during the wait, it stops here.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -13123,7 +13119,7 @@ Waits for `$d`, replacing `sleep`, `usleep`, `time_nanosleep` and `time_sleep_un
 Core\Time::fromEpoch(int $seconds, {nanos?: uint}): Core\Time\Instant
 ```
 
-Builds the instant at a Unix timestamp, replacing `DateTime::setTimestamp`; the `nanos` option is added after the second, so `-1` with `{nanos: 1}` is one nanosecond after `-1`, not before it.
+Builds the instant at a Unix timestamp. The `nanos` option is added after the second, so `-1` with `{nanos: 1}` is one nanosecond after `-1`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -13141,7 +13137,7 @@ Builds the instant at a Unix timestamp, replacing `DateTime::setTimestamp`; the 
 Core\Time::fromIso(string $text): Core\Time\Instant
 ```
 
-Reads an ISO-8601 / RFC 3339 timestamp that carries its own offset — `2024-03-01T12:00:00Z`, `2024-03-01T13:00:00+01:00` — which is all of `strtotime` and `DateTime::__construct` that survives: a civil time with no offset is `Time::parse` with a zone, and a relative expression is a typed call.
+Reads an ISO 8601 or RFC 3339 timestamp that includes its own offset, such as `2024-03-01T12:00:00Z` or `2024-03-01T13:00:00+01:00`. For a date and time with no offset, use `Time::parse` with a zone. For a relative time, use a method such as `plus` or `next`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -13158,7 +13154,7 @@ Reads an ISO-8601 / RFC 3339 timestamp that carries its own offset — `2024-03-
 Core\Time::parse(string $text, string $format, Core\Time\Zone $zone): Core\Time\DateTime
 ```
 
-Reads a civil date and time through a CLDR pattern and places it in `$zone`, replacing `DateTime::createFromFormat` and `strptime`. A `$format` written directly in the code is checked when the program compiles, and a malformed one is error `E0769`. A field the pattern does not name is left at the start of its range.
+Reads a date and time with a CLDR pattern and places it in `$zone`. A `$format` written directly in the code is checked when the program compiles. A malformed one is error `E0769`. A field the pattern does not contain is set to the start of its range.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -13177,7 +13173,7 @@ Reads a civil date and time through a CLDR pattern and places it in `$zone`, rep
 Core\Time::at(int $year, uint $month, uint $day, Core\Time\Zone $zone, {hour?: uint, minute?: uint, second?: uint, nanos?: uint}): Core\Time\DateTime
 ```
 
-Builds a civil date and time in `$zone` from its fields, replacing `mktime`, `gmmktime` and `DateTime::setDate`; the clock fields default to midnight, and a time the zone skips — 02:30 on a spring-forward morning — resolves forward rather than throwing.
+Builds a date and time in `$zone` from its fields. The clock fields default to midnight. If the zone skips the time, such as 02:30 on the morning the clocks go forward, the result moves forward past the gap.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -13192,12 +13188,12 @@ Builds a civil date and time in `$zone` from its fields, replacing `mktime`, `gm
 
 **Returns** `Core\Time\DateTime` — The `DateTime` in `$zone`.
 
-**Throws** `RuntimeError` — A field is outside its range, the fields together are not a date that exists — `30` February — which is what `checkdate` used to answer, or the time lies past either end of the range `$year` names.
+**Throws** `RuntimeError` — A field is outside its range, or the fields together are not a date that exists, such as `30` February. Or the time is past either end of the range `$year` allows.
 
 <a id="core-core-time-instant"></a>
 ### `Core\Time\Instant`
 
-Keywords: getTimestamp, date("U"), microtime(true), date_add, date_sub, modify, date_diff, DateInterval, DATE_ATOM, timestamp, epoch, timeline, UTC, in, toEpochSeconds, toEpochMillis, toEpochMicros, plus, minus, since, compareTo, toIso
+Keywords: instant, timestamp, epoch, Unix time, milliseconds, timeline, UTC, RFC 3339, ISO 8601, time difference, add hours, in, toEpochSeconds, toEpochMillis, toEpochMicros, plus, minus, since, compareTo, toIso
 
 An `Instant` is a point on the timeline with no calendar attached: it has an epoch count and an
 RFC 3339 rendering in UTC, and nothing else until `->in($zone)` places it on a calendar. It moves
@@ -13318,7 +13314,7 @@ Moves the instant forward by an exact `Duration`. An instant has no time zone, s
 $instant->minus(Core\Time\Duration $d): Core\Time\Instant
 ```
 
-Moves the instant back by an exact `Duration`, replacing `date_sub` for an exact offset.
+Moves the instant back by an exact `Duration`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -13374,18 +13370,17 @@ Returns the instant as RFC 3339 text in UTC. This is the date format that JSON a
 <a id="core-core-time-datetime"></a>
 ### `Core\Time\DateTime`
 
-Keywords: date, gmdate, idate, strftime, date_format, date_add, date_sub, modify, strtotime, setDate, setTime, setISODate, date_diff, DateInterval, date("N"), date("z"), date("L"), DateTimeImmutable, CLDR, format pattern, calendar arithmetic, DST, next monday, last day of month, format, plus, minus, next, previous, with, withTime, startOf, endOf, difference, toInstant, date, timeOfDay, zone, weekday, dayOfYear, isLeapYear
+Keywords: date, time, datetime, format a date, add days, add months, date difference, weekday, day of year, leap year, immutable date, CLDR, format pattern, calendar arithmetic, DST, next monday, last day of month, format, plus, minus, next, previous, with, withTime, startOf, endOf, difference, toInstant, date, timeOfDay, zone, weekday, dayOfYear, isLeapYear
 
 A `DateTime` is a civil reading — year, month, day, hour, minute, second, nanosecond — in one `Zone`,
 built by `Core\Time::at` or `Core\Time::parse` or read off an `Instant` with `->in($zone)`. It is
 immutable: every member answers a new value. Its arithmetic is calendar arithmetic: `plus(1,
 Core\Unit::Month)` keeps the day-of-month clamped to the new month's length, `plus(1, Core\Unit::Day)`
 across a DST boundary is a 23- or 25-hour day, and `difference` counts whole units in the receiver's
-zone. `format` takes a **CLDR pattern**, not PHP's `date()` letters — the same grammar `Core\Time::parse`
-reads and `Date::format` and `TimeOfDay::format` take for their own fields. A pattern written directly
+zone. `format` takes a **CLDR pattern**. `Core\Time::parse` reads the same patterns, and `Date::format`
+and `TimeOfDay::format` use them for their own fields. A pattern written directly
 in the code is checked when the program compiles, so a letter outside the table below is a compile error; a pattern
-computed at run time throws a `LogicError` instead. Names render in English only; there is no
-`setlocale`.
+computed at run time throws a `LogicError` instead. Month and weekday names are always in English.
 
 | Letter | Field | Counts |
 |---|---|---|
@@ -13466,7 +13461,7 @@ midweek
 $dateTime->format(string $pattern): string
 ```
 
-Renders the civil date and time through a CLDR pattern — `yyyy-MM-dd HH:mm:ss`, `EEEE, d MMMM yyyy` — replacing `date`, `gmdate`, `idate`, `strftime` and `date_format`; names render in CLDR's root locale, since there is no `setlocale`.
+Turns the date and time into text with a CLDR pattern, such as `yyyy-MM-dd HH:mm:ss` or `EEEE, d MMMM yyyy`. Day and month names always use CLDR's root locale.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -13483,7 +13478,7 @@ Renders the civil date and time through a CLDR pattern — `yyyy-MM-dd HH:mm:ss`
 $dateTime->plus(int $count, Core\Unit $unit): Core\Time\DateTime
 ```
 
-Moves the value forward by `$count` calendar steps of `$unit`, replacing `date_add`, `modify` and `strtotime`'s relative half: `1, Unit::Month` lands on the same day-of-month clamped to the month's length, and a day across a DST boundary is 23 or 25 hours. The exact half is `$d->toInstant()->plus(24h)`.
+Moves the value forward by `$count` calendar steps of `$unit`. `1, Unit::Month` gives the same day of the month, limited to the length of the new month. A day across a DST change is 23 or 25 hours long. For an exact step, use `$d->toInstant()->plus(24h)`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -13501,7 +13496,7 @@ Moves the value forward by `$count` calendar steps of `$unit`, replacing `date_a
 $dateTime->minus(int $count, Core\Unit $unit): Core\Time\DateTime
 ```
 
-Moves the value back by `$count` calendar steps of `$unit`, replacing `date_sub` — `plus` with the count negated, so the two agree at a month end and a DST boundary.
+Moves the value back by `$count` calendar steps of `$unit`. It is `plus` with the count negated, so the two give the same results at a month end and at a DST change.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -13519,7 +13514,7 @@ Moves the value back by `$count` calendar steps of `$unit`, replacing `date_sub`
 $dateTime->next(Core\Time\DateTime::Weekday $w): Core\Time\DateTime
 ```
 
-Finds the nearest strictly later day that falls on `$w`, with the time of day preserved — `strtotime("next monday")` as a typed call.
+Finds the first day after this one that falls on `$w`. The time of day stays the same.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -13536,7 +13531,7 @@ Finds the nearest strictly later day that falls on `$w`, with the time of day pr
 $dateTime->previous(Core\Time\DateTime::Weekday $w): Core\Time\DateTime
 ```
 
-Finds the nearest strictly earlier day that falls on `$w`, with the time of day preserved — `strtotime("last monday")` as a typed call.
+Finds the last day before this one that falls on `$w`. The time of day stays the same.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -13553,7 +13548,7 @@ Finds the nearest strictly earlier day that falls on `$w`, with the time of day 
 $dateTime->with({year?: int, month?: uint, day?: uint, hour?: uint, minute?: uint, second?: uint, nanos?: uint}): Core\Time\DateTime
 ```
 
-Replaces any of the seven civil fields and leaves the rest, replacing `setDate`, `setTime` and `setISODate`; a civil time the zone skips resolves forward past the gap.
+Replaces any of the seven date and time fields and keeps the others. If the zone skips the new time, the result moves forward past the gap.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -13593,7 +13588,7 @@ Replaces all four clock fields from a `TimeOfDay` and keeps the date and the zon
 $dateTime->startOf(Core\Unit $u): Core\Time\DateTime
 ```
 
-Truncates the value down to the first instant of the enclosing `$u` — `startOf(Unit::Day)` is the local midnight, `strtotime("today")`, and `startOf(Unit::Month)` its first day — computed on the civil fields and then placed back in the zone.
+Moves the value back to the first instant of the `$u` that contains it. `startOf(Unit::Day)` is local midnight, and `startOf(Unit::Month)` is the first day of the month. It is calculated on the date and time fields and then placed back in the zone.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -13610,7 +13605,7 @@ Truncates the value down to the first instant of the enclosing `$u` — `startOf
 $dateTime->endOf(Core\Unit $u): Core\Time\DateTime
 ```
 
-Moves the value to the last instant of the enclosing `$u`, one nanosecond before the next one starts — `endOf(Unit::Month)` is `strtotime("last day of this month")`; a distinct operation from `startOf` on a day a DST boundary lengthens or shortens.
+Moves the value to the last instant of the `$u` that contains it, one nanosecond before the next one starts. `endOf(Unit::Month)` is the end of the month's last day. It is calculated separately from `startOf`. This matters on a day that a DST change makes longer or shorter.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -13627,7 +13622,7 @@ Moves the value to the last instant of the enclosing `$u`, one nanosecond before
 $dateTime->difference(Core\Time\DateTime $other, Core\Unit $unit): int
 ```
 
-Counts whole units of `$unit` from the receiver to `$other`, in the receiver's zone — an age in years, a term in months — replacing `date_diff` and `DateInterval`'s `y`/`m`/`d` fields.
+Counts the whole units of `$unit` from this value to `$other`, in this value's zone. Use it for an age in years or a term in months.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -13689,7 +13684,7 @@ Answers the zone this civil value is in — always one the program named, since 
 $dateTime->weekday(): Core\Time\DateTime::Weekday
 ```
 
-Answers the day of the week, replacing `date("N")` — as the enum case rather than the number.
+Returns the day of the week, as a `Weekday` enum case.
 
 **Returns** `Core\Time\DateTime::Weekday` — The `Weekday` case, `Weekday::Monday` through `Weekday::Sunday`.
 
@@ -13700,9 +13695,9 @@ Answers the day of the week, replacing `date("N")` — as the enum case rather t
 $dateTime->dayOfYear(): uint
 ```
 
-Answers the ordinal day within the year, replacing `date("z")`.
+Returns the day of the year, counted from `1`.
 
-**Returns** `uint` — `1` for 1 January through `365` or `366` — one-based where `date("z")` is zero-based, as every other day count here is.
+**Returns** `uint` — `1` for 1 January through `365` or `366`. It counts from one, as every other day count in this class does.
 
 <a id="core-core-time-datetime-isleapyear"></a>
 #### `Core\Time\DateTime->isLeapYear`
@@ -13711,19 +13706,19 @@ Answers the ordinal day within the year, replacing `date("z")`.
 $dateTime->isLeapYear(): bool
 ```
 
-Answers whether the value's year has a 29 February, replacing `date("L")` and `checkdate`'s year half; the day half has no equivalent because a date that does not exist throws where it is built.
+Checks whether the value's year has a 29 February.
 
 **Returns** `bool` — `true` in a leap year of the proleptic Gregorian calendar.
 
 <a id="core-core-time-date"></a>
 ### `Core\Time\Date`
 
-Keywords: checkdate, date, cal_days_in_month, calendar date, day-month-year, zone-free, at, format, plus, minus, with, compareTo
+Keywords: date, calendar date, day-month-year, zone-free, valid date, days in month, leap year, at, format, plus, minus, with, compareTo
 
 A `Date` is the year, month and day alone — no time of day and no zone — built by `Date::at` or read
 off a `DateTime` with `->date()`. There is no `Date::parse`: text is read with `Core\Time::parse`
-(a pattern and a zone), and the `DateTime` it answers gives up its date. A date that does not exist throws where it is built, which is all
-`checkdate` did. It steps by `Core\Unit::Day` and larger, with the same month-end clamping as
+(a pattern and a zone), and the `DateTime` it answers gives up its date. A date that does not exist throws where it is built.
+It steps by `Core\Unit::Day` and larger, with the same month-end clamping as
 `DateTime::plus`; a smaller unit is refused. `format` takes the date letters of the CLDR grammar
 `DateTime::format` uses, and a time or zone letter in the pattern is refused because a `Date` has
 none to render. Two dates are ordered with `compareTo`; the `<` operators do not compile on a `Date`.
@@ -13775,7 +13770,7 @@ Tue 30 Jan
 Core\Time\Date::at(int $y, uint $m, uint $d): Core\Time\Date
 ```
 
-Builds a zone-free civil date from its three fields — the one place a date that does not exist throws, which is why there is no `checkdate`.
+Builds a date with no zone from its three fields. A date that does not exist, such as 30 February, throws an error.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -13877,7 +13872,7 @@ Orders two dates on the calendar, as `Comparable` requires.
 <a id="core-core-time-timeofday"></a>
 ### `Core\Time\TimeOfDay`
 
-Keywords: setTime, date("H:i"), wall clock, time of day, clock reading, hour, minute, at, format, plus, minus, with, compareTo
+Keywords: wall clock, time of day, time without a date, clock reading, hour, minute, second, at, format, plus, minus, with, compareTo
 
 A `TimeOfDay` is a clock reading — hour, minute, second, nanosecond — with no date and no zone, built by
 `TimeOfDay::at` or read off a `DateTime` with `->timeOfDay()`. It steps by `Core\Unit::Hour` and
@@ -14033,7 +14028,7 @@ Checks which of two times comes first in the day, as `Comparable` requires. The 
 <a id="core-core-time-duration"></a>
 ### `Core\Time\Duration`
 
-Keywords: DateInterval, sleep, usleep, hrtime, strtotime("+3 days"), 1h30m, 250ms, nanoseconds, exact offset, timeout, nanoseconds, microseconds, milliseconds, seconds, minutes, hours, days, weeks, parse, toNanoseconds, toMicroseconds, toMilliseconds, toSeconds, plus, minus, multipliedBy, negated, compareTo, toString
+Keywords: duration, interval, time span, sleep, 1h30m, 250ms, nanoseconds, exact offset, parse a duration, timeout, nanoseconds, microseconds, milliseconds, seconds, minutes, hours, days, weeks, parse, toNanoseconds, toMicroseconds, toMilliseconds, toSeconds, plus, minus, multipliedBy, negated, compareTo, toString
 
 A `Duration` is a signed count of nanoseconds. You write one directly in the code as a number and a
 unit — `30s`, `250ms`, `1h30m`, `7d` — with the units `ns`, `us`, `ms`, `s`, `m`, `h`, `d` and `w`, and
@@ -14391,13 +14386,13 @@ Writes the receiver as text in the same syntax as a duration in the code, such a
 <a id="core-core-time-zone"></a>
 ### `Core\Time\Zone`
 
-Keywords: DateTimeZone, date_default_timezone_get, date_default_timezone_set, getOffset, timezone, IANA, Europe/Berlin, UTC, offset, DST, of, fixed, system, offsetAt
+Keywords: timezone, time zone, IANA, tz database, Europe/Berlin, UTC, offset, UTC offset, DST, daylight saving time, convert time zone, system time zone, of, fixed, system, offsetAt
 
 A `Zone` is what turns an `Instant` into a calendar reading and back: `Zone::of` looks up an IANA
 identifier such as `Europe/Berlin` in the bundled database and throws on one it does not have,
 `Zone::fixed` is a constant offset with no DST rules, and `Zone::UTC` is the one constant. There is
 no ambient zone: `Zone::system()` answers the host's zone as an ordinary value the program then
-passes on, and nothing like `date_default_timezone_set` exists. A zone with DST has no single
+passes on, and no call sets a default zone for the program. A zone with DST has no single
 offset, so `offsetAt` asks for the instant.
 
 ```nvs
@@ -14502,7 +14497,7 @@ Returns how far the zone is from UTC at one instant. A zone with summer time has
 <a id="core-core-objectmap"></a>
 ### `Core\ObjectMap<K, V>`
 
-Keywords: SplObjectStorage, spl_object_id, WeakMap, identity, object key, side table, map, dictionary, lookup, set, get, has, remove, count, isEmpty, keys, values, clear
+Keywords: identity, object identity, object key, per-object data, side table, map, dictionary, lookup, set, get, has, remove, count, isEmpty, keys, values, clear
 
 `Core\ObjectMap<K, V>` associates a value with an object, matched by **identity**: the one object is one
 key however many variables hold it, and two objects that agree on every property are two keys. `array<T>`
@@ -14568,7 +14563,7 @@ keys=1 values=1
 new Core\ObjectMap(): Core\ObjectMap
 ```
 
-Builds an empty `Core\ObjectMap<K, V>` — a map keyed by identity, which replaces `SplObjectStorage` used as a map and every `spl_object_id` side table.
+Builds an empty `Core\ObjectMap<K, V>`. Its keys are objects, and two keys are the same only when they are the same object.
 
 <a id="core-core-objectmap-set"></a>
 #### `Core\ObjectMap->set`
@@ -14689,7 +14684,7 @@ Drops every pair, leaving the map empty.
 <a id="core-core-objectset"></a>
 ### `Core\ObjectSet<T>`
 
-Keywords: SplObjectStorage, spl_object_id, identity, set, membership, union, intersect, diff, deduplicate objects, add, has, remove, count, isEmpty, union, intersect, diff, clear
+Keywords: identity, object identity, set, membership, union, intersect, diff, deduplicate objects, add, has, remove, count, isEmpty, union, intersect, diff, clear
 
 `Core\ObjectSet<T>` holds each object at most once, matched by **identity**: adding the same object twice
 leaves one member, and a second object equal in every property is a second member. It is built with
@@ -14761,7 +14756,7 @@ not empty
 new Core\ObjectSet(): Core\ObjectSet
 ```
 
-Builds an empty `Core\ObjectSet<T>` — a set keyed by identity, which replaces `SplObjectStorage` used as a set.
+Builds an empty `Core\ObjectSet<T>`. Two entries are the same only when they are the same object.
 
 <a id="core-core-objectset-add"></a>
 #### `Core\ObjectSet->add`
@@ -14889,7 +14884,7 @@ Drops every member, leaving the set empty.
 <a id="core-core-heap"></a>
 ### `Core\Heap<T>`
 
-Keywords: SplPriorityQueue, SplMinHeap, SplMaxHeap, SplHeap, priority queue, min-heap, max-heap, comparator, Comparable, compareTo, scheduling, push, peek, pop, count, isEmpty
+Keywords: priority queue, heap, binary heap, min-heap, max-heap, smallest first, comparator, Comparable, compareTo, scheduling, push, peek, pop, count, isEmpty
 
 `Core\Heap<T>` keeps its elements ordered so that `peek` and `pop` always answer the **smallest** one. The
 order is decided once, at `new`: a comparator passed as the constructor's argument —
@@ -14954,7 +14949,7 @@ deploy
 new Core\Heap(?callable(T, T): int $comparator = null): Core\Heap
 ```
 
-Builds an empty `Core\Heap<T>` — a priority queue that replaces `SplPriorityQueue`, `SplMinHeap` and `SplMaxHeap` — ordered by `$comparator` when one is given, otherwise by `Comparable::compareTo`, and otherwise by the natural order of scalars.
+Builds an empty `Core\Heap<T>`, a priority queue. It is ordered by `$comparator` when one is given. Otherwise it uses `Comparable::compareTo`, or else the natural order of scalars.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -15028,10 +15023,10 @@ Whether the heap holds nothing — the question to ask before `peek` or `pop`, w
 <a id="core-core-random"></a>
 ### `Core\Random`
 
-Keywords: rand, mt_rand, random_int, lcg_value, mt_getrandmax, random_bytes, openssl_random_pseudo_bytes, bin2hex, array_rand, shuffle, str_shuffle, srand, mt_srand, Random\Randomizer, CSPRNG, nonce, session token, int, float, bytes, token, pick, sample, shuffle
+Keywords: random, random number, random integer, random float, random bytes, random element, shuffle, sample, token, CSPRNG, secure random, seed, seeded, reproducible, nonce, session token, int, float, bytes, token, pick, sample, shuffle
 
 `Core\Random` is always a CSPRNG: there is no seeded or insecure generator under this name, and no
-`srand`. `int` draws from a closed range and throws on an empty one rather than swapping the bounds;
+function sets a global seed. `int` draws from a closed range and throws on an empty one rather than swapping the bounds;
 `pick`, `sample` and `shuffle` draw from an array and answer values — a fresh array for `shuffle`,
 `null` from `pick` on an empty one. `token` is the hex text of `bytes`, two characters per byte, for a
 session identifier or a reset link.
@@ -15103,7 +15098,7 @@ and it stays that way
 Core\Random::int(int $min, int $max): int
 ```
 
-Draws an integer uniformly from `[$min, $max]`, inclusive at both ends, from the CSPRNG — as `random_int` does, replacing `rand` and `mt_rand` as well.
+Returns a random integer from `$min` to `$max`, including both ends. Every value is equally likely. The number comes from the cryptographic random generator.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -15121,7 +15116,7 @@ Draws an integer uniformly from `[$min, $max]`, inclusive at both ends, from the
 Core\Random::float(): float
 ```
 
-Draws a float uniformly from the half-open interval `[0, 1)`, replacing `lcg_value` and the `mt_rand() / mt_getrandmax()` idiom.
+Returns a random float from `0.0` up to, but not including, `1.0`. Every value is equally likely.
 
 **Returns** `float` — A `float` with 53 random bits; `0.0` is drawable and `1.0` is not.
 
@@ -15132,7 +15127,7 @@ Draws a float uniformly from the half-open interval `[0, 1)`, replacing `lcg_val
 Core\Random::bytes(uint $count): bytes
 ```
 
-Draws `$count` bytes from the CSPRNG as a raw buffer — a key, a nonce or an IV — as `random_bytes` does, replacing `openssl_random_pseudo_bytes` as well.
+Returns `$count` random bytes from the cryptographic random generator. Use it for a key, a nonce or an IV.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -15140,7 +15135,7 @@ Draws `$count` bytes from the CSPRNG as a raw buffer — a key, a nonce or an IV
 
 **Returns** `bytes` — A `bytes` value of exactly `$count` octets, unrendered — `Core\Random::token` is the hex spelling.
 
-**Throws** `RuntimeError` — `$count` is `0`, as `random_bytes(0)` is a `ValueError`, or is larger than a buffer this process can allocate.
+**Throws** `RuntimeError` — `$count` is `0`, or it is larger than a buffer this process can allocate.
 
 <a id="core-core-random-token"></a>
 #### `Core\Random::token`
@@ -15149,7 +15144,7 @@ Draws `$count` bytes from the CSPRNG as a raw buffer — a key, a nonce or an IV
 Core\Random::token(uint $bytes = 32): string
 ```
 
-Draws `$bytes` bytes from the CSPRNG and renders them as lower-case hex — the `bin2hex(random_bytes(…))` idiom, for a session identifier or a reset link.
+Takes `$bytes` random bytes from the cryptographic random generator and returns them as lower-case hex. Use it for a session identifier or a reset link.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -15166,7 +15161,7 @@ Draws `$bytes` bytes from the CSPRNG and renders them as lower-case hex — the 
 Core\Random::pick(array<T> $a): ?T
 ```
 
-Draws one entry of `$a` uniformly and answers its value, replacing `array_rand` in its one-element spelling — the value, where `array_rand` answers the key.
+Returns the value of one random entry of `$a`. Every entry is equally likely.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -15181,7 +15176,7 @@ Draws one entry of `$a` uniformly and answers its value, replacing `array_rand` 
 Core\Random::sample(array<T> $a, uint $count): array<T>
 ```
 
-Draws `$count` distinct entries of `$a` uniformly, replacing `array_rand` with a count — in random order, where `array_rand` keeps the subject's order.
+Returns `$count` different random entries of `$a`, in random order. Every entry is equally likely.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -15199,13 +15194,13 @@ Draws `$count` distinct entries of `$a` uniformly, replacing `array_rand` with a
 Core\Random::shuffle(array<T> $a): array<T>
 ```
 
-Answers every entry of `$a` in a uniformly random order, replacing `shuffle` and `str_shuffle` — a fresh array rather than a reordering in place.
+Returns every entry of `$a` in a random order. Every order is equally likely. The result is a new array, and `$a` stays the same.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$a` | `array<T>` | The array to reorder. |
 
-**Returns** `array<T>` — A fresh list of all the values under `0, 1, …` keys — the subject's keys are discarded, as `shuffle` renumbers — and `$a` is unchanged.
+**Returns** `array<T>` — A new list of all the values, with the keys `0, 1, …`. The keys of `$a` are not kept, and `$a` is unchanged.
 
 <a id="core-core-random-seeded"></a>
 ### `Core\Random\Seeded`
@@ -15230,7 +15225,7 @@ Keywords: int, float, bytes, token, pick, sample, shuffle
 new Core\Random\Seeded(int $seed): Core\Random\Seeded
 ```
 
-Builds a generator whose sequence `$seed` fixes — the reproducible half of spec § 11, replacing `srand` and `mt_srand` with a value rather than a mode.
+Builds a random generator from `$seed`. The same seed always gives the same sequence of values.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -15350,7 +15345,7 @@ Answers every entry of `$a` in an order drawn from this generator's own sequence
 <a id="core-core-uuid"></a>
 ### `Core\Uuid`
 
-Keywords: uniqid, com_create_guid, uuid_is_valid, ramsey/uuid, GUID, RFC 9562, RFC 4122, v4, v7, primary key, identifier, v4, v7, parse, tryParse, fromBytes, toString, toBytes
+Keywords: uuid, GUID, unique id, random id, RFC 9562, RFC 4122, v4, v7, primary key, identifier, v4, v7, parse, tryParse, fromBytes, toString, toBytes
 
 A `Uuid` is an opaque 128-bit value, not a string: `v4` draws a random one, `v7` a time-ordered one
 whose leading bits are a millisecond timestamp — the right database key and the wrong public
@@ -15500,7 +15495,7 @@ Returns the sixteen bytes of the UUID. Use it to store a UUID in a binary databa
 <a id="core-core-hash"></a>
 ### `Core\Hash`
 
-Keywords: hash, md5, sha1, sha256, crc32, hash_hmac, hash_equals, openssl_digest, digest, HMAC, checksum, constant-time comparison, of, hmac, equals, stream
+Keywords: hash, md5, sha1, sha256, crc32, digest, HMAC, checksum, fingerprint, constant-time comparison, of, hmac, equals, stream
 
 `Core\Hash::of` computes any `Core\Hash::Digest` case over a `string` or `bytes` and answers the raw
 digest as `bytes` — never hex and never an `int` — so printing one goes through
@@ -15547,7 +15542,7 @@ differ
 Core\Hash::of(bytes|string $data, Core\Hash::Digest $digest): bytes
 ```
 
-Computes the digest of `$data` under `$digest`, replacing `hash`, `md5`, `sha1`, `crc32` and `openssl_digest` at once — raw octets, never hex or an `int`.
+Computes the digest of `$data` with the algorithm `$digest`. The result is raw bytes. It is not hexadecimal text and not an `int`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -15563,7 +15558,7 @@ Computes the digest of `$data` under `$digest`, replacing `hash`, `md5`, `sha1`,
 Core\Hash::hmac(bytes|string $data, secret bytes $key, Core\Hash::Digest::Sha224|Core\Hash::Digest::Sha256|Core\Hash::Digest::Sha384|Core\Hash::Digest::Sha512|Core\Hash::Digest::Sha512_224|Core\Hash::Digest::Sha512_256|Core\Hash::Digest::Sha3_224|Core\Hash::Digest::Sha3_256|Core\Hash::Digest::Sha3_384|Core\Hash::Digest::Sha3_512 $digest): bytes
 ```
 
-Computes RFC 2104's HMAC of `$data` under `$key` and `$digest`, as `hash_hmac` does without its `raw_output` flag — and only under a `StrongDigest`, so `Digest::Md5` or `Digest::Sha1` here is a compile error.
+Computes the HMAC of RFC 2104 for `$data`, with `$key` and the algorithm `$digest`. The result is raw bytes. Only a `StrongDigest` is allowed, so `Digest::Md5` or `Digest::Sha1` does not compile.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -15580,7 +15575,7 @@ Computes RFC 2104's HMAC of `$data` under `$key` and `$digest`, as `hash_hmac` d
 Core\Hash::equals(bytes $a, bytes $b): bool
 ```
 
-Compares two digests in constant time, as `hash_equals` does: the running time does not depend on where two equal-length operands first differ.
+Compares two digests in constant time. For two values of the same length, the time does not depend on where they first differ.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -15596,7 +15591,7 @@ Compares two digests in constant time, as `hash_equals` does: the running time d
 Core\Hash::stream(Core\Hash::Digest $digest): Core\Hash\Stream
 ```
 
-Opens an incremental digest under `$digest`, as `hash_init` does — a `Core\Hash\Stream` fed by `update` and closed by `finish`.
+Starts a digest with the algorithm `$digest` that you feed in parts. It returns a `Core\Hash\Stream`. Call `update` to add data and `finish` to get the digest.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -15607,7 +15602,7 @@ Opens an incremental digest under `$digest`, as `hash_init` does — a `Core\Has
 <a id="core-core-hash-stream"></a>
 ### `Core\Hash\Stream`
 
-Keywords: hash_init, hash_update, hash_final, HashContext, incremental hash, streaming digest, chunked input, update, finish
+Keywords: incremental hash, streaming digest, chunked input, hash a large file, checksum, update, finish
 
 A `Core\Hash\Stream` is opened by `Core\Hash::stream` with a `Core\Hash::Digest` case and digests
 everything `update` feeds it, in order, so `finish` answers exactly what `Core\Hash::of` answers
@@ -15649,7 +15644,7 @@ finished
 $stream->update(bytes|string $data): void
 ```
 
-Feeds `$data` to the stream, as `hash_update` does; the chunks are digested in order at `finish`.
+Adds `$data` to the stream. `finish` computes the digest of all parts in the order they were added.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -15666,7 +15661,7 @@ Feeds `$data` to the stream, as `hash_update` does; the chunks are digested in o
 $stream->finish(): bytes
 ```
 
-Closes the stream and answers the digest of everything `update` fed it, as `hash_final` does — the same octets `Core\Hash::of` answers over the concatenation.
+Closes the stream and returns the digest of everything added with `update`. The result is the same as `Core\Hash::of` on all the parts joined together.
 
 **Returns** `bytes` — The digest as `bytes`; the stream is finished afterwards and its chunks released.
 
@@ -15675,7 +15670,7 @@ Closes the stream and answers the digest of everything `update` fed it, as `hash
 <a id="core-core-uri"></a>
 ### `Core\Uri`
 
-Keywords: parse_url, filter_var, FILTER_VALIDATE_URL, rawurlencode, rawurldecode, urlencode, urldecode, parse_str, http_build_query, URL, URI, query string, percent-encoding, parse, tryParse, encodeComponent, decodeComponent, encodeFormValue, decodeFormValue, parseQuery, buildQuery, scheme, userInfo, host, port, path, query, fragment, toString, with, queryParameter, withQueryParameter, resolve, compareTo, sign, verifySignature
+Keywords: parse a URL, validate a URL, URL encode, URL decode, form encoding, parse a query string, build a query string, URL, URI, query string, percent-encoding, parse, tryParse, encodeComponent, decodeComponent, encodeFormValue, decodeFormValue, parseQuery, buildQuery, scheme, userInfo, host, port, path, query, fragment, toString, with, queryParameter, withQueryParameter, resolve, compareTo, sign, verifySignature
 
 `Core\Uri::parse` reads a URI *reference* and answers an instance whose readers report each
 component exactly as written — still percent-encoded, in its own case. Every reader but `path` is
@@ -15687,7 +15682,7 @@ convention, and `queryParameter`/`withQueryParameter` are the same convention ov
 by name — a name `with` cannot take as a bag key, because a bag's keys are declared and a parameter's
 name is chosen at run time. The name is top-level, so an array `$value` is what writes `a[b]`; a
 `null` `$value` removes the pair, and removing the last one leaves no query at all rather than a bare
-`?`. `encodeComponent`/`encodeFormValue` are `rawurlencode`'s and `urlencode`'s two escapes.
+`?`. `encodeComponent` writes a space as `%20`, and `encodeFormValue` writes it as `+`.
 The two **decoders answer `bytes`**, because percent-decoding is defined over octets and a client may
 send any of them: `Core\Uri::decodeComponent("%FF")` has an answer, and text is one `as string` away —
 which throws for octets no `string` can hold, exactly where a `string`-returning decoder would have.
@@ -16419,7 +16414,7 @@ Returns the attribute of the route's method that has the shape you write between
 <a id="core-core-csv"></a>
 ### `Core\Csv`
 
-Keywords: str_getcsv, fgetcsv, fputcsv, CSV, comma-separated, header row, delimiter, dialect, parse, format, rows
+Keywords: CSV, comma-separated, parse CSV, write CSV, RFC 4180, header row, delimiter, separator, quote, dialect, parse, format, rows
 
 `Core\Csv::parse` reads a whole document into `array<array<string>>` — every field is a `string`,
 quoted fields and embedded newlines included. With `{header: true}` the first record is consumed
@@ -16466,7 +16461,7 @@ plum,"a, b"
 Core\Csv::parse(string $text, {separator?: string, quote?: string, escape?: string, header?: bool}): array<array<string>>
 ```
 
-Parses the whole CSV document `$text` into its records, as `str_getcsv` and the parsing half of `fgetcsv` do, by RFC 4180's grammar: a field is quoted or it is not, a doubled quote inside a quoted field is one quote, a record ends at `LF` or `CRLF`, and a blank line is not a record.
+Parses the whole CSV document `$text` into records, with the grammar of RFC 4180. A field may be quoted. Inside a quoted field, two quotes are read as one quote. A record ends at `LF` or `CRLF`, and a blank line is not a record.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -16487,7 +16482,7 @@ Parses the whole CSV document `$text` into its records, as `str_getcsv` and the 
 Core\Csv::format(array<array<string>> $rows, {separator?: string, quote?: string, header?: array<string>}): string
 ```
 
-Writes `$rows` as a CSV document, as `fputcsv`'s formatting half does over a whole document: a field is quoted exactly when it holds the separator, the quote, `CR` or `LF`, a quote inside one is doubled, and every record ends with `LF`, so `parse(format($rows))` answers `$rows`.
+Writes `$rows` as a CSV document. A field is quoted only when it contains the separator, the quote, `CR` or `LF`. A quote inside a quoted field is doubled. Every record ends with `LF`, so `parse(format($rows))` returns `$rows`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -16532,12 +16527,12 @@ Keywords:
 <a id="core-core-serialize"></a>
 ### `Core\Serialize`
 
-Keywords: serialize, unserialize, __serialize, __sleep, __wakeup, persistence, byte format, graph copy, encode, decode
+Keywords: serialize, deserialize, persistence, byte format, object graph, graph copy, cycles, encode, decode
 
 `Core\Serialize::encode` copies the whole value graph under a value into `bytes` in Novis's own
 closed format, and `decode` rebuilds it: an object comes back as an instance of the class this
-program declares, its declared properties assigned directly — no constructor runs, and there is no
-`__serialize`, `__sleep` or `__wakeup` hook. A cycle is preserved as a cycle. `decode` answers
+program declares, its declared properties assigned directly — no constructor runs, and no hook
+method runs either. A cycle is preserved as a cycle. `decode` answers
 `mixed`, so narrow it with `as`; it refuses foreign bytes, another format version, and a class whose
 declared properties no longer match with `ParseError`, and `encode` throws `LogicError` on a callable.
 
@@ -16615,7 +16610,7 @@ Builds the value again from the `bytes` that `encode()` returned. It reads only 
 <a id="core-core-validate"></a>
 ### `Core\Validate`
 
-Keywords: filter_var, FILTER_VALIDATE_EMAIL, FILTER_VALIDATE_IP, FILTER_VALIDATE_DOMAIN, FILTER_VALIDATE_MAC, FILTER_FLAG_IPV4, FILTER_FLAG_IPV6, ctype_print, validation, predicate, isEmail, isDomain, isIp, isMac, isAscii, isPrintable
+Keywords: validation, validate, predicate, email address, IP address, IPv4, IPv6, domain name, MAC address, printable characters, isEmail, isDomain, isIp, isMac, isAscii, isPrintable
 
 Every `Core\Validate` member is a predicate over a `string` naming a *format*: `isEmail`,
 `isDomain`, `isIp` (with `{version: 4}` or `{version: 6}` to accept one family only), `isMac`,
@@ -16757,14 +16752,14 @@ Checks whether `$s` contains no control characters. A control character has no v
 <a id="core-core-out"></a>
 ### `Core\Out`
 
-Keywords: ob_start, ob_get_clean, ob_get_contents, ob_end_clean, output buffering, capture, echo, capture
+Keywords: output buffering, capture, capture output, buffer output, echo, capture
 
 `Core\Out::capture` runs a callable and returns everything it `echo`ed as the carrier of the sink in
 force — a `Core\Cli\Text`, or a `Core\Html\Markup` under an HTTP request, typed
 `Core\Html\Markup|Core\Cli\Text` — never a plain `string`, so re-emitting it is one more `echo` and it
 is not escaped a second time. `as string` reads the text out. Nothing the callable wrote
-reaches the output below; a capture nests by call nesting, and there is no global buffer stack, no
-`ob_get_contents` and no implicit flush. `{through: $fn}` transforms the carrier before it is
+reaches the output below; a capture nests by call nesting, and there is no global buffer stack and no
+implicit flush. `{through: $fn}` transforms the carrier before it is
 returned, and the callable's own return value is discarded. `Core\Debug::dump` is never captured —
 it writes to stderr.
 
@@ -16825,7 +16820,7 @@ Runs `$fn` and returns everything it printed with `echo`. The printed text does 
 <a id="core-core-debug"></a>
 ### `Core\Debug`
 
-Keywords: var_dump, print_r, var_export, debug_zval_refcount, dump, inspect, stderr, diagnostic, dump, render
+Keywords: dump, inspect, print a value, debug output, render, stderr, diagnostic, dump, render
 
 `Core\Debug::dump` renders each argument as a typed record — `int(42)`, `string(2) "42"`, an
 array as `array(n) [ … ]` with its keys, an object as `Class#id (n) { … }` with its declared
@@ -16881,7 +16876,7 @@ the dump went to stderr
 Core\Debug::dump(mixed ...$values): void
 ```
 
-Writes each value in a readable form, for debugging. It replaces `var_dump`, but it never writes to standard output. Outside a web request, it writes to standard error. Inside a web request, it writes a log record at the `Debug` level. In production, that record is not kept unless `[log] level` is `"Debug"`. With `[debug] inline`, the dump is also added to an HTML response.
+Writes each value in a readable form, for debugging. It never writes to standard output. Outside a web request, it writes to standard error. Inside a web request, it writes a log record at the `Debug` level. In production, that record is not kept unless `[log] level` is `"Debug"`. With `[debug] inline`, the dump is also added to an HTML response.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -16907,10 +16902,10 @@ Renders `$value` exactly as `dump` would and answers it as a `Core\Cli\Text` ins
 <a id="core-core-test"></a>
 ### `Core\Test`
 
-Keywords: PHPUnit, assert(), assertion, unit test, #[Test], #[Core\Test], Core\Test\Failure, nvs test, expectException, assertSame, assertEquals, ledger, fixed clock, assertSame, assertEquals, assertEqualsDeep, assertTrue, assertNull, assertCount, assertContains, assertMatchesInline, assertThrows, assertDoesNotThrow, expectFailure, advance, serverUrl, scriptAnswers, request, answerHttp, tlsSession, sentHttp, answerSocket, sentSocket, double, partial, assertCalled, assertNeverCalled, assertCompletes
+Keywords: assertion, assertEquals, assertThrows, unit test, #[Test], #[Core\Test], Core\Test\Failure, nvs test, test failure, expected exception, ledger, fixed clock, assertSame, assertEquals, assertEqualsDeep, assertTrue, assertNull, assertCount, assertContains, assertMatchesInline, assertThrows, assertDoesNotThrow, expectFailure, advance, serverUrl, scriptAnswers, request, answerHttp, tlsSession, sentHttp, answerSocket, sentSocket, double, partial, assertCalled, assertNeverCalled, assertCompletes
 
 `Core\Test` is the assertion surface: every member is `static`, takes the subject **first**
-(`assertEquals($actual, $expected)` — the reverse of PHPUnit's order), and is generic, so comparing an
+(`assertEquals($actual, $expected)`), and is generic, so comparing an
 `int` with a `string` is a compile error rather than a failed test. A failed assertion throws
 `Core\Test\Failure`, an ordinary `Throwable` a `catch` may take — but the runner keeps its own ledger of
 what held and what failed, and a `catch` does not erase an entry; `expectFailure` is the one member that
@@ -17646,7 +17641,7 @@ Returns the body of this request, such as the JSON document or the form the prog
 <a id="core-core-task"></a>
 ### `Core\Task`
 
-Keywords: curl_multi_*, structured concurrency, parallel, concurrent, child task, fan-out, limit, deadline, TimeoutError, cancellation, all, map, all, map, afterResponse
+Keywords: structured concurrency, parallel, concurrent, concurrent requests, run at once, wait for all, child task, fan-out, limit, deadline, TimeoutError, cancellation, all, map, all, map, afterResponse
 
 `Core\Task` runs callables as concurrent child tasks and never returns while one is still running.
 `all` takes a shape whose every field is a zero-argument callable and answers a shape with the same
@@ -17999,7 +17994,7 @@ Returns the most memory the script used while it ran, in bytes. This is the same
 <a id="core-core-program"></a>
 ### `Core\Program`
 
-Keywords: get_declared_classes, class_implements, implementing, implementingWith, plugin discovery, registry, autoload, enumerate implementors, service locator, attributes of discovered classes, routes of every page, program id, build id, deployment fingerprint, cache busting, asset version, revision hash, implementing, implementingWith, constructors, id
+Keywords: implementing, implementingWith, list classes, classes that implement an interface, plugin discovery, registry, autoload, enumerate implementors, service locator, attributes of discovered classes, routes of every page, program id, build id, deployment fingerprint, cache busting, asset version, revision hash, implementing, implementingWith, constructors, id
 
 `Core\Program::implementing<T>()` is written with its type argument — `T` is an interface — and expands
 **at compile time** to an array literal of `new` expressions, one per non-abstract class in the program that
@@ -18177,7 +18172,7 @@ Returns the arguments this program was started with, without the program name. A
 Core\Cli::write(string|Core\Cli\Text $value, {stream?: Core\Cli::Stream, newline?: bool}): void
 ```
 
-Writes `$value` to a standard stream, replacing `fwrite(STDOUT, …)` and `print`. A `string` has every control byte replaced by the visible glyph `Core\Cli::escape` gives it; a `Core\Cli\Text` is written through unchanged, because it is the sink's own carrier and its bytes have already been neutralized.
+Writes `$value` to a standard stream. In a `string`, every control byte is replaced by the visible symbol that `Core\Cli::escape` gives it. A `Core\Cli\Text` is written unchanged, because its control bytes were already made safe.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -18259,7 +18254,7 @@ How much colour standard output can show, honouring `NO_COLOR`, `CLICOLOR_FORCE`
 Core\Cli::displayWidth(string $value): uint
 ```
 
-How many terminal columns `$value` will occupy when it is written — UAX #11 widths over grapheme clusters, replacing `mb_strwidth`. A CJK ideograph and a fullwidth Latin letter are two columns, a combining mark is none, and a control byte is the one its Control Picture costs, because that is what the terminal sink shows.
+Returns how many terminal columns `$value` uses when it is written. Widths follow UAX #11 and are counted per grapheme (what a person counts as one character). A CJK ideograph and a fullwidth Latin letter use two columns, and a combining mark uses none. A control byte uses the width of the visible symbol the terminal shows for it.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -18394,7 +18389,7 @@ Runs `$body` with a progress bar open on the terminal, and answers whatever `$bo
 <a id="core-core-cli-text"></a>
 ### `Core\Cli\Text`
 
-Keywords: Core\Out::capture, ob_start, ob_get_clean, terminal output, ANSI, escape sequences, captured output, carrier, plain, styled, text
+Keywords: Core\Out::capture, terminal output, ANSI, escape sequences, captured output, carrier, plain, styled, text
 
 `Core\Cli\Text` is what `Core\Out::capture` answers when the program is not serving an HTTP request: the
 bytes the captured code wrote, already past the terminal sink, carried as a value rather than as a `string`
@@ -18651,7 +18646,7 @@ Core\Command::run(): uint
 
 Matches this process's own command line against the table `#[Command]` built while compiling, calls the handler the first word names, and answers the status the process should exit with.
 
-**Returns** `uint` — The handler's own `uint`, or `0` where it is declared `void`. A command line this program's table does not answer is a **usage error**: the page goes to standard error and the status is `2`, which is the status a command line nobody can act on has meant since `getopt`.
+**Returns** `uint` — The handler's own `uint`, or `0` when it is declared `void`. A command line that matches no command of this program is a **usage error**. The help page goes to standard error, and the status is `2`.
 
 **Throws** `LogicError` — The named command's handler is not a method this program declares, or one of its parameters is declared at a type no argument's text is converted into yet — both are mistakes in the program rather than in the command line it was given.
 
@@ -18675,7 +18670,7 @@ A completion script for this program, in the named shell's own syntax, generated
 <a id="core-core-config"></a>
 ### `Core\Config`
 
-Keywords: ini_get, ini_set, ini_restore, ini_get_all, set_time_limit, nvs.toml, configuration, directive, [limits], memory, cpu_time, hard ceiling, get, set, restore, all
+Keywords: nvs.toml, configuration, setting, read a setting, change a setting at run time, directive, [limits], memory, cpu_time, time limit, hard ceiling, get, set, restore, all
 
 `Core\Config` reads and moves the configuration in force for the current request. Every value crosses as a
 `string`, spelled as `nvs.toml` would spell it (`"512M"`, `"30s"`); a directive is named with dots
@@ -18730,7 +18725,7 @@ unknown name refused
 Core\Config::get(string $name): ?string
 ```
 
-Returns the value of one setting for this request. It replaces `ini_get`. A setting this request changed with `set` gives the new value. Any other setting gives the value from the configuration file, or its built-in default.
+Returns the value of one setting for this request. A setting this request changed with `set` gives the new value. Any other setting gives the value from the configuration file, or its built-in default.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -18745,7 +18740,7 @@ Returns the value of one setting for this request. It replaces `ini_get`. A sett
 Core\Config::set(string $name, string $value): bool
 ```
 
-Sets a directive for this request only, replacing `ini_set`. The change is written to a copy-on-write overlay over the configuration snapshot, so it is invisible to every other request and is gone when this one ends.
+Changes a setting for this request only. Other requests do not see the change, and it ends when this request ends.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -18761,7 +18756,7 @@ Sets a directive for this request only, replacing `ini_set`. The change is writt
 Core\Config::restore(string $name): void
 ```
 
-Deletes this request's change to one setting. The value from the configuration file is in force again, or the built-in default when the file does not write the setting. It replaces `ini_restore`.
+Deletes this request's change to one setting. The value from the configuration file is in force again, or the built-in default when the file does not write the setting.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -18776,7 +18771,7 @@ Deletes this request's change to one setting. The value from the configuration f
 Core\Config::all(): array<string>
 ```
 
-Returns every setting in force for this request, with the dotted names as keys. It replaces `ini_get_all`. A setting this request changed has the new value. A setting the configuration file does not write has its built-in default.
+Returns every setting in force for this request, with the dotted names as keys. A setting this request changed has the new value. A setting the configuration file does not write has its built-in default.
 
 **Returns** `array<string>` — An `array<string, string>` sorted by name, with one entry per value. A name that has a group of settings gives one entry for each setting in it. A name that has a list gives no entry.
 
@@ -18802,7 +18797,7 @@ Keywords: get, all, mode, context
 Core\Env::get(string $name): ?tainted string
 ```
 
-The environment variable `$name`, replacing `getenv` and `$_ENV`. The environment is read-only: there is no `putenv`, because a process-global mutation is unsound across cores.
+Returns the value of the environment variable `$name`. The environment is read-only, so a program cannot change a variable.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -18819,7 +18814,7 @@ The environment variable `$name`, replacing `getenv` and `$_ENV`. The environmen
 Core\Env::all(): array<tainted string>
 ```
 
-Every environment variable, keyed by name — the whole of `$_ENV`, and `getenv` with no argument.
+Returns every environment variable, with the variable names as keys.
 
 **Returns** `array<tainted string>` — An `array<string, tainted string>` in name order, so two calls in one run and two runs on two platforms agree. A variable whose name or value is not valid UTF-8 is omitted rather than allowed to fail the sweep; `get` on that name reports it.
 
@@ -18945,7 +18940,7 @@ Keywords: memoryHeld, memoryPeak, memoryLimit
 Core\Budget::memoryHeld(): uint
 ```
 
-The bytes **this request** holds right now — what `memory_get_usage` was reaching for, with no `$real_usage` boolean. It falls as values die, because Novis releases on the last reference rather than at the end of the script, so a request that has finished with a large payload reads small again.
+Returns the number of bytes **this request** uses right now. Novis frees a value as soon as nothing uses it. So the number goes down again when a request is done with a large value.
 
 **Returns** `uint` — This request's held bytes. Never the process's — that is `Core\Os::residentBytes`, and it is a different question.
 
@@ -18956,7 +18951,7 @@ The bytes **this request** holds right now — what `memory_get_usage` was reach
 Core\Budget::memoryPeak(): uint
 ```
 
-The highest `memoryHeld()` has been during this request — `memory_get_peak_usage`. The runtime records the mark as it allocates rather than deriving it from a reading, so a spike that has already been released is still reported.
+Returns the highest value `memoryHeld()` has had during this request. The number is recorded at every allocation, so it includes memory that was already freed again.
 
 **Returns** `uint` — This request's high-water mark in bytes, never below what `memoryHeld()` answers. It cannot be reset: the number the request-level notices exist to surface is not one an application may put back.
 
@@ -18974,12 +18969,12 @@ The ceiling `memoryHeld()` and `memoryPeak()` are measured against — `[limits]
 <a id="core-core-request"></a>
 ### `Core\Request`
 
-Keywords: $_GET, $_POST, $_COOKIE, $_FILES, $_SERVER, $_REQUEST, superglobal, filter_input, getallheaders, php://input, file_get_contents, json_decode, request body, form fields, multipart, upload, HEAD, request method, method, isHead, path, query, queryArray, queryAs, header, headers, cookie, body, bytes, json, jsonAs, bodyStream, files, post, postArray, postAs, clientIp, scheme, host, route, mount
+Keywords: request, query string, query parameters, form fields, POST data, cookies, headers, request body, JSON body, multipart, upload, HEAD, request method, path, tainted input, method, isHead, path, query, queryArray, queryAs, header, headers, cookie, body, bytes, json, jsonAs, bodyStream, files, post, postArray, postAs, clientIp, scheme, host, route, mount
 
 `Core\Request` is the whole of what arrived: `method`, `isHead`, `path`, `query`, `header`, `headers`,
-`cookie` and the body readers, plus `route` and `mount` for where the router put it. There are no
-superglobals — no variable is ever populated by the host — and `$_REQUEST`, which merged three sources
-into one lookup, has no replacement of any kind. Every member throws `LogicError` in a program that is
+`cookie` and the body readers, plus `route` and `mount` for where the router put it. The host never
+fills a variable for the program. No lookup merges the query, the form fields and the cookies into
+one. Every member throws `LogicError` in a program that is
 not answering a request, so a CLI run, a scheduled script and a job worker say "no request arrived"
 rather than answering empty.
 
@@ -19002,7 +18997,7 @@ document that is malformed, too deep, or absent altogether. `json()` keeps what 
 `query()` and `post()` parse as the type written at the call site — an inline shape, `{page: uint}`, or a
 class carrying `#[Core\Json\Derive]` — converting every named field with `as` and leaving the keys the
 type does not name behind. Called with nothing, the whole parameter set is the subject, and that is the
-only way a program reaches it: there is no `query(): array<mixed>` and no `$_GET`. Called with
+only way a program reaches it: there is no `query(): array<mixed>`. Called with
 `{name: "filter"}`, the subject is the one bracket-named subtree under that name. A field that is absent,
 or that holds a value `as` refuses for its declared type, is a `ParseError` listing every field that
 failed at its own path — so a form reports the whole list rather than the first item of it.
@@ -19416,7 +19411,7 @@ Which mount is serving this request: the prefix the server took off the path bef
 <a id="core-core-request-mount"></a>
 ### `Core\Request\Mount`
 
-Keywords: SCRIPT_NAME, PATH_INFO, base path, base URL, RewriteBase, subdirectory install, sub-folder deployment, virtual host, multi-tenant, subdomain routing, $_SERVER['REQUEST_URI'], prefix, captures
+Keywords: SCRIPT_NAME, PATH_INFO, base path, base URL, mount prefix, RewriteBase, subdirectory install, sub-folder deployment, virtual host, multi-tenant, subdomain routing, request URI, prefix, captures
 
 `Core\Request\Mount` is what `Core\Request::mount()` answers with, and it holds two facts about the door
 this request arrived at: `prefix()` is what the server took off the front of the path before
@@ -19458,9 +19453,7 @@ echo "serving ", $tenant, " under ", $mount->prefix(), "\n";
 
 A program therefore never derives its own base path from the request target, and `Core\Router::url`
 prepends the prefix on the way back out, so the same compiled route table serves at `/ModuleA`, at
-`/{1}` or at `/` with no recompile. `$_SERVER['SCRIPT_NAME']`, `PATH_INFO` and the `RewriteBase` guessing
-that goes with them have nothing left to describe. Without a request, the class is unreachable in the
-ordinary way:
+`/{1}` or at `/` with no recompile. Without a request, the class is unreachable in the ordinary way:
 
 ```nvs
 <?nvs
@@ -19505,7 +19498,7 @@ The glob captures of the mount serving this request, in order — `{1}` is `capt
 <a id="core-core-request-bodystream"></a>
 ### `Core\Request\BodyStream`
 
-Keywords: php://input, fopen php://input, fread, stream_get_contents, streaming request body, large upload, chunked body, chunk, Iterable bytes, memory_limit, 
+Keywords: raw request body, streaming request body, read the body in chunks, large upload, chunked body, chunk, Iterable bytes, memory limit, 
 
 `Core\Request\BodyStream` is what `Core\Request::bodyStream()` answers with: an `Iterable<tainted bytes>`
 that a `foreach` walks once. It has no members — the walk is everything it does — and it holds nothing
@@ -19573,15 +19566,14 @@ no request here
 <a id="core-core-request-files"></a>
 ### `Core\Request\Files`
 
-Keywords: $_FILES, move_uploaded_file, is_uploaded_file, upload_tmp_dir, file upload, multipart/form-data, UPLOAD_ERR_OK, tmp_name, large upload, streaming upload, 
+Keywords: file upload, uploaded files, form upload, save an upload, multipart/form-data, large upload, streaming upload, temporary file, 
 
 `Core\Request\Files` is what `Core\Request::files()` answers with: an `Iterable<Core\Request\Part>` that a
 `foreach` walks once, yielding each uploaded part as it comes off the wire. It has no members — the walk
 is everything it does — and it is the only way a program receives an upload. There is no temporary file
 and no directory the host chose: nothing lands on disk until the program names a path it holds the
 `fs.write` capability for, so an upload nobody saves has cost the machine nothing but the bytes that
-crossed the socket. `$_FILES`, `tmp_name`, `is_uploaded_file` and `move_uploaded_file` all have no
-replacement here because none of them has anything left to describe.
+crossed the socket.
 
 **The parse runs as the loop does.** The next part does not exist when the walk is named, so `files()`
 holds one part at a time and nothing accumulates. A part is valid only while it is the walk's current one:
@@ -19641,7 +19633,7 @@ no request here
 <a id="core-core-request-part"></a>
 ### `Core\Request\Part`
 
-Keywords: $_FILES, tmp_name, move_uploaded_file, UPLOAD_ERR_OK, upload name, client filename, Content-Disposition, Content-Type, multipart part, file_get_contents upload, name, filename, contentType, content, readAll, saveTo
+Keywords: uploaded file, upload name, client filename, form field, Content-Disposition, Content-Type, multipart part, read an upload, save an upload, name, filename, contentType, content, readAll, saveTo
 
 A `Core\Request\Part` is one file part of a `multipart/form-data` body, handed to the loop body by the
 `Core\Request::files()` walk. Three members say what it declared about itself — `name()`, the form field
@@ -19783,7 +19775,7 @@ Reads the whole content of this part into one value. Use it for an upload small 
 $part->saveTo(string $path, {max?: uint, overwrite?: bool}): void
 ```
 
-Writes this part straight to `$path`, holding one chunk at a time — the path 99.9% of uploads take, replacing `move_uploaded_file` of a temporary file the host chose. Needs the `fs.write` capability for the path, and the part's own `filename()` is `tainted`, so it reaches this only through `Core\IO::within`.
+Writes this part directly to `$path`, one chunk at a time. Use it to save an upload. It needs the `fs.write` capability for the path. The part's own `filename()` is `tainted`, so it must pass through `Core\IO::within` before it is used here.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -19798,7 +19790,7 @@ Writes this part straight to `$path`, holding one chunk at a time — the path 9
 <a id="core-core-request-partcontent"></a>
 ### `Core\Request\PartContent`
 
-Keywords: streaming upload, chunk, fread, stream_get_contents, multipart/form-data, large file upload, memory_limit, Iterable bytes, tmp_name, move_uploaded_file, 
+Keywords: streaming upload, chunk, read in chunks, multipart/form-data, large file upload, memory limit, Iterable bytes, 
 
 `Core\Request\PartContent` is what `Core\Request\Part::content()` answers with: an `Iterable<tainted
 bytes>` that a `foreach` walks once over one uploaded part. It has no members — the walk is everything it
@@ -20605,7 +20597,7 @@ What a publisher put on the topic, copied across the isolate boundary the way ev
 <a id="core-core-fatal"></a>
 ### `Core\Fatal`
 
-Keywords: register_shutdown_function, memory limit, resource limit, FATAL, onLimit, cpu_time, wall_time, max_output, out of memory, shutdown handler, onLimit, onUncaughtThrow
+Keywords: memory limit, resource limit, FATAL, onLimit, cpu_time, wall_time, max_output, out of memory, shutdown handler, onLimit, onUncaughtThrow
 
 `Core\Fatal::onLimit` registers the callable the request runs when a resource limit — memory, CPU time,
 output, wall time, script depth or call-stack depth — stops it. A limit breach is a `FATAL`, which no
@@ -21014,13 +21006,12 @@ Answers which form `$count` takes as a *place* rather than as an amount — Engl
 <a id="core-core-password"></a>
 ### `Core\Password`
 
-Keywords: password, hash, verify, needsRehash, argon2, argon2id, bcrypt, crypt, login, credential, rehash, salt, phc, hash, verify, needsRehash
+Keywords: password, hash, verify, needsRehash, argon2, argon2id, bcrypt, login, credential, rehash, salt, phc, hash, verify, needsRehash
 
-`Core\Password::hash` takes a password and answers the string to store. It takes **nothing else**: no
-algorithm, no memory cost, no time cost, no salt. PHP writes those at every call site, which means a
-program's real cost is whichever call site was copied last and raising it is a grep. Here the parameters
-belong to the library — Argon2id at OWASP's recommended floor — and `::needsRehash` is how a *stored*
-hash finds out it has fallen behind. That is the whole reason a caller never names a cost.
+`Core\Password::hash` takes a password and returns the string to store. It takes **nothing else**: no
+algorithm, no memory cost, no time cost and no salt. The library chooses the parameters. It uses
+Argon2id at the minimum settings OWASP recommends. `::needsRehash` tells you when a *stored* hash uses
+weaker settings than the current ones.
 
 The answer is a PHC string: the algorithm, the version, the cost parameters and the salt travel with the
 digest. That is what lets `::verify` recompute under the settings a hash was *made* with, so credentials
@@ -21033,19 +21024,17 @@ reaches the sinks a password never could.
 Every call draws its own salt, so hashing one password twice answers two different strings and two users
 who chose the same password are indistinguishable in the store. Compare with `::verify`, never with `==`.
 
-**`::needsRehash` asks whether a hash is *weaker*, not whether it *differs*.** PHP compares the stored
-options to the current ones for equality, so a hash written under stronger settings asks to be rehashed —
-and a program doing as it was told silently downgrades it. Here a stronger stored hash is left alone.
+**`::needsRehash` returns `true` only when a hash is *weaker* than the current settings.** A hash
+written under stronger settings returns `false`, so it is never replaced by a weaker one.
 
-**A PHP user table verifies on day one, and upgrades itself one login at a time.** `::verify` reads two
-shapes: the Argon2id string `::hash` writes, and a bcrypt hash under `$2y$`, `$2a$` or `$2b$` — the column
-PHP's `PASSWORD_DEFAULT` has been writing since 5.5. `::needsRehash` answers `true` for every one of them,
-because a different algorithm is weaker by its own rule, so the ordinary login-time loop below *is* the
-migration: verify the password, notice the row has fallen behind, rehash what was just proved. Nothing is
-converted offline, because a stored hash is not invertible — only a presented password can rewrite the
-row — and nothing writes bcrypt ever again, since `::hash` has no algorithm argument to ask it with. A
-stored cost above 17 is refused before any work, and `$2x$` — the tag that exists to be bug-compatible
-with `crypt_blowfish`'s sign-extension overflow — is not read at all.
+**A user table of bcrypt hashes that PHP wrote works at once, and upgrades itself one login at a time.**
+`::verify` reads two formats: the Argon2id string that `::hash` writes, and a bcrypt hash that starts
+with `$2y$`, `$2a$` or `$2b$`. `::needsRehash` returns `true` for every bcrypt hash, because a different
+algorithm counts as weaker. So the usual login code below is the whole migration. It verifies the
+password, sees that the hash is old, and hashes the password again. Nothing is converted offline,
+because only the password itself can produce a new hash. `::hash` has no algorithm argument, so it
+never writes bcrypt. A bcrypt hash with a cost above 17 throws an error before any work is done. A hash
+that starts with `$2x$` also throws, because that tag exists only to reproduce an old bug.
 
 A stored value outside those two shapes **throws** rather than answering `false`. A storage layer handing
 back the wrong column otherwise looks exactly like every user typing the wrong password at once, and one
@@ -21152,7 +21141,7 @@ Checks whether `$hash` is weaker than a hash `hash` makes today. Call it right a
 <a id="core-core-crypto"></a>
 ### `Core\Crypto`
 
-Keywords: crypto, encrypt, decrypt, seal, open, generateKey, deriveKey, expandKey, generateKeyPair, agree, sign, verify, publicKey, keypair, aead, cipher, chacha20, poly1305, xchacha20, aes, aes-256-gcm, webcrypto, openssl, sodium, nonce, key, tamper, forgery, authenticated, pbkdf2, hkdf, derivation, salt, iterations, hash_pbkdf2, hash_hkdf, p256, x25519, ed25519, rsa, ecdh, ecdsa, eddsa, curve, spki, pkcs8, jwk, signature, openssl_sign, openssl_verify, openssl_pkey_new, sodium_crypto_sign, sodium_crypto_box, generateKey, seal, open, deriveKey, expandKey, generateKeyPair, agree, sign, verify
+Keywords: crypto, encrypt, decrypt, seal, open, generateKey, deriveKey, expandKey, generateKeyPair, agree, sign, verify, publicKey, keypair, aead, cipher, chacha20, poly1305, xchacha20, aes, aes-256-gcm, webcrypto, openssl, sodium, nonce, key, tamper, forgery, authenticated, pbkdf2, hkdf, derivation, salt, iterations, p256, x25519, ed25519, rsa, ecdh, ecdsa, eddsa, curve, spki, pkcs8, jwk, signature, public key, private key, key exchange, generateKey, seal, open, deriveKey, expandKey, generateKeyPair, agree, sign, verify
 
 `Core\Crypto` holds the primitives a Novis program shares with something that is not Novis: a browser's
 WebCrypto, an SDK, whoever issued its keys. It seals and opens under an authenticated cipher, stretches a
@@ -21160,13 +21149,12 @@ password and spreads uniform material into keys, draws key pairs, agrees a share
 signs and verifies a message. **No algorithm is ever a string, and none has a default** — a cipher, a
 key's kind and a key's encoding are each a case of a closed enum that the call names.
 
-`openssl_encrypt($data, "aes-256-cbc", $key, 0, $iv)` puts the primitive in a string and the nonce at
-the call site, which is how a program ends up with `aes-256-ecb` in one file, an all-zero IV in another
-and no authentication in either — "encrypted" and "authenticated" become two decisions a caller can get
-half right. Here the enum is closed and every case authenticates, so a misspelling is a compile error
-and there is no unauthenticated spelling to reach for; the mode, the padding and the nonce stay the
-library's, exactly as `Core\Password`'s parameters do. `XChaCha20Poly1305` is the one to prefer when both
-ends are Novis, and `Aes256Gcm` is what a browser reads.
+When a call takes the cipher as a string and the nonce from the caller, mistakes are easy. One file uses
+`aes-256-ecb`, another uses an all-zero IV, and neither authenticates the data. Here the enum is closed
+and every case authenticates. A misspelled cipher is a compile error, and no unauthenticated cipher
+exists to choose. The library chooses the mode, the padding and the nonce, as it chooses
+`Core\Password`'s parameters. Prefer `XChaCha20Poly1305` when both ends are Novis. A browser reads
+`Aes256Gcm`.
 
 **A key is a `secret bytes`, and that is part of its type.** `::generateKey` answers one, and the
 compiler will not let a program put it in a plain `bytes` — so a key cannot be echoed, logged, dumped or
@@ -22093,7 +22081,7 @@ Checks that `$token` was made by `Core\Signature::sign` with a key in `$keys`, a
 <a id="core-core-html"></a>
 ### `Core\Html`
 
-Keywords: html, markup, template, html template, page, view, render, escape, escaping, xss, htmlspecialchars, htmlentities, html_entity_decode, strip_tags, DOMDocument, loadHTML, sanitize, parse, escape, join, later, toSource, parse, sanitize
+Keywords: html, markup, template, html template, page, view, render, escape, escaping, xss, html entities, sanitize, parse, escape, join, later, toSource, parse, sanitize
 
 `Core\Html\Markup` is the one type an HTTP request writes raw; every `string` written into a
 page is escaped. A `Markup` is made in three ways: an ``html`…` `` template, whose text is trusted
@@ -22622,7 +22610,7 @@ Keywords: compress, decompress, compressor, decompressor
 Core\Compress::compress(bytes|string $data, Core\Compress::Codec $codec): bytes
 ```
 
-Compresses `$data` under `$codec`, replacing `gzencode`, `gzcompress`, `gzdeflate` and `zlib_encode` at once — the format is a case of `Core\Compress::Codec` rather than a third of a function's name.
+Compresses `$data` in the format `$codec`. The format is a case of `Core\Compress::Codec`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -22638,7 +22626,7 @@ Compresses `$data` under `$codec`, replacing `gzencode`, `gzcompress`, `gzdeflat
 Core\Compress::decompress(bytes $data, Core\Compress::Codec $codec, uint $maxBytes = 67108864, uint $maxRatio = 1000): bytes
 ```
 
-Decompresses `$data` under `$codec`, **under a bound that cannot be switched off** — replacing `gzdecode`, `gzuncompress`, `gzinflate` and `zlib_decode`, whose `$max_length` was optional and defaulted to unlimited.
+Decompresses `$data` from the format `$codec`. **The output has a size limit that cannot be switched off.**
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -22658,7 +22646,7 @@ Decompresses `$data` under `$codec`, **under a bound that cannot be switched off
 Core\Compress::compressor(Core\Compress::Codec $codec): Core\Compress\Compressor
 ```
 
-Opens an incremental compression under `$codec`, as `deflate_init` does — a `Core\Compress\Compressor` fed by `add` and closed by `finish`.
+Starts a compression in the format `$codec` that you feed in parts. It returns a `Core\Compress\Compressor`. Call `add` to add data and `finish` to get the result.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -22673,7 +22661,7 @@ Opens an incremental compression under `$codec`, as `deflate_init` does — a `C
 Core\Compress::decompressor(Core\Compress::Codec $codec, uint $maxBytes = 67108864, uint $maxRatio = 1000): Core\Compress\Decompressor
 ```
 
-Opens an incremental decompression under `$codec`, as `inflate_init` does — a `Core\Compress\Decompressor` fed by `add` and closed by `finish`, **under the same bound that cannot be switched off**.
+Starts a decompression from the format `$codec` that you feed in parts. It returns a `Core\Compress\Decompressor`. Call `add` to add data and `finish` to get the result. **It has the same size limit as `decompress`, which cannot be switched off.**
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -22700,7 +22688,7 @@ Keywords: add, finish
 $compressor->add(bytes|string $data): void
 ```
 
-Feeds `$data` to the stream, as `deflate_add` does; the chunks are compressed in order at `finish`.
+Adds `$data` to the stream. `finish` compresses all parts in the order they were added.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -22740,7 +22728,7 @@ Keywords: add, finish
 $decompressor->add(bytes $data): void
 ```
 
-Feeds `$data` to the stream, as `inflate_add` does; the chunks are decompressed in order at `finish`, under the one bound the stream was opened with.
+Adds `$data` to the stream. `finish` decompresses all parts in the order they were added, with the size limit the stream started with.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -22780,7 +22768,7 @@ Keywords: detect, mediaType
 Core\Mime::detect(bytes $data): Core\Mime::Type
 ```
 
-Reports what `$data` is, read from the octets themselves — replacing `mime_content_type`, `finfo_buffer` and `exif_imagetype`. There is no parameter for a file name, because a type read off an extension is a type an attacker chose.
+Returns the type of `$data`, read from the bytes themselves. There is no parameter for a file name, because an attacker can choose a file name's extension.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -22821,7 +22809,7 @@ Keywords: entries, read, extract
 Core\Zip::entries(bytes $archive): array<tainted string>
 ```
 
-The names an archive carries, in the order its central directory lists them — replacing `zip_read`/`zip_entry_name` and `ZipArchive::statIndex`. The archive is judged whole first: an archive carrying a traversing, absolute-path or symlink entry has no listing, because a program that could see such an entry could act on it.
+Returns the names of the entries in an archive, in the order its central directory lists them. The whole archive is checked first. If one entry uses `..`, an absolute path or a symlink, it throws an error and lists nothing.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -22838,7 +22826,7 @@ The names an archive carries, in the order its central directory lists them — 
 Core\Zip::read(bytes $archive, string $name, uint $maxBytes = 67108864, uint $maxRatio = 1000): tainted bytes
 ```
 
-One entry's octets, decompressed **under a bound that cannot be switched off** — replacing `zip_entry_read` and `ZipArchive::getFromName`, whose only limit was the memory the request had left.
+Returns the decompressed bytes of one entry. **The output has a size limit that cannot be switched off.**
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -22858,7 +22846,7 @@ One entry's octets, decompressed **under a bound that cannot be switched off** �
 Core\Zip::extract(bytes $archive, string $destination, uint $maxBytes = 67108864, uint $maxRatio = 1000): uint
 ```
 
-Writes an archive's entries under `$destination` and answers how many files it wrote — replacing `ZipArchive::extractTo`, which wrote whatever names it had been handed. The archive is judged whole before an octet is written, and every directory is created and then resolved and proved to be under the destination before anything is created inside it.
+Writes the entries of an archive under `$destination` and returns how many files it wrote. The whole archive is checked before any byte is written. Each directory is created and then checked to be inside `$destination`, before anything is written into it.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -23320,7 +23308,7 @@ Keywords: status, text, bytes, jsonAs, header, headers, tls
 $response->status(): int
 ```
 
-The reply's HTTP status code, as the origin sent it and with nothing read into it — replacing `curl_getinfo`'s `CURLINFO_RESPONSE_CODE` key.
+Returns the reply's HTTP status code, exactly as the server sent it.
 
 **Returns** `int` — The status line's three-digit code. A `404` and a `500` are answers, so they arrive here rather than as a throw; only a request that got no reply at all throws.
 
@@ -23331,7 +23319,7 @@ The reply's HTTP status code, as the origin sent it and with nothing read into i
 $response->text(): tainted string
 ```
 
-The reply's body as text, replacing `curl_exec`'s return value and the `CURLOPT_RETURNTRANSFER` flag that decided whether there was one.
+Returns the reply's body as text.
 
 **Returns** `tainted string` — The body, `tainted`: it is bytes another host chose, and a pinned address settles where they came from rather than what is in them. A sink's own launderer is the way out of it, and there is no generic one.
 
@@ -23372,7 +23360,7 @@ The reply's body hydrated into an instance of `T` — `Core\Json::decodeAs` over
 $response->header(string $name): ?tainted string
 ```
 
-One reply header, read by a name that matches however the origin capitalised it — replacing `curl_getinfo`'s header string and the hand-written parse under it.
+Returns one header of the reply. The name matches in upper or lower case, whichever the server used.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -23404,7 +23392,7 @@ Every line the reply carried under one name, kept apart — the reading a joined
 $response->tls(): ?Core\Http\TlsInfo
 ```
 
-The TLS session this reply arrived over: what the handshake settled, and whether it checked the peer — replacing the scattered `CURLINFO_SSL_*` keys of `curl_getinfo`.
+Returns the details of the TLS connection this reply came over. They include the settings both sides agreed on, and whether the server's certificate was checked.
 
 **Returns** `?Core\Http\TlsInfo` — The session, or `null` where the reply arrived over none at all — a plain `http` exchange, or a call a test's answer table served.
 
@@ -24238,7 +24226,7 @@ Returns how busy the machine is, as three numbers: the averages over the last 1,
 <a id="core-core-cache"></a>
 ### `Core\Cache`
 
-Keywords: apcu_store, apcu_fetch, apcu_delete, apcu_exists, shmop, sysvshm, cache, memoize, per-core, per-process, redis, ttl, coherence, hit, miss, cross-request state, local, process, shared
+Keywords: cache, memoize, shared memory, per-core, per-process, redis, ttl, expiry, coherence, hit, miss, cross-request state, local, process, shared
 
 `Core\Cache` is where a value outlives the request that made it, in three tiers that hand back the
 same `Core\Cache\Store` (`put`, `get`, `forget`, `putSecret`, `getSecret`) under three different
@@ -24582,7 +24570,7 @@ Keywords: increment, observe, gauge
 Core\Metrics::increment(string $name, {by?: uint, labels?: array<string>}): void
 ```
 
-Adds to a counter, fixing `$name` to a counter on its first use — the replacement for every hand-rolled `$GLOBALS` tally and for a `statsd` client's `increment`.
+Adds to a counter. The first call with `$name` makes that name a counter, and it stays a counter.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -24650,13 +24638,13 @@ Keywords: forClass, forObject, typeOf
 Core\Reflect::forClass(string $name): ?Core\Reflect\ClassInfo
 ```
 
-Describes the class `$name` names, reaching it by name rather than through a value. Replaces `ReflectionClass`'s constructor and `class_exists`.
+Describes the class with the name `$name`. You do not need an object of that class.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$name` | `string` (neutral) | The class's name as its declaration writes it, namespace included and with no leading separator — what `Core\Reflect\ClassInfo::name` answers. |
 
-**Returns** `?Core\Reflect\ClassInfo` — A description of that class, or `null` where the running program declares no class of that name — the `null` is `class_exists`'s answer, which is why asking is not a failure.
+**Returns** `?Core\Reflect\ClassInfo` — A description of that class. The result is `null` if the running program declares no class with that name. This is not an error.
 
 <a id="core-core-reflect-forobject"></a>
 #### `Core\Reflect::forObject`
@@ -24665,7 +24653,7 @@ Describes the class `$name` names, reaching it by name rather than through a val
 Core\Reflect::forObject(mixed $object): Core\Reflect\ClassInfo
 ```
 
-Describes `$object`'s class — its name, and the properties code outside the class can see. Replaces `get_class` and `get_object_vars`.
+Describes the class of `$object`: its name, and the properties that code outside the class can see.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -24688,7 +24676,7 @@ Returns the kind of value `$value` is right now. Use it on a `mixed` value.
 |---|---|---|
 | `$value` | `mixed` | The value to ask about. On anything but a `mixed` the checker already knows the answer, so the interesting receiver is the one whose type was erased. |
 
-**Returns** `Core\Reflect::TypeKind` — One `Core\Reflect::TypeKind` case — exactly one, since the cases partition the representations rather than overlapping the way `is_scalar` and `is_int` do.
+**Returns** `Core\Reflect::TypeKind` — One `Core\Reflect::TypeKind` case. Every value matches exactly one case, because the cases do not overlap.
 
 <a id="core-core-reflect-classinfo"></a>
 ### `Core\Reflect\ClassInfo`
@@ -24729,7 +24717,7 @@ The described class's name, namespace included, spelled as the declaration write
 $classInfo->properties(): array<Core\Reflect\PropertyInfo>
 ```
 
-The described class's properties — its own and every inherited one — each with its name, its visibility and the type its declaration spells. Replaces `ReflectionClass::getProperties`.
+Returns the properties of the described class, its own and every inherited one. Each has its name, its visibility and its declared type.
 
 **Returns** `array<Core\Reflect\PropertyInfo>` — One `Core\Reflect\PropertyInfo` per declared property, in slot order: every ancestor's first, then the class's own. A `private` or `protected` property is among them, carrying the bit that says so — naming a member is introspection of the program's shape, and reading one is `get`'s question, checked there.
 
@@ -24740,7 +24728,7 @@ The described class's properties — its own and every inherited one — each wi
 $classInfo->readableProperties(): array<string>
 ```
 
-The property names a read written at this call site may make, in slot order. Replaces `get_object_vars`, whose answer is scope-sensitive in the same way.
+Returns the names of the properties that code at this call site may read, in the same order as `properties`. The result depends on where the call is written.
 
 **Returns** `array<string>` — One name per property this site may read, `$`-sigil excluded: every declared property where the call is written inside the described class, and the `public` ones anywhere else. The complete list is `properties`, and the difference between the two answers is exactly what `get` would refuse here.
 
@@ -24751,7 +24739,7 @@ The property names a read written at this call site may make, in slot order. Rep
 $classInfo->hasProperty(string $name): bool
 ```
 
-Whether the described class declares a property called `$name`. Replaces `property_exists`.
+Checks whether the described class declares a property called `$name`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -24766,7 +24754,7 @@ Whether the described class declares a property called `$name`. Replaces `proper
 $classInfo->methods(): array<Core\Reflect\MethodInfo>
 ```
 
-The described class's methods — its own and every inherited one — each with its name, its visibility and how many parameters it declares. Replaces `get_class_methods`.
+Returns the methods of the described class, its own and every inherited one. Each has its name, its visibility and the number of parameters it declares.
 
 **Returns** `array<Core\Reflect\MethodInfo>` — One `Core\Reflect\MethodInfo` per declared method, in name order, and a method the calling site could not call is among them carrying `isPublic() === false`. Naming a method is not calling it, which is why the roster is complete and `Core\Reflect\ClassInfo::call` is where the check is made.
 
@@ -24777,7 +24765,7 @@ The described class's methods — its own and every inherited one — each with 
 $classInfo->constants(): array<Core\Reflect\ConstantInfo>
 ```
 
-The described class's constants — its own and every inherited one — each with its name and its visibility. Replaces `ReflectionClass::getReflectionConstants`.
+Returns the constants of the described class, its own and every inherited one. Each has its name and its visibility.
 
 **Returns** `array<Core\Reflect\ConstantInfo>` — One `Core\Reflect\ConstantInfo` per constant the class answers, its own declarations first. A constant a subclass redeclares appears once, with the declaration that wins. The *values* are not here: naming a constant is metadata, reading one is acting, and `constant` is where that check is made.
 
@@ -24788,7 +24776,7 @@ The described class's constants — its own and every inherited one — each wit
 $classInfo->constant(string $name): mixed
 ```
 
-The value of the class constant `$name`, under exactly the visibility ordinary code at this call site would face. Replaces `ReflectionClassConstant::getValue`, and there is no `setAccessible` to lift the check with.
+Returns the value of the class constant `$name`. The visibility rules are the same as for ordinary code at this call site, and nothing can turn them off.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -24805,7 +24793,7 @@ The value of the class constant `$name`, under exactly the visibility ordinary c
 $classInfo->hasMethod(string $name): bool
 ```
 
-Reports whether the described class declares or inherits a method named `$name`. Replaces `method_exists`.
+Checks whether the described class declares or inherits a method named `$name`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -24831,7 +24819,7 @@ Every `#[...]` written on the class's own declaration or on one of its own membe
 $classInfo->get(mixed $object, string $name): mixed
 ```
 
-Reads `$object`'s `$name` property, under exactly the visibility ordinary code at this call site would face. Replaces `ReflectionProperty::getValue`, and there is no `setAccessible` to lift the check with.
+Reads the `$name` property of `$object`. The visibility rules are the same as for ordinary code at this call site, and nothing can turn them off.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -24849,7 +24837,7 @@ Reads `$object`'s `$name` property, under exactly the visibility ordinary code a
 $classInfo->set(mixed $object, string $name, mixed $value): void
 ```
 
-Writes `$object`'s `$name` property, under exactly the visibility ordinary code at this call site would face, and then runs the `PropertyObserver` an ordinary write runs. Replaces `ReflectionProperty::setValue`, again with no `setAccessible`.
+Writes the `$name` property of `$object`, and then runs the `PropertyObserver` that an ordinary write runs. The visibility rules are the same as for ordinary code at this call site, and nothing can turn them off.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -24868,7 +24856,7 @@ Writes `$object`'s `$name` property, under exactly the visibility ordinary code 
 $classInfo->call(mixed $object, string $name, array<mixed> $arguments): mixed
 ```
 
-Calls `$object`'s `$name` method with `$arguments`, under exactly the visibility ordinary code at this call site would face. Replaces `ReflectionMethod::invoke`, and there is no `setAccessible` to lift the check with.
+Calls the `$name` method of `$object` with `$arguments`. The visibility rules are the same as for ordinary code at this call site, and nothing can turn them off.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -24887,7 +24875,7 @@ Calls `$object`'s `$name` method with `$arguments`, under exactly the visibility
 $classInfo->construct(array<mixed> $arguments): mixed
 ```
 
-Builds an instance of the described class, running its constructor with `$arguments` under exactly the visibility a `new` written at this call site would face. Replaces `ReflectionClass::newInstanceArgs`, and there is no `setAccessible` to lift the check with.
+Builds an instance of the described class and runs its constructor with `$arguments`. The visibility rules are the same as for a `new` written at this call site, and nothing can turn them off.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -25241,7 +25229,7 @@ Keywords: parse
 Core\Ast::parse(string $source): Core\Ast\Node
 ```
 
-Parses `$source` with the compiler's own parser and answers the file's node tree. Replaces `token_get_all` and every userland parser over it.
+Parses `$source` with the compiler's own parser and returns the file's node tree.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -25350,7 +25338,7 @@ Keywords: connect, open, inList, quoteIdentifier
 Core\Db::connect(string $name, {shared?: bool, timeout?: Core\Time\Duration}): Core\Db\Connection
 ```
 
-Opens the connection an operator named in a `[db.<name>]` block of `nvs.toml`, and answers the same one again for the rest of the request — `new PDO`, `pg_connect` and `mysqli_connect`, with the credential out of the program and in root-owned configuration. Needs the `db.connect` capability for that name.
+Opens the database connection that a `[db.<name>]` block of `nvs.toml` describes. Later calls in the same request return the same connection. The password is in the configuration file, not in the program. It needs the `db.connect` capability for that name.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -25404,7 +25392,7 @@ Binds `$values` as a list of values. The placeholder it is bound to becomes a li
 Core\Db::quoteIdentifier(string $name): string
 ```
 
-Checks that `$name` is a bare SQL identifier — a letter or `_`, then letters, digits or `_` — and answers it unchanged and no longer `tainted`, so it can be written into the text of a statement. Replaces escaping a table or column name by hand, which is what `mysqli_real_escape_string` was doing there.
+Checks that `$name` is a plain SQL identifier: a letter or `_`, then letters, digits or `_`. It returns the name unchanged and no longer `tainted`, so you can write it into the text of a statement. Use it for a table or column name.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -25440,7 +25428,7 @@ Keywords: query, queryAs, execute, executeMany, stream, streamAs, transaction, c
 $connection->query(string $sql, array<mixed> $params, {timeout?: Core\Time\Duration}): Core\Db\Rows<Core\Db\Row>
 ```
 
-Runs one statement with its values bound, and reads every row it answers into memory before returning — `PDO::prepare` plus `execute` plus `fetchAll` in one call, with no `prepare` step because every statement is prepared. The connection is free again the moment this returns; `stream` is the one that holds it.
+Runs one statement with its values bound, and reads every row it returns into memory. Every statement is prepared, so there is no separate prepare step. The connection is free again as soon as this returns. `stream` keeps the connection while you read.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -25459,7 +25447,7 @@ Runs one statement with its values bound, and reads every row it answers into me
 $connection->queryAs<T>(string $sql, array<mixed> $params, {timeout?: Core\Time\Duration}): Core\Db\Rows<T>
 ```
 
-Runs one statement exactly as `query` does and answers its rows as the class written at the call site — `PDO::FETCH_CLASS` and the hand-written hydration loop, with the mapping generated from the class's own declared properties by `#[Db\Derive]` rather than matched up by hand.
+Runs one statement as `query` does and returns each row as an object of the class written at the call site. `#[Db\Derive]` generates the mapping from the class's declared properties.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -25478,7 +25466,7 @@ Runs one statement exactly as `query` does and answers its rows as the class wri
 $connection->execute(string $sql, array<mixed> $params, {timeout?: Core\Time\Duration}): Core\Db\Write
 ```
 
-Runs one statement that answers counts rather than rows — an `insert`, an `update`, a `delete`, a `create table` — and answers what it did: `PDO::exec`, `PDOStatement::execute` and `lastInsertId` in one call, with the values bound the same way `query` binds them.
+Runs one statement that changes data, such as an `insert`, an `update`, a `delete` or a `create table`. It returns how many rows changed and the new key, if there is one. The values are bound the same way `query` binds them.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -25497,7 +25485,7 @@ Runs one statement that answers counts rather than rows — an `insert`, an `upd
 $connection->executeMany(string $sql, array<array<mixed>> $sets, {timeout?: Core\Time\Duration}): uint
 ```
 
-Runs one statement once per set of values and answers how many rows the whole batch wrote — the loop around `PDOStatement::execute` that every driver writes by hand, with one prepare and one round trip instead of one of each per set.
+Runs one statement once for each set of values and returns how many rows the whole batch wrote. The statement is prepared once, and all sets go to the server in one round trip.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -25516,7 +25504,7 @@ Runs one statement once per set of values and answers how many rows the whole ba
 $connection->stream(string $sql, array<mixed> $params, {timeout?: Core\Time\Duration}): Core\Db\Stream<Core\Db\Row>
 ```
 
-Runs one statement and walks its rows one at a time, holding the connection open until the walk ends — `MYSQLI_USE_RESULT` and `PDO::CURSOR_*`, with the cursor answered as something a `foreach` reads directly. Memory is constant in the number of rows, which is the whole reason to write this rather than `query`.
+Runs one statement and gives its rows one at a time to a `foreach` loop. The connection stays open until the loop ends. The memory used stays the same however many rows there are. Use it instead of `query` for a large result.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -25535,7 +25523,7 @@ Runs one statement and walks its rows one at a time, holding the connection open
 $connection->streamAs<T>(string $sql, array<mixed> $params, {timeout?: Core\Time\Duration}): Core\Db\Stream<T>
 ```
 
-Walks a result set a row at a time exactly as `stream` does and builds each row into the class written at the call site — `queryAs`'s hydration over `stream`'s constant memory, which is the pair `MYSQLI_USE_RESULT` and `PDO::FETCH_CLASS` only ever did one at a time.
+Reads a result one row at a time as `stream` does, and builds each row into an object of the class written at the call site, as `queryAs` does. The memory used stays the same however many rows there are.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -25554,7 +25542,7 @@ Walks a result set a row at a time exactly as `stream` does and builds each row 
 $connection->transaction(callable(Core\Db\Transaction): T $fn, {isolation?: Core\Db\Isolation, readOnly?: bool, retries?: uint}): T
 ```
 
-Runs `$fn` inside a transaction and answers whatever it answered: returning commits, throwing rolls back and propagates. Replaces `beginTransaction`/`commit`/`rollBack` and every savepoint member with the one shape that cannot be left open by an early return.
+Runs `$fn` inside a transaction and returns what `$fn` returns. If `$fn` returns, the transaction is committed. If `$fn` throws, the transaction is rolled back and the error is thrown again. An early return cannot leave the transaction open.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -25638,7 +25626,7 @@ Keywords: query, queryAs, execute, executeMany, stream, streamAs, transaction, r
 $transaction->query(string $sql, array<mixed> $params, {timeout?: Core\Time\Duration}): Core\Db\Rows<Core\Db\Row>
 ```
 
-Runs one statement with its values bound, and reads every row it answers into memory before returning — `PDO::prepare` plus `execute` plus `fetchAll` in one call, with no `prepare` step because every statement is prepared. The connection is free again the moment this returns; `stream` is the one that holds it.
+Runs one statement with its values bound, and reads every row it returns into memory. Every statement is prepared, so there is no separate prepare step. The connection is free again as soon as this returns. `stream` keeps the connection while you read.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -25657,7 +25645,7 @@ Runs one statement with its values bound, and reads every row it answers into me
 $transaction->queryAs<T>(string $sql, array<mixed> $params, {timeout?: Core\Time\Duration}): Core\Db\Rows<T>
 ```
 
-Runs one statement exactly as `query` does and answers its rows as the class written at the call site — `PDO::FETCH_CLASS` and the hand-written hydration loop, with the mapping generated from the class's own declared properties by `#[Db\Derive]` rather than matched up by hand.
+Runs one statement as `query` does and returns each row as an object of the class written at the call site. `#[Db\Derive]` generates the mapping from the class's declared properties.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -25676,7 +25664,7 @@ Runs one statement exactly as `query` does and answers its rows as the class wri
 $transaction->execute(string $sql, array<mixed> $params, {timeout?: Core\Time\Duration}): Core\Db\Write
 ```
 
-Runs one statement that answers counts rather than rows — an `insert`, an `update`, a `delete`, a `create table` — and answers what it did: `PDO::exec`, `PDOStatement::execute` and `lastInsertId` in one call, with the values bound the same way `query` binds them.
+Runs one statement that changes data, such as an `insert`, an `update`, a `delete` or a `create table`. It returns how many rows changed and the new key, if there is one. The values are bound the same way `query` binds them.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -25695,7 +25683,7 @@ Runs one statement that answers counts rather than rows — an `insert`, an `upd
 $transaction->executeMany(string $sql, array<array<mixed>> $sets, {timeout?: Core\Time\Duration}): uint
 ```
 
-Runs one statement once per set of values and answers how many rows the whole batch wrote — the loop around `PDOStatement::execute` that every driver writes by hand, with one prepare and one round trip instead of one of each per set.
+Runs one statement once for each set of values and returns how many rows the whole batch wrote. The statement is prepared once, and all sets go to the server in one round trip.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -25714,7 +25702,7 @@ Runs one statement once per set of values and answers how many rows the whole ba
 $transaction->stream(string $sql, array<mixed> $params, {timeout?: Core\Time\Duration}): Core\Db\Stream<Core\Db\Row>
 ```
 
-Runs one statement and walks its rows one at a time, holding the connection open until the walk ends — `MYSQLI_USE_RESULT` and `PDO::CURSOR_*`, with the cursor answered as something a `foreach` reads directly. Memory is constant in the number of rows, which is the whole reason to write this rather than `query`.
+Runs one statement and gives its rows one at a time to a `foreach` loop. The connection stays open until the loop ends. The memory used stays the same however many rows there are. Use it instead of `query` for a large result.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -25733,7 +25721,7 @@ Runs one statement and walks its rows one at a time, holding the connection open
 $transaction->streamAs<T>(string $sql, array<mixed> $params, {timeout?: Core\Time\Duration}): Core\Db\Stream<T>
 ```
 
-Walks a result set a row at a time exactly as `stream` does and builds each row into the class written at the call site — `queryAs`'s hydration over `stream`'s constant memory, which is the pair `MYSQLI_USE_RESULT` and `PDO::FETCH_CLASS` only ever did one at a time.
+Reads a result one row at a time as `stream` does, and builds each row into an object of the class written at the call site, as `queryAs` does. The memory used stays the same however many rows there are.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -25752,7 +25740,7 @@ Walks a result set a row at a time exactly as `stream` does and builds each row 
 $transaction->transaction(callable(Core\Db\Transaction): T $fn, {isolation?: Core\Db\Isolation, readOnly?: bool, retries?: uint}): T
 ```
 
-Runs `$fn` inside a transaction and answers whatever it answered: returning commits, throwing rolls back and propagates. Replaces `beginTransaction`/`commit`/`rollBack` and every savepoint member with the one shape that cannot be left open by an early return.
+Runs `$fn` inside a transaction and returns what `$fn` returns. If `$fn` returns, the transaction is committed. If `$fn` throws, the transaction is rolled back and the error is thrown again. An early return cannot leave the transaction open.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -25803,7 +25791,7 @@ Keywords: all, first, value, column, count, columns
 $rows->all(): array<T>
 ```
 
-Every row of the result, in the server's order — `PDO::fetchAll` without a fetch-mode argument to choose the shape with.
+Returns every row of the result, in the order the server sent them.
 
 **Returns** `array<T>` — An `array<T>`, empty for a statement that answered no rows. `T` is the result set's own type argument: a `Core\Db\Row` for `query`, and the hydrated class for `queryAs<T>`. The rows are the ones already read, so this costs one object each and no second decode.
 
@@ -25814,7 +25802,7 @@ Every row of the result, in the server's order — `PDO::fetchAll` without a fet
 $rows->first(): ?T
 ```
 
-The first row, or `null` where there is none — `PDO::fetch`, without its `false` and without a cursor that a second call would move.
+Returns the first row, or `null` if there is none. A second call returns the same row.
 
 **Returns** `?T` — A `T` — the result set's own type argument, as `all` describes — or `null` for an empty result. `?T` is the absence spelling everywhere in `Core`, and a query that matched nothing is an answer rather than a failure to throw about.
 
@@ -25825,7 +25813,7 @@ The first row, or `null` where there is none — `PDO::fetch`, without its `fals
 $rows->value(): mixed
 ```
 
-The first column of the first row — `PDO::fetchColumn`, and the shape a `select count(*)` is read with.
+Returns the first column of the first row. Use it to read the result of a `select count(*)`.
 
 **Returns** `mixed` — That column's value, or `null` where the result has no rows at all — which is the same `null` a NULL column reads as, since the declared type is `mixed`. A caller that must tell the two apart asks `count()` first.
 
@@ -25836,7 +25824,7 @@ The first column of the first row — `PDO::fetchColumn`, and the shape a `selec
 $rows->column(int|string $key): array<mixed>
 ```
 
-One column's value from every row, in the server's order — `PDO::fetchAll` under `FETCH_COLUMN`, with the column named rather than a mode flag.
+Returns the value of one column from every row, in the order the server sent them.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -25853,7 +25841,7 @@ One column's value from every row, in the server's order — `PDO::fetchAll` und
 $rows->count(): uint
 ```
 
-How many rows the statement answered — `PDOStatement::rowCount` on a select, which is the use of that member this replaces. A write's count is `Core\Db\Write::affected`.
+Returns how many rows the statement returned. For the number of rows a write changed, use `Core\Db\Write::affected`.
 
 **Returns** `uint` — The number of rows held, which is exact because § 4's default read all of them before `query` returned.
 
@@ -25864,7 +25852,7 @@ How many rows the statement answered — `PDOStatement::rowCount` on a select, w
 $rows->columns(): array<Core\Db\Column>
 ```
 
-What the statement described, one `Core\Db\Column` per column and in the server's own order — `PDOStatement::getColumnMeta` asked once for the whole row description rather than once per column, and `mysqli_fetch_fields`.
+Returns a description of each column of the result, as one `Core\Db\Column` per column. The columns are in the order the server sent them.
 
 **Returns** `array<Core\Db\Column>` — The columns. An empty result set has them too: a `select` that matched nothing still described what it would have answered, which is what makes this readable before the rows are.
 
@@ -26146,7 +26134,7 @@ Keywords: affected, changed, lastId
 $write->affected(): uint
 ```
 
-How many rows the statement affected — `PDOStatement::rowCount` on a write, without its documented unreliability on a select, because a select does not answer with one of these at all.
+Returns how many rows the statement changed.
 
 **Returns** `uint` — A `uint`, and `0` for a statement that affected none as well as for one whose kind has no count to report — a `create table`. `changed` is where those two are told apart.
 
@@ -26168,7 +26156,7 @@ The same count as the server itself reported it, whose `null` is the one thing `
 $write->lastId(): ?uint
 ```
 
-The key the statement handed back, read off the write that produced it rather than off the connection — `lastInsertId` and `mysqli_insert_id` without their stale-after-an-unrelated-statement hazard.
+Returns the key that this statement generated. The key belongs to this statement, so another statement on the same connection cannot change it.
 
 **Returns** `?uint` — A `?uint`: the key this statement generated, and `null` where it generated none — a statement that inserted no row answers `null`. PostgreSQL reads the key out of a `RETURNING` clause, since that protocol has no last-insert-id of its own: the first column of the last row returned, where that column was declared an integer. MySQL reads the `AUTO_INCREMENT` value out of the write's own status packet, and SQLite the rowid of a row this statement inserted itself, which may be `0`. SQL Server answers `null` always, because its token stream carries no generated key.
 
@@ -28395,7 +28383,7 @@ A font file with broken tables throws a `ParseError` when the image is drawn.
 <a id="core-novis-image-image"></a>
 ### `Novis\Image\Image`
 
-Keywords: image, gd, imagick, imagecreatefromstring, imagecopyresampled, imagejpeg, imagepng, imagewebp, getimagesize, thumbnail, resize, crop, rotate, convert, jpeg, png, webp, open, create, fromRaw, info, mime, extension, resize, crop, trim, rotate, flip, composite, flatten, sharpen, blur, grayscale, brightness, contrast, gamma, tint, text, measureText, format, metadata, encode, raw, variants, compare, hash, hashDistance, placeholder, palette
+Keywords: image, picture, thumbnail, resize, scale, crop, rotate, convert, image size, image dimensions, jpeg, png, webp, open, create, fromRaw, info, mime, extension, resize, crop, trim, rotate, flip, composite, flatten, sharpen, blur, grayscale, brightness, contrast, gamma, tint, text, measureText, format, metadata, encode, raw, variants, compare, hash, hashDistance, placeholder, palette
 
 `Novis\Image\Image` is an image and a list of steps to run on it. Each step method, such as
 `resize`, `crop` or `format`, returns a new `Image` and does not change the old one. No pixel is
@@ -29572,7 +29560,7 @@ Returns the best of the offered locales for an `Accept-Language` header value. I
 <a id="core-novis-pdf-document"></a>
 ### `Novis\Pdf\Document`
 
-Keywords: pdf, dompdf, mpdf, tcpdf, fpdf, wkhtmltopdf, html to pdf, invoice, report, page number, header, footer, pdf/a, factur-x, fromHtml, asset, standard, invoiceXml, password, created, header, footer, slots, render
+Keywords: pdf, generate pdf, html to pdf, wkhtmltopdf, invoice, report, page number, header, footer, pdf/a, factur-x, fromHtml, asset, standard, invoiceXml, password, created, header, footer, slots, render
 
 `Novis\Pdf\Document` is an HTML document that `render` turns into a PDF file. Each method returns a
 new `Document` and does not change the old one. The render reads only the files you add with `asset`
@@ -30403,10 +30391,8 @@ A property the file does not have is `null`, and every property of a CSV file is
 $reader->rows(string|int $sheet, RowOptions $options = null): Iterator<Row>
 ```
 
-`rows` reads the sheet `$sheet`, by name or by position from 0. It gives one `Row` at a time, with its row number in the file.
-With `header: true`, the keys are the header cells, and an empty cell is `null`. Without a header, the keys are the column letters.
-`text: ["Zip"]` reads the column `Zip` as the text Excel shows, so `1234` with the format `00000` is `"01234"`.
-`text` takes header names or column letters, and `text: true` reads every column this way. `locale` sets the separators, such as `"de"`.
+`rows` reads the sheet `$sheet`, by name or by position from 0, and gives one `Row` at a time. With `header: true`, the keys are the header cells.
+`text: ["Zip"]` reads the column `Zip` as the text Excel shows, so `1234` with the format `00000` is `"01234"`. `text: true` reads every column this way.
 
 **Returns** `Iterator<Row>`
 
@@ -31320,7 +31306,7 @@ The direction `Core\Arr::sort` and `sortByKey` put elements in — spec § 2's `
 | Case | Meaning |
 |---|---|
 | `Core\Arr::Order::Asc` | Smallest first — what an omitted `{order: …}` means. |
-| `Core\Arr::Order::Desc` | Largest first — `rsort`, `arsort` and `krsort` as one option rather than three names. |
+| `Core\Arr::Order::Desc` | Largest first. |
 
 <a id="enum-core-arr-seton"></a>
 #### `Core\Arr::SetOn`
@@ -31329,9 +31315,9 @@ Which part of an entry `Core\Arr::diff` and `intersect` compare — spec § 2's 
 
 | Case | Meaning |
 |---|---|
-| `Core\Arr::SetOn::Values` | The value alone — `array_diff`, `array_intersect` and their `u` forms. |
-| `Core\Arr::SetOn::Keys` | The key alone — `array_diff_key`, `array_intersect_key` and their `u` forms; a `by` here maps the key. |
-| `Core\Arr::SetOn::Both` | The key and the value together — `array_diff_assoc`, `array_intersect_assoc` and their `u` forms. |
+| `Core\Arr::SetOn::Values` | Compares the value alone. |
+| `Core\Arr::SetOn::Keys` | Compares the key alone. With `by`, the callback changes the key before the comparison. |
+| `Core\Arr::SetOn::Both` | Compares the key and the value together. |
 
 <a id="enum-core-str-normalform"></a>
 #### `Core\Str::NormalForm`
@@ -31389,7 +31375,7 @@ The calendar step a `DateTime`, `Date` or `TimeOfDay` moves by, and the unit `st
 <a id="enum-core-time-datetime-weekday"></a>
 #### `Core\Time\DateTime::Weekday`
 
-A day of the week, Monday first as ISO 8601 and `date("N")` order them — what `$d->weekday()` answers and `next`/`previous` take. The order is theirs and the numbering is not: the cases are zero-based, `Monday as int` is `0` and `Sunday` is `6`, where `date("N")` numbers that same order `1` through `7`.
+A day of the week, in ISO 8601 order with Monday first. `$d->weekday()` returns one, and `next` and `previous` take one. The cases are numbered from zero: `Monday as int` is `0` and `Sunday` is `6`.
 
 | Case | Meaning |
 |---|---|
@@ -31666,15 +31652,15 @@ What a value is, once its static type is gone — ten cases, one per representat
 
 | Case | Meaning |
 |---|---|
-| `Core\Reflect::TypeKind::Null` | The `null` value; what `is_null` asked. |
+| `Core\Reflect::TypeKind::Null` | The `null` value. |
 | `Core\Reflect::TypeKind::Bool` | A `bool`, `true` or `false` alike. |
 | `Core\Reflect::TypeKind::Int` | A signed `int`. |
 | `Core\Reflect::TypeKind::Uint` | An unsigned `uint`. It is a type of its own, so it has a case of its own. |
-| `Core\Reflect::TypeKind::Float` | A `float`; what `is_float` and its `is_double` alias asked. |
+| `Core\Reflect::TypeKind::Float` | A `float`. |
 | `Core\Reflect::TypeKind::Decimal` | A `decimal` — the exact scalar, and never a `float` that happens to be round. |
-| `Core\Reflect::TypeKind::Text` | A `string`, which is UTF-8 by the language's own guarantee; what `is_string` asked. |
+| `Core\Reflect::TypeKind::Text` | A `string`. A string is always valid UTF-8. |
 | `Core\Reflect::TypeKind::Bytes` | A `bytes` value. It is like `Text`, but its content does not have to be valid UTF-8. |
-| `Core\Reflect::TypeKind::Array` | An `array<T>`; what `is_array`, `is_iterable` and `is_countable` between them asked. |
+| `Core\Reflect::TypeKind::Array` | An `array<T>`. |
 | `Core\Reflect::TypeKind::Object` | A class instance. A callable is also an object here, so there is no `Callable` case. |
 
 <a id="enum-core-io-filemode"></a>
@@ -31684,10 +31670,10 @@ What an open handle may do. There is no binary or text mode: every handle reads 
 
 | Case | Meaning |
 |---|---|
-| `Core\IO::FileMode::Read` | Reading only, from the start of a file that must already exist — `fopen`'s `r`. |
-| `Core\IO::FileMode::Write` | Writing only, emptying the file first and creating it if it is not there — `fopen`'s `w`. |
-| `Core\IO::FileMode::Append` | Writing only, always at the end whatever else has written since, creating the file if it is not there — `fopen`'s `a`. |
-| `Core\IO::FileMode::ReadWrite` | Both, creating the file if it is not there and emptying nothing — `fopen`'s `c+`, which is the one of its four `+` forms that surprises nobody. |
+| `Core\IO::FileMode::Read` | Reading only, from the start of a file that must already exist. |
+| `Core\IO::FileMode::Write` | Writing only. The file is emptied first, and it is created if it does not exist. |
+| `Core\IO::FileMode::Append` | Writing only, always at the end of the file, even if something else wrote to it since. The file is created if it does not exist. |
+| `Core\IO::FileMode::ReadWrite` | Reading and writing. The file is created if it does not exist, and its content is kept. |
 
 <a id="enum-core-cldr-pluralcategory"></a>
 #### `Core\Cldr::PluralCategory`
@@ -32219,7 +32205,7 @@ The error a cell shows: `#NULL!`, `#DIV/0!`, `#VALUE!`, `#REF!`, `#NAME?`, `#NUM
 <a id="tools-cli"></a>
 ## C.1 The nvs command
 
-Keywords: nvs, nvs run, nvs check, nvs test, nvs build, --compile, --openapi, nvs api diff, nvs config check, nvs config dump, nvs info, nvs meta --json, nvs ast, --config, --dump-ir, --dump-asm, --filter, --format, exit status, exit code, .nvs, .php, shebang, cache, single-file executable, bundle, php -l, php -i, php -r, phpunit, composer, phpdbg
+Keywords: nvs, nvs run, nvs check, nvs test, nvs build, --compile, --openapi, nvs api diff, nvs config check, nvs config dump, nvs info, nvs meta --json, nvs ast, --config, --dump-ir, --dump-asm, --filter, --format, exit status, exit code, .nvs, shebang, cache, single-file executable, bundle, syntax check, version, licenses
 
 ### One binary
 
@@ -32265,22 +32251,11 @@ Every subcommand also takes `--config <PATH>` (see `nvs run`), `--data <PATH>` a
 - A program is a `.nvs` file. The extension is a convention, not a rule: the front end never reads
   it, `nvs run` accepts any path, and what matters is the content. `nvs test` is the one command
   that decides anything from an extension, because it has two suites to choose between.
-- **Novis does not run PHP.** There is no PHP mode and no PHP front end in this binary: a file
-  opening with `<?php` is refused with `E0229` whatever it is named, and renaming a PHP file to
-  `.nvs` changes nothing about that. `<?` alone is not a tag at all — the file stays in HTML mode
-  and is copied to the output.
+- `<?` alone is not a tag. The file stays in HTML mode, and `<?` is copied to the output as text.
 - A `#!` first line opens code mode. When the first two bytes of a file are `#!`, Novis skips that
   line and reads the rest as code, as if `<?nvs` stood there, so `#!/usr/bin/env nvs` makes a
   script you run as `./tool` on Linux and macOS. An `<?nvs` in such a file before any `?>` is
   `E0009`. `#!` anywhere else is ordinary text.
-
-```nvs error
-<?php
-echo "old tag";
-```
-```output
-E0229
-```
 
 ### nvs run
 
@@ -32733,7 +32708,7 @@ Prints what this binary is: the version, commit, build profile, target triple, R
 versions under **Build**; the operating system, architecture, CPU parallelism and executable path
 under **Host**; and under **Licensing** the `nvs` license (MIT) followed by every third-party
 component with its version and the license Novis takes it under. `--licenses` appends every
-license text in full. It answers what `php -i` answers, but there is no `nvs -i`: that is an
+license text in full. There is no `nvs -i`: that is an
 unknown argument, and `nvs` exits with status 2. The output below is trimmed at each `...`.
 
 ```text
@@ -33127,12 +33102,12 @@ folder you were working in.
 <a id="tools-config"></a>
 ## C.3 Configuration: nvs.toml, limits and capabilities
 
-Keywords: nvs.toml, configuration, config, TOML, limits, memory_limit, max_execution_time, limits.hard, ceiling, capabilities, fs.read, fs.write, script.spawn, net.connect, net.listen, net.local, process.exec, cache.shared, capability, permission, sandbox, [[app]], entry, root, include, mode, development, production, ini_get, ini_set, ini_restore, ini_get_all, php.ini, .htaccess, secret, secrets, password_file, /run/secrets, SOPS, sops, age, encrypted secrets, sealed secrets, Vault, LoadCredential, mail, Core\Config
+Keywords: nvs.toml, configuration, config, TOML, limits, memory limit, time limit, limits.hard, ceiling, capabilities, fs.read, fs.write, script.spawn, net.connect, net.listen, net.local, process.exec, cache.shared, capability, permission, sandbox, [[app]], entry, root, include, mode, development, production, read a setting, change a setting, .htaccess, secret, secrets, password_file, /run/secrets, SOPS, sops, age, encrypted secrets, sealed secrets, Vault, LoadCredential, mail, Core\Config
 
 ### The file and where it is read from
 
-Configuration is one TOML file, `nvs.toml`. There is no `php.ini`, no `.htaccess`, no environment
-variable and no command-line switch that sets a directive: what the file says is what is in force.
+Configuration is one TOML file, `nvs.toml`. No `.htaccess` file, environment variable or
+command-line switch sets a directive: what the file says is what is in force.
 
 - `nvs` reads `./nvs.toml` from the **working directory**. It does not look in the program's
   directory.
@@ -33653,8 +33628,7 @@ them.
 
 ### Reading and changing it from a program: `Core\Config`
 
-`Core\Config::get`, `set`, `restore` and `all` are the program's view of the configuration — the
-replacements for `ini_get`, `ini_set`, `ini_restore` and `ini_get_all`.
+`Core\Config::get`, `set`, `restore` and `all` are the program's view of the configuration.
 
 - A name is the dotted path the file writes: `limits.hard.memory`, `log.level`, `mode.default`. A
   **bare limit name** — `memory`, `cpu_time`, `wall_time`, `max_tasks`, `max_output` — is the
@@ -33799,7 +33773,7 @@ limits.wall_time       = "30s"
 <a id="tools-server"></a>
 ## C.4 The HTTP server
 
-Keywords: nvs serve, server, HTTP, disconnect, client disconnect, client goes away, cancel_on_disconnect, disconnect_grace, ignore_user_abort, restart, restart required, deploy, hot reload, zero downtime, symlink, settle, revalidate_freq, listen, port, --listen, --port, [server], [[server.mount]], mount, prefix, host, scan, entry, origin, root, dispatch, static, static files, trusted_proxies, X-Forwarded-For, X-Forwarded-Proto, client IP, health_path, health check, max_in_flight, workers, timeout, drain, drain_timeout, graceful shutdown, reload, nvs service, service, systemd, Windows service, Core\Request::mount, Core\Request\Mount, Core\Router::url, multi-tenant, subdirectory, virtual host, front controller, try_files, php -S, php-fpm, nginx, Apache, .htaccess, RewriteBase, SCRIPT_NAME, PATH_INFO, DocumentRoot
+Keywords: nvs serve, server, HTTP, disconnect, client disconnect, client goes away, cancel_on_disconnect, disconnect_grace, restart, restart required, deploy, hot reload, zero downtime, symlink, settle, revalidate_freq, listen, port, --listen, --port, [server], [[server.mount]], mount, prefix, host, scan, entry, origin, root, dispatch, static, static files, trusted_proxies, X-Forwarded-For, X-Forwarded-Proto, client IP, health_path, health check, max_in_flight, workers, timeout, drain, drain_timeout, graceful shutdown, reload, nvs service, service, systemd, Windows service, Core\Request::mount, Core\Request\Mount, Core\Router::url, multi-tenant, subdirectory, virtual host, front controller, try_files, development server, nginx, Apache, .htaccess, RewriteBase, SCRIPT_NAME, PATH_INFO, DocumentRoot
 
 ### nvs serve
 

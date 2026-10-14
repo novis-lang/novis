@@ -1,12 +1,12 @@
 ---
 summary: a value graph — scalars, arrays, objects, cycles included — copied into Novis's own byte format and rebuilt from it
-keywords: serialize, unserialize, __serialize, __sleep, __wakeup, persistence, byte format, graph copy
+keywords: serialize, deserialize, persistence, byte format, object graph, graph copy, cycles
 ---
 
 `Core\Serialize::encode` copies the whole value graph under a value into `bytes` in Novis's own
 closed format, and `decode` rebuilds it: an object comes back as an instance of the class this
-program declares, its declared properties assigned directly — no constructor runs, and there is no
-`__serialize`, `__sleep` or `__wakeup` hook. A cycle is preserved as a cycle. `decode` answers
+program declares, its declared properties assigned directly — no constructor runs, and no hook
+method runs either. A cycle is preserved as a cycle. `decode` answers
 `mixed`, so narrow it with `as`; it refuses foreign bytes, another format version, and a class whose
 declared properties no longer match with `ParseError`, and `encode` throws `LogicError` on a callable.
 

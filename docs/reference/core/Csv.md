@@ -1,6 +1,6 @@
 ---
 summary: RFC 4180 documents read into rows of `string` fields and written back, with an optional header row and dialect
-keywords: str_getcsv, fgetcsv, fputcsv, CSV, comma-separated, header row, delimiter, dialect
+keywords: CSV, comma-separated, parse CSV, write CSV, RFC 4180, header row, delimiter, separator, quote, dialect
 ---
 
 `Core\Csv::parse` reads a whole document into `array<array<string>>` — every field is a `string`,

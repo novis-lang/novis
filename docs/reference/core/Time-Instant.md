@@ -1,6 +1,6 @@
 ---
 summary: an absolute point on the timeline, to the nanosecond, with no zone
-keywords: getTimestamp, date("U"), microtime(true), date_add, date_sub, modify, date_diff, DateInterval, DATE_ATOM, timestamp, epoch, timeline, UTC
+keywords: instant, timestamp, epoch, Unix time, milliseconds, timeline, UTC, RFC 3339, ISO 8601, time difference, add hours
 ---
 
 An `Instant` is a point on the timeline with no calendar attached: it has an epoch count and an

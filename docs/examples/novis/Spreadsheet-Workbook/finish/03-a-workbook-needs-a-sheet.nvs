@@ -1,0 +1,24 @@
+<?nvs
+// Shows an export that finds no rows, and still writes a valid file.
+use Novis\Spreadsheet\Workbook;
+
+array<array<mixed>> $orders = [];
+
+// A workbook needs at least one sheet. Without one, `finish` throws a `LogicError`.
+var $empty = Workbook::createInMemory();
+try {
+    $empty->finish();
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+
+// Add the sheet even when there are no rows. The file then has one empty sheet.
+var $book = Workbook::createInMemory();
+$book->sheet("Orders")->addAll($orders);
+var $written = $book->finish();
+echo $written->rows["Orders"], " rows\n";
+if ($written->bytes != null) {
+    foreach (Novis\Spreadsheet\Reader::open($written->bytes)->sheets() as var $sheet) {
+        echo "the file has the sheet ", $sheet->name, "\n";
+    }
+}

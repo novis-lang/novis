@@ -2030,10 +2030,10 @@ const GRADE_DOC: EnumDoc = EnumDoc {
 
 /// `Core\Db::connect`'s reference card — `rule:core-api/reference-card`.
 pub(super) const CONNECT_DOC: MethodDoc = MethodDoc {
-    short: "Opens the connection an operator named in a `[db.<name>]` block of `nvs.toml`, and \
-            answers the same one again for the rest of the request — `new PDO`, `pg_connect` and \
-            `mysqli_connect`, with the credential out of the program and in root-owned \
-            configuration. Needs the `db.connect` capability for that name.",
+    short: "Opens the database connection that a `[db.<name>]` block of `nvs.toml` describes. Later \
+            calls in the same request return the same connection. The password is in the \
+            configuration file, not in the program. It needs the `db.connect` capability for that \
+            name.",
     params: &[
         ParamDoc {
             name: "name",
@@ -2210,10 +2210,9 @@ pub(super) const IN_LIST_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Db::quoteIdentifier`'s reference card — `rule:core-api/reference-card`.
 pub(super) const QUOTE_IDENTIFIER_DOC: MethodDoc = MethodDoc {
-    short: "Checks that `$name` is a bare SQL identifier — a letter or `_`, then letters, digits \
-            or `_` — and answers it unchanged and no longer `tainted`, so it can be written into \
-            the text of a statement. Replaces escaping a table or column name by hand, which is \
-            what `mysqli_real_escape_string` was doing there.",
+    short: "Checks that `$name` is a plain SQL identifier: a letter or `_`, then letters, digits or \
+            `_`. It returns the name unchanged and no longer `tainted`, so you can write it into the \
+            text of a statement. Use it for a table or column name.",
     params: &[ParamDoc {
         name: "name",
         desc: "The identifier to check. It is answered exactly as given: nothing is escaped, \
@@ -2232,10 +2231,9 @@ pub(super) const QUOTE_IDENTIFIER_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Db\Connection::query`'s reference card — `rule:core-api/reference-card`.
 pub(super) const QUERY_DOC: MethodDoc = MethodDoc {
-    short: "Runs one statement with its values bound, and reads every row it answers into memory \
-            before returning — `PDO::prepare` plus `execute` plus `fetchAll` in one call, with no \
-            `prepare` step because every statement is prepared. The connection is free again the \
-            moment this returns; `stream` is the one that holds it.",
+    short: "Runs one statement with its values bound, and reads every row it returns into memory. \
+            Every statement is prepared, so there is no separate prepare step. The connection is \
+            free again as soon as this returns. `stream` keeps the connection while you read.",
     params: &[
         ParamDoc {
             name: "sql",
@@ -2297,10 +2295,9 @@ const TIMEOUT_PARAM_DOC: ParamDoc = ParamDoc {
 
 /// `Core\Db\Connection::queryAs`'s reference card — `rule:core-api/reference-card`.
 pub(super) const QUERY_AS_DOC: MethodDoc = MethodDoc {
-    short: "Runs one statement exactly as `query` does and answers its rows as the class written at \
-            the call site — `PDO::FETCH_CLASS` and the hand-written hydration loop, with the \
-            mapping generated from the class's own declared properties by `#[Db\\Derive]` rather \
-            than matched up by hand.",
+    short: "Runs one statement as `query` does and returns each row as an object of the class \
+            written at the call site. `#[Db\\Derive]` generates the mapping from the class's \
+            declared properties.",
     params: &[
         ParamDoc {
             name: "sql",
@@ -2339,10 +2336,9 @@ pub(super) const QUERY_AS_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Db\Connection::execute`'s reference card — `rule:core-api/reference-card`.
 pub(super) const EXECUTE_DOC: MethodDoc = MethodDoc {
-    short: "Runs one statement that answers counts rather than rows — an `insert`, an `update`, a \
-            `delete`, a `create table` — and answers what it did: `PDO::exec`, \
-            `PDOStatement::execute` and `lastInsertId` in one call, with the values bound the same \
-            way `query` binds them.",
+    short: "Runs one statement that changes data, such as an `insert`, an `update`, a `delete` or a \
+            `create table`. It returns how many rows changed and the new key, if there is one. The \
+            values are bound the same way `query` binds them.",
     params: &[
         ParamDoc {
             name: "sql",
@@ -2388,9 +2384,9 @@ pub(super) const EXECUTE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Db\Connection::executeMany`'s reference card — `rule:core-api/reference-card`.
 pub(super) const EXECUTE_MANY_DOC: MethodDoc = MethodDoc {
-    short: "Runs one statement once per set of values and answers how many rows the whole batch \
-            wrote — the loop around `PDOStatement::execute` that every driver writes by hand, with \
-            one prepare and one round trip instead of one of each per set.",
+    short: "Runs one statement once for each set of values and returns how many rows the whole \
+            batch wrote. The statement is prepared once, and all sets go to the server in one \
+            round trip.",
     params: &[
         ParamDoc {
             name: "sql",
@@ -2435,10 +2431,9 @@ pub(super) const EXECUTE_MANY_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Db\Queryable::stream`'s reference card — `rule:core-api/reference-card`.
 pub(super) const STREAM_DOC: MethodDoc = MethodDoc {
-    short: "Runs one statement and walks its rows one at a time, holding the connection open until \
-            the walk ends — `MYSQLI_USE_RESULT` and `PDO::CURSOR_*`, with the cursor answered as \
-            something a `foreach` reads directly. Memory is constant in the number of rows, which \
-            is the whole reason to write this rather than `query`.",
+    short: "Runs one statement and gives its rows one at a time to a `foreach` loop. The connection \
+            stays open until the loop ends. The memory used stays the same however many rows \
+            there are. Use it instead of `query` for a large result.",
     params: &[
         ParamDoc {
             name: "sql",
@@ -2490,10 +2485,9 @@ pub(super) const STREAM_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Db\Queryable::streamAs`'s reference card — `rule:core-api/reference-card`.
 pub(super) const STREAM_AS_DOC: MethodDoc = MethodDoc {
-    short: "Walks a result set a row at a time exactly as `stream` does and builds each row into \
-            the class written at the call site — `queryAs`'s hydration over `stream`'s constant \
-            memory, which is the pair `MYSQLI_USE_RESULT` and `PDO::FETCH_CLASS` only ever did one \
-            at a time.",
+    short: "Reads a result one row at a time as `stream` does, and builds each row into an object \
+            of the class written at the call site, as `queryAs` does. The memory used stays the \
+            same however many rows there are.",
     params: &[
         ParamDoc {
             name: "sql",
@@ -2554,10 +2548,9 @@ pub(super) const STREAM_AS_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Db\Queryable::transaction`'s reference card — `rule:core-api/reference-card`.
 pub(super) const TRANSACTION_DOC: MethodDoc = MethodDoc {
-    short: "Runs `$fn` inside a transaction and answers whatever it answered: returning commits, \
-            throwing rolls back and propagates. Replaces `beginTransaction`/`commit`/`rollBack` \
-            and every savepoint member with the one shape that cannot be left open by an early \
-            return.",
+    short: "Runs `$fn` inside a transaction and returns what `$fn` returns. If `$fn` returns, the \
+            transaction is committed. If `$fn` throws, the transaction is rolled back and the error \
+            is thrown again. An early return cannot leave the transaction open.",
     params: &[
         ParamDoc {
             name: "fn",
@@ -2651,8 +2644,7 @@ pub(super) const ROLL_BACK_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Db\Rows::all`'s reference card — `rule:core-api/reference-card`.
 pub(super) const ROWS_ALL_DOC: MethodDoc = MethodDoc {
-    short: "Every row of the result, in the server's order — `PDO::fetchAll` without a fetch-mode \
-            argument to choose the shape with.",
+    short: "Returns every row of the result, in the order the server sent them.",
     params: &[],
     ret: "An `array<T>`, empty for a statement that answered no rows. `T` is the result set's own \
           type argument: a `Core\\Db\\Row` for `query`, and the hydrated class for `queryAs<T>`. \
@@ -2662,8 +2654,7 @@ pub(super) const ROWS_ALL_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Db\Rows::first`'s reference card — `rule:core-api/reference-card`.
 pub(super) const ROWS_FIRST_DOC: MethodDoc = MethodDoc {
-    short: "The first row, or `null` where there is none — `PDO::fetch`, without its `false` and \
-            without a cursor that a second call would move.",
+    short: "Returns the first row, or `null` if there is none. A second call returns the same row.",
     params: &[],
     ret: "A `T` — the result set's own type argument, as `all` describes — or `null` for an empty \
           result. `?T` is the absence spelling everywhere in `Core`, and a query that matched \
@@ -2673,8 +2664,8 @@ pub(super) const ROWS_FIRST_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Db\Rows::value`'s reference card — `rule:core-api/reference-card`.
 pub(super) const ROWS_VALUE_DOC: MethodDoc = MethodDoc {
-    short: "The first column of the first row — `PDO::fetchColumn`, and the shape a `select \
-            count(*)` is read with.",
+    short: "Returns the first column of the first row. Use it to read the result of a `select \
+            count(*)`.",
     params: &[],
     ret: "That column's value, or `null` where the result has no rows at all — which is the same \
           `null` a NULL column reads as, since the declared type is `mixed`. A caller that must \
@@ -2684,8 +2675,7 @@ pub(super) const ROWS_VALUE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Db\Rows::column`'s reference card — `rule:core-api/reference-card`.
 pub(super) const ROWS_COLUMN_DOC: MethodDoc = MethodDoc {
-    short: "One column's value from every row, in the server's order — `PDO::fetchAll` under \
-            `FETCH_COLUMN`, with the column named rather than a mode flag.",
+    short: "Returns the value of one column from every row, in the order the server sent them.",
     params: &[ParamDoc {
         name: "key",
         desc: "The column: an `int` is its position in the server's own description, counted from \
@@ -2703,8 +2693,8 @@ pub(super) const ROWS_COLUMN_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Db\Rows::count`'s reference card — `rule:core-api/reference-card`.
 pub(super) const ROWS_COUNT_DOC: MethodDoc = MethodDoc {
-    short: "How many rows the statement answered — `PDOStatement::rowCount` on a select, which is \
-            the use of that member this replaces. A write's count is `Core\\Db\\Write::affected`.",
+    short: "Returns how many rows the statement returned. For the number of rows a write changed, \
+            use `Core\\Db\\Write::affected`.",
     params: &[],
     ret: "The number of rows held, which is exact because § 4's default read all of them before \
           `query` returned.",
@@ -2713,9 +2703,8 @@ pub(super) const ROWS_COUNT_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Db\Rows::columns`'s reference card — `rule:core-api/reference-card`.
 pub(super) const ROWS_COLUMNS_DOC: MethodDoc = MethodDoc {
-    short: "What the statement described, one `Core\\Db\\Column` per column and in the server's \
-            own order — `PDOStatement::getColumnMeta` asked once for the whole row description \
-            rather than once per column, and `mysqli_fetch_fields`.",
+    short: "Returns a description of each column of the result, as one `Core\\Db\\Column` per \
+            column. The columns are in the order the server sent them.",
     params: &[],
     ret: "The columns. An empty result set has them too: a `select` that matched nothing still \
           described what it would have answered, which is what makes this readable before the \
@@ -2989,9 +2978,7 @@ pub(super) const ROW_UUID_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Db\Write::affected`'s reference card — `rule:core-api/reference-card`.
 pub(super) const WRITE_AFFECTED_DOC: MethodDoc = MethodDoc {
-    short: "How many rows the statement affected — `PDOStatement::rowCount` on a write, without \
-            its documented unreliability on a select, because a select does not answer with one \
-            of these at all.",
+    short: "Returns how many rows the statement changed.",
     params: &[],
     ret: "A `uint`, and `0` for a statement that affected none as well as for one whose kind has \
           no count to report — a `create table`. `changed` is where those two are told apart.",
@@ -3012,9 +2999,8 @@ pub(super) const WRITE_CHANGED_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Db\Write::lastId`'s reference card — `rule:core-api/reference-card`.
 pub(super) const WRITE_LAST_ID_DOC: MethodDoc = MethodDoc {
-    short: "The key the statement handed back, read off the write that produced it rather than \
-            off the connection — `lastInsertId` and `mysqli_insert_id` without their \
-            stale-after-an-unrelated-statement hazard.",
+    short: "Returns the key that this statement generated. The key belongs to this statement, so \
+            another statement on the same connection cannot change it.",
     params: &[],
     ret: "A `?uint`: the key this statement generated, and `null` where it generated none — a \
           statement that inserted no row answers `null`. PostgreSQL reads the key out of a \

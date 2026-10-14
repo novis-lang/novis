@@ -1,6 +1,6 @@
 ---
 summary: whole-file read and write on paths the configuration has granted
-keywords: file_get_contents, file_put_contents, fopen, fread, fwrite, fs.read, fs.write, capability, nvs.toml, path
+keywords: file, read a file, write a file, file system, fs.read, fs.write, capability, permission, nvs.toml, path
 ---
 
 `Core\IO` reads or replaces a whole file as text. Every call is a capability check first: the path

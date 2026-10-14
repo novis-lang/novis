@@ -1,6 +1,6 @@
 ---
-summary: the uploads a request carries, as a walk over its parts — `$_FILES` and `move_uploaded_file` replaced by a stream that touches no temporary directory
-keywords: $_FILES, move_uploaded_file, is_uploaded_file, upload_tmp_dir, file upload, multipart/form-data, UPLOAD_ERR_OK, tmp_name, large upload, streaming upload
+summary: the uploads a request carries, as a walk over its parts that writes no temporary file
+keywords: file upload, uploaded files, form upload, save an upload, multipart/form-data, large upload, streaming upload, temporary file
 ---
 
 `Core\Request\Files` is what `Core\Request::files()` answers with: an `Iterable<Core\Request\Part>` that a
@@ -8,8 +8,7 @@ keywords: $_FILES, move_uploaded_file, is_uploaded_file, upload_tmp_dir, file up
 is everything it does — and it is the only way a program receives an upload. There is no temporary file
 and no directory the host chose: nothing lands on disk until the program names a path it holds the
 `fs.write` capability for, so an upload nobody saves has cost the machine nothing but the bytes that
-crossed the socket. `$_FILES`, `tmp_name`, `is_uploaded_file` and `move_uploaded_file` all have no
-replacement here because none of them has anything left to describe.
+crossed the socket.
 
 **The parse runs as the loop does.** The next part does not exist when the walk is named, so `files()`
 holds one part at a time and nothing accumulates. A part is valid only while it is the walk's current one:

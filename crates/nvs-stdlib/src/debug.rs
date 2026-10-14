@@ -137,8 +137,8 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 
 /// `Core\Debug::dump`'s reference card — `rule:core-api/reference-card`.
 const DUMP_DOC: MethodDoc = MethodDoc {
-    short: "Writes each value in a readable form, for debugging. It replaces `var_dump`, but it \
-            never writes to standard output. Outside a web request, it writes to standard error. \
+    short: "Writes each value in a readable form, for debugging. It never writes to standard \
+            output. Outside a web request, it writes to standard error. \
             Inside a web request, it writes a log record at the `Debug` level. In production, \
             that record is not kept unless `[log] level` is `\"Debug\"`. With `[debug] inline`, \
             the dump is also added to an HTML response.",

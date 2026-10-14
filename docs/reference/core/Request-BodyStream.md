@@ -1,6 +1,6 @@
 ---
 summary: the request body as a walk over its chunks — `bodyStream()`'s answer, consumed once, holding one chunk at a time
-keywords: php://input, fopen php://input, fread, stream_get_contents, streaming request body, large upload, chunked body, chunk, Iterable bytes, memory_limit
+keywords: raw request body, streaming request body, read the body in chunks, large upload, chunked body, chunk, Iterable bytes, memory limit
 ---
 
 `Core\Request\BodyStream` is what `Core\Request::bodyStream()` answers with: an `Iterable<tainted bytes>`

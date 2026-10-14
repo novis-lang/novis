@@ -7,11 +7,6 @@
 // covers: Novis\Spreadsheet\Template::fill
 // covers: Novis\Spreadsheet\Export::save
 // covers: Novis\Spreadsheet\Export::bytes
-// covers: Novis\Spreadsheet\Engine::templateOpen
-// covers: Novis\Spreadsheet\Engine::templateSet
-// covers: Novis\Spreadsheet\Engine::templateFill
-// covers: Novis\Spreadsheet\Engine::templateItems
-// covers: Novis\Spreadsheet\Engine::templateFinish
 use Novis\Spreadsheet\Formula;
 use Novis\Spreadsheet\Reader;
 use Novis\Spreadsheet\Row;

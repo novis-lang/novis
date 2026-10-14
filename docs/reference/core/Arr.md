@@ -1,16 +1,15 @@
 ---
 summary: every array function as a pure member — filter, map, sort, search, reshape, combine and aggregate, always answering a new array
-keywords: count, sizeof, array_filter, array_map, array_reduce, array_keys, array_values, array_key_first, array_key_last, reset, end, in_array, array_search, array_slice, array_splice, array_chunk, array_push, array_pop, array_shift, array_unshift, array_pad, array_reverse, array_flip, array_fill, array_fill_keys, range, array_combine, iterator_to_array, array_column, array_merge, array_replace, array_replace_recursive, array_diff, array_intersect, array_unique, array_count_values, array_find, array_any, array_all, array_sum, array_product, min, max, sort, rsort, asort, arsort, usort, uasort, ksort, krsort, uksort, natsort, array_multisort, array_is_list, array_key_exists, isset, array + array, group by, copy-on-write, immutable
+keywords: array, list, dictionary, count, filter, map, reduce, keys, values, first, last, search, slice, chunk, push, pop, append, prepend, pad, reverse, flip, fill, range, combine, column, merge, overlay, underlay, diff, intersect, unique, sum, product, average, min, max, sort, natural sort, stable sort, isset, array + array, group by, copy-on-write, immutable
 ---
 
-`Core\Arr` is every PHP array function as a static member that answers a **new** array and never
-changes its argument: there is no `sort($a)` by reference — `Core\Arr::sort` returns the sorted
-array, and `append` returns the longer one. Keys are always `string`: `$a[0]` and `$a["0"]` name
-the same entry, `keys` answers `array<string>`, and a callback's key parameter is `string`. A
-callback receives `($value, $key)` and may declare fewer parameters; `reduce` puts the carry first.
-Absence is `null` — `first`, `last`, `find`, `keyOf`, `min` over an empty array — and `count`
-answers a `uint`. `$a + $b` does not compile: it is `underlay`; `array_merge` is `overlay` over
-maps and `appendAll` over lists.
+`Core\Arr` has the array functions as static methods. Each one returns a **new** array and never
+changes its argument. `Core\Arr::sort` returns the sorted array, and `append` returns the longer one.
+Keys are always `string`: `$a[0]` and `$a["0"]` are the same entry, `keys` returns `array<string>`,
+and a callback's key parameter is `string`. A callback receives `($value, $key)` and may declare
+fewer parameters. `reduce` passes the carry first. A missing value is `null`: `first`, `last`,
+`find`, `keyOf` and `min` return `null` for an empty array. `count` returns a `uint`. `$a + $b` does
+not compile. `overlay` and `underlay` combine maps, and `appendAll` joins lists.
 
 `shapeAs<T>` is the one member that answers something other than an array. It reads its subject as the
 type written at the call site — an inline shape, `{name: string, score: int}`, or a class carrying

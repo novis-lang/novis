@@ -1,6 +1,6 @@
 ---
 summary: the request-local view of `nvs.toml` — read a directive, move one for this request only, put it back
-keywords: ini_get, ini_set, ini_restore, ini_get_all, set_time_limit, nvs.toml, configuration, directive, [limits], memory, cpu_time, hard ceiling
+keywords: nvs.toml, configuration, setting, read a setting, change a setting at run time, directive, [limits], memory, cpu_time, time limit, hard ceiling
 ---
 
 `Core\Config` reads and moves the configuration in force for the current request. Every value crosses as a

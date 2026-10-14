@@ -5910,6 +5910,9 @@ mod tests {
     /// no table maps a PHP function to a Novis one, and a card naming its PHP
     /// counterpart is a row of that table).
     ///
+    /// A card may not name PHP, a PHP superglobal, or a PHP function, whether
+    /// or not it says "PHP" beside it. The functions are
+    /// `tools/data/php-functions.txt`, and [`php_names`] says which words count.
     /// PHP is named only where the member reads or writes something PHP
     /// itself produced, which is interop rather than translation; those
     /// members are listed in `INTEROP` by their full name.
@@ -5919,10 +5922,24 @@ mod tests {
         const INTEROP: &[&str] = &["Core\\Password::verify"];
 
         nvs_footprint::every_card();
+        let php = php_functions();
+        let mut novis = BTreeSet::new();
+        for class in CLASSES {
+            novis.insert(short_name(class.name));
+            novis.extend(class.members().map(|m| m.name.to_ascii_lowercase()));
+            novis.extend(class.constants.iter().map(|c| c.name.to_ascii_lowercase()));
+        }
+        for declared in ENUMS {
+            novis.insert(short_name(declared.name));
+            if let Some(doc) = declared.doc {
+                novis.extend(doc.cases.iter().map(|c| c.name.to_ascii_lowercase()));
+            }
+        }
         let mut named = Vec::new();
         let mut note = |owner: &str, place: String, text: &str| {
-            if text.contains("PHP") && !INTEROP.contains(&owner) {
-                named.push(format!("{place}: {text}"));
+            let found = php_names(text, &php, &novis);
+            if !found.is_empty() && !INTEROP.contains(&owner) {
+                named.push(format!("{place} [{}]: {text}", found.join(", ")));
             }
         };
         for class in CLASSES {
@@ -5967,10 +5984,107 @@ mod tests {
         }
         assert!(
             named.is_empty(),
-            "{} card field(s) name PHP — say what the member does instead:\n  {}",
+            "{} card field(s) name PHP or a PHP function — say what the member does instead:\n  {}",
             named.len(),
             named.join("\n  ")
         );
+    }
+
+    /// PHP's internal function names, without the list file's `#` head.
+    fn php_functions() -> BTreeSet<&'static str> {
+        include_str!("../../../tools/data/php-functions.txt")
+            .lines()
+            .filter(|line| !line.is_empty() && !line.starts_with('#'))
+            .collect()
+    }
+
+    /// `Core\Arr` and `Arr::Order` as the lower-case last segment, `arr` and
+    /// `order`.
+    fn short_name(name: &str) -> String {
+        let last = name.rsplit(['\\', ':']).next().unwrap_or(name);
+        last.to_ascii_lowercase()
+    }
+
+    /// The PHP names `text` carries, in order: the word `PHP`, a superglobal
+    /// written as code, and a PHP function that is written as code
+    /// (`` `array_map` ``, `` `array_map(…)` ``, `` `socket_*` ``) or has an
+    /// underscore in it. A word Novis uses for its own member, class, enum case
+    /// or constant is not one, because `count` and `round` are both, and
+    /// neither is a word in `NOT_PHP`.
+    fn php_names(text: &str, php: &BTreeSet<&str>, novis: &BTreeSet<String>) -> Vec<String> {
+        // Words that are PHP functions and mean something else first: a gettext alias, Novis's
+        // `exit` and `clone`, the JOSE `dir` key algorithm, digest names, Unix commands, the Unix
+        // `syslog` service and C's `printf`. The same list is `NOT_PHP` in
+        // `tools/nv/test/php-names.test.ts`.
+        const NOT_PHP: &[&str] = &[
+            "_", "exit", "clone", "dir", "md5", "sha1", "crc32", "chmod", "chown", "symlink",
+            "syslog", "printf",
+        ];
+        let word = |c: char| c.is_ascii_alphanumeric() || c == '_';
+        let is_php = |name: &str| {
+            php.contains(name)
+                && !NOT_PHP.contains(&name)
+                && !novis.contains(&name.to_ascii_lowercase())
+        };
+        let mut found = Vec::new();
+        if text.split(|c: char| !word(c)).any(|w| w == "PHP") {
+            found.push("PHP".to_string());
+        }
+        // The odd pieces of a split on backticks are the spans written as code.
+        for (i, piece) in text.split('`').enumerate() {
+            if i % 2 == 0 {
+                for w in piece.split(|c: char| !word(c)) {
+                    if w.contains('_')
+                        && w.starts_with(|c: char| c.is_ascii_lowercase())
+                        && is_php(w)
+                    {
+                        found.push(w.to_string());
+                    }
+                }
+                continue;
+            }
+            if let Some(rest) = piece.strip_prefix('$') {
+                let name: String = rest.chars().take_while(|&c| word(c)).collect();
+                let superglobal = name == "GLOBALS"
+                    || (name.len() > 1
+                        && name.starts_with('_')
+                        && name[1..].chars().all(|c| c.is_ascii_uppercase()));
+                if superglobal {
+                    found.push(format!("${name}"));
+                }
+                continue;
+            }
+            let name: String = piece.chars().take_while(|&c| word(c)).collect();
+            let after = &piece[name.len()..];
+            let family = after == "*"
+                && name.ends_with('_')
+                && php.iter().any(|f| f.starts_with(name.as_str()));
+            if family
+                || ((after.is_empty() || after.starts_with('(') || after == "*") && is_php(&name))
+            {
+                found.push(name);
+            }
+        }
+        found
+    }
+
+    #[test]
+    fn php_names_finds_code_and_underscored_functions_and_skips_novis_words() {
+        let php = BTreeSet::from(["array_map", "count", "strlen", "socket_create", "_", "exit"]);
+        let novis = BTreeSet::from(["count".to_string()]);
+        let names = |text: &str| php_names(text, &php, &novis);
+        assert_eq!(names("as `array_map` does"), ["array_map"]);
+        assert_eq!(names("as array_map does"), ["array_map"]);
+        assert_eq!(names("the `strlen($s)` idiom"), ["strlen"]);
+        assert_eq!(
+            names("replaces `$_ENV` and `$GLOBALS`"),
+            ["$_ENV", "$GLOBALS"]
+        );
+        assert_eq!(names("PHP's own"), ["PHP"]);
+        assert_eq!(names("replaces `socket_*`"), ["socket_"]);
+        // A Novis member, a word outside code, an allowed word and a longer code span are not PHP names.
+        assert!(names("`count` entries, strlen, `_` and `exit`, `array_map_keys`").is_empty());
+        assert!(names("`$name` or `$_` alone").is_empty());
     }
 
     /// `rule:core-api/reference-card`'s card keys itself by `rule:core-api/shape-rules` R2's names, so the two cannot

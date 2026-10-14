@@ -493,8 +493,7 @@ const MOD_DOC: MethodDoc = MethodDoc {
 
 /// `Core\BigInt::pow`'s reference card — `rule:core-api/reference-card`.
 const POW_DOC: MethodDoc = MethodDoc {
-    short: "This value raised to `$exponent`, which is the member `bcpow` with a large exponent \
-            becomes.",
+    short: "Returns this value raised to `$exponent`.",
     params: &[ParamDoc {
         name: "exponent",
         desc: "The power to raise this value to; `0` answers `1` for every receiver.",
@@ -510,8 +509,8 @@ const POW_DOC: MethodDoc = MethodDoc {
 
 /// `Core\BigInt::powMod`'s reference card — `rule:core-api/reference-card`.
 const POW_MOD_DOC: MethodDoc = MethodDoc {
-    short: "This value raised to `$exponent`, modulo `$modulus`, computed without ever holding \
-            the whole power — `bcpowmod`, and the member every modular exponentiation wants.",
+    short: "Returns this value raised to `$exponent`, modulo `$modulus`. It never computes the \
+            whole power, so it stays fast for a large exponent.",
     params: &[
         ParamDoc {
             name: "exponent",

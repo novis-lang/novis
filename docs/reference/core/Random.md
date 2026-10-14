@@ -1,10 +1,10 @@
 ---
 summary: cryptographically secure random integers, floats, bytes, tokens and array draws
-keywords: rand, mt_rand, random_int, lcg_value, mt_getrandmax, random_bytes, openssl_random_pseudo_bytes, bin2hex, array_rand, shuffle, str_shuffle, srand, mt_srand, Random\Randomizer, CSPRNG, nonce, session token
+keywords: random, random number, random integer, random float, random bytes, random element, shuffle, sample, token, CSPRNG, secure random, seed, seeded, reproducible, nonce, session token
 ---
 
 `Core\Random` is always a CSPRNG: there is no seeded or insecure generator under this name, and no
-`srand`. `int` draws from a closed range and throws on an empty one rather than swapping the bounds;
+function sets a global seed. `int` draws from a closed range and throws on an empty one rather than swapping the bounds;
 `pick`, `sample` and `shuffle` draw from an array and answer values — a fresh array for `shuffle`,
 `null` from `pick` on an empty one. `token` is the hex text of `bytes`, two characters per byte, for a
 session identifier or a reset link.
