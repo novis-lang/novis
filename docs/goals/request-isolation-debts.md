@@ -245,7 +245,7 @@ the manifest parser, never by a string search.
 
 - [x] PostgreSQL sends `CancelRequest` with the kept key. `crates/nvs-db/src/pg.rs:986`
 - [ ] MySQL and MariaDB send `KILL QUERY`, SQLite calls `sqlite3_interrupt`, and TDS sends attention. `crates/nvs-db/src/mysql.rs:1693`
-- [ ] The call waits for the connection under its own `timeout`, and closes one that misses it. `crates/nvs-stdlib/src/db/execute.rs:70`
+- [x] The call waits for the connection under its own `timeout`, and closes one that misses it. `crates/nvs-stdlib/src/db/execute.rs:70`
 
 ### 6. admission subtracts a wedged core
 
@@ -273,24 +273,25 @@ the manifest parser, never by a string search.
 
 ### State
 
-Stages 1 to 4 are done. Stage 5's PostgreSQL cancel is on disk: `nvs_db::Connection::settle(at)`
-(`crates/nvs-db/src/conn.rs:1253`) dispatches to `PgConn::settle` (`crates/nvs-db/src/pg.rs:986`),
-which sends `CancelRequest` over a second TLS connection opened by `open_stream` to the kept `Peer`,
-then drains to `ReadyForQuery` before `at`. Only a wire whose last read the deadline or a task cancel
-stopped (`Wire::stalled`) settles; every other poisoned wire stays closed. The other four drivers
-answer `Unsupported`, so they keep closing at the deadline. Nothing in `nvs-stdlib` calls `settle`
-yet. `a_deadline_cancels_a_running_statement_through_the_driver` passes on the PostgreSQL TCP leg of
-`bun nv db-matrix --driver postgres --no-up`. That leg's socket half fails on Windows in
-`mysql::tests::a_mysql_socket_path_is_opened_as_written` (OS error 95), which this change did not
-touch. The rule stays `designed`, and its "Not on disk" paragraph says what is left. The nightly CI
-reds are from `origin/main`, far behind local `main`, and are *not checked* here.
+Stages 1 to 4 are done. Stage 5's PostgreSQL cancel and the stdlib's wait are on disk.
+`nvs_db::Connection::settle(at)` (`crates/nvs-db/src/conn.rs:1253`) sends PostgreSQL's
+`CancelRequest` and drains to `ReadyForQuery`; the other four drivers answer `Unsupported` and keep
+closing at the deadline. `query`, `queryAs`, `execute`, `executeMany` and a `stream` step call
+`settled` → `settle_filed` → `nvs_stdlib::db::settle_interrupted`
+(`crates/nvs-stdlib/src/db/execute.rs:111`) on any failure, bounded by the `timeout` the
+`connect`/`open` named (`Ctx::note_connection_timeout`, `crates/nvs-runtime/src/ctx/held.rs:807`)
+or `SETTLE_WITHIN` (the pool's `acquire` default). A `stream`'s *opening* call does not settle yet
+(`crates/nvs-stdlib/src/db/stream.rs:504`). All three `deadline-cancel` tests pass on the PostgreSQL
+TCP leg of `bun nv db-matrix --driver postgres --no-up`; the socket leg still fails on Windows with
+OS error 95, untouched here. The rule stays `designed`. The nightly CI reds are from `origin/main`,
+far behind local `main`, and are *not checked* here.
 
 ### Next
 
-**Stage 5, the stdlib's wait and the other drivers' cancels**, file set: `crates/nvs-stdlib/src/db/execute.rs`, `crates/nvs-stdlib/src/db/stream.rs`, `crates/nvs-stdlib/src/db/open.rs`, `crates/nvs-db/src/mysql.rs`.
+**Stage 5, the other drivers' cancels**, file set: `crates/nvs-db/src/conn.rs`, `crates/nvs-db/src/mysql.rs`, `crates/nvs-db/src/sqlite.rs`, `crates/nvs-db/src/tds/`, `crates/nvs-stdlib/tests/db_stream.rs`.
 
-- [ ] A statement that fails with an interrupted read calls `Connection::settle`, bounded by the `timeout` the request's `connect` or `open` named (or a fixed default when it named none), and a connection that misses it stays poisoned and is closed at release. Add `a_cancelled_connection_returns_to_the_pool_in_a_known_state` and `a_connection_that_misses_its_timeout_after_a_cancel_is_closed_and_not_returned` to `crates/nvs-stdlib/tests/db_stream.rs` (`rule:concurrency/a-deadline-bounds-the-cancel-not-the-return`). `crates/nvs-stdlib/src/db/execute.rs:333` `crates/nvs-stdlib/src/db/execute.rs:77` `crates/nvs-stdlib/src/db/open.rs:194`
-- [ ] MySQL and MariaDB send `KILL QUERY <thread id>` over a second authenticated connection, which needs the target kept on the connection the way `pg::Peer` is. SQLite calls `sqlite3_interrupt` through rusqlite's `InterruptHandle`, and TDS sends `PacketType::Attention` and reads to the `DONE` with the attention bit. Then extend the db_stream case past its PostgreSQL-only arm. `crates/nvs-db/src/conn.rs:1253` `crates/nvs-db/src/mysql.rs:1722` `crates/nvs-db/src/tds/framing.rs:34`
+- [ ] MySQL and MariaDB send `KILL QUERY <thread id>` over a second authenticated connection, which needs the target kept on the connection the way `pg::Peer` is. SQLite calls `sqlite3_interrupt` through rusqlite's `InterruptHandle`, and TDS sends `PacketType::Attention` and reads to the `DONE` with the attention bit. Then widen `postgres_leg` and `interrupt` in the db_stream cases to every driver. `crates/nvs-db/src/conn.rs:1253` `crates/nvs-db/src/mysql.rs:810` `crates/nvs-db/src/tds/framing.rs:34`
+- [ ] A `stream` whose opening call fails settles too: `open_stream`'s match returns a `Result` and goes through `settled`. `crates/nvs-stdlib/src/db/stream.rs:504`
 - [ ] Ship the rule once both land: `data/rules/concurrency/a-deadline-bounds-the-cancel-not-the-return.json` gets `shipped`, its `guardedBy` and no `goal`, and the fragment loses its "Not on disk" paragraph. `docs/rules/concurrency/a-deadline-bounds-the-cancel-not-the-return.md:15`
 
 ### Backlog
