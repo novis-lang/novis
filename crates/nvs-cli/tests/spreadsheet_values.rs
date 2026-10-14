@@ -44,6 +44,11 @@ fn run_in(dir: &Path, extra: &[&str], body: &str) -> String {
     String::from_utf8(out.stdout).expect("the output is UTF-8")
 }
 
+/// Runs `body` with no `nvs.toml` and no request.
+fn run(case: &str, body: &str) -> String {
+    run_in(&scratch(case), &[], body)
+}
+
 /// Runs `body` in a directory whose `nvs.toml` grants reading and writing that directory.
 fn run_with_files(case: &str, body: &str) -> (PathBuf, String) {
     let dir = scratch(case);
@@ -154,4 +159,40 @@ echo ($sent as string as bytes) == $expected ? "same" : "different", "\n";
 "#,
     );
     assert_eq!(out, "order,note\n1042,'=1+2\nsame\n");
+}
+
+/// A style's fields land in `xl/styles.xml` as one cell format, equal fields give equal keys, a
+/// name that is not allowed throws a `LogicError`, and `new Style` keeps the values it is made from.
+// covers: Novis\Spreadsheet\Style::of, Novis\Spreadsheet\Style::constructor
+#[test]
+fn a_style_lands_in_the_styles_part_once() {
+    let out = run(
+        "style",
+        r##"
+var $total = Style::of({bold: true, border: "thin", format: "money", align: "right", fill: "#FFFF00"});
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet("Shop", {header: false});
+$sheet->add(["Pen", 1.5], {style: $total});
+$sheet->add(["Ink", 4.25], {style: Style::of({bold: true, border: "thin", format: "money", align: "right", fill: "#FFFF00"})});
+bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+var $styles = Core\Zip::read($file, "xl/styles.xml") as string;
+array<string> $parts = ["<b/>", "<left style=\"thin\">", "<fgColor rgb=\"FFFFFF00\"/>", "numFmtId=\"4\"", "<alignment horizontal=\"right\"/>", "<cellXfs count=\"2\">"];
+foreach ($parts as string $part) {
+    echo Core\Str::contains($styles, $part) ? "has " : "lacks ", $part, "\n";
+}
+echo Style::of({bold: true, size: 12.0})->key == Style::of({bold: true, size: 12.0})->key ? "equal keys" : "other keys", "\n";
+echo Style::of({bold: true})->key == Style::of({italic: true})->key ? "equal keys" : "other keys", "\n";
+try {
+    Style::of({underline: "triple"});
+} catch (LogicError $e) {
+    echo "LogicError\n";
+}
+var $kept = new Style($total->fields, "total");
+echo $kept->key, " ", $kept->fields->bold == true ? "bold" : "plain", " ", $kept->fields->italic == null ? "no italic" : "italic", "\n";
+"##,
+    );
+    assert_eq!(
+        out,
+        "has <b/>\nhas <left style=\"thin\">\nhas <fgColor rgb=\"FFFFFF00\"/>\nhas numFmtId=\"4\"\nhas <alignment horizontal=\"right\"/>\nhas <cellXfs count=\"2\">\nequal keys\nother keys\nLogicError\ntotal bold no italic\n"
+    );
 }
