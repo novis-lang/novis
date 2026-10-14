@@ -296,3 +296,6 @@ anchors were read when the goal was written.
 ### Backlog
 
 - Stages 3 to 9 — this file's § *Stages*.
+- The macOS warm-start budget in the nightly cost guards, once `origin/main` is pushed: `tools/nv/cmd/bench.ts`.
+- The nightly conformance and proofs reds, checked against local `main` once `origin/main` is pushed: `.github/workflows/`.
+- Every socket leg's OS error 95 on Windows: `crates/nvs-db/src/matrix.rs`.

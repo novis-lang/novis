@@ -62,7 +62,7 @@ stages:
         shapes: []
   - id: 8
     title: "a test holds the image manifest's absence"
-    status: open
+    status: done
     context: [extensions/image/manifest.json, crates/nvs-ext/tests/manifest.rs]
     extra:
       context:
@@ -271,37 +271,28 @@ the manifest parser, never by a string search.
 
 **Does:** a test fails if the image manifest ever declares a qualifier deviation or a capability.
 
-- [ ] The test, through the manifest parser. `crates/nvs-ext/tests/manifest.rs:1`
-- [ ] The fragment's "no test holds the absence" sentence rewritten. `docs/rules/security/image-component-declares-nothing.md:1`
+- [x] The test, through the manifest parser. `crates/nvs-ext/tests/manifest.rs:1`
+- [x] The fragment's "no test holds the absence" sentence rewritten. `docs/rules/security/image-component-declares-nothing.md:1`
 
 ## Handoff
 
 ### State
 
-Stages 1 to 7 are done. The `ImagePath` encoder and its `CommandLineToArgvW` decoder are
-`nvs_diagnostics::argv` (`crates/nvs-diagnostics/src/argv.rs`), the lowest crate with no platform
-dependency and already in the fuzz workspace. `nvs-cli`'s `service::image_path` and the SCM read-back
-call it. The `image_path` fuzz target is `fuzz/fuzz_targets/image_path.rs`, and the nightly
-`fuzz-smoke` matrix in `.github/workflows/ci.yml` runs it. `rule:packaging/the-argv-lives-in-imagepath`
-is `shipped`, guarded by the module and `crates/nvs-cli/src/service.rs`.
+Every stage is done and the goal is reached. `crates/nvs-ext/tests/manifest.rs`'s
+`the_image_manifest_declares_no_qualifier_and_no_capability` reads the image manifest through
+`Manifest::parse` and fails on any `source`, `secret` or `sink` mark and any `requests` entry.
+`rule:security/image-component-declares-nothing` is `shipped` under it.
+`rule:http-server/a-requests-blast-radius-is-bounded-at-four-tiers` waited only on the artifact-cache
+rule from stage 3, so it is `shipped` too. `bun nv owners --closes request-isolation-debts` and
+`bun nv verify --doc` pass.
 
 The nightly CI reds are from `origin/main`, still far behind local `main`. The loop never pushes, so
-they stay until `origin/main` is pushed. The socket legs fail with OS error 95 on Windows for every
-driver, which is the backlog item below.
+they stay until `origin/main` is pushed.
 
 ### Next
 
-**Stage 8, a test holds the image manifest's absence**. Files: `crates/nvs-ext/tests/manifest.rs`,
-`crates/nvs-ext/src/manifest.rs`, `docs/rules/security/image-component-declares-nothing.md`.
-
-- [ ] `the_image_manifest_declares_no_qualifier_and_no_capability` reads `extensions/image/manifest.json` through `Manifest::parse`. `crates/nvs-ext/src/manifest.rs:414`
-  `rule:security/image-component-declares-nothing`; the test goes in `crates/nvs-ext/tests/manifest.rs:1`.
-- [ ] The fragment's "no test holds the absence" paragraph rewritten, and the rule shipped. `docs/rules/security/image-component-declares-nothing.md:12`
-- [ ] The reach gate: `bun nv owners --closes request-isolation-debts`, then `bun nv verify --doc`. `tools/nv/cmd/owners.ts:1`
+Retire this goal; the chain moves to `server-rule-debts`.
 
 ### Backlog
 
-- Stage 8: this file's § *Stages*.
-- The macOS warm-start budget in the nightly cost guards, once `origin/main` is pushed: `tools/nv/cmd/bench.ts`.
-- The nightly conformance and proofs reds, checked against local `main` once `origin/main` is pushed: `.github/workflows/`.
-- Every socket leg's OS error 95 on Windows: `crates/nvs-db/src/matrix.rs`.
+- The nightly CI items moved to `server-rule-debts`' backlog: `docs/goals/server-rule-debts.md`.
