@@ -804,7 +804,12 @@ fn check_keyed_property(
         .then(|| argument.and_then(|argument| class_qname_of(argument, env.interner)))
         .flatten();
     let Some(key_class) = key_class else {
-        report_computed_member_name(name_span, COMPUTED_PROPERTY_HELP, env);
+        let help = nullable_key_help(object_ty, name_ty, access_span, name_span, env);
+        report_computed_member_name(
+            name_span,
+            help.as_deref().unwrap_or(COMPUTED_PROPERTY_HELP),
+            env,
+        );
         return env.interner.mixed();
     };
     if is_unset {
@@ -881,6 +886,45 @@ pub(crate) const COMPUTED_PROPERTY_HELP: &str = "`rule:types/property-key-access
      satisfies — convert the name with `as property<ClassName>`, where the set it may hold is \
      checked, or write the member out; data whose keys are only known at run time belongs in an \
      `array<T>`, whose keys are `string`";
+
+/// `E0235`'s help where the key would be admitted but for `null`: a
+/// `?property<T>` whose `T` the receiver satisfies. `None` for every other
+/// operand, which takes [`COMPUTED_PROPERTY_HELP`].
+///
+/// The usual way to arrive here is a test the checker cannot use: none at all,
+/// or one made before a loop that assigns the key (`crate::locals`'
+/// narrowing section), so the help names both.
+fn nullable_key_help(
+    object_ty: TypeId,
+    name_ty: Option<TypeId>,
+    access_span: Span,
+    name_span: Span,
+    env: &mut Env<'_>,
+) -> Option<String> {
+    let name_ty = name_ty.filter(|&ty| env.interner.is_nullable(ty))?;
+    let key_ty = env.interner.without_null(name_ty);
+    let argument = property_key_argument(key_ty, env.interner)?;
+    if !is_assignable(object_ty, argument, env.interner, env.graph, env.signatures) {
+        return None;
+    }
+    let key_ty = env.interner.describe(key_ty);
+    let key = span_text(env.src, name_span);
+    let is_variable = key.strip_prefix('$').is_some_and(|name| {
+        !name.is_empty() && name.chars().all(|c| c.is_alphanumeric() || c == '_')
+    });
+    if !is_variable {
+        return Some(format!(
+            "This key can be `null`. Copy it to a variable and test the variable first, for \
+             example `if ($key != null)`. Inside that block the variable is a `{key_ty}`."
+        ));
+    }
+    let access = span_text(env.src, access_span);
+    Some(format!(
+        "`{key}` can be `null` here. Test it first, for example `if ({key} != null)`. Inside \
+         that block, `{access}` works. A test before a loop does not apply inside the loop if \
+         the loop assigns `{key}`."
+    ))
+}
 
 /// [`report_computed_member_name`]'s help at a call, where it does not.
 pub(crate) const COMPUTED_METHOD_HELP: &str = "`rule:classes/no-call-magic` refuses a computed *dispatch* itself rather than its spelling, and `rule:types/property-key`'s \

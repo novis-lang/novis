@@ -1343,6 +1343,33 @@ fn a_computed_member_name_without_a_property_key_is_still_e0235() {
     );
 }
 
+/// A `?property<T>` key is the one operand `E0235` refuses only for `null`, so
+/// its help says how to test the key, and every other operand keeps the
+/// general help.
+#[test]
+fn a_nullable_property_key_is_told_to_test_the_key() {
+    let help_of = |params: &str, access: &str| {
+        let diags = check_src(&format!(
+            "<?nvs\nclass User {{ public string $email = \"\"; }}\n\
+             class T {{\n  function m(User $u, {params}): string {{ return {access}; }}\n}}\n"
+        ));
+        diags
+            .iter()
+            .find(|d| d.code == Some(code::E_DYNAMIC_MEMBER_NAME))
+            .map(|d| d.notes.join("\n"))
+            .unwrap_or_else(|| panic!("no E0235: {diags:?}"))
+    };
+    let nullable = help_of("?property<User> $k", "$u->$k");
+    assert!(
+        nullable.contains("`$k` can be `null` here") && nullable.contains("`if ($k != null)`"),
+        "{nullable}"
+    );
+    let computed = help_of("?property<User> $k", "$u->{($k)}");
+    assert!(computed.contains("Copy it to a variable"), "{computed}");
+    let text = help_of("string $k", "$u->$k");
+    assert!(!text.contains("can be `null`"), "{text}");
+}
+
 /// `rule:types/type-test`: a `Core` name on the right of `is` is a written type
 /// like any other, and the type resolver is the whole of what decides it — a
 /// registered class with instances, a namespaced `nvs_hir::errors::TREE` entry,
