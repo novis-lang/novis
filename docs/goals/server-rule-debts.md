@@ -1,6 +1,6 @@
 ---
 looper: 1
-title: "The server and configuration rules that are designed are built"
+title: The server and configuration rules that are designed are built
 summary: "Every rule this goal owns is `shipped` with a guard test, and `bun nv owners --closes server-rule-debts` passes."
 context: []
 stages:
@@ -129,7 +129,7 @@ checks:
     tests: [every_response_carries_its_trace_id_sampled_or_not, an_inbound_x_request_id_appears_nowhere]
   - id: owners-closes
     stage: 9
-    name: "no designed rule or gap names this goal"
+    name: no designed rule or gap names this goal
     run: [bun, nv, owners, --closes, server-rule-debts]
     reach: true
 ---
@@ -212,7 +212,7 @@ backend read one standard header. It is written on every response, sampled or no
 
 **Does:** the two body caps are `[limits]` rows with `[limits.hard]` ceilings, and the constants go.
 
-- [ ] The two rows and their ceilings in `nvs-config`. `crates/nvs-config/src/mode.rs:85`
+- [x] The two rows and their ceilings in `nvs-config`. `crates/nvs-config/src/mode.rs:85`
 - [ ] The door reads `upload_total` from the request's limits. `crates/nvs-server/src/body.rs:54`
 - [ ] The readers read `request_body` from the request's limits. `crates/nvs-stdlib/src/request.rs:2832`
 
@@ -278,24 +278,32 @@ backend read one standard header. It is written on every response, sampled or no
 
 ### State
 
-The goal is written; nothing of it is built. The user placed these rules here when every `designed`
-rule was given an owner. § *Standing decisions* holds the calls, the writer's marked as such. The
-anchors were read when the goal was written.
+Stage 1's first item is built and green. `[limits] request_body` and `upload_total` are rows at
+`8M` and `256M`, and their `[limits.hard]` ceilings default to `64M` and `2G`. `app::body_caps`
+refuses a `[limits]` or `[app.limits]` value past the ceiling at boot, with no `[limits.hard]`
+written (`crates/nvs-config/src/app.rs`). `Core\Config::set` reaches both through
+`app::ceilings`. Nothing reads the rows yet. The rule's fragment says so and stays `designed`.
+
+The nightly reds ran on `origin/main` (`cb7021a24`, 559 commits behind local `main`). Locally, the
+lint job's broken doc link and the `ruzstd` advisory are already fixed, and the website data is
+current. The stale `docs/rules` render was the one real red, and it is fixed and committed.
 
 ### Next
 
-**Stage 1: `request_body` and `upload_total` are configuration rows**, one file set: `crates/nvs-config/src/mode.rs`, `crates/nvs-server/src/body.rs`, `crates/nvs-stdlib/src/request.rs`.
+**Stage 1, the readers**: `crates/nvs-server/src/body.rs`, `crates/nvs-stdlib/src/request.rs`,
+`crates/nvs-stdlib/src/multipart.rs`, `crates/nvs-runtime/src/ctx/limits.rs`.
 
-- [ ] The two rows and their ceilings (`rule:http-server/request-body-and-upload-total-are-two-caps`). `crates/nvs-config/src/mode.rs:85`
-- [ ] The door and the readers read them, and the constants go (`rule:http-server/request-body-and-upload-total-are-two-caps`). `crates/nvs-server/src/body.rs:60`
+- [ ] The door takes `upload_total` from the global `[limits]` at both call sites (`crates/nvs-cli/src/serve.rs:1113`, `crates/nvs-cli/src/runner.rs:1659`), since it refuses before a mount is selected (`rule:http-server/upload-total-is-enforced-on-the-wire`). `crates/nvs-server/src/body.rs:98`
+- [ ] The streamed count reads a cap in `Wire` that a reader raises to the in-force `upload_total` before it pulls, say a default no-op `RequestBody::allow_total(u64)`, so a `Core\Config::set` of it is not a silent no-op (`rule:http-server/request-body-and-upload-total-are-two-caps`). `crates/nvs-server/src/body.rs:216`
+- [ ] `body()`, the form and JSON readers and multipart fields read `request_body` from the request (`crates/nvs-runtime/src/ctx/limits.rs:933`, `crates/nvs-stdlib/src/multipart.rs:474`), falling back to `LIMITS_REQUEST_BODY`, and the `(8M)` in the error text goes (`rule:http-server/request-body-and-upload-total-are-two-caps`). `crates/nvs-stdlib/src/request.rs:2834`
+- [ ] The two `cargo test --test request` cases in `nvs-cli`, `nvs info --config` printing both, and the rule shipped with `guardedBy` (`rule:http-server/request-body-and-upload-total-are-two-caps`). `crates/nvs-cli/tests/request.rs:1`
 
-**Stage 2: the access log**, sharing `crates/nvs-config/src/mode.rs`.
-
-- [ ] Read `log.access` and write the line (`rule:http-server/the-access-log-is-a-mode-default`). `crates/nvs-config/src/mode.rs:86`
+**Stage 2: the access log**, `crates/nvs-config/src/mode.rs:86`, `crates/nvs-server/src/trace.rs:537`
+(`rule:http-server/the-access-log-is-a-mode-default`).
 
 ### Backlog
 
-- Stages 3 to 9 — this file's § *Stages*.
+- Stages 3 to 9: this file's § *Stages*.
 - The macOS warm-start budget in the nightly cost guards, once `origin/main` is pushed: `tools/nv/cmd/bench.ts`.
 - The nightly conformance and proofs reds, checked against local `main` once `origin/main` is pushed: `.github/workflows/`.
 - Every socket leg's OS error 95 on Windows: `crates/nvs-db/src/matrix.rs`.
