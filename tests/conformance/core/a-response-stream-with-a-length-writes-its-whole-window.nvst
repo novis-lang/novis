@@ -1,0 +1,12 @@
+--TEST--
+`Core\Response::stream` with a length and no request in front of it writes the whole body: `offset()` is 0 and `length()` is the length -- `rule:http-server/static-serving-is-one-policy`
+--FILE--
+<?nvs
+// No request means no `Range` header, so the window is the whole body.
+var $stream = Core\Response::stream("text/plain", 5, "v1");
+echo "[", $stream->offset(), " ", $stream->length(), "]";
+$stream->write("he");
+$stream->write("llo");
+echo "\n";
+--EXPECT--
+[0 5]hello

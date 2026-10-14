@@ -695,6 +695,43 @@ impl Ctx {
         self.body_stream.as_mut()
     }
 
+    /// Records the window a stream with a stated length writes, and `None`
+    /// for a stream without one — beside [`Self::set_body_stream`], and also
+    /// where no connection offered one, so a later stream off a connection
+    /// never keeps an earlier one's window.
+    pub fn set_stream_window(&mut self, window: Option<crate::stream::Window>) {
+        self.stream_window = window;
+    }
+
+    /// The window [`Self::set_stream_window`] recorded, and `None` for a body
+    /// whose length was not stated.
+    pub fn stream_window(&mut self) -> Option<crate::stream::Window> {
+        self.stream_window
+    }
+
+    /// Counts `len` more bytes of a streamed body against its window, before
+    /// any of them is sent.
+    ///
+    /// # Errors
+    ///
+    /// The sentence `Core\Response\Stream::write` throws, where the bytes
+    /// would pass the window's end. Nothing is counted then. A body whose
+    /// length was not stated has no window, and every count passes.
+    pub fn claim_stream_bytes(&mut self, len: usize) -> Result<(), Box<str>> {
+        let Some(window) = self.stream_window.as_mut() else {
+            return Ok(());
+        };
+        if window.claim(u64::try_from(len).unwrap_or(u64::MAX)) {
+            return Ok(());
+        }
+        Err(format!(
+            "this part is {len} bytes, and only {} bytes of the stream's length are left. \
+             Nothing was sent.",
+            window.left()
+        )
+        .into())
+    }
+
     /// Records that what this context writes is an event stream, and which
     /// door opened it — `Core\Sse::stream` for the request that opened one for
     /// itself, and the hand-over for the connection that outlives its request.

@@ -1,0 +1,17 @@
+--TEST--
+`Core\Response\Stream::write` past the length the stream was started with throws a `LogicError` and sends nothing -- `rule:http-server/static-serving-is-one-policy`
+--FILE--
+<?nvs
+var $stream = Core\Response::stream("text/plain", 3);
+$stream->write("abc");
+try {
+    $stream->write("d");
+} catch (LogicError $past) {
+    echo "\n", $past->message, "\n";
+}
+// The refused part was not counted, so the window is still full.
+echo $stream->offset(), " ", $stream->length(), "\n";
+--EXPECT--
+abc
+Core\Response\Stream::write(): this part is 1 bytes, and only 0 bytes of the stream's length are left. Nothing was sent.
+0 3

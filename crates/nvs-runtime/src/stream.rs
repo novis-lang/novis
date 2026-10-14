@@ -372,6 +372,69 @@ pub struct Opened {
     /// whose head the connection gives `X-Accel-Buffering: no` and whose
     /// script policy it lets run the two [`Scripts`].
     pub slotted: bool,
+    /// How many bytes the body is, where the program stated it
+    /// ([`BodySlot::open_sized`]), and `None` for a body that is chunked. The
+    /// connection states it as `Content-Length` and cuts the connection when
+    /// the writer ends short of it.
+    pub length: Option<u64>,
+}
+
+/// The window of a stream whose length was stated: which bytes the program
+/// writes, and how many it has written.
+///
+/// `Core\Response::stream` puts one on the request's context, on a connection
+/// and off one alike, so `Core\Response\Stream::offset` and `length` read one
+/// place, and a write that would pass the window's end is refused before any
+/// of it is sent.
+///
+/// **What it spends:** three words per request that states a length.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Window {
+    offset: u64,
+    length: u64,
+    written: u64,
+}
+
+impl Window {
+    /// The bytes from `offset`, `length` of them, none written yet.
+    #[must_use]
+    pub const fn new(offset: u64, length: u64) -> Self {
+        Self {
+            offset,
+            length,
+            written: 0,
+        }
+    }
+
+    /// Where the window starts, counted from the start of the whole body.
+    #[must_use]
+    pub const fn offset(self) -> u64 {
+        self.offset
+    }
+
+    /// How many bytes the window is.
+    #[must_use]
+    pub const fn length(self) -> u64 {
+        self.length
+    }
+
+    /// How many bytes of the window are still to be written.
+    #[must_use]
+    pub const fn left(self) -> u64 {
+        self.length - self.written
+    }
+
+    /// Counts `bytes` more as written, and `false`, counting nothing, where
+    /// they would pass the window's end.
+    pub fn claim(&mut self, bytes: u64) -> bool {
+        match self.written.checked_add(bytes) {
+            Some(written) if written <= self.length => {
+                self.written = written;
+                true
+            }
+            _ => false,
+        }
+    }
 }
 
 /// The two inline scripts a slotted page sends: the polyfill that applies a
@@ -486,7 +549,42 @@ impl BodySlot {
         status: Option<u16>,
         headers: Vec<DeclaredHeader>,
     ) -> Option<Emit> {
-        self.open_as(content_type, status, headers, false)
+        self.open_as(content_type, status, headers, false, None)
+    }
+
+    /// [`Self::open`] for a body of exactly `length` bytes, which the head
+    /// states as `Content-Length`.
+    #[must_use]
+    pub fn open_sized(
+        &self,
+        content_type: &str,
+        status: Option<u16>,
+        headers: Vec<DeclaredHeader>,
+        length: u64,
+    ) -> Option<Emit> {
+        self.open_as(content_type, status, headers, false, Some(length))
+    }
+
+    /// [`Self::open`] for a stream whose length was stated, with the head and
+    /// window [`crate::conditional::ranged`] decided.
+    ///
+    /// The decided status replaces `status` unless it is a `200`, and the
+    /// decided headers go before `headers`, so a program's own declaration
+    /// applies after them, as it does over a file body. The window comes back
+    /// beside the writing half for the caller to put on its context.
+    #[must_use]
+    pub fn open_ranged(
+        &self,
+        content_type: &str,
+        status: Option<u16>,
+        headers: Vec<DeclaredHeader>,
+        ranged: crate::conditional::Ranged,
+    ) -> Option<(Emit, Window)> {
+        let mut all = ranged.headers;
+        all.extend(headers);
+        let window = ranged.window;
+        self.open_sized(content_type, ranged.status.or(status), all, window.length())
+            .map(|emit| (emit, window))
     }
 
     /// [`Self::open`] for `rule:core-classes/html-later`'s slotted page, whose
@@ -498,7 +596,7 @@ impl BodySlot {
         status: Option<u16>,
         headers: Vec<DeclaredHeader>,
     ) -> Option<Emit> {
-        self.open_as(content_type, status, headers, true)
+        self.open_as(content_type, status, headers, true, None)
     }
 
     fn open_as(
@@ -507,6 +605,7 @@ impl BodySlot {
         status: Option<u16>,
         headers: Vec<DeclaredHeader>,
         slotted: bool,
+        length: Option<u64>,
     ) -> Option<Emit> {
         let mut cell = self.cell.borrow_mut();
         if cell.opened {
@@ -520,6 +619,7 @@ impl BodySlot {
             headers,
             drain,
             slotted,
+            length,
         });
         if let Some(watcher) = cell.watcher.take() {
             watcher.wake();

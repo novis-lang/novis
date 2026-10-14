@@ -1204,6 +1204,9 @@ pub struct Ctx {
     /// that streams — the one chunk in flight, which is the writer's own
     /// allocation on its way to the wire rather than a copy of it.
     body_stream: Option<crate::stream::Emit>,
+    /// The window a stream with a stated length writes, and `None` for every
+    /// other body ([`crate::stream::Window`]).
+    stream_window: Option<crate::stream::Window>,
     /// Which door opened the **event stream** this context writes, and `None`
     /// for a program that opened neither — the one thing `Core\Sse::current()`
     /// separates from every other program.

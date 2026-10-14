@@ -369,15 +369,21 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "stream",
-            names: &["contentType"],
+            names: &["contentType", "length", "etag"],
             // `bytes`' second mark, for `bytes`' reason and no other: this is
             // the other member that cannot know the media type, so it is told
             // one, and a media type is the one string here that becomes an
             // *instruction* to the peer about how to read everything after it
-            // (`rule:security/sink-predicate`). What the chunks carry is
-            // [`STREAM`]'s question and is marked there.
-            params: &[CoreTy::Text(Qual::Sink)],
-            defaults: &[],
+            // (`rule:security/sink-predicate`). The tag is a header too, and
+            // the peer sends it back to choose which bytes it gets, so it is
+            // marked the same way. What the chunks carry is [`STREAM`]'s
+            // question and is marked there.
+            params: &[
+                CoreTy::Text(Qual::Sink),
+                CoreTy::Nullable(&CoreTy::Int),
+                CoreTy::Nullable(&CoreTy::Text(Qual::Sink)),
+            ],
+            defaults: &[Const::Null, Const::Null],
             return_ty: CoreTy::Instance(STREAM_NAME),
             symbol: STREAM_SYMBOL,
             doc: Some(&STREAM_DOC),
@@ -526,6 +532,10 @@ pub(crate) const STREAM_NAME: &str = r"Core\Response\Stream";
 const STREAM_SYMBOL: &str = "nvs_core_response_stream";
 /// See [`STREAM_SYMBOL`].
 const STREAM_WRITE_SYMBOL: &str = "nvs_core_response_stream_write";
+/// See [`STREAM_SYMBOL`].
+const STREAM_OFFSET_SYMBOL: &str = "nvs_core_response_stream_offset";
+/// See [`STREAM_SYMBOL`].
+const STREAM_LENGTH_SYMBOL: &str = "nvs_core_response_stream_length";
 
 /// `Core\Response\Stream`'s class card — `rule:core-api/reference-card`.
 const STREAM_CARD: ClassDoc = ClassDoc {
@@ -537,8 +547,9 @@ const STREAM_CARD: ClassDoc = ClassDoc {
 /// first spelling, as the handle a program writes through — what
 /// [`nvs_core_response_stream`] answers with.
 ///
-/// **One member and no slots**, because its whole state is the *context*'s:
-/// `nvs_runtime::Ctx` holds the writing half of the body, so the handle is a
+/// **No slots**, because its whole state is the *context*'s:
+/// `nvs_runtime::Ctx` holds the writing half of the body and the window a
+/// stated length gives it ([`nvs_runtime::stream::Window`]), so the handle is a
 /// token saying a stream was opened rather than an owner of one. A slot holding
 /// a copy of the writing half would be a second owner of the cell, which is the
 /// one thing [`crate::instance`]'s first decision refuses; `Core\Socket` is the
@@ -557,25 +568,45 @@ pub(crate) const STREAM: CoreClass = CoreClass {
     name: STREAM_NAME,
     doc: Some(&STREAM_CARD),
     methods: &[],
-    instance: &[CoreMethod {
-        name: "write",
-        names: &["chunk"],
-        // A union rather than `Core\Socket`'s two members, because a chunk of a
-        // response body is one thing written two ways where a WebSocket frame's
-        // two payload kinds are two things on the wire. The classification is
-        // written on both arms and the union answers it
-        // ([`CoreTy::classification`]): [`Qual::Neutral`], so a `tainted`
-        // chunk is admitted exactly as `Core\Response::text` admits one and
-        // nothing comes back out to carry the qualifier.
-        params: &[CoreTy::Union(&[
-            CoreTy::Text(Qual::Neutral),
-            CoreTy::Blob(Qual::Neutral),
-        ])],
-        defaults: &[],
-        return_ty: CoreTy::Void,
-        symbol: STREAM_WRITE_SYMBOL,
-        doc: Some(&STREAM_WRITE_DOC),
-    }],
+    instance: &[
+        CoreMethod {
+            name: "write",
+            names: &["chunk"],
+            // A union rather than `Core\Socket`'s two members, because a chunk of a
+            // response body is one thing written two ways where a WebSocket frame's
+            // two payload kinds are two things on the wire. The classification is
+            // written on both arms and the union answers it
+            // ([`CoreTy::classification`]): [`Qual::Neutral`], so a `tainted`
+            // chunk is admitted exactly as `Core\Response::text` admits one and
+            // nothing comes back out to carry the qualifier.
+            params: &[CoreTy::Union(&[
+                CoreTy::Text(Qual::Neutral),
+                CoreTy::Blob(Qual::Neutral),
+            ])],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: STREAM_WRITE_SYMBOL,
+            doc: Some(&STREAM_WRITE_DOC),
+        },
+        CoreMethod {
+            name: "offset",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Int,
+            symbol: STREAM_OFFSET_SYMBOL,
+            doc: Some(&STREAM_OFFSET_DOC),
+        },
+        CoreMethod {
+            name: "length",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Int,
+            symbol: STREAM_LENGTH_SYMBOL,
+            doc: Some(&STREAM_LENGTH_DOC),
+        },
+    ],
     slots: &[],
     constants: &[],
 };
@@ -585,12 +616,32 @@ const STREAM_DOC: MethodDoc = MethodDoc {
     short: "Starts a response body that your program sends in parts, and sets the header \
             `Content-Type` to `$contentType`. The status and the headers are sent when this is \
             called, and the body ends when the program ends.",
-    params: &[ParamDoc {
-        name: "contentType",
-        desc: "The content type of the body, for example `text/csv`. It becomes a header, so a \
-               `tainted` value does not compile. It must be printable ASCII and not empty.",
-        shape: &[],
-    }],
+    params: &[
+        ParamDoc {
+            name: "contentType",
+            desc: "The content type of the body, for example `text/csv`. It becomes a header, so \
+                   a `tainted` value does not compile. It must be printable ASCII and not empty.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "length",
+            desc: "The size of the whole body in bytes, or `null` if you do not know it. With a \
+                   size, the response has a `Content-Length` header and a browser can ask for \
+                   one part of the body, for example to seek in a video. The request header \
+                   `Range` says which part. Then `offset()` and `length()` of the stream say \
+                   which bytes to write. Without a size, the whole body is sent and `Range` is \
+                   ignored.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "etag",
+            desc: "A version name for the body, or `null`. It is sent as the `ETag` header. Give \
+                   a new name when the bytes change. A browser that resumes a download sends the \
+                   name back, and gets the whole body if the name is old. It becomes a header, so \
+                   a `tainted` value does not compile.",
+            shape: &[],
+        },
+    ],
     ret: "A `Core\\Response\\Stream`. Call its `write()` method to send each part. Set the status \
           and the headers before you call this method. Using this and `echo` in one response does \
           not compile. A browser that reads this body with `EventSource` connects again when the \
@@ -599,8 +650,36 @@ const STREAM_DOC: MethodDoc = MethodDoc {
         error: "LogicError",
         desc: "`$contentType` is empty, or it contains a character a header cannot contain: a \
                control character, a line break, or a character that is not ASCII. It is also \
-               thrown when this request already started a body stream, because a response has \
-               one body.",
+               thrown when `$length` is negative, when `$etag` contains such a character or a \
+               `\"`, and when this request already started a body stream, because a response \
+               has one body.",
+    }],
+};
+
+/// `Core\Response\Stream::offset`'s reference card — `rule:core-api/reference-card`.
+const STREAM_OFFSET_DOC: MethodDoc = MethodDoc {
+    short: "Returns the position of the first byte your program writes, counted from the start of \
+            the whole body. It is `0` unless the browser asked for a part of the body.",
+    params: &[],
+    ret: "An `int`. Start writing the body at this byte.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "The stream was started without a `$length`.",
+    }],
+};
+
+/// `Core\Response\Stream::length`'s reference card — `rule:core-api/reference-card`.
+const STREAM_LENGTH_DOC: MethodDoc = MethodDoc {
+    short: "Returns how many bytes your program writes. This is the whole body, or the part the \
+            browser asked for.",
+    params: &[],
+    ret: "An `int`. It is `0` when nothing is sent: the browser already has this version, or it \
+          asked for a part the body does not have. Your writes must add up to exactly this \
+          number. If the program ends before that, the connection is closed, so the browser \
+          knows the body is not complete.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "The stream was started without a `$length`.",
     }],
 };
 
@@ -619,11 +698,18 @@ const STREAM_WRITE_DOC: MethodDoc = MethodDoc {
           client has gone, this method returns at once and the part is thrown away. The client \
           has gone when it closed the connection, or when it did not read a part before the \
           server's send timeout. Your request still runs to its end.",
-    errors: &[ErrorDoc {
-        error: "RuntimeError",
-        desc: "The part is larger than the server allows for one part. Nothing is sent, and you \
-               can still send smaller parts.",
-    }],
+    errors: &[
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The part is larger than the server allows for one part. Nothing is sent, and \
+                   you can still send smaller parts.",
+        },
+        ErrorDoc {
+            error: "LogicError",
+            desc: "The stream was started with a `$length`, and this part goes past the end of \
+                   `length()`. Nothing is sent.",
+        },
+    ],
 };
 
 /// `Core\Response::html`'s reference card — `rule:core-api/reference-card`.
@@ -1008,6 +1094,8 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_response_send_file" => (nvs_core_response_send_file as *const ()).cast(),
         STREAM_SYMBOL => (nvs_core_response_stream as *const ()).cast(),
         STREAM_WRITE_SYMBOL => (nvs_core_response_stream_write as *const ()).cast(),
+        STREAM_OFFSET_SYMBOL => (nvs_core_response_stream_offset as *const ()).cast(),
+        STREAM_LENGTH_SYMBOL => (nvs_core_response_stream_length as *const ()).cast(),
         "nvs_core_response_set_status" => (nvs_core_response_set_status as *const ()).cast(),
         "nvs_core_response_slotted" => (nvs_core_response_slotted as *const ()).cast(),
         "nvs_core_response_set_header" => (nvs_core_response_set_header as *const ()).cast(),
@@ -1881,9 +1969,20 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Response::stream(string $contentType): Core\Response\Stream` —
+    /// `Core\Response::stream(string $contentType, ?int $length = null,
+    /// ?string $etag = null): Core\Response\Stream` —
     /// `rule:concurrency/a-stream-that-outlives-its-request-is-a-connection`'s
     /// stream that ends with its response, as the member that opens one.
+    ///
+    /// **A stated length gets the file policy's decision**
+    /// (`rule:http-server/static-serving-is-one-policy`): `If-None-Match`,
+    /// `If-Range` and `Range` are read off the request and
+    /// [`nvs_runtime::conditional::decide`] answers which bytes the body is.
+    /// Its status wins over the program's except where it is `200`, and its
+    /// headers go first so the program's own apply after them, as for a file
+    /// body. The window it gives is put on the context, where `offset`,
+    /// `length` and `write` read it. Off a connection there is no `Range`, so
+    /// the window is the whole length.
     ///
     /// Three effects where its neighbours have two: the media type is declared
     /// on this request's context exactly as every other body member declares
@@ -1905,7 +2004,7 @@ nvs_runtime::nvs_helper! {
     /// Where there is no cell there is nothing that refusal could be about, and
     /// the later declaration simply wins — `Ctx::declare_content_type`'s own
     /// rule for every body member written twice.
-    fn nvs_core_response_stream(ctx, args: [1]) {
+    fn nvs_core_response_stream(ctx, args: [3]) {
         head_open(ctx, "Core\\Response::stream")?;
         // Unreachable from source: the row's parameter is a `CoreTy::Text`, so
         // `E0401` refuses anything that is not a `string` before this runs — and
@@ -1928,6 +2027,8 @@ nvs_runtime::nvs_helper! {
                 ),
             ));
         }
+        let length = stated_length(&args[1])?;
+        let etag = stated_etag(&args[2])?;
         // Cloned rather than borrowed, for `Core\Sse::upgrade`'s reason: the
         // cell is a shared handle by construction, so a clone is one refcount
         // and no borrow of the carrier held across the write below.
@@ -1943,7 +2044,24 @@ nvs_runtime::nvs_helper! {
             // none of them and the connection does not apply a header twice.
             let status = ctx.take_status();
             let headers = ctx.take_headers();
-            let emit = cell.open(media_type, status, headers).ok_or_else(|| {
+            let opened = match length {
+                None => cell.open(media_type, status, headers),
+                Some(total) => {
+                    let asked = ctx
+                        .inbound()
+                        .map(|inbound| {
+                            nvs_runtime::conditional::Asked::from_fields(inbound.headers())
+                        })
+                        .unwrap_or_default();
+                    let ranged = nvs_runtime::conditional::ranged(asked, etag.as_deref(), total);
+                    cell.open_ranged(media_type, status, headers, ranged)
+                        .map(|(emit, window)| {
+                            ctx.set_stream_window(Some(window));
+                            emit
+                        })
+                }
+            };
+            let emit = opened.ok_or_else(|| {
                 // No case can reach this: a `.nvst` case runs a script no
                 // connection is framing a response for, so it is offered no cell
                 // and never gets here.
@@ -1956,9 +2074,94 @@ nvs_runtime::nvs_helper! {
                 )
             })?;
             ctx.set_body_stream(emit);
+        } else {
+            ctx.set_stream_window(length.map(|total| nvs_runtime::stream::Window::new(0, total)));
         }
         ctx.declare_content_type(media_type);
         Ok(crate::instance::build(&STREAM, []))
+    }
+}
+
+/// `Core\Response::stream`'s `$length`, and `None` where it was not given.
+fn stated_length(value: &Value) -> Result<Option<u64>, Fault> {
+    if matches!(value.tag(), Some(Tag::Null | Tag::Unset)) {
+        return Ok(None);
+    }
+    // Unreachable from source: the row's parameter is a `?int`.
+    let length = value.as_int().ok_or_else(|| {
+        Fault::fatal(format!(
+            "Core\\Response::stream expected an `int` for the length, got tag {}",
+            value.tag_byte()
+        ))
+    })?;
+    u64::try_from(length).map(Some).map_err(|_| {
+        Fault::thrown_as(
+            nvs_runtime::ThrownClass::Logic,
+            format!(
+                "Core\\Response::stream(): the length {length} is negative. It must be 0 or more."
+            ),
+        )
+    })
+}
+
+/// `Core\Response::stream`'s `$etag`, quoted as the strong tag the response
+/// sends, and `None` where it was not given.
+fn stated_etag(value: &Value) -> Result<Option<String>, Fault> {
+    if matches!(value.tag(), Some(Tag::Null | Tag::Unset)) {
+        return Ok(None);
+    }
+    // Unreachable from source: the row's parameter is a `?string`.
+    let etag = value.as_text().ok_or_else(|| {
+        Fault::fatal(format!(
+            "Core\\Response::stream expected a `string` for the etag, got tag {}",
+            value.tag_byte()
+        ))
+    })?;
+    if !carriable(etag) || etag.contains('"') {
+        return Err(Fault::thrown_as(
+            nvs_runtime::ThrownClass::Logic,
+            format!(
+                "Core\\Response::stream(): the etag `{etag}` cannot be sent in an `ETag` header. \
+                 It must be printable ASCII and must not contain `\"`."
+            ),
+        ));
+    }
+    Ok(Some(format!("\"{etag}\"")))
+}
+
+/// The window of the stream `member` was called on, or the `LogicError` a
+/// stream without a stated length throws.
+fn window_of(
+    ctx: &mut nvs_runtime::Ctx,
+    member: &str,
+) -> Result<nvs_runtime::stream::Window, Fault> {
+    ctx.stream_window().ok_or_else(|| {
+        Fault::thrown_as(
+            nvs_runtime::ThrownClass::Logic,
+            format!(
+                "Core\\Response\\Stream::{member}(): the stream was started without a `$length`."
+            ),
+        )
+    })
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Response\Stream::offset(): int` — where the window a stated
+    /// length gave this stream starts.
+    fn nvs_core_response_stream_offset(ctx, args: [1]) {
+        crate::instance::receiver(args[0], &STREAM, "offset")?;
+        let window = window_of(ctx, "offset")?;
+        Ok(Value::int(i64::try_from(window.offset()).unwrap_or(i64::MAX)))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Response\Stream::length(): int` — how many bytes the window a
+    /// stated length gave this stream is.
+    fn nvs_core_response_stream_length(ctx, args: [1]) {
+        crate::instance::receiver(args[0], &STREAM, "length")?;
+        let window = window_of(ctx, "length")?;
+        Ok(Value::int(i64::try_from(window.length()).unwrap_or(i64::MAX)))
     }
 }
 
@@ -1999,6 +2202,14 @@ nvs_runtime::nvs_helper! {
                     args[1].tag_byte()
                 ))
             })?;
+        // The count is the program's, so a write past the window throws before
+        // any of it is sent, on a connection and off one alike.
+        ctx.claim_stream_bytes(chunk.len()).map_err(|past| {
+            Fault::thrown_as(
+                nvs_runtime::ThrownClass::Logic,
+                format!("Core\\Response\\Stream::write(): {past}"),
+            )
+        })?;
         if let Some(emit) = ctx.body_stream() {
             // Owned, because the connection takes the chunk rather than reading
             // it: the copy is the one allocation a streamed chunk costs, and it
@@ -2334,6 +2545,122 @@ mod tests {
         ctx
     }
 
+    /// `Core\Response::stream`'s three arguments for `media_type`, with no
+    /// length and no tag.
+    fn unsized_stream(media_type: Value) -> [Value; 3] {
+        [media_type, Value::null(), Value::null()]
+    }
+
+    /// `Core\Response::stream` with a length: the decision runs over the
+    /// request's `Range`, the head states the window, `offset` and `length`
+    /// give it, and a write past its end throws and sends nothing. Off a
+    /// connection the window is the whole length. A negative length, a tag
+    /// with a `"`, and `length` on a stream without one each throw.
+    // covers: Core\Response::stream
+    // covers: Core\Response\Stream::offset
+    // covers: Core\Response\Stream::length
+    // covers: Core\Response\Stream::write
+    #[test]
+    fn a_stream_with_a_length_writes_the_window_the_request_asked_for() {
+        let slot = offered_cell();
+        let mut ctx = framing(&slot);
+        let mut inbound = nvs_runtime::Inbound::new("GET", "/video", "");
+        inbound.offer_response_stream(slot.clone());
+        inbound.push_header("Range", b"bytes=2-5");
+        ctx.set_inbound(inbound);
+
+        let media_type = Value::str(NvsStr::new(b"video/mp4"));
+        let etag = Value::str(NvsStr::new(b"v1"));
+        let handle = call(
+            super::nvs_core_response_stream,
+            &mut ctx,
+            &[media_type, Value::int(10), etag],
+        )
+        .expect("an offered cell takes the stream");
+        let offset = call(super::nvs_core_response_stream_offset, &mut ctx, &[handle])
+            .expect("a stream with a length has a window");
+        let length = call(super::nvs_core_response_stream_length, &mut ctx, &[handle])
+            .expect("a stream with a length has a window");
+        assert_eq!((offset.as_int(), length.as_int()), (Some(2), Some(4)));
+
+        let head = slot
+            .take(std::task::Waker::noop())
+            .expect("the member filled the cell");
+        assert_eq!((head.status, head.length), (Some(206), Some(4)));
+        let stated: Vec<(&str, &str)> = head
+            .headers
+            .iter()
+            .map(|header| (&*header.name, &*header.value))
+            .collect();
+        assert_eq!(
+            stated,
+            [
+                ("Accept-Ranges", "bytes"),
+                ("ETag", "\"v1\""),
+                ("Content-Range", "bytes 2-5/10")
+            ]
+        );
+
+        let window = Value::str(NvsStr::new(b"2345"));
+        call(
+            super::nvs_core_response_stream_write,
+            &mut ctx,
+            &[handle, window],
+        )
+        .expect("the window fits");
+        let past = Value::str(NvsStr::new(b"6"));
+        call(
+            super::nvs_core_response_stream_write,
+            &mut ctx,
+            &[handle, past],
+        )
+        .expect_err("a byte past the window throws");
+        assert!(
+            ctx.take_pending()
+                .is_some_and(|message| message.contains("Nothing was sent"))
+        );
+
+        // Off a connection there is no `Range`, so the window is the whole body.
+        let mut off = Ctx::buffered();
+        let whole = call(
+            super::nvs_core_response_stream,
+            &mut off,
+            &[media_type, Value::int(3), Value::null()],
+        )
+        .expect("a stream off a connection opens");
+        let length = call(super::nvs_core_response_stream_length, &mut off, &[whole])
+            .expect("a stream with a length has a window");
+        assert_eq!(length.as_int(), Some(3));
+
+        let mut refused = Ctx::buffered();
+        let bad_tag = Value::str(NvsStr::new(b"v\"1"));
+        for args in [
+            [media_type, Value::int(-1), Value::null()],
+            [media_type, Value::int(1), bad_tag],
+        ] {
+            call(super::nvs_core_response_stream, &mut refused, &args)
+                .expect_err("a negative length and a tag with a quote throw");
+        }
+        let chunked = call(
+            super::nvs_core_response_stream,
+            &mut refused,
+            &unsized_stream(media_type),
+        )
+        .expect("a stream without a length opens");
+        call(
+            super::nvs_core_response_stream_offset,
+            &mut refused,
+            &[chunked],
+        )
+        .expect_err("a stream without a length has no window");
+
+        for value in [
+            media_type, etag, handle, window, past, whole, bad_tag, chunked,
+        ] {
+            dropped(value);
+        }
+    }
+
     /// `Core\Response::stream` opening the cell: after the call the connection's
     /// half holds the media type that was written, and a chunk the program
     /// wrote arrives on the reading half rather than in the request's output.
@@ -2350,8 +2677,12 @@ mod tests {
         let mut ctx = framing(&slot);
 
         let media_type = Value::str(NvsStr::new(b"text/csv"));
-        let handle = call(super::nvs_core_response_stream, &mut ctx, &[media_type])
-            .expect("an offered cell takes the stream");
+        let handle = call(
+            super::nvs_core_response_stream,
+            &mut ctx,
+            &unsized_stream(media_type),
+        )
+        .expect("an offered cell takes the stream");
         let chunk = Value::str(NvsStr::new(b"id,name\n"));
         call(
             super::nvs_core_response_stream_write,
@@ -2392,11 +2723,19 @@ mod tests {
         let mut ctx = framing(&slot);
 
         let first = Value::str(NvsStr::new(b"text/csv"));
-        let handle = call(super::nvs_core_response_stream, &mut ctx, &[first])
-            .expect("an offered cell takes the first stream");
+        let handle = call(
+            super::nvs_core_response_stream,
+            &mut ctx,
+            &unsized_stream(first),
+        )
+        .expect("an offered cell takes the first stream");
         let second = Value::str(NvsStr::new(b"application/json"));
-        call(super::nvs_core_response_stream, &mut ctx, &[second])
-            .expect_err("one response opens at most one body stream");
+        call(
+            super::nvs_core_response_stream,
+            &mut ctx,
+            &unsized_stream(second),
+        )
+        .expect_err("one response opens at most one body stream");
 
         // Intact rather than displaced, which is the half a refusal that
         // overwrote would still pass without.
@@ -2425,8 +2764,12 @@ mod tests {
         let mut ctx = framing(&slot);
 
         let media_type = Value::str(NvsStr::new(b"text/csv"));
-        let handle = call(super::nvs_core_response_stream, &mut ctx, &[media_type])
-            .expect("an offered cell takes the stream");
+        let handle = call(
+            super::nvs_core_response_stream,
+            &mut ctx,
+            &unsized_stream(media_type),
+        )
+        .expect("an offered cell takes the stream");
         drop(
             slot.take(std::task::Waker::noop())
                 .expect("the member filled the cell"),
@@ -2459,8 +2802,12 @@ mod tests {
         let mut ctx = framing(&slot);
 
         let media_type = Value::str(NvsStr::new(b"text/csv"));
-        let handle = call(super::nvs_core_response_stream, &mut ctx, &[media_type])
-            .expect("an offered cell takes the stream");
+        let handle = call(
+            super::nvs_core_response_stream,
+            &mut ctx,
+            &unsized_stream(media_type),
+        )
+        .expect("an offered cell takes the stream");
         // Held and never drained: a client that stopped reading, not one that
         // left, so the stream closes at the send timeout and not before it.
         let mut stalled = slot
@@ -2503,8 +2850,12 @@ mod tests {
         let mut ctx = framing(&slot);
 
         let media_type = Value::str(NvsStr::new(b"text/csv"));
-        let handle = call(super::nvs_core_response_stream, &mut ctx, &[media_type])
-            .expect("an offered cell takes the stream");
+        let handle = call(
+            super::nvs_core_response_stream,
+            &mut ctx,
+            &unsized_stream(media_type),
+        )
+        .expect("an offered cell takes the stream");
 
         let oversized = Value::str(NvsStr::new(b"id,name\n"));
         call(

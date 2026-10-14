@@ -19984,7 +19984,7 @@ Keywords: html, json, text, bytes, sendFile, stream, setStatus, slotted, setHead
 | [`Core\Response::text`](#core-core-response-text) | `text(string $body): void` |
 | [`Core\Response::bytes`](#core-core-response-bytes) | `bytes(bytes $body, string $contentType): void` |
 | [`Core\Response::sendFile`](#core-core-response-sendfile) | `sendFile(string $path): void` |
-| [`Core\Response::stream`](#core-core-response-stream) | `stream(string $contentType): Core\Response\Stream` |
+| [`Core\Response::stream`](#core-core-response-stream) | `stream(string $contentType, ?int $length = null, ?string $etag = null): Core\Response\Stream` |
 | [`Core\Response::setStatus`](#core-core-response-setstatus) | `setStatus(uint $code): void` |
 | [`Core\Response::slotted`](#core-core-response-slotted) | `slotted(): void` |
 | [`Core\Response::setHeader`](#core-core-response-setheader) | `setHeader(string $name, string $value): void` |
@@ -20077,7 +20077,7 @@ Sends the file at `$path` as the whole response. The server reads the file in sm
 #### `Core\Response::stream`
 
 ```nvs skip
-Core\Response::stream(string $contentType): Core\Response\Stream
+Core\Response::stream(string $contentType, ?int $length = null, ?string $etag = null): Core\Response\Stream
 ```
 
 Starts a response body that your program sends in parts, and sets the header `Content-Type` to `$contentType`. The status and the headers are sent when this is called, and the body ends when the program ends.
@@ -20085,10 +20085,12 @@ Starts a response body that your program sends in parts, and sets the header `Co
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$contentType` | `string` (sink) | The content type of the body, for example `text/csv`. It becomes a header, so a `tainted` value does not compile. It must be printable ASCII and not empty. |
+| `$length` | `?int` (default `null`) | The size of the whole body in bytes, or `null` if you do not know it. With a size, the response has a `Content-Length` header and a browser can ask for one part of the body, for example to seek in a video. The request header `Range` says which part. Then `offset()` and `length()` of the stream say which bytes to write. Without a size, the whole body is sent and `Range` is ignored. |
+| `$etag` | `?string` (default `null`, sink) | A version name for the body, or `null`. It is sent as the `ETag` header. Give a new name when the bytes change. A browser that resumes a download sends the name back, and gets the whole body if the name is old. It becomes a header, so a `tainted` value does not compile. |
 
 **Returns** `Core\Response\Stream` — A `Core\Response\Stream`. Call its `write()` method to send each part. Set the status and the headers before you call this method. Using this and `echo` in one response does not compile. A browser that reads this body with `EventSource` connects again when the body ends. For events that a page receives while it is open, use `Core\Sse::upgrade`.
 
-**Throws** `LogicError` — `$contentType` is empty, or it contains a character a header cannot contain: a control character, a line break, or a character that is not ASCII. It is also thrown when this request already started a body stream, because a response has one body.
+**Throws** `LogicError` — `$contentType` is empty, or it contains a character a header cannot contain: a control character, a line break, or a character that is not ASCII. It is also thrown when `$length` is negative, when `$etag` contains such a character or a `"`, and when this request already started a body stream, because a response has one body.
 
 <a id="core-core-response-setstatus"></a>
 #### `Core\Response::setStatus`
@@ -20183,11 +20185,13 @@ Adds one `Set-Cookie` to this response, every option it leaves out taken from `[
 <a id="core-core-response-stream"></a>
 ### `Core\Response\Stream`
 
-Keywords: write
+Keywords: write, offset, length
 
 | Member | Signature |
 |---|---|
 | [`Core\Response\Stream->write`](#core-core-response-stream-write) | `write(string\|bytes $chunk): void` |
+| [`Core\Response\Stream->offset`](#core-core-response-stream-offset) | `offset(): int` |
+| [`Core\Response\Stream->length`](#core-core-response-stream-length) | `length(): int` |
 
 <a id="core-core-response-stream-write"></a>
 #### `Core\Response\Stream->write`
@@ -20204,7 +20208,33 @@ Sends one part of the body. If the client has not finished reading the last part
 
 **Returns** `void` — Nothing. When this method returns, the part has been given to the connection. If the client has gone, this method returns at once and the part is thrown away. The client has gone when it closed the connection, or when it did not read a part before the server's send timeout. Your request still runs to its end.
 
-**Throws** `RuntimeError` — The part is larger than the server allows for one part. Nothing is sent, and you can still send smaller parts.
+**Throws** `RuntimeError` — The part is larger than the server allows for one part. Nothing is sent, and you can still send smaller parts.; `LogicError` — The stream was started with a `$length`, and this part goes past the end of `length()`. Nothing is sent.
+
+<a id="core-core-response-stream-offset"></a>
+#### `Core\Response\Stream->offset`
+
+```nvs skip
+$stream->offset(): int
+```
+
+Returns the position of the first byte your program writes, counted from the start of the whole body. It is `0` unless the browser asked for a part of the body.
+
+**Returns** `int` — An `int`. Start writing the body at this byte.
+
+**Throws** `LogicError` — The stream was started without a `$length`.
+
+<a id="core-core-response-stream-length"></a>
+#### `Core\Response\Stream->length`
+
+```nvs skip
+$stream->length(): int
+```
+
+Returns how many bytes your program writes. This is the whole body, or the part the browser asked for.
+
+**Returns** `int` — An `int`. It is `0` when nothing is sent: the browser already has this version, or it asked for a part the body does not have. Your writes must add up to exactly this number. If the program ends before that, the connection is closed, so the browser knows the body is not complete.
+
+**Throws** `LogicError` — The stream was started without a `$length`.
 
 <a id="core-core-session"></a>
 ### `Core\Session`
@@ -35307,6 +35337,7 @@ and no heading has that name. It searches for the operation instead of the spell
 $ nvs agent find length
 Core\Str::length(string $s): uint
 Core\Bytes::length(bytes $b): uint
+Core\Response\Stream::length(): int
 Novis\Intl\DateFormat::Length  enum
 ```
 

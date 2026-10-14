@@ -187,6 +187,7 @@ impl Ctx {
             inline_debug: Vec::new(),
             file_body: None,
             body_stream: None,
+            stream_window: None,
             event_stream: None,
             status: None,
             headers: DeclaredHeaders::default(),

@@ -213,6 +213,7 @@ pub mod capability;
 mod child_start;
 pub mod child_watch;
 pub mod commands;
+pub mod conditional;
 #[cfg(test)]
 pub(crate) mod counting_alloc;
 pub mod csrf;

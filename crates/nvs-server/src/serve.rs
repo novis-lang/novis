@@ -163,6 +163,11 @@ pub enum Answer {
         /// The drain period a request-scoped stream ends at, and `None` for an
         /// event stream, whose `alive` ends it under a drain instead.
         cut: Option<DrainCut>,
+        /// How many bytes are still to be sent, where the program stated the
+        /// body's length and `Content-Length` says so, and `None` for a
+        /// chunked body. A writer that ends before this is zero ends the body
+        /// in [`BodyCut::StreamEndedEarly`].
+        left: Option<u64>,
     },
 }
 
@@ -221,6 +226,9 @@ pub enum BodyCut {
     /// A file had fewer bytes than its `Content-Length` stated, because it
     /// shrank while it was sent or a read failed.
     FileEndedEarly,
+    /// A stream whose length was stated ended before it had written that many
+    /// bytes, because the program ended or threw.
+    StreamEndedEarly,
 }
 
 impl std::fmt::Display for BodyCut {
@@ -228,6 +236,7 @@ impl std::fmt::Display for BodyCut {
         f.write_str(match self {
             Self::DrainPeriodEnded => "the drain period ended while the response was being written",
             Self::FileEndedEarly => "the file ended before the length the response stated",
+            Self::StreamEndedEarly => "the stream ended before the length the response stated",
         })
     }
 }
@@ -277,6 +286,7 @@ impl Answer {
                 drain,
                 alive: None,
                 cut: None,
+                left: None,
             },
         )
     }
@@ -314,6 +324,7 @@ impl Answer {
                     bounds, draining, write_idle, due_at,
                 )),
                 cut: None,
+                left: None,
             },
             whole => whole,
         }
@@ -398,7 +409,12 @@ impl Body for Answer {
                 *left -= u64::try_from(take).unwrap_or(*left);
                 Poll::Ready(Some(Ok(Frame::data(Bytes::from(chunk)))))
             }
-            Self::Streaming { drain, alive, cut } => {
+            Self::Streaming {
+                drain,
+                alive,
+                cut,
+                left,
+            } => {
                 if cut.as_ref().is_some_and(DrainCut::reached) {
                     return Poll::Ready(Some(Err(BodyCut::DrainPeriodEnded)));
                 }
@@ -415,6 +431,20 @@ impl Body for Answer {
                     stream::Drained::Chunk(chunk) => {
                         if let Some(alive) = alive {
                             alive.moved();
+                        }
+                        // The writing member refuses a chunk past the window,
+                        // so this only meets a writer that does not count. Its
+                        // bytes would run past `Content-Length`, which is a cut
+                        // rather than a longer body.
+                        if let Some(left) = left {
+                            let Some(rest) = u64::try_from(chunk.len())
+                                .ok()
+                                .and_then(|len| left.checked_sub(len))
+                            else {
+                                *left = 0;
+                                return Poll::Ready(Some(Err(BodyCut::StreamEndedEarly)));
+                            };
+                            *left = rest;
                         }
                         Poll::Ready(Some(Ok(Frame::data(Bytes::from(chunk)))))
                     }
@@ -437,6 +467,10 @@ impl Body for Answer {
                         if let Some(alive) = alive {
                             alive.ended();
                         }
+                        if left.is_some_and(|left| left > 0) {
+                            *left = Some(0);
+                            return Poll::Ready(Some(Err(BodyCut::StreamEndedEarly)));
+                        }
                         Poll::Ready(None)
                     }
                 }
@@ -448,9 +482,10 @@ impl Body for Answer {
         match self {
             Self::Whole(bytes) => bytes.is_none(),
             Self::File { left, .. } => *left == 0,
-            // Whether a stream is over is the cell's answer and it is given by
-            // taking from it, so the honest answer before a poll is "no".
-            Self::Streaming { .. } => false,
+            // A stated length that is all sent is over. Otherwise whether a
+            // stream is over is the cell's answer and it is given by taking
+            // from it, so the honest answer before a poll is "no".
+            Self::Streaming { left, .. } => *left == Some(0),
         }
     }
 
@@ -464,8 +499,12 @@ impl Body for Answer {
                 SizeHint::with_exact(u64::try_from(len).unwrap_or(u64::MAX))
             }
             Self::File { left, .. } => SizeHint::with_exact(*left),
-            // No exact size, which is what leaves `hyper` chunking it.
-            Self::Streaming { .. } => SizeHint::default(),
+            // A stated length is exact, so `hyper` states `Content-Length`.
+            // Without one there is no exact size, which leaves `hyper`
+            // chunking it.
+            Self::Streaming { left, .. } => {
+                left.map_or_else(SizeHint::default, SizeHint::with_exact)
+            }
         }
     }
 }
@@ -2454,6 +2493,7 @@ fn streamed(head: stream::Opened, cut: DrainCut) -> Response<Answer> {
         drain: head.drain,
         alive: None,
         cut: Some(cut),
+        left: head.length,
     });
     if let Some(code) = head.status {
         *response.status_mut() = StatusCode::from_u16(code).unwrap_or(StatusCode::OK);
@@ -11620,6 +11660,310 @@ pub(crate) mod tests {
         assert!(
             answer.ends_with("twelve bytes"),
             "the response did not carry the body: {answer}"
+        );
+    }
+
+    /// The bytes [`served_ranged`]'s program streams from, ten of them so a
+    /// window is easy to read off the wire.
+    const RANGED_BODY: &[u8] = b"0123456789";
+
+    /// What [`served_ranged`]'s program does once its stream is open.
+    #[derive(Clone, Copy)]
+    enum Writes {
+        /// The whole window, as `Core\Response\Stream::write` would send it.
+        Window,
+        /// The whole window and then one byte more.
+        PastTheWindow,
+        /// Half of the window, and then the program ends.
+        HalfTheWindow,
+    }
+
+    /// Serves one request, written as `asked` with its blank line, to a
+    /// program that opens a stream over [`RANGED_BODY`] the way
+    /// `Core\Response::stream` does: with `length` and `etag` the decision
+    /// runs over the request's headers, and without a length the stream is
+    /// chunked. Gives back what the client read before the connection closed,
+    /// and the refusal a write past the window met, where the program made one.
+    ///
+    /// It counts each write with `Ctx::claim_stream_bytes` before sending it,
+    /// which is what the member does, because this crate compiles nothing.
+    fn served_ranged(
+        asked: &'static str,
+        length: Option<u64>,
+        etag: Option<&'static str>,
+        writes: Writes,
+    ) -> (String, Option<Box<str>>) {
+        let mut listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+            .expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+        let client = std::thread::spawn(move || {
+            let mut socket = TcpStream::connect(addr).expect("the loopback refused a connection");
+            socket
+                .set_read_timeout(Some(CLIENT_PATIENCE))
+                .expect("the socket refused a read timeout");
+            socket
+                .write_all(asked.as_bytes())
+                .expect("the write failed");
+            let mut seen = Vec::new();
+            let mut buffer = [0_u8; 512];
+            // An aborted connection may arrive as a reset rather than an end,
+            // and both are a close.
+            loop {
+                match socket.read(&mut buffer) {
+                    Ok(0) | Err(_) => break,
+                    Ok(read) => seen.extend_from_slice(&buffer[..read]),
+                }
+            }
+            String::from_utf8_lossy(&seen).into_owned()
+        });
+
+        let refused: Rc<RefCell<Option<Box<str>>>> = Rc::new(RefCell::new(None));
+        let noted = Rc::clone(&refused);
+        let handler = Rc::new(move |request: Request<Incoming>, _origin: Origin| {
+            let mut inbound =
+                nvs_runtime::Inbound::new(request.method().as_str(), request.uri().path(), "");
+            for (name, value) in request.headers() {
+                inbound.push_header(name.as_str(), value.as_bytes());
+            }
+            let noted = Rc::clone(&noted);
+            let program: Program = Box::new(move |child: &mut Ctx, _args| {
+                let cell = child
+                    .inbound()
+                    .and_then(nvs_runtime::Inbound::response_stream_slot)
+                    .cloned()
+                    .expect("a served request was offered no response-stream cell");
+                let (emit, window) = match length {
+                    Some(total) => {
+                        let asked = child
+                            .inbound()
+                            .map(|inbound| {
+                                nvs_runtime::conditional::Asked::from_fields(inbound.headers())
+                            })
+                            .unwrap_or_default();
+                        let ranged = nvs_runtime::conditional::ranged(asked, etag, total);
+                        let (emit, window) = cell
+                            .open_ranged("video/mp4", None, Vec::new(), ranged)
+                            .expect("the first stream on a request opens");
+                        child.set_stream_window(Some(window));
+                        (emit, Some(window))
+                    }
+                    None => (
+                        cell.open("video/mp4", None, Vec::new())
+                            .expect("the first stream on a request opens"),
+                        None,
+                    ),
+                };
+                child.set_body_stream(emit);
+                let (at, len) = window.map_or((0, RANGED_BODY.len()), |window| {
+                    (
+                        usize::try_from(window.offset()).expect("a small offset"),
+                        usize::try_from(window.length()).expect("a small length"),
+                    )
+                });
+                let mut parts = vec![&RANGED_BODY[at..at + len]];
+                match writes {
+                    Writes::Window => {}
+                    Writes::PastTheWindow => parts.push(b"!"),
+                    Writes::HalfTheWindow => parts = vec![&RANGED_BODY[at..at + len / 2]],
+                }
+                for part in parts {
+                    if let Err(past) = child.claim_stream_bytes(part.len()) {
+                        *noted.borrow_mut() = Some(past);
+                        continue;
+                    }
+                    child
+                        .body_stream()
+                        .expect("the writing half was just set")
+                        .send(part.to_vec())
+                        .expect("the connection takes each part");
+                }
+                Value::null()
+            });
+            Reply::Run(
+                Isolate::new(program, Value::null(), Output::Capture).answering(inbound),
+                None,
+                None,
+            )
+        });
+        let mut sched = nvs_host::Scheduler::new();
+        let _installed =
+            nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
+        sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
+            serve_on_this_core(
+                &mut listener,
+                &handler,
+                Waits::default(),
+                &wide_open(),
+                &Draining::detached(),
+                |_note| {},
+                || ControlFlow::Break(()),
+            )
+            .expect("the accept loop failed");
+        });
+        nvs_host::run_until_idle(&mut sched).expect("the loop failed");
+        let seen = client.join().expect("the client thread panicked");
+        let refused = refused.borrow_mut().take();
+        (seen, refused)
+    }
+
+    /// `rule:http-server/static-serving-is-one-policy` for a stream that states
+    /// its length: the decision a file gets, and the program writes the
+    /// window it gives.
+    ///
+    /// One range under the current tag is a `206` carrying those bytes alone.
+    /// An `If-Range` naming an old tag is the whole body, so a resumed
+    /// download is never spliced. The current tag in `If-None-Match` is a
+    /// `304`.
+    #[test]
+    fn a_stream_with_a_length_answers_a_range_with_its_window() {
+        let (seen, refused) = served_ranged(
+            "GET /video HTTP/1.1\r\nHost: localhost\r\nRange: bytes=4-7\r\n\
+             If-Range: \"v1\"\r\nConnection: close\r\n\r\n",
+            Some(10),
+            Some("\"v1\""),
+            Writes::Window,
+        );
+        let lower = seen.to_ascii_lowercase();
+        assert!(
+            seen.starts_with("HTTP/1.1 206"),
+            "a range was not a 206: {seen}"
+        );
+        for header in [
+            "content-range: bytes 4-7/10",
+            "content-length: 4",
+            "accept-ranges: bytes",
+            "etag: \"v1\"",
+        ] {
+            assert!(
+                lower.contains(header),
+                "the 206 did not state `{header}`: {seen}"
+            );
+        }
+        assert!(
+            seen.ends_with("\r\n\r\n4567"),
+            "the 206 did not carry the window: {seen}"
+        );
+        assert_eq!(refused, None, "a write inside the window was refused");
+
+        let (seen, _) = served_ranged(
+            "GET /video HTTP/1.1\r\nHost: localhost\r\nRange: bytes=4-7\r\n\
+             If-Range: \"v0\"\r\nConnection: close\r\n\r\n",
+            Some(10),
+            Some("\"v1\""),
+            Writes::Window,
+        );
+        assert!(
+            seen.starts_with("HTTP/1.1 200"),
+            "an old If-Range was not a 200: {seen}"
+        );
+        assert!(
+            seen.to_ascii_lowercase().contains("content-length: 10")
+                && seen.ends_with("\r\n\r\n0123456789"),
+            "an old If-Range did not get the whole body: {seen}"
+        );
+
+        let (seen, _) = served_ranged(
+            "GET /video HTTP/1.1\r\nHost: localhost\r\nIf-None-Match: \"v1\"\r\n\
+             Connection: close\r\n\r\n",
+            Some(10),
+            Some("\"v1\""),
+            Writes::Window,
+        );
+        assert!(
+            seen.starts_with("HTTP/1.1 304"),
+            "the current tag was not a 304: {seen}"
+        );
+    }
+
+    /// The count is exact: a write that would pass the window's end is refused
+    /// and sends nothing, and the body is still the window, whole.
+    #[test]
+    fn a_stream_that_writes_past_its_window_throws() {
+        let (seen, refused) = served_ranged(
+            "GET /video HTTP/1.1\r\nHost: localhost\r\nRange: bytes=0-3\r\n\
+             Connection: close\r\n\r\n",
+            Some(10),
+            None,
+            Writes::PastTheWindow,
+        );
+        assert!(
+            refused.is_some_and(|past| past.contains("Nothing was sent")),
+            "a write past the window was not refused"
+        );
+        assert!(
+            seen.starts_with("HTTP/1.1 206") && seen.ends_with("\r\n\r\n0123"),
+            "the window was not sent whole, or the refused byte was: {seen}"
+        );
+    }
+
+    /// A program that ends before its window is full ends the body in
+    /// [`BodyCut::StreamEndedEarly`], so the connection is cut and the client
+    /// never reads a short body as a whole one.
+    #[test]
+    fn a_stream_that_ends_before_its_window_is_full_cuts_the_connection() {
+        let (mut emit, drain) = stream::open(Duration::from_secs(1), 64);
+        let mut short = Answer::Streaming {
+            drain,
+            alive: None,
+            cut: None,
+            left: Some(10),
+        };
+        assert_eq!(
+            short.size_hint().exact(),
+            Some(10),
+            "a stream with a length did not report it exactly"
+        );
+        emit.send(b"01234".to_vec()).expect("the cell is empty");
+        drop(emit);
+        let mut cx = std::task::Context::from_waker(std::task::Waker::noop());
+        let mut next = || match Pin::new(&mut short).poll_frame(&mut cx) {
+            Poll::Ready(frame) => frame
+                .map(|frame| frame.map(|frame| frame.into_data().expect("a data frame").to_vec())),
+            Poll::Pending => panic!("a stream whose writer ended waited"),
+        };
+        assert_eq!(next(), Some(Ok(b"01234".to_vec())));
+        assert_eq!(next(), Some(Err(BodyCut::StreamEndedEarly)));
+
+        // On the wire the cut is an aborted connection, which may discard what
+        // `hyper` still held, so all a client can be sure of is that it never
+        // reads the whole body.
+        let (seen, _) = served_ranged(
+            "GET /video HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n",
+            Some(10),
+            None,
+            Writes::HalfTheWindow,
+        );
+        assert!(
+            !seen.contains("0123456789") && !seen.ends_with("0\r\n\r\n"),
+            "a stream that ended short was read as a whole body: {seen}"
+        );
+    }
+
+    /// Without a length nothing changes: `Range` is ignored, the whole body is
+    /// chunked, and the response does not say ranges are accepted.
+    #[test]
+    fn a_stream_without_a_length_ignores_range() {
+        let (seen, _) = served_ranged(
+            "GET /video HTTP/1.1\r\nHost: localhost\r\nRange: bytes=0-3\r\n\
+             Connection: close\r\n\r\n",
+            None,
+            None,
+            Writes::Window,
+        );
+        let lower = seen.to_ascii_lowercase();
+        assert!(
+            seen.starts_with("HTTP/1.1 200"),
+            "a stream without a length was not a 200: {seen}"
+        );
+        assert!(
+            lower.contains("transfer-encoding: chunked") && !lower.contains("accept-ranges"),
+            "a stream without a length was framed as one with a length: {seen}"
+        );
+        assert!(
+            seen.contains("0123456789"),
+            "a stream without a length did not send the whole body: {seen}"
         );
     }
 

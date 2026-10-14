@@ -23,17 +23,12 @@
 //!   specifically not `Last-Modified`: a one-second granularity serves stale
 //!   bytes for two edits inside the same second, which is the failure a
 //!   development server hits most.
-//! - **One `Range`, and a multi-range refused.** § 4 honours a single range;
-//!   anything else — two ranges, a unit that is not `bytes`, a spec that does
-//!   not parse, a range the file cannot satisfy — is a `416` carrying
-//!   `Content-Range: bytes */len`, never a silent `200` with the whole body.
-//!   That is `rule:errors/ambiguous-input-refused`'s direction: serving something other than what was asked
-//!   for is repairing the request, and a client that meant to resume would write
-//!   the wrong bytes to disk on the strength of it.
-//! - **`If-Range` against the same tag, compared strongly.** A range whose
-//!   `If-Range` names anything but the current tag is ignored and the whole
-//!   file is a `200`, so a resumed download of a changed file is never two
-//!   files spliced together ([`still_the_same`]).
+//! - **One `Range`, honoured only under an `If-Range` naming the same tag.**
+//!   Anything else is a `416` carrying `Content-Range: bytes */len`, or the
+//!   whole file where `If-Range` missed. That decision is not this module's:
+//!   it is [`nvs_runtime::conditional::decide`], which `Core\Response::stream`
+//!   calls too, because a second copy of it would be a second policy. Its
+//!   module doc states each answer.
 //! - **A fixed extension table**, with `application/octet-stream` for an unknown
 //!   one — which `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`'s
 //!   `nosniff` renders inert rather than leaving to a browser to guess.
@@ -74,6 +69,8 @@ use hyper::header::{
     IF_NONE_MATCH, IF_RANGE, RANGE,
 };
 use hyper::{Response, StatusCode};
+
+use nvs_runtime::conditional::{Asked, Decision, Window, decide, unsatisfied_range};
 
 use crate::mount::OnDisk;
 use crate::serve::{Answer, Reply};
@@ -234,17 +231,24 @@ pub fn send(file: &Path, headers: &HeaderMap, source: &dyn Source) -> Reply {
         .insert(ACCEPT_RANGES, HeaderValue::from_static("bytes"));
     response.headers_mut().insert(ETAG, ascii(&tag));
 
-    if unchanged(headers, &tag) {
-        *response.status_mut() = StatusCode::NOT_MODIFIED;
-        return Reply::Done(response);
-    }
-    let range = headers.get(RANGE).filter(|_| still_the_same(headers, &tag));
-    let Some(wanted) = asked_for(range, stat.len) else {
-        *response.status_mut() = StatusCode::RANGE_NOT_SATISFIABLE;
-        response
-            .headers_mut()
-            .insert(CONTENT_RANGE, ascii(&format!("bytes */{}", stat.len)));
-        return Reply::Done(response);
+    let asked = Asked {
+        if_none_match: headers.get(IF_NONE_MATCH).map(HeaderValue::as_bytes),
+        if_range: headers.get(IF_RANGE).map(HeaderValue::as_bytes),
+        range: headers.get(RANGE).map(HeaderValue::as_bytes),
+    };
+    let wanted = match decide(asked, Some(&tag), stat.len) {
+        Decision::NotModified => {
+            *response.status_mut() = StatusCode::NOT_MODIFIED;
+            return Reply::Done(response);
+        }
+        Decision::Unsatisfiable => {
+            *response.status_mut() = StatusCode::RANGE_NOT_SATISFIABLE;
+            response
+                .headers_mut()
+                .insert(CONTENT_RANGE, ascii(&unsatisfied_range(stat.len)));
+            return Reply::Done(response);
+        }
+        Decision::Send(wanted) => wanted,
     };
     response
         .headers_mut()
@@ -254,11 +258,9 @@ pub fn send(file: &Path, headers: &HeaderMap, source: &dyn Source) -> Reply {
     };
     if wanted.partial {
         *response.status_mut() = StatusCode::PARTIAL_CONTENT;
-        let last = wanted.at + wanted.len - 1;
-        response.headers_mut().insert(
-            CONTENT_RANGE,
-            ascii(&format!("bytes {}-{last}/{}", wanted.at, stat.len)),
-        );
+        response
+            .headers_mut()
+            .insert(CONTENT_RANGE, ascii(&wanted.content_range(stat.len)));
     }
     *response.body_mut() = body;
     Reply::Done(response)
@@ -267,7 +269,7 @@ pub fn send(file: &Path, headers: &HeaderMap, source: &dyn Source) -> Reply {
 /// The body that carries the `wanted` bytes of `contents`, or `None` where they
 /// cannot be reached: a file that cannot seek to their start, or bytes in
 /// memory that are fewer than the stat said.
-fn body(contents: Contents, wanted: Wanted) -> Option<Answer> {
+fn body(contents: Contents, wanted: Window) -> Option<Answer> {
     match contents {
         Contents::File(file) => Answer::file(file, wanted.at, wanted.len).ok(),
         Contents::Bytes(bytes) => {
@@ -282,103 +284,6 @@ fn body(contents: Contents, wanted: Wanted) -> Option<Answer> {
 /// writes of the same length inside the same second are two different tags.
 fn etag(stat: Stat) -> String {
     format!("\"{:x}-{:x}\"", stat.len, stat.mtime_nanos)
-}
-
-/// Whether `If-None-Match` names the tag this file has now.
-///
-/// A list is honoured because a client is entitled to send one, `*` matches any
-/// representation that exists, and a `W/` prefix is stripped before the
-/// comparison — RFC 7232 § 3.2 says `If-None-Match` compares weakly, and our own
-/// tag is strong, so the weak spelling of it is the same representation.
-fn unchanged(headers: &HeaderMap, tag: &str) -> bool {
-    let Some(asked) = headers
-        .get(IF_NONE_MATCH)
-        .and_then(|value| value.to_str().ok())
-    else {
-        return false;
-    };
-    asked.split(',').map(str::trim).any(|candidate| {
-        candidate == "*" || candidate.strip_prefix("W/").unwrap_or(candidate) == tag
-    })
-}
-
-/// Whether a `Range` may be honoured: there is no `If-Range`, or it names the
-/// tag this file has now.
-///
-/// The comparison is strong (RFC 9110 § 13.1.5), so a `W/` tag never matches.
-/// Nor does a date, because this server sends no `Last-Modified` and so no
-/// date can name this file. Anything that does not match makes the caller
-/// ignore the range and send the whole file with a `200`. A client resuming a
-/// download of a file that changed then gets the new file whole, and never
-/// the new file's bytes spliced onto the old file's.
-fn still_the_same(headers: &HeaderMap, tag: &str) -> bool {
-    headers
-        .get(IF_RANGE)
-        .is_none_or(|asked| asked.to_str().is_ok_and(|asked| asked.trim() == tag))
-}
-
-/// Which bytes of a file of `len` the request asked for, or `None` for a
-/// `Range` this server refuses — which is every one it cannot honour exactly.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct Wanted {
-    at: u64,
-    len: u64,
-    /// Whether the answer is a `206` over a `Range` rather than the whole file.
-    partial: bool,
-}
-
-/// § 4's range policy: no header is the whole file, one `bytes=` spec is that
-/// spec, and anything else is refused.
-///
-/// The refusals are one arm each on purpose — a comma, a unit that is not
-/// `bytes`, a bound that does not parse, an inverted pair, a suffix of zero and
-/// a start past the end all answer `None`, and the caller turns that into the
-/// single `416` § 4 states. An `end` past the last byte is the one repair the
-/// RFC requires rather than forbids, and it is a clamp of a range that was
-/// satisfiable, not a substitution of a different answer.
-fn asked_for(header: Option<&HeaderValue>, len: u64) -> Option<Wanted> {
-    let Some(header) = header else {
-        return Some(Wanted {
-            at: 0,
-            len,
-            partial: false,
-        });
-    };
-    let spec = header.to_str().ok()?.trim().strip_prefix("bytes=")?;
-    if spec.contains(',') {
-        return None;
-    }
-    let (first, last) = spec.split_once('-')?;
-    let (first, last) = (first.trim(), last.trim());
-    let (at, end) = match (first.is_empty(), last.is_empty()) {
-        (true, true) => return None,
-        // `bytes=-N`: the last N bytes, and never more than the file holds.
-        (true, false) => {
-            let suffix: u64 = last.parse().ok()?;
-            if suffix == 0 {
-                return None;
-            }
-            (len.saturating_sub(suffix), len.checked_sub(1)?)
-        }
-        // `bytes=N-`: from N to the end.
-        (false, true) => (first.parse().ok()?, len.checked_sub(1)?),
-        (false, false) => {
-            let at: u64 = first.parse().ok()?;
-            let end: u64 = last.parse().ok()?;
-            if end < at {
-                return None;
-            }
-            (at, end.min(len.checked_sub(1)?))
-        }
-    };
-    if at > end {
-        return None;
-    }
-    Some(Wanted {
-        at,
-        len: end - at + 1,
-        partial: true,
-    })
 }
 
 /// § 4's fixed extension table, matched case-insensitively, with
