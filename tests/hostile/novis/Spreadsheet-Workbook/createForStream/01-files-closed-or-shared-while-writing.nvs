@@ -1,0 +1,75 @@
+<?nvs
+// Attack: a program gives a workbook a file it cannot write, closes the file while the workbook writes,
+// and shares one file between two workbooks. Each step should finish or throw an error. The server keeps running.
+use Novis\Spreadsheet\Workbook;
+
+class Attack
+{
+    // This method runs one step and prints whether it ran or threw. Each error is caught, so the next step still runs.
+    public static function attempt(int $step, callable(): void $write): void
+    {
+        try {
+            $write();
+            echo "step ", $step, " ran\n";
+        } catch (Throwable $e) {
+            echo "step ", $step, " stopped ", $e::class, "\n";
+        }
+    }
+
+    // This function returns 3,000 rows, more than one part of the file.
+    public static function rows(): Iterator<array<mixed>> {
+        int $at = 0;
+        while ($at < 3000) {
+            yield ["order" => $at, "total" => $at * 1.5];
+            $at = $at + 1;
+        }
+    }
+}
+
+string $path = Core\Path::join(Core\IO::temporaryDir(), "shop.xlsx");
+Core\IO\File $start = Core\IO::open($path, Core\IO::FileMode::Write);
+$start->write("Shop");
+$start->close();
+
+// 1. A file that is open for reading only.
+Attack::attempt(1, fn (): void => {
+    var $book = Workbook::createForStream(Core\IO::open($path, Core\IO::FileMode::Read));
+    $book->sheet("Shop")->addAll(Attack::rows());
+    $book->finish();
+});
+
+// 2. The file is closed after the first rows, and the workbook keeps writing.
+Attack::attempt(2, fn (): void => {
+    Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Write);
+    var $book = Workbook::createForStream($file);
+    var $sheet = $book->sheet("Shop");
+    $sheet->add(["order" => 1]);
+    $file->close();
+    $sheet->addAll(Attack::rows());
+    $book->finish();
+});
+
+// 3. Two workbooks write to one file at the same time, one row each in turn.
+Attack::attempt(3, fn (): void => {
+    Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Write);
+    var $first = Workbook::createForStream($file);
+    var $second = Workbook::createForStream($file, {format: "csv"});
+    var $a = $first->sheet("Shop");
+    var $b = $second->sheet("Blog");
+    foreach (Attack::rows() as var $row) {
+        $a->add($row);
+        $b->add($row);
+    }
+    $first->finish();
+    $second->finish();
+    $file->close();
+});
+
+// 4. A file that was closed before the workbook started.
+Attack::attempt(4, fn (): void => {
+    Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Write);
+    $file->close();
+    var $book = Workbook::createForStream($file);
+    $book->sheet("Shop")->add(["order" => 1]);
+    $book->finish();
+});

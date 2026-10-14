@@ -1,0 +1,52 @@
+<?nvs
+// Attack: a request names sheets with text Excel cannot open, uses positions past the last sheet, and adds 500 sheets.
+// Each sheet should be added or throw an error, and each finished file should open again.
+use Novis\Spreadsheet\Workbook;
+use Novis\Spreadsheet\Reader;
+
+class Attack
+{
+    // This method adds one sheet named `$name`, and prints the sheets the file has, or the error.
+    public static function attempt(int $step, string $name, Workbook::SheetOptions $options = null): void
+    {
+        try {
+            var $book = Workbook::createInMemory();
+            $book->sheet("Shop")->add(["order" => 1]);
+            $book->sheet($name, $options)->add(["order" => 2]);
+            bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+            echo "step ", $step, " ran ", Core\Arr::count(Reader::open($file)->sheets()), " sheets\n";
+        } catch (Throwable $e) {
+            echo "step ", $step, " stopped ", $e::class, "\n";
+        }
+    }
+}
+
+// 1. An empty name, a name of 31 characters, and one of 32.
+Attack::attempt(1, "");
+Attack::attempt(1, Core\Str::repeat("x", 31));
+Attack::attempt(1, Core\Str::repeat("x", 32));
+
+// 2. Characters Excel does not allow, a NUL byte, a quote at the start, and XML.
+Attack::attempt(2, "Shop/2024");
+Attack::attempt(2, "Shop\u{0}");
+Attack::attempt(2, "'Shop");
+Attack::attempt(2, "</sheet><sheet name=\"x\"");
+
+// 3. The same name in capital letters, with accents and in another script.
+Attack::attempt(3, "SHOP");
+Attack::attempt(3, "Ş\u{0307}HOP");
+Attack::attempt(3, "Ｓｈｏｐ");
+
+// 4. Positions past the last sheet.
+Attack::attempt(4, "Blog", {position: 2});
+Attack::attempt(4, "Blog", {position: 4294967295});
+
+// 5. 500 sheets in one workbook, each with one row.
+var $book = Workbook::createInMemory();
+int $count = 0;
+while ($count < 500) {
+    $book->sheet("Sheet " . ($count as string), {position: 0})->add(["order" => $count]);
+    $count = $count + 1;
+}
+bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+echo "step 5 ran ", Core\Arr::count(Reader::open($file)->sheets()), " sheets\n";

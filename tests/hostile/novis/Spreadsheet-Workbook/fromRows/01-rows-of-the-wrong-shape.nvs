@@ -1,0 +1,52 @@
+<?nvs
+// Attack: a request exports rows that are too wide, rows with values a cell cannot have,
+// and a generator that throws halfway. Each export should give a file or throw an error. The server keeps running.
+use Novis\Spreadsheet\Workbook;
+
+class Attack
+{
+    // This method exports `$rows` in memory, and prints the size of the file or the error.
+    public static function attempt(int $step, array<array<mixed>>|Iterator<array<mixed>> $rows): void
+    {
+        try {
+            bytes $file = Workbook::fromRows($rows)->bytes();
+            echo "step ", $step, " ran ", Core\Bytes::length($file) > 0 ? "file" : "empty", "\n";
+        } catch (Throwable $e) {
+            echo "step ", $step, " stopped ", $e::class, "\n";
+        }
+    }
+
+    // This generator gives 1,500 rows and then throws.
+    public static function broken(): Iterator<array<mixed>> {
+        int $at = 0;
+        while ($at < 1500) {
+            yield ["order" => $at];
+            $at = $at + 1;
+        }
+        throw new RuntimeError("the database went away");
+    }
+}
+
+// 1. A row of 20,000 cells. Excel has 16,384 columns.
+array<mixed> $wide = [];
+for (int $column = 0; $column < 20000; $column++) {
+    $wide[] = $column;
+}
+Attack::attempt(1, [$wide]);
+
+// 2. Cells that contain an array, an object and a function.
+Attack::attempt(2, [["order" => [1, [2, [3]]]]]);
+Attack::attempt(2, [["order" => new Attack()]]);
+Attack::attempt(2, [["order" => fn (): int => 1]]);
+
+// 3. Keys that look like XML or formulas, and keys that change from row to row.
+Attack::attempt(3, [["</c><c>" => 1, "=cmd|' /C calc'!A0" => 2]]);
+Attack::attempt(3, [["order" => 1], ["other" => 3], [4, 5, 6]]);
+
+// 4. Numbers at the ends of what a cell can show, and numbers that are not numbers.
+Attack::attempt(4, [[9223372036854775807, -9223372036854775807 - 1, 1.0e308, -1.0e-308]]);
+Attack::attempt(4, [[Core\Math::NAN]]);
+Attack::attempt(4, [[Core\Math::INFINITY]]);
+
+// 5. A generator that throws after more than one part of the file is written.
+Attack::attempt(5, Attack::broken());

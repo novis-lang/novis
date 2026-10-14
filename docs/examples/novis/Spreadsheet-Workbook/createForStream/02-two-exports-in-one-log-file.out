@@ -1,0 +1,6 @@
+# orders
+order,total
+1042,19.9
+# returns
+order,reason
+1040,damaged
