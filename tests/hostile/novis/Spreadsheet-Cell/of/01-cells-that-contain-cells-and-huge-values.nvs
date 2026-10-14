@@ -1,0 +1,46 @@
+<?nvs
+// Attack: a request writes cells whose value is another cell, an array, an object or a huge string.
+// Each export should give a file or throw an error. The server keeps running.
+use Novis\Spreadsheet\Cell;
+use Novis\Spreadsheet\Formula;
+use Novis\Spreadsheet\Style;
+use Novis\Spreadsheet\Workbook;
+
+class Attack
+{
+    // This method writes one row as an Excel file and as a CSV file, and prints what happened.
+    public static function attempt(int $step, array<mixed> $row): void
+    {
+        array<string> $formats = ['xlsx', 'csv'];
+        foreach ($formats as string $format) {
+            try {
+                bytes $file = Workbook::fromRows([$row], { format: $format })->bytes();
+                echo 'step ', $step, ' ', $format, ' ran ', Core\Bytes::length($file) > 0 ? 'file' : 'empty', "\n";
+            } catch (Throwable $e) {
+                echo 'step ', $step, ' ', $format, ' stopped ', $e::class, "\n";
+            }
+        }
+    }
+}
+
+var $red = Style::of({ color: '#FF0000' });
+
+// 1. A cell inside a cell, ten cells deep.
+mixed $nested = 'deep';
+for (int $at = 0; $at < 10; $at++) {
+    $nested = Cell::of($nested, $red);
+}
+Attack::attempt(1, ['note' => $nested]);
+
+// 2. Cells whose value is an array, an object or a function.
+Attack::attempt(2, ['note' => Cell::of([1, [2]], $red)]);
+Attack::attempt(2, ['note' => Cell::of(new Attack(), $red)]);
+Attack::attempt(2, ['note' => Cell::of(fn (): int => 1, $red)]);
+
+// 3. A cell of 5,000,000 characters, and one with XML and a formula as text.
+Attack::attempt(3, ['note' => Cell::of(Core\Str::repeat('x', 5000000), $red)]);
+Attack::attempt(3, ['note' => Cell::of("</t></is></c><c><f>cmd|' /C calc'!A0</f>", $red)]);
+
+// 4. A styled formula, and a styled value that is not a number.
+Attack::attempt(4, ['total' => Cell::of(Formula::of('SUM(A1:A9)', { cached: 1 }), $red)]);
+Attack::attempt(4, ['total' => Cell::of(Core\Math::NAN, $red)]);

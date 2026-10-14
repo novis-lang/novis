@@ -1,0 +1,23 @@
+<?nvs
+// Gives a value its own style, as a report does for each total it highlights.
+// bench: iterations 2048
+// bench: complexity constant
+use Novis\Spreadsheet\Cell;
+use Novis\Spreadsheet\Style;
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        var $red = Style::of({color: "#FF0000"});
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            var $cell = Cell::of($total, $red);
+            uint $step = $cell->value == $total ? 1 : 3;
+            $total = $total + $step;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(2048), "\n";

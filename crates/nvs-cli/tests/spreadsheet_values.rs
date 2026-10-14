@@ -196,3 +196,30 @@ echo $kept->key, " ", $kept->fields->bold == true ? "bold" : "plain", " ", $kept
         "has <b/>\nhas <left style=\"thin\">\nhas <fgColor rgb=\"FFFFFF00\"/>\nhas numFmtId=\"4\"\nhas <alignment horizontal=\"right\"/>\nhas <cellXfs count=\"2\">\nequal keys\nother keys\nLogicError\ntotal bold no italic\n"
     );
 }
+
+/// A cell's own style wins field by field over its row's, the cell is written as its value, CSV
+/// leaves the style out, and `new Cell` keeps the values it is made from.
+// covers: Novis\Spreadsheet\Cell::of, Novis\Spreadsheet\Cell::constructor
+#[test]
+fn a_cell_style_wins_over_its_row_field_by_field() {
+    let out = run(
+        "cell",
+        r#"
+var $book = Workbook::createInMemory();
+$book->sheet("Sales", {header: false})->add(["Pens", 1249.5, Cell::of(0.25, Style::of({format: "percent"}))], {style: Style::of({format: "money", bold: true})});
+bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+foreach (Reader::open($file)->rows("Sales", {text: true}) as var $row) {
+    echo Core\Json::encode($row->values), "\n";
+}
+var $styles = Core\Zip::read($file, "xl/styles.xml") as string;
+echo Core\Str::contains($styles, "<xf numFmtId=\"9\" fontId=\"1\"") ? "percent and bold" : "another style", "\n";
+echo Workbook::fromRows([["item" => Cell::of("Pen", Style::of({bold: true})), "price" => 1.5]], {format: "csv"})->bytes() as string;
+var $cell = new Cell(1042, Style::of({italic: true}));
+echo $cell->value, " ", $cell->style->fields->italic == true ? "italic" : "plain", "\n";
+"#,
+    );
+    assert_eq!(
+        out,
+        "{\"A\":\"Pens\",\"B\":\"1,249.50\",\"C\":\"25%\"}\npercent and bold\nitem,price\nPen,1.5\n1042 italic\n"
+    );
+}
