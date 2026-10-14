@@ -26,6 +26,7 @@
 //! assert!(text.contains("aborting due to 1 error"));
 //! ```
 
+pub mod argv;
 mod diagnostic;
 pub mod embedded;
 mod render;

@@ -28,6 +28,13 @@ doc = false
 bench = false
 
 [[bin]]
+name = "image_path"
+path = "fuzz_targets/image_path.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
 name = "lex"
 path = "fuzz_targets/lex.rs"
 test = false

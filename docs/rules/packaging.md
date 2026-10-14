@@ -3,7 +3,7 @@
 
 # Packaging
 
-*17 of 79 rules below are **designed** rather than shipped, and are marked where they appear.*
+*16 of 79 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="packaging-an-artifact-is-one-immutable-content-addressed-file"></a>
 
@@ -2485,7 +2485,7 @@ uninstall` removes it.
 
 <a id="packaging-the-argv-lives-in-imagepath"></a>
 
-## On Windows the argv is encoded into the SCM's one `ImagePath` string, the binary path is always quoted, and nothing else holds it  *(designed — owned by goal request-isolation-debts)*
+## On Windows the argv is encoded into the SCM's one `ImagePath` string, the binary path is always quoted, and nothing else holds it
 
 `rule:packaging/the-argv-lives-in-imagepath`
 
@@ -2509,10 +2509,11 @@ Novis's default install location is such a path, and the finding usually appears
 the installation. Arguments given to `sc start <name> arg` reach `ServiceMain` but are not persisted;
 nothing may depend on them, and `nvs service run` ignores them.
 
-**Partly on disk.** `nvs_cli::service::image_path` is the encoder and `decode` its
-`CommandLineToArgvW` half, and the tests in `crates/nvs-cli/src/service.rs` hold their round trip and
-the unconditional quote. There is no fuzz target: `nvs-cli` is a binary, which the fuzz workspace
-cannot depend on.
+`nvs_diagnostics::argv::image_path` is the encoder and `decode` its `CommandLineToArgvW` half. They
+live in a library crate so the `image_path` fuzz target (`fuzz/fuzz_targets/image_path.rs`) can
+assert their round trip on any argv; `nvs-cli`'s `service::image_path` calls the encoder with a checked
+plan, and the SCM read-back calls `decode`. The module's tests hold the round trip and the
+unconditional quote, and `crates/nvs-cli/src/service.rs` holds a plan's binary and argv coming back.
 
 <sub>See also [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only), [`packaging/a-service-is-one-stored-argv`](packaging.md#packaging-a-service-is-one-stored-argv).</sub>
 

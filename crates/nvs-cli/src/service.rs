@@ -608,126 +608,11 @@ fn entry_file(argv: &[String]) -> Option<&str> {
     None
 }
 
-/// `rule:packaging/the-argv-lives-in-imagepath`'s Windows `ImagePath`: the binary and the stored argv encoded into the
-/// one string the SCM keeps, under `CommandLineToArgvW`'s rules.
-///
-/// The binary path is quoted **unconditionally**, whether or not it currently
-/// contains a space — the rule that still holds after somebody moves the
-/// installation, which is when the unquoted-path finding usually appears.
+/// `rule:packaging/the-argv-lives-in-imagepath`'s Windows `ImagePath` for a checked plan: its binary
+/// and stored argv through [`nvs_diagnostics::argv::image_path`], which owns the encoding and its
+/// round trip.
 pub(crate) fn image_path(plan: &Plan) -> String {
-    let mut out = quote(&plan.exe.display().to_string(), true);
-    for word in &plan.argv {
-        out.push(' ');
-        out.push_str(&quote(word, false));
-    }
-    out
-}
-
-/// One argument, encoded so `CommandLineToArgvW` hands it back unchanged.
-///
-/// The rule that makes this worth confining to one function: a backslash is
-/// literal *except* in the run immediately before a quote, where each one is
-/// doubled — including the run at the end of the argument, which sits before
-/// the closing quote this encoder adds. A directory path ending in `\` is
-/// therefore the case a hand-written joiner gets wrong.
-fn quote(argument: &str, force: bool) -> String {
-    if !force && !argument.is_empty() && !argument.contains([' ', '\t', '"']) {
-        return argument.to_owned();
-    }
-    let mut out = String::from('"');
-    let mut backslashes = 0;
-    for character in argument.chars() {
-        match character {
-            '\\' => backslashes += 1,
-            '"' => {
-                for _ in 0..backslashes * 2 + 1 {
-                    out.push('\\');
-                }
-                out.push('"');
-                backslashes = 0;
-            }
-            _ => {
-                for _ in 0..backslashes {
-                    out.push('\\');
-                }
-                backslashes = 0;
-                out.push(character);
-            }
-        }
-    }
-    for _ in 0..backslashes * 2 {
-        out.push('\\');
-    }
-    out.push('"');
-    out
-}
-
-/// `CommandLineToArgvW`'s rules, so [`image_path`]'s round trip is a property a
-/// test can assert rather than a claim.
-///
-/// One deliberate narrowing: the `""`-inside-a-quoted-run spelling of a literal
-/// quote is read as a close followed by a reopen rather than as one quote.
-/// [`quote`] never emits that form — it writes `\"` — so the round trip holds,
-/// and a decoder that is exact for everything this module produces is what the
-/// property needs.
-#[cfg_attr(
-    all(not(test), not(windows)),
-    expect(
-        dead_code,
-        reason = "the round-trip property's half, and the SCM read-back's on Windows"
-    )
-)]
-pub(crate) fn decode(line: &str) -> Vec<String> {
-    let mut out = Vec::new();
-    let mut current = String::new();
-    let mut started = false;
-    let mut quoted = false;
-    let mut backslashes = 0usize;
-    for character in line.chars() {
-        match character {
-            '\\' => {
-                backslashes += 1;
-                started = true;
-            }
-            '"' => {
-                for _ in 0..backslashes / 2 {
-                    current.push('\\');
-                }
-                if backslashes % 2 == 1 {
-                    current.push('"');
-                } else {
-                    quoted = !quoted;
-                }
-                backslashes = 0;
-                started = true;
-            }
-            ' ' | '\t' if !quoted => {
-                for _ in 0..backslashes {
-                    current.push('\\');
-                }
-                backslashes = 0;
-                if started {
-                    out.push(std::mem::take(&mut current));
-                    started = false;
-                }
-            }
-            _ => {
-                for _ in 0..backslashes {
-                    current.push('\\');
-                }
-                backslashes = 0;
-                current.push(character);
-                started = true;
-            }
-        }
-    }
-    for _ in 0..backslashes {
-        current.push('\\');
-    }
-    if started {
-        out.push(current);
-    }
-    out
+    nvs_diagnostics::argv::image_path(&plan.exe.display().to_string(), &plan.argv)
 }
 
 /// `rule:packaging/the-generated-unit-is-hardened`'s systemd unit, rendered from a checked plan.
@@ -3128,7 +3013,7 @@ pub(crate) mod registration {
             fn stored(&self, name: &str, _unit_root: &Path) -> std::io::Result<super::Stored> {
                 let (image_path, account) = configured(name)?;
                 // `rule:packaging/the-argv-lives-in-imagepath` encodes the binary ahead of the stored argv.
-                let mut words = crate::service::decode(&image_path).into_iter();
+                let mut words = nvs_diagnostics::argv::decode(&image_path).into_iter();
                 let exe = words.next().map(std::path::PathBuf::from);
                 Ok(super::Stored {
                     name: name.to_owned(),
@@ -4787,8 +4672,8 @@ mod tests {
 
     /// `rule:packaging/the-argv-lives-in-imagepath`: the SCM stores one string, the process gets it back
     /// through `CommandLineToArgvW`, and that string is the only record of
-    /// what the service runs — so the encoder's round trip is the property,
-    /// and the quoting of the binary is unconditional.
+    /// what the service runs. `nvs_diagnostics::argv` holds the encoder's
+    /// round trip; this holds a plan's absolute binary and argv coming back.
     #[test]
     fn a_windows_image_path_is_quoted_and_absolute() {
         let corpus: Vec<Vec<String>> = vec![
@@ -4839,7 +4724,7 @@ mod tests {
 
             // Quoted unconditionally — the path here contains no space.
             assert!(line.starts_with('"'), "{line}");
-            let decoded = decode(&line);
+            let decoded = nvs_diagnostics::argv::decode(&line);
             let (image, rest) = decoded.split_first().expect("an image path");
             assert!(Path::new(image).is_absolute(), "{image}");
             assert_eq!(image, &absolute("bin/nvs"));
