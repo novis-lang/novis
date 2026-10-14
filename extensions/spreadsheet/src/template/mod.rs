@@ -16,7 +16,8 @@
 //! the worksheets, the workbook's defined names, tables, drawings' anchors and charts. When a
 //! formula above a block names a row the block moves, the sheet cannot be written before the
 //! lists are known, so the items are kept and the sheet is written at `finish`: the memory of
-//! every item, still under the request's cap.
+//! every item, still under the request's cap. An item whose copy would end past row 1,048,576
+//! throws naming its list, before any of its rows is written.
 //!
 //! **What changes besides the cells.** `calcChain.xml` names cells by position, so it is
 //! dropped, and the workbook recalculates on open. A sheet with a block loses its `dimension`.
@@ -1077,6 +1078,14 @@ fn item_rows(
         .map(|shift| shift.delta)
         .sum();
     let top = (i64::from(block.top) + moved) as u32;
+    let last = u64::from(top) + u64::from(copy) + u64::from(height) - 1;
+    if last > 1_048_576 {
+        return Err(invalid(format!(
+            "The list `{}` has too many items for one sheet. Item {} would end on row {last}, and a sheet has at most 1,048,576 rows.",
+            block.list,
+            block.written + 1
+        )));
+    }
     let mut shifts: Vec<Shift> = filling.shifts.iter().take(at).cloned().collect();
     let mut own = filling.shifts.get(at).cloned().unwrap_or(Shift {
         sheet: sheet.name.clone(),
