@@ -29,6 +29,7 @@ echo Pick::read($user, "secret"), "\n";
 
 // A key passes as it is, with no conversion back to `string`.
 echo Pick::read($user, "age" as property<User>), "\n";
+// covers: lang:types/property-keys
 --EXPECT--
 a@example.com
 no property

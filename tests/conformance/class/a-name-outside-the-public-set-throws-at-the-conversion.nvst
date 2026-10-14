@@ -43,6 +43,7 @@ try {
 string $again = "bal" . "ances";
 ?property<Account> $maybe = $again as ?property<Account>;
 echo $maybe == null ? "null" : "some", "\n";
+// covers: lang:types/property-keys
 --EXPECT--
 10
 `"balances"` is not one of `Account`'s public declared properties: `$balance`, `$owner`

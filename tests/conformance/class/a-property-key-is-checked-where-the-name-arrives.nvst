@@ -66,6 +66,7 @@ try {
 } catch (RuntimeError $e) {
     echo $e->message, "\n";
 }
+// covers: lang:types/property-keys
 --EXPECT--
 name
 name
