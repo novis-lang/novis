@@ -3,7 +3,7 @@
 //! `rule:core-classes/spreadsheet-reads-as-a-stream`).
 
 use std::future::Future;
-use std::io::Write as _;
+use std::io::{Read as _, Write as _};
 use std::pin::pin;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -11,7 +11,9 @@ use std::task::{Context, Poll, Waker};
 use std::time::Duration;
 
 use nvs_ext::builtin::{Decompression, SPREADSHEET_CLASS, cap_decompression};
-use nvs_ext::call::{Budget, Host, Lending, Level, Meter, Outbound, Outgoing};
+use nvs_ext::call::{
+    Budget, Failure, Host, Lending, Level, Limit, Meter, Outbound, Outgoing, Request,
+};
 use nvs_ext::convert::{Key, Value};
 use nvs_ext::load::{Extension, Loader};
 
@@ -171,6 +173,11 @@ fn the_configured_decompression_bound_reaches_the_guest() {
 /// An xlsx of one sheet, `Orders`, whose part is `sheet` and whose shared strings are `shared`,
 /// each a whole XML part.
 fn xlsx(sheet: &[u8], shared: &[u8]) -> Vec<u8> {
+    xlsx_named(sheet, shared, "")
+}
+
+/// [`xlsx`] whose workbook has the `<definedName>` elements `names`.
+fn xlsx_named(sheet: &[u8], shared: &[u8], names: &str) -> Vec<u8> {
     let main = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
     let rel = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
     let package = "http://schemas.openxmlformats.org/package/2006/relationships";
@@ -178,7 +185,7 @@ fn xlsx(sheet: &[u8], shared: &[u8]) -> Vec<u8> {
         r#"<Relationships xmlns="{package}"><Relationship Id="rId1" Type="{rel}/officeDocument" Target="xl/workbook.xml"/></Relationships>"#
     );
     let book = format!(
-        r#"<workbook xmlns="{main}" xmlns:r="{rel}"><sheets><sheet name="Orders" sheetId="1" r:id="rId1"/></sheets></workbook>"#
+        r#"<workbook xmlns="{main}" xmlns:r="{rel}"><sheets><sheet name="Orders" sheetId="1" r:id="rId1"/></sheets><definedNames>{names}</definedNames></workbook>"#
     );
     let rels = format!(
         r#"<Relationships xmlns="{package}"><Relationship Id="rId1" Type="{rel}/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="{rel}/sharedStrings" Target="sharedStrings.xml"/></Relationships>"#
@@ -513,6 +520,189 @@ fn a_row_index_past_the_grid_throws_naming_the_cell() {
         &shared(&[]),
     );
     assert_eq!(read(&last).0, None, "the last cell of the grid reads");
+
+    let past = |data: Vec<u8>| read(&xlsb(&data)).0.expect("an xlsb past the grid reads");
+    let failure = past(binary_row(u32::MAX));
+    assert!(failure.contains("the row 4294967296"), "{failure}");
+    let failure = past([binary_row(0), binary_real(16_384)].concat());
+    assert!(failure.contains("`XFE1`"), "{failure}");
+    let last = [binary_row(1_048_575), binary_real(16_383)].concat();
+    assert_eq!(read(&xlsb(&last)).0, None, "the last cell of an xlsb reads");
+}
+
+/// `n` in 7-bit groups, lowest first, as an xlsb record's type and length are written.
+fn groups(mut n: usize) -> Vec<u8> {
+    let mut out = Vec::new();
+    loop {
+        let low = u8::try_from(n & 0x7F).unwrap();
+        n >>= 7;
+        out.push(if n == 0 { low } else { low | 0x80 });
+        if n == 0 {
+            return out;
+        }
+    }
+}
+
+/// One xlsb record of `kind` whose length is the true length of `body`.
+fn record(kind: u16, body: &[u8]) -> Vec<u8> {
+    [groups(usize::from(kind)), groups(body.len()), body.to_vec()].concat()
+}
+
+/// An xlsb string: its count of UTF-16 units and the units.
+fn wide(text: &str) -> Vec<u8> {
+    let units: Vec<u16> = text.encode_utf16().collect();
+    let mut out = u32::try_from(units.len()).unwrap().to_le_bytes().to_vec();
+    for unit in units {
+        out.extend_from_slice(&unit.to_le_bytes());
+    }
+    out
+}
+
+/// An xlsb row header for the row `index`, from 0.
+fn binary_row(index: u32) -> Vec<u8> {
+    record(0, &[&index.to_le_bytes()[..], &[0; 13]].concat())
+}
+
+/// An xlsb number cell holding 1 in `column`, from 0.
+fn binary_real(column: u32) -> Vec<u8> {
+    let body = [&column.to_le_bytes()[..], &[0; 4], &1f64.to_le_bytes()].concat();
+    record(5, &body)
+}
+
+/// An xlsb of one sheet, `Orders`, whose sheet data is the bytes `data`.
+fn xlsb(data: &[u8]) -> Vec<u8> {
+    let rel = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+    let package = "http://schemas.openxmlformats.org/package/2006/relationships";
+    let root = format!(
+        r#"<Relationships xmlns="{package}"><Relationship Id="rId1" Type="{rel}/officeDocument" Target="xl/workbook.bin"/></Relationships>"#
+    );
+    let rels = format!(
+        r#"<Relationships xmlns="{package}"><Relationship Id="rId1" Type="{rel}/worksheet" Target="worksheets/sheet1.bin"/></Relationships>"#
+    );
+    let book = record(
+        156,
+        &[
+            &[0u8; 4][..],
+            &1u32.to_le_bytes(),
+            &wide("rId1"),
+            &wide("Orders"),
+        ]
+        .concat(),
+    );
+    let part = [record(145, &[]), data.to_vec(), record(146, &[])].concat();
+    zip(&[
+        ("[Content_Types].xml", b"<Types/>"),
+        ("_rels/.rels", root.as_bytes()),
+        ("xl/workbook.bin", &book),
+        ("xl/_rels/workbook.bin.rels", rels.as_bytes()),
+        ("xl/worksheets/sheet1.bin", &part),
+    ])
+}
+
+/// A record whose length runs past the end of its part, one whose length is shorter than its
+/// fields, and one whose length takes five bytes each throw naming the fault. The longest length
+/// a record can claim reads no further than the part's end.
+#[test]
+fn an_xlsb_record_whose_length_lies_throws() {
+    let plain = [binary_row(0), binary_real(0)].concat();
+    assert_eq!(
+        read(&xlsb(&plain)).0,
+        None,
+        "the same sheet with no lie reads"
+    );
+
+    let past_the_end = [binary_row(0), vec![5, 0xFF, 0xFF, 0xFF, 0x7F], vec![0; 16]].concat();
+    let short = [binary_row(0), record(5, &[0; 4])].concat();
+    let five_bytes = [binary_row(0), vec![5, 0x80, 0x80, 0x80, 0x80, 0x01]].concat();
+    for (what, data, fault) in [
+        ("past the end", past_the_end, "ends inside a record"),
+        ("short", short, "shorter than its fields"),
+        ("five bytes long", five_bytes, "longer than four bytes"),
+    ] {
+        let failure = read(&xlsb(&data))
+            .0
+            .unwrap_or_else(|| panic!("a length {what} reads"));
+        assert!(failure.contains(fault), "{what}: {failure}");
+    }
+}
+
+/// A compound file of 512-byte sectors: the header, the sector table `table` in sector 0, the
+/// directory in sector 1, and the stream `Workbook` of 8,192 bytes starting at sector 2.
+fn compound(table: &[u32]) -> Vec<u8> {
+    const NONE: u32 = 0xFFFF_FFFF;
+    const END: u32 = 0xFFFF_FFFE;
+    let mut header = vec![0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1];
+    header.resize(512, 0);
+    let mut put = |at: usize, value: u32| header[at..at + 4].copy_from_slice(&value.to_le_bytes());
+    // The version 3 and byte order, then the sector size 2^9 and the mini sector size 2^6.
+    put(24, 0x0003_003E);
+    put(28, 0x0009_FFFE);
+    put(32, 6);
+    put(44, 1);
+    put(48, 1);
+    put(56, 4096);
+    put(60, END);
+    put(68, END);
+    put(76, 0);
+    for at in 1..109 {
+        put(76 + at * 4, NONE);
+    }
+    let mut sectors: Vec<u32> = table.to_vec();
+    sectors.resize(128, NONE);
+    let fat: Vec<u8> = sectors.iter().flat_map(|id| id.to_le_bytes()).collect();
+    let entry = |name: &str, kind: u8, child: u32, start: u32, size: u32| {
+        let mut out = vec![0u8; 128];
+        let units: Vec<u8> = name
+            .encode_utf16()
+            .chain([0])
+            .flat_map(u16::to_le_bytes)
+            .collect();
+        out[..units.len()].copy_from_slice(&units);
+        out[64..66].copy_from_slice(&u16::try_from(units.len()).unwrap().to_le_bytes());
+        out[66] = kind;
+        for (at, value) in [
+            (68, NONE),
+            (72, NONE),
+            (76, child),
+            (116, start),
+            (120, size),
+        ] {
+            out[at..at + 4].copy_from_slice(&value.to_le_bytes());
+        }
+        out
+    };
+    let mut directory = entry("Root Entry", 5, 1, END, 0);
+    directory.extend(entry("Workbook", 2, NONE, 2, 8192));
+    directory.resize(512, 0);
+    [header, fat, directory, vec![0; 512 * 16]].concat()
+}
+
+/// A sector chain that comes back to a sector it already read is refused at the repeat, in a
+/// stream and in the directory. The same file with an honest chain gets past the compound file,
+/// and throws only because its stream is not a workbook.
+#[test]
+fn an_xls_sector_chain_that_loops_is_refused() {
+    const END: u32 = 0xFFFF_FFFE;
+    const TABLE: u32 = 0xFFFF_FFFD;
+    let honest: Vec<u32> = [TABLE, END].into_iter().chain(3..18).chain([END]).collect();
+    let failure = read(&compound(&honest))
+        .0
+        .expect("zeros read as a workbook");
+    assert!(!failure.contains("sector"), "{failure}");
+
+    let mut in_stream = honest.clone();
+    in_stream[3] = 2;
+    let mut in_directory = honest;
+    in_directory[1] = 1;
+    for (what, table) in [("a stream", in_stream), ("the directory", in_directory)] {
+        let failure = read(&compound(&table))
+            .0
+            .unwrap_or_else(|| panic!("a loop in {what} reads"));
+        assert!(
+            failure.contains("a sector chain loops"),
+            "{what}: {failure}"
+        );
+    }
 }
 
 /// A merged range with a corner past the grid throws when its ranges are listed and when a
@@ -561,4 +751,269 @@ fn a_merged_range_past_the_grid_throws() {
         );
         drop(block_on(request.end()));
     }
+}
+
+/// A shape of `fields`, as a Novis shape crosses.
+fn shape(fields: Vec<(&str, Value)>) -> Value {
+    Value::Array(
+        fields
+            .into_iter()
+            .map(|(key, value)| (Key::String(key.to_owned()), value))
+            .collect(),
+    )
+}
+
+/// A list of `values`, keyed from 0.
+fn list(values: Vec<Value>) -> Value {
+    Value::Array(
+        values
+            .into_iter()
+            .enumerate()
+            .map(|(at, value)| (Key::Int(i64::try_from(at).unwrap()), value))
+            .collect(),
+    )
+}
+
+/// A text cell's value.
+fn text(text: &str) -> Value {
+    shape(vec![("text", Value::String(text.to_owned()))])
+}
+
+/// A batch of `count` items of the list `items`, each filling `name`.
+fn items(from: usize, count: usize) -> Value {
+    let items = (from..from + count)
+        .map(|n| {
+            list(vec![shape(vec![
+                ("path", Value::String("name".to_owned())),
+                ("value", text(&format!("Shop item number {n}"))),
+            ])])
+        })
+        .collect();
+    shape(vec![
+        ("name", Value::String("items".to_owned())),
+        ("items", list(items)),
+    ])
+}
+
+/// A template whose row 2 repeats for the list `items`, below the rows `above`, with the
+/// defined names `names`.
+fn template(above: &str, names: &str) -> Vec<u8> {
+    let part = sheet(&format!(
+        r#"{above}<row r="2"><c r="A2" t="inlineStr"><is><t>{{{{items.name}}}}</t></is></c></row>"#
+    ));
+    xlsx_named(&part, &shared(&[]), names)
+}
+
+/// `template` opened and filled with no values under `request`, ready for its items.
+fn filling(request: &Request, extension: &Extension, template: &[u8]) -> Value {
+    let source = Value::Bytes(template.to_vec());
+    let filling =
+        block_on(request.call_values(extension, "templateOpen", vec![source, bound(None, None)]))
+            .expect("the template opens")
+            .expect("`templateOpen` returns a filling");
+    block_on(request.call_values(
+        extension,
+        "templateFill",
+        vec![
+            filling.clone(),
+            list(Vec::new()),
+            list(vec![Value::String("items".to_owned())]),
+        ],
+    ))
+    .expect("the template fills");
+    filling
+}
+
+/// A formula above the block names its row, so the template keeps every item until `finish`.
+/// Ten million items reach the request's memory cap long before the last one, the request ends
+/// with its memory given back, and the next request on the same host fills the same template.
+#[test]
+fn a_template_list_past_the_memory_cap_is_a_contained_trap() {
+    const SMALL: u64 = 48 << 20;
+    const BATCH: usize = 10_000;
+    let host = Host::new(2, |_| Ok(())).expect("the host starts");
+    let extension = spreadsheet(&host);
+    let held = template(
+        r#"<row r="1"><c r="A1"><f>SUM(A2:A2)</f><v>0</v></c></row>"#,
+        "",
+    );
+    let budget = Arc::new(Meter::new(Duration::from_secs(120), Some(SMALL)));
+    let request = host.request(budget.clone());
+    let filled = filling(&request, &extension, &held);
+    let mut sent = 0;
+    let failure = loop {
+        assert!(sent < 10_000_000, "ten million items fit under the cap");
+        match block_on(request.call_values(
+            &extension,
+            "templateItems",
+            vec![filled.clone(), items(sent, BATCH)],
+        )) {
+            Ok(_) => sent += BATCH,
+            Err(failure) => break failure,
+        }
+    };
+    assert_eq!(failure, Failure::Limit(Limit::Memory), "after {sent} items");
+    drop(block_on(request.end()));
+    assert_eq!(
+        budget.charged(),
+        0,
+        "the trapped request gives its memory back"
+    );
+
+    let request = host.request(Arc::new(Meter::new(Duration::from_secs(60), Some(SMALL))));
+    let filled = filling(&request, &extension, &held);
+    block_on(request.call_values(
+        &extension,
+        "templateItems",
+        vec![filled.clone(), items(0, 3)],
+    ))
+    .expect("three items fit");
+    block_on(request.call_values(
+        &extension,
+        "templateFinish",
+        vec![filled, Value::Bytes(held)],
+    ))
+    .expect("the next request finishes the same template");
+    drop(block_on(request.end()));
+}
+
+/// A block of 1,000 rows repeated past row 1,048,576 throws naming the list, before the item
+/// that would cross the last row is written.
+#[test]
+fn a_template_list_past_the_last_row_throws_naming_it() {
+    let host = Host::new(2, |_| Ok(())).expect("the host starts");
+    let extension = spreadsheet(&host);
+    let tall = template(
+        "",
+        r#"<definedName name="items">Orders!$A$2:$A$1001</definedName>"#,
+    );
+    let request = host.request(Arc::new(Meter::new(Duration::from_secs(120), Some(CAP))));
+    let filled = filling(&request, &extension, &tall);
+    let failure =
+        block_on(request.call_values(&extension, "templateItems", vec![filled, items(0, 1_100)]))
+            .expect_err("1,100 copies of 1,000 rows fit on one sheet")
+            .to_string();
+    assert!(failure.contains("The list `items`"), "{failure}");
+    assert!(
+        failure.contains("Item 1049 would end on row 1049001"),
+        "{failure}"
+    );
+    drop(block_on(request.end()));
+}
+
+/// The text of the entry `name` in the zip archive `archive`, found through its central
+/// directory and inflated.
+fn entry(archive: &[u8], name: &str) -> String {
+    let u16_at = |at: usize| usize::from(u16::from_le_bytes([archive[at], archive[at + 1]]));
+    let u32_at = |at: usize| u32::from_le_bytes(archive[at..at + 4].try_into().unwrap()) as usize;
+    let end = archive.len() - 22;
+    let mut at = u32_at(end + 16);
+    for _ in 0..u16_at(end + 10) {
+        let length = u16_at(at + 28);
+        let local = u32_at(at + 42);
+        if &archive[at + 46..at + 46 + length] == name.as_bytes() {
+            let data = local + 30 + u16_at(local + 26) + u16_at(local + 28);
+            let mut text = String::new();
+            flate2::read::DeflateDecoder::new(&archive[data..data + u32_at(at + 20)])
+                .read_to_string(&mut text)
+                .expect("the entry inflates");
+            return text;
+        }
+        at += 46 + length + u16_at(at + 30) + u16_at(at + 32);
+    }
+    panic!("the archive has no `{name}`");
+}
+
+/// A string that begins as a formula would is written as a text cell holding that string, so
+/// a spreadsheet program shows it and never runs it.
+#[test]
+fn an_export_string_beginning_with_equals_is_a_text_cell() {
+    let host = Host::new(2, |_| Ok(())).expect("the host starts");
+    let extension = spreadsheet(&host);
+    let request = host.request(Arc::new(Meter::new(Duration::from_secs(60), Some(CAP))));
+    let call = |method: &str, args: Vec<Value>| {
+        block_on(request.call_values(&extension, method, args))
+            .unwrap_or_else(|err| panic!("`{method}`: {err}"))
+            .unwrap_or(Value::Null)
+    };
+    let properties = [
+        "title", "subject", "author", "company", "keywords", "created",
+    ]
+    .map(|key| (key, Value::Null))
+    .to_vec();
+    let writer = call(
+        "writerOpen",
+        vec![shape(vec![
+            ("properties", shape(properties)),
+            ("target", Value::String("orders.xlsx".to_owned())),
+        ])],
+    );
+    let hostile = [
+        r#"=HYPERLINK("http://example.com/","Open")"#,
+        "+1+1",
+        "-1+1",
+        "@SUM(1)",
+    ];
+    let cells = hostile
+        .iter()
+        .map(|value| shape(vec![("value", text(value)), ("style", Value::Null)]))
+        .collect();
+    let row = shape(vec![
+        ("cells", list(cells)),
+        ("style", Value::Null),
+        ("height", Value::Null),
+        ("hidden", Value::Bool(false)),
+        ("level", Value::Uint(0)),
+        ("header", Value::Bool(false)),
+    ]);
+    let options = shape(vec![
+        ("name", Value::String("Orders".to_owned())),
+        ("position", Value::Null),
+        ("visibility", Value::Case("Visible".to_owned())),
+        ("columns", list(Vec::new())),
+        ("freezeRows", Value::Uint(0)),
+        ("freezeColumns", Value::Uint(0)),
+        ("autofilter", Value::Null),
+        ("tabColor", Value::Null),
+        ("zoom", Value::Null),
+        ("gridlines", Value::Bool(true)),
+        ("rightToLeft", Value::Bool(false)),
+        (
+            "header",
+            shape(vec![
+                ("defaultStyle", Value::Bool(false)),
+                ("style", Value::Null),
+                ("freeze", Value::Bool(false)),
+                ("filter", Value::Bool(false)),
+            ]),
+        ),
+        ("newSheetOnOverflow", Value::Bool(false)),
+    ]);
+    let Value::Bytes(mut archive) = call(
+        "writerSheet",
+        vec![writer.clone(), options, list(vec![row])],
+    ) else {
+        panic!("a sheet's first chunk is bytes");
+    };
+    let finished = call("writerFinish", vec![writer]);
+    let Value::Array(fields) = finished else {
+        panic!("`writerFinish` returns a shape");
+    };
+    let Some((_, Value::Bytes(last))) = fields
+        .into_iter()
+        .find(|(key, _)| *key == Key::String("data".to_owned()))
+    else {
+        panic!("`writerFinish` returns its last bytes");
+    };
+    archive.extend(last);
+    drop(block_on(request.end()));
+
+    let part = entry(&archive, "xl/worksheets/sheet1.xml");
+    assert!(!part.contains("<f>") && !part.contains("<f "), "{part}");
+    assert_eq!(
+        part.matches(r#"t="inlineStr""#).count(),
+        hostile.len(),
+        "{part}"
+    );
+    assert!(part.contains("HYPERLINK("), "{part}");
 }

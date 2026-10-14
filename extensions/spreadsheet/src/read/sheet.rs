@@ -241,12 +241,25 @@ enum In {
 /// a row is refused earlier, naming the cell.
 fn within(row: RawRow) -> Result<RawRow, Error> {
     if row.number > MOST_ROWS {
-        return Err(broken(&format!(
-            "the row {} is past the last row of a sheet, {MOST_ROWS}",
-            row.number
-        )));
+        return Err(past_row(row.number));
     }
     Ok(row)
+}
+
+/// The error for the row `number`, past the last row of a sheet. xlsb's cursor throws it too.
+pub(super) fn past_row(number: u64) -> Error {
+    broken(&format!(
+        "the row {number} is past the last row of a sheet, {MOST_ROWS}"
+    ))
+}
+
+/// The error for the cell in `column` of the row `row`, past the last cell of a sheet. xlsb's
+/// cursor throws it too.
+pub(super) fn past_cell(column: u64, row: u64) -> Error {
+    broken(&format!(
+        "the cell `{}{row}` is past the last cell of a sheet, `XFD1048576`",
+        letters(column)
+    ))
 }
 
 /// Parses the `<row>` that starts `buf`, whose start tag is `length` bytes and has `attrs`.
@@ -291,11 +304,7 @@ fn parse_row(
                         None => row.cells.last().map_or(1, |cell| cell.column + 1),
                     };
                     if column > MOST_COLUMNS || row.number > MOST_ROWS {
-                        return Err(broken(&format!(
-                            "the cell `{}{}` is past the last cell of a sheet, `XFD1048576`",
-                            letters(column),
-                            row.number
-                        )));
+                        return Err(past_cell(column, row.number));
                     }
                     let style = xml::attr(attrs, b"s")
                         .and_then(|s| std::str::from_utf8(s).ok()?.parse().ok())

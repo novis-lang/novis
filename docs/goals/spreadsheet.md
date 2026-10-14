@@ -70,7 +70,7 @@ stages:
         shapes: ["A `.nvst` test case"]
   - id: 11
     title: limits and hostile files
-    status: open
+    status: done
     extra:
       context:
         rules: [core-classes/spreadsheet-bulk-boundary, core-classes/decompression-bound, core-classes/xml-refuses-by-construction, packaging/a-guest-runs-under-the-requests-budget, testing/hostile-case-contract]
@@ -768,19 +768,20 @@ One file set: `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/n
 
 ### State
 
-**Stage 11 is two thirds done.** `nvs-stdlib-a-streamed-part-is-bounded-by-the-ratio` is green. `nvs-ext-the-spreadsheet-bomb-corpus` has 6 of its 10 tests, all passing.
+**Stage 11 is done.** Both of its checks are green, and the corpus in `crates/nvs-ext/tests/spreadsheet_hostile.rs` has all ten tests plus `a_template_list_past_the_last_row_throws_naming_it`.
 
-- `crates/nvs-ext/tests/spreadsheet_hostile.rs` has a one-sheet `xlsx(sheet, shared)` builder, `declared` for a DTD after the XML declaration, and `read`/`read_filling`, which open with the shipped bound and read every row of `Orders` under a 256 MiB `CAP`. Its `Watched` budget counts outbound sends.
-- The reader's XML scanner already refused a `<!DOCTYPE` and every entity past the five predefines (`extensions/spreadsheet/src/read/xml.rs:10`). The new tests pin it in a sheet and in `sharedStrings.xml`.
-- An xlsx cell past `XFD1048576` throws naming the cell, and a row past 1,048,576 with no cell names the row (`extensions/spreadsheet/src/read/sheet.rs:@within`). The grid size has one home, `MOST_ROWS` and `MOST_COLUMNS` in `extensions/spreadsheet/src/read/mod.rs`.
-- The xlsb reader has no grid check yet (`extensions/spreadsheet/src/read/binary.rs:@cell_of`).
+- A compound-file chain keeps one flag per sector and throws at its first repeat (`extensions/spreadsheet/src/read/cfb.rs:@visit`). The old step count let a looping stream read the same sectors up to 128 times the file.
+- xlsb throws at a row or cell past the grid with the xlsx errors, `sheet::past_row` and `sheet::past_cell` (`extensions/spreadsheet/src/read/sheet.rs:@past_cell`).
+- A template item whose copy would end past row 1,048,576 throws `LogicError` naming the list (`extensions/spreadsheet/src/template/mod.rs:@item_rows`). The rule fragment `spreadsheet-template-fill` says so.
+- The test file builds xlsx with defined names (`xlsx_named`), xlsb (`xlsb`), a compound file (`compound`), a template (`template`, `filling`) and a writer call, and inflates an archive entry (`entry`).
 
 ### Next
 
-**Stage 11, the binary formats and the writing attacks** (`rule:core-classes/decompression-bound`). Files: `crates/nvs-ext/tests/spreadsheet_hostile.rs`, `extensions/spreadsheet/src/read/cfb.rs`, `extensions/spreadsheet/src/read/binary.rs`.
+**Stage 12, 100 MB and the growth** (`rule:testing/feature-proofs`). Files: `crates/nvs-ext/tests/spreadsheet.rs`, `crates/nvs-ext/tests/builtin.rs`, `extensions/spreadsheet/src/lib.rs`.
 
-- [ ] **The binary formats**: `an_xls_sector_chain_that_loops_is_refused` (`extensions/spreadsheet/src/read/cfb.rs:177`) and `an_xlsb_record_whose_length_lies_throws` (`extensions/spreadsheet/src/read/binary.rs:57`). Give an xlsb cell the same grid check as xlsx's `within`. `crates/nvs-ext/tests/spreadsheet_read.rs:@compound_with` and `:@xlsb` build both formats.
-- [ ] **Writing**: `a_template_list_past_the_memory_cap_is_a_contained_trap` (a `Meter` with a small memory limit, `extensions/spreadsheet/src/template/mod.rs:757`) and `an_export_string_beginning_with_equals_is_a_text_cell`. Then Stage 11's status goes to done in the front matter, once `looper check --name nvs-ext-the-spreadsheet-bomb-corpus` is green.
+- [ ] **The big file**: `a_100_mb_workbook_writes_and_reads_back` and `the_guest_peak_stays_flat_as_rows_grow` beside `crates/nvs-ext/tests/spreadsheet.rs:568`, which counts what the guest holds. Generated in the test, never committed. Then `a_text_heavy_workbook_peaks_at_its_strings_plus_a_batch`.
+- [ ] **The growth**: run `cargo test --test builtin` and check `the_recorded_growth_matches_the_embedded_components` (`crates/nvs-ext/tests/builtin.rs:163`) against the figure in `extensions/spreadsheet/src/lib.rs:34`.
+- [ ] **The benches** under `benches/members/novis/`, shaped as `benches/members/novis/Image-Codec/run.nvs:1`: a million-row export, a million-row import, a styled report with a chart, and a template of 10,000 rows, each with its growth.
 
 ### Backlog
 
