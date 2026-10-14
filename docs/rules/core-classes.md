@@ -4805,8 +4805,17 @@ axis titles, the legend, series colours and data labels. Any other combination t
 A series names its ranges with `$sheet->column($key)`, so a chart over a stream covers every row the
 sheet ends with: the chart is written when the sheet ends, and a range on its own sheet that ends at
 the row `column` gives when the chart is added ends at the sheet's last row. Any other range is
-written as given, and the chart holds no values. Its XML follows `rust_xlsxwriter`'s output for the same chart, ported for the subset
-and attributed in the module that writes it.
+written as given, and the chart holds no values. **A series' categories are a number reference**
+when they are a column of the chart's own sheet whose every value is a number or a date, which the
+writer knows from one flag per column kept as rows pass, and a text reference otherwise. Its XML
+follows `rust_xlsxwriter`'s output for the same chart, ported for the subset and attributed in the
+module that writes it.
+
+**An image or a chart is anchored from its cell to the cell its size ends at**, as Excel anchors
+one, with that cell's offset. The end cell needs the width of every column and the height of every
+row the anchor spans, and an anchor may be added after its rows have left. So the writer keeps the
+open sheet's custom row heights, one entry per run of rows with the same height. A sheet with no
+custom height keeps nothing, and an anchor added before its rows finds its end cell as they pass.
 
 The tradeoffs. **Usability:** a report's merges, totals and chart are written after the rows they
 summarise, in the order a program computes them. **Memory:** the parts are held until the sheet ends,
@@ -4814,6 +4823,9 @@ and they are small beside the rows.
 
 - **Memory:** per writing request, each sheet-end part of the open sheet until the sheet is finished,
   and the bytes of each image added after the sheet's first row, until the sheet is finished.
+- **Memory:** per writing request, the open sheet's custom row heights, 8 bytes per run of rows with
+  the same height, and one flag per column, until the sheet is finished. A sheet with no custom height
+  keeps none, and one whose every row differs from the row before keeps 8 MB at Excel's 1,048,576 rows.
 
 **Not shipped.** Nothing of `Novis\Spreadsheet` is on disk.
 
@@ -4824,6 +4836,12 @@ and they are small beside the rows.
   combination, chartsheets and 3D.** The subset is what reports use; the rest is Excel's to add.
 - **An image that is not PNG, JPEG or GIF converted on the way in.** `Novis\Image` converts it in one
   call, and the writer stays a writer.
+- **A chart's cached values, the `numCache` and `strCache` Excel writes beside each reference.** A
+  chart added after its rows finds them gone, so a cache would mean keeping every cell of every sheet,
+  and one only for a chart added first would make the file depend on call order. Excel and LibreOffice
+  read the cells when they open the file, and every workbook is flagged to recalculate. A viewer that
+  draws from the cache alone shows the chart empty. The Excel comparison removes the caches from
+  Excel's file and names that in its harness.
 
 <sub>See also [`core-classes/spreadsheet-writes-as-a-stream`](core-classes.md#core-classes-spreadsheet-writes-as-a-stream), [`core-classes/spreadsheet-formula-is-a-value`](core-classes.md#core-classes-spreadsheet-formula-is-a-value).</sub>
 

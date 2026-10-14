@@ -743,7 +743,9 @@ One file set: `extensions/spreadsheet/tests/` (the reference comparisons), `exte
   (MIT/Apache-2.0). The fixtures for styles, tables, conditional formats, data validation, images and
   every chart type in the subset are copied with attribution, and each part our writer produces is
   compared as XML with the same normalisation that suite uses. A difference is fixed in the writer,
-  never in the fixture.
+  never in the fixture, except a difference `rule:core-classes/spreadsheet-sheet-end-parts` declines,
+  which the comparison removes and names in one place in its harness. Axis ids, which Excel picks at
+  random, are renumbered in both files by order of appearance, so each axis still names its partner.
 - **Pinned by** the Stage 13 checks.
 
 ### 14. the feature proofs
@@ -768,24 +770,20 @@ One file set: `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/n
 
 ### State
 
-**Stage 13 is blocked on the user, with six of its eight tests green** in `extensions/spreadsheet/tests/excel.rs`: the round trip (calamine 0.36 as a host-only dev dependency, kept out of the `wasm32-wasip2` graph, and `cargo deny` still passes), and styles, tables, conditional formats and data validation. Each of those four compares its parts with Excel-made `rust_xlsxwriter` fixtures under `extensions/spreadsheet/tests/fixtures/excel/`, whose `README.md` lists every file. The writer now writes a bottom alignment, a dxf border, `totalsRowShown` and a table part's `totalsRowFormula` the way Excel does.
+**Stage 13 has six of its eight tests green** in `extensions/spreadsheet/tests/excel.rs`: the round trip (calamine 0.36 as a host-only dev dependency, kept out of the `wasm32-wasip2` graph, and `cargo deny` still passes), and styles, tables, conditional formats and data validation. Each of those four compares its parts with Excel-made `rust_xlsxwriter` fixtures under `extensions/spreadsheet/tests/fixtures/excel/`, whose `README.md` lists every file. The writer now writes a bottom alignment, a dxf border, `totalsRowShown` and a table part's `totalsRowFormula` the way Excel does.
 
-`images_match_the_excel_made_fixtures` and `every_chart_type_in_the_subset_matches_its_excel_made_fixture` are not written. Excel's parts differ from ours by design in four places, and each needs the user's decision:
-
-1. **Anchors.** Excel anchors every image and chart with `twoCellAnchor`, which needs a `to` cell and an absolute offset. `extensions/spreadsheet/src/drawing.rs:248` writes `oneCellAnchor` with an extent. Matching Excel means keeping row heights and column widths over each anchor's span. For `image53` this is the only difference.
-2. **Cached values.** Every Excel chart carries `<c:numCache>`. `extensions/spreadsheet/src/chart.rs:11` says the chart keeps no value. Writing caches keeps each series' values while rows stream, so memory grows with the rows a chart covers.
-3. **Category type.** Excel writes `numRef` for numeric categories, and a catAx `numFmt` only when there are categories. Ours always writes `strRef` and the `numFmt` (`extensions/spreadsheet/src/chart.rs:416`, `:459`). This goes with 2.
-4. **Axis ids.** Upstream sets each fixture's ids with `set_axis_ids`. Ours are fixed (`extensions/spreadsheet/src/chart.rs:35`), so only `chart_combined02` and `03` match them. Either add an id option or a test-only knob.
-
-The alternative to 1 to 3 is to compare with those elements removed and record the removal in the rule's Declined list. The stage's text forbids that, so it is the user's choice too.
+`images_match_the_excel_made_fixtures` and `every_chart_type_in_the_subset_matches_its_excel_made_fixture` are not written. The user decided the four design differences, and `rule:core-classes/spreadsheet-sheet-end-parts` and the stage's text record them: Excel's `twoCellAnchor` with custom row heights kept as runs, no chart cache (Declined, removed in the comparison), `numRef` categories from a per-column flag, and axis ids renumbered in the test.
 
 ### Next
 
-**Stage 13, the charts and images, once the user decides** (`rule:core-classes/spreadsheet-output-is-inert`, `rule:core-classes/spreadsheet-sheet-end-parts`). Files: `extensions/spreadsheet/src/chart.rs`, `extensions/spreadsheet/src/drawing.rs`, `extensions/spreadsheet/tests/excel.rs`, `extensions/spreadsheet/tests/chart.rs`. The rxw clone is gone. Fetch the fixtures again with a sparse clone of `rust_xlsxwriter`'s `tests/input`.
+**Stage 13, the charts and images** (`rule:core-classes/spreadsheet-output-is-inert`, `rule:core-classes/spreadsheet-sheet-end-parts`). Files: `extensions/spreadsheet/src/chart.rs`, `extensions/spreadsheet/src/drawing.rs`, the sheet writer that sees each row's height and values, `extensions/spreadsheet/tests/excel.rs`, `extensions/spreadsheet/tests/chart.rs`. The rxw clone is gone. Fetch the fixtures again with a sparse clone of `rust_xlsxwriter`'s `tests/input`.
+
+- [ ] **Anchors as Excel writes them.** `extensions/spreadsheet/src/drawing.rs:248` writes `twoCellAnchor editAs="oneCell"` with a `to` cell and offset, from the column widths and the open sheet's custom row heights kept as runs (the rule's memory line). Rewrite the module docs of `drawing.rs` and `chart.rs:19`, which say one cell.
+- [ ] **Categories and the axis format.** `extensions/spreadsheet/src/chart.rs:416` writes `numRef` when the categories are a column of the chart's own sheet whose every value is a number or a date, from one flag per column. The catAx `numFmt` is written only when there are categories (`:459`).
 
 - [ ] **The plain chart fixes**, which need no decision. Excel quotes a sheet name only when the name needs it (`extensions/spreadsheet/src/chart.rs:168`). It omits `varyColors` on axis charts (`:353`), and it omits `delete`, `majorTickMark`, `minorTickMark` and `noMultiLvlLbl` on axes (`:458`, `:483`). Its legend has no `overlay` (`:316`), and a pie or doughnut legend has a `txPr`. `dispBlanksAs` appears only when set (`:320`). A line series has `<c:marker><c:symbol val="none"/></c:marker>`, and no line or scatter series has `smooth` (`:434`).
 - [ ] **The fixtures**: `chart_column01`, `chart_bar01`, `chart_line01`, `chart_area01`, `chart_pie01`, `chart_doughnut01`, `chart_scatter01`, `chart_combined02` and `image53`. Upstream's only chart normalisation is the `000000000000\d+` digits in `xl/charts/chart*`. Add each to the table in `extensions/spreadsheet/tests/fixtures/excel/README.md:1`.
-- [ ] Write the two tests after the four in `extensions/spreadsheet/tests/excel.rs:1`, reusing its harness. Run `cargo test --manifest-path extensions/spreadsheet/Cargo.toml --test excel`, then `looper check --name spreadsheet-what-opens-in-excel`.
+- [ ] Write the two tests after the four in `extensions/spreadsheet/tests/excel.rs:1`, reusing its harness. The harness removes `numCache` and `strCache` from Excel's chart parts in one named place, and renumbers `axId` and `crossAx` in both files by order of appearance. Run `cargo test --manifest-path extensions/spreadsheet/Cargo.toml --test excel`, then `looper check --name spreadsheet-what-opens-in-excel`.
 
 Not compared, because the writer lacks the feature: font family, centre across, fill patterns, quote prefix, automatic colours, diagonals, stacked text, a table with no header or style `none`, stop-if-true, and custom icon thresholds. Our writer writes one `<conditionalFormatting>` per rule, and Excel groups rules over one range (`cond_format03`, `07`). That is a design difference and is not compared.
 
