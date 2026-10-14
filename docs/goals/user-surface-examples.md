@@ -61,8 +61,7 @@ checks:
   - id: engine-off-roster
     stage: 3
     name: "no roster feature is a member of a built-in component's engine class"
-    run: [bun, test, tools/nv/test/roster-novis.test.ts]
-    tests: [a built-in component's engine class is no feature]
+    run: [bun, test, tools/nv/test/roster-novis.test.ts, -t, "a built-in component's engine class is no feature"]
   - id: reference-pages
     stage: 3
     name: "every Reference page shows every example of every feature on it"
@@ -153,9 +152,11 @@ entry or Reference page names one.
 
 **Does:** `nvs info` and `nvs agent init` each have examples that are a command line and its output.
 
-- [ ] The `NN-title.cmd` kind and how it is run (`docs/examples/README.md:91`, `tools/nv/proofs/collect.ts:43`)
-- [ ] The website shows one as a shell block (`website/src/lib/feature.ts:1`, `website/src/components/FeatureExamples.astro:10`)
-- [ ] The two commands' examples, and their skips deleted (`data/proofs/policy.json:187`)
+- [x] The `NN-title.cmd` kind and how it is run (`docs/examples/README.md:199`, `tools/nv/proofs/run.ts:205`)
+- [x] The website shows one as a shell block (`website/src/lib/feature.ts:156`, `website/src/components/FeatureExamples.astro:28`)
+- [ ] The two commands' examples, and their skips deleted (`data/proofs/policy.json:75`)
+  - [x] `nvs agent init`'s three examples, and its skip deleted (`docs/examples/tools/agents/nvs-agent-init/01-set-up-a-project-for-codex.cmd:1`)
+  - [ ] `nvs info`'s examples, once the user decides how a per-machine output is checked (`data/proofs/policy.json:78`)
 
 ### 5. an example may require the Postgres service
 
@@ -169,28 +170,34 @@ entry or Reference page names one.
 
 ### State
 
-Stages 1 to 3 are done. `nvs meta --json` marks `"internal": true` on each component's manifest
-class, and on each manifest enum or source type alias that no public signature of the component
-reaches (`rule:packaging/a-components-engine-class-is-internal`). The roster, the policy and the
-website leave them out. Internal enums: `Image::Output`, `NumberFormat::Style`,
-`PluralRules::{Kind,Category}` and six `Novis\Spreadsheet` enums. Their examples, the engines'
-examples, benches and attacks, and every `// covers:` naming an engine member are deleted.
+Stages 1 to 3 are done. Each built-in component's engine class, and each of its enums that no
+public signature reaches, is `"internal": true` in `nvs meta --json`
+(`rule:packaging/a-components-engine-class-is-internal`). They are not on the roster, in the policy
+or on the website.
 
-`Core\Router\Gate` (a `CoreContract`) is now in meta's `interfaces` roster, so it has a Reference
-page. It is a new interface feature on the roster and owes its proofs.
+Stage 4 is done except `nvs info`. The `.cmd` example kind is on disk. `spawnProof` runs the line
+in a scratch directory under `.agent-tmp/proof-cmd/`, and every lister of examples reads `.cmd` through
+`programsIn`. The website shows the line as an `sh` block. `nvs agent init` has three examples and
+no skip. `engine-off-roster` now runs its test with `-t`, because bun prints no test names under
+the driver's environment.
 
-`engine-off-roster` passes for the driver. Run by hand inside an agent session, bun prints no
-`(pass)` lines, so it looks red (playbook: *bun test prints no pass lines*).
+**Blocked on the user:** `nvs info` prints the commit, the build profile, the executable path,
+the CPU count and one line per dependency. No `.out` matches it on two machines, so the decision's
+"byte for byte" cannot hold for it. Recommendation: in a `.cmd` example's `.out`, a line that is
+exactly `...` matches any number of lines. Then `nvs info`'s examples show the section headings and
+the `Licensing` lines, and elide the rest. Re-bless them each release, because the `Novis 0.0.1`
+line changes. The alternative is to keep its skip, with a reason that says the output differs per
+machine. Then the goal's reach condition excuses it.
 
 ### Next
 
-Stage 4, over the examples README, the proofs collector and runner, and the website's example view:
+Stage 4's last item, once the user decides, over the runner and `nvs info`'s directory:
 
-- The `NN-title.cmd` example kind, beside `.nvsr` (`docs/examples/README.md:157`,
-  `tools/nv/proofs/collect.ts:406`, `tools/nv/proofs/run.ts:253`) (`rule:testing/feature-proofs`).
-- The website shows it as a shell block (`website/src/lib/feature.ts:34`,
-  `website/src/components/FeatureExamples.astro:10`).
-- Examples for `nvs info` and `nvs agent init`, and their skips deleted (`data/proofs/policy.json:75`).
+- The elision line in a `.cmd`'s `.out`, if chosen (`tools/nv/proofs/run.ts:399`,
+  `docs/examples/README.md:199`) (`rule:testing/feature-proofs`).
+- `nvs info`'s three examples, and its skip deleted (`docs/examples/tools/cli/nvs-info/about.md:1`,
+  `data/proofs/policy.json:78`).
+- Then stage 5: the `postgres` service marker (`tools/nv/proofs/run.ts:77`, `tests/db/compose.yaml:41`).
 
 ### Backlog
 
