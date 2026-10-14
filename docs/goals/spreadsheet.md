@@ -56,7 +56,7 @@ stages:
         shapes: ["A `.nvst` test case"]
   - id: 9
     title: CSV through the same API
-    status: open
+    status: done
     extra:
       context:
         rules: [core-api/one-paradigm-per-operation]
@@ -768,23 +768,21 @@ One file set: `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/n
 
 ### State
 
-**Stage 8 is done.** Both Stage 8 checks pass, and so do the six Stage 3 to 7 suite checks the last sweep named. They were red only because the zip-code case had never run on the covws build.
+**Stage 9 is done.** `spreadsheet-csv-through-the-same-api` passes, with its three cases under `tests/conformance/novis/`.
 
-- **Auto width measures through the renderer.** `width::value` takes the cell's format code from `Styles::code` (cell, row, column, then the write table's), and renders the number `cells::stored_number` gives. `auto_width_measures_the_text_the_cell_format_shows` in `extensions/spreadsheet/tests/write.rs` pins it.
-- **The floor gate's six red LDAP benches are not this goal's.** `benches/members/core/Ldap-Connection/delete.nvs` runs and prints `100` on the release build, with the Samba container healthy. `bun nv benches` is refused in a session, so the next floor gate judges them again.
-- **The renderer** is `extensions/spreadsheet/src/format/` (`mod.rs` sections, lexer and `choose`; `number.rs`; `date.rs`; `locale.rs`). It covers General, `0` `#` `?`, grouping and scaling, percent, scientific, fractions, literals, `@`, conditions, colours (dropped), dates, times, elapsed time, both epochs, the 1900 leap day, built-in ids 0 to 49 and `[$-407]` prefixes. Its module doc says what it does.
-- `extensions/spreadsheet/tests/format.rs` has the six Stage 8 tests, and all six pass. The committed reference table is `extensions/spreadsheet/tests/fixtures/number-formats.txt`, with 120 rows. The rows were written by hand from SSF's rules. They were not checked against Excel and not copied from SSF's files.
-- The locale separators are a CLDR table in `extensions/spreadsheet/src/format/locale.rs`. Each row was checked against `Novis\Intl\NumberFormat::decimal`'s output. The table is not a call into `Novis\Intl`'s data, because the component cannot call another component. Grouping is by three digits in every locale, so `en-IN` is not Indian grouping.
-- `read::format::classify` now uses the renderer's lexer. This fixes a bug: a custom `0.00E+00` read as a date before.
-- **The reader's `text` option** resolves names to columns, header keys first and column letters second (`extensions/spreadsheet/src/read/mod.rs`'s `shown`), and fills `ReadCell::display`. `tests/conformance/novis/spreadsheet-a-zip-code-column-reads-as-text.nvst` pins it, its unknown name throwing `LogicError`.
+- **Reading CSV.** `Reader::open` (`extensions/spreadsheet/nvs/Reader.nvs`) reads a source as CSV when it does not start with `PK` and a control byte and its start is UTF-8. `bytes` are decoded whole with `Core\Encoding::decodeText`. A file's first four bytes are read, and its position is put back. Anything else goes to the engine as before. `Reading` is `?Reading`, `null` for CSV, and `engine()` gives it to every engine call.
+- A CSV is one sheet, `Sheet1`. Its extras are empty and its properties `null`. `rows` walks `records()` (`Core\Csv::parse` for `bytes`, `Core\Csv::rows` for a file, after a byte order mark) in the generator `csvWalk`. The header keys are numbered and lettered as the engine does. An empty field is an empty cell, and every value is a `string`.
+- **Writing CSV.** `Workbook` (`extensions/spreadsheet/nvs/Workbook.nvs`) writes CSV for a `.csv` name or `{format: 'csv'}`. `flush` formats each batch with `Core\Csv::format`. The engine writer still opens, checks the sheet name and logs a workbook never finished, and `send` drops its bytes. `finish` counts the CSV rows and bytes itself. A second sheet throws naming both sheets.
+- **A string that starts with `=`, `+`, `-`, `@`, a tab or a carriage return is written to CSV with a `'` first**, so Excel reads it as text. This was the safe default, taken without the user. It changes the data for every tool that reads the file, so the user may want to confirm it. Reading does not strip the `'`. The trade-offs are in `docs/rules/core-classes/spreadsheet-has-no-io.md`.
+- `Core\Csv` needed nothing new.
 
 ### Next
 
-**Stage 9, CSV through the same API** (`rule:core-api/one-paradigm-per-operation`). Files: `extensions/spreadsheet/nvs/Reader.nvs`, `extensions/spreadsheet/nvs/Workbook.nvs`, `crates/nvs-stdlib/src/csv.rs` only if `Core\Csv` lacks a piece.
+**Stage 10, template fill** (`rule:core-classes/spreadsheet-template-fill`). Files: `extensions/spreadsheet/src/template/` (new), `extensions/spreadsheet/src/lib.rs`, `extensions/spreadsheet/nvs/Template.nvs` (new), `wit/spreadsheet.wit`.
 
-- [ ] **Reading.** `Reader::open` (`extensions/spreadsheet/nvs/Reader.nvs:29`) recognises CSV and `rows` (`extensions/spreadsheet/nvs/Reader.nvs:111`) passes it to `Core\Csv`, with the same options and row shape; a short record's missing header keys are `null` (`crates/nvs-stdlib/src/csv.rs:77`). Case: `spreadsheet-reads-csv-with-the-same-row-shape.nvst`.
-- [ ] **Writing.** A name ending in `.csv` or `{format: 'csv'}` writes each batch through `Core\Csv::format` (`extensions/spreadsheet/nvs/Workbook.nvs:51`, `:88`, `:210`); styles, widths and sheet-end parts are ignored. Cases: `spreadsheet-writes-csv-from-the-same-calls.nvst`, `spreadsheet-a-second-csv-sheet-throws.nvst`.
-- [ ] **State the tradeoffs** in `docs/rules/core-classes/spreadsheet-has-no-io.md:23`, which says CSV goes through `Core\Csv`, and update the "Not shipped" paragraph of `docs/rules/core-classes/spreadsheet-reads-as-a-stream.md:108`. Then run `looper check --name spreadsheet-csv-through-the-same-api`.
+- [ ] **Placeholders and one cell.** `template_open` and `template_set` (`extensions/spreadsheet/src/lib.rs:1287`, `wit/spreadsheet.wit:649`) copy every part but the filled cells unchanged. A lone placeholder keeps its value's type, and a value beginning with `=` stays text. Tests in `extensions/spreadsheet/tests/template.rs`.
+- [ ] **Lists and blocks.** `template_fill` and `template_items` (`wit/spreadsheet.wit:654`) repeat a list's row and a defined name's block, and a list inside a list throws.
+- [ ] **The shifter.** Rows below a block move with every part that points at them, and a range over the template row grows (`wit/spreadsheet.wit:656`, `wit/spreadsheet.wit:659`). Then `Template.nvs` and the two Stage 10 cases.
 
 ### Backlog
 
@@ -792,5 +790,5 @@ One file set: `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/n
 - An ods cell's `text` uses the default format of its type, not the file's own number style. A merged fill copies no `display`. `extensions/spreadsheet/src/read/ods.rs:1`, `extensions/spreadsheet/src/read/merge.rs:166`
 - The extras from xlsb, xls and ods, which throw naming the format now. `extensions/spreadsheet/src/read/extras.rs:1`
 - Extension contagion does not reach a shape's fields (`crates/nvs-types/src/expr/quals.rs:531`'s `tainted_result`, `rule:security/extension-contagion`). This is a compiler fix, outside this goal.
-- The style enums under `Style` (`rule:core-classes/spreadsheet-styles-and-defaults`, `extensions/spreadsheet/nvs/Style.nvs:23`). `Cell::rich`, and the shapes of `validate`, `conditional` and `Chart`'s options (`rule:core-classes/spreadsheet-sheet-end-parts`). `extensions/spreadsheet/nvs/Workbook.nvs:537`
-- Stages 10 to 14. Stage 14's proofs owe `Row` a group. Stage 11 owes `an_xlsb_record_whose_length_lies_throws` and `an_xls_sector_chain_that_loops_is_refused` (`extensions/spreadsheet/src/read/cfb.rs`). See `docs/goals/spreadsheet.md`.
+- The style enums under `Style` (`rule:core-classes/spreadsheet-styles-and-defaults`, `extensions/spreadsheet/nvs/Style.nvs:23`). `Cell::rich`, and the shapes of `validate`, `conditional` and `Chart`'s options (`rule:core-classes/spreadsheet-sheet-end-parts`).
+- Stages 11 to 14. Stage 14's proofs owe `Row` a group, and `Reader::rows`'s doc comment is four lines where `bun nv proofs --comments` allows two. Stage 11 owes `an_xlsb_record_whose_length_lies_throws` and `an_xls_sector_chain_that_loops_is_refused` (`extensions/spreadsheet/src/read/cfb.rs`).
