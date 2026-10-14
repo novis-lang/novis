@@ -198,8 +198,8 @@ pub const CLASS: CoreClass = CoreClass {
 
 /// `Core\Random::int`'s reference card — `rule:core-api/reference-card`.
 const INT_DOC: MethodDoc = MethodDoc {
-    short: "Draws an integer uniformly from `[$min, $max]`, inclusive at both ends, from the \
-            CSPRNG — as `random_int` does, replacing `rand` and `mt_rand` as well.",
+    short: "Returns a random integer from `$min` to `$max`, including both ends. Every value is \
+            equally likely. The number comes from the cryptographic random generator.",
     params: &[
         ParamDoc {
             name: "min",
@@ -221,8 +221,8 @@ const INT_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Random::float`'s reference card — `rule:core-api/reference-card`.
 const FLOAT_DOC: MethodDoc = MethodDoc {
-    short: "Draws a float uniformly from the half-open interval `[0, 1)`, replacing `lcg_value` \
-            and the `mt_rand() / mt_getrandmax()` idiom.",
+    short: "Returns a random float from `0.0` up to, but not including, `1.0`. Every value is \
+            equally likely.",
     params: &[],
     ret: "A `float` with 53 random bits; `0.0` is drawable and `1.0` is not.",
     errors: &[],
@@ -230,8 +230,8 @@ const FLOAT_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Random::bytes`'s reference card — `rule:core-api/reference-card`.
 const BYTES_DOC: MethodDoc = MethodDoc {
-    short: "Draws `$count` bytes from the CSPRNG as a raw buffer — a key, a nonce or an IV — as \
-            `random_bytes` does, replacing `openssl_random_pseudo_bytes` as well.",
+    short: "Returns `$count` random bytes from the cryptographic random generator. Use it for a \
+            key, a nonce or an IV.",
     params: &[ParamDoc {
         name: "count",
         desc: "How many bytes to draw; at least one.",
@@ -241,15 +241,14 @@ const BYTES_DOC: MethodDoc = MethodDoc {
           the hex spelling.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "`$count` is `0`, as `random_bytes(0)` is a `ValueError`, or is larger than a \
-               buffer this process can allocate.",
+        desc: "`$count` is `0`, or it is larger than a buffer this process can allocate.",
     }],
 };
 
 /// `Core\Random::token`'s reference card — `rule:core-api/reference-card`.
 const TOKEN_DOC: MethodDoc = MethodDoc {
-    short: "Draws `$bytes` bytes from the CSPRNG and renders them as lower-case hex — the \
-            `bin2hex(random_bytes(…))` idiom, for a session identifier or a reset link.",
+    short: "Takes `$bytes` random bytes from the cryptographic random generator and returns them \
+            as lower-case hex. Use it for a session identifier or a reset link.",
     params: &[ParamDoc {
         name: "bytes",
         desc: "How many bytes of entropy to draw, `32` by default — the answer is twice as many \
@@ -266,8 +265,7 @@ const TOKEN_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Random::pick`'s reference card — `rule:core-api/reference-card`.
 const PICK_DOC: MethodDoc = MethodDoc {
-    short: "Draws one entry of `$a` uniformly and answers its value, replacing `array_rand` in \
-            its one-element spelling — the value, where `array_rand` answers the key.",
+    short: "Returns the value of one random entry of `$a`. Every entry is equally likely.",
     params: &[ParamDoc {
         name: "a",
         desc: "The array to draw from.",
@@ -280,8 +278,8 @@ const PICK_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Random::sample`'s reference card — `rule:core-api/reference-card`.
 const SAMPLE_DOC: MethodDoc = MethodDoc {
-    short: "Draws `$count` distinct entries of `$a` uniformly, replacing `array_rand` with a \
-            count — in random order, where `array_rand` keeps the subject's order.",
+    short: "Returns `$count` different random entries of `$a`, in random order. Every entry is \
+            equally likely.",
     params: &[
         ParamDoc {
             name: "a",
@@ -304,15 +302,15 @@ const SAMPLE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Random::shuffle`'s reference card — `rule:core-api/reference-card`.
 const SHUFFLE_DOC: MethodDoc = MethodDoc {
-    short: "Answers every entry of `$a` in a uniformly random order, replacing `shuffle` and \
-            `str_shuffle` — a fresh array rather than a reordering in place.",
+    short: "Returns every entry of `$a` in a random order. Every order is equally likely. The \
+            result is a new array, and `$a` stays the same.",
     params: &[ParamDoc {
         name: "a",
         desc: "The array to reorder.",
         shape: &[],
     }],
-    ret: "A fresh list of all the values under `0, 1, …` keys — the subject's keys are \
-          discarded, as `shuffle` renumbers — and `$a` is unchanged.",
+    ret: "A new list of all the values, with the keys `0, 1, …`. The keys of `$a` are not kept, \
+          and `$a` is unchanged.",
     errors: &[],
 };
 
@@ -444,8 +442,8 @@ const STATE_SLOT: usize = 0;
 
 /// `new Core\Random\Seeded`'s reference card — `rule:core-api/reference-card`.
 const SEEDED_CONSTRUCTOR_DOC: MethodDoc = MethodDoc {
-    short: "Builds a generator whose sequence `$seed` fixes — the reproducible half of spec § 11, \
-            replacing `srand` and `mt_srand` with a value rather than a mode.",
+    short: "Builds a random generator from `$seed`. The same seed always gives the same sequence \
+            of values.",
     params: &[ParamDoc {
         name: "seed",
         desc: "The seed the sequence is drawn from; every `int` is one, including `0`.",

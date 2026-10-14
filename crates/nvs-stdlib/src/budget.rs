@@ -99,10 +99,9 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 
 /// `Core\Budget::memoryHeld`'s reference card — `rule:core-api/reference-card`.
 const MEMORY_HELD_DOC: MethodDoc = MethodDoc {
-    short: "The bytes **this request** holds right now — what `memory_get_usage` was reaching for, \
-            with no `$real_usage` boolean. It falls as values die, because Novis releases on the \
-            last reference rather than at the end of the script, so a request that has finished \
-            with a large payload reads small again.",
+    short: "Returns the number of bytes **this request** uses right now. Novis frees a value as \
+            soon as nothing uses it. So the number goes down again when a request is done with a \
+            large value.",
     params: &[],
     ret: "This request's held bytes. Never the process's — that is \
           `Core\\Os::residentBytes`, and it is a different question.",
@@ -111,9 +110,8 @@ const MEMORY_HELD_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Budget::memoryPeak`'s reference card — `rule:core-api/reference-card`.
 const MEMORY_PEAK_DOC: MethodDoc = MethodDoc {
-    short: "The highest `memoryHeld()` has been during this request — `memory_get_peak_usage`. The \
-            runtime records the mark as it allocates rather than deriving it from a reading, so a \
-            spike that has already been released is still reported.",
+    short: "Returns the highest value `memoryHeld()` has had during this request. The number is \
+            recorded at every allocation, so it includes memory that was already freed again.",
     params: &[],
     ret: "This request's high-water mark in bytes, never below what `memoryHeld()` answers. It \
           cannot be reset: the number the request-level notices exist to surface is not one an \
