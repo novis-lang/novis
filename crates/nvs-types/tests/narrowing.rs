@@ -126,15 +126,206 @@ fn a_write_inside_a_narrowed_block_widens_it_again() {
     assert!(refuses_nullable_receiver(&diags), "{diags:?}");
 }
 
-/// A loop's back edge carries a write at the end of the body to a read at
-/// its start, and this walk has no back edge to discover that on — so a
-/// narrowing established *outside* a loop does not reach inside it.
+/// A loop that never writes the name keeps the narrowing made before it, in
+/// its condition and in its body.
 #[test]
-fn a_loop_body_does_not_inherit_an_outer_narrowing() {
+fn a_loop_that_does_not_write_the_name_keeps_an_outer_narrowing() {
     let diags = check_with_node(
-        "if ($n == null) {\n  return;\n}\nwhile (true) {\n  echo $n->label();\n}\n",
+        "if ($n == null) {\n  return;\n}\nwhile ($n->label() != \"\") {\n  echo $n->label();\n}\n",
     );
-    assert!(refuses_nullable_receiver(&diags), "{diags:?}");
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+/// The case that first showed the gap: a key and a number, both narrowed by
+/// one guard clause, read in a `foreach` that writes neither of them.
+#[test]
+fn a_property_key_and_a_number_stay_narrowed_through_a_foreach() {
+    let diags = check_src(
+        "<?nvs\nclass Profile {\n  public string $city = \"London\";\n}\n\
+         class Probe {\n  public static function run(?property<Profile> $key, ?int $n, \
+         array<string> $rows): void {\n    Profile $profile = new Profile();\n    \
+         if ($key == null || $n == null) {\n      return;\n    }\n    \
+         foreach ($rows as string $row) {\n      $profile->$key = $row;\n      \
+         int $m = $n + 1;\n    }\n  }\n}\n",
+    );
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+/// A `Node` class, and a class `T` whose method `m` narrows `$n` and `$k`
+/// with a guard clause and then runs `body`. `T::reset` writes its `inout`
+/// argument. Returns the source with its diagnostics, so a test can find the
+/// read it expects refused.
+fn check_after_guard(body: &str) -> (String, Diagnostics) {
+    let src = format!(
+        "<?nvs\nclass Node {{\n  function label(): string {{ return \"n\"; }}\n}}\n\
+         class T {{\n  static function reset(inout ?Node $x): void {{\n    $x = null;\n  }}\n\
+         function m(?Node $n, ?int $k, array<?Node> $all, Throwable $e): void {{\n\
+         if ($n == null || $k == null) {{\n  return;\n}}\n{body}\n  }}\n}}\n"
+    );
+    let diags = check_src(&src);
+    (src, diags)
+}
+
+/// Whether a diagnostic with `code` covers the first occurrence of `read`
+/// inside the method body.
+fn refused_at(src: &str, diags: &Diagnostics, read: &str, code: nvs_diagnostics::Code) -> bool {
+    let body = src
+        .find("function m(")
+        .expect("the method is in the source");
+    let at = u32::try_from(body + src[body..].find(read).expect("the read is in the body"))
+        .expect("a fixture fits in u32");
+    diags.iter().any(|d| {
+        d.code == Some(code)
+            && d.primary_span()
+                .is_some_and(|s| s.start <= at && at < s.end)
+    })
+}
+
+/// Every way to write `$n` inside a loop, each one a statement.
+const WRITES_OF_N: &[&str] = &[
+    "$n = null;",
+    "$n ??= new Node();",
+    "T::reset(inout $n);",
+    "[?Node $n] = $all;",
+    "foreach ($all as ?Node $n) {\n}",
+    "try {\n  echo \"x\";\n} catch (Throwable $e) {\n  $n = null;\n}",
+    "while (true) {\n  $n = null;\n}",
+    "for (int $i = 0; $i < 1; $i++) {\n  if ($i == 0) {\n    $n = null;\n  }\n}",
+    "var $f = fn() => $n;",
+];
+
+/// A write anywhere in a loop drops the narrowing for the whole loop, so a
+/// read written *before* the write is refused too: the next pass reaches it
+/// after the write.
+#[test]
+fn every_write_in_a_loop_drops_the_narrowing_before_and_after_it() {
+    for write in WRITES_OF_N {
+        for body in [
+            format!("while (true) {{\n  echo $n->label();\n  {write}\n}}\n"),
+            format!("while (true) {{\n  {write}\n  echo $n->label();\n}}\n"),
+            format!("foreach ($all as ?Node $other) {{\n  echo $n->label();\n  {write}\n}}\n"),
+            format!("do {{\n  echo $n->label();\n  {write}\n}} while (true);\n"),
+        ] {
+            let (src, diags) = check_after_guard(&body);
+            assert!(
+                refused_at(&src, &diags, "$n->label()", code::E_NULLABLE_RECEIVER),
+                "{body}\n{diags:?}"
+            );
+        }
+    }
+}
+
+/// Each write alone in a loop compiles. This is also the check that the scan
+/// for a loop's writes covers every write the checker makes: a debug build
+/// fails inside the checker when a loop in a program with no error drops a
+/// narrowing the scan did not find.
+#[test]
+fn every_write_alone_in_a_loop_compiles() {
+    // `$c` is a plain `int`, so these steps compile in a loop. A step on the
+    // narrowed `?int $k` does not (see the next test).
+    let more = ["$c++;", "--$c;", "$c += 1;"];
+    for write in WRITES_OF_N.iter().chain(&more) {
+        for body in [
+            format!("int $c = 0;\nwhile (true) {{\n  {write}\n}}\n"),
+            format!("int $c = 0;\nforeach ($all as ?Node $other) {{\n  {write}\n}}\n"),
+            format!("int $c = 0;\ndo {{\n  {write}\n}} while (false);\n"),
+            format!("int $c = 0;\nfor (int $j = 0; $j < 1; $j++) {{\n  {write}\n}}\n"),
+        ] {
+            let (_, diags) = check_after_guard(&body);
+            assert!(!diags.has_errors(), "{body}\n{diags:?}");
+        }
+    }
+}
+
+/// `++` and `--` are writes. Inside the loop the operand is the declared
+/// `?int` again, so the step itself is refused as well as the read.
+#[test]
+fn an_increment_in_a_loop_drops_the_narrowing() {
+    for write in ["$k++;", "--$k;"] {
+        let body = format!("while (true) {{\n  int $m = $k + 1;\n  {write}\n}}\n");
+        let (src, diags) = check_after_guard(&body);
+        assert!(
+            refused_at(&src, &diags, "$k + 1", code::E_ARITHMETIC_HAS_NO_ROW),
+            "{body}\n{diags:?}"
+        );
+    }
+}
+
+/// A `for` step and a loop condition run on every pass, so a write in either
+/// drops the narrowing in the body.
+#[test]
+fn a_write_in_a_for_step_or_a_condition_drops_the_narrowing() {
+    for body in [
+        "for (int $i = 0; $i < 3; $n = null) {\n  echo $n->label();\n}\n",
+        "for (int $i = 0; ($n = null) == null; $i++) {\n  echo $n->label();\n}\n",
+        "while (($n = null) == null) {\n  echo $n->label();\n}\n",
+        "do {\n  echo $n->label();\n} while (($n = null) == null);\n",
+    ] {
+        let (src, diags) = check_after_guard(body);
+        assert!(
+            refused_at(&src, &diags, "$n->label()", code::E_NULLABLE_RECEIVER),
+            "{body}\n{diags:?}"
+        );
+    }
+}
+
+/// The condition of a `while` runs again after the body. A body that writes
+/// the name therefore leaves the condition at the declared type too.
+#[test]
+fn a_loop_condition_does_not_keep_a_narrowing_its_body_writes() {
+    let (src, diags) = check_after_guard("while ($n->label() != \"\") {\n  $n = null;\n}\n");
+    assert!(
+        refused_at(&src, &diags, "$n->label()", code::E_NULLABLE_RECEIVER),
+        "{diags:?}"
+    );
+}
+
+/// A `catch` clause and an expression `catch` arm bind their variable on
+/// every pass, so reusing the narrowed name for one drops the narrowing.
+#[test]
+fn a_catch_binding_in_a_loop_drops_the_narrowing() {
+    let control = "try {\n    echo \"x\";\n  } catch (Throwable $other) {\n    echo \"y\";\n  }";
+    for write in [
+        control,
+        "try {\n    echo \"x\";\n  } catch (Throwable $e) {\n    echo \"y\";\n  }",
+        "string $s = T::label() catch (Throwable $e) => \"y\";",
+    ] {
+        let src = format!(
+            "<?nvs\nclass T {{\n  static function label(): string {{\n    return \"n\";\n  }}\n  \
+             function m(Throwable $e): void {{\n    if (!($e is LogicError)) {{\n      \
+             return;\n    }}\n    while (true) {{\n      LogicError $only = $e;\n      \
+             {write}\n    }}\n  }}\n}}\n"
+        );
+        let diags = check_src(&src);
+        if write == control {
+            assert!(
+                !diags.has_errors(),
+                "a catch binding another name\n{diags:?}"
+            );
+            continue;
+        }
+        assert!(
+            refused_at(&src, &diags, "LogicError $only", code::E_TYPE_MISMATCH)
+                || refused_at(&src, &diags, "$e;", code::E_TYPE_MISMATCH),
+            "{write}\n{diags:?}"
+        );
+    }
+}
+
+/// The same loops with no write of `$n` keep the narrowing, so each refusal
+/// above is the write's doing.
+#[test]
+fn the_same_loops_without_the_write_keep_the_narrowing() {
+    for body in [
+        "while (true) {\n  echo $n->label();\n  $k = 1;\n}\n",
+        "foreach ($all as ?Node $other) {\n  echo $n->label();\n}\n",
+        "do {\n  echo $n->label();\n} while (false);\n",
+        "for (int $i = 0; $i < 3; $i++) {\n  echo $n->label();\n  int $m = $i + 1;\n}\n",
+        "while (true) {\n  echo $n->label();\n  var $f = fn() => 1;\n}\n",
+    ] {
+        let (_, diags) = check_after_guard(body);
+        assert!(!diags.has_errors(), "{body}\n{diags:?}");
+    }
 }
 
 /// The suspended narrowing is still reachable by a *write*, so one inside the

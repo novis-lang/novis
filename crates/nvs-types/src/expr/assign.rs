@@ -1625,20 +1625,16 @@ pub(crate) fn check_read(
 /// A plain local is overwritten. A write through a property, or through an
 /// element of one, drops the narrowing of that property's path and of every
 /// path below it — the one write a `readonly` path can meet, inside the
-/// constructor, before its first write.
+/// constructor, before its first write. Which key a target drops is
+/// [`crate::locals::write_key`]'s, the function a loop's scan for writes reads
+/// too.
 pub(crate) fn note_write(expr: &Expr, scope: &LocalScope, env: &Env<'_>) {
-    if let ExprKind::Variable(span) = &expr.kind {
-        scope.overwrite(strip_sigil(span_text(env.src, *span)));
+    let Some(key) = crate::locals::write_key(expr, env) else {
         return;
-    }
-    let mut root = expr.unparenthesized();
-    while let ExprKind::Index { base, .. } = &root.kind {
-        root = base.unparenthesized();
-    }
-    if !matches!(root.kind, ExprKind::PropertyAccess { .. }) {
-        return;
-    }
-    if let Some(key) = crate::locals::written_path_key(root, env) {
+    };
+    if matches!(expr.unparenthesized().kind, ExprKind::Variable(_)) {
+        scope.overwrite(&key);
+    } else {
         scope.drop_narrowing(&key);
     }
 }

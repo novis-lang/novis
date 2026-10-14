@@ -1,6 +1,7 @@
-//! The expressions an expression evaluates: one match over
-//! [`crate::ast::ExprKind`]'s productions, yielding the [`crate::ast::Expr`]
-//! nodes themselves.
+//! The expressions an expression evaluates, and the statements and
+//! expressions a statement runs: one match over [`crate::ast::ExprKind`]'s
+//! productions and one over [`crate::ast::StmtKind`]'s, yielding the nodes
+//! themselves.
 //!
 //! # Decision: the match lives beside the grammar, for the reason [`crate::walk`] gives
 //!
@@ -44,7 +45,10 @@
 //! **What it spends:** nothing. The callback is handed borrowed nodes in
 //! source order and the walk allocates nothing at all.
 
-use crate::ast::{CallArgs, Expr, ExprKind, MemberName, NewTarget, StringPart, TestOperand};
+use crate::ast::{
+    CallArgs, DestructureElement, DestructureTarget, Expr, ExprKind, MemberName, NewTarget, Stmt,
+    StmtKind, StringPart, TestOperand,
+};
 
 /// Calls `f` on every expression `e` evaluates as part of evaluating itself,
 /// in source order — one level deep, so a caller that wants the whole subtree
@@ -235,6 +239,147 @@ fn each_member_name_expr<'a>(name: &'a MemberName, f: &mut dyn FnMut(&'a Expr)) 
     match name {
         MemberName::Ident(_) | MemberName::Missing(_) => {}
         MemberName::Variable(computed) | MemberName::Expr(computed) => f(computed),
+    }
+}
+
+/// One node a statement runs: a statement nested in it, or an expression it
+/// evaluates.
+#[derive(Clone, Copy, Debug)]
+pub enum StmtChild<'a> {
+    /// A nested statement — a block's, a branch's or a loop body.
+    Stmt(&'a Stmt),
+    /// An expression the statement evaluates directly.
+    Expr(&'a Expr),
+}
+
+/// Calls `f` on every statement and expression `s` runs, in source order, one
+/// level deep — the statement counterpart of [`each_child_expr`].
+///
+/// What a child is follows the module docs: every branch and every loop part
+/// is one, whether or not it runs, and a declaration nested in a body — a
+/// class, an interface, an enum, a free function — is a body of its own and
+/// yields nothing. A destructuring pattern yields its `key =>` expressions,
+/// and a rejected `static` declaration its initializers, because both are
+/// evaluated where they are written.
+pub fn each_child_of_stmt<'a>(s: &'a Stmt, f: &mut dyn FnMut(StmtChild<'a>)) {
+    match &s.kind {
+        StmtKind::Expr(e) | StmtKind::Return(Some(e)) => f(StmtChild::Expr(e)),
+        StmtKind::Break(level) | StmtKind::Continue(level) => {
+            if let Some(level) = level {
+                f(StmtChild::Expr(level));
+            }
+        }
+        StmtKind::Return(None)
+        | StmtKind::Empty
+        | StmtKind::InlineHtml(_)
+        | StmtKind::Global(_)
+        | StmtKind::Goto(_)
+        | StmtKind::Error => {}
+        StmtKind::Block(b) => b.stmts.iter().for_each(|s| f(StmtChild::Stmt(s))),
+        StmtKind::If { arms, else_ } => {
+            for arm in arms {
+                f(StmtChild::Expr(&arm.cond));
+                f(StmtChild::Stmt(&arm.then));
+            }
+            if let Some(else_) = else_ {
+                f(StmtChild::Stmt(else_));
+            }
+        }
+        StmtKind::While { cond, body } => {
+            f(StmtChild::Expr(cond));
+            f(StmtChild::Stmt(body));
+        }
+        StmtKind::DoWhile { body, cond } => {
+            f(StmtChild::Stmt(body));
+            f(StmtChild::Expr(cond));
+        }
+        StmtKind::For {
+            init,
+            cond,
+            step,
+            body,
+        } => {
+            if let Some(decl) = init.decl() {
+                f(StmtChild::Stmt(decl));
+            }
+            init.exprs().iter().for_each(|e| f(StmtChild::Expr(e)));
+            cond.iter().for_each(|e| f(StmtChild::Expr(e)));
+            f(StmtChild::Stmt(body));
+            step.iter().for_each(|e| f(StmtChild::Expr(e)));
+        }
+        StmtKind::Foreach { subject, body, .. } => {
+            f(StmtChild::Expr(subject));
+            f(StmtChild::Stmt(body));
+        }
+        StmtKind::Switch { subject, cases } => {
+            f(StmtChild::Expr(subject));
+            for case in cases {
+                if let Some(cond) = &case.cond {
+                    f(StmtChild::Expr(cond));
+                }
+                case.body.iter().for_each(|s| f(StmtChild::Stmt(s)));
+            }
+        }
+        StmtKind::Try {
+            body,
+            catches,
+            finally,
+        } => {
+            body.stmts.iter().for_each(|s| f(StmtChild::Stmt(s)));
+            for catch in catches {
+                catch.body.stmts.iter().for_each(|s| f(StmtChild::Stmt(s)));
+            }
+            if let Some(finally) = finally {
+                finally.stmts.iter().for_each(|s| f(StmtChild::Stmt(s)));
+            }
+        }
+        StmtKind::Echo(xs) | StmtKind::Unset(xs) => xs.iter().for_each(|e| f(StmtChild::Expr(e))),
+        StmtKind::LocalDecl { value, .. } => {
+            if let Some(value) = value {
+                f(StmtChild::Expr(value));
+            }
+        }
+        StmtKind::Destructure { target, value } => {
+            each_destructure_key(target, f);
+            f(StmtChild::Expr(value));
+        }
+        StmtKind::StaticLocal { vars, .. } => {
+            for var in vars {
+                if let Some(default) = &var.default {
+                    f(StmtChild::Expr(default));
+                }
+            }
+        }
+        // A body of its own: see the doc comment.
+        StmtKind::ClassDecl(_)
+        | StmtKind::InterfaceDecl(_)
+        | StmtKind::EnumDecl(_)
+        | StmtKind::NamespaceDecl(_)
+        | StmtKind::UseDecl(_)
+        | StmtKind::AutoloadDecl(_)
+        | StmtKind::TypeAliasDecl(_)
+        | StmtKind::TopLevelFunction(_)
+        | StmtKind::TopLevelConst(_) => {}
+    }
+}
+
+/// The `key =>` expressions of a destructuring pattern, nested ones included.
+fn each_destructure_key<'a>(target: &'a DestructureTarget, f: &mut dyn FnMut(StmtChild<'a>)) {
+    for element in &target.elements {
+        match element {
+            DestructureElement::Skip => {}
+            DestructureElement::Leaf { key, .. } => {
+                if let Some(key) = key {
+                    f(StmtChild::Expr(key));
+                }
+            }
+            DestructureElement::Nested { key, target, .. } => {
+                if let Some(key) = key {
+                    f(StmtChild::Expr(key));
+                }
+                each_destructure_key(target, f);
+            }
+        }
     }
 }
 

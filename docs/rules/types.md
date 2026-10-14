@@ -1404,7 +1404,10 @@ A guarded branch is cheaper with `is` than without it: the `as` a program wrote 
 Narrowing is flow-sensitive and **branch-local**, and there are four spellings of it: `is`, a
 `== null` test, a comparison against a value of a single-value type, and `match (true)`. A `switch (true)`
 narrows per arm the same way. A write inside a narrowed block widens the binding again, because the
-narrowing described the value that was there, not the slot.
+narrowing described the value that was there, not the slot. A narrowing made before a loop holds
+inside it unless the loop writes the binding somewhere — its body, its condition or a `for` step —
+and then it holds nowhere in that loop, a read written before the write included, because the next
+pass reaches that read after the write.
 
 A ternary's two arms and the right operand of `&&` and `||` are branches too. The condition narrows
 `$c ? $a : $b` exactly as it narrows `if ($c)` and its `else`, `&&` narrows its right operand as the

@@ -49,20 +49,27 @@
 //!   [`LocalScope::overwrite`]**, which drops the narrowing and answers the
 //!   *declared* type — so `if ($m !== null) { $m = null; $m->x(); }` refuses
 //!   the second statement, and `$m = null;` itself is still checked against
-//!   `?M` rather than against the narrowed `M`. Adding a new write path to
-//!   this crate owes a call to it; that list is `check_assign`,
-//!   `check_compound_assign`, `PreIncDec`/`PostIncDec`, `check_inout_arg` and
-//!   `check_unset_target`. A path that *declares* the name instead —
-//!   [`declare_binding`] and [`bind_catch_arm`] below — calls
-//!   [`LocalScope::drop_narrowing`], which drops the same narrowing and
-//!   resolves nothing, because a declaration is not a write of an enclosing
-//!   binding that shares the spelling.
-//! * **A loop body drops every narrowing installed outside it**
-//!   ([`check_stmt`]'s `While`/`DoWhile`/`For`/`Foreach` arms), because a
-//!   write at the *end* of the body invalidates a read at its start on the
-//!   next iteration and this walk has no back edge to discover that on. A
-//!   `while` condition's own narrowing is installed after that drop and is
-//!   sound, since the condition is re-tested before every entry.
+//!   `?M` rather than against the narrowed `M`. The paths are `check_assign`,
+//!   `check_compound_assign`, `++`/`--` and an `inout` argument, every one
+//!   but `check_assign`'s plain `$x = …` through `crate::expr::assign`'s
+//!   `note_write`, and [`write_key`] decides which key each target drops. A
+//!   path that *declares* the name instead — [`declare_binding`] and
+//!   [`bind_catch_arm`] below — calls [`LocalScope::drop_narrowing`], which
+//!   drops the same narrowing and resolves nothing, because a declaration is
+//!   not a write of an enclosing binding that shares the spelling. A new
+//!   write path owes one of those two calls, and a case in [`loop_writes`].
+//! * **A loop drops the narrowing of every key it can write, for the whole
+//!   loop** ([`check_stmt`]'s `While`/`DoWhile`/`For`/`Foreach` arms). A write
+//!   at the *end* of the body reaches a read at its start on the next pass,
+//!   and this walk has no back edge to discover that on. So before a loop is
+//!   checked, [`loop_writes`] reads off its syntax every key it can write,
+//!   and [`suspend`] puts those narrowings out of reach in the condition, the
+//!   body and the step alike. Every other narrowing stays in force, because
+//!   nothing in the loop can change what that name holds. A `while`
+//!   condition's own narrowing is installed after the suspension and is
+//!   sound, since the condition is tested again before every entry. A debug
+//!   build checks the scan against every write the checker makes inside the
+//!   loop ([`Suspended::resume`]).
 //!
 //! **Every `?T` narrows, to whatever dropping `null` leaves** — see
 //! [`narrow`] for the restriction that used to sit here, and for what lifted
@@ -126,10 +133,11 @@
 
 use nvs_diagnostics::{Diagnostic, Span, code};
 use nvs_syntax::ast::{
-    ArrayItem, DestructureElement, DestructureTarget, Expr, ExprKind, ForeachBinding,
+    ArrayItem, CallArgs, DestructureElement, DestructureTarget, Expr, ExprKind, ForeachBinding,
     ForeachBindingTy, Stmt, StmtKind,
 };
-use rustc_hash::FxHashMap;
+use nvs_syntax::visit::{StmtChild, each_child_expr, each_child_of_stmt};
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::expr::{
     check_array_key_type, check_condition, check_expr, check_expr_stmt, check_return,
@@ -168,10 +176,11 @@ pub(crate) struct LocalScope {
     /// the read that consults a narrowing and the write that must drop it
     /// happen mid-expression.
     narrowed: std::cell::RefCell<FxHashMap<String, TypeId>>,
-    /// Narrowings a loop body put out of a read's reach — see [`suspend`].
-    /// A write still reaches them ([`LocalScope::overwrite`]), which is what
-    /// makes resuming one at the end of the body sound.
-    shadowed: std::cell::RefCell<Vec<FxHashMap<String, TypeId>>>,
+    /// One layer per loop being checked, innermost last: the narrowings
+    /// [`suspend`] put out of a read's reach for it. A write still reaches
+    /// them ([`LocalScope::drop_narrowing`]), which is what makes resuming one
+    /// at the end of the loop sound.
+    shadowed: std::cell::RefCell<Vec<Shadowed>>,
     /// The bindings an expression-level `catch` arm has in scope right now —
     /// `rule:expressions/catch-expression`'s `catch (T $e) => …`, whose `$e` is a local of the
     /// enclosing function exactly as a clause's is.
@@ -324,14 +333,19 @@ impl LocalScope {
     ///
     /// Every `readonly` path rooted at `name` goes with it, because the path
     /// now reads through a different object.
+    ///
+    /// Inside a loop, `name` is also checked against what [`loop_writes`] read
+    /// off the loop beforehand. A write it did not foresee is recorded on the
+    /// loop's layer, and [`Suspended::resume`] fails a debug build on it.
     pub(crate) fn drop_narrowing(&self, name: &str) {
-        let rooted = |key: &String| {
-            key.strip_prefix(name)
-                .is_some_and(|rest| rest.is_empty() || rest.starts_with("->"))
-        };
-        self.narrowed.borrow_mut().retain(|key, _| !rooted(key));
+        self.narrowed
+            .borrow_mut()
+            .retain(|key, _| !rooted_at(key, name));
         for layer in self.shadowed.borrow_mut().iter_mut() {
-            layer.retain(|key, _| !rooted(key));
+            layer.taken.retain(|key, _| !rooted_at(key, name));
+            if !layer.writes.iter().any(|written| rooted_at(name, written)) {
+                layer.unforeseen.push(name.to_owned());
+            }
         }
     }
 
@@ -823,39 +837,239 @@ pub(crate) fn is_true_literal(subject: &Expr) -> bool {
     }
 }
 
-/// A set of narrowings [`suspend`] moved out of reach for a loop body, to be
-/// put back by [`Suspended::resume`] when the body is done with.
+/// Whether the narrowing key `key` is `root` or a `readonly` path through it:
+/// `x` and `x->a->b` are rooted at `x`, and `xy` is not.
+fn rooted_at(key: &str, root: &str) -> bool {
+    key.strip_prefix(root)
+        .is_some_and(|rest| rest.is_empty() || rest.starts_with("->"))
+}
+
+/// One loop's layer of [`LocalScope::shadowed`].
+#[derive(Debug)]
+struct Shadowed {
+    /// The narrowings [`suspend`] took out of [`LocalScope::narrowed`].
+    taken: FxHashMap<String, TypeId>,
+    /// The keys [`loop_writes`] found the loop can write.
+    writes: FxHashSet<String>,
+    /// Every key the checker dropped inside the loop that `writes` does not
+    /// root — a write path [`loop_writes`] has fallen behind.
+    unforeseen: Vec<String>,
+}
+
+/// The narrowings [`suspend`] moved out of reach for one loop, to be put back
+/// by [`Suspended::resume`] when the loop is checked.
 #[must_use]
 pub(crate) struct Suspended;
 
 impl Suspended {
-    /// Puts back every suspended narrowing a write inside the body did not
-    /// invalidate — dropping a narrowing reaches into the suspended layer too,
-    /// through either [`LocalScope::overwrite`] or
-    /// [`LocalScope::drop_narrowing`], so anything the body assigned or
-    /// redeclared is simply no longer there.
-    fn resume(self, scope: &LocalScope) {
+    /// Puts back every suspended narrowing that no write inside the loop
+    /// dropped. [`LocalScope::drop_narrowing`] reaches into this layer too, so
+    /// a name the loop assigned or declared is no longer in it.
+    ///
+    /// A debug build also fails here when the loop dropped a key that
+    /// [`loop_writes`] did not find, unless the program already has an error.
+    /// That is the check that keeps the scanner in step with every write path
+    /// of this crate: a new write path that it misses fails the first test that
+    /// writes that way inside a loop.
+    fn resume(self, scope: &LocalScope, env: &Env<'_>) {
         let layer = scope
             .shadowed
             .borrow_mut()
             .pop()
             .expect("every `suspend` is paired with one `resume`");
-        scope.narrowed.borrow_mut().extend(layer);
+        debug_assert!(
+            layer.unforeseen.is_empty() || env.diags.has_errors(),
+            "`loop_writes` missed a write inside a loop: {:?} (it found {:?})",
+            layer.unforeseen,
+            layer.writes,
+        );
+        scope.narrowed.borrow_mut().extend(layer.taken);
     }
 }
 
-/// Puts every narrowing in force out of a *read*'s reach for a loop body.
+/// Puts the narrowings of every key in `writes` out of a *read*'s reach for a
+/// loop, along with every `readonly` path rooted at one of them. `writes` is
+/// what [`loop_writes`] found the loop can write.
 ///
 /// A loop's back edge carries a write at the end of the body to a read at its
 /// start, and this walk is a forward one with no back edge to discover that
-/// on — so `if ($m === null) { return; } while (…) { $m->x(); $m = f(); }`
-/// would otherwise narrow the receiver against a write that reaches it. A
-/// narrowing established *inside* the body is unaffected: it is installed
-/// after this call, and a `while` condition is re-tested before every entry.
-fn suspend(scope: &LocalScope) -> Suspended {
-    let taken = std::mem::take(&mut *scope.narrowed.borrow_mut());
-    scope.shadowed.borrow_mut().push(taken);
+/// on. So in `if ($m == null) { return; } while (…) { $m->x(); $m = f(); }`
+/// the read of `$m` sees the declared `?M`, not `M`: the loop writes `$m`,
+/// and its narrowing is out of reach in the whole loop, condition included.
+/// A narrowing of a name the loop never writes stays in force, because
+/// nothing inside the loop can change what the name holds.
+///
+/// A narrowing made *inside* the loop is unaffected: it is installed after
+/// this call. A `while` condition's own narrowing is sound for the body,
+/// because the condition is tested again before every entry.
+fn suspend(scope: &LocalScope, writes: FxHashSet<String>) -> Suspended {
+    let mut taken = FxHashMap::default();
+    scope.narrowed.borrow_mut().retain(|key, ty| {
+        let written = writes.iter().any(|w| rooted_at(key, w));
+        if written {
+            taken.insert(key.clone(), *ty);
+        }
+        !written
+    });
+    scope.shadowed.borrow_mut().push(Shadowed {
+        taken,
+        writes,
+        unforeseen: Vec::new(),
+    });
     Suspended
+}
+
+/// The narrowing key a write through `target` drops, read off the syntax: a
+/// variable's name, or the key of the property path a write through a
+/// property (or an element of one) goes through ([`written_path_key`]). `None`
+/// for any other target, which drops nothing.
+///
+/// The one function both sides read: `crate::expr::assign::note_write` drops
+/// this key, and [`loop_writes`] collects it.
+pub(crate) fn write_key(target: &Expr, env: &Env<'_>) -> Option<String> {
+    let target = target.unparenthesized();
+    if let ExprKind::Variable(span) = &target.kind {
+        return Some(strip_sigil(span_text(env.src, *span)).to_owned());
+    }
+    let mut root = target;
+    while let ExprKind::Index { base, .. } = &root.kind {
+        root = base.unparenthesized();
+    }
+    if !matches!(root.kind, ExprKind::PropertyAccess { .. }) {
+        return None;
+    }
+    written_path_key(root, env)
+}
+
+/// Every narrowing key a loop can write, read off its syntax before the loop
+/// is checked: `parts` is the body and, for `while`, `do`-`while` and `for`,
+/// the condition and the step. [`suspend`] takes the narrowings of these keys
+/// out of reach for the whole loop.
+///
+/// It is a superset of the keys the checker drops inside the loop
+/// ([`LocalScope::drop_narrowing`], which [`LocalScope::overwrite`] calls).
+/// The forms, and the checker code each one mirrors:
+///
+/// * an assignment's target, `=` and every compound operator
+///   (`check_assign`, `check_compound_assign`), and `++`/`--` before or after
+///   the operand, all through `note_write` and [`write_key`];
+/// * an argument marked `inout` (`check_args_typed` through `note_write`);
+/// * the target of `unset`, through [`write_key`];
+/// * a local declaration, a destructuring leaf, a `foreach` key or value, a
+///   `catch` clause's variable and an expression `catch` arm's variable
+///   ([`declare_binding`], [`bind_catch_arm`]);
+/// * the subject of a `foreach` whose value is `inout`, through [`write_key`];
+/// * every `$name` written anywhere inside an anonymous function. A capture
+///   is a copy made when the function is created, so the function cannot
+///   change the outer variable. Counting its names anyway keeps this scan
+///   simple and safe.
+///
+/// Nested loops, blocks and branches are scanned through, by
+/// [`each_child_of_stmt`] and [`each_child_expr`].
+fn loop_writes<'a>(
+    parts: impl IntoIterator<Item = StmtChild<'a>>,
+    env: &Env<'_>,
+) -> FxHashSet<String> {
+    let mut out = FxHashSet::default();
+    for part in parts {
+        scan_writes(part, env, &mut out);
+    }
+    out
+}
+
+/// [`loop_writes`]' walk over one statement or expression and everything in it.
+fn scan_writes(part: StmtChild<'_>, env: &Env<'_>, out: &mut FxHashSet<String>) {
+    let name = |span: Span, out: &mut FxHashSet<String>| {
+        out.insert(strip_sigil(span_text(env.src, span)).to_owned());
+    };
+    match part {
+        StmtChild::Stmt(stmt) => {
+            match &stmt.kind {
+                StmtKind::LocalDecl { name: decl, .. } => name(*decl, out),
+                StmtKind::Destructure { target, .. } => destructure_leaves(target, env, out),
+                StmtKind::Foreach {
+                    subject,
+                    key,
+                    value,
+                    value_inout,
+                    ..
+                } => {
+                    if let Some(key) = key {
+                        name(key.name, out);
+                    }
+                    name(value.name, out);
+                    if *value_inout {
+                        out.extend(write_key(subject, env));
+                    }
+                }
+                StmtKind::Try { catches, .. } => {
+                    for var in catches.iter().filter_map(|c| c.var) {
+                        name(var, out);
+                    }
+                }
+                StmtKind::Unset(targets) => {
+                    out.extend(targets.iter().filter_map(|t| write_key(t, env)));
+                }
+                _ => {}
+            }
+            each_child_of_stmt(stmt, &mut |child| scan_writes(child, env, out));
+        }
+        StmtChild::Expr(expr) => {
+            match &expr.kind {
+                ExprKind::Assign { target, .. }
+                | ExprKind::PreIncDec { expr: target, .. }
+                | ExprKind::PostIncDec { expr: target, .. } => {
+                    out.extend(write_key(target, env));
+                }
+                ExprKind::Call { args, .. }
+                | ExprKind::MethodCall { args, .. }
+                | ExprKind::StaticCall { args, .. }
+                | ExprKind::New { args, .. } => {
+                    if let CallArgs::List(list) = args {
+                        out.extend(
+                            list.iter()
+                                .filter(|arg| arg.inout)
+                                .filter_map(|arg| write_key(&arg.value, env)),
+                        );
+                    }
+                }
+                ExprKind::Catch { arms, .. } => {
+                    for var in arms.iter().filter_map(|arm| arm.var) {
+                        name(var, out);
+                    }
+                }
+                ExprKind::Fn(_) => out.extend(dollar_names(span_text(env.src, expr.span))),
+                _ => {}
+            }
+            each_child_expr(expr, &mut |child| {
+                scan_writes(StmtChild::Expr(child), env, out);
+            });
+        }
+    }
+}
+
+/// The names of a destructuring pattern's leaves, nested ones included.
+fn destructure_leaves(target: &DestructureTarget, env: &Env<'_>, out: &mut FxHashSet<String>) {
+    for element in &target.elements {
+        match element {
+            DestructureElement::Leaf { name, .. } => {
+                out.insert(strip_sigil(span_text(env.src, *name)).to_owned());
+            }
+            DestructureElement::Nested { target, .. } => destructure_leaves(target, env, out),
+            _ => {}
+        }
+    }
+}
+
+/// Every `$name` in `text`, without the `$`. It reads the source text, so a
+/// `$` inside a string literal counts too, which only makes the set larger.
+fn dollar_names(text: &str) -> impl Iterator<Item = String> + '_ {
+    text.split('$').skip(1).filter_map(|rest| {
+        let end = rest
+            .find(|c: char| !(c.is_alphanumeric() || c == '_'))
+            .unwrap_or(rest.len());
+        (end > 0).then(|| rest[..end].to_owned())
+    })
 }
 
 /// Declares `name` in `scope`, or checks it against an existing declaration.
@@ -1312,30 +1526,34 @@ pub(crate) fn check_stmt(
                 rest_terminates = then_terminates && rest_terminates;
             }
         }
+        // Every loop arm suspends the narrowings of what the loop writes before
+        // it checks any part that runs more than once, the condition included,
+        // since a later pass reaches it after the body. See `suspend`.
         StmtKind::While { cond, body } => {
+            let writes = loop_writes([StmtChild::Expr(cond), StmtChild::Stmt(body)], env);
+            let suspended = suspend(scope, writes);
             check_condition(cond, live, scope, ctx, env);
             // The body may run zero times, so what it assigns is taken back.
             let mark = live.mark();
             // The condition is re-tested before every entry, so what it
-            // proves holds for the whole body — unlike anything proved
-            // outside the loop, which `suspend` puts out of reach.
-            let suspended = suspend(scope);
+            // proves holds for the whole body.
             let narrowed = narrow(cond, true, scope, env);
             enter_loop(env);
             check_stmt(body, live, scope, return_ty, ctx, env);
             leave_loop(env);
             narrowed.restore(scope);
-            suspended.resume(scope);
+            suspended.resume(scope, env);
             live.rewind(mark);
         }
         StmtKind::DoWhile { body, cond } => {
             // The body runs at least once, so its assignments carry forward.
-            let suspended = suspend(scope);
+            let writes = loop_writes([StmtChild::Stmt(body), StmtChild::Expr(cond)], env);
+            let suspended = suspend(scope, writes);
             enter_loop(env);
             check_stmt(body, live, scope, return_ty, ctx, env);
             leave_loop(env);
-            suspended.resume(scope);
             check_condition(cond, live, scope, ctx, env);
+            suspended.resume(scope, env);
         }
         StmtKind::For {
             init,
@@ -1354,19 +1572,22 @@ pub(crate) fn check_stmt(
             for e in init.exprs() {
                 check_expr(e, None, live, scope, ctx, env);
             }
+            let parts = cond.iter().map(StmtChild::Expr);
+            let parts = parts.chain([StmtChild::Stmt(body)]);
+            let writes = loop_writes(parts.chain(step.iter().map(StmtChild::Expr)), env);
+            let suspended = suspend(scope, writes);
             // `cond` always runs at least once, even if the body never does.
             for e in cond {
                 check_condition(e, live, scope, ctx, env);
             }
             let mark = live.mark();
-            let suspended = suspend(scope);
             enter_loop(env);
             check_stmt(body, live, scope, return_ty, ctx, env);
             leave_loop(env);
             for e in step {
                 check_expr(e, None, live, scope, ctx, env);
             }
-            suspended.resume(scope);
+            suspended.resume(scope, env);
             live.rewind(mark);
         }
         StmtKind::Foreach {
@@ -1411,12 +1632,22 @@ pub(crate) fn check_stmt(
             }
             let value_name = strip_sigil(span_text(env.src, value.name)).to_owned();
             declare_binding(scope, &value_name, value_ty, value.name, false, env);
+            // The header binds the key and the value again on every pass, and
+            // an `inout` value writes into the subject.
+            let mut writes = loop_writes([StmtChild::Stmt(body)], env);
+            writes.insert(value_name.clone());
+            if let Some(k) = key {
+                writes.insert(strip_sigil(span_text(env.src, k.name)).to_owned());
+            }
+            if *value_inout {
+                writes.extend(write_key(subject, env));
+            }
             live.insert(value_name);
-            let suspended = suspend(scope);
+            let suspended = suspend(scope, writes);
             enter_loop(env);
             check_stmt(body, live, scope, return_ty, ctx, env);
             leave_loop(env);
-            suspended.resume(scope);
+            suspended.resume(scope, env);
             live.rewind(mark);
         }
         StmtKind::Switch { subject, cases } => {
@@ -1934,4 +2165,91 @@ fn report_inout_leaf(span: Span, env: &mut Env<'_>) {
              to share one mutable cell, put it in an object (`rule:types/implicit-capture`)",
         ),
     );
+}
+
+/// The loop narrowing's bookkeeping, and the list of write paths [`loop_writes`]
+/// mirrors. The checking itself is pinned through compiled programs in
+/// `crates/nvs-types/tests/narrowing.rs`.
+#[cfg(test)]
+mod tests {
+    use super::{LocalScope, rooted_at, suspend};
+    use crate::ty::TypeInterner;
+    use rustc_hash::FxHashSet;
+
+    #[test]
+    fn a_key_is_rooted_at_its_variable_and_at_each_shorter_path() {
+        assert!(rooted_at("x", "x"));
+        assert!(rooted_at("x->a->b", "x"));
+        assert!(rooted_at("x->a->b", "x->a"));
+        assert!(!rooted_at("xy", "x"));
+        assert!(!rooted_at("x", "x->a"));
+    }
+
+    /// A loop suspends only what it writes, and a drop of a key the scan did
+    /// not find is recorded for [`super::Suspended::resume`] to fail on.
+    #[test]
+    fn a_loop_suspends_what_it_writes_and_records_a_write_it_did_not_foresee() {
+        let mut interner = TypeInterner::new();
+        let int = interner.int();
+        let scope = LocalScope::new();
+        for key in ["n", "n->a", "k"] {
+            scope.narrowed.borrow_mut().insert(key.to_owned(), int);
+        }
+        let writes: FxHashSet<String> = ["n".to_owned()].into_iter().collect();
+        let _suspended = suspend(&scope, writes);
+        assert_eq!(scope.narrowed_ty("k"), Some(int));
+        assert_eq!(scope.narrowed_ty("n"), None);
+        assert_eq!(scope.narrowed_ty("n->a"), None);
+        scope.drop_narrowing("n->a");
+        scope.drop_narrowing("k");
+        let layer = scope.shadowed.borrow_mut().pop().expect("one layer");
+        assert_eq!(layer.unforeseen, ["k"]);
+        assert_eq!(layer.taken.len(), 1, "`n->a` was dropped in the loop");
+    }
+
+    /// Every call that drops a narrowing, by file. [`super::loop_writes`] has
+    /// to find each one's syntax inside a loop. A new caller fails this test
+    /// until the scan covers it and the count here is raised.
+    #[test]
+    fn every_write_path_is_one_the_loop_scan_knows() {
+        let expected = [
+            ("expr/args.rs", 1),   // an `inout` argument, through `note_write`
+            ("expr/assign.rs", 5), // `check_assign`, `check_compound_assign`, `note_write`
+            ("expr/mod.rs", 1),    // `++` and `--`, through `note_write`
+            ("locals.rs", 3),      // `overwrite`, `declare_binding`, `bind_catch_arm`
+        ];
+        let root = nvs_repo::path("crates/nvs-types/src");
+        let mut found = Vec::new();
+        let mut dirs = vec![root.clone()];
+        while let Some(dir) = dirs.pop() {
+            for entry in std::fs::read_dir(&dir).expect("src is readable") {
+                let path = entry.expect("a directory entry").path();
+                if path.is_dir() {
+                    dirs.push(path);
+                    continue;
+                }
+                let text = std::fs::read_to_string(&path).expect("a source file");
+                let code = text.split("#[cfg(test)]").next().unwrap_or_default();
+                let calls = code
+                    .lines()
+                    .filter(|line| !line.trim_start().starts_with("//"))
+                    .filter(|line| {
+                        line.contains(".overwrite(")
+                            || line.contains(".drop_narrowing(")
+                            || (line.contains("note_write(") && !line.contains("fn note_write("))
+                    })
+                    .count();
+                if calls > 0 {
+                    let rel = path.strip_prefix(&root).expect("under src");
+                    found.push((rel.to_string_lossy().replace('\\', "/"), calls));
+                }
+            }
+        }
+        found.sort();
+        let expected: Vec<(String, usize)> = expected
+            .iter()
+            .map(|(f, n)| ((*f).to_owned(), *n))
+            .collect();
+        assert_eq!(found, expected);
+    }
 }
