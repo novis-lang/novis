@@ -12,8 +12,8 @@
 //!
 //! [`merged`] reads a sheet's merged ranges, which come after its rows, in a pass of its own.
 
-use super::Source;
 use super::merge::Merge;
+use super::{MOST_COLUMNS, MOST_ROWS, Source, letters};
 use super::xml::{self, Token};
 use super::zip::{Entry, Part};
 use crate::Error;
@@ -237,6 +237,18 @@ enum In {
     Phonetic,
 }
 
+/// `row`, or [`Error::Parse`] naming it when it is past the last row of a sheet. A cell of such
+/// a row is refused earlier, naming the cell.
+fn within(row: RawRow) -> Result<RawRow, Error> {
+    if row.number > MOST_ROWS {
+        return Err(broken(&format!(
+            "the row {} is past the last row of a sheet, {MOST_ROWS}",
+            row.number
+        )));
+    }
+    Ok(row)
+}
+
 /// Parses the `<row>` that starts `buf`, whose start tag is `length` bytes and has `attrs`.
 /// Returns `None` when `buf` ends inside the row.
 fn parse_row(
@@ -259,7 +271,7 @@ fn parse_row(
         cells: Vec::new(),
     };
     if empty {
-        return Ok(Some((row, length)));
+        return within(row).map(|row| Some((row, length)));
     }
     let mut at = length;
     let mut into = In::Nothing;
@@ -278,6 +290,13 @@ fn parse_row(
                         }
                         None => row.cells.last().map_or(1, |cell| cell.column + 1),
                     };
+                    if column > MOST_COLUMNS || row.number > MOST_ROWS {
+                        return Err(broken(&format!(
+                            "the cell `{}{}` is past the last cell of a sheet, `XFD1048576`",
+                            letters(column),
+                            row.number
+                        )));
+                    }
                     let style = xml::attr(attrs, b"s")
                         .and_then(|s| std::str::from_utf8(s).ok()?.parse().ok())
                         .unwrap_or(0);
@@ -309,7 +328,7 @@ fn parse_row(
                 }
             }
             Token::Close(name) => match xml::local(name) {
-                b"row" => return Ok(Some((row, at))),
+                b"row" => return within(row).map(|row| Some((row, at))),
                 b"v" | b"f" | b"t" if into != In::Phonetic => {
                     let done = String::from_utf8_lossy(&text).into_owned();
                     text.clear();

@@ -1159,6 +1159,10 @@ pub(crate) fn civil(days: i64) -> Date {
     }
 }
 
+/// The most rows and columns a sheet has.
+const MOST_ROWS: u64 = 1_048_576;
+const MOST_COLUMNS: u64 = 16_384;
+
 /// The column letters of `column`, from 1.
 fn letters(column: u64) -> String {
     let mut out = String::new();

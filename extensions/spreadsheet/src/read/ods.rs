@@ -22,7 +22,7 @@ use super::format::Kind;
 use super::merge::Merge;
 use super::sheet::{RawCell, RawRow};
 use super::xml::{self, Token};
-use super::{Listed, SheetKind, Source, days_from_civil, zip};
+use super::{MOST_COLUMNS, MOST_ROWS, Listed, SheetKind, Source, days_from_civil, zip};
 use crate::{Error, Visibility};
 
 /// The read types the styles of an ods cell stand for, by index.
@@ -37,8 +37,6 @@ const DATE: u32 = 1;
 const TIME: u32 = 2;
 const CLOCK: u32 = 3;
 const DURATION: u32 = 4;
-const MOST_ROWS: u64 = 1_048_576;
-const MOST_COLUMNS: u64 = 16_384;
 
 fn broken(what: &str) -> Error {
     Error::Parse(format!("The file is not a valid ods file: {what}."))
