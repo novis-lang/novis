@@ -39,14 +39,14 @@ Attack::attempt(1, $csv->finish()->bytes ?? Core\Bytes::fill(0, 0));
 // 2. The first 1,000 bytes of a workbook, a workbook without its last byte, and a workbook with zeros at its end.
 Attack::attempt(2, Core\Bytes::slice($good, 0, 1000));
 Attack::attempt(2, Core\Bytes::slice($good, 0, $size - 1));
-Attack::attempt(2, Core\Bytes::join([Core\Bytes::slice($good, 0, $size - 22), Core\Bytes::fill(0, 22)]));
+Attack::attempt(2, Core\Bytes::join([Core\Bytes::slice($good, 0, $size - 22), Core\Bytes::fill(22, 0)]));
 
 // 3. A workbook with each 50th byte set to zero.
 array<bytes> $parts = [];
 for (int $at = 0; $at < $size; $at += 50) {
     int $length = $size - $at < 50 ? $size - $at : 50;
     $parts[] = Core\Bytes::slice($good, $at, $length - 1);
-    $parts[] = Core\Bytes::fill(0, 1);
+    $parts[] = Core\Bytes::fill(1, 0);
 }
 Attack::attempt(3, Core\Bytes::join($parts));
 
