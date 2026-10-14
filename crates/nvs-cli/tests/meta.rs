@@ -165,8 +165,7 @@ fn the_golden_for_order_matches_the_contract() {
                           § 2's `{order: …}` option, which is `Asc` when omitted.",
                 "cases": [
                     { "name": "Asc", "desc": "Smallest first — what an omitted `{order: …}` means." },
-                    { "name": "Desc", "desc": "Largest first — `rsort`, `arsort` and `krsort` as \
-                                               one option rather than three names." }
+                    { "name": "Desc", "desc": "Largest first." }
                 ]
             }
         })
