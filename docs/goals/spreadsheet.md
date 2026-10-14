@@ -768,20 +768,22 @@ One file set: `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/n
 
 ### State
 
-**Stage 11 is done.** Both of its checks are green, and the corpus in `crates/nvs-ext/tests/spreadsheet_hostile.rs` has all ten tests plus `a_template_list_past_the_last_row_throws_naming_it`.
+**Both Stage 12 checks are green.** Only the benches are left in this stage.
 
-- A compound-file chain keeps one flag per sector and throws at its first repeat (`extensions/spreadsheet/src/read/cfb.rs:@visit`). The old step count let a looping stream read the same sectors up to 128 times the file.
-- xlsb throws at a row or cell past the grid with the xlsx errors, `sheet::past_row` and `sheet::past_cell` (`extensions/spreadsheet/src/read/sheet.rs:@past_cell`).
-- A template item whose copy would end past row 1,048,576 throws `LogicError` naming the list (`extensions/spreadsheet/src/template/mod.rs:@item_rows`). The rule fragment `spreadsheet-template-fill` says so.
-- The test file builds xlsx with defined names (`xlsx_named`), xlsb (`xlsb`), a compound file (`compound`), a template (`template`, `filling`) and a writer call, and inflates an archive entry (`entry`).
+- `crates/nvs-ext/tests/spreadsheet.rs` writes a wide workbook (20 columns: a number, fractions, dates and random words, `wide_values`) to `.agent-tmp/` until it passes 100 MB, which is about 308,000 rows. It reads the file back through `Budget::read` ranges (`Opened`) and checks every row. The test takes about 95 s.
+- The guest's memory grows over the first few batches, because they differ in size, and then stays the same. So `warm` is measured after `WARM_BATCHES` (16) batches. At 100 MB the writer's guest is about 12 MB and the reader's about 7 MB.
+- The text-heavy test reads one table of 8 MB of strings. It compares that with the same rows written inline, and the difference is about 2× the text. The bound allows that: the text, plus four bytes per string, doubled.
+- The recorded growth (0.96 MiB, `extensions/spreadsheet/src/lib.rs:33`) already passes `the_recorded_growth_matches_the_embedded_components`, so it needed no change.
 
 ### Next
 
-**Stage 12, 100 MB and the growth** (`rule:testing/feature-proofs`). Files: `crates/nvs-ext/tests/spreadsheet.rs`, `crates/nvs-ext/tests/builtin.rs`, `extensions/spreadsheet/src/lib.rs`.
+**Stage 12, the benches** (`rule:testing/feature-proofs`, `benches/members/README.md`). Files: new ones under `benches/members/novis/Spreadsheet-*/`. Run `bun nv proofs --id '<member>'` to get each path, shaped as `benches/members/novis/Image-Codec/run.nvs:1`.
 
-- [ ] **The big file**: `a_100_mb_workbook_writes_and_reads_back` and `the_guest_peak_stays_flat_as_rows_grow` beside `crates/nvs-ext/tests/spreadsheet.rs:568`, which counts what the guest holds. Generated in the test, never committed. Then `a_text_heavy_workbook_peaks_at_its_strings_plus_a_batch`.
-- [ ] **The growth**: run `cargo test --test builtin` and check `the_recorded_growth_matches_the_embedded_components` (`crates/nvs-ext/tests/builtin.rs:163`) against the figure in `extensions/spreadsheet/src/lib.rs:34`.
-- [ ] **The benches** under `benches/members/novis/`, shaped as `benches/members/novis/Image-Codec/run.nvs:1`: a million-row export, a million-row import, a styled report with a chart, and a template of 10,000 rows, each with its growth.
+- [x] **The big file**: `a_100_mb_workbook_writes_and_reads_back`, `the_guest_peak_stays_flat_as_rows_grow`, `a_text_heavy_workbook_peaks_at_its_strings_plus_a_batch`.
+- [x] **The growth**: `the_recorded_growth_matches_the_embedded_components` passes with the 0.96 MiB figure.
+- [ ] **A million-row export and import**: `Workbook::fromRows` (`extensions/spreadsheet/nvs/Workbook.nvs:92`) or `Sheet::addAll` (`extensions/spreadsheet/nvs/Sheet.nvs:52`), and `Reader::rows` (`extensions/spreadsheet/nvs/Reader.nvs:158`). Each is `complexity linear` with a `.scale.nvs` sibling. Check the README's budget rule before choosing a million as `max`.
+- [ ] **A styled report with a chart** over `Sheet::chart` (`extensions/spreadsheet/nvs/Sheet.nvs:256`), and **a template of 10,000 rows** over `Template::fill` (`extensions/spreadsheet/nvs/Template.nvs:54`), each with its growth.
+- [ ] Run `bun nv proofs --comments benches/members/novis` over the new benches, then `bun nv proofs --record-perf --id '<member>'` for each, judged as `benches/members/README.md:1` says.
 
 ### Backlog
 
