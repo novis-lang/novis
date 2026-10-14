@@ -3,8 +3,9 @@ namespace Novis\Spreadsheet;
 
 use Iterator;
 use LogicError;
+use RuntimeError;
 
-/// A spreadsheet file that your program reads row by row, such as an upload. It can be xlsx, xlsm, xlsb, xls or ods.
+/// A spreadsheet file that your program reads row by row, such as an upload. It can be xlsx, xlsm, xlsb, xls, ods or CSV.
 /// Open one with `Reader::open`. Every string and `bytes` value it returns is `tainted`, because it comes from the file.
 final class Reader
 {
@@ -19,76 +20,122 @@ final class Reader
     type Read = {text: string}|{integer: int}|{number: float}|{boolean: bool}|{day: Core\Time\Date, clock: Core\Time\TimeOfDay}|{date: Core\Time\Date}|{time: Core\Time\TimeOfDay}|{duration: Core\Time\Duration}|{error: CellError};
     type Asked = {sheet: string, headerRow: ?uint, from: ?uint, limit: ?uint, columns: array<string>, text: array<string>, textAll: bool, formulas: bool, keepEmptyRows: bool, fillMerged: bool, skipHidden: bool, locale: string};
 
+    // `$reader` is `null` for a CSV file. `$csv` is the text of CSV bytes, and `$skip` is the length of a byte order mark at the start of a CSV file.
     private function constructor(
-        private readonly Reading $reader,
+        private readonly ?Reading $reader,
         private readonly tainted bytes|Core\IO\File $source,
+        private readonly ?tainted string $csv,
+        private readonly uint $skip,
     ) {}
 
-    /// `Reader::open` opens the workbook in `$source`. The source is the bytes of the file, or a file your program opened.
-    /// This reads the list of sheets. An xls or ods file is read whole here. Any other file type throws an error.
+    /// `Reader::open` opens the workbook in `$source`, the bytes of the file or a file your program opened. Another file type throws an error.
+    /// An xls or ods file is read whole here. A CSV file is UTF-8 text with one sheet, `Sheet1`, and each value in it is a `string`.
     public static function open(tainted bytes|Core\IO\File $source): Reader
     {
-        return new Reader(Engine::readerOpen($source), $source);
+        if ($source is Core\IO\File) {
+            ?uint $skip = self::csvFile($source);
+            if ($skip != null) {
+                return new Reader(null, $source, null, $skip);
+            }
+        } elseif ($source is bytes) {
+            ?tainted string $text = self::csvText($source);
+            if ($text != null) {
+                return new Reader(null, $source, $text, 0);
+            }
+        }
+        return new Reader(Engine::readerOpen($source), $source, null, 0);
     }
 
     /// `sheets` returns each sheet in tab order, with its name, its position from 0, whether it is hidden, its size and its kind.
     public function sheets(): array<SheetInfo>
     {
-        return Engine::readerSheets($this->reader, $this->source);
+        if ($this->reader == null) {
+            return [$this->csvInfo()];
+        }
+        return Engine::readerSheets($this->engine(), $this->source);
     }
 
     /// `macros` returns the names of the macro modules in an xlsm or xls file. The list is empty when the file has no macros.
     /// Reading a file never runs its macros.
     public function macros(): array<tainted string>
     {
-        return Engine::readerMacros($this->reader, $this->source);
+        if ($this->reader == null) {
+            return [];
+        }
+        return Engine::readerMacros($this->engine(), $this->source);
     }
 
     /// `merged` returns the merged cells of the sheet `$sheet`, by name or by position from 0. Each one is a range such as `"A1:C2"`.
     /// When you read rows, the value of a merged range is in its top-left cell. With `merged: 'fill'`, every cell of the range has that value.
     public function merged(string|int $sheet): array<tainted string>
     {
-        return Engine::readerMerged($this->reader, $this->source, $this->sheetName($sheet));
+        string $name = $this->sheetName($sheet);
+        if ($this->reader == null) {
+            return [];
+        }
+        return Engine::readerMerged($this->engine(), $this->source, $name);
     }
 
     /// `links` returns the hyperlinks of the sheet `$sheet`. `anchor` is the cell, such as `"B2"`, and `target` is where the link goes.
     /// `external` is `true` for a URL or a file. Reading a file never opens its links.
     public function links(string|int $sheet): array<Link>
     {
-        return Engine::readerLinks($this->reader, $this->source, $this->sheetName($sheet));
+        string $name = $this->sheetName($sheet);
+        if ($this->reader == null) {
+            return [];
+        }
+        return Engine::readerLinks($this->engine(), $this->source, $name);
     }
 
     /// `notes` returns the notes of the sheet `$sheet`. Each one has its cell in `noted`, its text in `note`, and its `author`.
     public function notes(string|int $sheet): array<Note>
     {
-        return Engine::readerNotes($this->reader, $this->source, $this->sheetName($sheet));
+        string $name = $this->sheetName($sheet);
+        if ($this->reader == null) {
+            return [];
+        }
+        return Engine::readerNotes($this->engine(), $this->source, $name);
     }
 
     /// `names` returns the defined names of the workbook. `reference` is the text of the name, such as `"Shop!$A$1:$C$9"`.
     /// `sheet` is `null` for a name the whole workbook can use.
     public function names(): array<Name>
     {
-        return Engine::readerNames($this->reader, $this->source);
+        if ($this->reader == null) {
+            return [];
+        }
+        return Engine::readerNames($this->engine(), $this->source);
     }
 
     /// `tables` returns the Excel tables of the sheet `$sheet`. `table` is the range, such as `"A1:C10"`, and `name` is the table name.
     public function tables(string|int $sheet): array<Table>
     {
-        return Engine::readerTables($this->reader, $this->source, $this->sheetName($sheet));
+        string $name = $this->sheetName($sheet);
+        if ($this->reader == null) {
+            return [];
+        }
+        return Engine::readerTables($this->engine(), $this->source, $name);
     }
 
     /// `images` returns the pictures of the sheet `$sheet`. `at` is the top-left cell, and `image` is the bytes of the picture.
     /// A linked picture has empty `image` bytes, and `link` is its target. Reading a file never fetches a link.
     public function images(string|int $sheet): array<Image>
     {
-        return Engine::readerImages($this->reader, $this->source, $this->sheetName($sheet));
+        string $name = $this->sheetName($sheet);
+        if ($this->reader == null) {
+            return [];
+        }
+        return Engine::readerImages($this->engine(), $this->source, $name);
     }
 
     /// `properties` returns the title, subject, author, company and keywords of the workbook, and the time it was created.
-    /// A property the file does not have is `null`. An xls or ods file throws an error.
+    /// A property the file does not have is `null`, and every property of a CSV file is `null`. An xls or ods file throws an error.
     public function properties(): Properties
     {
-        var $found = Engine::readerProperties($this->reader, $this->source);
+        if ($this->reader == null) {
+            return {title: null, subject: null, author: null, company: null, keywords: null, created: null};
+        }
+        var $found = Engine::readerProperties($this->engine(), $this->source);
         ?Core\Time\Instant $created = null;
         var $at = $found->created;
         if ($at != null) {
@@ -134,6 +181,9 @@ final class Reader
             }
             $headerRow = $header as uint;
         }
+        if ($this->reader == null) {
+            return $this->csvWalk($header is bool && $header, $headerRow, $options?->from ?? null, $options?->limit ?? null, $asked->columns, $asked->keepEmptyRows);
+        }
         return $this->walk($asked, $header is bool && $header, $headerRow, $options?->from ?? null, $options?->limit ?? null, $zone);
     }
 
@@ -174,7 +224,7 @@ final class Reader
 
     private function firstRow(Asked $asked, ?uint $from): ?uint
     {
-        var $first = Engine::readerRows($this->reader, $this->source, self::with($asked, null, $from, 1, false, false), 1);
+        var $first = Engine::readerRows($this->engine(), $this->source, self::with($asked, null, $from, 1, false, false), 1);
         foreach ($first->rows as var $row) {
             return $row->number;
         }
@@ -186,12 +236,12 @@ final class Reader
         if ($headerRow == null) {
             return [];
         }
-        return Engine::readerHeader($this->reader, $this->source, self::with($asked, $headerRow, $from, null, $asked->keepEmptyRows, false));
+        return Engine::readerHeader($this->engine(), $this->source, self::with($asked, $headerRow, $from, null, $asked->keepEmptyRows, false));
     }
 
     private function batch(Asked $asked, ?uint $headerRow, ?uint $from, ?uint $left, uint $most, array<tainted string> $keys, Core\Time\Zone $zone): array<Row>
     {
-        var $batch = Engine::readerRows($this->reader, $this->source, self::with($asked, $headerRow, $from, $left, $asked->keepEmptyRows, true), $most);
+        var $batch = Engine::readerRows($this->engine(), $this->source, self::with($asked, $headerRow, $from, $left, $asked->keepEmptyRows, true), $most);
         array<Row> $rows = [];
         foreach ($batch->rows as var $row) {
             array<mixed> $values = [];
@@ -211,8 +261,184 @@ final class Reader
         return $rows;
     }
 
+    // Reads a CSV file one record at a time. Only the header row and the empty rows are kept out, and each row is numbered by its record.
+    private function csvWalk(bool $findHeader, ?uint $headerRow, ?uint $from, ?uint $limit, array<string> $columns, bool $keepEmptyRows): Iterator<Row>
+    {
+        array<tainted string> $keys = [];
+        bool $keyed = !$findHeader && $headerRow == null;
+        uint $number = 0;
+        uint $given = 0;
+        foreach ($this->records() as array<tainted string> $record) {
+            $number = $number + 1;
+            bool $empty = $this->csvBlank($record);
+            bool $after = $from == null || $number >= $from;
+            if (!$keyed) {
+                if (($findHeader && !$empty && $after) || $number == $headerRow) {
+                    $keys = $this->csvKeys($record);
+                    $keyed = true;
+                }
+            } elseif ($after && ($keepEmptyRows || !$empty)) {
+                if ($limit != null && $given >= $limit) {
+                    return;
+                }
+                $given = $given + 1;
+                Row $row = $this->csvRow($number, $record, $keys, $columns);
+                yield $row;
+            }
+        }
+    }
+
+    // Each record of the CSV file, from its first byte after a byte order mark. A walk to the end puts the position of an open file back.
+    private function records(): Iterator<array<tainted string>>
+    {
+        ?tainted string $text = $this->csv;
+        if ($text != null) {
+            foreach (Core\Csv::parse($text) as array<tainted string> $record) {
+                yield $record;
+            }
+            return;
+        }
+        var $source = $this->source;
+        if ($source is Core\IO\File) {
+            uint $at = $source->tell();
+            $source->seek($this->skip);
+            foreach (Core\Csv::rows($source) as array<string> $line) {
+                yield $line;
+            }
+            $source->seek($at);
+        }
+    }
+
+    private function csvBlank(array<tainted string> $record): bool
+    {
+        foreach ($record as tainted string $field) {
+            if ($field != "") {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    // The header keys of a CSV file: a repeated name gets ` (2)`, and an empty one is its column letter, as in a workbook.
+    private function csvKeys(array<tainted string> $record): array<tainted string>
+    {
+        array<tainted string> $keys = [];
+        uint $column = 0;
+        foreach ($record as tainted string $field) {
+            $column = $column + 1;
+            tainted string $key = $field == "" ? self::letters($column) : $field;
+            tainted string $named = $key;
+            uint $count = 1;
+            while (Core\Arr::contains($keys, $named)) {
+                $count = $count + 1;
+                $named = $key . " ({$count})";
+            }
+            $keys[] = $named;
+        }
+        return $keys;
+    }
+
+    // One record as a `Row`. An empty field is an empty cell, so it is `null` under a header and has no key without one.
+    private function csvRow(uint $number, array<tainted string> $record, array<tainted string> $keys, array<string> $columns): Row
+    {
+        array<mixed> $values = [];
+        uint $column = 0;
+        foreach ($keys as tainted string $named) {
+            $column = $column + 1;
+            if (self::selected($columns, $column)) {
+                $values[$named] = null;
+            }
+        }
+        $column = 0;
+        foreach ($record as tainted string $field) {
+            $column = $column + 1;
+            if ($field != "" && self::selected($columns, $column)) {
+                tainted string $key = $column <= Core\Arr::count($keys) ? $keys[$column - 1] : self::letters($column);
+                $values[$key] = $field;
+            }
+        }
+        return new Row($number, $values);
+    }
+
+    private function csvInfo(): SheetInfo
+    {
+        uint $rows = 0;
+        uint $columns = 0;
+        foreach ($this->records() as array<tainted string> $record) {
+            $rows = $rows + 1;
+            uint $width = Core\Arr::count($record);
+            if ($width > $columns) {
+                $columns = $width;
+            }
+        }
+        return {name: "Sheet1", position: 0, visibility: Visibility::Visible, rows: $rows, columns: $columns, kind: SheetKind::Worksheet};
+    }
+
+    // The text of CSV bytes, or `null` for a zip archive or bytes that are not UTF-8, which the engine reads.
+    private static function csvText(tainted bytes $data): ?tainted string
+    {
+        tainted string $text = "";
+        try {
+            $text = Core\Encoding::decodeText($data, Core\Charset::Utf8);
+        } catch (RuntimeError $e) {
+            return null;
+        }
+        if (self::zipStart(Core\Str::codePoints(Core\Str::slice($text, 0, 3)))) {
+            return null;
+        }
+        if (Core\Str::startsWith($text, "\u{FEFF}")) {
+            return Core\Str::slice($text, 1);
+        }
+        return $text;
+    }
+
+    // The length of the byte order mark of a CSV file. It is `null` for a zip archive, or a file that does not start with UTF-8 text.
+    // The position of `$file` is the same after this call.
+    private static function csvFile(Core\IO\File $file): ?uint
+    {
+        uint $at = $file->tell();
+        $file->seek(0);
+        string $head = "";
+        try {
+            $head = $file->read(4);
+        } catch (RuntimeError $e) {
+            $file->seek($at);
+            return null;
+        }
+        $file->seek($at);
+        array<uint> $codes = Core\Str::codePoints($head);
+        if (self::zipStart($codes)) {
+            return null;
+        }
+        if (Core\Arr::count($codes) > 0 && $codes[0] == 65279) {
+            return 3;
+        }
+        return 0;
+    }
+
+    // A zip archive starts with `PK` and a control byte. A CSV file that starts with `PK` has a letter or a separator next.
+    private static function zipStart(array<uint> $codes): bool
+    {
+        return Core\Arr::count($codes) >= 3 && $codes[0] == 80 && $codes[1] == 75 && $codes[2] < 9;
+    }
+
+    private function engine(): Reading
+    {
+        ?Reading $reader = $this->reader;
+        if ($reader == null) {
+            throw new LogicError("A CSV file has no workbook parts.");
+        }
+        return $reader;
+    }
+
     private function sheetName(string|int $sheet): string
     {
+        if ($this->reader == null) {
+            if (($sheet is string && $sheet == "Sheet1") || ($sheet is int && $sheet == 0)) {
+                return "Sheet1";
+            }
+            throw new LogicError("A CSV file has one sheet, `Sheet1` at position 0. It has no sheet `{$sheet}`.");
+        }
         if ($sheet is string) {
             return $sheet;
         }

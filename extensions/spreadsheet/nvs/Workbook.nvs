@@ -5,7 +5,7 @@ use Iterable;
 use Iterator;
 use LogicError;
 
-/// An Excel file (xlsx) that your program writes row by row.
+/// An Excel file (xlsx) or a CSV file that your program writes row by row. A name that ends in `.csv`, or `format: 'csv'`, writes CSV.
 /// Each `create` method sets where the file goes. Add a sheet with `sheet`, add its rows, and call `finish` at the end.
 final class Workbook
 {
@@ -40,6 +40,10 @@ final class Workbook
     // The number the open sheet's next row gets, and the rows a table's totals row takes.
     private uint $row = 1;
     private array<uint> $totalsAt = [];
+    // A CSV file is written here as text, and the engine output is not sent. `$csvRows` counts its rows, and `$csvSize` its bytes.
+    private bool $csv = false;
+    private uint $csvRows = 0;
+    private uint $csvSize = 0;
 
     private function constructor(
         private readonly Writer $writer,
@@ -52,7 +56,7 @@ final class Workbook
     {
         var $book = self::start($name, $name, $options);
         Core\Response::setHeader("Content-Disposition", self::disposition($name));
-        $book->response = Core\Response::stream("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        $book->response = Core\Response::stream($book->csv ? "text/csv; charset=utf-8" : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
         return $book;
     }
 
@@ -102,6 +106,10 @@ final class Workbook
     public function sheet(string $name, SheetOptions $options = null): Sheet
     {
         $this->checkOpen();
+        if ($this->csv && $this->sheets > 0) {
+            string $first = $this->names[0];
+            throw new LogicError("A CSV file has one sheet, so the sheet `{$name}` cannot be added. The file already has the sheet `{$first}`.");
+        }
         $this->flushSheet();
         bool $wantHeader = $options?->header ?? true;
         ?array<uint> $known = null;
@@ -218,25 +226,30 @@ final class Workbook
             $this->file?->close();
         }
         array<int> $rows = [];
-        foreach ($last->rows as var $sheet) {
-            $rows[$sheet->name] = $sheet->rows as int;
+        int $size = $last->size as int;
+        if ($this->csv) {
+            foreach ($this->names as string $name) {
+                $rows[$name] = $this->csvRows as int;
+            }
+            $size = $this->csvSize as int;
+        } else {
+            foreach ($last->rows as var $sheet) {
+                $rows[$sheet->name] = $sheet->rows as int;
+            }
         }
         ?bytes $whole = null;
         if ($this->keep) {
             $whole = Core\Bytes::join($this->kept);
             $this->kept = [];
         }
-        return new Written($rows, $last->size as int, $whole);
+        return new Written($rows, $size, $whole);
     }
 
     private static function start(string $target, ?string $named, Options $options): Workbook
     {
         string $format = $options?->format ?? self::formatOf($named);
-        if ($format == "csv") {
-            throw new LogicError("This version of `Workbook` writes only `xlsx` files. To write CSV, use `Core\\Csv`.");
-        }
-        if ($format != "xlsx") {
-            throw new LogicError("The format `{$format}` is not supported. Use `xlsx`.");
+        if ($format != "xlsx" && $format != "csv") {
+            throw new LogicError("The format `{$format}` is not supported. Use `xlsx` or `csv`.");
         }
         ?Core\Time\Zone $zone = null;
         ?string $zoneName = $options?->zone ?? null;
@@ -261,7 +274,9 @@ final class Workbook
             },
             target: $target,
         });
-        return new Workbook($writer, $zone);
+        var $book = new Workbook($writer, $zone);
+        $book->csv = $format == "csv";
+        return $book;
     }
 
     private static function formatOf(?string $named): string
@@ -476,14 +491,32 @@ final class Workbook
         }
         array<Row> $rows = $this->pending;
         $this->pending = [];
+        if ($this->csv) {
+            $this->deliver(self::csvText($rows) as bytes);
+            foreach ($rows as Row $row) {
+                if (!$row->header) {
+                    $this->csvRows = $this->csvRows + 1;
+                }
+            }
+            return;
+        }
         $this->send(Engine::writerRows($this->writer, $rows));
     }
 
+    // Sends what the engine wrote. A CSV file sends only its own text, so styles, widths and the other parts are left out.
     private function send(bytes $chunk): void
+    {
+        if (!$this->csv) {
+            $this->deliver($chunk);
+        }
+    }
+
+    private function deliver(bytes $chunk): void
     {
         if (Core\Bytes::length($chunk) == 0) {
             return;
         }
+        $this->csvSize = $this->csvSize + Core\Bytes::length($chunk);
         $this->response?->write($chunk);
         $this->file?->write($chunk);
         if ($this->keep) {
@@ -547,6 +580,68 @@ final class Workbook
         }
         string $column = self::column($at);
         throw new LogicError("The column `{$column}` has a value that a cell cannot contain. A cell can contain a `string`, a number, a `bool`, `null`, or a date, a time or a duration from `Core\\Time`.");
+    }
+
+    // The rows as CSV text, one record per row, from `Core\Csv::format`.
+    private static function csvText(array<Row> $rows): string
+    {
+        array<array<string>> $records = [];
+        foreach ($rows as Row $row) {
+            array<string> $fields = [];
+            foreach ($row->cells as Entry $entry) {
+                $fields[] = Core\Taint::assertTrusted(self::csvField($entry->value), "the program passed this value, and a CSV file is text");
+            }
+            $records[] = $fields;
+        }
+        return Core\Csv::format($records);
+    }
+
+    // The text of one value in a CSV file. A string that Excel would read as a formula gets a `'` first, so it stays text.
+    private static function csvField(?Value $value): tainted string
+    {
+        if ($value is tainted {text: string}) {
+            tainted string $text = $value->text;
+            array<string> $starts = ["=", "+", "-", "@", "\t", "\r"];
+            foreach ($starts as string $start) {
+                if (Core\Str::startsWith($text, $start)) {
+                    return "'" . $text;
+                }
+            }
+            return $text;
+        }
+        if ($value is {number: float}) {
+            return $value->number as string;
+        }
+        if ($value is {integer: int}) {
+            return $value->integer as string;
+        }
+        if ($value is tainted {decimal: string}) {
+            return $value->decimal;
+        }
+        if ($value is {boolean: bool}) {
+            return $value->boolean ? "TRUE" : "FALSE";
+        }
+        if ($value is {date: Core\Time\Date}) {
+            return $value->date->format("yyyy-MM-dd");
+        }
+        if ($value is {time: Core\Time\TimeOfDay}) {
+            return $value->time->format("HH:mm:ss");
+        }
+        if ($value is {duration: Core\Time\Duration}) {
+            int $seconds = $value->duration->toSeconds();
+            string $sign = $seconds < 0 ? "-" : "";
+            int $left = $seconds < 0 ? 0 - $seconds : $seconds;
+            string $minutes = Core\Str::padStart((Core\Math::intDiv($left, 60) % 60) as string, 2, "0");
+            string $rest = Core\Str::padStart(($left % 60) as string, 2, "0");
+            return $sign . (Core\Math::intDiv($left, 3600) as string) . ":" . $minutes . ":" . $rest;
+        }
+        if ($value is {day: Core\Time\Date, clock: Core\Time\TimeOfDay}) {
+            return $value->day->format("yyyy-MM-dd") . " " . $value->clock->format("HH:mm:ss");
+        }
+        if ($value is tainted {formula: string, cachedText: ?string, cachedNumber: ?float}) {
+            return "=" . $value->formula;
+        }
+        return "";
     }
 
     private static function column(uint $at): string

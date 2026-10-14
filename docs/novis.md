@@ -30283,8 +30283,8 @@ Keywords: open, sheets, macros, merged, links, notes, names, tables, images, pro
 Novis\Spreadsheet\Reader::open(tainted bytes|Core\IO\File $source): Reader
 ```
 
-`Reader::open` opens the workbook in `$source`. The source is the bytes of the file, or a file your program opened.
-This reads the list of sheets. An xls or ods file is read whole here. Any other file type throws an error.
+`Reader::open` opens the workbook in `$source`, the bytes of the file or a file your program opened. Another file type throws an error.
+An xls or ods file is read whole here. A CSV file is UTF-8 text with one sheet, `Sheet1`, and each value in it is a `string`.
 
 **Returns** `Reader`
 
@@ -30389,7 +30389,7 @@ $reader->properties(): Properties
 ```
 
 `properties` returns the title, subject, author, company and keywords of the workbook, and the time it was created.
-A property the file does not have is `null`. An xls or ods file throws an error.
+A property the file does not have is `null`, and every property of a CSV file is `null`. An xls or ods file throws an error.
 
 **Returns** `Properties`
 
