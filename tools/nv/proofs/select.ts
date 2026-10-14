@@ -26,9 +26,8 @@
 //
 // A bench is recorded the same way under its own atom, `bench:<path>` (`recordBench`), in one run at its
 // smallest batch, and its verdict is its perf proof's growth. `runBenches` runs the benches a change
-// selects. `bun nv affected --run` asks it, after `nv verify`, for the ones the change itself reached; the
-// loop asks it for every selected bench, owed and red ones included, whenever its floor gate is open for
-// a goal-end sweep.
+// selects. `bun nv affected --run` asks it, after `nv verify`, for the ones the change itself reached;
+// `bun nv sweep`, looper's hook after every session, asks it for the owed and red ones, under a deadline.
 //
 // The selection engine, the crate graph and the recorder are loaded by `engine`, through
 // `loadUnrecorded`: they decide which programs run and what the store remembers, and none of them
@@ -199,16 +198,20 @@ export interface BenchPlan {
   skipped: Map<string, string[]>;
   /** The benches whose run showed a degradation. */
   degraded: string[];
+  /** The benches neither run nor skipped, because `stop` said so first. */
+  left: string[];
 }
 
 /**
- * Runs the benches of `reach` in `benchOrder`, `judge` saying of each whether it showed a degradation,
- * and skips each bench whose changed items are all proven: executed by `PROVEN_BY` benches that showed
- * none. A degradation unproves every item of the bench that showed it, so every bench that executes one
- * of them runs, a bench passed over before it included.
+ * Runs the benches of `reach` in `o.order`, `benchOrder` by default, `judge` saying of each whether it
+ * showed a degradation, and skips each bench whose changed items are all proven: executed by `PROVEN_BY`
+ * benches that showed none. A degradation unproves every item of the bench that showed it, so every bench
+ * that executes one of them runs, a bench passed over before it included. `o.stop` is asked before each
+ * bench starts, and once it says yes no other bench starts: each one not run is skipped when its items
+ * are proven, and left otherwise.
  */
-export async function planBenches(reach: Reach[], judge: (path: string) => Promise<boolean>): Promise<BenchPlan> {
-  const order = benchOrder(reach);
+export async function planBenches(reach: Reach[], judge: (path: string) => Promise<boolean>, o: { order?: (reach: Reach[]) => Reach[]; stop?: () => boolean } = {}): Promise<BenchPlan> {
+  const order = (o.order ?? benchOrder)(reach);
   const provers = new Map<string, string[]>();
   const degradedItems = new Set<string>();
   const ran: string[] = [];
@@ -218,7 +221,7 @@ export async function planBenches(reach: Reach[], judge: (path: string) => Promi
   const skips = (r: Reach) => r.items !== null && r.items.length > 0 && r.items.every(proven);
   for (;;) {
     const next = order.find((r) => !done.has(r.path) && !skips(r));
-    if (next === undefined) break;
+    if (next === undefined || o.stop?.()) break;
     done.add(next.path);
     ran.push(next.path);
     const bad = await judge(next.path);
@@ -229,11 +232,13 @@ export async function planBenches(reach: Reach[], judge: (path: string) => Promi
     }
   }
   const skipped = new Map<string, string[]>();
+  const left: string[] = [];
   for (const r of order) {
     if (done.has(r.path)) continue;
-    skipped.set(r.path, [...new Set(r.items!.flatMap((item) => provers.get(item)!.slice(0, PROVEN_BY)))]);
+    if (skips(r)) skipped.set(r.path, [...new Set(r.items!.flatMap((item) => provers.get(item)!.slice(0, PROVEN_BY)))]);
+    else left.push(r.path);
   }
-  return { ran, skipped, degraded };
+  return { ran, skipped, degraded, left };
 }
 
 /**
@@ -247,11 +252,18 @@ export async function planBenches(reach: Reach[], judge: (path: string) => Promi
  * growth is also kept the moment it is judged, so a bench judged on this tree by a run stopped before
  * its recording is recorded without being judged again. A skipped bench keeps its figure, and the tree
  * then moves past the change: a selected bench `only` leaves out is marked owed with the changed items
- * it was selected for, or kept red. With no bench to run, the store is not touched. Returns how many
- * benches it chose and ran, each skipped one with the
- * benches that proved it, and the red ones, or why the release build failed.
+ * it was selected for, or kept red. With no bench to run, the store is not touched.
+ *
+ * `o.order` names the benches in the order they run, in place of `planBenches`'s own. No bench starts
+ * once `Date.now()` reaches `o.deadline`, and each one not started is marked owed or kept red like a
+ * bench `only` leaves out. Returns how many benches it chose and ran, each skipped one with the benches
+ * that proved it, how many the deadline left, and the red ones, or why the release build failed.
  */
-export async function runBenches(say: (line: string) => void = () => {}, only?: Set<string> | ((s: Selected) => boolean)): Promise<{ reached: number; ran: number; skipped: Map<string, string[]>; red: RedBench[] } | string> {
+export async function runBenches(
+  say: (line: string) => void = () => {},
+  only?: Set<string> | ((s: Selected) => boolean),
+  o: { order?: string[]; deadline?: number } = {},
+): Promise<{ reached: number; ran: number; skipped: Map<string, string[]>; left: number; red: RedBench[] } | string> {
   const { advance, benchFiles, benchId, changedItems, computeChange, fullChange, metadata, query, Recorder } = await engine();
   const { DEFAULT_WSL_NVS, growthOf } = await import("../cmd/scaling.ts");
   const { knownGap } = await import("./collect.ts");
@@ -272,7 +284,7 @@ export async function runBenches(say: (line: string) => void = () => {}, only?: 
       const s = sel.selected.get(benchId(p));
       return s !== undefined && named(s);
     });
-    if (chosen.length === 0) return { reached: 0, ran: 0, skipped: new Map(), red: [] };
+    if (chosen.length === 0) return { reached: 0, ran: 0, skipped: new Map(), left: 0, red: [] };
     const built = await releaseBinary();
     if (typeof built === "string") return built;
     const rec = await Recorder.open(store, change.view, graph, "benches");
@@ -290,6 +302,10 @@ export async function runBenches(say: (line: string) => void = () => {}, only?: 
       // verdict it reached, and the next run selects only the benches still owed. Each growth is kept the
       // moment it is judged, so a run stopped during the recording does not judge it again on this tree.
       const key = store.judgedKey("bench growth");
+      const rank = new Map((o.order ?? []).map((id, i) => [id, i]));
+      const ranked = (r: Reach) => rank.get(benchId(r.path)) ?? rank.size;
+      const order = o.order === undefined ? undefined : (rs: Reach[]) => [...rs].sort((a, b) => ranked(a) - ranked(b) || (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+      const stop = () => o.deadline !== undefined && Date.now() >= o.deadline;
       const plan = await planBenches(reach, async (path) => {
         const id = benchId(path);
         let judged = key === null ? null : store.judged<{ green: boolean; findings: string[] }>(id, key);
@@ -305,15 +321,16 @@ export async function runBenches(say: (line: string) => void = () => {}, only?: 
         await recordBench(rec, nvs, join(rec.dir, "bench"), path, judged.green ? "green" : "red");
         ran.add(id);
         return !judged.green;
-      });
+      }, { ...(order !== undefined && { order }), stop });
       // A skipped bench keeps its recorded footprint, so the tree moves past it too. Only a green bench
-      // is skipped, and one an earlier run owed is green again.
+      // is skipped, and one an earlier run owed is green again. A bench the deadline left is not in
+      // `ran`, so `advance` owes it.
       for (const path of plan.skipped.keys()) {
         store.setVerdict(benchId(path), "green");
         ran.add(benchId(path));
       }
       advance(store, change, sel, ran, graph);
-      return { reached: chosen.length, ran: plan.ran.length, skipped: plan.skipped, red };
+      return { reached: chosen.length, ran: plan.ran.length, skipped: plan.skipped, left: plan.left.length, red };
     } finally {
       rec.close();
     }

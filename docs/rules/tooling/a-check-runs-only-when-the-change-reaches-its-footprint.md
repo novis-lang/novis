@@ -14,8 +14,8 @@ verdict judged and not yet recorded is kept the same way, so a run that is kille
 still running. The run that moves the recorded tree clears the stamps it covers. An atom that is new,
 last red, owed or diverged runs too, and so does every atom when a global file changes. Nothing else
 starts. A bench is judged on the release build, so `bun nv affected --run` judges only the benches the
-change itself reaches, and the loop judges every selected bench, owed, red and new ones included,
-whenever its floor gate is open. `tools/nv/select/` is the one engine all four ask, `select.ts` there holds the rule and
+change itself reaches, and the loop's hook after each session pays the owed and red ones as floor debt.
+`tools/nv/select/` is the one engine all four ask, `select.ts` there holds the rule and
 `keys.ts` the keys, and `bun nv select --explain <atom>` says why one atom was chosen or not.
 
 The footprint is observed rather than predicted because a prediction at crate granularity cannot tell
@@ -61,20 +61,27 @@ A heavy check keyed on every file of every crate it builds would be reached by a
 so a goal that names them would pay for all of them after nearly every session; the twin is what keeps a
 change that reaches none of its code from running it. A twin is paid only when its heavy check runs.
 
-**Every open floor gate runs both Linux legs over every fixture and suite of the goal**, whatever
-changed (`tools/nv/cmd/sweep.ts`, through `bun nv legs --full`'s `legsOver`). A leg records no footprint
-of its own and is selected through its fixtures' atoms, so this run is the safety net for what that
-selection cannot see. The gate runs no other heavy check. CI is their safety net: its nightly deep lane
-runs the release profile, fuzz, TSan and the database matrix whatever changed, and a push runs each one
-its diff reaches (`rule:testing/ci-lanes`).
+**An owed Linux leg runs over every fixture and suite of the goal** in the loop's hook after each session
+(`tools/nv/cmd/sweep.ts`, through `bun nv legs`'s `legsOver`). A leg records no footprint of its own
+and is selected through its fixtures' atoms. The hook runs no other heavy check. Looper's sweep runs
+the heavy checks the live goal names, and a push to CI runs each one its diff reaches
+(`rule:testing/ci-lanes`).
 
-**The full run is the safety net.** `bun nv select --full` runs and records every atom that is not
-heavy, whatever changed, and the loop runs it when the floor gate opens by its count. An atom red there
-that the selection since the store's tree did not pick is a selection miss: it is printed, kept in the
-store until a full run finds the atom green again, and fails the run. `bun nv select --mutate tools/data/select-mutations.json` is the proof that the keys lose
-nothing: it applies one batch of breaking edits at a time, runs every atom that is not heavy against a
-copy of the store named by `NV_SELECT_STORE`, requires every red atom to have been selected, and
-reverts the edits.
+**The hook pays the floor debt, and nightly CI is the safety net.** An atom a change reached that a run
+did not start is owed, and it stays selected until a run of it is green. After each session `bun nv
+sweep` runs the red benches first and then the owed atoms, oldest first: benches, proof programs,
+cases, test binaries, tools tests, plan checks and the Linux legs. No atom starts once the hook's
+`DEBT_BUDGET_MS` is spent, and what the hook did not reach stays owed for the next session. Nothing in the
+loop runs every atom whatever changed, so a selection miss shows up in CI's nightly deep lane, which
+runs every job whatever changed. The hook reads the newest nightly run back and writes each failed job
+beside looper's own reds in `.loop/last-sweep.md`.
+
+`bun nv select --full` runs and records every atom that is not heavy, whatever changed, when a person
+runs it. An atom red there that the selection since the store's tree did not pick is a selection miss:
+it is printed, kept in the store until a full run finds the atom green again, and fails the run.
+`bun nv select --mutate tools/data/select-mutations.json` is the proof that the keys lose nothing: it
+applies one batch of breaking edits at a time, runs every atom that is not heavy against a copy of the
+store named by `NV_SELECT_STORE`, requires every red atom to have been selected, and reverts the edits.
 
 - **Memory:** nothing at run time; this is the development machine's disk, never a request's. The
   store and the coverage-map cache under `.cache/select/covmap/` are per machine and git-ignored, and
@@ -95,10 +102,10 @@ reverts the edits.
 - **Keying a Linux leg on a copy of its fixtures' footprints.** The copy goes stale between leg runs
   when a fixture's own footprint grows. Selecting the leg through the fixtures' own atoms reads the
   live footprints.
-- **Running a Linux leg over only the fixtures the change reached.** A fixture reached while the floor
-  gate is shut would need a Linux owed state of its own. The leg's cost is fixed, so what is cut is how
-  often it runs.
-- **Running the Linux legs at the floor gate only when the store says the change reached them.** A
-  leg's selection is read through its fixtures' atoms, so a regression that selection misses would
-  never be run on Linux. The gate opens one session in `FLOOR_GATE_EVERY`, so both legs cost a fixed
-  run at that interval.
+- **Running a Linux leg over only the fixtures the change reached.** A fixture reached between two runs
+  of the leg would need a Linux owed state of its own. The leg's cost is fixed, so what is cut is how
+  often it runs: only when it is owed.
+- **A full run and both Linux legs in the loop every few sessions, whatever changed.** That run re-recorded
+  every atom and judged every bench, and it held the loop for far longer than the debt the sessions
+  between left. Paying the debt a fixed budget at a time costs each session the same bounded time. The
+  local store is never re-recorded whole, so a selection miss is caught by nightly CI rather than here.

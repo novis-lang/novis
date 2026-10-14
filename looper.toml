@@ -26,13 +26,13 @@ run = [["bun", "nv", "verify"]]
 [checks]
 timeout = 1800            # the acceptance runner's own
 
-# The floor gate, `tools/nv/cmd/sweep.ts`. Each run counts the session and sweeps the disk, and one run in
-# its FLOOR_GATE_EVERY also runs `bun nv select --full`, the Linux legs and the benches. The timeout is for
-# that run, when every atom left owed since the last one runs. The command exits 0 whatever it finds, so
-# only a timeout or a crash fails it, and that pauses the loop: the next run would open the gate again and
-# spend the same time. It is attached, so the next session starts once it has ended.
+# `tools/nv/cmd/sweep.ts`: it pays owed and red atoms for its DEBT_BUDGET_MS, sweeps the disk and reads the
+# nightly CI run back. No atom starts once the budget is spent, so the timeout covers the budget, one atom
+# that started just before the end and runs on, the warm release and covws builds the benches and the
+# owed atoms need, and the disk sweep. The command exits 0 whatever it finds, so only a timeout or a crash
+# fails it, and that pauses the loop. It is attached, so the next session starts once it has ended.
 [hooks]
-after_session = [{ run = ["bun", "nv", "sweep"], timeout = 18000, on_fail = "pause" }]
+after_session = [{ run = ["bun", "nv", "sweep"], timeout = 3600, on_fail = "pause" }]
 
 [prose]
 scope = "Text an end user reads"

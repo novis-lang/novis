@@ -206,8 +206,8 @@ what the selection store says differs from the tree it last recorded, which is w
 test binary and case whose footprint holds a key the change moved, or that is new, red or owed, with
 the path each came from. Its acceptance half is each plan check one of whose atoms is selected. A heavy
 check — the release profile, fuzz, TSan, the database matrix — is named and left to looper's sweep when
-the live goal names it, and to CI's nightly deep lane whatever changed; the Linux legs are left to the
-floor gate. A check reached only because its atoms were owed or red before the change is left out, since
+the live goal names it, and to CI's nightly deep lane whatever changed; the Linux legs are owed, and
+`bun nv sweep` pays them. A check reached only because its atoms were owed or red before the change is left out, since
 it stays red until the goal is reached. `--run` runs the rest: `nv verify` first,
 then the sweep over exactly the checks it named, and a binary or case verify ran green is not started
 twice.
@@ -311,10 +311,12 @@ bun nv select --mutate FILE       # apply each batch of breaking edits FILE list
 bun nv select --mutate FILE --batch N --jobs 16   # one batch only, 16 runs at once
 ```
 
-**The full run catches what the keys missed.** `--full` is the safety net `rule:tooling/a-check-runs-only-when-the-change-reaches-its-footprint` names: an atom
+**The full run catches what the keys missed.** `--full` runs every atom that is not heavy, whatever
+changed (`rule:tooling/a-check-runs-only-when-the-change-reaches-its-footprint`): an atom
 red in it whose last verdict was green and which the selection did not pick is a selection miss. It is
 kept in the store under `select-miss:<platform>:<atom>` until a full run finds the atom green, and the
-command exits 1 while there is one. The loop runs it when the floor gate opens by its count. `--mutate
+command exits 1 while there is one. A person runs it; the loop never does, and CI's nightly deep lane is
+what catches a miss there. `--mutate
 tools/data/select-mutations.json` is the proof the keys lose no coverage: each batch is a few edits that
 each break something, applied together, and every atom that goes red must be one the selection picked.
 It never writes the real store: `NV_SELECT_STORE` names the file every `bun nv select` process opens in
@@ -323,11 +325,12 @@ afterwards. The edits are reverted in a `finally`, and a batch fails when `git s
 
 **Verification runs what a change can reach, and the heavy work waits.** `nv verify` runs
 the test binaries a change reaches and every `.nvst` case, and looper's sweep after each session runs
-the live goal's acceptance checks, each as often as its `every` says. What no check covers waits for
-the floor gate, `bun nv sweep`, which looper runs after each session as its `after_session` hook. One
-run in `FLOOR_GATE_EVERY` (`tools/nv/cmd/sweep.ts`) runs `bun nv select --full`, the WSL leg and the
-valgrind sweep, and every selected bench. Nothing is dropped: an atom the change reached that a run did
-not start is `owed` in the store, and stays selected until a run of it is green.
+the live goal's acceptance checks, each as often as its `every` says. Nothing is dropped: an atom the
+change reached that a run did not start is `owed` in the store, and stays selected until a run of it is
+green. What no check covers is floor debt, and `bun nv sweep` pays it, which looper runs after each
+session as its `after_session` hook (`tools/nv/cmd/sweep.ts`). Each run pays the red benches first, then
+the owed atoms oldest first, for at most its `DEBT_BUDGET_MS`, and leaves the rest owed. It also reads
+the newest nightly CI run back, and writes each job it failed into `.loop/last-sweep.md`.
 
 **Every sweep names every red check, not the first.** `bun nv affected --run` runs past a red check,
 so one red check never keeps the others from being judged, and its `NOT GREEN:` line is followed by one
@@ -553,7 +556,7 @@ blocks back in the order you asked for them.
 bun nv suite <tree>... [--case <path>]... [--min-passing <n>] [--full]   # judge one suite as an nvs-suite check
 bun nv legs [--goal <slug>] [--full]                  # the WSL leg and the valgrind sweep over a goal's fixtures
 bun nv services --up [--goal <slug>]                  # Docker preflight, then the goal's services up and healthy
-bun nv sweep [--goal <slug>] [--keep-runs <n>]        # the floor gate, looper's after_session hook
+bun nv sweep [--goal <slug>] [--keep-runs <n>]        # pays the floor debt, reads nightly CI: looper's after_session hook
 bun nv benches [--owed]                               # the bench turn by hand
 bun nv side --prepare <slug> [--dir <path>] [--min-free-gb <n>]   # make or complete a side worktree
 bun nv allow --learn <events.jsonl>                   # record a session's shell calls, add the owed allow rules

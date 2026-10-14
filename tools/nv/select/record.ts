@@ -398,12 +398,13 @@ const CASES_RE = /(\d+) passed, (\d+) failed, (\d+) skipped/;
  * not skipped, or its batch ran out of time or printed no count line. Each case's record is looked up
  * once per batch, and both its verdict and the batch's lost list are read from that one lookup, so a
  * batch with a passed case red for a missing record always adds `lostBlock`'s lines to the output.
+ * `stop` is asked before each batch starts, and once it says yes no other batch starts.
  */
 export async function recordCases(
   r: Recorder,
   nvs: string,
   cases: string[],
-  o: { jobs: number; batch?: number; onBatch?: (done: number, total: number) => void; timeoutMs?: number; root?: string },
+  o: { jobs: number; batch?: number; onBatch?: (done: number, total: number) => void; timeoutMs?: number; root?: string; stop?: () => boolean },
 ): Promise<CaseRun> {
   const root = o.root ?? ROOT;
   const byTree = new Map<string, string[]>();
@@ -413,6 +414,7 @@ export async function recordCases(
   for (const [tree, all] of byTree) {
     const batches = chunks(all, o.batch ?? 64);
     for (const [index, batch] of batches.entries()) {
+      if (o.stop?.()) return result;
       const dir = join(r.dir, "cases");
       rmSync(dir, { recursive: true, force: true });
       mkdirSync(dir, { recursive: true });

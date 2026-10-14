@@ -770,8 +770,8 @@ export class PlanSweep {
     return this.picked(legId(leg));
   }
 
-  /** Records a green leg, run with the floor gate open. What it ran is the plan's fixtures and suites,
-   * whose own atoms select it (`open`), so its own atom holds only `LEG_KEYS`. */
+  /** Records a green leg. What it ran is the plan's fixtures and suites, whose own atoms select it
+   * (`open`), so its own atom holds only `LEG_KEYS`. */
   async legGreen(leg: string): Promise<void> {
     const keys: Keyed = new Map(LEG_KEYS.map((k) => [k, ""]));
     this.store.recordRun(legId(leg), { def: LEG_DEF, verdict: "green", keys });

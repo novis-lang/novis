@@ -342,8 +342,9 @@ Step 5 above, in detail:
   under [docs/goals/](docs/goals/README.md), as § *Goals* below says. A milestone is an identity tag
   goals carry, so its number says nothing about what is next. **A side goal is a goal file off the
   chain.** It runs as a side loop (`looper loop add --side <slug>`) in its own worktree at
-  `.agent-tmp/worktrees/side/<slug>`, which `bun nv side --prepare` makes; it lands on `main` by hand
-  once its checks are green, and its file is deleted as it lands.
+  `.agent-tmp/worktrees/side/<slug>`, which `bun nv side --prepare` makes. Once its goal is reached
+  and its file deleted, the loop lands its branch itself: it merges `main` in, runs verify, pauses the
+  other loops and fast-forwards `main`. It never pushes.
 - **Name a goal by its slug, never by its number** — in prose, a comment, a commit message, an owner
   column and what a tool prints. A position beside a total (`29 of 43`) is fine; a position moves when a
   goal is inserted, and a slug never does.

@@ -24,8 +24,8 @@
 // and what the plan asks beyond them, a test a check names or a suite's `minPassing`, is judged from
 // the store's last green runs. A suite below its `minPassing` is `short`, reported and never green.
 //
-// The floor gate is `cmd/sweep.ts`'s, which looper runs after every session. The WSL leg and the
-// valgrind sweep are `accept/legs.ts`'s, and the floor gate and `bun nv legs` run them.
+// The WSL leg and the valgrind sweep are `accept/legs.ts`'s. `bun nv legs` runs them, and so does
+// `bun nv sweep` (`cmd/sweep.ts`), looper's hook after every session, when a leg is owed.
 
 import { dirname } from "node:path";
 
@@ -491,20 +491,20 @@ export function heavyRole(c: Check): "fuzz" | "tsan" | "db-matrix" | null {
 }
 
 /**
- * Whether `c` is heavy and waits for the floor gate: it builds or measures the release profile, runs fuzz,
- * TSan or the database matrix, or is never memoized. Every other check runs in the sweep after the session
- * whose change reached it.
+ * Whether `c` is heavy: it builds or measures the release profile, runs fuzz, TSan or the database
+ * matrix, or is never memoized. A heavy check waits for looper's sweep after the session, and CI's
+ * nightly deep lane runs every one. Every other check runs in the sweep of the change that reached it.
  */
 export function isHeavy(c: Check): boolean {
   return c.memoize === false || isRelease(c) || heavyRole(c) !== null;
 }
 
 /**
- * Whether a shut floor gate holds `c` back: it is heavy and not a `setup` command. A setup is heavy only
- * because it is never memoized, and it writes what the fixtures read, such as the tables a migration
- * creates, so it runs before them whatever the gate.
+ * Whether a run of every atom that is not heavy (`select/full.ts`) leaves `c` out: it is heavy and not a
+ * `setup` command. A setup is heavy only because it is never memoized, and it writes what the fixtures
+ * read, such as the tables a migration creates, so it runs before them in every run.
  */
-export function heldByGate(c: Check): boolean {
+export function heldBack(c: Check): boolean {
   return isHeavy(c) && c.setup !== true;
 }
 
