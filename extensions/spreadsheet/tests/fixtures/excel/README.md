@@ -34,3 +34,12 @@ the workbook it holds.
 | `data_validation01.xlsx` | `data_validation01` | the sheet's data validation |
 | `data_validation02.xlsx` | `data_validation02` | the sheet's data validation |
 | `data_validation03.xlsx` | `data_validation03` | the sheet's data validation |
+| `image53.xlsx` | `image53` | `xl/drawings/drawing1.xml`, its relationships, the image |
+| `chart_column01.xlsx` | `chart_column01` | `xl/charts/chart1.xml`, `xl/drawings/drawing1.xml` |
+| `chart_bar01.xlsx` | `chart_bar01` | `xl/charts/chart1.xml`, `xl/drawings/drawing1.xml` |
+| `chart_line01.xlsx` | `chart_line01` | `xl/charts/chart1.xml`, `xl/drawings/drawing1.xml` |
+| `chart_area01.xlsx` | `chart_area01` | `xl/charts/chart1.xml`, `xl/drawings/drawing1.xml` |
+| `chart_pie01.xlsx` | `chart_pie01` | `xl/charts/chart1.xml`, `xl/drawings/drawing1.xml` |
+| `chart_doughnut01.xlsx` | `chart_doughnut01` | `xl/charts/chart1.xml`, `xl/drawings/drawing1.xml` |
+| `chart_scatter01.xlsx` | `chart_scatter01` | `xl/charts/chart1.xml`, `xl/drawings/drawing1.xml` |
+| `chart_combined02.xlsx` | `chart_combined02` | `xl/charts/chart1.xml`, `xl/drawings/drawing1.xml` |

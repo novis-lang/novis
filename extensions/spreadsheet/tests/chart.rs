@@ -168,23 +168,27 @@ fn every_chart_type_in_the_subset_is_written() {
             "{kind:?} has axes unless it is round: {part}"
         );
         if *kind == Kind::Scatter {
-            assert!(part.contains("<c:xVal><c:numRef><c:f>'Sales'!$A$2:$A$7</c:f></c:numRef></c:xVal><c:yVal><c:numRef><c:f>'Sales'!$B$2:$B$7</c:f></c:numRef></c:yVal>"), "{part}");
+            assert!(part.contains("<c:xVal><c:numRef><c:f>Sales!$A$2:$A$7</c:f></c:numRef></c:xVal><c:yVal><c:numRef><c:f>Sales!$B$2:$B$7</c:f></c:numRef></c:yVal>"), "{part}");
             assert!(!part.contains("<c:catAx>"), "a scatter has two value axes");
         } else {
-            assert!(part.contains("<c:cat><c:strRef><c:f>'Sales'!$A$2:$A$7</c:f></c:strRef></c:cat><c:val><c:numRef><c:f>'Sales'!$B$2:$B$7</c:f></c:numRef></c:val>"), "{part}");
+            assert!(part.contains("<c:cat><c:strRef><c:f>Sales!$A$2:$A$7</c:f></c:strRef></c:cat><c:val><c:numRef><c:f>Sales!$B$2:$B$7</c:f></c:numRef></c:val>"), "{part}");
         }
     }
     let bar = book.part("xl/charts/chart2.xml");
     assert!(
-        bar.contains("<c:axPos val=\"l\"/>") && bar.contains("<c:catAx><c:axId val=\"50010001\"/><c:scaling><c:orientation val=\"minMax\"/></c:scaling><c:delete val=\"0\"/><c:axPos val=\"l\"/>"),
+        bar.contains("<c:axPos val=\"l\"/>") && bar.contains("<c:catAx><c:axId val=\"50010001\"/><c:scaling><c:orientation val=\"minMax\"/></c:scaling><c:axPos val=\"l\"/>"),
         "a bar chart's categories are on the left: {bar}"
     );
 
     let drawing = book.part("xl/drawings/drawing1.xml");
     assert_eq!(drawing.matches("<xdr:graphicFrame").count(), 7);
     assert!(drawing.contains(
-        "<xdr:from><xdr:col>4</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>1</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from><xdr:ext cx=\"4572000\" cy=\"2743200\"/>"
-    ), "a chart is 480 by 288 pixels at its cell: {drawing}");
+        "<xdr:twoCellAnchor><xdr:from><xdr:col>4</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>1</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from>"
+    ), "a chart is anchored at its cell: {drawing}");
+    assert!(
+        drawing.contains("<xdr:row>15</xdr:row><xdr:rowOff>76200</xdr:rowOff></xdr:to>"),
+        "a chart is 288 pixels high, 14.4 rows of 20 pixels: {drawing}"
+    );
     assert!(drawing.contains("name=\"Chart 7\""));
     let rels = book.part("xl/drawings/_rels/drawing1.xml.rels");
     assert!(rels.contains("Id=\"rId7\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart\" Target=\"../charts/chart7.xml\""), "{rels}");
@@ -217,7 +221,7 @@ fn a_combination_of_two_types_is_written() {
         3,
         "both layers share the axes"
     );
-    assert!(part.contains("<c:lineChart><c:grouping val=\"standard\"/><c:varyColors val=\"0\"/><c:ser><c:idx val=\"1\"/><c:order val=\"1\"/>"), "the second layer's series count on: {part}");
+    assert!(part.contains("<c:lineChart><c:grouping val=\"standard\"/><c:ser><c:idx val=\"1\"/><c:order val=\"1\"/>"), "the second layer's series count on: {part}");
 
     let mut writer = Writer::open(WorkbookOptions::default()).unwrap();
     writer
@@ -275,11 +279,11 @@ fn titles_axis_titles_legend_colours_and_data_labels_are_written() {
     assert!(part.contains("<c:chart><c:title><c:tx><c:rich><a:bodyPr/><a:lstStyle/><a:p><a:pPr><a:defRPr/></a:pPr><a:r><a:t>Sales by month</a:t></a:r></a:p></c:rich></c:tx><c:overlay val=\"0\"/></c:title><c:plotArea>"), "{part}");
     assert!(part.contains("<c:axPos val=\"b\"/><c:title><c:tx><c:rich><a:bodyPr/><a:lstStyle/><a:p><a:pPr><a:defRPr/></a:pPr><a:r><a:t>Month</a:t>"), "the category title is level: {part}");
     assert!(part.contains("<c:majorGridlines/><c:title><c:tx><c:rich><a:bodyPr rot=\"-5400000\" vert=\"horz\"/><a:lstStyle/><a:p><a:pPr><a:defRPr/></a:pPr><a:r><a:t>Euro</a:t>"), "the value title reads upwards: {part}");
-    assert!(part.contains("<c:legend><c:legendPos val=\"b\"/><c:overlay val=\"0\"/></c:legend>"));
+    assert!(part.contains("<c:legend><c:legendPos val=\"b\"/><c:layout/></c:legend>"));
     assert!(part.contains("<c:tx><c:v>Sales &amp; costs</c:v></c:tx><c:spPr><a:solidFill><a:srgbClr val=\"1F77B4\"/></a:solidFill></c:spPr><c:dLbls><c:showLegendKey val=\"0\"/><c:showVal val=\"1\"/>"), "{part}");
     let drawing = book.part("xl/drawings/drawing1.xml");
     assert!(
-        drawing.contains("<xdr:ext cx=\"5715000\" cy=\"2743200\"/>"),
+        drawing.contains("<xdr:row>15</xdr:row><xdr:rowOff>76200</xdr:rowOff></xdr:to>"),
         "a width alone keeps the default height: {drawing}"
     );
 
@@ -341,21 +345,21 @@ fn a_series_over_a_stream_covers_every_row_the_sheet_ends_with() {
 
     let early = book.part("xl/charts/chart1.xml");
     assert!(
-        early.contains("<c:f>'Sales'!$A$2:$A$31</c:f>")
-            && early.contains("<c:f>'Sales'!$B$2:$B$31</c:f>"),
+        early.contains("<c:f>Sales!$A$2:$A$31</c:f>")
+            && early.contains("<c:f>Sales!$B$2:$B$31</c:f>"),
         "a chart added before the rows covers them all: {early}"
     );
     let mid = book.part("xl/charts/chart2.xml");
     assert!(
-        mid.contains("<c:f>'Sales'!$B$2:$B$31</c:f>"),
+        mid.contains("<c:f>Sales!$B$2:$B$31</c:f>"),
         "a column range grows to the last row: {mid}"
     );
     assert!(
-        mid.contains("<c:f>'Sales'!$C$2:$C$5</c:f>"),
+        mid.contains("<c:f>Sales!$C$2:$C$5</c:f>"),
         "a range ending elsewhere is kept as given"
     );
     assert!(
-        mid.contains("<c:f>'Plan'!$C$2:$C$11</c:f>"),
+        mid.contains("<c:f>Plan!$C$2:$C$11</c:f>"),
         "a range on another sheet is kept as given"
     );
 }

@@ -14,17 +14,20 @@
 //! sheet**: the chart is written when the sheet ends, and such a range ends at the sheet's last row
 //! then. So a chart added after the first rows of a stream covers every row the sheet ends with.
 //! A range that ends at any other row, or names another sheet, is written as given. Excel reads
-//! the values when it opens the file, so the part has no cached values.
+//! the values when it opens the file, so the part has no cached values. A series' categories are
+//! a number reference when they are columns of the chart's own sheet whose every value below the
+//! header is a number, a date or a time (`drawing::Grid`), and a text reference otherwise.
 //!
-//! The chart is anchored at one cell, 480 by 288 pixels unless the program sets a size, as Excel's
-//! own default chart is (`drawing`'s module doc).
+//! The chart is anchored from its cell to the cell its size ends at, 480 by 288 pixels unless the
+//! program sets a size, as Excel's own default chart is (`drawing`'s module doc).
 //!
 //! Memory: per chart of the open sheet, its ranges and texts until the sheet ends.
 
 use std::fmt::Write as _;
 
+use crate::drawing::Grid;
 use crate::styles::argb;
-use crate::tail::{Area, area};
+use crate::tail::{Area, area, cell_at};
 use crate::{Error, cells, xml};
 
 /// The chart's size in pixels when the program sets none.
@@ -112,11 +115,13 @@ pub struct Chart {
     pub height: Option<f64>,
 }
 
-/// A series range read: its sheet, quoted, its corners, and whether it grows with the sheet.
+/// A series range read: its sheet, quoted when it needs to be, its corners, whether it is on the
+/// chart's own sheet and whether it grows with the sheet.
 #[derive(Debug, Clone, PartialEq)]
 struct Range {
     sheet: String,
     area: Area,
+    own: bool,
     grows: bool,
 }
 
@@ -164,9 +169,37 @@ pub struct Planned {
     labels: bool,
 }
 
-/// `name` quoted for a reference, as `'Shop orders'`.
+/// `name` as a reference writes it: quoted, as `'Shop orders'`, when Excel quotes it. That is a
+/// name with a character other than a letter, a digit, `_` and `.`, a name that starts with a
+/// digit or `.`, and a name that reads as a cell, such as `A1`, `R2` or `R1C1`.
 fn quoted(name: &str) -> String {
-    format!("'{}'", name.replace('\'', "''"))
+    let plain = name
+        .chars()
+        .all(|c| c.is_alphanumeric() || c == '_' || c == '.')
+        && !name.starts_with(|c: char| c.is_ascii_digit() || c == '.')
+        && cell_at(name).is_none()
+        && !is_r1c1(name);
+    if plain {
+        name.to_owned()
+    } else {
+        format!("'{}'", name.replace('\'', "''"))
+    }
+}
+
+/// Whether `name` reads as a cell in the R1C1 style: `R`, `C`, `RC`, `R2`, `C3` or `R2C3`, in
+/// either case.
+fn is_r1c1(name: &str) -> bool {
+    let upper = name.to_ascii_uppercase();
+    let digits = |text: &str| text.trim_start_matches(|c: char| c.is_ascii_digit()).len();
+    let rest = match upper.strip_prefix('R') {
+        Some(after) => &after[after.len() - digits(after)..],
+        None => upper.as_str(),
+    };
+    let rest = match rest.strip_prefix('C') {
+        Some(after) => &after[after.len() - digits(after)..],
+        None => rest,
+    };
+    !name.is_empty() && rest.is_empty()
 }
 
 /// Reads the series range `text` of the sheet `sheet`. `reach` is the row `Writer::column` gives
@@ -195,6 +228,7 @@ fn range(text: &str, sheet: &str, reach: u32) -> Result<Range, Error> {
     Ok(Range {
         sheet: quoted(named.as_deref().unwrap_or(sheet)),
         area: at,
+        own,
         grows: own && at.bottom == reach,
     })
 }
@@ -282,8 +316,9 @@ fn fill(out: &mut String, color: &str) {
 }
 
 impl Planned {
-    /// The `chart<n>.xml` part, its growing ranges ending at the row `last`.
-    pub fn write(&self, last: u32) -> String {
+    /// The `chart<n>.xml` part, its growing ranges ending at the row `last`, over the sheet's
+    /// `grid`.
+    pub fn write(&self, last: u32, grid: &Grid) -> String {
         let mut out = String::from(crate::writer::XML_HEAD);
         out.push_str(
             "<c:chartSpace xmlns:c=\"http://schemas.openxmlformats.org/drawingml/2006/chart\" \
@@ -297,7 +332,7 @@ impl Planned {
         out.push_str("<c:plotArea><c:layout/>");
         let mut index = 0;
         for (kind, series) in &self.layers {
-            self.layer(&mut out, *kind, series, &mut index, last);
+            self.layer(&mut out, *kind, series, &mut index, last, grid);
         }
         let first = self.layers[0].0;
         if first.has_axes() {
@@ -313,11 +348,18 @@ impl Planned {
         } {
             let _ = write!(
                 out,
-                "<c:legend><c:legendPos val=\"{position}\"/><c:overlay val=\"0\"/></c:legend>"
+                "<c:legend><c:legendPos val=\"{position}\"/><c:layout/>"
             );
+            if !first.has_axes() {
+                out.push_str(
+                    "<c:txPr><a:bodyPr/><a:lstStyle/><a:p><a:pPr rtl=\"0\"><a:defRPr/></a:pPr>\
+                     <a:endParaRPr lang=\"en-US\"/></a:p></c:txPr>",
+                );
+            }
+            out.push_str("</c:legend>");
         }
         out.push_str(
-            "<c:plotVisOnly val=\"1\"/><c:dispBlanksAs val=\"gap\"/></c:chart>\
+            "<c:plotVisOnly val=\"1\"/></c:chart>\
              <c:printSettings><c:headerFooter/>\
              <c:pageMargins b=\"0.75\" l=\"0.7\" r=\"0.7\" t=\"0.75\" header=\"0.3\" footer=\"0.3\"/>\
              <c:pageSetup/></c:printSettings></c:chartSpace>",
@@ -333,6 +375,7 @@ impl Planned {
         series: &[Checked],
         index: &mut usize,
         last: u32,
+        grid: &Grid,
     ) {
         let element = match kind {
             Kind::Column | Kind::Bar => "barChart",
@@ -350,13 +393,11 @@ impl Planned {
             Kind::Scatter => "<c:scatterStyle val=\"lineMarker\"/>",
             Kind::Pie | Kind::Doughnut => "",
         });
-        let _ = write!(
-            out,
-            "<c:varyColors val=\"{}\"/>",
-            u8::from(!kind.has_axes())
-        );
+        if !kind.has_axes() {
+            out.push_str("<c:varyColors val=\"1\"/>");
+        }
         for one in series {
-            self.series(out, kind, one, *index, last);
+            self.series(out, kind, one, *index, last, grid);
             *index += 1;
         }
         out.push_str(match kind {
@@ -371,7 +412,15 @@ impl Planned {
         let _ = write!(out, "</c:{element}>");
     }
 
-    fn series(&self, out: &mut String, kind: Kind, series: &Checked, index: usize, last: u32) {
+    fn series(
+        &self,
+        out: &mut String,
+        kind: Kind,
+        series: &Checked,
+        index: usize,
+        last: u32,
+        grid: &Grid,
+    ) {
         let _ = write!(
             out,
             "<c:ser><c:idx val=\"{index}\"/><c:order val=\"{index}\"/>"
@@ -404,6 +453,9 @@ impl Planned {
             }
             (_, None) => {}
         }
+        if kind == Kind::Line {
+            out.push_str("<c:marker><c:symbol val=\"none\"/></c:marker>");
+        }
         if self.labels {
             out.push_str(
                 "<c:dLbls><c:showLegendKey val=\"0\"/><c:showVal val=\"1\"/><c:showCatName val=\"0\"/>\
@@ -411,30 +463,21 @@ impl Planned {
             );
         }
         let (categories, values) = if kind == Kind::Scatter {
-            ("<c:xVal><c:numRef><c:f>", "<c:yVal><c:numRef><c:f>")
+            ("xVal", "yVal")
         } else {
-            ("<c:cat><c:strRef><c:f>", "<c:val><c:numRef><c:f>")
+            ("cat", "val")
         };
         if let Some(range) = &series.categories {
-            out.push_str(categories);
+            let numbers = kind == Kind::Scatter
+                || (range.own && grid.numbers(range.area.left, range.area.right));
+            let reference = if numbers { "numRef" } else { "strRef" };
+            let _ = write!(out, "<c:{categories}><c:{reference}><c:f>");
             range.write(out, last);
-            out.push_str(if kind == Kind::Scatter {
-                "</c:f></c:numRef></c:xVal>"
-            } else {
-                "</c:f></c:strRef></c:cat>"
-            });
+            let _ = write!(out, "</c:f></c:{reference}></c:{categories}>");
         }
-        out.push_str(values);
+        let _ = write!(out, "<c:{values}><c:numRef><c:f>");
         series.values.write(out, last);
-        out.push_str(if kind == Kind::Scatter {
-            "</c:f></c:numRef></c:yVal>"
-        } else {
-            "</c:f></c:numRef></c:val>"
-        });
-        if kind.is_line() {
-            out.push_str("<c:smooth val=\"0\"/>");
-        }
-        out.push_str("</c:ser>");
+        let _ = write!(out, "</c:f></c:numRef></c:{values}></c:ser>");
     }
 
     /// The two axes: categories and values, a scatter's two value axes, and a bar chart's turned
@@ -455,9 +498,15 @@ impl Planned {
         } else {
             "midCat"
         };
-        let scaling = "<c:scaling><c:orientation val=\"minMax\"/></c:scaling><c:delete val=\"0\"/>";
-        let ticks = "<c:numFmt formatCode=\"General\" sourceLinked=\"1\"/>\
-                     <c:majorTickMark val=\"out\"/><c:minorTickMark val=\"none\"/><c:tickLblPos val=\"nextTo\"/>";
+        let scaling = "<c:scaling><c:orientation val=\"minMax\"/></c:scaling>";
+        let format = "<c:numFmt formatCode=\"General\" sourceLinked=\"1\"/>";
+        let ticks = "<c:tickLblPos val=\"nextTo\"/>";
+        // Excel gives the category axis a number format only when a series has categories.
+        let categories = first == Kind::Scatter
+            || self
+                .layers
+                .iter()
+                .any(|(_, series)| series.iter().any(|one| one.categories.is_some()));
         if first == Kind::Scatter {
             let _ = write!(
                 out,
@@ -472,6 +521,9 @@ impl Planned {
         if let Some(text) = &self.x_title {
             title(out, text, category_at == "l");
         }
+        if categories {
+            out.push_str(format);
+        }
         let _ = write!(
             out,
             "{ticks}<c:crossAx val=\"{Y_AXIS}\"/><c:crosses val=\"autoZero\"/>"
@@ -480,7 +532,7 @@ impl Planned {
             out.push_str("<c:crossBetween val=\"midCat\"/></c:valAx>");
         } else {
             out.push_str(
-                "<c:auto val=\"1\"/><c:lblAlgn val=\"ctr\"/><c:lblOffset val=\"100\"/><c:noMultiLvlLbl val=\"0\"/></c:catAx>",
+                "<c:auto val=\"1\"/><c:lblAlgn val=\"ctr\"/><c:lblOffset val=\"100\"/></c:catAx>",
             );
         }
         let _ = write!(
@@ -492,7 +544,7 @@ impl Planned {
         }
         let _ = write!(
             out,
-            "{ticks}<c:crossAx val=\"{X_AXIS}\"/><c:crosses val=\"autoZero\"/><c:crossBetween val=\"{}\"/></c:valAx>",
+            "{format}{ticks}<c:crossAx val=\"{X_AXIS}\"/><c:crosses val=\"autoZero\"/><c:crossBetween val=\"{}\"/></c:valAx>",
             if first == Kind::Scatter {
                 "midCat"
             } else {

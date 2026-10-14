@@ -84,7 +84,7 @@ stages:
         shapes: ["Feature proofs — an example, an attack, a bench, a `covers:` marker"]
   - id: 13
     title: what opens in Excel
-    status: open
+    status: done
     extra:
       context:
         rules: [core-classes/spreadsheet-output-is-inert]
@@ -770,22 +770,19 @@ One file set: `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/n
 
 ### State
 
-**Stage 13 has six of its eight tests green** in `extensions/spreadsheet/tests/excel.rs`: the round trip (calamine 0.36 as a host-only dev dependency, kept out of the `wasm32-wasip2` graph, and `cargo deny` still passes), and styles, tables, conditional formats and data validation. Each of those four compares its parts with Excel-made `rust_xlsxwriter` fixtures under `extensions/spreadsheet/tests/fixtures/excel/`, whose `README.md` lists every file. The writer now writes a bottom alignment, a dxf border, `totalsRowShown` and a table part's `totalsRowFormula` the way Excel does.
+**Stage 13 is done**: all eight tests in `extensions/spreadsheet/tests/excel.rs` are green and `looper check --name spreadsheet-what-opens-in-excel` passes. Images and the seven chart types plus the combination match Excel's own files (`tests/fixtures/excel/README.md` lists them). The writer now writes Excel's `twoCellAnchor` from a per-sheet `Grid` (`extensions/spreadsheet/src/drawing.rs`: column widths, row-height runs, one number flag per column), `numRef` categories for number columns, sheet names quoted only when needed, and no `varyColors`, `delete`, tick marks, `smooth`, legend `overlay` or `dispBlanksAs`. `comparable_chart` in the test is the one place that removes the caches, renumbers axis ids and cuts Excel's float noise.
 
-`images_match_the_excel_made_fixtures` and `every_chart_type_in_the_subset_matches_its_excel_made_fixture` are not written. The user decided the four design differences, and `rule:core-classes/spreadsheet-sheet-end-parts` and the stage's text record them: Excel's `twoCellAnchor` with custom row heights kept as runs, no chart cache (Declined, removed in the comparison), `numRef` categories from a per-column flag, and axis ids renumbered in the test.
+Not compared, because the writer lacks the feature: font family, centre across, fill patterns, quote prefix, automatic colours, diagonals, stacked text, a table with no header or style `none`, stop-if-true, and custom icon thresholds. Our writer writes one `<conditionalFormatting>` per rule, and Excel groups rules over one range (`cond_format03`, `07`).
+
+The floor gate's three red benches: `novis/Spreadsheet-Reader/rows` grew only because its first counting run compiled the component into a cold module cache. `tools/nv/cmd/scaling.ts`'s `RUN.take` now times before it counts, and the bench judges flat. `core/IO/makeDir` and `core/Queue/cancel` judge *unclear* under load, not *grows*. The sweep repays them.
 
 ### Next
 
-**Stage 13, the charts and images** (`rule:core-classes/spreadsheet-output-is-inert`, `rule:core-classes/spreadsheet-sheet-end-parts`). Files: `extensions/spreadsheet/src/chart.rs`, `extensions/spreadsheet/src/drawing.rs`, the sheet writer that sees each row's height and values, `extensions/spreadsheet/tests/excel.rs`, `extensions/spreadsheet/tests/chart.rs`. The rxw clone is gone. Fetch the fixtures again with a sparse clone of `rust_xlsxwriter`'s `tests/input`.
+**Stage 14, the feature proofs** (`rule:testing/feature-proofs`). Files: `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/novis/`, `docs/rules/core-classes/spreadsheet-roster.md`, `data/proofs/policy.json`. Start with `bun nv proofs --nvs target/debug/nvs.exe --group 'Novis\Spreadsheet\Workbook'` to list what is owed.
 
-- [ ] **Anchors as Excel writes them.** `extensions/spreadsheet/src/drawing.rs:248` writes `twoCellAnchor editAs="oneCell"` with a `to` cell and offset, from the column widths and the open sheet's custom row heights kept as runs (the rule's memory line). Rewrite the module docs of `drawing.rs` and `chart.rs:19`, which say one cell.
-- [ ] **Categories and the axis format.** `extensions/spreadsheet/src/chart.rs:416` writes `numRef` when the categories are a column of the chart's own sheet whose every value is a number or a date, from one flag per column. The catAx `numFmt` is written only when there are categories (`:459`).
-
-- [ ] **The plain chart fixes**, which need no decision. Excel quotes a sheet name only when the name needs it (`extensions/spreadsheet/src/chart.rs:168`). It omits `varyColors` on axis charts (`:353`), and it omits `delete`, `majorTickMark`, `minorTickMark` and `noMultiLvlLbl` on axes (`:458`, `:483`). Its legend has no `overlay` (`:316`), and a pie or doughnut legend has a `txPr`. `dispBlanksAs` appears only when set (`:320`). A line series has `<c:marker><c:symbol val="none"/></c:marker>`, and no line or scatter series has `smooth` (`:434`).
-- [ ] **The fixtures**: `chart_column01`, `chart_bar01`, `chart_line01`, `chart_area01`, `chart_pie01`, `chart_doughnut01`, `chart_scatter01`, `chart_combined02` and `image53`. Upstream's only chart normalisation is the `000000000000\d+` digits in `xl/charts/chart*`. Add each to the table in `extensions/spreadsheet/tests/fixtures/excel/README.md:1`.
-- [ ] Write the two tests after the four in `extensions/spreadsheet/tests/excel.rs:1`, reusing its harness. The harness removes `numCache` and `strCache` from Excel's chart parts in one named place, and renumbers `axId` and `crossAx` in both files by order of appearance. Run `cargo test --manifest-path extensions/spreadsheet/Cargo.toml --test excel`, then `looper check --name spreadsheet-what-opens-in-excel`.
-
-Not compared, because the writer lacks the feature: font family, centre across, fill patterns, quote prefix, automatic colours, diagonals, stacked text, a table with no header or style `none`, stop-if-true, and custom icon thresholds. Our writer writes one `<conditionalFormatting>` per rule, and Excel groups rules over one range (`cond_format03`, `07`). That is a design difference and is not compared.
+- [ ] **The roster's *Not shipped*** at `docs/rules/core-classes/spreadsheet-roster.md:45` says only the writer is on disk. Rewrite it for what ships now.
+- [ ] **`Row` gets a group** and `Reader::rows`'s doc comment (`extensions/spreadsheet/nvs/Reader.nvs:158`) comes down to two lines for `bun nv proofs --comments`.
+- [ ] **The examples** the stage lists (`docs/goals/spreadsheet.md:763`), under `docs/examples/novis/`, held to AGENTS.md § *Text an end user reads*. The ten Stage 11 attacks under `tests/hostile/novis/` are counted for their groups.
 
 ### Backlog
 

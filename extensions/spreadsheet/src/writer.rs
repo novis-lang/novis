@@ -64,7 +64,7 @@ use std::fmt::Write as _;
 
 use crate::cells::{self, Layers};
 use crate::conditional;
-use crate::drawing::Format;
+use crate::drawing::{Format, Grid};
 use crate::styles::{Implicit, Styles, argb};
 use crate::table::{Placed, Table, expand};
 use crate::tail::{Groups, Part, Tail, area};
@@ -80,6 +80,8 @@ pub const XML_HEAD: &str = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=
 /// Excel's grid.
 const MAX_ROWS: u32 = 1_048_576;
 const MAX_COLUMNS: usize = 16_384;
+/// The width Excel writes for a column of its default 8.43 characters.
+const DEFAULT_WIDTH: f64 = 9.140625;
 
 const MAIN: &str = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
 const RELS: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
@@ -121,6 +123,8 @@ struct OpenSheet {
     fit: bool,
     /// The media entries added after its own entry started, by name, until it ends.
     waiting: Vec<(String, Vec<u8>)>,
+    /// Its column widths, row heights and number columns, for its anchors and charts.
+    grid: Grid,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -424,6 +428,7 @@ impl Writer {
             groups: Groups::default(),
             fit: false,
             waiting: Vec::new(),
+            grid: Grid::default(),
         });
     }
 
@@ -748,16 +753,25 @@ impl Writer {
         };
         let header = (open.next == 1 && first.header).then(|| first.clone());
         let mut head = String::new();
-        let columns = if open.started {
+        let mut columns = if open.started {
             None
         } else {
             Some(self.sheet_head(open, header.is_some(), rows, &mut head)?)
         };
         let mut body = String::new();
         let mut formulas = false;
-        let layers = columns.as_deref().unwrap_or(&open.columns);
+        let layers = columns
+            .as_ref()
+            .map_or(open.columns.as_slice(), |(layers, _)| layers);
         let next = self.batch(open, layers, rows, &mut body, &mut formulas)?;
         open.tail.headers(rows, open.next)?;
+        if let Some((_, grid)) = &mut columns {
+            open.grid = std::mem::take(grid);
+        }
+        for (at, row) in rows.iter().enumerate() {
+            let hidden = row.hidden || open.groups.row(open.next + at as u32).hidden;
+            open.grid.row(row, hidden);
+        }
         let part = format!("xl/worksheets/sheet{}.xml", open.index + 1);
         let started = open.started;
         self.archived(|this| {
@@ -767,7 +781,7 @@ impl Writer {
             }
             this.archive.write(body.as_bytes())
         })?;
-        if let Some(columns) = columns {
+        if let Some((columns, _)) = columns {
             open.columns = columns;
             open.started = true;
         }
@@ -883,16 +897,17 @@ impl Writer {
     }
 
     /// Writes what the sheet `open` has before its rows into `out`, measuring `first` for auto
-    /// width, and returns the columns' layers. `header` says whether `first` starts with the
-    /// header row.
+    /// width, and returns the columns' layers and a grid with the columns' widths. `header` says
+    /// whether `first` starts with the header row.
     fn sheet_head(
         &mut self,
         open: &OpenSheet,
         header: bool,
         first: &[Row],
         out: &mut String,
-    ) -> Result<Vec<Option<u64>>, Error> {
+    ) -> Result<(Vec<Option<u64>>, Grid), Error> {
         let options = &open.options;
+        let mut grid = Grid::default();
         out.push_str(XML_HEAD);
         let _ = write!(out, "<worksheet xmlns=\"{MAIN}\" xmlns:r=\"{RELS}\">");
         if options.tab_color.is_some() || open.fit {
@@ -996,6 +1011,9 @@ impl Writer {
                 }
                 None => None,
             };
+            if width.is_some() || hidden {
+                grid.width(at as u32, width.unwrap_or(DEFAULT_WIDTH), hidden);
+            }
             if width.is_none() && xf == 0 && !hidden && outline == Default::default() {
                 continue;
             }
@@ -1023,18 +1041,21 @@ impl Writer {
             let _ = write!(out, "<cols>{cols}</cols>");
         }
         out.push_str("<sheetData>");
-        Ok(options.columns.iter().map(|column| column.style).collect())
+        Ok((
+            options.columns.iter().map(|column| column.style).collect(),
+            grid,
+        ))
     }
 
     /// Ends the open sheet's part, starting it first when no row was written to it, and writes
     /// the entries its sheet-end parts need.
     fn end_sheet(&mut self) -> Result<(), Error> {
-        let Some(open) = self.open.take() else {
+        let Some(mut open) = self.open.take() else {
             return Ok(());
         };
         if !open.started {
             let mut head = String::new();
-            self.sheet_head(&open, false, &[], &mut head)?;
+            open.grid = self.sheet_head(&open, false, &[], &mut head)?.1;
             self.archive
                 .begin(&format!("xl/worksheets/sheet{}.xml", open.index + 1))?;
             self.archive.write(head.as_bytes())?;
@@ -1068,7 +1089,10 @@ impl Writer {
             entries.push((format!("xl/worksheets/_rels/sheet{number}.xml.rels"), rels));
         }
         entries.extend(open.tail.notes(number));
-        entries.extend(open.tail.drawing(number, open.next.saturating_sub(1)));
+        entries.extend(
+            open.tail
+                .drawing(number, open.next.saturating_sub(1), &open.grid),
+        );
         entries.extend(open.tail.tables());
         for (name, text) in &entries {
             self.archive.begin(name)?;

@@ -11,15 +11,24 @@
 //! **Against Excel's own files.** Each file under `tests/fixtures/excel/` was made by Excel (its
 //! README names where they come from). The writer makes the same workbook, and the parts an area
 //! is about are compared element by element, split the way the suite those files come from
-//! splits them: `xl/styles.xml` for cell formats, the table's part for tables, and the sheet's
-//! `<conditionalFormatting>` and `<dataValidations>` with the `dxf` styles they use. A difference
-//! is fixed in the writer. A fixture is never changed.
+//! splits them: `xl/styles.xml` for cell formats, the table's part for tables, the sheet's
+//! `<conditionalFormatting>` and `<dataValidations>` with the `dxf` styles they use, the drawing
+//! part for images, and the chart part and the drawing for charts. A difference is fixed in the
+//! writer. A fixture is never changed.
+//!
+//! **What the chart comparison removes**, all of it in [`excel_chart`]: the `numCache` and
+//! `strCache` Excel writes beside each reference, which
+//! `rule:core-classes/spreadsheet-sheet-end-parts` declines, and the axis ids, which Excel picks
+//! at random and which are renumbered in both files by order of appearance, so each axis still
+//! names its partner.
 
 use std::io::Cursor;
 
 use calamine::{Data, Dimensions, Reader as _, Xlsx, open_workbook_from_rs};
 use nvs_spreadsheet::cells::reference;
+use nvs_spreadsheet::chart::{self, Chart, Layer, Legend, Series};
 use nvs_spreadsheet::conditional::{Conditional, Kind};
+use nvs_spreadsheet::drawing::Image;
 use nvs_spreadsheet::read::merge::Merge;
 use nvs_spreadsheet::read::zip::{Bound, Directory};
 use nvs_spreadsheet::read::{Read, ReadCell, ReadOptions, ReadRow, Reader, Source};
@@ -836,14 +845,19 @@ fn excel_file(name: &str) -> Vec<u8> {
     std::fs::read(&path).unwrap_or_else(|err| panic!("{path}: {err}"))
 }
 
-/// The entry `name` of the archive `archive`, as text.
-fn entry(archive: &[u8], name: &str) -> String {
+/// The entry `name` of the archive `archive`.
+fn entry_bytes(archive: &[u8], name: &str) -> Vec<u8> {
     let source = Bytes(archive.to_vec());
     let directory = Directory::read(&source, Bound::default()).unwrap();
     let found = directory
         .find(name)
         .unwrap_or_else(|| panic!("the archive has {name}"));
-    String::from_utf8(directory.whole(&source, found).unwrap()).unwrap()
+    directory.whole(&source, found).unwrap()
+}
+
+/// The entry `name` of the archive `archive`, as text.
+fn entry(archive: &[u8], name: &str) -> String {
+    String::from_utf8(entry_bytes(archive, name)).unwrap()
 }
 
 /// The text of `xml` from the first `<tag` to the last `</tag>`, both included.
@@ -1411,6 +1425,213 @@ fn data_validation_matches_the_excel_made_fixtures() {
             "The sheet's data validation",
             region(&entry(&ours, sheet), "dataValidations"),
             region(&entry(&excel, sheet), "dataValidations"),
+            &[],
+        );
+    }
+}
+
+/// The rows of `columns`, each a list of numbers down its column from `A1`.
+fn number_columns(columns: &[&[f64]]) -> Vec<Row> {
+    let mut cells = Vec::new();
+    for (at, values) in columns.iter().enumerate() {
+        for (row, value) in values.iter().enumerate() {
+            cells.push((reference(at as u32, row as u32 + 1), number(*value)));
+        }
+    }
+    grid(cells, 0)
+}
+
+/// An image the file Excel made holds, at `at` and its own size.
+fn excel_image(at: &str, bytes: Vec<u8>) -> Image {
+    Image {
+        at: at.to_owned(),
+        image: bytes,
+        width: None,
+        height: None,
+        offset_x: None,
+        offset_y: None,
+    }
+}
+
+#[test]
+fn images_match_the_excel_made_fixtures() {
+    let excel = excel_file("image53");
+    let red = entry_bytes(&excel, "xl/media/image1.png");
+    let writer = Writer::open(WorkbookOptions::default()).unwrap();
+    let parts = vec![Part::Image(excel_image("E9", red.clone()))];
+    let ours = excel_book(writer, parts, Vec::new());
+    assert_eq!(entry_bytes(&ours, "xl/media/image1.png"), red);
+    for part in [
+        "xl/drawings/drawing1.xml",
+        "xl/drawings/_rels/drawing1.xml.rels",
+    ] {
+        same_part(
+            "image53",
+            part,
+            &entry(&ours, part),
+            &entry(&excel, part),
+            &[],
+        );
+    }
+}
+
+/// A chart at `E9` of the default size, as each chart file was made, with one layer per
+/// `(kind, series)` and its series as `(categories, values)`.
+fn excel_chart(layers: Vec<(chart::Kind, Vec<(Option<&str>, &str)>)>) -> Chart {
+    Chart {
+        placed: "E9".to_owned(),
+        layers: layers
+            .into_iter()
+            .map(|(kind, series)| Layer {
+                kind,
+                series: series
+                    .into_iter()
+                    .map(|(categories, values)| Series {
+                        values: values.to_owned(),
+                        categories: categories.map(str::to_owned),
+                        name: None,
+                        color: None,
+                    })
+                    .collect(),
+            })
+            .collect(),
+        title: None,
+        x_title: None,
+        y_title: None,
+        legend: Legend::Right,
+        labels: false,
+        width: None,
+        height: None,
+    }
+}
+
+/// A chart part made comparable: Excel's `numCache` and `strCache` removed, which
+/// `rule:core-classes/spreadsheet-sheet-end-parts` declines, each axis id renumbered from 1 by
+/// order of appearance, because Excel picks them at random, and the rounding noise of a decimal
+/// such as `0.75000000000000011` cut at its run of twelve zeros, as the suite the files come from
+/// cuts it. Both files go through it.
+fn comparable_chart(xml: &str) -> String {
+    let mut out = xml.to_owned();
+    while let Some(from) = out.find("000000000000") {
+        let digits = out[from..]
+            .find(|c: char| !c.is_ascii_digit())
+            .unwrap_or(out.len() - from);
+        out.replace_range(from..from + digits, "");
+    }
+    for cache in ["c:numCache", "c:strCache"] {
+        let open = format!("<{cache}>");
+        let close = format!("</{cache}>");
+        while let Some(from) = out.find(&open) {
+            let to = out[from..].find(&close).unwrap() + from + close.len();
+            out.replace_range(from..to, "");
+        }
+    }
+    let mut ids: Vec<String> = Vec::new();
+    let mut renumbered = String::new();
+    let mut rest = out.as_str();
+    while let Some(at) = ["<c:axId val=\"", "<c:crossAx val=\""]
+        .iter()
+        .filter_map(|tag| rest.find(tag).map(|at| at + tag.len()))
+        .min()
+    {
+        let end = at + rest[at..].find('"').unwrap();
+        let id = &rest[at..end];
+        let number = match ids.iter().position(|seen| seen == id) {
+            Some(number) => number + 1,
+            None => {
+                ids.push(id.to_owned());
+                ids.len()
+            }
+        };
+        renumbered.push_str(&rest[..at]);
+        renumbered.push_str(&number.to_string());
+        rest = &rest[end..];
+    }
+    renumbered.push_str(rest);
+    renumbered
+}
+
+#[test]
+fn every_chart_type_in_the_subset_matches_its_excel_made_fixture() {
+    use chart::Kind::{Area, Bar, Column, Doughnut, Line, Pie, Scatter};
+    let fifteen: [&[f64]; 3] = [
+        &[1.0, 2.0, 3.0, 4.0, 5.0],
+        &[2.0, 4.0, 6.0, 8.0, 10.0],
+        &[3.0, 6.0, 9.0, 12.0, 15.0],
+    ];
+    let area: [&[f64]; 3] = [
+        &[1.0, 2.0, 3.0, 4.0, 5.0],
+        &[8.0, 7.0, 6.0, 8.0, 10.0],
+        &[3.0, 6.0, 9.0, 12.0, 15.0],
+    ];
+    let round: [&[f64]; 2] = [&[2.0, 4.0, 6.0], &[60.0, 30.0, 10.0]];
+    let combined: [&[f64]; 2] = [&[2.0, 7.0, 3.0, 6.0, 2.0], &[20.0, 25.0, 10.0, 10.0, 20.0]];
+    let three = vec![(None, "A1:A5"), (None, "B1:B5"), (None, "C1:C5")];
+    let two = vec![(Some("A1:A5"), "B1:B5"), (Some("A1:A5"), "C1:C5")];
+    let one = vec![(Some("A1:A3"), "B1:B3")];
+    let cases: Vec<(&str, &[&[f64]], Chart)> = vec![
+        (
+            "chart_column01",
+            &fifteen,
+            excel_chart(vec![(Column, three.clone())]),
+        ),
+        (
+            "chart_bar01",
+            &fifteen,
+            excel_chart(vec![(Bar, two.clone())]),
+        ),
+        ("chart_line01", &fifteen, excel_chart(vec![(Line, three)])),
+        (
+            "chart_area01",
+            &area,
+            excel_chart(vec![(Area, two.clone())]),
+        ),
+        ("chart_pie01", &round, excel_chart(vec![(Pie, one.clone())])),
+        (
+            "chart_doughnut01",
+            &round,
+            excel_chart(vec![(Doughnut, one)]),
+        ),
+        (
+            "chart_scatter01",
+            &fifteen,
+            excel_chart(vec![(Scatter, two)]),
+        ),
+        (
+            "chart_combined02",
+            &combined,
+            excel_chart(vec![
+                (Column, vec![(None, "A1:A5")]),
+                (Line, vec![(None, "B1:B5")]),
+            ]),
+        ),
+    ];
+    for (fixture, columns, chart) in cases {
+        let writer = Writer::open(WorkbookOptions::default()).unwrap();
+        let ours = excel_book(writer, vec![Part::Chart(chart)], number_columns(columns));
+        let excel = excel_file(fixture);
+        // The program sets the empty-cell display of this one chart to gaps, and Excel writes
+        // the setting. Gaps are also what Excel shows when a chart does not set it, so the
+        // writer never writes it.
+        let ignore: &[&str] = if fixture == "chart_combined02" {
+            &["c:dispBlanksAs"]
+        } else {
+            &[]
+        };
+        let part = "xl/charts/chart1.xml";
+        same_part(
+            fixture,
+            part,
+            &comparable_chart(&entry(&ours, part)),
+            &comparable_chart(&entry(&excel, part)),
+            ignore,
+        );
+        let drawing = "xl/drawings/drawing1.xml";
+        same_part(
+            fixture,
+            drawing,
+            &entry(&ours, drawing),
+            &entry(&excel, drawing),
             &[],
         );
     }
