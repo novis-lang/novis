@@ -351,7 +351,7 @@ pub fn cell(
 }
 
 /// Appends `<t>` with `text`, keeping its whitespace at either end.
-fn run_text(out: &mut String, text: &str) {
+pub fn run_text(out: &mut String, text: &str) {
     if xml::needs_preserve(text) {
         out.push_str("<t xml:space=\"preserve\">");
     } else {

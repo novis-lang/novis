@@ -26,8 +26,8 @@
 //! **Reading** is `read`'s module doc: every `reader-` export reads the workbook through the
 //! `range` of the source its call is lent.
 //!
-//! **Not done yet.** The template exports return `runtime`, and are not in `manifest.json`:
-//! Stage 10 of goal `spreadsheet`.
+//! **Template fill** is `template`'s module doc. **Not done yet:** its WIT exports return
+//! `runtime` and are not in `manifest.json` (Stage 10 of goal `spreadsheet`).
 //!
 //! Packed as a `.nvsx` and embedded in every `nvs` binary, the component is 0.84 MiB, built for
 //! release as `crates/nvs-ext/build.rs` always builds it. That is the binary's growth for
@@ -43,6 +43,7 @@ pub mod read;
 pub mod styles;
 pub mod table;
 pub mod tail;
+pub mod template;
 pub mod width;
 pub mod writer;
 pub mod xml;
