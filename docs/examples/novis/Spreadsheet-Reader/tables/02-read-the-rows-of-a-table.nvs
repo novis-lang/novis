@@ -1,0 +1,21 @@
+<?nvs
+// Shows how to find a table by its name and read only its rows.
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+// The table `Orders` starts in row 3, below a title.
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet('Report');
+$sheet->table('A3:B5', { name: 'Orders' });
+$sheet->addAll([['Monthly report'], [null], ['Order', 'Total'], [1001, 120], [1002, 80]]);
+var $reader = Reader::open($book->finish()->bytes ?? Core\Bytes::fill(0, 0));
+
+// The range `A3:B5` starts at row 3 and has 3 rows: the header and 2 orders.
+foreach ($reader->tables('Report') as var $table) {
+    if ($table->name == 'Orders') {
+        echo $table->name, ' is at ', $table->table, "\n";
+        foreach ($reader->rows('Report', { header: 3, limit: 2 }) as var $row) {
+            echo 'order ', $row->values['Order'], ': ', $row->values['Total'], "\n";
+        }
+    }
+}

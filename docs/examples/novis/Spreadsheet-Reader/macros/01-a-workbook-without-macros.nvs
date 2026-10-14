@@ -1,0 +1,10 @@
+<?nvs
+// Shows that `macros` returns an empty list for a workbook without macros.
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+bytes $file = Workbook::fromRows([['item' => 'Widget', 'price' => 2.5]])->bytes();
+
+// An xlsx file cannot have macros. So the list is empty.
+array<tainted string> $macros = Reader::open($file)->macros();
+echo Core\Arr::count($macros), " macro modules\n";

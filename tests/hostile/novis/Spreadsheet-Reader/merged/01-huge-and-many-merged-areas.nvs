@@ -1,0 +1,62 @@
+<?nvs
+// Attack: a request uploads a sheet whose merged areas are huge, overlap or are very many, and reads it with `merged: 'fill'`.
+// Reading should finish with only the rows the file has, and a bad file should throw an error.
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+class Attack
+{
+    // This method makes a sheet with one value in A1 and the merged areas `$ranges`, or returns `null` when the writer throws an error.
+    public static function file(array<string> $ranges): ?bytes
+    {
+        try {
+            var $book = Workbook::createInMemory();
+            var $sheet = $book->sheet('Shop');
+            foreach ($ranges as string $range) {
+                $sheet->merge($range);
+            }
+            $sheet->add(['Widget']);
+            return $book->finish()->bytes;
+        } catch (Throwable $e) {
+            return null;
+        }
+    }
+
+    // This method reads `$file` with `merged: 'fill'` and prints the count of areas and rows, or the class of the error.
+    public static function attempt(int $step, ?bytes $file): void
+    {
+        if ($file == null) {
+            echo 'step ', $step, " was not written\n";
+            return;
+        }
+        try {
+            Reader $reader = Reader::open($file);
+            uint $areas = Core\Arr::count($reader->merged(0));
+            int $rows = 0;
+            foreach ($reader->rows(0, { merged: 'fill' }) as var $row) {
+                $rows++;
+            }
+            echo 'step ', $step, ' read ', $areas, ' areas and ', $rows, " rows\n";
+        } catch (Throwable $e) {
+            echo 'step ', $step, ' stopped ', $e::class, "\n";
+        }
+    }
+}
+
+// 1. One area that covers the whole sheet, and one that covers a whole column.
+Attack::attempt(1, Attack::file(['A1:XFD1048576']));
+Attack::attempt(1, Attack::file(['A1:A1048576']));
+
+// 2. Areas that overlap, and an area that is one cell.
+Attack::attempt(2, Attack::file(['A1:C3', 'B2:D4', 'A1:A1']));
+
+// 3. 10,000 areas of two cells each.
+array<string> $many = [];
+for (int $n = 1; $n <= 10000; $n++) {
+    $many[] = "A{$n}:B{$n}";
+}
+Attack::attempt(3, Attack::file($many));
+
+// 4. A range that is not a range. The writer throws an error, which is caught.
+Attack::attempt(4, Attack::file(['B2:A1']));
+Attack::attempt(4, Attack::file(['A0:B0']));

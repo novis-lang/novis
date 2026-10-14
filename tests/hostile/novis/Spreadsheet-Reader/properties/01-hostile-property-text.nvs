@@ -1,0 +1,50 @@
+<?nvs
+// Attack: a request uploads a workbook whose properties have markup, control characters or very long text.
+// `properties` should return each text exactly as it was written, and a damaged file should throw an error.
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+class Attack
+{
+    // This method writes `$text` as the title and the author, reads them back and prints whether they are the same.
+    public static function attempt(int $step, string $text): void
+    {
+        try {
+            var $book = Workbook::createInMemory({ properties: { title: $text, author: $text } });
+            $book->sheet('Shop')->add(['Widget']);
+            var $read = Reader::open($book->finish()->bytes ?? Core\Bytes::fill(0, 0))->properties();
+            bool $same = $read->title == $text && $read->author == $text;
+            echo 'step ', $step, ' read the text ', $same ? 'unchanged' : 'changed', "\n";
+        } catch (Throwable $e) {
+            echo 'step ', $step, ' stopped ', $e::class, "\n";
+        }
+    }
+}
+
+// 1. Markup and XML that try to end the property early.
+Attack::attempt(1, '<script>alert(1)</script>');
+Attack::attempt(1, '</dc:title><dc:creator>injected</dc:creator><dc:title>');
+Attack::attempt(1, '<!DOCTYPE x [<!ENTITY e SYSTEM "file:///etc/passwd">]>&e;');
+
+// 2. Text in other scripts, and a line break.
+Attack::attempt(2, 'Ünïcödé ✓ 中文 עברית');
+Attack::attempt(2, "two\nlines");
+
+// 3. A title of 100,000 characters.
+Attack::attempt(3, Core\Str::repeat('x', 100000));
+
+// 4. A workbook without its last byte, and properties read 1,000 times on one reader.
+var $book = Workbook::createInMemory({ properties: { title: 'Prices' } });
+$book->sheet('Shop')->add(['Widget']);
+bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+try {
+    Reader::open(Core\Bytes::slice($file, 0, (Core\Bytes::length($file) as int) - 1))->properties();
+    echo "step 4 read the properties\n";
+} catch (Throwable $e) {
+    echo 'step 4 stopped ', $e::class, "\n";
+}
+Reader $reader = Reader::open($file);
+for (int $round = 0; $round < 1000; $round++) {
+    $reader->properties();
+}
+echo 'step 4 read the title ', $reader->properties()->title ?? 'null', "\n";

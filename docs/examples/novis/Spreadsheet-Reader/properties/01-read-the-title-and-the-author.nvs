@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to read the title, the author and the other properties of a workbook.
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory({ properties: { title: 'Price list', author: 'Shop', company: 'Shop Ltd', keywords: 'prices, 2024' } });
+$book->sheet('Prices')->add(['Item', 'Price']);
+var $reader = Reader::open($book->finish()->bytes ?? Core\Bytes::fill(0, 0));
+
+// A property the file does not have is `null`. This file has no subject.
+var $properties = $reader->properties();
+echo 'title: ', $properties->title ?? 'null', "\n";
+echo 'author: ', $properties->author ?? 'null', "\n";
+echo 'company: ', $properties->company ?? 'null', "\n";
+echo 'keywords: ', $properties->keywords ?? 'null', "\n";
+echo 'subject: ', $properties->subject ?? 'null', "\n";

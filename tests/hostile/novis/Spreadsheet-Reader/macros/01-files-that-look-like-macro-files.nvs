@@ -1,0 +1,35 @@
+<?nvs
+// Attack: a request uploads a file that starts like an old xls file with macros, but the rest is damaged.
+// `Reader::open` or `macros` should throw an error. No macro should run, and the program should keep running.
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+class Attack
+{
+    // This method prints how many macro modules `$file` has, or the class of the error.
+    public static function attempt(int $step, bytes $file): void
+    {
+        try {
+            uint $count = Core\Arr::count(Reader::open($file)->macros());
+            echo 'step ', $step, ' found ', $count, " macro modules\n";
+        } catch (Throwable $e) {
+            echo 'step ', $step, ' stopped ', $e::class, "\n";
+        }
+    }
+}
+
+// The first 8 bytes of every xls file.
+bytes $start = Core\Encoding::fromBase64('0M8R4KGxGuE=');
+
+// 1. The 8 bytes alone, then followed by 512 zeros, and by 4,096 bytes of 255.
+Attack::attempt(1, $start);
+Attack::attempt(1, Core\Bytes::join([$start, Core\Bytes::fill(512, 0)]));
+Attack::attempt(1, Core\Bytes::join([$start, Core\Bytes::fill(4096, 255)]));
+
+// 2. The 8 bytes, followed by an xlsx file.
+bytes $xlsx = Workbook::fromRows([['item' => 'Widget']])->bytes();
+Attack::attempt(2, Core\Bytes::join([$start, $xlsx]));
+
+// 3. An xlsx file without its last byte, and the good xlsx file.
+Attack::attempt(3, Core\Bytes::slice($xlsx, 0, (Core\Bytes::length($xlsx) as int) - 1));
+Attack::attempt(3, $xlsx);

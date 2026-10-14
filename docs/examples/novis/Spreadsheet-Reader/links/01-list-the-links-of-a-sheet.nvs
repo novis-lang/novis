@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to list the links of a sheet, with the cell of each link and where it goes.
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet('Shops');
+$sheet->link('B2', 'https://example.com/north')->link('B3', 'mailto:south@example.com');
+$sheet->addAll([['Shop', 'Contact'], ['North', 'Website'], ['South', 'Email']]);
+var $reader = Reader::open($book->finish()->bytes ?? Core\Bytes::fill(0, 0));
+
+// `anchor` is the cell of the link, and `target` is where it goes.
+foreach ($reader->links('Shops') as var $link) {
+    echo $link->anchor, ' -> ', $link->target, "\n";
+}

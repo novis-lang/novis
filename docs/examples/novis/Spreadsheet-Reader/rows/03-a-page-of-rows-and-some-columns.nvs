@@ -1,0 +1,23 @@
+<?nvs
+// Shows how to read only some rows and some columns of a large sheet.
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet('Orders');
+$sheet->add(['Order', 'Customer', 'Note', 'Total']);
+for (int $n = 1; $n <= 50; $n++) {
+    $sheet->add([1000 + $n, "Customer {$n}", 'none', $n * 10]);
+}
+var $reader = Reader::open($book->finish()->bytes ?? Core\Bytes::fill(0, 0));
+
+// `header: 1` says that row 1 has the keys. `from: 12` starts at row 12, and `limit: 3` reads three rows.
+// `columns` reads only the columns A and D.
+foreach ($reader->rows('Orders', { header: 1, from: 12, limit: 3, columns: ['A', 'D'] }) as var $row) {
+    echo 'row ', $row->number, ': order ', $row->values['Order'], ', total ', $row->values['Total'], "\n";
+}
+
+// Without a header, the keys are the column letters.
+foreach ($reader->rows('Orders', { limit: 1 }) as var $row) {
+    echo Core\Str::join(Core\Arr::keys($row->values), ', '), "\n";
+}

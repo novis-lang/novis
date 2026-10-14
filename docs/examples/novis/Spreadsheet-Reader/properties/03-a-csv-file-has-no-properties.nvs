@@ -1,0 +1,9 @@
+<?nvs
+// Shows that every property of a CSV file is `null`.
+use Novis\Spreadsheet\Reader;
+
+// A CSV file is only text, so it has no title and no author.
+var $properties = Reader::open("Item,Price\nWidget,2.50\n" as bytes)->properties();
+echo 'title: ', $properties->title ?? 'null', "\n";
+echo 'author: ', $properties->author ?? 'null', "\n";
+echo 'created: ', $properties->created == null ? 'null' : 'set', "\n";

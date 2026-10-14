@@ -1,0 +1,13 @@
+<?nvs
+// Shows that `author` is `null` when a note has no author.
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+$book->sheet('Blog')->note('A1', 'Draft, do not publish.')->add(['Hello world']);
+var $reader = Reader::open($book->finish()->bytes ?? Core\Bytes::fill(0, 0));
+
+foreach ($reader->notes(0) as var $note) {
+    echo $note->noted, ': ', $note->note, "\n";
+    echo 'author: ', $note->author == null ? 'null' : 'set', "\n";
+}

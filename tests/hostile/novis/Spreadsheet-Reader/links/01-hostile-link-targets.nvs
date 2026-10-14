@@ -1,0 +1,51 @@
+<?nvs
+// Attack: a request uploads a sheet whose links go to scripts, local files or very long addresses, or has very many links.
+// `links` should return each target as text and open none of them. A target the writer does not allow should throw an error.
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+class Attack
+{
+    // This method writes one link to `$target` in A1, reads it back and prints its length, or the class of the error.
+    public static function attempt(int $step, string $target): void
+    {
+        try {
+            var $book = Workbook::createInMemory();
+            $book->sheet('Shop')->link('A1', $target)->add(['Open']);
+            bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+            foreach (Reader::open($file)->links(0) as var $link) {
+                echo 'step ', $step, ' read a target of ', Core\Str::length($link->target), " characters\n";
+            }
+        } catch (Throwable $e) {
+            echo 'step ', $step, ' stopped ', $e::class, "\n";
+        }
+    }
+}
+
+// 1. A script, a local file, a network share and a data URL.
+Attack::attempt(1, 'javascript:alert(1)');
+Attack::attempt(1, 'file:///etc/passwd');
+Attack::attempt(1, '\\\\example.com\\share\\file.exe');
+Attack::attempt(1, 'data:text/html,<script>alert(1)</script>');
+
+// 2. Addresses with markup, quotes and line breaks.
+Attack::attempt(2, 'https://example.com/"><script>alert(1)</script>');
+Attack::attempt(2, "https://example.com/a\r\nSet-Cookie: x=1");
+
+// 3. An address of 100,000 characters.
+Attack::attempt(3, 'https://example.com/' . Core\Str::repeat('a', 100000));
+
+// 4. 5,000 links on one sheet, and a sheet that does not exist.
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet('Shop');
+for (int $n = 1; $n <= 5000; $n++) {
+    $sheet->link("A{$n}", "https://example.com/{$n}");
+}
+$sheet->add(['Open']);
+Reader $reader = Reader::open($book->finish()->bytes ?? Core\Bytes::fill(0, 0));
+echo 'step 4 read ', Core\Arr::count($reader->links('Shop')), " links\n";
+try {
+    $reader->links('Blog');
+} catch (LogicError $e) {
+    echo "step 4 stopped LogicError\n";
+}
