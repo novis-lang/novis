@@ -19340,7 +19340,7 @@ Returns the whole request body as one string.
 
 **Returns** `tainted string` — Every byte the client sent, in order and unchanged. The string is `tainted`. It is empty when the request has no body, and every call returns the same string.
 
-**Throws** `LogicError` — The program is not answering a request. Or `bodyStream` or `files` already read the body, and those two do not keep it.; `RuntimeError` — The body is larger than `[limits] request_body` (8M). The bytes past that limit are never stored.; `IOError` — The connection failed while the body arrived, or the client sent fewer bytes than its `Content-Length` said.; `ParseError` — The body is not valid UTF-8, so it cannot be a `string`. `bytes` returns the same body as `bytes`.
+**Throws** `LogicError` — The program is not answering a request. Or `bodyStream` or `files` already read the body, and those two do not keep it.; `RuntimeError` — The body is larger than `[limits] request_body`. The bytes past that limit are never stored.; `IOError` — The connection failed while the body arrived, or the client sent fewer bytes than its `Content-Length` said.; `ParseError` — The body is not valid UTF-8, so it cannot be a `string`. `bytes` returns the same body as `bytes`.
 
 <a id="core-core-request-bytes"></a>
 #### `Core\Request::bytes`
@@ -19353,7 +19353,7 @@ Returns the whole request body as `bytes`. Use it for a body that is not text, s
 
 **Returns** `tainted bytes` — Every byte the client sent, in order and unchanged. The value is `tainted`. It is empty when the request has no body. A body that is not valid UTF-8 is returned too, where `body` throws an error.
 
-**Throws** `LogicError` — The program is not answering a request. Or `bodyStream` or `files` already read the body, and those two do not keep it.; `RuntimeError` — The body is larger than `[limits] request_body` (8M). The bytes past that limit are never stored.; `IOError` — The connection failed while the body arrived, or the client sent fewer bytes than its `Content-Length` said.
+**Throws** `LogicError` — The program is not answering a request. Or `bodyStream` or `files` already read the body, and those two do not keep it.; `RuntimeError` — The body is larger than `[limits] request_body`. The bytes past that limit are never stored.; `IOError` — The connection failed while the body arrived, or the client sent fewer bytes than its `Content-Length` said.
 
 <a id="core-core-request-json"></a>
 #### `Core\Request::json`
@@ -19370,7 +19370,7 @@ Reads the request body as one JSON document and returns the decoded value.
 
 **Returns** `mixed` — The decoded value, the same as `Core\Json::decode` returns for the body. A JSON object becomes an array with string keys. Every string in it is `tainted`. Every call returns the same value.
 
-**Throws** `LogicError` — The program is not answering a request. Or `bodyStream` or `files` already read the body, and those two do not keep it. Or `maxDepth` is not from 1 to 1024.; `ParseError` — The body is not one whole JSON document, or it nests deeper than `maxDepth`. An empty body throws this error too. The `Content-Type` header is not checked.; `RuntimeError` — The body is larger than `[limits] request_body` (8M). The bytes past that limit are never stored.; `IOError` — The connection failed while the body arrived, or the client sent fewer bytes than its `Content-Length` said.
+**Throws** `LogicError` — The program is not answering a request. Or `bodyStream` or `files` already read the body, and those two do not keep it. Or `maxDepth` is not from 1 to 1024.; `ParseError` — The body is not one whole JSON document, or it nests deeper than `maxDepth`. An empty body throws this error too. The `Content-Type` header is not checked.; `RuntimeError` — The body is larger than `[limits] request_body`. The bytes past that limit are never stored.; `IOError` — The connection failed while the body arrived, or the client sent fewer bytes than its `Content-Length` said.
 
 <a id="core-core-request-jsonas"></a>
 #### `Core\Request::jsonAs`
@@ -19387,7 +19387,7 @@ Reads the request body as one JSON object and returns a new instance of the clas
 
 **Returns** `T` — A new `T` with its fields read from the body, or one `T` for each element for an `array<T>`. Every call creates new objects, so two callers never get the same object.
 
-**Throws** `LogicError` — The program is not answering a request. Or `bodyStream` or `files` already read the body, and those two do not keep it. Or `T` has no `#[Core\Json\Derive]` attribute. Or `maxDepth` is not from 1 to 1024.; `ParseError` — The body is not one whole JSON object, or it nests deeper than `maxDepth`. An empty body throws this error too. It is also thrown when a field is missing or has the wrong type. The `issues` list has one entry for each wrong field. The `Content-Type` header is not checked.; `RecursionError` — The call stack is full when a constructor runs. This happens when the call starts with the stack almost full, or when a constructor recurses deeply. A deep body within `maxDepth` does not throw this error.; `RuntimeError` — The body is larger than `[limits] request_body` (8M). The bytes past that limit are never stored.; `IOError` — The connection failed while the body arrived, or the client sent fewer bytes than its `Content-Length` said.
+**Throws** `LogicError` — The program is not answering a request. Or `bodyStream` or `files` already read the body, and those two do not keep it. Or `T` has no `#[Core\Json\Derive]` attribute. Or `maxDepth` is not from 1 to 1024.; `ParseError` — The body is not one whole JSON object, or it nests deeper than `maxDepth`. An empty body throws this error too. It is also thrown when a field is missing or has the wrong type. The `issues` list has one entry for each wrong field. The `Content-Type` header is not checked.; `RecursionError` — The call stack is full when a constructor runs. This happens when the call starts with the stack almost full, or when a constructor recurses deeply. A deep body within `maxDepth` does not throw this error.; `RuntimeError` — The body is larger than `[limits] request_body`. The bytes past that limit are never stored.; `IOError` — The connection failed while the body arrived, or the client sent fewer bytes than its `Content-Length` said.
 
 <a id="core-core-request-bodystream"></a>
 #### `Core\Request::bodyStream`
@@ -19885,7 +19885,7 @@ Reads the whole content of this part into one value. Use it for an upload small 
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `{max: …}` | `uint` (default `0`) | How many bytes this call is willing to hold. Omitted, the bound is `[limits] request_body` (8M); named, it is this number, and a number larger than the request's own `[limits] memory` is refused rather than clamped. |
+| `{max: …}` | `uint` (default `0`) | How many bytes this call is willing to hold. Omitted, the bound is `[limits] request_body`; named, it is this number, and a number larger than the request's own `[limits] memory` is refused rather than clamped. |
 
 **Returns** `tainted bytes` — Every byte of this part, in order, `tainted` and decoded by nothing. Empty for a part that carried none, which is a part the peer sent and not an absent one.
 

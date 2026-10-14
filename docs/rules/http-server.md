@@ -3,7 +3,7 @@
 
 # The HTTP server
 
-*2 of 80 rules below are **designed** rather than shipped, and are marked where they appear.*
+*1 of 80 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="http-server-two-deployments-and-nothing-a-proxy-owns"></a>
 
@@ -1049,7 +1049,7 @@ A part's bytes are readable exactly once, in order, whichever of the three consu
 
 <a id="http-server-request-body-and-upload-total-are-two-caps"></a>
 
-## `request_body` caps bytes parsed into memory and `upload_total` caps a streamed multipart body, and both are `[limits]` rows  *(designed — owned by goal server-rule-debts)*
+## `request_body` caps bytes parsed into memory and `upload_total` caps a streamed multipart body, and both are `[limits]` rows
 
 `rule:http-server/request-body-and-upload-total-are-two-caps`
 
@@ -1058,17 +1058,20 @@ A part's bytes are readable exactly once, in order, whichever of the three consu
 | `request_body` | `"8M"` | `"64M"` | **Bytes parsed into memory** — `body()`, a JSON or urlencoded body, a multipart form's buffered fields, a bare `readAll()`. |
 | `upload_total` | `"256M"` | `"2G"` | **Total bytes of a streamed multipart body**, consumed parts and drained ones alike. |
 
-Both are rows in the `[limits]`/`[limits.hard]` pair that [`config/three-changeability-classes`](config.md#config-three-changeability-classes) established — a `Runtime` default beside a `System` ceiling per [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives) — not a third instance of that pattern. `nvs info --config` prints both, and this table is the only place their meanings are defined.
+Both are rows in the `[limits]`/`[limits.hard]` pair that [`config/three-changeability-classes`](config.md#config-three-changeability-classes) established — a `Runtime` default beside a `System` ceiling per [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives) — not a third instance of that pattern. `nvs config dump` prints both where the tree writes them, and this table is the only place their meanings are defined.
 
 The split follows from what the two measure. Content parsed into memory deserves the tighter number, because it is resident and O(in-flight); content streamed to disk deserves a ceiling shaped like what uploads are, because a phone photo is 5–12M and an 8M refusal is advice rather than protection. One number governing both would have to be the larger, and would then license a quarter-gigabyte JSON body parsed wholly into memory on the strength of an argument made about files. [`http-server/upload-total-is-enforced-on-the-wire`](http-server.md#http-server-upload-total-is-enforced-on-the-wire) is where the second cap bites.
 
-Both rows and both ceilings resolve, and a `[limits]` or `[app.limits]` value past its ceiling is
-refused at boot whether or not `[limits.hard]` is written (`crates/nvs-config/src/app.rs`'s
-`body_caps`).
+Both ceilings are numbers of their own, so a `[limits]` or `[app.limits]` value past one is refused
+at boot whether or not `[limits.hard]` is written (`crates/nvs-config/src/app.rs`'s `body_caps`).
 
-**Not on disk.** Nothing reads the rows yet. The door still enforces a 256 MiB constant
-(`crates/nvs-server/src/body.rs:60`), and the readers still hold a multipart field to an 8 MiB
-constant (`crates/nvs-stdlib/src/request.rs:2832`).
+**Where each is read.** The door applies the global `[limits] upload_total` to a declared length,
+because it refuses before a mount is selected (`nvs_config::app::upload_total`). A streamed body is
+counted against that value until its first reader claims it, and the claim sets the request's own
+value in force, `[app.limits]` and `Core\Config::set` included (`RequestBody::allow_total`).
+`request_body` is read off the request by every reader that parses into memory
+(`Ctx::request_body_limit`). Neither reads "no cap" from a missing or malformed value: both fall back
+to the shipped default.
 
 <sub>See also [`http-server/upload-total-is-enforced-on-the-wire`](http-server.md#http-server-upload-total-is-enforced-on-the-wire), [`http-server/a-part-is-consumed-in-one-of-three-ways`](http-server.md#http-server-a-part-is-consumed-in-one-of-three-ways), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives), [`errors/multipart-part-count`](errors.md#errors-multipart-part-count), [`http-server/the-body-is-read-on-demand-under-two-caps`](http-server.md#http-server-the-body-is-read-on-demand-under-two-caps).</sub>
 

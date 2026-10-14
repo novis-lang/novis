@@ -1570,21 +1570,27 @@ struct Door {
     key: Option<Vec<u8>>,
     /// The cookie the session identifier rides under.
     cookie: String,
+    /// `[limits] upload_total`, which the door applies to a declared length.
+    upload_total: u64,
 }
 
 impl Door {
     /// What the tree this case is running under says, or what a case with no
-    /// configuration at all gets: no key, and the shipped cookie name.
+    /// configuration at all gets: no key, the shipped cookie name and the
+    /// shipped `upload_total`.
     fn of(ctx: &nvs_runtime::Ctx) -> Self {
         let Some(tree) = ctx.config().map(|request| &request.snapshot().config) else {
+            let tree = nvs_config::Config::default();
             return Self {
                 key: None,
-                cookie: nvs_stdlib::session::cookie_in(&nvs_config::Config::default()).to_owned(),
+                cookie: nvs_stdlib::session::cookie_in(&tree).to_owned(),
+                upload_total: nvs_config::app::upload_total(&tree),
             };
         };
         Self {
             key: nvs_config::http::csrf_key(tree),
             cookie: nvs_stdlib::session::cookie_in(tree).to_owned(),
+            upload_total: nvs_config::app::upload_total(tree),
         }
     }
 }
@@ -1656,7 +1662,7 @@ fn answer_on_the_wire(
         inbound.set_refusal(nvs_runtime::routes::Refusal::Csrf);
     }
     let (head, incoming) = request.into_parts();
-    let supply = match nvs_server::body::of(&head.headers, incoming) {
+    let supply = match nvs_server::body::of(&head.headers, incoming, door.upload_total) {
         _ if inbound.refusal().is_some() => None,
         nvs_server::Arrived::Absent => None,
         nvs_server::Arrived::TooLarge if refusal_mode => {

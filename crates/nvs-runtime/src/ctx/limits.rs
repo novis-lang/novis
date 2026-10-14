@@ -922,6 +922,32 @@ impl Ctx {
         self.configured_bytes("max_output")
     }
 
+    /// `[limits] request_body` in force for this request: the most bytes of a
+    /// body a reader may parse into memory
+    /// (`rule:http-server/request-body-and-upload-total-are-two-caps`).
+    ///
+    /// The shipped default where there is no configuration or no usable value,
+    /// never "no cap": this bound is what keeps a body out of memory.
+    #[must_use]
+    pub fn request_body_limit(&self) -> usize {
+        match self.configured_bytes("request_body") {
+            0 => usize::try_from(nvs_config::defaults::LIMITS_REQUEST_BODY).unwrap_or(usize::MAX),
+            bytes => bytes,
+        }
+    }
+
+    /// `[limits] upload_total` in force for this request: the most bytes of a
+    /// body the wire may carry, streamed or parsed. The shipped default where
+    /// there is no configuration or no usable value, for
+    /// [`Self::request_body_limit`]'s reason.
+    #[must_use]
+    pub fn upload_total_limit(&self) -> u64 {
+        match self.configured_bytes("upload_total") {
+            0 => nvs_config::defaults::LIMITS_UPLOAD_TOTAL,
+            bytes => u64::try_from(bytes).unwrap_or(u64::MAX),
+        }
+    }
+
     /// One `[limits]` directive read as a byte count — the arithmetic the
     /// readers above share.
     ///

@@ -643,7 +643,7 @@ impl Reply {
         Self::Run(isolate, None, None)
     }
 
-    /// A body whose declared length is already over [`crate::body::UPLOAD_TOTAL`]:
+    /// A body whose declared length is already over `[limits] upload_total`:
     /// `413`, before a mount is asked for a program.
     ///
     /// `rule:http-server/request-body-and-upload-total-are-two-caps`
@@ -5921,7 +5921,11 @@ pub(crate) mod tests {
                 request.uri().query().unwrap_or(""),
             );
             let (head, incoming) = request.into_parts();
-            let supply = match crate::body::of(&head.headers, incoming) {
+            let supply = match crate::body::of(
+                &head.headers,
+                incoming,
+                nvs_config::defaults::LIMITS_UPLOAD_TOTAL,
+            ) {
                 crate::body::Arrived::Streaming(supply, pull) => {
                     inbound.set_body(pull);
                     Some(supply)
@@ -6027,7 +6031,11 @@ pub(crate) mod tests {
                 request.uri().query().unwrap_or(""),
             );
             let (head, incoming) = request.into_parts();
-            let supply = match crate::body::of(&head.headers, incoming) {
+            let supply = match crate::body::of(
+                &head.headers,
+                incoming,
+                nvs_config::defaults::LIMITS_UPLOAD_TOTAL,
+            ) {
                 crate::body::Arrived::Streaming(supply, pull) => {
                     inbound.set_body(pull);
                     Some(supply)
@@ -6387,7 +6395,11 @@ pub(crate) mod tests {
                     request.uri().query().unwrap_or(""),
                 );
                 let (head, incoming) = request.into_parts();
-                let supply = match crate::body::of(&head.headers, incoming) {
+                let supply = match crate::body::of(
+                    &head.headers,
+                    incoming,
+                    nvs_config::defaults::LIMITS_UPLOAD_TOTAL,
+                ) {
                     crate::body::Arrived::Streaming(supply, pull) => {
                         inbound.set_body(pull);
                         Some(supply)
@@ -6552,7 +6564,11 @@ pub(crate) mod tests {
                             request.uri().query().unwrap_or(""),
                         );
                         let (head, incoming) = request.into_parts();
-                        let supply = match crate::body::of(&head.headers, incoming) {
+                        let supply = match crate::body::of(
+                            &head.headers,
+                            incoming,
+                            nvs_config::defaults::LIMITS_UPLOAD_TOTAL,
+                        ) {
                             crate::body::Arrived::Streaming(supply, pull) => {
                                 inbound.set_body(pull);
                                 Some(supply)
@@ -6780,7 +6796,11 @@ pub(crate) mod tests {
                     request.uri().query().unwrap_or(""),
                 );
                 let (head, incoming) = request.into_parts();
-                let supply = match crate::body::of(&head.headers, incoming) {
+                let supply = match crate::body::of(
+                    &head.headers,
+                    incoming,
+                    nvs_config::defaults::LIMITS_UPLOAD_TOTAL,
+                ) {
                     crate::body::Arrived::Streaming(supply, pull) => {
                         inbound.set_body(pull);
                         Some(supply)
@@ -7323,7 +7343,7 @@ pub(crate) mod tests {
     }
 
     /// The honest oversized client is refused at the door: a declared length
-    /// already over [`crate::body::UPLOAD_TOTAL`] is answered `413` with no
+    /// already over the door's `upload_total` is answered `413` with no
     /// program having been asked for.
     ///
     /// `rule:http-server/request-body-and-upload-total-are-two-caps`'s "before dispatch" is two facts and neither implies the
@@ -7344,7 +7364,7 @@ pub(crate) mod tests {
             .local_addr()
             .expect("a bound listener had no address");
 
-        let declared = crate::body::UPLOAD_TOTAL + 1;
+        let declared = nvs_config::defaults::LIMITS_UPLOAD_TOTAL + 1;
         let client = std::thread::spawn(move || {
             let mut socket = TcpStream::connect(addr).expect("the loopback refused a connection");
             socket
@@ -7370,7 +7390,11 @@ pub(crate) mod tests {
             let dispatched = Rc::clone(&dispatched);
             Rc::new(move |request: Request<Incoming>, _origin: Origin| {
                 let (head, incoming) = request.into_parts();
-                match crate::body::of(&head.headers, incoming) {
+                match crate::body::of(
+                    &head.headers,
+                    incoming,
+                    nvs_config::defaults::LIMITS_UPLOAD_TOTAL,
+                ) {
                     crate::body::Arrived::TooLarge => Reply::too_large(),
                     crate::body::Arrived::Absent | crate::body::Arrived::Streaming(..) => {
                         let dispatched = Rc::clone(&dispatched);
@@ -7420,7 +7444,11 @@ pub(crate) mod tests {
                 request.uri().query().unwrap_or(""),
             );
             let (head, incoming) = request.into_parts();
-            let supply = match crate::body::of(&head.headers, incoming) {
+            let supply = match crate::body::of(
+                &head.headers,
+                incoming,
+                nvs_config::defaults::LIMITS_UPLOAD_TOTAL,
+            ) {
                 crate::body::Arrived::Streaming(supply, pull) => {
                     inbound.set_body(pull);
                     Some(supply)
@@ -7798,7 +7826,11 @@ pub(crate) mod tests {
         for (name, value) in &head.headers {
             inbound.push_header(name.as_str(), value.as_bytes());
         }
-        let supply = match crate::body::of(&head.headers, incoming) {
+        let supply = match crate::body::of(
+            &head.headers,
+            incoming,
+            nvs_config::defaults::LIMITS_UPLOAD_TOTAL,
+        ) {
             crate::body::Arrived::Streaming(supply, pull) => {
                 inbound.set_body(pull);
                 Some(supply)

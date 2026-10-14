@@ -485,6 +485,25 @@ pub fn body_caps(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<
     Ok(())
 }
 
+/// The global `[limits] upload_total` in bytes, which is the cap the server's door applies
+/// before a mount is selected (`rule:http-server/request-body-and-upload-total-are-two-caps`).
+///
+/// The shipped default where the tree writes none, or writes a value that is not a size: the
+/// resolve already refused a malformed one at boot, where it could name the file and the line.
+#[must_use]
+pub fn upload_total(config: &Config) -> u64 {
+    let written = config
+        .limits
+        .as_ref()
+        .and_then(|limits| limits.upload_total.as_ref());
+    match written
+        .map(|setting| Quantity::parse("limits.upload_total", crate::value::Unit::Bytes, setting))
+    {
+        Some(Ok(Quantity::Bytes(bytes))) => bytes,
+        _ => crate::defaults::LIMITS_UPLOAD_TOTAL,
+    }
+}
+
 /// `E0601` for a `[limits]` body cap above its ceiling. The message names both values, and the
 /// help names the one key that raises the ceiling.
 fn body_cap_above_ceiling(

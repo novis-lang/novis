@@ -13,9 +13,9 @@
 //! `rule:security/request-state-throws-in-an-isolate` is what the second test
 //! pins.
 //!
-//! The last two cases run `nvs serve` itself, because the `Host` a request
-//! arrives with is checked at the door, before a request file could describe
-//! it.
+//! The cases from `Served` on run `nvs serve` itself, because the `Host` a
+//! request arrives with and the size of its body are checked at the door,
+//! before a request file could describe them.
 
 use std::io::{BufRead, BufReader, Write};
 use std::net::{SocketAddr, TcpStream};
@@ -142,8 +142,8 @@ fn an_upgraded_event_stream_with_no_events_file_ends_at_its_first_wait() {
     );
 }
 
-/// A running `nvs serve app.nvs` whose program prints `ran`, in a directory
-/// named for the case. Dropping it stops the process and removes the directory.
+/// A running `nvs serve app.nvs` in a directory named for the case. Dropping it
+/// stops the process and removes the directory.
 struct Served {
     child: Child,
     addr: SocketAddr,
@@ -152,18 +152,26 @@ struct Served {
 }
 
 impl Served {
-    /// Starts the server on a free loopback port.
+    /// Starts a program that prints `ran` on a free loopback port.
+    fn start(case: &str) -> Self {
+        Self::serving(case, "<?nvs\necho \"ran\";\n", None)
+    }
+
+    /// Starts `program` on a free loopback port, with `config` as the
+    /// directory's `nvs.toml` where there is one.
     ///
     /// # Panics
     ///
     /// When it does not print its `listening on` line within a minute.
-    fn start(case: &str) -> Self {
+    fn serving(case: &str, program: &str, config: Option<&str>) -> Self {
         let dir = Path::new(env!("CARGO_TARGET_TMPDIR"))
             .join(format!("request-{case}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).expect("the case's directory is created");
-        std::fs::write(dir.join("app.nvs"), "<?nvs\necho \"ran\";\n")
-            .expect("the program is written");
+        std::fs::write(dir.join("app.nvs"), program).expect("the program is written");
+        if let Some(config) = config {
+            std::fs::write(dir.join("nvs.toml"), config).expect("the configuration is written");
+        }
         let data = nvs_repo::scratch_private("nvsdata");
         let mut child = Command::new(env!("CARGO_BIN_EXE_nvs"))
             .arg("--data")
@@ -276,5 +284,85 @@ fn a_request_with_a_non_ascii_host_is_a_400() {
         ),
         "HTTP/1.1 200 OK",
         "punycode is ASCII"
+    );
+}
+
+/// A `POST` of `body` with its length declared.
+fn post_of(body: &[u8]) -> Vec<u8> {
+    let mut raw = format!(
+        "POST / HTTP/1.1\r\nHost: localhost\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+        body.len()
+    )
+    .into_bytes();
+    raw.extend_from_slice(body);
+    raw
+}
+
+/// A `POST` of `body` in one chunk, with no length declared.
+fn chunked_post_of(body: &[u8]) -> Vec<u8> {
+    let mut raw = format!(
+        "POST / HTTP/1.1\r\nHost: localhost\r\nTransfer-Encoding: chunked\r\n\
+         Connection: close\r\n\r\n{:x}\r\n",
+        body.len()
+    )
+    .into_bytes();
+    raw.extend_from_slice(body);
+    raw.extend_from_slice(b"\r\n0\r\n\r\n");
+    raw
+}
+
+/// `rule:http-server/request-body-and-upload-total-are-two-caps`: `body()` reads
+/// at most the configured `[limits] request_body`. A body of exactly that size
+/// is read, and one byte more throws, which the server answers `500`. The
+/// door's `upload_total` is far above both, so the refusal is the reader's.
+#[test]
+fn a_configured_request_body_bounds_a_parsed_body() {
+    let served = Served::serving(
+        "request-body",
+        "<?nvs\nCore\\Request::body();\necho \"read\";\n",
+        Some("[limits]\nrequest_body = \"1K\"\n"),
+    );
+    assert_eq!(
+        served.status_of(&post_of(&[b'x'; 1024])),
+        "HTTP/1.1 200 OK",
+        "a body of exactly `request_body` is read"
+    );
+    assert_eq!(
+        served.status_of(&post_of(&[b'x'; 1025])),
+        "HTTP/1.1 500 Internal Server Error",
+        "one byte past `request_body` throws"
+    );
+}
+
+/// `rule:http-server/request-body-and-upload-total-are-two-caps`: the configured
+/// `[limits] upload_total` bounds a streamed body. A declared length past it is
+/// refused at the door with `413`. A chunked body that crosses it mid-stream
+/// ends the walk with an error, which the server answers `500`.
+#[test]
+fn a_configured_upload_total_bounds_a_streamed_body() {
+    let served = Served::serving(
+        "upload-total",
+        "<?nvs\nforeach (Core\\Request::bodyStream() as var $chunk) {\n}\necho \"read\";\n",
+        Some("[limits]\nupload_total = \"1K\"\n"),
+    );
+    assert_eq!(
+        served.status_of(&post_of(&[b'x'; 1024])),
+        "HTTP/1.1 200 OK",
+        "a body of exactly `upload_total` is streamed"
+    );
+    assert_eq!(
+        served.status_of(&post_of(&[b'x'; 1025])),
+        "HTTP/1.1 413 Payload Too Large",
+        "a declared length past `upload_total` is refused at the door"
+    );
+    assert_eq!(
+        served.status_of(&chunked_post_of(&[b'x'; 1024])),
+        "HTTP/1.1 200 OK",
+        "a chunked body of exactly `upload_total` is streamed"
+    );
+    assert_eq!(
+        served.status_of(&chunked_post_of(&[b'x'; 1025])),
+        "HTTP/1.1 500 Internal Server Error",
+        "a chunked body past `upload_total` ends with an error"
     );
 }

@@ -655,7 +655,7 @@ const BODY_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "RuntimeError",
-            desc: "The body is larger than `[limits] request_body` (8M). The bytes past that \
+            desc: "The body is larger than `[limits] request_body`. The bytes past that \
                    limit are never stored.",
         },
         ErrorDoc {
@@ -687,7 +687,7 @@ const BYTES_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "RuntimeError",
-            desc: "The body is larger than `[limits] request_body` (8M). The bytes past that \
+            desc: "The body is larger than `[limits] request_body`. The bytes past that \
                    limit are never stored.",
         },
         ErrorDoc {
@@ -725,7 +725,7 @@ const JSON_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "RuntimeError",
-            desc: "The body is larger than `[limits] request_body` (8M). The bytes past that \
+            desc: "The body is larger than `[limits] request_body`. The bytes past that \
                    limit are never stored.",
         },
         ErrorDoc {
@@ -771,7 +771,7 @@ const JSON_AS_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "RuntimeError",
-            desc: "The body is larger than `[limits] request_body` (8M). The bytes past that \
+            desc: "The body is larger than `[limits] request_body`. The bytes past that \
                    limit are never stored.",
         },
         ErrorDoc {
@@ -1180,7 +1180,7 @@ const BODY_STREAM_CARD: ClassDoc = ClassDoc {
 /// would make `bodyStream` a spelling of `body` with an extra allocation, and
 /// then the `[limits] request_body` bound would have to apply to it — which is
 /// exactly what `rule:http-server/a-part-is-consumed-in-one-of-three-ways` offers this member as the way *around*. So
-/// [`REQUEST_BODY`] is not checked here and nothing accumulates: what the
+/// `[limits] request_body` is not checked here and nothing accumulates: what the
 /// program holds is whatever it does with each chunk, and that is its own
 /// decision to make and its own memory limit to make it under.
 ///
@@ -1485,7 +1485,7 @@ const READ_ALL_DOC: MethodDoc = MethodDoc {
     params: &[ParamDoc {
         name: "max",
         desc: "How many bytes this call is willing to hold. Omitted, the bound is `[limits] \
-               request_body` (8M); named, it is this number, and a number larger than the \
+               request_body`; named, it is this number, and a number larger than the \
                request's own `[limits] memory` is refused rather than clamped.",
         shape: &[],
     }],
@@ -1688,10 +1688,19 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 /// `LogicError` where a member has already read the body and what it left
 /// behind is not what `need` asks for.
 fn claim_body(ctx: &mut Ctx, member: &'static str, need: BodyNeed) -> Result<(), Fault> {
-    let claimed = ctx
+    let total = ctx.upload_total_limit();
+    let inbound = ctx
         .inbound_mut()
-        .expect("the caller reads the request before it claims the body")
-        .claim_body(member, need);
+        .expect("the caller reads the request before it claims the body");
+    let claimed = inbound.claim_body(member, need);
+    // Every reader claims before its first pull, so this is where the wire
+    // learns the request's own `upload_total`. The door counted against the
+    // global one, because no mount was selected yet.
+    if claimed.is_ok()
+        && let Some(body) = inbound.body()
+    {
+        body.allow_total(total);
+    }
     // No case can reach this: a `.nvst` program answers no request, so
     // `inbound_of` refuses both readers before either reaches the claim.
     // Asserted by `a_streaming_reader_refuses_every_later_reader`.
@@ -1816,9 +1825,10 @@ fn multipart_form(ctx: &mut Ctx, declared: &[u8], member: &'static str) -> Resul
                 ),
             )
         })?;
+        let cap = request_body(ctx);
         ctx.inbound_mut()
             .expect("the caller reads the request before it reads the form")
-            .hold_parts(Box::new(crate::multipart::Multipart::new(&boundary)));
+            .hold_parts(Box::new(crate::multipart::Multipart::new(&boundary, cap)));
     }
     let inbound = ctx
         .inbound_mut()
@@ -2499,7 +2509,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// **What it spends:** for a urlencoded body, the body's own bytes; for
     /// either kind, the parsed form. Both stay resident until the request ends,
-    /// both are bounded by [`REQUEST_BODY`] — `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename`
+    /// both are bounded by `[limits] request_body` — `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename`
     /// 's cap on form field text — and both are O(in-flight).
     fn nvs_core_request_post(ctx, args: [1]) {
         let name = name_argument(&args[0], "post")?;
@@ -2538,7 +2548,7 @@ nvs_runtime::nvs_helper! {
     /// **What it spends:** [`nvs_core_request_post`]'s parse, which for a
     /// urlencoded body holds that body's own bytes until the request ends, plus
     /// the instances this call hands back and nothing kept between calls. Both
-    /// are bounded by [`REQUEST_BODY`] and both are O(in-flight).
+    /// are bounded by `[limits] request_body` and both are O(in-flight).
     fn nvs_core_request_post_as(ctx, args: [4]) {
         // In `post`'s order, which is `jsonAs`'s: the request first, so "no
         // request arrived" stays a different fact from what the body says, and
@@ -2819,32 +2829,35 @@ nvs_runtime::nvs_helper! {
     }
 }
 
-/// `rule:http-server/request-body-and-upload-total-are-two-caps`
-/// 's `[limits] request_body` default, as a constant until that row exists.
+/// `rule:http-server/request-body-and-upload-total-are-two-caps`'s
+/// `[limits] request_body` in force for this request, which every reader that
+/// parses a body into memory is bounded by.
 ///
-/// The twin of `nvs_server::body::UPLOAD_TOTAL` and deliberately the smaller of
-/// the two: this one bounds bytes *parsed into memory*, which are resident and
-/// are paid once per in-flight request, while that one bounds the total of a
-/// body streamed past memory entirely. § 5's table is the home of both numbers
-/// and of why one cap could not have governed both.
+/// The twin of `upload_total` and the smaller of the two by default: this one
+/// bounds bytes *parsed into memory*, which are resident and are paid once per
+/// in-flight request, while that one bounds the total of a body streamed past
+/// memory entirely. The rule is the home of both numbers and of why one cap
+/// could not have governed both.
 ///
 /// `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename`'s buffered multipart form fields are charged against it too, by
 /// [`crate::multipart`], for the reason that row gives: a form field's text is
 /// bytes parsed into memory, which is exactly what this cap means.
-pub(crate) const REQUEST_BODY: usize = 8 * 1024 * 1024;
+fn request_body(ctx: &Ctx) -> usize {
+    ctx.request_body_limit()
+}
 
 nvs_runtime::nvs_helper! {
     /// `Core\Request::body(): tainted string` — spec § 15's whole-body reader,
     /// replacing `file_get_contents('php://input')`.
     ///
     /// `rule:http-server/a-part-is-consumed-in-one-of-three-ways`'s first of three ways to read a body, and the only one that
-    /// ends with all of it resident — which is why it is the one [`REQUEST_BODY`]
+    /// ends with all of it resident — which is why it is the one `[limits] request_body`
     /// bounds. The pull is [`nvs_runtime::RequestBody::next_chunk`]'s, so it
     /// parks this isolate rather than a thread, and chunk boundaries are the
     /// wire's and mean nothing here: every chunk lands in the same buffer.
     ///
     /// **The bound is checked before the copy, not after.** A chunk that would
-    /// carry the total past [`REQUEST_BODY`] is refused while it is still the
+    /// carry the total past `[limits] request_body` is refused while it is still the
     /// supplier's own borrowed slice, so what this member holds never exceeds
     /// the number it was given. A check made after appending would be a report
     /// about memory already spent, which `rule:http-server/request-body-and-upload-total-are-two-caps` argues is not a bound at
@@ -2866,7 +2879,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// **What it spends:** the body's own bytes for the rest of the request,
     /// plus the [`NvsStr`] copied out of them per call. The hold is what the
-    /// rule above buys with them; both are bounded by [`REQUEST_BODY`] and both
+    /// rule above buys with them; both are bounded by `[limits] request_body` and both
     /// are O(in-flight).
     fn nvs_core_request_body(ctx, _args: [0]) {
         // Asked before the body is, so the module doc's two facts stay apart:
@@ -2918,7 +2931,7 @@ nvs_runtime::nvs_helper! {
     /// member exists rather than `body()` growing a flag.
     ///
     /// **What it spends:** nothing the first reading of the body did not
-    /// already spend — the hold, bounded by [`REQUEST_BODY`] — plus the
+    /// already spend — the hold, bounded by `[limits] request_body` — plus the
     /// [`NvsStr`] copied out of it per call. Both are O(in-flight).
     fn nvs_core_request_bytes(ctx, _args: [0]) {
         // Asked before the body is, so "the request sent nothing" stays the
@@ -2968,7 +2981,7 @@ nvs_runtime::nvs_helper! {
     /// **What it spends:** the body's own bytes for the rest of the request,
     /// which is [`nvs_core_request_body`]'s hold and shared with it, plus one
     /// decoded document for the rest of the request, held once however many
-    /// times the program asks. Both are bounded by [`REQUEST_BODY`] — the
+    /// times the program asks. Both are bounded by `[limits] request_body` — the
     /// second as what those octets can decode to — and both are O(in-flight).
     fn nvs_core_request_json(ctx, args: [1]) {
         // In `body`'s order, and for `body`'s reasons: the request first, so
@@ -3043,7 +3056,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// **What it spends:** the body's own bytes for the rest of the request,
     /// which is [`nvs_core_request_body`]'s hold and shared with it, bounded by
-    /// [`REQUEST_BODY`], plus the instances this call hands back. Both are
+    /// `[limits] request_body`, plus the instances this call hands back. Both are
     /// O(in-flight).
     fn nvs_core_request_json_as(ctx, args: [4]) {
         // In `json`'s order, and for `body`'s reasons: the request first, so
@@ -3160,7 +3173,7 @@ fn decoded_body(octets: &[u8], max: u32, member: &str) -> Result<Value, Fault> {
 /// # Errors
 ///
 /// [`whole_body`]'s, and on the first reading only — a hold is inside
-/// [`REQUEST_BODY`] already and arrived whole by the fact that it is here.
+/// `[limits] request_body` already and arrived whole by the fact that it is here.
 fn held_octets<'a>(ctx: &'a mut Ctx, member: &str) -> Result<&'a [u8], Fault> {
     if ctx
         .inbound()
@@ -3181,7 +3194,7 @@ fn held_octets<'a>(ctx: &'a mut Ctx, member: &str) -> Result<&'a [u8], Fault> {
 }
 
 /// This request's body, pulled to its end into one buffer under
-/// [`REQUEST_BODY`].
+/// `[limits] request_body`.
 ///
 /// One function rather than two copies of the loop, because `body` and the
 /// urlencoded half of `post` read the same bytes the same way and differ only
@@ -3194,9 +3207,10 @@ fn held_octets<'a>(ctx: &'a mut Ctx, member: &str) -> Result<&'a [u8], Fault> {
 ///
 /// # Errors
 ///
-/// `RuntimeError` for a body past [`REQUEST_BODY`], and `IOError` for one that
+/// `RuntimeError` for a body past `[limits] request_body`, and `IOError` for one that
 /// did not arrive whole.
 fn whole_body(ctx: &mut Ctx, member: &str) -> Result<Vec<u8>, Fault> {
+    let cap = request_body(ctx);
     let inbound = ctx
         .inbound_mut()
         .expect("the caller reads the request before it reads the body");
@@ -3208,7 +3222,7 @@ fn whole_body(ctx: &mut Ctx, member: &str) -> Result<Vec<u8>, Fault> {
         match body.next_chunk() {
             Ok(None) => return Ok(whole),
             Ok(Some(chunk)) => {
-                if whole.len().saturating_add(chunk.len()) > REQUEST_BODY {
+                if whole.len().saturating_add(chunk.len()) > cap {
                     // No case can reach this: a `.nvst` program answers no
                     // request, so it has no body to send over the bound.
                     // Asserted by
@@ -3216,7 +3230,7 @@ fn whole_body(ctx: &mut Ctx, member: &str) -> Result<Vec<u8>, Fault> {
                     // below, on both sides of the bound.
                     return Err(Fault::thrown(format!(
                         "Core\\Request::{member}(): this request's body is larger than \
-                         `[limits] request_body` ({REQUEST_BODY} bytes), so it is refused \
+                         `[limits] request_body` ({cap} bytes), so it is refused \
                          rather than held. That directive bounds what a body may cost in \
                          memory; a body bigger than it is one to stream rather than to \
                          read whole"
@@ -3417,9 +3431,10 @@ nvs_runtime::nvs_helper! {
                     ),
                 )
             })?;
+            let cap = request_body(ctx);
             ctx.inbound_mut()
                 .expect("the read above refuses a context that is answering no request")
-                .hold_parts(Box::new(crate::multipart::Multipart::new(&boundary)));
+                .hold_parts(Box::new(crate::multipart::Multipart::new(&boundary, cap)));
         }
         Ok(crate::instance::build(&FILES, [Value::null()]))
     }
@@ -3883,7 +3898,7 @@ nvs_runtime::nvs_helper! {
 /// in has no room for.
 fn read_all_bound(ctx: &Ctx, asked: u64) -> Result<(usize, &'static str), Fault> {
     if asked == 0 {
-        return Ok((REQUEST_BODY, "`[limits] request_body`"));
+        return Ok((request_body(ctx), "`[limits] request_body`"));
     }
     let memory = ctx.memory_limit();
     let asked = usize::try_from(asked).unwrap_or(usize::MAX);
@@ -4043,8 +4058,8 @@ nvs_runtime::nvs_helper! {
 #[cfg(test)]
 mod tests {
     use super::{
-        CLASS, CoreTy, FILES_NAME, MOUNT, MOUNT_NAME, PART_NAME, REQUEST_BODY, client_text,
-        cookie_of, grouped_fields, host_named, joined_field, method_ordinal, nvs_core_request_body,
+        CLASS, CoreTy, FILES_NAME, MOUNT, MOUNT_NAME, PART_NAME, client_text, cookie_of,
+        grouped_fields, host_named, joined_field, method_ordinal, nvs_core_request_body,
         nvs_core_request_body_stream, nvs_core_request_body_stream_advance,
         nvs_core_request_body_stream_current, nvs_core_request_body_stream_iterate,
         nvs_core_request_bytes, nvs_core_request_files, nvs_core_request_files_advance,
@@ -4064,6 +4079,12 @@ mod tests {
         NvsObj, OK, RequestBody, Scheme, ShapeCodec, Value,
     };
     use std::net::IpAddr;
+
+    /// The shipped `[limits] request_body`, which a context with no
+    /// configuration reads.
+    fn request_body() -> usize {
+        usize::try_from(nvs_config::defaults::LIMITS_REQUEST_BODY).expect("8 MiB fits a usize")
+    }
 
     /// A [`RequestBody`] that hands back a fixed list of chunks and then ends —
     /// or, where `fails_at` names a pull, fails at that one instead, which is
@@ -5004,13 +5025,13 @@ mod tests {
     // covers: Core\Request::body
     #[test]
     fn the_request_body_cap_is_the_last_body_read_and_the_first_one_refused() {
-        let full = vec![b'x'; REQUEST_BODY];
+        let full = vec![b'x'; request_body()];
         let mut at_the_bound = answering(Some(Chunks::of(&[&full[..]])));
         let answer = nvs_runtime::call(nvs_core_request_body, &mut at_the_bound, &[])
             .expect("a body of exactly the cap has not crossed it");
         assert_eq!(
             answer.as_text().map(str::len),
-            Some(REQUEST_BODY),
+            Some(request_body()),
             "the last body inside the bound is read whole"
         );
         #[expect(unsafe_code, reason = "the call transferred the reference it answered")]
@@ -6401,14 +6422,14 @@ mod tests {
     #[test]
     fn a_urlencoded_form_is_bounded_by_the_directive_a_body_is() {
         let written = "title=".len();
-        let last = format!("title={}", "x".repeat(REQUEST_BODY - written));
+        let last = format!("title={}", "x".repeat(request_body() - written));
         let mut inside = uploading(
             "application/x-www-form-urlencoded",
             Some(Chunks::of(&[last.as_bytes()])),
         );
         assert_eq!(
             field(&mut inside, "title").map(|value| value.len()),
-            Some(REQUEST_BODY - written),
+            Some(request_body() - written),
             "a form of exactly the cap is read, so the bound is not one byte early"
         );
 

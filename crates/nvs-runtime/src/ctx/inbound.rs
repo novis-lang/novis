@@ -1855,6 +1855,15 @@ pub trait RequestBody {
     /// ends the body**: nothing may be pulled after one, and a supplier that
     /// answered one has already given up on the connection.
     fn next_chunk(&mut self) -> Result<Option<&[u8]>, Box<str>>;
+
+    /// Sets the `upload_total` this body is counted against to the one in force
+    /// for the request, which a reader calls before its first pull.
+    ///
+    /// The door counts against the global `[limits]`, because it refuses before
+    /// a mount is selected. A request's own value can differ: an `[app.limits]`
+    /// row, or a `Core\Config::set`. A supplier that counts nothing, such as a
+    /// body read from a file, ignores it, which is the default.
+    fn allow_total(&mut self, _total: u64) {}
 }
 
 /// What a reader needs of a request's body, which is what decides whether it

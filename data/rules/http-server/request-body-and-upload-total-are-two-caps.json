@@ -1,6 +1,6 @@
 {
   "title": "`request_body` caps bytes parsed into memory and `upload_total` caps a streamed multipart body, and both are `[limits]` rows",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "http-server/upload-total-is-enforced-on-the-wire",
     "http-server/a-part-is-consumed-in-one-of-three-ways",
@@ -11,7 +11,8 @@
   ],
   "guardedBy": [
     "tests/conformance/core/a-file-parts-read-all-bound-is-a-count-of-bytes-in-a-closed-bag.nvst",
-    "crates/nvs-stdlib/src/request.rs"
-  ],
-  "goal": "server-rule-debts"
+    "crates/nvs-stdlib/src/request.rs",
+    "crates/nvs-cli/tests/request.rs",
+    "crates/nvs-config/tests/directives.rs"
+  ]
 }

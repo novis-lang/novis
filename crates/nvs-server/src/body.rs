@@ -48,25 +48,14 @@ use hyper::header::CONTENT_LENGTH;
 use nvs_host::{Waiting, Wake, suspend_current};
 use nvs_runtime::RequestBody;
 
-/// `rule:http-server/request-body-and-upload-total-are-two-caps`'s `upload_total`: the total bytes of one request body this
-/// server will carry, consumed and drained alike.
-///
-/// The ADR's own default, as a constant, because `[limits] upload_total` is not
-/// a `nvs_config` row yet — that directive and its `[limits.hard]` ceiling are
-/// the configuration slice's, and this constant is the one line it replaces.
-/// The number is load-bearing either way: § 5 makes it the *only* thing
-/// bounding a streamed body.
-///
-pub const UPLOAD_TOTAL: u64 = 256 * 1024 * 1024;
-
 /// What the door found where a body would be.
 pub enum Arrived {
     /// No body at all — a `GET`, or a `POST` the peer closed with nothing in
     /// it. [`nvs_runtime::Inbound::set_body`] is left unset, which is the
     /// distinction RFC 9110 § 8.6 draws and not "the body is empty".
     Absent,
-    /// A body whose declared length is already over [`UPLOAD_TOTAL`], refused
-    /// before anything is dispatched — `rule:http-server/request-body-and-upload-total-are-two-caps`'s honest oversized client,
+    /// A body whose declared length is already over the door's `upload_total`,
+    /// refused before anything is dispatched — `rule:http-server/request-body-and-upload-total-are-two-caps`'s honest oversized client,
     /// which never reaches application code.
     ///
     TooLarge,
@@ -94,8 +83,15 @@ impl std::fmt::Debug for Arrived {
 /// the connection back, and it is read here rather than passed in because the
 /// door and the service future are the same task by construction. Called off a
 /// task there is nothing to wake, and every pull answers the error that says so.
+///
+/// `upload_total` is `rule:http-server/request-body-and-upload-total-are-two-caps`'s
+/// cap as the global `[limits]` writes it, because the door refuses before a
+/// mount is selected and so before any `[app.limits]` applies. A declared
+/// length past it is [`Arrived::TooLarge`]; a streamed body is counted against
+/// it until a reader sets the request's own value with
+/// [`nvs_runtime::RequestBody::allow_total`].
 #[must_use]
-pub fn of(headers: &HeaderMap, incoming: Incoming) -> Arrived {
+pub fn of(headers: &HeaderMap, incoming: Incoming, upload_total: u64) -> Arrived {
     if incoming.is_end_stream() {
         return Arrived::Absent;
     }
@@ -103,11 +99,12 @@ pub fn of(headers: &HeaderMap, incoming: Incoming) -> Arrived {
         .get(CONTENT_LENGTH)
         .and_then(|value| value.to_str().ok())
         .and_then(|value| value.trim().parse::<u64>().ok());
-    if declared.is_some_and(|length| length > UPLOAD_TOTAL) {
+    if declared.is_some_and(|length| length > upload_total) {
         return Arrived::TooLarge;
     }
     let wire = Rc::new(RefCell::new(Wire {
         connection: Wake::current(),
+        total: upload_total,
         ..Wire::default()
     }));
     let supply = Supply {
@@ -143,6 +140,10 @@ struct Wire {
     puller: Option<Wake>,
     /// The connection's task, to wake when one is wanted.
     connection: Option<Wake>,
+    /// The `upload_total` the connection counts against: the door's, until a
+    /// reader sets the request's own through [`Pull`]'s
+    /// [`RequestBody::allow_total`].
+    total: u64,
 }
 
 /// The connection's half: the [`Incoming`] and the cell it feeds.
@@ -156,7 +157,7 @@ pub struct Supply {
     /// `Pin` and this struct moves into the service future after it is built.
     incoming: Pin<Box<Incoming>>,
     wire: Rc<RefCell<Wire>>,
-    /// Body bytes delivered so far, against [`UPLOAD_TOTAL`].
+    /// Body bytes delivered so far, against the wire's `upload_total`.
     carried: u64,
     /// Whether the [`Incoming`] is finished — ended, failed, or over the cap.
     spent: bool,
@@ -213,7 +214,8 @@ impl Supply {
                     self.carried = self
                         .carried
                         .saturating_add(u64::try_from(data.len()).unwrap_or(u64::MAX));
-                    if self.carried > UPLOAD_TOTAL {
+                    let total = self.wire.borrow().total;
+                    if self.carried > total {
                         self.spent = true;
                         self.wire.borrow_mut().failed = Some(OVER_CAP.into());
                     } else {
@@ -318,9 +320,13 @@ impl RequestBody for Pull {
             Landed::Failed(message) => Err(message),
         }
     }
+
+    fn allow_total(&mut self, total: u64) {
+        self.wire.borrow_mut().total = total;
+    }
 }
 
-/// A body crossing [`UPLOAD_TOTAL`] with no length declared, which is the case
+/// A body crossing `upload_total` with no length declared, which is the case
 /// `rule:http-server/request-body-and-upload-total-are-two-caps` leaves to the wire.
 ///
 const OVER_CAP: &str = "the request body is larger than the upload_total limit allows";

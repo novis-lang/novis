@@ -23,9 +23,10 @@
 //!   cap can still hold a million parts.
 //! - [`PART_HEADERS`] — one part's header block, so a part that never ends its
 //!   headers cannot grow the buffer.
-//! - [`REQUEST_BODY`] — the buffered form fields of
+//! - `[limits] request_body` — the buffered form fields of
 //!   `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename`, which are bytes parsed into
-//!   memory and are charged exactly as `body()`'s are.
+//!   memory and are charged exactly as `body()`'s are. The request's own value
+//!   is given to [`Multipart::new`].
 //!
 //! **`upload_total` is not one of them.** `rule:http-server/request-body-and-upload-total-are-two-caps` puts that cap on the
 //! wire, in `nvs_server::body`, which is where a body is refused before dispatch
@@ -35,7 +36,7 @@
 //!
 //! **What it spends:** one buffer, holding one wire chunk plus at most one
 //! delimiter's worth of tail, plus one part's header block while it is being
-//! read, plus the buffered form fields under [`REQUEST_BODY`]. All of it is
+//! read, plus the buffered form fields under `request_body`. All of it is
 //! O(in-flight) and none of it grows with the size of an upload.
 //!
 //! # Refused, never repaired
@@ -50,8 +51,6 @@
 use std::ops::Range;
 
 use nvs_runtime::RequestBody;
-
-use crate::request::REQUEST_BODY;
 
 /// `rule:errors/multipart-part-count`'s `[limits] max_multipart_parts` default, as a constant until that row
 /// exists.
@@ -105,8 +104,10 @@ pub(crate) struct Multipart {
     parts: usize,
     /// The buffered form fields, in arrival order, for `Core\Request::post()`.
     fields: Vec<(Vec<u8>, Vec<u8>)>,
-    /// Bytes of [`Self::fields`] held, against [`REQUEST_BODY`].
+    /// Bytes of [`Self::fields`] held, against [`Self::cap`].
     buffered: usize,
+    /// The request's `[limits] request_body`, which bounds [`Self::buffered`].
+    cap: usize,
     /// Whether the supplier has answered its last chunk.
     ended: bool,
     /// Whether the last error this parse answered came **out of the supplier**
@@ -185,8 +186,9 @@ enum Scan {
 }
 
 impl Multipart {
-    /// A parse of a body delimited by `boundary`, before anything is pulled.
-    pub(crate) fn new(boundary: &[u8]) -> Self {
+    /// A parse of a body delimited by `boundary`, before anything is pulled,
+    /// whose form fields may hold at most `cap` bytes.
+    pub(crate) fn new(boundary: &[u8], cap: usize) -> Self {
         let mut delimiter = Vec::with_capacity(boundary.len() + 4);
         delimiter.extend_from_slice(b"\r\n--");
         delimiter.extend_from_slice(boundary);
@@ -198,6 +200,7 @@ impl Multipart {
             parts: 0,
             fields: Vec::new(),
             buffered: 0,
+            cap,
             ended: false,
             from_the_wire: false,
         }
@@ -464,17 +467,19 @@ impl Multipart {
     /// `post()` reads it exactly as it reads a urlencoded form.
     ///
     /// **The bound is checked before the copy**, as `Core\Request::body`'s is:
-    /// a chunk that would carry the total past [`REQUEST_BODY`] is refused while
+    /// a chunk that would carry the total past [`Self::cap`] is refused while
     /// it is still a span of the wire buffer, so what this holds never exceeds
     /// the number it was given.
     fn buffer(&mut self, body: &mut dyn RequestBody, name: Vec<u8>) -> Result<(), Box<str>> {
         self.state = State::Opening;
         let mut value = Vec::new();
         while let Some(span) = self.chunk(body)? {
-            if self.buffered + span.len() > REQUEST_BODY {
-                return Err(
-                    format!("this body's form fields hold more than {REQUEST_BODY} bytes").into(),
-                );
+            if self.buffered + span.len() > self.cap {
+                return Err(format!(
+                    "this body's form fields hold more than `[limits] request_body` ({} bytes)",
+                    self.cap
+                )
+                .into());
             }
             self.buffered += span.len();
             value.extend_from_slice(&self.buf[span]);
@@ -830,8 +835,11 @@ fn find(hay: &[u8], needle: &[u8]) -> Option<usize> {
 
 #[cfg(test)]
 mod tests {
-    use super::{MAX_PARTS, Multipart, PartHead, REQUEST_BODY, boundary_of};
+    use super::{MAX_PARTS, Multipart, PartHead, boundary_of};
     use nvs_runtime::RequestBody;
+
+    /// The `[limits] request_body` every parse here is given.
+    const REQUEST_BODY: usize = 1024 * 1024;
 
     /// A [`RequestBody`] handing one body out in fixed-size pieces, because a
     /// chunk boundary is the wire's and means nothing: every parse below has to
@@ -892,7 +900,7 @@ mod tests {
     /// Every file part of `wire`, read whole, at the given piece size.
     fn walk(wire: &[u8], piece: usize) -> Result<Walked, Box<str>> {
         let mut supplier = Wire::new(wire, piece);
-        let mut parse = Multipart::new(b"bnd");
+        let mut parse = Multipart::new(b"bnd", REQUEST_BODY);
         let mut read = Vec::new();
         while let Some(head) = parse.next_part(&mut supplier)? {
             let mut content = Vec::new();
@@ -1022,7 +1030,7 @@ mod tests {
             ("c", Some("c.bin"), "third"),
         ]);
         let mut supplier = Wire::new(&wire, 3);
-        let mut parse = Multipart::new(b"bnd");
+        let mut parse = Multipart::new(b"bnd", REQUEST_BODY);
         let mut names = Vec::new();
         while let Some(head) = parse.next_part(&mut supplier).expect("the body parses") {
             names.push(head.filename);

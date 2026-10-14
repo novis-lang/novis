@@ -1085,6 +1085,7 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
             // half of the check covers, and `nvs_stdlib::session` owns the
             // cookie name, because the default is the one that module writes.
             let key = nvs_config::http::csrf_key(&standing.config);
+            let upload_total = nvs_config::app::upload_total(&standing.config);
             let verdict = nvs_server::route::csrf(
                 &inbound,
                 key.as_deref(),
@@ -1107,10 +1108,10 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
             // `Incoming` is polled with the *connection's* context and the
             // isolate is a peer task, so what the carrier gets is the pulling
             // half and what goes back with the reply is the half the connection
-            // keeps (`nvs_server::body`). A declared length already over § 5's
-            // cap is refused here, before a program exists to be given it. A
-            // request already refused is given no body.
-            let supply = match nvs_server::body::of(&head.headers, incoming) {
+            // keeps (`nvs_server::body`). A declared length already over the
+            // global `[limits] upload_total` is refused here, before a program
+            // exists to be given it. A request already refused is given no body.
+            let supply = match nvs_server::body::of(&head.headers, incoming, upload_total) {
                 _ if inbound.refusal().is_some() => None,
                 Arrived::Absent => None,
                 Arrived::TooLarge if refusal_mode => {
