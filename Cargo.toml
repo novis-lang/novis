@@ -313,7 +313,7 @@ windows-sys = { version = "0.61", features = [
 # implementation: the handshake tests' peers, and the chain
 # `Core\Test::tlsSession` describes, which puts it in the shipped
 # binary. It is reached from that one member and never from a request.
-rustls = { version = "0.23", default-features = false, features = [
+rustls = { version = "0.23.46", default-features = false, features = [
     "std",
     "ring",
     "tls12",
@@ -956,7 +956,7 @@ brotli = { version = "9", default-features = false, features = ["std"] }
 # reaching this crate is untrusted input, and the C library's own history of
 # out-of-bounds reads is what the first question is asking about. `hash` is on
 # with the default set: a frame's checksum is verified rather than skipped.
-ruzstd = "0.9"
+ruzstd = "0.9.1"
 
 # --- database wire (`rule:core-classes/db-crate-boundary`) ---
 # The rule that picked these: a codec is borrowed, a state machine is written.
