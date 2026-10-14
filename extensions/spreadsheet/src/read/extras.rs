@@ -36,7 +36,8 @@ pub struct Link {
     pub external: bool,
 }
 
-/// One note: its cell, its text and its author.
+/// One note: its cell, its text and its author. An empty name in the authors list, which a note
+/// written with no author is given, reads as no author.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Note {
     pub noted: String,
@@ -267,7 +268,9 @@ impl Reader {
                             notes.push(Note {
                                 noted,
                                 note: text,
-                                author: by.and_then(|by| authors.get(by).cloned()),
+                                author: by
+                                    .and_then(|by| authors.get(by).cloned())
+                                    .filter(|author| !author.is_empty()),
                             });
                         }
                     }
