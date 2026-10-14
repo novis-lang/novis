@@ -1,5 +1,5 @@
 {
-  "total": 112938169,
+  "total": 112940224,
   "benches": {
     "benches/members/core/Arr/all.nvs": 1542,
     "benches/members/core/Arr/any.nvs": 1542,
@@ -989,6 +989,7 @@
     "benches/members/lang/types/numbers-bool-int-uint-float-decimal.nvs": 6150,
     "benches/members/lang/types/parameters.nvs": 1029,
     "benches/members/lang/types/properties-and-constants.nvs": 16390,
+    "benches/members/lang/types/property-keys.nvs": 2055,
     "benches/members/lang/types/qualifiers-tainted-and-secret.nvs": 1799,
     "benches/members/lang/types/text-string-and-bytes.nvs": 7175,
     "benches/members/lang/types/the-conversion-operator-as.nvs": 4102,

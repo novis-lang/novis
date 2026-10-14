@@ -1,0 +1,83 @@
+<?nvs
+// Attack: a request sends field names that try to reach a private or protected
+// property, or that are not names at all. Every one of them should fail to
+// convert to a key, and no hidden property should be read or changed.
+// covers: lang:types/property-keys
+
+class Account
+{
+    public string $owner = 'ada';
+    public int $balance = 10;
+    protected string $note = 'internal';
+    private string $token = 's3cret';
+
+    public function token(): string
+    {
+        return $this->token;
+    }
+}
+
+class Savings extends Account
+{
+    public int $rate = 2;
+}
+
+Account $account = new Account();
+
+// 1. Ten names from the web address: a private name, a protected name, an
+//    empty name, and names with a zero byte, `->`, a space or a wrong letter case.
+array<tainted string> $sent = Core\Request::queryArray('field');
+int $refused = 0;
+foreach ($sent as tainted string $name) {
+    ?property<Account> $key = $name as ?property<Account>;
+    if ($key == null) {
+        $refused = $refused + 1;
+    } else {
+        echo '1: BAD, converted a name of length ', Core\Str::length($name), "\n";
+    }
+}
+echo '1: refused ', $refused, ' of ', Core\Arr::count($sent), " names\n";
+
+// 2. The same private name with `as property<Account>`, which throws. It is
+//    caught, so the steps after it still run.
+tainted string $hidden = Core\Request::query('hidden') ?? 'token';
+try {
+    property<Account> $stolen = $hidden as property<Account>;
+    echo '2: BAD, read ', $account->$stolen, "\n";
+} catch (RuntimeError $e) {
+    echo "2: caught the conversion\n";
+}
+
+// 3. A name of a million characters, converted a thousand times.
+string $long = Core\Str::repeat('owner', 200000);
+int $missed = 0;
+int $round = 0;
+while ($round < 1000) {
+    if (($long as ?property<Account>) == null) {
+        $missed = $missed + 1;
+    }
+    $round = $round + 1;
+}
+echo '3: refused ', $missed, " long names\n";
+
+// 4. A key for the subclass `Savings` names `rate`. It tries to become a key
+//    for `Account`, which has no `rate`. This throws, and is caught.
+property<Savings> $rate = 'rate' as property<Savings>;
+try {
+    property<Account> $narrowed = $rate as property<Account>;
+    echo '4: BAD, read ', $account->$narrowed, "\n";
+} catch (RuntimeError $e) {
+    echo "4: caught the narrowing\n";
+}
+
+// 5. A write of text through a key that names an `int` property. This throws,
+//    is caught, and the balance keeps its value.
+property<Account> $balance = Core\Request::query('number') as property<Account>;
+try {
+    $account->$balance = 'a lot';
+    echo "5: BAD, the write finished\n";
+} catch (RuntimeError $e) {
+    echo "5: caught the write\n";
+}
+
+echo 'after: ', $account->balance, ' ', $account->token(), "\n";

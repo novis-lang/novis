@@ -1,0 +1,30 @@
+<?nvs
+// Converts a column name to a property key and reads that property, as a table
+// does when a visitor picks the column to sort by.
+// bench: iterations 512
+// bench: allocations 0
+// bench: complexity constant
+
+class Row {
+    public int $id = 3;
+    public int $price = 6;
+    public int $stock = 9;
+}
+
+class Bench {
+    public static function run(int $rounds): int {
+        Row $row = new Row();
+        array<string> $columns = ["id", "price", "stock"];
+        int $total = 0;
+        int $i = 0;
+        while ($i < $rounds) {
+            // Chained: the column this round reads depends on the last round's total.
+            property<Row> $key = $columns[($total + $i) % 3] as property<Row>;
+            $total = $total + ($row->$key as int);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(512), "\n";
