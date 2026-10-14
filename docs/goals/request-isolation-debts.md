@@ -22,7 +22,7 @@ stages:
         shapes: ["A `.nvst` test case", A diagnostic]
   - id: 3
     title: "the artifact cache is read, not mapped"
-    status: open
+    status: done
     context: [crates/nvs-cli/src/cache.rs]
     extra:
       context:
@@ -228,8 +228,8 @@ the manifest parser, never by a string search.
 
 **Does:** a cached unit is read into memory, so no file change after the load can raise a signal.
 
-- [ ] `load` reads the file into an owned buffer and verifies it, and `Verified` holds the buffer. `crates/nvs-cli/src/cache.rs:1313`
-- [ ] The `unsafe` block and the `memmap2` file mapping go; the anonymous executable mapping stays. `crates/nvs-cli/src/cache.rs:191`
+- [x] `load` reads the file into an owned buffer and verifies it, and `Verified` holds the buffer. `crates/nvs-cli/src/cache.rs:1313`
+- [x] The `unsafe` block and the `memmap2` file mapping go; the anonymous executable mapping stays. `crates/nvs-cli/src/cache.rs:191`
 
 ### 4. a guest runs under the request's own budget
 
@@ -273,25 +273,26 @@ the manifest parser, never by a string search.
 
 ### State
 
-Stages 1 and 2 are done. Stage 2's feature proofs are in: the attack
-`tests/hostile/core/Queue/push/02-a-tainted-payload-used-in-the-job.nvs` pushes a `tainted` path
-and has the job use it as a file path and in SQL, and both `about.md`s say a payload text is
-`tainted`. The sweep's `payload-qualifiers-decode` red is a check the previous commit already removed.
-The floor's `ExtensionError` attack called the now-internal `Novis\Image\Codec` (E0856) and uses
-`Novis\Image\Image` now. The nightly CI reds are from `origin/main`, 532 commits behind local `main`. The
-two causes checked (`records --check` and `ruzstd` 0.9.0) are already fixed locally, and the other jobs
-are *not checked*. The macOS warm-start budget is still *not checked*.
+Stages 1 to 3 are done. `Cache::load` reads a unit with one `fs::read` into a `Box<[u8]>` that
+`Verified` owns, and the `unsafe` `Mmap::map` block is gone; `memmap2` stays for the loader's
+anonymous executable pages. `rule:packaging/the-artifact-cache-is-read-not-mapped` is `shipped`,
+guarded by `a_cached_unit_is_read_into_memory_and_never_mapped` and
+`truncating_a_cached_file_after_its_load_leaves_the_loaded_unit_whole`, and the tier A caveat in
+`rule:http-server/a-requests-blast-radius-is-bounded-at-four-tiers` is removed. The nightly CI reds
+are from `origin/main`, far behind local `main`; the two causes checked earlier (`records --check`
+and `ruzstd` 0.9.0) are fixed locally, and the other jobs are *not checked*. The macOS warm-start
+budget is still *not checked*.
 
 ### Next
 
-**Stage 3, the artifact cache is read, not mapped**, file set: `crates/nvs-cli/src/cache.rs`, `docs/rules/packaging/the-artifact-cache-is-read-not-mapped.md`.
+**Stage 4, a guest runs under the request's own budget**, file set: `crates/nvs-cli/src/extensions.rs`, `crates/nvs-ext/src/call.rs`.
 
-- [ ] `load` reads the unit with one read into an owned buffer and verifies it, and `Verified` holds the buffer (`rule:packaging/the-artifact-cache-is-read-not-mapped`). `crates/nvs-cli/src/cache.rs:1313`
-- [ ] The `unsafe` `Mmap::map` block and the `memmap2` import go, and the anonymous executable mapping stays. `crates/nvs-cli/src/cache.rs:1320` `crates/nvs-cli/src/cache.rs:191`
-- [ ] The `cache-is-read` tests, and the rule shipped with its fragment rewritten. `crates/nvs-cli/src/cache.rs:1313`
+- [ ] `Spent`'s `Meter` takes the request's own CPU deadline, counted from the request's start, not a fresh `cpu_limit` at the first call (`rule:packaging/a-guest-runs-under-the-requests-budget`). `crates/nvs-cli/src/extensions.rs:358` `crates/nvs-cli/src/extensions.rs:372`
+- [ ] `Budget::charge` charges the runtime's memory count for the request instead of a second allowance. `crates/nvs-cli/src/extensions.rs:535` `crates/nvs-ext/src/call.rs:106`
+- [ ] A guest past either limit ends the request with the resource-limit `FATAL` that reaches `onLimit`, with the `guest-budget` and `guest-budget-on-limit` tests; the module doc and fragment say what is built. `crates/nvs-cli/src/extensions.rs:38`
 
 ### Backlog
 
-- Stages 4 to 8 — this file's § *Stages*.
+- Stages 5 to 8 — this file's § *Stages*.
 - The macOS warm-start budget in the nightly cost guards, once `origin/main` is pushed — `tools/nv/cmd/bench.ts`.
 - The nightly CI jobs not checked against local `main`, once `origin/main` is pushed — `.github/workflows/`.
