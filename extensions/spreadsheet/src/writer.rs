@@ -975,10 +975,21 @@ impl Writer {
             let width = match column.and_then(|column| column.width) {
                 Some(width) => Some(width),
                 None if column.map_or(header, |column| column.auto) => {
+                    let layer = column.and_then(|column| column.style);
+                    let styles = &self.styles;
                     let widest = first
                         .iter()
-                        .filter_map(|row| row.cells.get(at)?.value.as_ref())
-                        .map(width::value)
+                        .filter_map(|row| {
+                            let cell = row.cells.get(at)?;
+                            let style = if row.header {
+                                open.header_style.or(row.style)
+                            } else {
+                                row.style
+                            };
+                            Some(width::value(cell.value.as_ref()?, |implicit| {
+                                styles.code(layer, style, cell.style, implicit).ok()?
+                            }))
+                        })
                         .max()
                         .unwrap_or(0);
                     width::column(widest)

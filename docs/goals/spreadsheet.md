@@ -49,7 +49,7 @@ stages:
         shapes: ["A `.nvst` test case"]
   - id: 8
     title: the number-format renderer
-    status: open
+    status: done
     extra:
       context:
         rules: []
@@ -768,22 +768,23 @@ One file set: `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/n
 
 ### State
 
-**Stage 8 is mostly on disk and not yet verified.** This session stopped at the hand-off budget before `looper verify` and before the zip-code case finished running.
+**Stage 8 is done.** Both Stage 8 checks pass, and so do the six Stage 3 to 7 suite checks the last sweep named. They were red only because the zip-code case had never run on the covws build.
 
+- **Auto width measures through the renderer.** `width::value` takes the cell's format code from `Styles::code` (cell, row, column, then the write table's), and renders the number `cells::stored_number` gives. `auto_width_measures_the_text_the_cell_format_shows` in `extensions/spreadsheet/tests/write.rs` pins it.
+- **The floor gate's six red LDAP benches are not this goal's.** `benches/members/core/Ldap-Connection/delete.nvs` runs and prints `100` on the release build, with the Samba container healthy. `bun nv benches` is refused in a session, so the next floor gate judges them again.
 - **The renderer** is `extensions/spreadsheet/src/format/` (`mod.rs` sections, lexer and `choose`; `number.rs`; `date.rs`; `locale.rs`). It covers General, `0` `#` `?`, grouping and scaling, percent, scientific, fractions, literals, `@`, conditions, colours (dropped), dates, times, elapsed time, both epochs, the 1900 leap day, built-in ids 0 to 49 and `[$-407]` prefixes. Its module doc says what it does.
 - `extensions/spreadsheet/tests/format.rs` has the six Stage 8 tests, and all six pass. The committed reference table is `extensions/spreadsheet/tests/fixtures/number-formats.txt`, with 120 rows. The rows were written by hand from SSF's rules. They were not checked against Excel and not copied from SSF's files.
 - The locale separators are a CLDR table in `extensions/spreadsheet/src/format/locale.rs`. Each row was checked against `Novis\Intl\NumberFormat::decimal`'s output. The table is not a call into `Novis\Intl`'s data, because the component cannot call another component. Grouping is by three digits in every locale, so `en-IN` is not Indian grouping.
 - `read::format::classify` now uses the renderer's lexer. This fixes a bug: a custom `0.00E+00` read as a date before.
-- **The reader's `text` wiring is written but not verified.** Each style keeps its format code (`read::format::Style`). `Reader::rows` resolves `text` names to columns, header keys first and column letters second (`extensions/spreadsheet/src/read/mod.rs`'s `shown`), and fills `ReadCell::display` (`display`). `Reader.nvs` drops `text` from `firstRow` and `keys` through `with`'s new `$shown` parameter, and takes `$display` as `?tainted string`.
-- `tests/conformance/novis/spreadsheet-a-zip-code-column-reads-as-text.nvst` is new and has never run green. Its error case expects `LogicError`, and that guess is not checked.
+- **The reader's `text` option** resolves names to columns, header keys first and column letters second (`extensions/spreadsheet/src/read/mod.rs`'s `shown`), and fills `ReadCell::display`. `tests/conformance/novis/spreadsheet-a-zip-code-column-reads-as-text.nvst` pins it, its unknown name throwing `LogicError`.
 
 ### Next
 
-**Stage 8, close it: verify the wiring, then auto width through the renderer.** Files: `extensions/spreadsheet/src/read/mod.rs`, `tests/conformance/novis/spreadsheet-a-zip-code-column-reads-as-text.nvst`, `extensions/spreadsheet/src/width.rs`, `extensions/spreadsheet/src/writer.rs`.
+**Stage 9, CSV through the same API** (`rule:core-api/one-paradigm-per-operation`). Files: `extensions/spreadsheet/nvs/Reader.nvs`, `extensions/spreadsheet/nvs/Workbook.nvs`, `crates/nvs-stdlib/src/csv.rs` only if `Core\Csv` lacks a piece.
 
-- [ ] **Verify this session's work.** Run `looper verify`, and fix what it names. Then run `looper check --name spreadsheet-a-column-reads-as-text` and `looper check --name spreadsheet-the-number-format-renderer`. Run `cargo test --test spreadsheet_read` too, because the reader's styles changed type (`extensions/spreadsheet/src/read/mod.rs:441`).
-- [ ] **Auto width measures through the renderer** (`rule:core-classes/spreadsheet-styles-and-defaults`). Today `extensions/spreadsheet/src/width.rs:1`'s "Not done yet" measures the stored text. Measure through `crate::format::render` with the column's format code, and remove the "Not shipped" sentence in that fragment.
-- [ ] **Set Stage 8 to `done`** in the front matter (`docs/goals/spreadsheet.md:52`) once both Stage 8 checks pass.
+- [ ] **Reading.** `Reader::open` (`extensions/spreadsheet/nvs/Reader.nvs:29`) recognises CSV and `rows` (`extensions/spreadsheet/nvs/Reader.nvs:111`) passes it to `Core\Csv`, with the same options and row shape; a short record's missing header keys are `null` (`crates/nvs-stdlib/src/csv.rs:77`). Case: `spreadsheet-reads-csv-with-the-same-row-shape.nvst`.
+- [ ] **Writing.** A name ending in `.csv` or `{format: 'csv'}` writes each batch through `Core\Csv::format` (`extensions/spreadsheet/nvs/Workbook.nvs:51`, `:88`, `:210`); styles, widths and sheet-end parts are ignored. Cases: `spreadsheet-writes-csv-from-the-same-calls.nvst`, `spreadsheet-a-second-csv-sheet-throws.nvst`.
+- [ ] **State the tradeoffs** in `docs/rules/core-classes/spreadsheet-has-no-io.md:23`, which says CSV goes through `Core\Csv`, and update the "Not shipped" paragraph of `docs/rules/core-classes/spreadsheet-reads-as-a-stream.md:108`. Then run `looper check --name spreadsheet-csv-through-the-same-api`.
 
 ### Backlog
 
@@ -791,5 +792,5 @@ One file set: `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/n
 - An ods cell's `text` uses the default format of its type, not the file's own number style. A merged fill copies no `display`. `extensions/spreadsheet/src/read/ods.rs:1`, `extensions/spreadsheet/src/read/merge.rs:166`
 - The extras from xlsb, xls and ods, which throw naming the format now. `extensions/spreadsheet/src/read/extras.rs:1`
 - Extension contagion does not reach a shape's fields (`crates/nvs-types/src/expr/quals.rs:531`'s `tainted_result`, `rule:security/extension-contagion`). This is a compiler fix, outside this goal.
-- `Cell::rich`, and the shapes of `validate`, `conditional` and `Chart`'s options (`rule:core-classes/spreadsheet-sheet-end-parts`). `extensions/spreadsheet/nvs/Workbook.nvs:537`
-- Stages 9 to 14. Stage 14's proofs owe `Row` a group. Stage 11 owes `an_xlsb_record_whose_length_lies_throws` and `an_xls_sector_chain_that_loops_is_refused` (`extensions/spreadsheet/src/read/cfb.rs`). See `docs/goals/spreadsheet.md`.
+- The style enums under `Style` (`rule:core-classes/spreadsheet-styles-and-defaults`, `extensions/spreadsheet/nvs/Style.nvs:23`). `Cell::rich`, and the shapes of `validate`, `conditional` and `Chart`'s options (`rule:core-classes/spreadsheet-sheet-end-parts`). `extensions/spreadsheet/nvs/Workbook.nvs:537`
+- Stages 10 to 14. Stage 14's proofs owe `Row` a group. Stage 11 owes `an_xlsb_record_whose_length_lies_throws` and `an_xls_sector_chain_that_loops_is_refused` (`extensions/spreadsheet/src/read/cfb.rs`). See `docs/goals/spreadsheet.md`.

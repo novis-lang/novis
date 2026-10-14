@@ -566,6 +566,52 @@ fn auto_width_counts_a_wide_east_asian_character_as_two_and_caps_at_sixty() {
 }
 
 #[test]
+fn auto_width_measures_the_text_the_cell_format_shows() {
+    let mut writer = writer();
+    let mut options = SheetOptions::named("Orders");
+    options.columns = vec![
+        Column {
+            auto: true,
+            format: Some("#,##0.00".to_owned()),
+            ..Column::default()
+        },
+        Column {
+            auto: true,
+            format: Some("d mmmm yyyy".to_owned()),
+            ..Column::default()
+        },
+        Column {
+            auto: true,
+            ..Column::default()
+        },
+    ];
+    let day = || Cell {
+        value: Some(Value::Date(nvs_spreadsheet::Date {
+            year: 2026,
+            month: 10,
+            day: 14,
+        })),
+        style: None,
+    };
+    // The cells show `1,234,567.50`, `14 October 2026` and `2026-10-14`.
+    let out = writer
+        .sheet(
+            options,
+            &[
+                header(&["Total", "Day", "Plain"]),
+                row(vec![number(1_234_567.5), day(), day()]),
+            ],
+        )
+        .unwrap();
+    let book = finish(writer, out);
+    let sheet = book.sheet(1);
+    for (column, width) in [(1, 13), (2, 16), (3, 11)] {
+        let col = format!("<col min=\"{column}\" max=\"{column}\" width=\"{width}\" ");
+        assert!(sheet.contains(&col), "{col} in {sheet}");
+    }
+}
+
+#[test]
 fn writing_to_a_finished_sheet_throws_naming_it() {
     let mut writer = writer();
     writer

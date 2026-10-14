@@ -168,6 +168,26 @@ fn length<'a>(at: &str, text: &'a str, count: usize) -> Result<&'a str, Error> {
     Ok(text)
 }
 
+/// The number a cell holding `value` stores, and the format the write table gives it, or `None`
+/// for a value stored as text, a boolean, a formula or nothing. A value [`cell`] refuses is `None`.
+pub fn stored_number(value: &Value) -> Option<(f64, Implicit)> {
+    match value {
+        Value::Number(value) => Some((*value, Implicit::None)).filter(|(v, _)| v.is_finite()),
+        Value::Integer(value) => {
+            let mut integer = itoa::Buffer::new();
+            (significant(integer.format(*value)) <= 15).then_some((*value as f64, Implicit::None))
+        }
+        Value::Decimal(text) if is_decimal(text) && significant(text) <= 15 => {
+            Some((text.parse().ok()?, Implicit::None))
+        }
+        Value::Date(date) => Some((date_serial(date)? as f64, Implicit::Date)),
+        Value::Time(time) => valid_time(time).then(|| (day_fraction(time), Implicit::Time)),
+        Value::Duration(nanos) => Some((*nanos as f64 / DAY_NANOS, Implicit::Duration)),
+        Value::Clock(clock) => Some((clock_serial("", clock).ok()?, Implicit::Clock)),
+        _ => None,
+    }
+}
+
 fn clock_serial(at: &str, clock: &Clock) -> Result<f64, Error> {
     let day = date_serial(&clock.day).ok_or_else(|| date_error(at, &clock.day))?;
     if !valid_time(&clock.clock) {

@@ -235,6 +235,23 @@ impl Styles {
         Ok(xf)
     }
 
+    /// The format code of a cell styled by these layers, holding a value whose write-table format
+    /// is `implicit`, or `None` for General. The most specific layer that sets `format` wins.
+    pub fn code(
+        &self,
+        column: Option<u64>,
+        row: Option<u64>,
+        cell: Option<u64>,
+        implicit: Implicit,
+    ) -> Result<Option<&str>, Error> {
+        for id in [cell, row, column].into_iter().flatten() {
+            if let Some(code) = self.get(id)?.format.as_deref() {
+                return Ok(Some(code));
+            }
+        }
+        Ok(implicit.code())
+    }
+
     /// Appends a rich-text run's `<rPr>` for the layer `id`.
     pub fn run_properties(&self, out: &mut String, id: u64) -> Result<(), Error> {
         let style = self.get(id)?;
