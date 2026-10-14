@@ -15,10 +15,11 @@ on when the work stops being asked for; it is not a hard wall-clock guarantee on
 **Not on disk.** A deadline cancels every child still running, and the call waits for them
 (`crates/nvs-host/src/group.rs:60`). A `Core\Db` statement or walk whose read fails calls
 `nvs_stdlib::db::settle_interrupted` (`crates/nvs-stdlib/src/db/execute.rs`), bounded by the
-`timeout` its `connect` or `open` named, or `[db.<name>.pool] acquire`'s default. Only PostgreSQL
-sends its cancel there (`crates/nvs-db/src/pg.rs`): no `KILL QUERY`, `sqlite3_interrupt` or TDS
-attention is sent yet, so those four drivers close the connection at the deadline. A `stream`
-whose opening call is interrupted closes its connection too.
+`timeout` its `connect` or `open` named, or `[db.<name>.pool] acquire`'s default; a `stream`'s
+opening call does the same. PostgreSQL sends its cancel there (`crates/nvs-db/src/pg.rs`), and
+SQLite interrupts the statement in the engine the moment the deadline passes, which leaves the
+connection idle (`crates/nvs-db/src/sqlite.rs`). No `KILL QUERY` or TDS attention is sent yet, so
+MySQL, MariaDB and SQL Server close the connection at the deadline.
 
 **Declined:**
 - **Returning at the deadline and abandoning the blocked child.** It would make the deadline exact,

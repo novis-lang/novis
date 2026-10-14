@@ -476,6 +476,10 @@ fn stream_over(
 /// and one deadline, so the only thing that can differ between them is what a
 /// row becomes, and that is one slot.
 ///
+/// An opening call that fails goes through [`settled`] before its error
+/// reaches the program, as every other statement member does, so a deadline
+/// that fired while the server ran the statement cancels it.
+///
 /// # Errors
 ///
 /// [`statement_of`]'s refusals, [`filed_connection`]'s `LogicError` for a
@@ -501,43 +505,44 @@ fn open_stream(
     // [`queried_rows`]' reason: a refusal names what the program wrote.
     let source = args[1].as_text();
     let sending: Vec<Option<&[u8]>> = statement.binds.wire();
-    match bound_connection(ctx, statement.key, named, deadline)? {
+    let opened = match bound_connection(ctx, statement.key, named, deadline)? {
         nvs_db::Connection::Postgres(postgres) => {
             // The description is answered here and read again per row off
             // the connection, so nothing about it is copied into this
             // object: it belongs to the statement rather than to the walk.
-            postgres
-                .stream(&statement.sql, &sending)
-                .map_err(|refused| statement_failure(named, &statement.block, source, &refused))?;
-            if let Some(name) = statement.block.as_text() {
+            let opened = postgres.stream(&statement.sql, &sending).map(drop);
+            if let (Ok(()), Some(name)) = (&opened, statement.block.as_text()) {
                 postgres.name_stream_connection(name);
             }
+            opened.map_err(|refused| statement_failure(named, &statement.block, source, &refused))
         }
         nvs_db::Connection::MySql(mysql) => {
-            stream_over(Framed::MySql(mysql), &statement, &sending, source, named)?;
+            stream_over(Framed::MySql(mysql), &statement, &sending, source, named)
         }
         nvs_db::Connection::MariaDb(maria) => {
-            stream_over(Framed::MariaDb(maria), &statement, &sending, source, named)?;
+            stream_over(Framed::MariaDb(maria), &statement, &sending, source, named)
         }
         nvs_db::Connection::SqlServer(tds) => {
-            tds.stream(&statement.sql, &sending)
-                .map_err(|refused| statement_failure(named, &statement.block, source, &refused))?;
-            if let Some(name) = statement.block.as_text() {
+            let opened = tds.stream(&statement.sql, &sending).map(drop);
+            if let (Ok(()), Some(name)) = (&opened, statement.block.as_text()) {
                 tds.name_stream_connection(name);
             }
+            opened.map_err(|refused| statement_failure(named, &statement.block, source, &refused))
         }
         nvs_db::Connection::Sqlite(sqlite) => {
             // The one driver whose parameters arrive owned, exactly as
             // [`sqlite_rows`] sends them: there is no wire to encode for, so
             // `nvs_db` takes the values themselves.
-            sqlite
+            let opened = sqlite
                 .stream(&statement.sql, statement.binds.sqlite())
-                .map_err(|refused| statement_failure(named, &statement.block, source, &refused))?;
-            if let Some(name) = statement.block.as_text() {
+                .map(drop);
+            if let (Ok(()), Some(name)) = (&opened, statement.block.as_text()) {
                 sqlite.name_stream_connection(name);
             }
+            opened.map_err(|refused| statement_failure(named, &statement.block, source, &refused))
         }
-    }
+    };
+    settled(ctx, statement.key, opened)?;
     // The block name is the *connection's*, read out of its slot by
     // [`handle_of`] and borrowed for the length of the call like every value
     // this crate reads out of an argument — and [`crate::instance::build`]
