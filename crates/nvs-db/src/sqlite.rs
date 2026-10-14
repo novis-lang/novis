@@ -98,7 +98,7 @@
 use std::cell::Cell;
 use std::io;
 use std::path::Path;
-use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI64, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
 use nvs_config::tree::Database;
@@ -694,6 +694,8 @@ pub fn open(target: &SqliteTarget<'_>) -> io::Result<SqliteConn> {
     let capacity = target.statement_cache;
     let inserted = Arc::new(InsertedRow::default());
     let filling = Arc::clone(&inserted);
+    let interrupt = Arc::new(Interrupt::default());
+    let watching = Arc::clone(&interrupt);
 
     let handle = nvs_host::blocking::run(move || -> rusqlite::Result<rusqlite::Connection> {
         let connection = rusqlite::Connection::open(path)?;
@@ -706,6 +708,7 @@ pub fn open(target: &SqliteTarget<'_>) -> io::Result<SqliteConn> {
                 }
             },
         ))?;
+        connection.progress_handler(INTERRUPT_EVERY, Some(move || watching.passed()))?;
         Ok(connection)
     })
     .map_err(server_error)?;
@@ -713,6 +716,7 @@ pub fn open(target: &SqliteTarget<'_>) -> io::Result<SqliteConn> {
     Ok(SqliteConn {
         handle: Arc::new(Mutex::new(handle)),
         inserted,
+        interrupt,
         state: Cell::new(State::Idle),
         depth: Cell::new(0),
         time_zone: target.time_zone,
@@ -759,6 +763,70 @@ impl InsertedRow {
         self.seen
             .load(Ordering::Relaxed)
             .then(|| self.rowid.load(Ordering::Relaxed))
+    }
+}
+
+/// How many of SQLite's virtual machine instructions run between two checks
+/// of [`Interrupt`].
+///
+/// A statement that is past its deadline stops within this many instructions.
+/// A check is one atomic load when no deadline is filed, and a clock read as
+/// well when one is.
+const INTERRUPT_EVERY: std::ffi::c_int = 1_000;
+
+/// The deadline a running statement is interrupted at —
+/// `rule:concurrency/a-deadline-bounds-the-cancel-not-the-return` on this
+/// driver.
+///
+/// The progress handler [`open`] registers reads it, and a handler that
+/// answers `true` ends the statement with `SQLITE_INTERRUPT`, which is what
+/// `sqlite3_interrupt` does from another thread. The check runs on the thread
+/// stepping the statement, so no second thread or timer waits for the
+/// deadline. The statement ends and its error comes back as § 8's `Timeout`;
+/// the connection is then idle, because SQLite leaves no half-read result to
+/// drain.
+///
+/// The instant is kept as nanoseconds past `base` plus one, so that `0` means
+/// no deadline and one atomic holds the whole state. `Relaxed` is enough: the
+/// connection's own lock orders the filing before the statement that reads it.
+///
+/// **What it spends:** sixteen bytes and one `Arc` per open connection.
+#[derive(Debug)]
+pub struct Interrupt {
+    base: std::time::Instant,
+    at: AtomicU64,
+}
+
+impl Default for Interrupt {
+    /// No deadline filed.
+    fn default() -> Self {
+        Interrupt {
+            base: std::time::Instant::now(),
+            at: AtomicU64::new(0),
+        }
+    }
+}
+
+impl Interrupt {
+    /// Files `at` as the instant the next statement is interrupted at, or
+    /// lifts it.
+    pub(crate) fn file(&self, at: Option<std::time::Instant>) {
+        let stored = at.map_or(0, |deadline| {
+            let past = deadline.saturating_duration_since(self.base).as_nanos();
+            u64::try_from(past).unwrap_or(u64::MAX - 1) + 1
+        });
+        self.at.store(stored, Ordering::Relaxed);
+    }
+
+    /// Whether a deadline is filed and has passed.
+    fn passed(&self) -> bool {
+        match self.at.load(Ordering::Relaxed) {
+            0 => false,
+            stored => {
+                let now = u64::try_from(self.base.elapsed().as_nanos()).unwrap_or(u64::MAX);
+                now >= stored - 1
+            }
+        }
     }
 }
 
@@ -1761,6 +1829,74 @@ mod tests {
     /// to, which is the one thing the other drivers cannot do in a unit test.
     fn connect() -> crate::conn::SqliteConn {
         open(&SqliteTarget::resolve(&block()).expect("the block resolves")).expect("it opens")
+    }
+
+    /// A statement with no end, which only an interrupt stops.
+    const ENDLESS: &str = "with recursive n (i) as (select 1 union all select i + 1 from n) \
+                           select count(*) from n";
+
+    /// `rule:concurrency/a-deadline-bounds-the-cancel-not-the-return` on this
+    /// driver: a deadline that passes while a statement runs interrupts it in
+    /// the engine. The error is § 8's `Timeout`, and the connection is idle at
+    /// once and runs the next statement.
+    #[test]
+    fn a_deadline_interrupts_a_running_statement_and_leaves_the_connection_idle() {
+        let mut conn = crate::Connection::Sqlite(connect());
+        let started = std::time::Instant::now();
+        conn.set_deadline(Some(started + std::time::Duration::from_millis(100)))
+            .expect("the deadline files");
+        let crate::Connection::Sqlite(sqlite) = &conn else {
+            unreachable!("the connection was opened as SQLite");
+        };
+
+        let refused = sqlite
+            .query(ENDLESS, Vec::new())
+            .expect_err("an endless statement stops at its deadline");
+        let server = ServerError::of(&refused).expect("an interrupt carried no kind");
+        assert_eq!(server.kind, DbErrorKind::Timeout);
+        assert!(
+            started.elapsed() < std::time::Duration::from_secs(10),
+            "the statement ran on past its deadline"
+        );
+        assert_eq!(sqlite.state.get(), State::Idle);
+
+        conn.set_deadline(None).expect("the deadline lifts");
+        conn.settle(std::time::Instant::now())
+            .expect("an interrupted SQLite connection has nothing left to settle");
+        let crate::Connection::Sqlite(sqlite) = &conn else {
+            unreachable!("the connection was opened as SQLite");
+        };
+        sqlite
+            .query("select 1", Vec::new())
+            .expect("the next statement runs with the deadline lifted");
+    }
+
+    /// The same deadline on a walk: the step that is running when it passes
+    /// fails, and the connection is idle again.
+    #[test]
+    fn a_deadline_interrupts_a_walk_mid_step() {
+        let mut conn = crate::Connection::Sqlite(connect());
+        conn.set_deadline(Some(
+            std::time::Instant::now() + std::time::Duration::from_millis(100),
+        ))
+        .expect("the deadline files");
+        let crate::Connection::Sqlite(sqlite) = &mut conn else {
+            unreachable!("the connection was opened as SQLite");
+        };
+
+        let stopped = match sqlite.stream(ENDLESS, Vec::new()) {
+            Ok(_) => sqlite
+                .stream_next_row()
+                .expect_err("an endless count stops at its deadline"),
+            Err(stopped) => stopped,
+        };
+        let server = ServerError::of(&stopped).expect("an interrupt carried no kind");
+        assert_eq!(server.kind, DbErrorKind::Timeout);
+        assert!(
+            sqlite.state.get().may_start_statement(),
+            "an interrupted walk left the connection busy: {:?}",
+            sqlite.state.get()
+        );
     }
 
     /// `serverVersion` on the one driver with no server: the version of the

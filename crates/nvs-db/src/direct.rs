@@ -343,6 +343,7 @@ mod tests {
                 rusqlite::Connection::open_in_memory().expect("an in-memory database opens"),
             )),
             inserted: Arc::default(),
+            interrupt: Arc::default(),
             state: Cell::new(State::Idle),
             depth: Cell::new(0),
             time_zone: 0,

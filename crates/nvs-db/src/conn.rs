@@ -1060,6 +1060,10 @@ pub struct SqliteConn {
     /// connection. [`crate::sqlite::InsertedRow`] and this module's doc
     /// § *Which statement inserted a row* own what it holds and what it costs.
     pub(crate) inserted: Arc<crate::sqlite::InsertedRow>,
+    /// The deadline the progress handler [`crate::sqlite::open`] registers
+    /// interrupts a running statement at. An `Arc` for the update hook's
+    /// reason above; [`crate::sqlite::Interrupt`] owns what it costs.
+    pub(crate) interrupt: Arc<crate::sqlite::Interrupt>,
     /// `rule:core-classes/db-connection-busy-state`'s busy state; the reasoning is on [`PgConn`]. SQLite carries it for
     /// the same reason the others do even with no wire to be mid-message on:
     /// `rule:core-classes/db-statement-members`'s `LogicError` is a property of the API, not of a socket.
@@ -1208,15 +1212,18 @@ impl Connection {
     ///
     /// Only the SQLite arm can fail, and only as `sqlite3_busy_timeout` fails:
     /// the others write a field on their own socket. See
-    /// [`crate::sqlite::set_busy_timeout`] for why that arm bounds a lock wait
-    /// where the others bound a read.
+    /// [`crate::sqlite::set_busy_timeout`] for how that arm bounds a lock wait,
+    /// and [`crate::sqlite::Interrupt`] for how it stops a running statement.
     pub fn set_deadline(&mut self, at: Option<std::time::Instant>) -> std::io::Result<()> {
         match self {
             Connection::Postgres(c) => c.wire.set_deadline(at),
             Connection::MySql(c) => c.wire.set_deadline(at),
             Connection::MariaDb(c) => c.wire.set_deadline(at),
             Connection::SqlServer(c) => c.wire.set_deadline(at),
-            Connection::Sqlite(c) => return crate::sqlite::set_busy_timeout(c, at),
+            Connection::Sqlite(c) => {
+                c.interrupt.file(at);
+                return crate::sqlite::set_busy_timeout(c, at);
+            }
         }
         Ok(())
     }
@@ -1242,7 +1249,10 @@ impl Connection {
     /// poolable; one that does not stays poisoned, so the release closes it
     /// rather than pooling it.
     ///
-    /// PostgreSQL's arm is [`crate::PgConn::settle`]. The other drivers send no
+    /// PostgreSQL's arm is [`crate::PgConn::settle`]. SQLite interrupts the
+    /// statement in the engine when the deadline passes
+    /// ([`crate::sqlite::Interrupt`]), which leaves the connection idle, so it
+    /// never reaches this poisoned. MySQL, MariaDB and SQL Server send no
     /// cancel yet, and their connection is closed at the deadline instead,
     /// which is the rule's fallback for a cancel that is not built.
     ///
@@ -1328,6 +1338,7 @@ mod tests {
                 rusqlite::Connection::open_in_memory().expect("an in-memory database opens"),
             )),
             inserted: Arc::default(),
+            interrupt: Arc::default(),
             state: Cell::new(State::Idle),
             depth: Cell::new(0),
             time_zone: 0,
