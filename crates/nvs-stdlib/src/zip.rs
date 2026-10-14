@@ -197,10 +197,9 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 
 /// `Core\Zip::entries`'s reference card — `rule:core-api/reference-card`.
 const ENTRIES_DOC: MethodDoc = MethodDoc {
-    short: "The names an archive carries, in the order its central directory lists them — replacing \
-            `zip_read`/`zip_entry_name` and `ZipArchive::statIndex`. The archive is judged whole \
-            first: an archive carrying a traversing, absolute-path or symlink entry has no listing, \
-            because a program that could see such an entry could act on it.",
+    short: "Returns the names of the entries in an archive, in the order its central directory \
+            lists them. The whole archive is checked first. If one entry uses `..`, an absolute \
+            path or a symlink, it throws an error and lists nothing.",
     params: &[ParamDoc {
         name: "archive",
         desc: "The archive's octets. Only its central directory is read, so listing a large \
@@ -221,9 +220,8 @@ const ENTRIES_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Zip::read`'s reference card — `rule:core-api/reference-card`.
 const READ_DOC: MethodDoc = MethodDoc {
-    short: "One entry's octets, decompressed **under a bound that cannot be switched off** — \
-            replacing `zip_entry_read` and `ZipArchive::getFromName`, whose only limit was the \
-            memory the request had left.",
+    short: "Returns the decompressed bytes of one entry. **The output has a size limit that \
+            cannot be switched off.**",
     params: &[
         ParamDoc {
             name: "archive",
@@ -265,11 +263,10 @@ const READ_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Zip::extract`'s reference card — `rule:core-api/reference-card`.
 const EXTRACT_DOC: MethodDoc = MethodDoc {
-    short: "Writes an archive's entries under `$destination` and answers how many files it wrote — \
-            replacing `ZipArchive::extractTo`, which wrote whatever names it had been handed. The \
-            archive is judged whole before an octet is written, and every directory is created and \
-            then resolved and proved to be under the destination before anything is created inside \
-            it.",
+    short: "Writes the entries of an archive under `$destination` and returns how many files it \
+            wrote. The whole archive is checked before any byte is written. Each directory is \
+            created and then checked to be inside `$destination`, before anything is written \
+            into it.",
     params: &[
         ParamDoc {
             name: "archive",

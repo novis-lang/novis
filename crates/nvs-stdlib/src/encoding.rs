@@ -451,9 +451,8 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 
 /// `Core\Encoding::encodeText`'s reference card — `rule:core-api/reference-card`.
 const ENCODE_TEXT_DOC: MethodDoc = MethodDoc {
-    short: "Writes `$s` as `$charset`'s octets, as `iconv`, `mb_convert_encoding` and \
-            `utf8_encode` do — exactly, with no `//IGNORE` or `//TRANSLIT` mode: a character \
-            the charset cannot spell throws rather than becoming `?` or `&#NNNN;`.",
+    short: "Converts the text `$s` to bytes in the encoding `$charset`. The conversion is exact. \
+            A character that `$charset` cannot represent throws an error.",
     params: &[
         ParamDoc {
             name: "s",
@@ -476,9 +475,8 @@ const ENCODE_TEXT_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Encoding::decodeText`'s reference card — `rule:core-api/reference-card`.
 const DECODE_TEXT_DOC: MethodDoc = MethodDoc {
-    short: "Reads the octets `$b` as `$charset` into a string, as `iconv`, \
-            `mb_convert_encoding` and `utf8_decode` do — exactly: a sequence the charset \
-            cannot read throws rather than becoming U+FFFD or being dropped.",
+    short: "Converts the bytes `$b` from the encoding `$charset` to a string. The conversion is \
+            exact. A byte sequence that is not valid in `$charset` throws an error.",
     params: &[
         ParamDoc {
             name: "b",
@@ -500,8 +498,8 @@ const DECODE_TEXT_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Encoding::isValidText`'s reference card — `rule:core-api/reference-card`.
 const IS_VALID_TEXT_DOC: MethodDoc = MethodDoc {
-    short: "Tells whether every byte sequence in `$b` is one `$charset` reads, as \
-            `mb_check_encoding` does — `decodeText`'s question without the throw.",
+    short: "Checks whether `$b` is valid text in the encoding `$charset`. It makes the same test \
+            as `decodeText`, but returns `false` instead of throwing an error.",
     params: &[
         ParamDoc {
             name: "b",
@@ -521,8 +519,7 @@ const IS_VALID_TEXT_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Encoding::toBase64`'s reference card — `rule:core-api/reference-card`.
 const TO_BASE64_DOC: MethodDoc = MethodDoc {
-    short: "Spells `$b` in RFC 4648 § 4's base64 alphabet, padded — byte for byte what \
-            `base64_encode` answers.",
+    short: "Writes `$b` as base64 text, with the alphabet of RFC 4648 § 4 and with padding.",
     params: &[ParamDoc {
         name: "b",
         desc: "The octets to encode.",
@@ -534,9 +531,9 @@ const TO_BASE64_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Encoding::fromBase64`'s reference card — `rule:core-api/reference-card`.
 const FROM_BASE64_DOC: MethodDoc = MethodDoc {
-    short: "Reads base64 text `$s` back to octets, as `base64_decode` does in strict mode and \
-            stricter: § 4's alphabet only, padding required and canonical, and no unread bits \
-            in the last symbol. URL-safe text is `fromBase64Url`'s to read.",
+    short: "Reads the base64 text `$s` back to bytes. It accepts only the alphabet of RFC 4648 \
+            § 4, with correct padding and no unused bits in the last symbol. Use \
+            `fromBase64Url` for URL-safe text.",
     params: &[ParamDoc {
         name: "s",
         desc: "The base64 text.",
@@ -553,9 +550,8 @@ const FROM_BASE64_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Encoding::toBase64Url`'s reference card — `rule:core-api/reference-card`.
 const TO_BASE64_URL_DOC: MethodDoc = MethodDoc {
-    short: "Spells `$b` in RFC 4648 § 5's URL-safe base64 alphabet, unpadded — the \
-            `rtrim(strtr(base64_encode($b), \"+/\", \"-_\"), \"=\")` idiom, as a JWT or a \
-            query string expects it.",
+    short: "Writes `$b` as URL-safe base64 text, with the alphabet of RFC 4648 § 5 and no \
+            padding. A JWT or a query string uses this form.",
     params: &[ParamDoc {
         name: "b",
         desc: "The octets to encode.",
@@ -616,8 +612,7 @@ const FROM_BASE32_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Encoding::toHex`'s reference card — `rule:core-api/reference-card`.
 const TO_HEX_DOC: MethodDoc = MethodDoc {
-    short: "Spells `$b` as lowercase hexadecimal, two digits per octet, as `bin2hex` and the \
-            `unpack(\"H*\", …)` idiom do.",
+    short: "Writes `$b` as lowercase hexadecimal text, two digits per byte.",
     params: &[ParamDoc {
         name: "b",
         desc: "The octets to encode.",
@@ -629,9 +624,8 @@ const TO_HEX_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Encoding::fromHex`'s reference card — `rule:core-api/reference-card`.
 const FROM_HEX_DOC: MethodDoc = MethodDoc {
-    short: "Reads hexadecimal text `$s` back to octets, as `hex2bin` does but throwing where \
-            it warned and answered `false`: either case, two digits per octet, and nothing \
-            between the pairs.",
+    short: "Reads the hexadecimal text `$s` back to bytes. It accepts upper and lower case, two \
+            digits per byte, and nothing between the pairs. Other text throws an error.",
     params: &[ParamDoc {
         name: "s",
         desc: "The hexadecimal text.",

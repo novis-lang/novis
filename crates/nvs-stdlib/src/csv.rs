@@ -323,10 +323,9 @@ pub(crate) const ROWS: CoreClass = CoreClass {
 
 /// `Core\Csv::parse`'s reference card — `rule:core-api/reference-card`.
 const PARSE_DOC: MethodDoc = MethodDoc {
-    short: "Parses the whole CSV document `$text` into its records, as `str_getcsv` and the \
-            parsing half of `fgetcsv` do, by RFC 4180's grammar: a field is quoted or it is not, \
-            a doubled quote inside a quoted field is one quote, a record ends at `LF` or `CRLF`, \
-            and a blank line is not a record.",
+    short: "Parses the whole CSV document `$text` into records, with the grammar of RFC 4180. A \
+            field may be quoted. Inside a quoted field, two quotes are read as one quote. A \
+            record ends at `LF` or `CRLF`, and a blank line is not a record.",
     params: &[
         ParamDoc {
             name: "text",
@@ -370,10 +369,9 @@ const PARSE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Csv::format`'s reference card — `rule:core-api/reference-card`.
 const FORMAT_DOC: MethodDoc = MethodDoc {
-    short: "Writes `$rows` as a CSV document, as `fputcsv`'s formatting half does over a whole \
-            document: a field is quoted exactly when it holds the separator, the quote, `CR` \
-            or `LF`, a quote inside one is doubled, and every record ends with `LF`, so \
-            `parse(format($rows))` answers `$rows`.",
+    short: "Writes `$rows` as a CSV document. A field is quoted only when it contains the \
+            separator, the quote, `CR` or `LF`. A quote inside a quoted field is doubled. Every \
+            record ends with `LF`, so `parse(format($rows))` returns `$rows`.",
     params: &[
         ParamDoc {
             name: "rows",

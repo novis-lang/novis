@@ -316,8 +316,8 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 
 /// `Core\Bytes::length`'s reference card — `rule:core-api/reference-card`.
 const LENGTH_DOC: MethodDoc = MethodDoc {
-    short: "Counts the octets in `$b`, as `strlen` does on binary data; O(1), where \
-            `Core\\Str::length` walks its subject.",
+    short: "Returns the number of bytes in `$b`. It takes the same time for any length. \
+            `Core\\Str::length` reads the whole string.",
     params: &[ParamDoc {
         name: "b",
         desc: "The buffer to measure.",
@@ -329,8 +329,8 @@ const LENGTH_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Bytes::at`'s reference card — `rule:core-api/reference-card`.
 const AT_DOC: MethodDoc = MethodDoc {
-    short: "Answers the one octet at `$index` of `$b` as a number, as `ord($s[$i])` does; a \
-            negative index counts from the end.",
+    short: "Returns the byte at `$index` of `$b` as a number. A negative index counts from the \
+            end.",
     params: &[
         ParamDoc {
             name: "b",
@@ -352,7 +352,7 @@ const AT_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Bytes::slice`'s reference card — `rule:core-api/reference-card`.
 const SLICE_DOC: MethodDoc = MethodDoc {
-    short: "Copies a window of `$b`, as `substr` does on binary data, counted in bytes.",
+    short: "Copies a part of `$b`. Positions and lengths are counted in bytes.",
     params: &[
         ParamDoc {
             name: "b",
@@ -379,9 +379,9 @@ const SLICE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Bytes::indexOf`'s reference card — `rule:core-api/reference-card`.
 const INDEX_OF_DOC: MethodDoc = MethodDoc {
-    short: "Finds where `$needle` first occurs in `$haystack`, as `strpos` does on binary data, \
-            as a byte offset `slice` takes directly. There is no case-insensitive option, \
-            because a byte string has no case.",
+    short: "Finds where `$needle` first occurs in `$haystack`. The result is a byte offset that \
+            you can pass to `slice`. There is no case-insensitive option, because bytes have no \
+            case.",
     params: &[
         ParamDoc {
             name: "haystack",
@@ -407,9 +407,8 @@ const INDEX_OF_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Bytes::compare`'s reference card — `rule:core-api/reference-card`.
 const COMPARE_DOC: MethodDoc = MethodDoc {
-    short: "Orders `$a` against `$b` lexicographically over unsigned octets, as `strcmp` does on \
-            binary data; a shorter buffer that is a prefix of a longer one sorts first. For \
-            equality alone, `==` is the operator.",
+    short: "Compares `$a` with `$b` byte by byte, each byte as an unsigned number. A shorter \
+            buffer that is the start of a longer one sorts first. To test equality, use `==`.",
     params: &[
         ParamDoc {
             name: "a",
@@ -428,8 +427,7 @@ const COMPARE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Bytes::contains`'s reference card — `rule:core-api/reference-card`.
 const CONTAINS_DOC: MethodDoc = MethodDoc {
-    short: "Tells whether `$needle` occurs anywhere in `$haystack`, as `str_contains` does on \
-            binary data.",
+    short: "Checks whether `$needle` occurs anywhere in `$haystack`.",
     params: &[
         ParamDoc {
             name: "haystack",
@@ -449,8 +447,8 @@ const CONTAINS_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Bytes::startsWith`'s reference card — `rule:core-api/reference-card`.
 const STARTS_WITH_DOC: MethodDoc = MethodDoc {
-    short: "Tells whether `$b` begins with `$prefix`, as `str_starts_with` does on binary data — \
-            the member a magic-byte sniff writes.",
+    short: "Checks whether `$b` begins with `$prefix`. Use it to detect a file type from its \
+            first bytes.",
     params: &[
         ParamDoc {
             name: "b",
@@ -469,7 +467,7 @@ const STARTS_WITH_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Bytes::endsWith`'s reference card — `rule:core-api/reference-card`.
 const ENDS_WITH_DOC: MethodDoc = MethodDoc {
-    short: "Tells whether `$b` ends with `$suffix`, as `str_ends_with` does on binary data.",
+    short: "Checks whether `$b` ends with `$suffix`.",
     params: &[
         ParamDoc {
             name: "b",
@@ -488,8 +486,8 @@ const ENDS_WITH_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Bytes::fill`'s reference card — `rule:core-api/reference-card`.
 const FILL_DOC: MethodDoc = MethodDoc {
-    short: "Builds a buffer of `$length` copies of the octet `$byte`, as the \
-            `str_repeat(chr($b), $n)` idiom does; a zero-filled header is `fill(16, 0)`.",
+    short: "Returns a buffer of `$length` copies of the byte `$byte`. For example, `fill(16, 0)` \
+            gives 16 zero bytes.",
     params: &[
         ParamDoc {
             name: "length",
@@ -512,8 +510,7 @@ const FILL_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Bytes::repeat`'s reference card — `rule:core-api/reference-card`.
 const REPEAT_DOC: MethodDoc = MethodDoc {
-    short: "Builds a buffer of `$b` repeated `$times` times, as `str_repeat` does on binary \
-            data.",
+    short: "Returns a buffer of `$b` repeated `$times` times.",
     params: &[
         ParamDoc {
             name: "b",
@@ -535,9 +532,8 @@ const REPEAT_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Bytes::join`'s reference card — `rule:core-api/reference-card`.
 const JOIN_DOC: MethodDoc = MethodDoc {
-    short: "Concatenates every buffer in `$parts` with `$separator` between neighbours, as \
-            `implode` does on binary data — `Core\\Str::join`'s row over buffers, and this \
-            class's only concatenation. No element is converted.",
+    short: "Joins every buffer in `$parts`, with `$separator` between each pair. It is the only \
+            way to concatenate buffers in this class. No element is converted.",
     params: &[
         ParamDoc {
             name: "parts",
@@ -559,13 +555,14 @@ const JOIN_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Bytes::pack`'s reference card — `rule:core-api/reference-card`.
 const PACK_DOC: MethodDoc = MethodDoc {
-    short: "Writes `$values` as the octets `$format` describes, as `pack` does, over a closed \
-            code table: `a`/`A`/`Z` a buffer NUL-padded, space-padded, or NUL-padded and \
-            NUL-terminated; `c`/`C` one octet; `n`/`v`, `N`/`V` and `J`/`P` 16, 32 and 64 bits \
-            most or least significant octet first; `G`/`g` binary32 and `E`/`e` binary64 the \
-            same way; `x` one NUL octet. A bare code takes the whole argument, never one \
-            octet, and an integer field takes the union of its width's signed and unsigned \
-            ranges in two's complement.",
+    short: "Writes `$values` as bytes, in the layout `$format` describes. The format uses a \
+            fixed set of codes. `a`, `A` and `Z` write a buffer padded with NUL bytes, padded \
+            with spaces, or padded with NUL bytes and ended with a NUL. `c` and `C` write one \
+            byte. `n`/`v`, `N`/`V` and `J`/`P` write 16, 32 and 64 bits, with the most or the \
+            least significant byte first. `G`/`g` write a binary32 float and `E`/`e` a binary64 \
+            float, in the same two byte orders. `x` writes one NUL byte. A code without a count \
+            takes the whole argument, not one byte. An integer field accepts any value that \
+            fits its width as signed or unsigned, in two's complement.",
     params: &[
         ParamDoc {
             name: "format",
@@ -596,9 +593,9 @@ const PACK_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Bytes::unpack`'s reference card — `rule:core-api/reference-card`.
 const UNPACK_DOC: MethodDoc = MethodDoc {
-    short: "Reads `$b` back through `$format`, as `unpack` does, over `pack`'s code table in \
-            reverse — so `unpack(pack($f, ...$v), $f)` is `$v`, field for field. Octets the \
-            format does not describe throw rather than being ignored.",
+    short: "Reads `$b` back with `$format`, using the codes of `pack` in reverse. So \
+            `unpack(pack($f, ...$v), $f)` gives `$v` again, field for field. Bytes that the \
+            format does not describe throw an error.",
     params: &[
         ParamDoc {
             name: "b",

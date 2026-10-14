@@ -266,9 +266,8 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 
 /// `Core\Compress::compress`'s reference card — `rule:core-api/reference-card`.
 const COMPRESS_DOC: MethodDoc = MethodDoc {
-    short: "Compresses `$data` under `$codec`, replacing `gzencode`, `gzcompress`, `gzdeflate` and \
-            `zlib_encode` at once — the format is a case of `Core\\Compress::Codec` rather than a third of a \
-            function's name.",
+    short: "Compresses `$data` in the format `$codec`. The format is a case of \
+            `Core\\Compress::Codec`.",
     params: &[
         ParamDoc {
             name: "data",
@@ -289,9 +288,8 @@ const COMPRESS_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Compress::decompress`'s reference card — `rule:core-api/reference-card`.
 const DECOMPRESS_DOC: MethodDoc = MethodDoc {
-    short: "Decompresses `$data` under `$codec`, **under a bound that cannot be switched off** — \
-            replacing `gzdecode`, `gzuncompress`, `gzinflate` and `zlib_decode`, whose `$max_length` \
-            was optional and defaulted to unlimited.",
+    short: "Decompresses `$data` from the format `$codec`. **The output has a size limit that \
+            cannot be switched off.**",
     params: &[
         ParamDoc {
             name: "data",
@@ -332,8 +330,8 @@ const DECOMPRESS_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Compress::compressor`'s reference card — `rule:core-api/reference-card`.
 const COMPRESSOR_DOC: MethodDoc = MethodDoc {
-    short: "Opens an incremental compression under `$codec`, as `deflate_init` does — a \
-            `Core\\Compress\\Compressor` fed by `add` and closed by `finish`.",
+    short: "Starts a compression in the format `$codec` that you feed in parts. It returns a \
+            `Core\\Compress\\Compressor`. Call `add` to add data and `finish` to get the result.",
     params: &[ParamDoc {
         name: "codec",
         desc: "The format to write, any `Core\\Compress::Codec` case. Fixed for the stream's whole life: a \
@@ -346,9 +344,10 @@ const COMPRESSOR_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Compress::decompressor`'s reference card — `rule:core-api/reference-card`.
 const DECOMPRESSOR_DOC: MethodDoc = MethodDoc {
-    short: "Opens an incremental decompression under `$codec`, as `inflate_init` does — a \
-            `Core\\Compress\\Decompressor` fed by `add` and closed by `finish`, **under the same \
-            bound that cannot be switched off**.",
+    short: "Starts a decompression from the format `$codec` that you feed in parts. It returns a \
+            `Core\\Compress\\Decompressor`. Call `add` to add data and `finish` to get the \
+            result. **It has the same size limit as `decompress`, which cannot be switched \
+            off.**",
     params: &[
         ParamDoc {
             name: "codec",
@@ -416,8 +415,8 @@ pub(crate) const COMPRESSOR: CoreClass = CoreClass {
 
 /// `$compressor->add`'s reference card — `rule:core-api/reference-card`.
 const COMPRESSOR_ADD_DOC: MethodDoc = MethodDoc {
-    short: "Feeds `$data` to the stream, as `deflate_add` does; the chunks are compressed in \
-            order at `finish`.",
+    short: "Adds `$data` to the stream. `finish` compresses all parts in the order they were \
+            added.",
     params: &[ParamDoc {
         name: "data",
         desc: "The next octets; a `string` is read as its UTF-8 bytes.",
@@ -485,8 +484,8 @@ pub(crate) const DECOMPRESSOR: CoreClass = CoreClass {
 
 /// `$decompressor->add`'s reference card — `rule:core-api/reference-card`.
 const DECOMPRESSOR_ADD_DOC: MethodDoc = MethodDoc {
-    short: "Feeds `$data` to the stream, as `inflate_add` does; the chunks are decompressed in \
-            order at `finish`, under the one bound the stream was opened with.",
+    short: "Adds `$data` to the stream. `finish` decompresses all parts in the order they were \
+            added, with the size limit the stream started with.",
     params: &[ParamDoc {
         name: "data",
         desc: "The next octets of the compressed frame. Nothing is decoded yet, so nothing here \

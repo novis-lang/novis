@@ -386,14 +386,14 @@ const ENCODE_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "pretty",
-            desc: "Indent the output across lines, as `JSON_PRETTY_PRINT` does; the default is \
-                   one line.",
+            desc: "Writes the output across several lines, with indentation. By default, the \
+                   output is on one line.",
             shape: &[],
         },
         ParamDoc {
             name: "escapeUnicode",
-            desc: "Write every non-ASCII character as a `\\uXXXX` escape, as `json_encode` does \
-                   by default; the default here keeps UTF-8 as it is.",
+            desc: "Writes every non-ASCII character as a `\\uXXXX` escape. By default, UTF-8 text \
+                   is written as it is.",
             shape: &[],
         },
     ],
@@ -410,10 +410,9 @@ const ENCODE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Json::decode`'s reference card — `rule:core-api/reference-card`.
 const DECODE_DOC: MethodDoc = MethodDoc {
-    short: "Parses the JSON text `$json` into a value, as `json_decode` does with `$associative` \
-            set: an object becomes a string-keyed array, an array a list, and a scalar itself. A \
-            malformed document throws rather than answering `null`, so there is no \
-            `json_last_error`.",
+    short: "Parses the JSON text `$json` into a value. A JSON object becomes a string-keyed \
+            array, a JSON array becomes a list, and a scalar stays a scalar. Text that is not \
+            valid JSON throws an error.",
     params: &[
         ParamDoc {
             name: "json",
@@ -491,8 +490,8 @@ const DECODE_AS_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Json::isValid`'s reference card — `rule:core-api/reference-card`.
 const IS_VALID_DOC: MethodDoc = MethodDoc {
-    short: "Tells whether `$json` is a document `decode` would accept at the default depth of \
-            `512`, as `json_validate` does, by parsing it.",
+    short: "Checks whether `decode` accepts `$json` at the default depth of `512`. It parses the \
+            text to check it.",
     params: &[ParamDoc {
         name: "json",
         desc: "The JSON text to check.",
