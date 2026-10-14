@@ -49,21 +49,11 @@ Every subcommand also takes `--config <PATH>` (see `nvs run`), `--data <PATH>` a
 - A program is a `.nvs` file. The extension is a convention, not a rule: the front end never reads
   it, `nvs run` accepts any path, and what matters is the content. `nvs test` is the one command
   that decides anything from an extension, because it has two suites to choose between.
-- **A `<?php` tag does not compile.** A file opening with `<?php` is refused with `E0229` whatever
-  it is named, so a new extension changes nothing. `<?` alone is not a tag at all — the file stays in HTML mode
-  and is copied to the output.
+- `<?` alone is not a tag. The file stays in HTML mode, and `<?` is copied to the output as text.
 - A `#!` first line opens code mode. When the first two bytes of a file are `#!`, Novis skips that
   line and reads the rest as code, as if `<?nvs` stood there, so `#!/usr/bin/env nvs` makes a
   script you run as `./tool` on Linux and macOS. An `<?nvs` in such a file before any `?>` is
   `E0009`. `#!` anywhere else is ordinary text.
-
-```nvs error
-<?php
-echo "old tag";
-```
-```output
-E0229
-```
 
 # nvs run
 
