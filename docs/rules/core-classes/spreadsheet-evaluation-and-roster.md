@@ -29,7 +29,8 @@ writing ods; neither is in the first wave's acceptance. An evaluate call would r
 functions and references it could not compute, so a test asserts that list is empty — the visibility
 rule the PDF component applies to dropped CSS (`rule:core-classes/pdf-css-subset`).
 
-**Not shipped.** Nothing of `Novis\Spreadsheet` is on disk.
+**Not shipped.** An evaluate call and writing ods, both second-wave work. Every format the roster
+reads and writes is on disk.
 
 **Declined:**
 - **Evaluating formulas on read.** Recalculating on open turns reading an attacker's upload into

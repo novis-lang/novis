@@ -30,7 +30,8 @@ The component's tests owe a `tainted` string beginning `=` that lands as a text 
 expression as a `Formula` value that lands as a formula cell, both asserted on the written bytes
 rather than the builder's state.
 
-**Not shipped.** Nothing of `Novis\Spreadsheet` is on disk.
+**Not shipped.** Nothing: `Formula`, the three helpers and the text-cell rule are on disk
+(`extensions/spreadsheet/nvs/Formula.nvs`, `Sheet.nvs`).
 
 **Declined:**
 - **Placeholders inside formula text, such as `{qty}*{price}`.** It is a second syntax inside Excel's,

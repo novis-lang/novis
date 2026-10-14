@@ -10,4 +10,4 @@ and it exists for the same reason: a test that cannot compare bytes ends up comp
 The component's tests owe a filled `.xlsm` template whose output a scanner finds no `vbaProject`
 part in, and the same input written twice and filled twice, each pair compared byte for byte.
 
-**Not shipped.** Nothing of `Novis\Spreadsheet` is on disk.
+**Not shipped.** Nothing: the writer and the template filler both hold the rule.

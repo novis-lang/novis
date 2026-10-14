@@ -4512,7 +4512,7 @@ paragraphs, written down once.
 `sheet`, `finish`, `Written`, `Sheet`'s `add` and `addAll` in batches of 1,000 rows, `fromRows` and
 `Export` are on disk (`extensions/spreadsheet/nvs/Workbook.nvs`, `Sheet.nvs`, `Export.nvs`), with
 every sheet option above, the sheet-name rules, and the row options `height`, `hidden`, `level` and
-`style`. Not on disk: `define`, CSV, and the cut-off download, which the server cannot do yet
+`style`, and so are `define` and CSV. Not on disk: the cut-off download, which the server cannot do yet
 (`data/gaps/nvs-server/a-streamed-body-cannot-be-cut-off.json`).
 
 **Declined:**
@@ -4648,7 +4648,8 @@ The component's tests owe a `tainted` string beginning `=` that lands as a text 
 expression as a `Formula` value that lands as a formula cell, both asserted on the written bytes
 rather than the builder's state.
 
-**Not shipped.** Nothing of `Novis\Spreadsheet` is on disk.
+**Not shipped.** Nothing: `Formula`, the three helpers and the text-cell rule are on disk
+(`extensions/spreadsheet/nvs/Formula.nvs`, `Sheet.nvs`).
 
 **Declined:**
 - **Placeholders inside formula text, such as `{qty}*{price}`.** It is a second syntax inside Excel's,
@@ -4827,7 +4828,8 @@ and they are small beside the rows.
   the same height, and one flag per column, until the sheet is finished. A sheet with no custom height
   keeps none, and one whose every row differs from the row before keeps 8 MB at Excel's 1,048,576 rows.
 
-**Not shipped.** Nothing of `Novis\Spreadsheet` is on disk.
+**Not shipped.** `Cell::rich` ([`core-classes/spreadsheet-roster`](core-classes.md#core-classes-spreadsheet-roster)). Every other sheet-end part
+is on disk (`extensions/spreadsheet/nvs/Sheet.nvs`).
 
 **Declined:**
 - **Pivot tables, sparklines and threaded comments.** Each is a part with its own cache or model, for
@@ -5065,7 +5067,8 @@ a hint: memory is measured as it is spent.
 - **Memory:** a batch of rows on each side of the boundary, never the sheet. Each crossing is charged
   to the request while it is converted (`crates/nvs-ext/src/call.rs`'s module doc).
 
-**Not shipped.** Nothing of `Novis\Spreadsheet` is on disk.
+**Not shipped.** Nothing: every limit above throws (`extensions/spreadsheet/src/`, and the reader's
+under `extensions/spreadsheet/src/read/`).
 
 **Declined:**
 - **A cell cap with its own knob, read from the declared dimensions.** A streamed read holds a batch
@@ -5114,7 +5117,8 @@ writing ods; neither is in the first wave's acceptance. An evaluate call would r
 functions and references it could not compute, so a test asserts that list is empty — the visibility
 rule the PDF component applies to dropped CSS ([`core-classes/pdf-css-subset`](core-classes.md#core-classes-pdf-css-subset)).
 
-**Not shipped.** Nothing of `Novis\Spreadsheet` is on disk.
+**Not shipped.** An evaluate call and writing ods, both second-wave work. Every format the roster
+reads and writes is on disk.
 
 **Declined:**
 - **Evaluating formulas on read.** Recalculating on open turns reading an attacker's upload into
@@ -5144,7 +5148,7 @@ and it exists for the same reason: a test that cannot compare bytes ends up comp
 The component's tests owe a filled `.xlsm` template whose output a scanner finds no `vbaProject`
 part in, and the same input written twice and filled twice, each pair compared byte for byte.
 
-**Not shipped.** Nothing of `Novis\Spreadsheet` is on disk.
+**Not shipped.** Nothing: the writer and the template filler both hold the rule.
 
 <sub>See also [`core-classes/pdf-output-is-inert`](core-classes.md#core-classes-pdf-output-is-inert), [`core-classes/spreadsheet-evaluation-and-roster`](core-classes.md#core-classes-spreadsheet-evaluation-and-roster).</sub>
 

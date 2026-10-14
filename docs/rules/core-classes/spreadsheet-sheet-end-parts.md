@@ -76,7 +76,8 @@ and they are small beside the rows.
   the same height, and one flag per column, until the sheet is finished. A sheet with no custom height
   keeps none, and one whose every row differs from the row before keeps 8 MB at Excel's 1,048,576 rows.
 
-**Not shipped.** Nothing of `Novis\Spreadsheet` is on disk.
+**Not shipped.** `Cell::rich` (`rule:core-classes/spreadsheet-roster`). Every other sheet-end part
+is on disk (`extensions/spreadsheet/nvs/Sheet.nvs`).
 
 **Declined:**
 - **Pivot tables, sparklines and threaded comments.** Each is a part with its own cache or model, for
