@@ -230,7 +230,7 @@ the manifest parser, never by a string search.
 
 - [ ] The encoder records each value's qualifiers in the payload column. `crates/nvs-stdlib/src/queue.rs:3234`
 - [ ] The decoder restores them on the value `Core\Script::args()` returns. `crates/nvs-stdlib/src/script.rs:158`
-- [ ] A `secret` argument to `push` does not compile, with a diagnostic naming configuration as the place for a credential. `crates/nvs-stdlib/src/queue.rs:2019`
+- [x] A `secret` argument to `push` does not compile, with a diagnostic naming configuration as the place for a credential. `crates/nvs-stdlib/src/queue.rs:2019`
 - [ ] The conformance cases, and the feature proofs of `Core\Queue::push` and `Core\Script::args`: an attack that pushes a `tainted` value and echoes it in the job. `docs/examples/core/Queue/push/about.md:1`
 
 ### 3. the artifact cache is read, not mapped
@@ -282,21 +282,25 @@ the manifest parser, never by a string search.
 
 ### State
 
-Stage 1 is done and its rule is `shipped`. `nvs_server::mount::host` reads and folds a request's
-host, `host_is_refused` is the door's `400` (absent on HTTP/1.1, non-ASCII, or two `Host` lines), and
-`Table::resolve` refuses the same hosts again. The nightly CI failures the sweep reported all ran
-`origin/main`, which is far behind local `main` because the loop never pushes. Lint, the docs job,
-`ruzstd`, the LDAP cases and perf staleness were already fixed locally. `website/src/data/core.json`
-was stale, and `Core\Router\Gate` owed its proofs; both are fixed. The macOS warm-start budget
-(`bun nv bench --warm-start --max-work-ms 6`) cannot be measured here, so it is *not checked*.
+Stage 1 is done. Stage 2 is **blocked on a design conflict**. The standing decision *Queue
+qualifiers* wants each value's qualifiers recorded in the row and restored on decode. But
+`rule:security/taint-propagation` erases every qualifier before codegen ("no tag at run time"), and
+its Declined list refuses a hidden, source-marked `mixed`. That is exactly what a restored per-value
+mark would be. What already holds: text read out of `Core\Script::args()` (a `mixed`) is `tainted`,
+so a `tainted` payload value comes back `tainted`, and so does a clean one. The `payload-qualifiers`
+check is green on that. `payload-qualifiers-decode` names two `queue::` lib tests for a recording that
+nothing could read back, so it stays red until the user decides.
+The `secret` refusal's diagnostic now names configuration (`crates/nvs-types/src/expr/quals.rs:1357`).
+The macOS warm-start budget is still *not checked*.
 
 ### Next
 
-**Stage 2: a queue payload keeps its qualifiers**, one file set: `crates/nvs-stdlib/src/queue.rs`, `crates/nvs-stdlib/src/script.rs`.
+**Stage 2, once the user picks**, file set: `crates/nvs-stdlib/src/queue.rs`, `docs/goals/request-isolation-debts.md`, `docs/rules/concurrency/a-payload-refuses-secret-and-keeps-its-qualifiers.md`.
 
-- [ ] Record each value's qualifiers in the payload column (`rule:concurrency/a-payload-refuses-secret-and-keeps-its-qualifiers`). `crates/nvs-stdlib/src/queue.rs:3208`
-- [ ] Restore them in the decoder, so `Core\Script::args()` returns them (`rule:concurrency/a-payload-refuses-secret-and-keeps-its-qualifiers`). `crates/nvs-stdlib/src/queue.rs:3234`
-- [ ] Check what already refuses a `secret` argument before writing a new diagnostic: the type checker has one (`rule:security/secret-sinks-refuse`). `crates/nvs-types/src/expr/quals.rs:1279`
+- [ ] Either (a) accept the static result: drop `payload-qualifiers-decode`, rewrite the fragment to say every payload text comes back `tainted`, ship the rule (`rule:concurrency/a-payload-refuses-secret-and-keeps-its-qualifiers`), or (b) overturn `rule:security/taint-propagation`'s Declined *hidden, source-marked `mixed`* and build a run-time mark. `crates/nvs-stdlib/src/queue.rs:3234`
+- [ ] The feature proofs of `Core\Queue::push` and `Core\Script::args`: an attack that pushes a `tainted` value and uses it in the job. `docs/examples/core/Queue/push/about.md:1`
+
+Stage 3 does not depend on this and can run first: `crates/nvs-cli/src/cache.rs:1313`.
 
 ### Backlog
 

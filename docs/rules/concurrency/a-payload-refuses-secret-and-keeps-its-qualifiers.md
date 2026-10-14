@@ -9,6 +9,9 @@ instead of being laundered by a database. The queue's table is trusted exactly a
 the application's database is — an attacker who can write to it has already won — which is a better
 answer than returning every field `tainted` and training every job to launder reflexively.
 
-**Not on disk.** A `secret` argument to an enqueue does not compile
-(`crates/nvs-types/src/expr/quals.rs:1248`). The other qualifiers are not recorded with the payload, and
-nothing restores them on decode.
+**Not on disk.** A `secret` argument to an enqueue does not compile, and its help names configuration
+(`crates/nvs-types/src/expr/quals.rs:1279`). A `tainted` value comes back `tainted` only because
+`Core\Script::args()` answers `mixed` and every text read out of `mixed` is `tainted`
+(`rule:security/taint-propagation`), so a value enqueued clean comes back `tainted` as well. Nothing
+records a qualifier in the row: the qualifier is erased before codegen, and a run-time mark on a
+`mixed` value is that rule's Declined *hidden, source-marked `mixed`*.

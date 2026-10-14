@@ -1358,15 +1358,13 @@ fn report_secret_enqueued(span: Span, env: &mut Env<'_>) {
     env.diags.report(
         Diagnostic::error(
             code::E_SECRET_ENCODED,
-            "a `secret`-qualified value cannot be passed to `Core\\Queue::push`; the `args` \
-             payload is encoded into a durable row that a worker process decodes later, and a \
-             stored job is not the credential being used",
+            "a `secret` value cannot be passed to `Core\\Queue::push`. The `args` payload is \
+             stored in the jobs table, and a worker reads it later",
         )
         .with_primary(span, "secret value enqueued here")
         .with_help(
-            "reveal the one field that must travel with \
-             `Core\\Secret::reveal(..., \"reason\")`, written at that field rather than at the \
-             call, so the rest of the payload stays covered",
+            "read the credential from configuration when the job runs. If one field must travel \
+             with the job, reveal that field with `Core\\Secret::reveal(..., \"reason\")`",
         ),
     );
 }
