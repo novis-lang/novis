@@ -3735,3 +3735,118 @@ fn the_artifact_directory_is_one_reload_row_in_its_block_and_has_no_second_spell
          nothing: {tiers:?}",
     );
 }
+
+/// The value `key` has on a tree that writes `written` and nothing else, as `Core\Config::get`
+/// renders it.
+fn in_force(written: &str, key: &str) -> Option<String> {
+    let table: toml::Table = written.parse().expect("the case writes valid TOML");
+    nvs_config::defaults::in_force(
+        key,
+        &nvs_config::defaults::At {
+            table: &table,
+            serving: true,
+            mode: "production",
+            started: "production",
+        },
+    )
+}
+
+/// `rule:http-server/request-body-and-upload-total-are-two-caps`'s table, read through the
+/// defaults a request sees: the two `[limits]` rows and their two `[limits.hard]` ceilings, each
+/// a `Runtime` key under the `System` ceiling block.
+#[test]
+fn request_body_and_upload_total_resolve_to_their_defaults() {
+    for (key, default) in [
+        ("limits.request_body", "8M"),
+        ("limits.upload_total", "256M"),
+        ("limits.hard.request_body", "64M"),
+        ("limits.hard.upload_total", "2G"),
+    ] {
+        assert_eq!(
+            in_force("", key).as_deref(),
+            Some(default),
+            "`{key}` is the rule's default on a tree that writes nothing"
+        );
+        assert_eq!(unit_of(key), Some(Unit::Bytes), "`{key}` is a size");
+    }
+    assert_eq!(governing("limits.request_body").class, Class::Runtime);
+    assert_eq!(governing("limits.upload_total").class, Class::Runtime);
+    assert_eq!(governing("limits.hard.request_body").class, Class::System);
+    assert_eq!(governing("limits.hard.upload_total").class, Class::System);
+    // A written ceiling does not move the value it bounds.
+    assert_eq!(
+        in_force(
+            "[limits.hard]\nrequest_body = \"32M\"\n",
+            "limits.request_body"
+        )
+        .as_deref(),
+        Some("8M"),
+    );
+}
+
+/// The code a tree writing `written` is refused with by the body-cap check a boot runs, and
+/// `None` for one it accepts.
+fn body_cap_refusal(written: &str) -> Option<Code> {
+    let mut sources = SourceMap::new();
+    let (_, parsed) = nvs_config::file::parse::<Config>(&mut sources, "nvs.toml", written);
+    let config = parsed.unwrap_or_else(|err| panic!("{written}-- did not parse: {}", err.message));
+    nvs_config::app::body_caps(&config, &BTreeMap::new())
+        .err()
+        .map(|refused| refused.code.expect("a boot refusal carries its code"))
+}
+
+/// `rule:http-server/request-body-and-upload-total-are-two-caps`: the two ceilings have defaults
+/// of their own, so a `[limits]` value past one is refused with no `[limits.hard]` written, and a
+/// written ceiling moves the bound both ways.
+#[test]
+fn a_body_cap_past_its_hard_ceiling_is_refused() {
+    let cases: &[(&str, Option<Code>)] = &[
+        (
+            "[limits]\nrequest_body = \"64M\"\nupload_total = \"2G\"\n",
+            None,
+        ),
+        (
+            "[limits]\nrequest_body = \"65M\"\n",
+            Some(code::E_BAD_DIRECTIVE),
+        ),
+        (
+            "[limits]\nupload_total = \"3G\"\n",
+            Some(code::E_BAD_DIRECTIVE),
+        ),
+        (
+            "[limits]\nrequest_body = false\n",
+            Some(code::E_BAD_DIRECTIVE),
+        ),
+        (
+            "[limits]\nrequest_body = \"12 parsecs\"\n",
+            Some(code::E_BAD_DIRECTIVE),
+        ),
+        (
+            "[limits]\nrequest_body = \"128M\"\n\n[limits.hard]\nrequest_body = \"256M\"\n",
+            None,
+        ),
+        (
+            "[limits]\nupload_total = \"4G\"\n\n[limits.hard]\nupload_total = false\n",
+            None,
+        ),
+        (
+            "[limits]\nrequest_body = \"16M\"\n\n[limits.hard]\nrequest_body = \"8M\"\n",
+            Some(code::E_BAD_DIRECTIVE),
+        ),
+        (
+            "[[app]]\nroot = \"/srv/blog\"\n\n[app.limits]\nrequest_body = \"65M\"\n",
+            Some(code::E_APP_ABOVE_CEILING),
+        ),
+        (
+            "[[app]]\nroot = \"/srv/blog\"\n\n[app.limits.hard]\nupload_total = \"3G\"\n",
+            Some(code::E_APP_ABOVE_CEILING),
+        ),
+        (
+            "[[app]]\nroot = \"/srv/blog\"\n\n[app.limits]\nrequest_body = \"32M\"\n",
+            None,
+        ),
+    ];
+    for (written, refused) in cases {
+        assert_eq!(body_cap_refusal(written), *refused, "{written}");
+    }
+}

@@ -116,7 +116,14 @@ pub fn unit_of(key: &str) -> Option<Unit> {
         // bounds, so it is read in the same units and by the same parser.
         // `rule:core-classes/decompression-bound`'s absolute half is a quantity of the same heap
         // `memory` bounds, so it is read in the same units and by the same parser.
-        "memory" | "max_output" | "fatal_reserve_memory" | "max_decompressed" => Some(Unit::Bytes),
+        // The two body caps count the bytes of a request body, which is a size like the response
+        // `max_output` counts.
+        "memory"
+        | "max_output"
+        | "fatal_reserve_memory"
+        | "max_decompressed"
+        | "request_body"
+        | "upload_total" => Some(Unit::Bytes),
         // The other half of that slice is a quantity of the same CPU time `cpu_time` bounds, and
         // is read here for the same reason: a limit missing from this table has no block, so a
         // bare name never reaches `[limits]` and the reader silently answers its default instead.

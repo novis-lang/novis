@@ -7,7 +7,10 @@ Both are rows in the `[limits]`/`[limits.hard]` pair that `rule:config/three-cha
 
 The split follows from what the two measure. Content parsed into memory deserves the tighter number, because it is resident and O(in-flight); content streamed to disk deserves a ceiling shaped like what uploads are, because a phone photo is 5–12M and an 8M refusal is advice rather than protection. One number governing both would have to be the larger, and would then license a quarter-gigabyte JSON body parsed wholly into memory on the strength of an argument made about files. `rule:http-server/upload-total-is-enforced-on-the-wire` is where the second cap bites.
 
-**Not on disk.** Both caps are constants at their defaults: `upload_total` is 256 MiB and enforced at
-the door (`crates/nvs-server/src/body.rs:60`), and `request_body` is 8 MiB and applied to a multipart
-field (`crates/nvs-stdlib/src/request.rs:2832`). Neither is a `[limits]` row, and neither has a
-`[limits.hard]` ceiling.
+Both rows and both ceilings resolve, and a `[limits]` or `[app.limits]` value past its ceiling is
+refused at boot whether or not `[limits.hard]` is written (`crates/nvs-config/src/app.rs`'s
+`body_caps`).
+
+**Not on disk.** Nothing reads the rows yet. The door still enforces a 256 MiB constant
+(`crates/nvs-server/src/body.rs:60`), and the readers still hold a multipart field to an 8 MiB
+constant (`crates/nvs-stdlib/src/request.rs:2832`).

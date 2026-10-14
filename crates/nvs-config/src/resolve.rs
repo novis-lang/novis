@@ -490,6 +490,9 @@ pub fn resolve(
     // `rule:config/an-app-block-may-widen-bounded-by-the-global-ceiling`'s bound, once the roster is keyed: what a block asks for is compared against the
     // global `[limits.hard]`, which is a property of the merged tree and of nothing smaller.
     crate::app::bound(&resolved.config, &origins)?;
+    // The two body caps have ceilings with defaults of their own, so they are bounded whether or
+    // not a `[limits.hard]` is written.
+    crate::app::body_caps(&resolved.config, &origins)?;
     // `rule:observability/memory-high-water-writes-a-warn`'s fraction, over the same keyed roster:
     // a share outside `0..=1` is refused where it was written, not read as off at the first request.
     crate::app::high_water(&resolved.config, &origins)?;

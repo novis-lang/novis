@@ -72,6 +72,12 @@
 #cpu_time = "30s"                     # default: 30s for server work, none under nvs run and nvs test
 #wall_time = "60s"                    # default: no cap
 #max_output = "32M"                   # default: no cap
+# `Runtime` — the two limits on a request body. `request_body` is the most a request may read into
+# memory: `Core\Request::body()`, a JSON or form body, and the text fields of a multipart form.
+# `upload_total` is the most bytes a whole body may have, including the parts a program skips. A
+# body larger than `upload_total` gets a `413` answer.
+#request_body = "8M"                  # default
+#upload_total = "256M"                # default
 # `Runtime` — concurrent tasks, named to a request like the ones above. No scheduler or budget reads
 # it yet, so writing it bounds nothing today (`rule:security/isolate-budget-is-the-trees` is what it
 # is for).
@@ -126,6 +132,10 @@
 #max_tasks = 64                       # default: the [limits] value
 #max_output = "128M"                  # default: the [limits] value
 #max_regex_steps = 5000000            # default: the [limits] value
+# The two body limits have a ceiling of their own, which applies when this block does not write
+# one. A `[limits]` value above it does not start.
+#request_body = "64M"                 # default
+#upload_total = "2G"                  # default
 
 
 # ----------------------------------------------------------------------------------------------
@@ -851,6 +861,8 @@
 #max_tasks = 16                       # default: the [limits] value
 #max_output = "64M"                   # default: the [limits] value
 #max_regex_steps = 5000000            # default: the [limits] value
+#request_body = "64M"                 # default
+#upload_total = "2G"                  # default
 
 #[schedule.grants.script]
 # This entry's grants, key for key the same as `[capabilities.*]` above and read the same way: what
@@ -1003,6 +1015,8 @@
 #max_output = "32M"                   # default: no cap
 #max_tasks = 16                       # default: no cap
 #max_regex_steps = 1000000            # default
+#request_body = "8M"                  # default
+#upload_total = "256M"                # default
 #fatal_reserve_memory = "1M"          # default
 #fatal_reserve_time = "50ms"          # default
 #max_script_depth = 64                # default
@@ -1021,6 +1035,8 @@
 #max_tasks = 64                       # default: the [limits] value
 #max_output = "128M"                  # default: the [limits] value
 #max_regex_steps = 5000000            # default: the [limits] value
+#request_body = "64M"                 # default
+#upload_total = "2G"                  # default
 
 #[app.capabilities.script]
 # This application's grants, key for key `[capabilities.*]`'s and read the same way: what is not

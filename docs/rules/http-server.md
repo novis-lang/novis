@@ -3,7 +3,7 @@
 
 # The HTTP server
 
-*3 of 80 rules below are **designed** rather than shipped, and are marked where they appear.*
+*2 of 80 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="http-server-two-deployments-and-nothing-a-proxy-owns"></a>
 
@@ -1062,10 +1062,13 @@ Both are rows in the `[limits]`/`[limits.hard]` pair that [`config/three-changea
 
 The split follows from what the two measure. Content parsed into memory deserves the tighter number, because it is resident and O(in-flight); content streamed to disk deserves a ceiling shaped like what uploads are, because a phone photo is 5–12M and an 8M refusal is advice rather than protection. One number governing both would have to be the larger, and would then license a quarter-gigabyte JSON body parsed wholly into memory on the strength of an argument made about files. [`http-server/upload-total-is-enforced-on-the-wire`](http-server.md#http-server-upload-total-is-enforced-on-the-wire) is where the second cap bites.
 
-**Not on disk.** Both caps are constants at their defaults: `upload_total` is 256 MiB and enforced at
-the door (`crates/nvs-server/src/body.rs:60`), and `request_body` is 8 MiB and applied to a multipart
-field (`crates/nvs-stdlib/src/request.rs:2832`). Neither is a `[limits]` row, and neither has a
-`[limits.hard]` ceiling.
+Both rows and both ceilings resolve, and a `[limits]` or `[app.limits]` value past its ceiling is
+refused at boot whether or not `[limits.hard]` is written (`crates/nvs-config/src/app.rs`'s
+`body_caps`).
+
+**Not on disk.** Nothing reads the rows yet. The door still enforces a 256 MiB constant
+(`crates/nvs-server/src/body.rs:60`), and the readers still hold a multipart field to an 8 MiB
+constant (`crates/nvs-stdlib/src/request.rs:2832`).
 
 <sub>See also [`http-server/upload-total-is-enforced-on-the-wire`](http-server.md#http-server-upload-total-is-enforced-on-the-wire), [`http-server/a-part-is-consumed-in-one-of-three-ways`](http-server.md#http-server-a-part-is-consumed-in-one-of-three-ways), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives), [`errors/multipart-part-count`](errors.md#errors-multipart-part-count), [`http-server/the-body-is-read-on-demand-under-two-caps`](http-server.md#http-server-the-body-is-read-on-demand-under-two-caps).</sub>
 
@@ -1911,7 +1914,7 @@ a program's cost.
 
 <a id="http-server-a-requests-blast-radius-is-bounded-at-four-tiers"></a>
 
-## Nothing a request can send terminates or wedges a worker: its blast radius is bounded at four named tiers, and the residue is one stated fault class  *(designed — owned by goal request-isolation-debts)*
+## Nothing a request can send terminates or wedges a worker: its blast radius is bounded at four named tiers, and the residue is one stated fault class
 
 `rule:http-server/a-requests-blast-radius-is-bounded-at-four-tiers`
 

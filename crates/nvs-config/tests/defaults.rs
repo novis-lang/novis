@@ -85,9 +85,13 @@ fn split(rest: &str) -> (String, String) {
 }
 
 /// The key of the row a setting line is the default of: an `[[app]]` block's keys are the global
-/// block's own keys, folded over them.
-fn row_key(key: &str) -> &str {
-    key.strip_prefix("app.").unwrap_or(key)
+/// block's own keys, folded over them, and a `[[schedule]]` entry's `limits` are its ceilings, the
+/// keys of `[limits.hard]`.
+fn row_key(key: &str) -> String {
+    match key.strip_prefix("schedule.limits.") {
+        Some(leaf) => format!("limits.hard.{leaf}"),
+        None => key.strip_prefix("app.").unwrap_or(key).to_string(),
+    }
 }
 
 /// A fixed value as the shipped file writes it, quotes included, or `None` for a computed one.
@@ -116,7 +120,7 @@ fn every_default_line_shows_the_value_the_table_ships() {
     let mut problems = Vec::new();
     let mut reached = BTreeSet::new();
     for setting in settings() {
-        let row = defaults::row(row_key(&setting.key));
+        let row = defaults::row(&row_key(&setting.key));
         if let Some(row) = row {
             reached.insert(row.key);
         }

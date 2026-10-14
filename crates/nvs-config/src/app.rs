@@ -390,28 +390,133 @@ fn bounded(
 
 /// The `[limits]` keys of a per-app block, named and in the tree's own order — the same keys
 /// [`ceilings`] returns, in the same order, so the two zip row for row.
-fn defaults(limits: &Limits) -> [(&'static str, Option<&Setting>); 6] {
+fn defaults(limits: &Limits) -> [(&'static str, Option<&Setting>); 8] {
     [
         ("memory", limits.memory.as_ref()),
         ("cpu_time", limits.cpu_time.as_ref()),
         ("wall_time", limits.wall_time.as_ref()),
         ("max_tasks", limits.max_tasks.as_ref()),
         ("max_output", limits.max_output.as_ref()),
+        ("request_body", limits.request_body.as_ref()),
+        ("upload_total", limits.upload_total.as_ref()),
         ("max_regex_steps", limits.max_regex_steps.as_ref()),
     ]
 }
 
 /// The same keys of a `[limits.hard]`, carrying their names — one table, so a new limit is a row
 /// here rather than a scattering of places to forget.
-pub(crate) fn ceilings(set: &LimitSet) -> [(&'static str, Option<&Setting>); 6] {
+pub(crate) fn ceilings(set: &LimitSet) -> [(&'static str, Option<&Setting>); 8] {
     [
         ("memory", set.memory.as_ref()),
         ("cpu_time", set.cpu_time.as_ref()),
         ("wall_time", set.wall_time.as_ref()),
         ("max_tasks", set.max_tasks.as_ref()),
         ("max_output", set.max_output.as_ref()),
+        ("request_body", set.request_body.as_ref()),
+        ("upload_total", set.upload_total.as_ref()),
         ("max_regex_steps", set.max_regex_steps.as_ref()),
     ]
+}
+
+/// `rule:http-server/request-body-and-upload-total-are-two-caps`'s two caps against their
+/// ceilings, which are the only `[limits.hard]` keys with a default of their own: `64M` and `2G`.
+///
+/// [`bound`] applies a ceiling only where the operator wrote one, because every other ceiling
+/// defaults to the value the run started with. These two default to a number, so a `[limits]` or
+/// `[app.limits]` value past it is refused here whether or not `[limits.hard]` is written. An
+/// `[app.limits.hard]` value is held to the same ceiling, for [`bound`]'s reason.
+///
+/// # Errors
+///
+/// `E0610` for a value above the ceiling, and `E0601` for a value that is not a size.
+pub fn body_caps(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(), Diagnostic> {
+    let hard = config
+        .limits
+        .as_ref()
+        .and_then(|limits| limits.hard.as_ref());
+    for (name, default) in [
+        ("request_body", crate::defaults::LIMITS_HARD_REQUEST_BODY),
+        ("upload_total", crate::defaults::LIMITS_HARD_UPLOAD_TOTAL),
+    ] {
+        let written = hard.and_then(|hard| field(&ceilings(hard), name));
+        let ceiling = written.unwrap_or_else(|| Setting::Text(crate::defaults::size(default)));
+        if let Some(asked) = config
+            .limits
+            .as_ref()
+            .and_then(|limits| field(&defaults(limits), name))
+        {
+            let key = format!("limits.{name}");
+            if crate::value::within_ceiling(&key, &asked, &ceiling)
+                .map_err(|invalid| invalid.diagnostic(origins.get(&key)))?
+                == Some(false)
+            {
+                return Err(body_cap_above_ceiling(
+                    &key,
+                    &asked,
+                    &ceiling,
+                    origins.get(&key),
+                ));
+            }
+        }
+        for (index, block) in config.app.iter().enumerate() {
+            let Some(limits) = block.limits.as_ref() else {
+                continue;
+            };
+            let block_path = format!("app.{index}.limits");
+            bounded(
+                &block_path,
+                name,
+                field(&defaults(limits), name).as_ref(),
+                Some(&ceiling),
+                origins,
+            )?;
+            if let Some(own) = limits.hard.as_ref() {
+                let hard_path = format!("{block_path}.hard");
+                bounded(
+                    &hard_path,
+                    name,
+                    field(&ceilings(own), name).as_ref(),
+                    Some(&ceiling),
+                    origins,
+                )?;
+            }
+        }
+    }
+    Ok(())
+}
+
+/// `E0601` for a `[limits]` body cap above its ceiling. The message names both values, and the
+/// help names the one key that raises the ceiling.
+fn body_cap_above_ceiling(
+    key: &str,
+    asked: &Setting,
+    ceiling: &Setting,
+    written_in: Option<&Origin>,
+) -> Diagnostic {
+    let leaf = key.trim_start_matches("limits.");
+    Diagnostic::error(
+        code::E_BAD_DIRECTIVE,
+        format!(
+            "`[limits] {leaf}` is `{}`, which is above its ceiling of `{}`",
+            crate::value::as_written(asked),
+            crate::value::as_written(ceiling)
+        ),
+    )
+    .with_note(format!(
+        "a request may raise its own `{leaf}` up to the ceiling, so the value it starts with \
+         must not be above it{}",
+        origin_note(written_in)
+    ))
+    .with_help(format!(
+        "lower `[limits] {leaf}`, or write a higher `[limits.hard] {leaf}`"
+    ))
+}
+
+/// The value one row of [`defaults`] or [`ceilings`] carries for `name`, owned.
+fn field(rows: &[(&'static str, Option<&Setting>)], name: &str) -> Option<Setting> {
+    rows.iter()
+        .find(|(row, _)| *row == name)
+        .and_then(|(_, written)| written.cloned())
 }
 
 /// `rule:config/every-matching-app-block-applies-least-specific-first`'s matching blocks for one entry file, **least-specific first** — shortest `root` first,

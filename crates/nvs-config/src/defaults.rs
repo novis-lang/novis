@@ -73,6 +73,17 @@ pub const LIMITS_MAX_DECOMPRESSED: u64 = 64 * MIB;
 pub const LIMITS_MAX_DECOMPRESSION_RATIO: u64 = 1000;
 /// `[limits] disconnect_grace`: how long a request may outlive a client that went away.
 pub const LIMITS_DISCONNECT_GRACE: Duration = Duration::from_secs(30);
+/// `[limits] request_body`: the bytes of a request body parsed into memory
+/// (`rule:http-server/request-body-and-upload-total-are-two-caps`). **What it spends:** up to
+/// 8 MiB per request in flight that reads its body whole.
+pub const LIMITS_REQUEST_BODY: u64 = 8 * MIB;
+/// `[limits] upload_total`: the total bytes of a streamed request body. Nothing is resident for
+/// it: a streamed body holds one chunk at a time, whatever this is.
+pub const LIMITS_UPLOAD_TOTAL: u64 = 256 * MIB;
+/// `[limits.hard] request_body`: the most a request may raise its own `request_body` to.
+pub const LIMITS_HARD_REQUEST_BODY: u64 = 64 * MIB;
+/// `[limits.hard] upload_total`: the most a request may raise its own `upload_total` to.
+pub const LIMITS_HARD_UPLOAD_TOTAL: u64 = 2048 * MIB;
 
 /// `[log] handler_reserve_memory`: the tier-3 handler's memory reserve.
 pub const LOG_HANDLER_RESERVE_MEMORY: usize = 16 << 20;
@@ -366,11 +377,15 @@ pub const DEFAULTS: &[Builtin] = &[
     row!("limits.max_decompressed", Value::Size(LIMITS_MAX_DECOMPRESSED)),
     row!("limits.max_decompression_ratio", Value::Count(LIMITS_MAX_DECOMPRESSION_RATIO)),
     row!("limits.disconnect_grace", Value::Time(LIMITS_DISCONNECT_GRACE)),
+    row!("limits.request_body", Value::Size(LIMITS_REQUEST_BODY)),
+    row!("limits.upload_total", Value::Size(LIMITS_UPLOAD_TOTAL)),
     row!("limits.hard.memory", Value::Inherit("limits.memory")),
     row!("limits.hard.cpu_time", Value::Inherit("limits.cpu_time")),
     row!("limits.hard.wall_time", Value::Inherit("limits.wall_time")),
     row!("limits.hard.max_tasks", Value::Inherit("limits.max_tasks")),
     row!("limits.hard.max_output", Value::Inherit("limits.max_output")),
+    row!("limits.hard.request_body", Value::Size(LIMITS_HARD_REQUEST_BODY)),
+    row!("limits.hard.upload_total", Value::Size(LIMITS_HARD_UPLOAD_TOTAL)),
     row!("limits.hard.max_regex_steps", Value::Inherit("limits.max_regex_steps")),
     row!("log.handler_reserve_memory", Value::Size(LOG_HANDLER_RESERVE_MEMORY as u64)),
     row!("log.handler_reserve_time", Value::Time(LOG_HANDLER_RESERVE_TIME)),
@@ -556,7 +571,7 @@ pub fn render_list(items: &[&str]) -> String {
 }
 
 /// A size with the largest binary suffix that divides it exactly, and bare where none does.
-fn size(bytes: u64) -> String {
+pub(crate) fn size(bytes: u64) -> String {
     for (suffix, shift) in [("T", 40), ("G", 30), ("M", 20), ("K", 10)] {
         if bytes != 0 && bytes.is_multiple_of(1 << shift) {
             return format!("{}{suffix}", bytes >> shift);

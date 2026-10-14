@@ -191,6 +191,12 @@ pub struct Limits {
     pub max_tasks: Option<Setting>,
     /// `Runtime` — bytes written to the response.
     pub max_output: Option<Setting>,
+    /// `Runtime` — the bytes of a request body parsed into memory
+    /// (`rule:http-server/request-body-and-upload-total-are-two-caps`).
+    pub request_body: Option<Setting>,
+    /// `Runtime` — the total bytes of a streamed request body, consumed and drained alike
+    /// (`rule:http-server/request-body-and-upload-total-are-two-caps`).
+    pub upload_total: Option<Setting>,
     /// `Runtime` — how many steps `rule:core-classes/regex-two-tiers`'s backtracking tier may spend
     /// on one subject before it throws. Unset, the budget `crates/nvs-stdlib/src/regex.rs` states,
     /// which is the figure that engine's own adversarial-pattern tests are written against. The
@@ -268,6 +274,10 @@ pub struct LimitSet {
     pub max_tasks: Option<Setting>,
     /// The ceiling on response bytes.
     pub max_output: Option<Setting>,
+    /// The ceiling on the body bytes parsed into memory.
+    pub request_body: Option<Setting>,
+    /// The ceiling on a streamed body's total bytes.
+    pub upload_total: Option<Setting>,
     /// The ceiling on backtracking steps.
     pub max_regex_steps: Option<Setting>,
 }
