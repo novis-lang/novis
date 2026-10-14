@@ -32379,6 +32379,14 @@ Every subcommand also takes `--config <PATH>` (see `nvs run`), `--data <PATH>` a
   script you run as `./tool` on Linux and macOS. An `<?nvs` in such a file before any `?>` is
   `E0009`. `#!` anywhere else is ordinary text.
 
+```nvs
+#!/usr/bin/env nvs
+echo "This line runs as code.", "\n";
+```
+```output
+This line runs as code.
+```
+
 ### nvs run
 
     nvs run <file> [--config <path>]... [--dump-ir | --dump-asm]
