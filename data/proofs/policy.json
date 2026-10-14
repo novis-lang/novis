@@ -159,6 +159,11 @@
       "perf": "`new Cell` stores two values and calls nothing; `Cell::of` builds one on every call, so its figure includes this one.",
       "hostile": "`new Cell` stores two typed read-only values and calls nothing, so a wrong style does not compile; a hostile value is checked when the row is written, and the attack of `Cell::of` sends one."
     },
+    "Novis\\Spreadsheet\\Chart::constructor": {
+      "examples": "`new Chart` stores eight values and calls nothing; a program starts a chart with `Chart::column` or another type, and the examples of those methods and of `series` and `combine` show every way a chart is built.",
+      "perf": "`new Chart` stores eight values and calls nothing; every type method, `series` and `combine` build one on every call, so their figures include this one.",
+      "hostile": "`new Chart` stores eight typed read-only values and calls nothing, so a wrong value does not compile; the titles, ranges, names and colors a request sends are checked when `Sheet::chart` places the chart, and the attacks of the type methods, `series` and `combine` send hostile ones."
+    },
     "Novis\\Spreadsheet\\Export::constructor": {
       "examples": "`new Export` stores its function and options and calls nothing; a program meets an `Export` from `Workbook::fromRows` or `Template::fill`, and the examples of `save`, `to`, `bytes` and `download` show it, one of them through `new Export`.",
       "perf": "`new Export` stores three values and calls nothing; `Workbook::fromRows` builds one on every call, so the benches of `download`, `save`, `to` and `bytes` include this one.",

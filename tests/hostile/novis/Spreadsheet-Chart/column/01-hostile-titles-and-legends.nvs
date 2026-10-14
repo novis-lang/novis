@@ -1,0 +1,38 @@
+<?nvs
+// Attack: a request starts column charts with hostile titles and legend values.
+// Each title should be written as text, and each legend that is not allowed should throw an error.
+use Novis\Spreadsheet\Chart;
+use Novis\Spreadsheet\Workbook;
+
+class Attack
+{
+    // This method starts a column chart with `$options` and prints whether the file was written, or the class of the error.
+    public static function attempt(int $step, ?{title?: string, xTitle?: string, yTitle?: string, legend?: string, labels?: bool} $options): void
+    {
+        try {
+            var $book = Workbook::createInMemory();
+            var $sheet = $book->sheet('Shop');
+            $sheet->addAll([['month' => 'January', 'sales' => 120], ['month' => 'February', 'sales' => 150]]);
+            $sheet->chart('D2', Chart::column($options)->series($sheet->column('sales'), { categories: $sheet->column('month') }));
+            bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+            echo 'step ', $step, ' wrote ', Core\Bytes::length($file) > 0 ? 'a file' : 'nothing', "\n";
+        } catch (Throwable $e) {
+            echo 'step ', $step, ' stopped ', $e::class, "\n";
+        }
+    }
+}
+
+// 1. Titles with markup that tries to close the XML of the chart.
+Attack::attempt(1, { title: '</a:t></a:r><c:externalData r:id="rId9"/>' });
+Attack::attempt(1, { xTitle: ']]><!ENTITY x SYSTEM "file:///etc/passwd">', yTitle: '&x;' });
+
+// 2. Titles of 100,000 characters, of control characters, and of text that is not valid UTF-16.
+Attack::attempt(2, { title: Core\Str::repeat('t', 100000) });
+Attack::attempt(2, { title: "\u{0}\u{1}\u{1B}[31m\u{FFFE}" });
+
+// 3. Legend values that are close to the allowed ones.
+Attack::attempt(3, { legend: 'RIGHT' });
+Attack::attempt(3, { legend: ' right' });
+Attack::attempt(3, { legend: "right\u{0}" });
+Attack::attempt(3, { legend: '' });
+Attack::attempt(3, { legend: Core\Str::repeat('left', 50000) });

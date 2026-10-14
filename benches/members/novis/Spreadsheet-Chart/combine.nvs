@@ -1,0 +1,24 @@
+<?nvs
+// Combines columns of the sales with a line of the costs, as a report of sales and costs does.
+// bench: iterations 32
+// bench: complexity constant
+use Novis\Spreadsheet\Chart;
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        var $sales = Chart::column({ title: 'Sales and costs' })->series('B2:B13', { categories: 'A2:A13', name: 'Sales' });
+        var $costs = Chart::line()->series('C2:C13', { categories: 'A2:A13', name: 'Costs' });
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            var $chart = $sales->combine($costs);
+            $total = $total + Core\Arr::count($chart->combined);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(32), "\n";

@@ -1,0 +1,14 @@
+<?nvs
+// Shows that `combine` returns a new chart and the first chart does not change.
+use Novis\Spreadsheet\Chart;
+
+var $columns = Chart::column({ title: 'Sales' })->series('B2:B4');
+var $line = Chart::line({ title: 'Costs' })->series('C2:C4');
+var $both = $columns->combine($line);
+
+// `combined` is the list of the types that `combine` added.
+echo 'columns: ', Core\Arr::count($columns->combined), " added\n";
+echo 'both: ', Core\Arr::count($both->combined), " added\n";
+
+// The title comes from the chart you call `combine` on.
+echo $both->title ?? 'no title', "\n";

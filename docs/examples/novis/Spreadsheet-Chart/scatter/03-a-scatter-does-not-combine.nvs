@@ -1,0 +1,16 @@
+<?nvs
+// Shows the error for a scatter chart combined with a line.
+use Novis\Spreadsheet\Chart;
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet('Products');
+$sheet->addAll([['price' => 4.5, 'sold' => 120, 'goal' => 100], ['price' => 9.0, 'sold' => 75, 'goal' => 80]]);
+
+// Only column, line and area charts combine, so `Sheet::chart` throws a `LogicError`.
+var $points = Chart::scatter()->series($sheet->column('sold'), { categories: $sheet->column('price') });
+try {
+    $sheet->chart('E2', $points->combine(Chart::line()->series($sheet->column('goal'))));
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}

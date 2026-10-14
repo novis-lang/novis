@@ -1,5 +1,5 @@
 {
-  "total": 112935156,
+  "total": 112938169,
   "benches": {
     "benches/members/core/Arr/all.nvs": 1542,
     "benches/members/core/Arr/any.nvs": 1542,
@@ -999,6 +999,15 @@
     "benches/members/lang/types/what-does-not-exist.nvs": 1884,
     "benches/members/lang/types/widening-without-as.nvs": 5125,
     "benches/members/novis/Spreadsheet-Cell/of.nvs": 12310,
+    "benches/members/novis/Spreadsheet-Chart/area.nvs": 325,
+    "benches/members/novis/Spreadsheet-Chart/bar.nvs": 421,
+    "benches/members/novis/Spreadsheet-Chart/column.nvs": 357,
+    "benches/members/novis/Spreadsheet-Chart/combine.nvs": 279,
+    "benches/members/novis/Spreadsheet-Chart/doughnut.nvs": 389,
+    "benches/members/novis/Spreadsheet-Chart/line.nvs": 293,
+    "benches/members/novis/Spreadsheet-Chart/pie.nvs": 293,
+    "benches/members/novis/Spreadsheet-Chart/scatter.nvs": 421,
+    "benches/members/novis/Spreadsheet-Chart/series.nvs": 235,
     "benches/members/novis/Spreadsheet-Export/bytes.nvs": 7589,
     "benches/members/novis/Spreadsheet-Export/download.nvs": 10853,
     "benches/members/novis/Spreadsheet-Export/save.nvs": 7462,
