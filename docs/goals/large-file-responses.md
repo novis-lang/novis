@@ -30,7 +30,7 @@ stages:
         shapes: [A rule fragment, A `Core` member]
   - id: 4
     title: "a stream with a declared length answers a range"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/response.rs, crates/nvs-server/src/serve.rs, crates/nvs-server/src/statics.rs]
     extra:
       context:
@@ -205,39 +205,31 @@ named parameters on `stream` and two methods on `Core\Response\Stream`; `sendFil
 - [x] `stream` takes `length` and `etag`, decides, and sends the head. `crates/nvs-stdlib/src/response.rs:1882`
 - [x] `Core\Response\Stream::offset` and `length`, and `write` holds the exact count. `crates/nvs-stdlib/src/response.rs:556`
 - [x] A streamed body with a length has an exact `size_hint`, and a short end is the body error. `crates/nvs-server/src/serve.rs:2392`
-- [ ] The cards of `stream`, `offset` and `length`, and their feature proofs, including a video from storage that a browser can seek in. `crates/nvs-stdlib/src/response.rs:584`
-- [ ] The fragment states that a stream with a length gets the same decision. `docs/rules/http-server/static-serving-is-one-policy.md:3`
+- [x] The cards of `stream`, `offset` and `length`, and their feature proofs, including a video from storage that a browser can seek in. `crates/nvs-stdlib/src/response.rs:584`
+- [x] The fragment states that a stream with a length gets the same decision. `docs/rules/http-server/static-serving-is-one-policy.md:3`
 
 ## Handoff
 
 ### State
 
-Stage 4's first four items are on disk. The decision is `nvs_runtime::conditional::decide`
-(`crates/nvs-runtime/src/conditional.rs`), and `statics::send` and `Core\Response::stream` both
-call it; `conditional::ranged` turns it into a stream's head and window. A stated length rides
-`stream::Opened::length` into `Answer::Streaming { left }`, whose `size_hint` is exact, and a
-writer that ends short is `BodyCut::StreamEndedEarly`. The window is `stream::Window` on the
-context, and `write` counts through `Ctx::claim_stream_bytes`. The four `stream-range` tests pass
-in `serve::tests`, beside a member test in `response::tests` and three `.nvst` cases.
+Every stage is done, and the goal is reached. The decision is `nvs_runtime::conditional::decide`
+(`crates/nvs-runtime/src/conditional.rs`), shared by `statics::send` and `Core\Response::stream`.
+`Core\Response\Stream::offset` and `length` have every feature proof, `Core\Response::stream` has
+a fourth example (a video read from storage at `offset()`), and the perf records of every member
+in `crates/nvs-stdlib/src/response.rs` are current. The rule's `guardedBy` names
+`conditional.rs`, and its Declined list holds why the program writes the window.
 
-The cards of `stream`, `offset` and `length` are written, and the fragment has a paragraph saying
-a stream with a length gets the same decision. `guardedBy` does not yet name `conditional.rs`.
+`bun nv verify`, `bun nv verify --doc`, `bun nv rules --check` and the `stream-range` check are
+green on this tree. The five floor-debt cases the sweep named pass under `nvs test`; the sweep gave
+no full list of the other 26.
 
-The full verify ran in `.agent-tmp/worktrees/verify-stream-range`, because another agent's
-`crates/nvs-types/src/locals.rs` edit did not build in the main tree. The session reached its
-context budget first. If this work is uncommitted, run `bun nv verify` and commit it as the
-slices below say: the decision, the stream with a length, and the fragment.
-
-The nightly CI failures are the run on `cb7021a24`, which is behind local `main`.
+An example's `.nvsr` request runs without a connection, so `offset()` is `0` there and the
+examples show the whole body.
 
 ### Next
 
-**Stage 4's tail: feature proofs and the rule's guard**, one file set: `docs/examples/core/Response/stream/`, `crates/nvs-stdlib/src/response.rs`, `data/rules/http-server/static-serving-is-one-policy.json`.
-
-- [ ] `bun nv proofs --id 'Core\Response::stream'`, `Core\Response\Stream::offset` and `length`, and each owed proof written, including a video from storage that a browser can seek in (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/response.rs:615`
-- [ ] The cards of `offset` and `length` read against § *Text an end user reads* (`rule:core-api/reference-card`). `crates/nvs-stdlib/src/response.rs:660`
-- [ ] `guardedBy` names `crates/nvs-runtime/src/conditional.rs`, and the fragment's item is ticked (`rule:http-server/static-serving-is-one-policy`). `data/rules/http-server/static-serving-is-one-policy.json:8`
+None: the goal is reached, and the driver runs its acceptance checks and deletes this file.
 
 ### Backlog
 
-- `bun nv rules --check` reports `core-classes/spreadsheet-roster`'s `guardedBy` names a missing test file; that rule's owner fixes it, not this goal.
+- The nightly CI failures are the run on `cb7021a24`, behind local `main`; the next nightly reads this tree.
