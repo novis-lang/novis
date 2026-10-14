@@ -1036,9 +1036,9 @@ object (R14).
   (`rule:core-classes/io-write-stream`).
 - **Metadata:** `exists`, `isFile`, `isDir`, `isReadable`, `isWritable`, `size`, `modifiedAt`, `stat`.
 - **Manipulation:** `copy`, `move`, `remove`, `makeDir`, `removeDir`, `list(string $path): array<string>`,
-  `walk(string $path): Iterable<string>`, `temporaryDir`. There is no `temporaryFile` — a program that
-  needs one temporary file needs somewhere to put the second — and what `temporaryDir` creates is deleted
-  by the runtime when the script ends
+  `walk(string $path): Iterable<string>`, `temporaryDir` — there is no `temporaryFile`, because a program
+  that needs one temporary file needs somewhere to put the second, and what `temporaryDir` creates is
+  deleted by the runtime when the script ends
   (`rule:core-classes/temporary-dir-sweep`).
 - **Resolution:** `canonicalize(string $path): string`, the absolute path with every link resolved, and `within(string $base, tainted
   string $path): string` — **the path-traversal launderer**: it resolves and then proves containment,
@@ -1116,7 +1116,8 @@ that comes from outside the process is `tainted` (`rule:security/tainted-qualifi
   (`rule:http-server/a-mount-table-expands-at-boot`, `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`, `rule:http-server/head-runs-as-get`, `rule:http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it` and `rule:http-server/the-body-is-read-on-demand-under-two-caps`).
 - `Core\Response`: `setStatus`, `setHeader`, `addCookie`, `redirect`, and the body members
   `html(Core\Html\Markup)`, `json(mixed)`, `text(string)`, `bytes(bytes, string $contentType)`,
-  `sendFile(string $path)`, `stream(string $contentType)`.
+  `sendFile(string $path)`, `stream(string $contentType)` — the members that set a response's status,
+  headers and body.
   `setHeader` is a header **sink** and overrides a policy-owned header on one response; `addCookie`'s
   options shape defaults every field from `[http.cookies]`, so a cookie written with no options is
   `Secure; HttpOnly; SameSite=Lax; Path=/` and `SameSite` is an enum, never a string
