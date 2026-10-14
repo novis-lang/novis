@@ -52,8 +52,9 @@ Body in markdown. Top-level headings inside the body are `#` and are demoted by 
 ```
 
 `id` is the anchor and must be unique across `lang/` and `tools/`; `title` is the heading;
-`summary` is the index's one line; `keywords` is a comma-separated list a searcher might type,
-including PHP spellings the topic replaces. Files are concatenated in filename order — number them
+`summary` is the index's one line; `keywords` is a comma-separated list of the words and concepts a
+searcher might type, naming no PHP function, class or setting
+(`rule:programs/no-compatibility-promise`). Files are concatenated in filename order — number them
 `10-`, `20-`, … so a chapter can be inserted between two.
 
 A chapter may place one of the generated tables where its prose wants it, on a line of its own:
@@ -96,8 +97,8 @@ expresses is a chapter missing it — the edit belongs in the chapter.
 `core/<Class>.md`, named by the class after `Core\` with `\` written `-`: `Str.md`,
 `Time-DateTime.md`, `Task-Channel.md`; a `Novis\` class's is `novis/<Class>.md`, named after
 `Novis\` the same way: `Image-Image.md`. Same front matter, with only `summary` and `keywords` read
-(`keywords` here are *extra* — every member name is added automatically; put the PHP names the
-class replaces, and the concepts). The body is a two-to-four sentence introduction — what the class
+(`keywords` here are *extra* — every member name is added automatically; put the words and concepts
+a searcher might type, and no PHP name). The body is a two-to-four sentence introduction — what the class
 is for, the one rule a user must know (grapheme counting, copy-on-write, `?T` for absence) — and
 **one** worked example that touches the members a user reaches for first. Not one example per
 member: the member cards below it carry every signature, and an example that repeats the cards is
