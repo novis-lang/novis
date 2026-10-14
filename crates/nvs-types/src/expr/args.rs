@@ -1349,6 +1349,28 @@ pub(crate) fn check_inout_arg(
         );
         return;
     }
+    // A key names no one property, so there is no declaring class for the
+    // reference to point into (`nvs_ir::lower::Lowering::write_back_ref` needs
+    // one), and the callee could store a value only one of the key's properties
+    // accepts (`rule:types/property-key-access`).
+    let keyed = matches!(
+        env.exprs.lookup(arg.value.span),
+        Some(ExprInfo::KeyedProperty { .. })
+    );
+    if keyed {
+        env.diags.report(
+            Diagnostic::error(
+                code::E_INOUT_ARG_NOT_A_PLACE,
+                "a property named by a key cannot be passed to an `inout` parameter",
+            )
+            .with_primary(arg.value.span, "passed by reference here")
+            .with_help(
+                "Read the property into a variable and pass the variable. Then write the \
+                 variable back through the key.",
+            ),
+        );
+        return;
+    }
     match &arg.value.kind {
         ExprKind::Variable(_) => {}
         ExprKind::PropertyAccess { nullsafe, .. } if !nullsafe => {}

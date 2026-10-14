@@ -1,0 +1,45 @@
+--TEST--
+A `tainted` or `secret` value written through a `property<T>` is `E0401` where one property of `T` cannot hold it, even though the union of `T`'s properties can, while a plain value through the same key compiles — `rule:types/property-key-access`
+--FILE--
+<?nvs
+class Profile {
+    public string $city = "London";
+    public tainted string $note = "";
+}
+
+property<Profile> $key = "city" as property<Profile>;
+Profile $profile = new Profile();
+
+// A plain value fits every property of `Profile`, so these writes compile.
+$profile->$key = "Paris";
+$profile->$key .= "!";
+
+// The key names `city`, which is a plain `string`. The `tainted` qualifier
+// does not exist at run time, so these writes do not compile.
+array<tainted string> $words = Core\Cli::arguments();
+tainted string $value = $words[0];
+$profile->$key = $value;
+$profile->$key .= $value;
+
+// The same check applies to a `secret` value.
+class Vault {
+    public string $label = "";
+    public secret string $token = "";
+}
+
+property<Vault> $field = "label" as property<Vault>;
+Vault $vault = new Vault();
+secret string $pin = "1234" as secret string;
+$vault->$field = $pin;
+// covers: lang:types/property-keys
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `tainted string`
+%A
+error[E0401]: expected `string`, found `tainted string`
+%A
+error[E0401]: expected `string`, found `secret string`
+%A
+error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

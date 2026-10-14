@@ -825,7 +825,14 @@ pub(crate) fn check_assign(
         // [`super::literals::check_array_literal`]'s element is: a value that
         // already failed against the element type is one mistake.
         if env.diags.len() == before {
-            reject_secret_element_write(target, target_ty, value, value_ty, env);
+            if !reject_qualified_write_through_key(
+                target,
+                value.span,
+                KeyedStore::Value(value_ty),
+                env,
+            ) {
+                reject_secret_element_write(target, target_ty, value, value_ty, env);
+            }
         } else {
             name_the_var_line(before, target, value, target_ty, value_ty, scope, env);
         }
@@ -1227,6 +1234,100 @@ fn reject_readonly_write_through_key(root: &Expr, env: &mut Env<'_>) -> bool {
     true
 }
 
+/// What a write through a key stores, for [`reject_qualified_write_through_key`].
+#[derive(Clone, Copy)]
+pub(crate) enum KeyedStore {
+    /// `=` and `??=`, which store the value as it is.
+    Value(TypeId),
+    /// `.=` and `??.=`, which store the property's own text with this value
+    /// appended.
+    Appended(TypeId),
+}
+
+/// `rule:types/property-key-access`: a write through a key whose value carries
+/// `tainted` or `secret` must fit **every** public property of `T`, and is
+/// `E0401` at the first one it does not fit.
+///
+/// The recorded [`ExprInfo::KeyedProperty`] type is the union of the set, which
+/// is right for a read and too wide for a write: `string|tainted string`
+/// accepts a `tainted string`, and the key may name the plain `string`. The
+/// run-time store checks only the representation, and neither qualifier has
+/// one, so the static check here is the only place the qualifier is kept. A
+/// value with no qualifier keeps the union check alone, because the run-time
+/// store already refuses a representation the named property does not hold —
+/// which is what lets `$stock->$key = 12` write the `int` member of a
+/// `string|int` set.
+///
+/// Every write spelling that can add a qualifier reaches this: the plain `=`
+/// and `??=` with the value, `.=` and `??.=` with the text the operator builds
+/// out of each property's own type. `++` and the arithmetic compounds build a
+/// number, which has no qualifier. An `inout` argument through a key is refused
+/// outright by `super::args`' `check_inout_arg`. An element write
+/// (`$obj->$key[0] = v`) needs nothing here: only an `array<T>` can be
+/// subscripted, and a union of two different types is not one (`E0482`), so a
+/// subscript through a key compiles only where every property has the same
+/// type and the union check is already exact.
+pub(crate) fn reject_qualified_write_through_key(
+    target: &Expr,
+    value_span: Span,
+    store: KeyedStore,
+    env: &mut Env<'_>,
+) -> bool {
+    let root = target.unparenthesized();
+    let Some(ExprInfo::KeyedProperty { class, .. }) = env.exprs.lookup(root.span) else {
+        return false;
+    };
+    let key_class = QName::parse(class);
+    let (operand, appended) = match store {
+        KeyedStore::Value(ty) => (ty, false),
+        KeyedStore::Appended(ty) => (ty, true),
+    };
+    let qualified = carries_qualifier(operand, env.interner)
+        || (appended && carries_unchecked(operand, env.interner));
+    if !qualified {
+        return false;
+    }
+    for name in public_property_names(&key_class, env) {
+        let Some((owner, declared)) =
+            crate::signatures::resolve_property_owned(&key_class, &name, env.signatures, env.graph)
+        else {
+            continue;
+        };
+        let stored = if appended {
+            let read = env.interner.without_null(declared);
+            concat_result(read, operand, env.interner)
+        } else {
+            operand
+        };
+        if is_assignable(stored, declared, env.interner, env.graph, env.signatures) {
+            continue;
+        }
+        let (declared, got) = (
+            env.interner.describe(declared),
+            env.interner.describe(stored),
+        );
+        let operand = env.interner.describe(operand);
+        env.diags.report(
+            Diagnostic::error(
+                code::E_TYPE_MISMATCH,
+                format!("expected `{declared}`, found `{got}`"),
+            )
+            .with_primary(
+                root.span,
+                format!("the key may name `{owner}::${name}`, which is `{declared}`"),
+            )
+            .with_secondary(value_span, format!("this is `{operand}`"))
+            .with_help(format!(
+                "A `property<{key_class}>` key can name any public property of `{key_class}`. \
+                 A value written through the key must be valid for each of them. To set only \
+                 `{name}`, write the property name out."
+            )),
+        );
+        return true;
+    }
+    false
+}
+
 /// Refuses a write to a property that declares a `get` hook and no `set`
 /// hook, from outside the class that declares it
 /// (`E_GET_ONLY_HOOK_WRITE`).
@@ -1408,6 +1509,18 @@ pub(crate) fn check_compound_assign(
         return target_ty;
     }
     note_float_widening_at(span, result, target_ty, env);
+    // Through a key, the union `target_ty` is too wide for what is stored:
+    // [`reject_qualified_write_through_key`] asks it of every property.
+    let keyed = match op {
+        BinaryOp::Concat => Some(KeyedStore::Appended(value_ty)),
+        BinaryOp::Coalesce if !defaults => Some(KeyedStore::Value(value_ty)),
+        _ => None,
+    };
+    if let Some(store) = keyed
+        && reject_qualified_write_through_key(target, value.span, store, env)
+    {
+        return target_ty;
+    }
     // The operator's *result* is what lands in the element, and `.=` over a
     // `secret` operand produces a `secret` one (`rule:security/secret-propagation`),
     // so this spelling of the write owes the same refusal the plain one does.

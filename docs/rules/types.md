@@ -1187,6 +1187,17 @@ value no property of `T` could accept is refused where it is written. Both direc
 erased access the runtime already performs, so per-property hooks and a declared property observer
 behave exactly as they do there.
 
+**A value that carries `tainted` or `secret` must fit every property the key can name**, and is
+`E0401` at the first one it does not fit. Both qualifiers are erased at run time, so the run-time check
+sees a `tainted string` and a `string` as the same value: against the union `string|tainted string`
+alone, a request's text would land in the plain `string` property and leave it as trusted text. The
+same holds for `.=` and `??.=`, whose result is the property's own text with the value appended, and
+for `??=`. A value with no qualifier keeps the union check, because the run-time check already refuses
+a representation the named property does not hold — so `$stock->$key = 12` still writes the `int`
+member of a `string|int` set. An element write through a key needs no more than the union, because
+only an `array<T>` can be subscripted and a union of two types is not one. An `inout` argument through
+a key is refused (`E0439`): the callee could store a value only some of the properties accept.
+
 **A write is refused, at the write, where `T`'s public set holds a `readonly` property**, naming it
 (`E0782`) — the code an ordinary post-construction write already gets. Reading `$id` through a key is
 fine, and a class whose fields are all assignable is unaffected. It is deliberately compile-time:
@@ -1198,6 +1209,9 @@ direction, with no new descriptor field and no new calling convention. A written
 pays nothing.
 
 **Declined:**
+- **Every write checked against every property, whatever its value.** It refuses a key over a class
+  whose properties have different types, which is the case a key exists for. Only a qualifier is
+  invisible to the run-time check, so only a qualified value needs the stricter one.
 - **A hook entry and a `readonly` flag per field on the class descriptor.** The hook entry buys
   nothing, because the erased access already runs hooks. The flag buys a run-time throw where the
   write above is already refused at compile time.

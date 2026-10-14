@@ -377,6 +377,29 @@ fn reject_empty_property_key_set(qname: &QName, span: Span, env: &mut Env<'_>) {
     );
 }
 
+/// The type of `lhs . rhs`, which is always text and never reports.
+///
+/// `rule:security/taint-propagation` / `rule:security/secret-propagation`:
+/// concatenating a qualified operand with an unqualified one poisons the result
+/// on that axis, the same "poisoned" shape `rule:types/declaration` already uses
+/// for mixed-type arithmetic — `tainted` and `secret` poison independently of
+/// each other. A `mixed` operand poisons `tainted` too: text out of `mixed` is
+/// tainted. The `tainted` and `secret` bits are read with `carries_tainted`'s
+/// and `carries_secret`'s reach, so a `?tainted string` operand —
+/// `Core\Request::query`'s, `header`'s — poisons exactly as a `tainted string`
+/// does, and a `?secret string` as a `secret string` does.
+///
+/// Its own function because `super::assign`'s keyed-write check asks the same
+/// question once per property a key can name, where [`binary_result`] would
+/// report and record a second time at the same span.
+pub(crate) fn concat_result(lhs: TypeId, rhs: TypeId, interner: &mut TypeInterner) -> TypeId {
+    let tainted = [lhs, rhs]
+        .iter()
+        .any(|&side| carries_tainted(side, interner) || carries_unchecked(side, interner));
+    let secret = carries_secret(lhs, interner) || carries_secret(rhs, interner);
+    qualified_scalar(false, tainted, secret, interner)
+}
+
 /// The binary-operator result-type table, `rule:types/arithmetic`, amended by `rule:types/ordering` for `< <= > >= <=>` when both operands are objects. Beyond that one
 /// amendment, only `int`/`uint`/`float` operands are modeled this slice —
 /// anything else (`mixed`, an unresolved call result) falls back to `mixed`
@@ -428,22 +451,7 @@ pub(crate) fn binary_result(
         return env.interner.mixed();
     }
     match op {
-        // `rule:security/taint-propagation` / `rule:security/secret-propagation`: concatenating a qualified operand with
-        // an unqualified one poisons the result on that axis, the same
-        // "poisoned" shape `rule:types/declaration` already uses for mixed-type arithmetic —
-        // `tainted` and `secret` poison independently of each other. A `mixed`
-        // operand poisons `tainted` too: text out of `mixed` is tainted. The
-        // `tainted` and `secret` bits are read with `carries_tainted`'s and
-        // `carries_secret`'s reach, so a `?tainted string` operand —
-        // `Core\Request::query`'s, `header`'s — poisons exactly as a `tainted
-        // string` does, and a `?secret string` as a `secret string` does.
-        BinaryOp::Concat => {
-            let tainted = [lhs, rhs].iter().any(|&side| {
-                carries_tainted(side, env.interner) || carries_unchecked(side, env.interner)
-            });
-            let secret = carries_secret(lhs, env.interner) || carries_secret(rhs, env.interner);
-            qualified_scalar(false, tainted, secret, env.interner)
-        }
+        BinaryOp::Concat => concat_result(lhs, rhs, env.interner),
         // `rule:core-classes/html-auto-escape`'s and `rule:tooling/styling-is-a-value-not-a-grammar`'s composition rules are ahead of the
         // arithmetic table rather than rows of it: a carrier is a class, and
         // every class beside an arithmetic operator is refused two lines down.

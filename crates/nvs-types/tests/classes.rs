@@ -1176,6 +1176,87 @@ fn a_write_through_a_key_whose_set_holds_a_readonly_property_is_refused() {
     assert!(!allowed.has_errors(), "{allowed:?}");
 }
 
+/// `rule:types/property-key-access`: a value carrying `tainted` or `secret` written through a key
+/// must fit every property the key can name, not only their union, because neither qualifier
+/// exists at run time. The bound is asserted on both sides: an unqualified value keeps the union
+/// check, so an `int` still writes the `int` member of a `string|int` set.
+#[test]
+fn a_qualified_write_through_a_key_must_fit_every_property() {
+    const CLASSES: &str = "<?nvs\n\
+         class Profile {\n\
+         \x20 public string $city = \"\";\n\
+         \x20 public tainted string $note = \"\";\n\
+         }\n\
+         class Vault {\n\
+         \x20 public string $label = \"\";\n\
+         \x20 public secret string $token = \"\";\n\
+         }\n\
+         class Stock {\n\
+         \x20 public string $sku = \"\";\n\
+         \x20 public int $count = 0;\n\
+         }\n\
+         class Mover {\n\
+         \x20 public static function put(inout string|tainted string $into): void {}\n\
+         }\n";
+    let refused_at_city = |body: &str| {
+        let diags = check_src(&format!(
+            "{CLASSES}class T {{\n\
+             \x20 function m(Profile $p, property<Profile> $k, tainted string $t, Vault $v, \
+             property<Vault> $f, secret string $s): void {{ {body} }}\n\
+             }}\n"
+        ));
+        let mismatches: Vec<_> = diags
+            .iter()
+            .filter(|d| d.code == Some(code::E_TYPE_MISMATCH))
+            .collect();
+        assert_eq!(mismatches.len(), 1, "{body}: {diags:?}");
+        mismatches[0]
+            .labels
+            .iter()
+            .map(|l| l.message.clone())
+            .collect::<Vec<_>>()
+    };
+
+    // `=`, `.=` and `??=` each store the tainted value into `city` when the key
+    // names it, and each is refused naming that property.
+    for body in ["$p->$k = $t;", "$p->$k .= $t;", "$p->$k ??= $t;"] {
+        let labels = refused_at_city(body);
+        assert!(
+            labels.iter().any(|l| l.contains("`Profile::$city`")),
+            "{body}: {labels:?}"
+        );
+    }
+    // `secret` is the same hole on the other axis.
+    let labels = refused_at_city("$v->$f = $s;");
+    assert!(
+        labels.iter().any(|l| l.contains("`Vault::$label`")),
+        "{labels:?}"
+    );
+
+    // The other side of the bound: unqualified values keep the union check.
+    let allowed = check_src(&format!(
+        "{CLASSES}class T {{\n\
+         \x20 function m(Profile $p, property<Profile> $k, Stock $s, property<Stock> $n): void \
+         {{ $p->$k = \"x\"; $p->$k .= \"y\"; $s->$n = 12; }}\n\
+         }}\n"
+    ));
+    assert!(!allowed.has_errors(), "{allowed:?}");
+
+    // An `inout` argument through a key is no place at all: the callee could
+    // store a value only one of the properties holds.
+    let inout = check_src(&format!(
+        "{CLASSES}class T {{\n\
+         \x20 function m(Profile $p, property<Profile> $k): void {{ Mover::put(inout $p->$k); }}\n\
+         }}\n"
+    ));
+    assert!(
+        inout
+            .iter()
+            .any(|d| d.code == Some(code::E_INOUT_ARG_NOT_A_PLACE)),
+        "{inout:?}"
+    );
+}
+
 /// `rule:types/property-key-access`: the operand's *type* is what admits `$obj->$key`, so every
 /// other operand keeps `E0235` -- now reported by this crate, since a parser
 /// sees no types. § 4's own table of neighbours is the body: a call, a

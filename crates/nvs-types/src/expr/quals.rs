@@ -889,6 +889,37 @@ pub(crate) fn contains_secret(ty: TypeId, interner: &TypeInterner) -> bool {
     }
 }
 
+/// Whether `ty` carries `tainted` or `secret` anywhere in a value of it: the
+/// atom, an element, a field, a union or intersection member, a class's type
+/// argument, or a callable's parameter or result.
+///
+/// Neither qualifier exists at run time, so a store that is checked only there
+/// cannot keep one. The keyed write in `super::assign` asks this to decide
+/// whether a value needs the static check against every property the key can
+/// name. It reaches further than [`contains_secret`] on purpose: reaching too
+/// far here only asks for a stricter check.
+pub(crate) fn carries_qualifier(ty: TypeId, interner: &TypeInterner) -> bool {
+    if is_tainted(ty, interner) || is_secret(ty, interner) {
+        return true;
+    }
+    match interner.get(ty) {
+        Ty::Array(elem) => carries_qualifier(*elem, interner),
+        Ty::Shape(fields) => fields.iter().any(|f| carries_qualifier(f.ty, interner)),
+        Ty::CoreShape(shape) => shape
+            .fields
+            .iter()
+            .any(|field| carries_qualifier(field.ty, interner)),
+        Ty::Union(members) | Ty::Intersection(members) | Ty::Class(_, members) => {
+            members.iter().any(|&m| carries_qualifier(m, interner))
+        }
+        Ty::CallableSig { params, ret } => {
+            carries_qualifier(*ret, interner)
+                || params.iter().any(|&p| carries_qualifier(p, interner))
+        }
+        _ => false,
+    }
+}
+
 /// `rule:security/secret-qualifier`'s container axis: a `secret` value may be
 /// written into an array element or a shape field only where the position's own
 /// type carries the qualifier.

@@ -8,6 +8,7 @@
   ],
   "guardedBy": [
     "tests/conformance/class/a-property-key-reads-and-writes-the-field-it-names.nvst",
-    "tests/conformance/lang/a-computed-member-name-is-a-diagnostic.nvst"
+    "tests/conformance/lang/a-computed-member-name-is-a-diagnostic.nvst",
+    "tests/conformance/reject/a-tainted-value-written-through-a-key-must-fit-every-property.nvst"
   ]
 }
