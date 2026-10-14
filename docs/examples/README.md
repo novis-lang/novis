@@ -253,7 +253,8 @@ the grant being refused prints the same on both, so it carries no such line and 
 
 An example that talks to a service of `tests/db/compose.yaml` names it on that line: `// requires:
 samba-ad` for the directory, `// requires: redis` for the shared store a session or
-`Core\Cache::shared()` uses. A program needing two services carries two lines. Before the first
+`Core\Cache::shared()` uses, and `// requires: postgres` for a database feature SQLite does not
+have, such as a column that carries its own time zone. A program needing two services carries two lines. Before the first
 program in a run that names a service, the runner brings it up with `docker compose up -d --wait
 <service>`, once, and leaves it running. Where that fails, as on a host with no Docker, every program
 naming it fails with the reason. A name the compose file does not declare fails the program too. A

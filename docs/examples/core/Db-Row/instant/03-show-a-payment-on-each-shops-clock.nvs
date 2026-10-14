@@ -1,0 +1,22 @@
+<?nvs
+// Shows the moment each order was paid on the local clock of its shop.
+// requires: postgres
+
+var $db = Core\Db::connect('shop');
+$db->execute('create temporary table orders (city text not null, zone text not null, paid_at timestamptz not null)', []);
+$db->execute(
+    'insert into orders (city, zone, paid_at) values (?, ?, ?), (?, ?, ?)',
+    ['London', 'Europe/London', '2026-03-01 14:00:00+00', 'New York', 'America/New_York', '2026-03-01 14:00:00+00']
+);
+
+// Both orders were paid at the same moment. `in` returns that moment on the
+// calendar and clock of a time zone. This prints `London: 14:00` and `New York: 09:00`.
+foreach ($db->query('select city, zone, paid_at from orders order by city', []) as Core\Db\Row $row) {
+    ?Core\Time\Instant $paid = $row->instant('paid_at');
+    if ($paid != null) {
+        Core\Time\DateTime $local = $paid->in(Core\Time\Zone::of($row->string('zone') ?? 'UTC'));
+        echo $row->string('city') ?? '', ': ', $local->format('HH:mm'), "\n";
+    }
+}
+
+$db->close();

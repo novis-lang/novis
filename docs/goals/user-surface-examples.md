@@ -38,7 +38,7 @@ stages:
         shapes: ["An example"]
   - id: 5
     title: "an example may require the Postgres service"
-    status: open
+    status: done
     context: [docs/examples/README.md, tests/db/compose.yaml, tools/nv/proofs/collect.ts]
     extra:
       context:
@@ -163,8 +163,8 @@ entry or Reference page names one.
 **Does:** an example marked `// requires: postgres` runs against the `postgres` service, and
 `Core\Db\Row::instant` has its examples.
 
-- [ ] The marker, beside `requires: samba-ad` (`tools/nv/proofs/run.ts:77`, `docs/examples/README.md:243`, `tests/db/compose.yaml:41`)
-- [ ] `Core\Db\Row::instant`'s examples, and its skip deleted (`data/proofs/policy.json:18`)
+- [x] The marker, beside `requires: samba-ad` (`tools/nv/proofs/run.ts:77`, `docs/examples/README.md:243`, `tests/db/compose.yaml:41`)
+- [x] `Core\Db\Row::instant`'s examples, and its skip deleted (`data/proofs/policy.json:18`)
 
 ## Handoff
 
@@ -180,6 +180,11 @@ in a scratch directory under `.agent-tmp/proof-cmd/`, and every lister of exampl
 `programsIn`. The website shows the line as an `sh` block. `nvs agent init` has three examples and
 no skip. `engine-off-roster` now runs its test with `-t`, because bun prints no test names under
 the driver's environment.
+
+Stage 5 is done. The generic `// requires: <service>` marker already brought up `postgres`, so the
+stage needed no runner change. `Core\Db\Row::instant` has three examples on PostgreSQL, with an
+`nvs.toml` whose `tls_ca_file` points at `tests/db/ca.crt`, and its examples skip is deleted.
+`postgres-example` is green.
 
 **Blocked on the user:** `nvs info` prints the commit, the build profile, the executable path,
 the CPU count and one line per dependency. No `.out` matches it on two machines, so the decision's
@@ -197,11 +202,10 @@ Stage 4's last item, once the user decides, over the runner and `nvs info`'s dir
   `docs/examples/README.md:199`) (`rule:testing/feature-proofs`).
 - `nvs info`'s three examples, and its skip deleted (`docs/examples/tools/cli/nvs-info/about.md:1`,
   `data/proofs/policy.json:78`).
-- Then stage 5: the `postgres` service marker (`tools/nv/proofs/run.ts:77`, `tests/db/compose.yaml:41`).
+- Then the goal is reached: `cli-examples` is its last red check.
 
 ### Backlog
 
-- Stage 5, as the stage says (`docs/goals/user-surface-examples.md`).
 - `Core\Router\Gate` owes its examples, tests and attack as an interface feature (`bun nv proofs --id 'Core\Router\Gate'`).
 - `bun nv side --prepare` installs neither `editors/vscode`'s nor `website`'s packages, so a side
   worktree's verify and `bun nv site --build` fail until `npm ci` runs there (`tools/nv/cmd/side.ts:90`).
