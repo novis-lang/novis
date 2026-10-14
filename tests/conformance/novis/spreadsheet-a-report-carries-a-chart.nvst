@@ -43,11 +43,11 @@ var $written = $book->finish();
 bytes $file = $written->bytes ?? Core\Bytes::fill(0, 0);
 var $part = Core\Zip::read($file, "xl/charts/chart1.xml") as string;
 var $drawing = Core\Zip::read($file, "xl/drawings/drawing1.xml") as string;
-echo Core\Str::contains($part, "<c:f>'Sales'!\$B\$2:\$B\$5</c:f>") ? "sales cover rows 2 to 5" : "sales do not cover every row", "\n";
-echo Core\Str::contains($part, "<c:f>'Sales'!\$C\$2:\$C\$5</c:f>") ? "costs cover rows 2 to 5" : "costs do not cover every row", "\n";
+echo Core\Str::contains($part, "<c:f>Sales!\$B\$2:\$B\$5</c:f>") ? "sales cover rows 2 to 5" : "sales do not cover every row", "\n";
+echo Core\Str::contains($part, "<c:f>Sales!\$C\$2:\$C\$5</c:f>") ? "costs cover rows 2 to 5" : "costs do not cover every row", "\n";
 echo Core\Str::contains($part, "<c:lineChart>") ? "a line is combined" : "no line", "\n";
 echo Core\Str::contains($part, "<a:t>Sales by month</a:t>") ? "the title is written" : "no title", "\n";
-echo Core\Str::contains($drawing, "<xdr:ext cx=\"5715000\" cy=\"2743200\"/>") ? "the chart is 600 by 288 pixels" : "the chart has another size", "\n";
+echo Core\Str::contains($drawing, "<xdr:to><xdr:col>13</xdr:col><xdr:colOff>228600</xdr:colOff><xdr:row>15</xdr:row><xdr:rowOff>76200</xdr:rowOff></xdr:to>") ? "the chart is 600 by 288 pixels" : "the chart has another size", "\n";
 echo "Sales: ", $written->rows["Sales"], "\n";
 --EXPECT--
 The chart at `E20` combines pie and line. A chart combines two different types of column, line and area.

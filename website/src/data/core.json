@@ -6845,7 +6845,7 @@
       "name": "Core\\Command",
       "section": "13. Compiler-facing surfaces",
       "summary": "",
-      "surface": "`run(): uint`, `help(?string): Cli\\Text` and `completions(Command::Shell): string`, over a table built while compiling from `#[Command]`/`#[Option]`/`#[Argument]`. A duplicate command name, two options sharing a spelling and an `#[Option]` on a parameter with no conversion from `string` are compile errors. Unlike `Core\\Router` it dispatches, because a CLI has one entry point and no middleware question",
+      "surface": "`run(): uint`, `help(?string): Cli\\Text` and `completions(Command::Shell): string`, over a table built while compiling from `#[Command]`/`#[Option]`/`#[Argument]`. A duplicate command name, two options sharing a spelling and an `#[Option]` on a parameter with no conversion from `string` are compile errors. `run()` calls the matched handler itself, because a CLI has one entry point and no middleware question",
       "enums": [
         {
           "name": "Shell",
@@ -6983,7 +6983,7 @@
       "slug": "command",
       "url": "/reference/core/command/",
       "summaryHtml": "",
-      "surfaceHtml": "<code>run(): uint</code>, <code>help(?string): Cli\\Text</code> and <code>completions(Command::Shell): string</code>, over a table built while compiling from <code>#[Command]</code>/<code>#[Option]</code>/<code>#[Argument]</code>. A duplicate command name, two options sharing a spelling and an <code>#[Option]</code> on a parameter with no conversion from <code>string</code> are compile errors. Unlike <code>Core\\Router</code> it dispatches, because a CLI has one entry point and no middleware question"
+      "surfaceHtml": "<code>run(): uint</code>, <code>help(?string): Cli\\Text</code> and <code>completions(Command::Shell): string</code>, over a table built while compiling from <code>#[Command]</code>/<code>#[Option]</code>/<code>#[Argument]</code>. A duplicate command name, two options sharing a spelling and an <code>#[Option]</code> on a parameter with no conversion from <code>string</code> are compile errors. <code>run()</code> calls the matched handler itself, because a CLI has one entry point and no middleware question"
     },
     {
       "id": "Compress",
@@ -33714,12 +33714,20 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "readerOpen(mixed $source): Reading",
+          "signature": "readerOpen(mixed $source, {maxBytes: ?uint, maxRatio: ?uint} $bound): Reading",
           "params": [
             {
               "kind": "param",
               "name": "source",
               "type": "mixed",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "bound",
+              "type": "{maxBytes: ?uint, maxRatio: ?uint}",
               "default": null,
               "optional": false,
               "variadic": false
@@ -33733,7 +33741,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Opens the workbook in <code>source</code>, which is <code>bytes</code> or an open <code>Core\\IO\\File</code>. This reads the list of sheets and no rows."
+            "shortHtml": "Opens the workbook in <code>source</code>, which is <code>bytes</code> or an open <code>Core\\IO\\File</code>. This reads the list of sheets and no rows. A part of the file that is kept whole decompresses to at most <code>maxBytes</code> bytes, and every part to at most <code>maxRatio</code> times its compressed size. The server sets both from <code>[limits]</code>."
           },
           "slug": "readeropen",
           "url": "/reference/core/novis-spreadsheet-engine/readeropen/",
@@ -34231,6 +34239,217 @@
           "slug": "readerrows",
           "url": "/reference/core/novis-spreadsheet-engine/readerrows/",
           "examples": "novis/Spreadsheet-Engine/readerRows"
+        },
+        {
+          "id": "Novis.Spreadsheet.Engine.templateOpen",
+          "name": "templateOpen",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "templateOpen(mixed $source, {maxBytes: ?uint, maxRatio: ?uint} $bound): Filling",
+          "params": [
+            {
+              "kind": "param",
+              "name": "source",
+              "type": "mixed",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "bound",
+              "type": "{maxBytes: ?uint, maxRatio: ?uint}",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Filling",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "Opens the template in <code>source</code>, which is <code>bytes</code> or an open <code>Core\\IO\\File</code>. A template is a workbook with placeholders such as <code>{{name}}</code> in its cells."
+          },
+          "slug": "templateopen",
+          "url": "/reference/core/novis-spreadsheet-engine/templateopen/",
+          "examples": "novis/Spreadsheet-Engine/templateOpen"
+        },
+        {
+          "id": "Novis.Spreadsheet.Engine.templateSet",
+          "name": "templateSet",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "templateSet(Filling $template, string $address, ?CellValue $value): void",
+          "params": [
+            {
+              "kind": "param",
+              "name": "template",
+              "type": "Filling",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "address",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "value",
+              "type": "?CellValue",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "void",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "Fills one cell by its address, such as <code>Summary!B2</code>. Call it before <code>templateFill</code>."
+          },
+          "slug": "templateset",
+          "url": "/reference/core/novis-spreadsheet-engine/templateset/",
+          "examples": "novis/Spreadsheet-Engine/templateSet"
+        },
+        {
+          "id": "Novis.Spreadsheet.Engine.templateFill",
+          "name": "templateFill",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "templateFill(Filling $template, array<{path: string, value: ?CellValue}> $values, array<string> $lists): {data: bytes, lists: array<string>}",
+          "params": [
+            {
+              "kind": "param",
+              "name": "template",
+              "type": "Filling",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "values",
+              "type": "array<{path: string, value: ?CellValue}>",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "lists",
+              "type": "array<string>",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "{data: bytes, lists: array<string>}",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "Fills every placeholder that is not in a list. <code>lists</code> has the names of the lists. Returns the bytes of the file that are ready to send, and the lists the template uses, in the order of their rows."
+          },
+          "slug": "templatefill",
+          "url": "/reference/core/novis-spreadsheet-engine/templatefill/",
+          "examples": "novis/Spreadsheet-Engine/templateFill"
+        },
+        {
+          "id": "Novis.Spreadsheet.Engine.templateItems",
+          "name": "templateItems",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "templateItems(Filling $template, {name: string, items: array<array<{path: string, value: ?CellValue}>>} $batch): bytes",
+          "params": [
+            {
+              "kind": "param",
+              "name": "template",
+              "type": "Filling",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "batch",
+              "type": "{name: string, items: array<array<{path: string, value: ?CellValue}>>}",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "bytes",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "Writes the rows of some items of the list <code>name</code>. The path of a value is its path inside the item, such as <code>qty</code>. Returns the bytes of the file that are ready to send."
+          },
+          "slug": "templateitems",
+          "url": "/reference/core/novis-spreadsheet-engine/templateitems/",
+          "examples": "novis/Spreadsheet-Engine/templateItems"
+        },
+        {
+          "id": "Novis.Spreadsheet.Engine.templateFinish",
+          "name": "templateFinish",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "templateFinish(Filling $template, mixed $source): {data: bytes, rows: array<{name: string, rows: uint}>, size: uint}",
+          "params": [
+            {
+              "kind": "param",
+              "name": "template",
+              "type": "Filling",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "source",
+              "type": "mixed",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "{data: bytes, rows: array<{name: string, rows: uint}>, size: uint}",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "Writes the rest of the file. Returns the last bytes of the file, the number of rows in each sheet, and the size of the whole file in bytes."
+          },
+          "slug": "templatefinish",
+          "url": "/reference/core/novis-spreadsheet-engine/templatefinish/",
+          "examples": "novis/Spreadsheet-Engine/templateFinish"
         }
       ],
       "unparsed": [],
@@ -34244,7 +34463,7 @@
       "id": "Novis.Spreadsheet.Export",
       "name": "Novis\\Spreadsheet\\Export",
       "section": "",
-      "summary": "A whole workbook from `Workbook::fromRows`. The method you call on it sets where the file goes.",
+      "summary": "A whole workbook from `Workbook::fromRows` or `Template::fill`. The method you call on it sets where the file goes.",
       "surface": "",
       "enums": [],
       "types": [
@@ -34261,7 +34480,7 @@
           "static": false,
           "receiver": "export",
           "generics": null,
-          "signature": "constructor(callable(Workbook): void $write, Options $options): void",
+          "signature": "constructor(callable(Workbook): void $write, Options $options, ?callable(callable(bytes): void, bool): Written $fill = null): void",
           "params": [
             {
               "kind": "param",
@@ -34278,6 +34497,14 @@
               "default": null,
               "optional": false,
               "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "fill",
+              "type": "?callable(callable(bytes): void, bool): Written",
+              "default": "null",
+              "optional": true,
+              "variadic": false
             }
           ],
           "options": [],
@@ -34288,7 +34515,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "<code>new Export</code> makes an export that adds its rows with <code>$write</code>. <code>Workbook::fromRows</code> makes one for you."
+            "shortHtml": "<code>new Export</code> makes an export that adds its rows with <code>$write</code>. <code>Workbook::fromRows</code> and <code>Template::fill</code> make one for you.\n<code>$fill</code> writes a filled template instead. It sends each part of the file to its first argument, and keeps the whole file in <code>Written::bytes</code> when its second argument is <code>true</code>."
           },
           "slug": "constructor",
           "url": "/reference/core/novis-spreadsheet-export/constructor/",
@@ -34414,7 +34641,7 @@
       "implemented": true,
       "slug": "novis-spreadsheet-export",
       "url": "/reference/core/novis-spreadsheet-export/",
-      "summaryHtml": "<p>A whole workbook from <code>Workbook::fromRows</code>. The method you call on it sets where the file goes.</p>",
+      "summaryHtml": "<p>A whole workbook from <code>Workbook::fromRows</code> or <code>Template::fill</code>. The method you call on it sets where the file goes.</p>",
       "surfaceHtml": ""
     },
     {
@@ -34517,7 +34744,7 @@
       "id": "Novis.Spreadsheet.Reader",
       "name": "Novis\\Spreadsheet\\Reader",
       "section": "",
-      "summary": "A spreadsheet file that your program reads row by row, such as an upload. It can be xlsx, xlsm, xlsb, xls or ods.\nOpen one with `Reader::open`. Every string and `bytes` value it returns is `tainted`, because it comes from the file.",
+      "summary": "A spreadsheet file that your program reads row by row, such as an upload. It can be xlsx, xlsm, xlsb, xls, ods or CSV.\nOpen one with `Reader::open`. Every string and `bytes` value it returns is `tainted`, because it comes from the file.",
       "surface": "",
       "enums": [],
       "types": [
@@ -34589,7 +34816,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "<code>Reader::open</code> opens the workbook in <code>$source</code>. The source is the bytes of the file, or a file your program opened.\nThis reads the list of sheets. An xls or ods file is read whole here. Any other file type throws an error."
+            "shortHtml": "<code>Reader::open</code> opens the workbook in <code>$source</code>, the bytes of the file or a file your program opened. Another file type throws an error.\nAn xls or ods file is read whole here. A CSV file is UTF-8 text with one sheet, <code>Sheet1</code>, and each value in it is a <code>string</code>."
           },
           "slug": "open",
           "url": "/reference/core/novis-spreadsheet-reader/open/",
@@ -34832,7 +35059,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "<code>properties</code> returns the title, subject, author, company and keywords of the workbook, and the time it was created.\nA property the file does not have is <code>null</code>. An xls or ods file throws an error."
+            "shortHtml": "<code>properties</code> returns the title, subject, author, company and keywords of the workbook, and the time it was created.\nA property the file does not have is <code>null</code>, and every property of a CSV file is <code>null</code>. An xls or ods file throws an error."
           },
           "slug": "properties",
           "url": "/reference/core/novis-spreadsheet-reader/properties/",
@@ -34882,7 +35109,7 @@
       "implemented": true,
       "slug": "novis-spreadsheet-reader",
       "url": "/reference/core/novis-spreadsheet-reader/",
-      "summaryHtml": "<p>A spreadsheet file that your program reads row by row, such as an upload. It can be xlsx, xlsm, xlsb, xls or ods. Open one with <code>Reader::open</code>. Every string and <code>bytes</code> value it returns is <code>tainted</code>, because it comes from the file.</p>",
+      "summaryHtml": "<p>A spreadsheet file that your program reads row by row, such as an upload. It can be xlsx, xlsm, xlsb, xls, ods or CSV. Open one with <code>Reader::open</code>. Every string and <code>bytes</code> value it returns is <code>tainted</code>, because it comes from the file.</p>",
       "surfaceHtml": ""
     },
     {
@@ -35739,10 +35966,150 @@
       "surfaceHtml": ""
     },
     {
+      "id": "Novis.Spreadsheet.Template",
+      "name": "Novis\\Spreadsheet\\Template",
+      "section": "",
+      "summary": "A workbook designed in Excel, with placeholders such as `{{customer.name}}` in its cells. Open one with `Template::open`.\n`fill` puts your data in the placeholders. A row with a list placeholder, such as `{{items.qty}}`, is written once for each item.",
+      "surface": "",
+      "enums": [],
+      "types": [
+        {
+          "name": "Options",
+          "type": "?{zone?: string}"
+        },
+        {
+          "name": "Value",
+          "type": "{text: string}|{number: float}|{integer: int}|{decimal: string}|{boolean: bool}|{date: Core\\Time\\Date}|{time: Core\\Time\\TimeOfDay}|{duration: Core\\Time\\Duration}|{day: Core\\Time\\Date, clock: Core\\Time\\TimeOfDay}|{formula: string, cachedText: ?string, cachedNumber: ?float}"
+        },
+        {
+          "name": "Placeholder",
+          "type": "{path: string, value: ?Value}"
+        }
+      ],
+      "constants": [],
+      "members": [
+        {
+          "id": "Novis.Spreadsheet.Template.open",
+          "name": "open",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "open(tainted bytes|Core\\IO\\File $source, Options $options = null): Template",
+          "params": [
+            {
+              "kind": "param",
+              "name": "source",
+              "type": "tainted bytes|Core\\IO\\File",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "options",
+              "type": "Options",
+              "default": "null",
+              "optional": true,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Template",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>Template::open</code> opens the template in <code>$source</code>, the bytes of an xlsx or xlsm file or a file your program opened.\n<code>zone</code> is the time zone for an <code>Instant</code>, such as <code>'Europe/Berlin'</code>. Without <code>zone</code>, an <code>Instant</code> throws an error."
+          },
+          "slug": "open",
+          "url": "/reference/core/novis-spreadsheet-template/open/",
+          "examples": "novis/Spreadsheet-Template/open"
+        },
+        {
+          "id": "Novis.Spreadsheet.Template.set",
+          "name": "set",
+          "static": false,
+          "receiver": "template",
+          "generics": null,
+          "signature": "set(string $address, mixed $value): Template",
+          "params": [
+            {
+              "kind": "param",
+              "name": "address",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "value",
+              "type": "mixed",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Template",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>set</code> puts <code>$value</code> in the cell at <code>$address</code>, such as <code>'Summary!B2'</code>. Call it before <code>fill</code>."
+          },
+          "slug": "set",
+          "url": "/reference/core/novis-spreadsheet-template/set/",
+          "examples": "novis/Spreadsheet-Template/set"
+        },
+        {
+          "id": "Novis.Spreadsheet.Template.fill",
+          "name": "fill",
+          "static": false,
+          "receiver": "template",
+          "generics": null,
+          "signature": "fill(array<mixed> $data): Export",
+          "params": [
+            {
+              "kind": "param",
+              "name": "data",
+              "type": "array<mixed>",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Export",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>fill</code> puts the value at each placeholder's path in <code>$data</code> into its cell. A placeholder that <code>$data</code> does not have throws an error.\nThe file is written when you call <code>download</code>, <code>save</code>, <code>to</code> or <code>bytes</code> on the result."
+          },
+          "slug": "fill",
+          "url": "/reference/core/novis-spreadsheet-template/fill/",
+          "examples": "novis/Spreadsheet-Template/fill"
+        }
+      ],
+      "unparsed": [],
+      "implemented": true,
+      "slug": "novis-spreadsheet-template",
+      "url": "/reference/core/novis-spreadsheet-template/",
+      "summaryHtml": "<p>A workbook designed in Excel, with placeholders such as <code>{{customer.name}}</code> in its cells. Open one with <code>Template::open</code>. <code>fill</code> puts your data in the placeholders. A row with a list placeholder, such as <code>{{items.qty}}</code>, is written once for each item.</p>",
+      "surfaceHtml": ""
+    },
+    {
       "id": "Novis.Spreadsheet.Workbook",
       "name": "Novis\\Spreadsheet\\Workbook",
       "section": "",
-      "summary": "An Excel file (xlsx) that your program writes row by row.\nEach `create` method sets where the file goes. Add a sheet with `sheet`, add its rows, and call `finish` at the end.",
+      "summary": "An Excel file (xlsx) or a CSV file that your program writes row by row. A name that ends in `.csv`, or `format: 'csv'`, writes CSV.\nEach `create` method sets where the file goes. Add a sheet with `sheet`, add its rows, and call `finish` at the end.",
       "surface": "",
       "enums": [],
       "types": [
@@ -36077,7 +36444,7 @@
       "implemented": true,
       "slug": "novis-spreadsheet-workbook",
       "url": "/reference/core/novis-spreadsheet-workbook/",
-      "summaryHtml": "<p>An Excel file (xlsx) that your program writes row by row. Each <code>create</code> method sets where the file goes. Add a sheet with <code>sheet</code>, add its rows, and call <code>finish</code> at the end.</p>",
+      "summaryHtml": "<p>An Excel file (xlsx) or a CSV file that your program writes row by row. A name that ends in <code>.csv</code>, or <code>format: 'csv'</code>, writes CSV. Each <code>create</code> method sets where the file goes. Add a sheet with <code>sheet</code>, add its rows, and call <code>finish</code> at the end.</p>",
       "surfaceHtml": ""
     },
     {
@@ -43838,7 +44205,7 @@
       "name": "Core\\Router",
       "section": "13. Compiler-facing surfaces",
       "summary": "",
-      "surface": "`match(Http\\Method $method, tainted string $path): ?Router\\Match`, `methodsFor(tainted string $path): array<Http\\Method>` (empty ⇒ 404, else 405 + `Allow:`), `url(string $name, array<string, mixed> $params): string` (**launder**, URL path), `urlAbsolute(...)` (**launder**, URL — prepends the mount's configured `origin`) and `urlSigned(..., {keys: array<secret bytes>, until: ?Time\\Instant} $settings): string` (`url` with a `_sig` parameter over the route's *name* and `$params`, so a link survives a remount — `rule:core-classes/router-signed-url`), over a table built while compiling from `#[Route]`. The server matches once per request and `Core\\Request::route()` is that match. A duplicate route, a `{param}` with no matching method parameter, an unknown literal `url()` name and a `url()` key that is neither a capture nor a declared `#[Query]` parameter are compile errors",
+      "surface": "`match(Http\\Method $method, tainted string $path): ?Router\\Match`, `methodsFor(tainted string $path): array<Http\\Method>` (empty ⇒ 404, else 405 + `Allow:`), `dispatch(Router\\Gate $gate): void` (calls the matched route's method, the gate answering every request that method does not run for — `rule:routing/a-gate-answers-around-every-handler`), `url(string $name, array<string, mixed> $params): string` (**launder**, URL path), `urlAbsolute(...)` (**launder**, URL — prepends the mount's configured `origin`) and `urlSigned(..., {keys: array<secret bytes>, until: ?Time\\Instant} $settings): string` (`url` with a `_sig` parameter over the route's *name* and `$params`, so a link survives a remount — `rule:core-classes/router-signed-url`), over a table built while compiling from `#[Route]`. The server matches once per request and `Core\\Request::route()` is that match. A duplicate route, a `{param}` with no matching method parameter, an unknown literal `url()` name and a `url()` key that is neither a capture nor a declared `#[Query]` parameter are compile errors",
       "enums": [],
       "types": [],
       "constants": [],
@@ -44180,6 +44547,50 @@
           "slug": "methodsfor",
           "url": "/reference/core/router/methodsfor/",
           "examples": "core/Router/methodsFor"
+        },
+        {
+          "id": "Router.dispatch",
+          "name": "dispatch",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "dispatch(Core\\Router\\Gate $gate): void",
+          "params": [
+            {
+              "kind": "param",
+              "name": "gate",
+              "type": "Core\\Router\\Gate",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "void",
+          "notes": "",
+          "qualifier": "",
+          "section": "13. Compiler-facing surfaces",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "Calls the method of the route that the request matched. First, <code>$gate-&gt;allows()</code> checks the request. When no route method runs, <code>dispatch</code> sets the status and calls <code>$gate-&gt;refused()</code>. When the method throws an error, <code>dispatch</code> sets the status <code>500</code> and calls <code>$gate-&gt;failed()</code>.",
+            "params": [
+              {
+                "name": "gate",
+                "descHtml": "An instance of your class that implements <code>Core\\Router\\Gate</code>."
+              }
+            ],
+            "returnHtml": "Nothing. The route method or the gate writes the response. Each value captured from the path goes to the method parameter with the same name. An error that <code>refused()</code> or <code>failed()</code> throws is thrown by <code>dispatch</code>.",
+            "errors": [
+              {
+                "error": "LogicError",
+                "descHtml": "When the program has no <code>#[Route]</code>. When the program is not answering a request, for example a command-line program, a job or a test. When the route method has a parameter that no value in the path fills, such as a <code>#[Query]</code> parameter or an optional capture that the path does not have."
+              }
+            ]
+          },
+          "slug": "dispatch",
+          "url": "/reference/core/router/dispatch/",
+          "examples": "core/Router/dispatch"
         }
       ],
       "unparsed": [],
@@ -44187,13 +44598,13 @@
       "slug": "router",
       "url": "/reference/core/router/",
       "summaryHtml": "",
-      "surfaceHtml": "<code>match(Http\\Method $method, tainted string $path): ?Router\\Match</code>, <code>methodsFor(tainted string $path): array&lt;Http\\Method&gt;</code> (empty ⇒ 404, else 405 + <code>Allow:</code>), <code>url(string $name, array&lt;string, mixed&gt; $params): string</code> (<strong>launder</strong>, URL path), <code>urlAbsolute(...)</code> (<strong>launder</strong>, URL — prepends the mount's configured <code>origin</code>) and <code>urlSigned(..., {keys: array&lt;secret bytes&gt;, until: ?Time\\Instant} $settings): string</code> (<code>url</code> with a <code>_sig</code> parameter over the route's <em>name</em> and <code>$params</code>, so a link survives a remount — <code>rule:core-classes/router-signed-url</code>), over a table built while compiling from <code>#[Route]</code>. The server matches once per request and <code>Core\\Request::route()</code> is that match. A duplicate route, a <code>{param}</code> with no matching method parameter, an unknown literal <code>url()</code> name and a <code>url()</code> key that is neither a capture nor a declared <code>#[Query]</code> parameter are compile errors"
+      "surfaceHtml": "<code>match(Http\\Method $method, tainted string $path): ?Router\\Match</code>, <code>methodsFor(tainted string $path): array&lt;Http\\Method&gt;</code> (empty ⇒ 404, else 405 + <code>Allow:</code>), <code>dispatch(Router\\Gate $gate): void</code> (calls the matched route's method, the gate answering every request that method does not run for — <code>rule:routing/a-gate-answers-around-every-handler</code>), <code>url(string $name, array&lt;string, mixed&gt; $params): string</code> (<strong>launder</strong>, URL path), <code>urlAbsolute(...)</code> (<strong>launder</strong>, URL — prepends the mount's configured <code>origin</code>) and <code>urlSigned(..., {keys: array&lt;secret bytes&gt;, until: ?Time\\Instant} $settings): string</code> (<code>url</code> with a <code>_sig</code> parameter over the route's <em>name</em> and <code>$params</code>, so a link survives a remount — <code>rule:core-classes/router-signed-url</code>), over a table built while compiling from <code>#[Route]</code>. The server matches once per request and <code>Core\\Request::route()</code> is that match. A duplicate route, a <code>{param}</code> with no matching method parameter, an unknown literal <code>url()</code> name and a <code>url()</code> key that is neither a capture nor a declared <code>#[Query]</code> parameter are compile errors"
     },
     {
       "id": "Router.Match",
       "name": "Core\\Router\\Match",
       "section": "",
-      "summary": "The route that a path matched. `Core\\Request::route()` returns the match of the request being served, and `Core\\Router::match()` returns the match of a path you choose. `name()` returns the route's name, `params()` and `param()` return the values captured from the path and `method()` returns the route's HTTP method. `accessAs<E>()` returns the route's access rule as a case of the enum `E`, and `access()` returns the same rule as its name.",
+      "summary": "The route that a path matched. `Core\\Request::route()` returns the match of the request being served, and `Core\\Router::match()` returns the match of a path you choose. `name()` returns the route's name, `params()` and `param()` return the values captured from the path and `method()` returns the route's HTTP method. `accessAs<E>()` returns the route's access rule as a case of the enum `E`, and `access()` returns the same rule as its name. `attribute<T>()` returns an attribute of the route's method.",
       "surface": "",
       "enums": [],
       "types": [],
@@ -44351,13 +44762,36 @@
           "slug": "accessas",
           "url": "/reference/core/router-match/accessas/",
           "examples": "core/Router-Match/accessAs"
+        },
+        {
+          "id": "Router.Match.attribute",
+          "name": "attribute",
+          "static": false,
+          "receiver": "match",
+          "generics": "<T>",
+          "signature": "attribute<T>(): ?T",
+          "params": [],
+          "options": [],
+          "returnType": "?T",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "Returns the attribute of the route's method that has the shape you write between <code>&lt;</code> and <code>&gt;</code>. For a method with <code>#[{seconds: 60}]</code>, <code>$match-&gt;attribute&lt;{seconds: int}&gt;()</code> returns <code>{seconds: 60}</code>. A gate uses it to read a setting for one route.",
+            "returnHtml": "The attribute as an object of that shape, or <code>null</code> when the method has no attribute with every field of the shape. The type argument must be a shape. Two matching attributes on one method do not compile."
+          },
+          "slug": "attribute",
+          "url": "/reference/core/router-match/attribute/",
+          "examples": "core/Router-Match/attribute"
         }
       ],
       "unparsed": [],
       "implemented": true,
       "slug": "router-match",
       "url": "/reference/core/router-match/",
-      "summaryHtml": "<p>The route that a path matched. <code>Core\\Request::route()</code> returns the match of the request being served, and <code>Core\\Router::match()</code> returns the match of a path you choose. <code>name()</code> returns the route's name, <code>params()</code> and <code>param()</code> return the values captured from the path and <code>method()</code> returns the route's HTTP method. <code>accessAs&lt;E&gt;()</code> returns the route's access rule as a case of the enum <code>E</code>, and <code>access()</code> returns the same rule as its name.</p>",
+      "summaryHtml": "<p>The route that a path matched. <code>Core\\Request::route()</code> returns the match of the request being served, and <code>Core\\Router::match()</code> returns the match of a path you choose. <code>name()</code> returns the route's name, <code>params()</code> and <code>param()</code> return the values captured from the path and <code>method()</code> returns the route's HTTP method. <code>accessAs&lt;E&gt;()</code> returns the route's access rule as a case of the enum <code>E</code>, and <code>access()</code> returns the same rule as its name. <code>attribute&lt;T&gt;()</code> returns an attribute of the route's method.</p>",
       "surfaceHtml": ""
     },
     {

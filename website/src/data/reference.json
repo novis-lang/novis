@@ -1612,6 +1612,19 @@
     },
     {
       "area": "types",
+      "slug": "router-refusal",
+      "url": "/reference/types/router-refusal/",
+      "title": "Core\\Router\\Refusal",
+      "group": "Enums",
+      "intro": {
+        "id": "Core\\Router\\Refusal",
+        "title": "Core\\Router\\Refusal",
+        "examples": "types/Router-Refusal"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
       "slug": "script-exitreport-reason",
       "url": "/reference/types/script-exitreport-reason/",
       "title": "Core\\Script\\ExitReport::Reason",
