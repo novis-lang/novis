@@ -840,6 +840,41 @@ fn a_duplicate_header_is_numbered_and_an_empty_one_is_its_column_letter() {
 }
 
 #[test]
+fn a_header_of_every_column_equal_is_numbered_in_linear_time() {
+    let mut data = String::from(r#"<row r="1">"#);
+    for at in 0..16_384_u32 {
+        let mut column = String::new();
+        let mut rest = at + 1;
+        while rest > 0 {
+            column.insert(0, char::from(b'A' + u8::try_from((rest - 1) % 26).unwrap()));
+            rest = (rest - 1) / 26;
+        }
+        let text = if at == 1 { "Name (2)" } else { "Name" };
+        data.push_str(&format!(
+            r#"<c r="{column}1" t="inlineStr"><is><t>{text}</t></is></c>"#
+        ));
+    }
+    data.push_str("</row>");
+    let read = Read::open(xlsx(&[sheet("Shop", data)], &[]));
+    let started = std::time::Instant::now();
+    let header = read.call("readerHeader", vec![options("Shop").value()]);
+    let elapsed = started.elapsed();
+    let mut want = vec!["Name".to_owned(), "Name (2)".to_owned()];
+    want.extend((3..=16_384).map(|count| format!("Name ({count})")));
+    let want: Vec<&str> = want.iter().map(String::as_str).collect();
+    assert_eq!(
+        header,
+        strings(&want),
+        "a name given in the file is skipped"
+    );
+    assert!(
+        elapsed < std::time::Duration::from_secs(10),
+        "a full row of equal headers is read in {elapsed:?}"
+    );
+    block_on(read.request.end()).expect("the request ends");
+}
+
+#[test]
 fn the_foreach_key_is_the_row_number_in_the_file() {
     let data = [
         row(1, &[("", 0, "<v>1</v>")]),
