@@ -64,7 +64,7 @@ keeps the two from becoming two spellings of one thing:
 | read a possibly-absent element | `$a[$k] ?? $default` | the absence-tolerant spelling; there is **no** `Arr::get` |
 | write an element | `$a[$k] = $v` | |
 | remove an element | `unset($a[$k])` | an array element of a named holder, and nothing else — a declared property, static or instance, and every other operand alike are refused (`rule:classes/unset-is-refused-on-a-property`) |
-| ask whether a key exists | `Arr::hasKey($a, $k)` | `isset()`/`array_key_exists` both collapse here |
+| ask whether a key exists | `Arr::hasKey($a, $k)` | the one way to test for a key |
 | combine two arrays | `Arr::overlay` / `underlay` / `appendAll` | `$a + $b` does **not** compile (`rule:types/array-combination`) |
 
 The same division applies elsewhere: `**` is exponentiation, so there is no `Math::pow`; `%` is integer
@@ -97,11 +97,9 @@ from the assertions at the M4S tail to `#[Bench]` and mutation testing at M10.
 
 ## 1. `Core\Str`
 
-`string` is guaranteed-valid UTF-8 (`rule:types/bytes`), so **no member takes an
-encoding argument** (R13) and there is no `mb_` twin of anything. Indexing granularity — what `length`, `at`
-and `slice` count in — is `rule:types/string-is-utf8`'s, not this file's: **extended
-grapheme clusters**. Every signature below is written granularity-agnostically, so nothing here changes if
-that ADR's own *Revisiting* ever re-opens it.
+A `string` is always valid UTF-8 (`rule:types/bytes`), so **no member takes an encoding argument** (R13).
+`length`, `at` and `slice` count in **graphemes**, which is what a person counts as one character
+(`rule:types/string-is-utf8`).
 
 ### Inspection
 
@@ -121,10 +119,10 @@ that ADR's own *Revisiting* ever re-opens it.
 Case-insensitivity is an option here exactly as it is on `indexOf`, `replace` and the rest, rather than a
 second member name. `{natural: true}` selects a **different ordering**, not a variant of the same one —
 `compare("img12", "img2")` is negative and becomes positive under it — so a natural sort is
-`Arr::sort($a, {comparator: fn($x, $y) => Str::compare($x, $y, {natural: true})})`. `strncmp`'s
-length-limited form is `Str::slice` first.
+`Arr::sort($a, {comparator: fn($x, $y) => Str::compare($x, $y, {natural: true})})`. A comparison of
+only the first `n` characters is `Str::slice` first.
 
-`strcoll` and every locale-sensitive comparison are **not** here: Novis has no ambient locale
+Locale-sensitive comparison is **not** here: Novis has no ambient locale
 (`rule:core-api/tier-placement`), and locale-aware collation is the intl extension's
 batch-shaped API.
 
@@ -141,15 +139,14 @@ batch-shaped API.
 | `graphemes` | `graphemes(string $s): array<string>` | |
 | `codePoints` | `codePoints(string $s): array<uint>` | neutral |
 
-`before` and `after` both **exclude the needle**, which is where `after` parts company with `strstr`: PHP
-returns the needle and everything past it, and the port of a program that wanted that is
-`$needle . Str::after(...)`. Two members named against the same needle that each drop it are the pair a
-reader can predict. `{last: true}` cuts at the last occurrence instead, which is all `strrchr` added, and a
-needle that does not occur is `null` where `strstr` is `false` (R5).
+`before` and `after` both **exclude the needle**. A program that wants the needle and everything past it
+writes `$needle . Str::after(...)`. Two members named against the same needle that each drop it are the
+pair a reader can predict. `{last: true}` cuts at the last occurrence instead, and a needle that does not
+occur gives `null` (R5).
 
 `lines` splits on `\n`, `\r\n` and a lone `\r` alike, and a trailing terminator does **not** produce a final
-empty element — the platform's own line ending is never consulted, which is why there is no `PHP_EOL`
-equivalent to pass it.
+empty element. The platform's own line ending is never consulted, so there is no line-ending constant to
+pass it.
 
 ### Transformation
 
@@ -178,10 +175,10 @@ equivalent to pass it.
 | `format` | `format(string $template, mixed ...$arguments): string` | **sink** (template) |
 
 `format` is an `rule:expressions/intrinsic-constant-arguments` intrinsic: a literal template has its
-placeholder count and types checked against the argument list at compile time, which turns PHP's
-`printf`-argument-mismatch bug family into a diagnostic. Its template grammar is **`printf`'s**, kept
-deliberately — a closed conversion list (`%s %d %u %f %e %g %x %X %o %b %%`) with `printf`'s flag, width,
-precision and `%1$s` positional syntax, minus everything that reads ambient state. It is a *grammar*, not a
+placeholder count and types checked against the argument list at compile time, so a template that does not
+match its arguments is a diagnostic. Its template grammar is the familiar `%`-conversion grammar from C, kept
+deliberately — a closed conversion list (`%s %d %u %f %e %g %x %X %o %b %%`) with its flag, width, precision and `%1$s`
+positional syntax, minus everything that reads ambient state. It is a *grammar*, not a
 mode string, so R11 does not reach it; the same is true of `Core\Regex`'s patterns, `Core\Bytes::pack`'s
 format and CLDR date patterns, and those four are the only ones in the library. **All four are `tainted`
 sinks**, because a grammar is an instruction rather than data
@@ -190,17 +187,17 @@ template hands an attacker `%2$s` and `%999999999d`. The *arguments* stay contag
 gets a launderer except `Regex::quote` — a grammar is written by the program, so the fix at a rejected call
 site is a literal, which `rule:expressions/intrinsic-constant-arguments` already folds.
 
-`ucwords` and title casing are **not** here — word segmentation is locale-dependent and belongs to intl;
-the mechanical rewrite for an ASCII-ish name is
+Title casing is **not** here, because word segmentation is locale-dependent and belongs to intl. For an
+ASCII-ish name, a program writes
 `Str::join(Arr::map(Str::split($s, " "), fn($w) => Str::upperFirst($w)), " ")`.
 
-PHP's `ctype_*` family has **no member and no replacement class**. Each one is a character-class question,
-which is what `Core\Regex` is for — `ctype_alpha($s)` is `Regex::matches($s, "^\\p{L}+$")` — except the two
-numeric ones, which are a *type* question and therefore an `as`: `ctype_digit($s)` is
-`$s as ?uint != null` (`rule:expressions/nullable-conversion`). Adding them as members
-would import ASCII-only semantics into a type that guarantees UTF-8, which is the mistake
-`rule:types/bytes` exists to prevent; `Core\Validate::isAscii` and `isPrintable`
-are here precisely because they *are* about the ASCII range and say so.
+Character-class tests have **no member and no class of their own**. A test of which characters a string
+contains is what `Core\Regex` is for: an all-letters test is `Regex::matches($s, "^\\p{L}+$")`. An
+all-digits test is a *type* question and therefore an `as`: `$s as ?uint != null`
+(`rule:expressions/nullable-conversion`). Members for these would import ASCII-only semantics into a type
+that guarantees UTF-8, which is the mistake `rule:types/bytes` exists to prevent;
+`Core\Validate::isAscii` and `isPrintable` are here precisely because they *are* about the ASCII range and
+say so.
 
 Enums: `NormalForm { Nfc, Nfd, Nfkc, Nfkd }`, declared in the class, so a program writes
 `Core\Str::NormalForm::Nfc`.
@@ -233,9 +230,8 @@ member is named `merge`, is `rule:types/array-combination`.
 | `firstKey` | `firstKey(array<T> $a): ?string` | neutral |
 | `lastKey` | `lastKey(array<T> $a): ?string` | neutral |
 
-PHP's internal array pointer (`current`/`key`/`next`/`prev`/`reset`/`end`/`each`) has no equivalent: a
-mutable cursor inside a copy-on-write *value* is incoherent, since copying the array would copy its
-iteration position. `foreach` and the four members above cover every use.
+An array has no internal cursor: a mutable cursor inside a copy-on-write *value* is incoherent, since
+copying the array would copy its iteration position. `foreach` and the four members above cover every use.
 
 Over an `array<?T>`, the `?T` returned by `first`, `last`, `find`, `min`, `max` and `Random::pick` cannot
 distinguish "absent" from "present and null". That is accepted rather than patched with a second return
@@ -281,15 +277,13 @@ has a depth an element type can state: `flatten` unwraps exactly one level, so `
 level too shallow over a three-deep argument and the declared answer would then claim a nesting the real
 one does not have. `mixed` on both sides is therefore the *sound* spelling rather than a weak one, and a
 caller that knows the depth is two reaches for `flatten` and keeps its `T`. **`{preserveKeys: false}` — the default wherever it appears — discards *every*
-key and renumbers from `"0"`**; `true` keeps every key. PHP renumbers integer keys and silently keeps string
-ones, which is the key-type-dependent behaviour
-`rule:types/preserve-keys` removes.
+key and renumbers from `"0"`**; `true` keeps every key. The result never depends on the type of a key
+(`rule:types/preserve-keys`).
 
 `padStart`/`padEnd` **always return a list**, and take no `preserveKeys` option: padding *adds* entries, and
 there is no non-arbitrary key for an added one beside an existing map's, so keeping is not a choice that can
 be offered. `withoutFirst`/`withoutLast` are the opposite case — they add nothing, so every surviving key is
-kept. `fill` drops PHP's `$start_index`, which produces a list that does not start at zero; the keys a caller
-actually wants are `fillKeys`.
+kept. `fill` always returns a list that starts at `"0"`; a caller that wants other keys uses `fillKeys`.
 
 ### Combining and set operations
 
@@ -312,16 +306,15 @@ Three members combine arrays, and **each treats every key the same way** — the
 existing position; `appendAll` discards keys and always returns a list. `overlayDeep` recurses only where
 both sides hold an array and neither is a list — a list is replaced wholesale.
 
-`unique`, `diff` and `intersect` compare by **strict identity**, as `contains` does; PHP's default
-string-cast comparison (`SORT_STRING`) is not reproduced. Twelve `array_diff*`/`array_intersect*` functions
-become two members plus a three-case enum, the largest single reduction in the library.
-`array_merge_recursive` has no replacement: promoting two colliding scalars into a two-element array is a
-data-shape change, not a merge.
+`unique`, `diff` and `intersect` compare by **strict identity**, as `contains` does; no value is converted
+to a string to be compared. `diff` and `intersect` take a three-case enum, `SetOn`, for what they compare.
+No member promotes two colliding scalars into a two-element array: that is a data-shape change, not a
+combination.
 
 ### Iteration and aggregation
 
-Every callback receives `($value, $key)` and may declare fewer parameters (R9), which is what removes
-`ARRAY_FILTER_USE_KEY`, `ARRAY_FILTER_USE_BOTH` and the need for `…WithKey` twins. `reduce` prefixes that
+Every callback receives `($value, $key)` and may declare fewer parameters (R9), so no member needs a mode
+flag or a `…WithKey` twin. `reduce` prefixes that
 pair with the accumulator — `($carry, $value, $key)` — since a fold has nowhere else to put it. `$key` is a
 `string` wherever it is offered, on a list exactly as on a map
 (`rule:types/arrays`).
@@ -349,13 +342,12 @@ from `""`, and an empty array is that seed returned unchanged with no call made.
 **`map`, `filter` and `groupBy` preserve every key**; `mapKeys` is the only member that changes one, and
 `values` renumbers. A `groupBy` bucket therefore keeps each entry's own key: a partition cannot collide
 two entries, so there is nothing for the renumbering `flatten` and `appendAll` do to protect against, and
-`Arr::values` over a bucket recovers the list — the other direction is not recoverable. PHP's multi-array `array_map($fn, $a, $b)` and its `array_map(null, $a, $b)` zip have no member:
-they are a `foreach` over `Arr::keys`, and a zip whose element type is `array<T|U>` would defeat the
-element typing that makes the rest of this class checkable.
+`Arr::values` over a bucket recovers the list — the other direction is not recoverable. A map over several
+arrays at once, and a zip, have no member: they are a `foreach` over `Arr::keys`, and a zip whose element
+type is `array<T|U>` would defeat the element typing that makes the rest of this class checkable.
 
-`array_walk` and `array_walk_recursive` have no member: `foreach` is the language's own spelling, and R3
-removes the by-reference mutation that was their only reason to exist
-(`rule:types/array-combination`).
+A callback that walks an array and mutates it in place has no member: `foreach` is the language's own
+spelling, and R3 removes by-reference mutation (`rule:types/array-combination`).
 
 ### Ordering
 
@@ -364,9 +356,8 @@ removes the by-reference mutation that was their only reason to exist
 | `sort` | `sort(array<T> $a, {by?: callable, order?: Order, comparator?: callable, preserveKeys?: bool}): array<T>` | |
 | `sortByKey` | `sortByKey(array<T> $a, {order?: Order, comparator?: callable}): array<T>` | |
 
-Eleven sort functions plus `array_multisort` become two members. Descending is `{order: Arr::Order::Desc}`,
-key-preservation is an option rather than a letter in the name, and `by` — a key-extractor callable — is
-the thing `usort` callbacks are written to emulate. Both sorts are stable.
+Two members cover every sort. Descending is `{order: Arr::Order::Desc}`, key-preservation is an option,
+and `by` is a key-extractor callable. Both sorts are stable.
 
 `by` and `comparator` **compose** rather than conflict, on `sort` and on `diff`/`intersect` alike: `by`
 decides *what* is compared and `comparator` decides *how*, so a comparator given beside an extractor sees
@@ -380,10 +371,9 @@ writes `Core\Arr::Order::Desc`.
 ## 3. `Core\Math`
 
 `**` is exponentiation and `%` is integer modulo, so neither has a member (R17). Division by zero throws
-`ArithmeticError` (R4) — in `intDiv`, in `mod`, and in the `/` operator whatever the operand types, which
-is exactly why `fdiv` *is* a member here: it is the one spelling left for IEEE's `INF`, and PHP has it for
-the same reason. Overflow throws rather than becoming a `float`
-(`rule:types/arithmetic`).
+`ArithmeticError` (R4). This is true in `intDiv`, in `mod`, and in the `/` operator for every operand type.
+`fdiv` divides two floats by the IEEE rules, so dividing by zero gives `INFINITY` or `NAN`. An overflow
+throws an error and never turns into a `float` (`rule:types/arithmetic`).
 
 | Member | Signature | Q |
 |---|---|---|
@@ -419,32 +409,28 @@ the same reason. Overflow throws rather than becoming a `float`
 | `format` | `format(int\|float\|decimal $n, {decimals?: uint, decimalSeparator?: string, groupSeparator?: string}): string` | |
 
 Constants: `PI`, `TAU`, `E`, `EPSILON`, `INT_MAX`, `INT_MIN`, `UINT_MAX`, `FLOAT_MAX`, `FLOAT_MIN`, `NAN`,
-`INFINITY` — replacing `M_PI`, `M_E`, `PHP_INT_MAX`, `PHP_FLOAT_EPSILON` and the rest of PHP's global
-constants (`rule:classes/no-free-functions-or-constants`).
+`INFINITY` (`rule:classes/no-free-functions-or-constants`).
 
 `Math::format` takes explicit separators because Novis has no ambient locale; locale-correct number
-formatting is intl's `NumberFormatter` equivalent, at Tier 1.
+formatting is in the intl extension, at Tier 1.
 
-`log1p` and `expm1` are **not** folded into `log`/`exp`: they exist for precision near zero, which an
-argument or a base cannot express, and neither is common enough in web or CLI code to earn a member. Their
-rewrite is the naive form, with the precision loss stated rather than hidden.
+There is no `log(1 + x)` or `exp(x) - 1` member for precision near zero. Neither is common enough in web or
+CLI code to need one, so a program writes the plain form and accepts its precision loss.
 
 Enums: `RoundMode { HalfUp, HalfDown, HalfEven, HalfOdd, Up, Down }`.
 
 ## 4. `Core\Time`
 
-PHP has ~40 `date_*` procedural functions that are aliases of `DateTime` methods, *and* a
-`DateTime`/`DateTimeImmutable` mutable/immutable pair. Both duplications are gone (R17, R20): there are
-objects only, and every one is immutable. There is **no ambient timezone** — no process default, no
-per-request default — so a `Zone` is an explicit argument at every instant↔calendar conversion.
+`Core\Time` has objects only, and every one is immutable (R17, R20). There is **no default timezone**. A
+process has none, and a request has none. So every conversion between an instant and a calendar date takes
+a `Zone` argument.
 
 **Two arithmetics, and the type says which one you get.** An `Instant` moves by a `Duration`, which is an
 exact count of nanoseconds; a `DateTime` moves by a count of a `Unit`, which is a calendar step that a DST
 boundary or a short month can make longer or shorter than its nominal length. `Time::now()->plus(72h)` and
-`Time::now()->in($zone)->plus(3, Unit::Day)` are different operations, and PHP's `"+3 days"` is ambiguous
-between them. There is no relative-expression string anywhere in this class: everything `strtotime` spells
-is a typed call, and `rule:types/duration`'s `72h`/`30d` literal is what keeps them
-short.
+`Time::now()->in($zone)->plus(3, Unit::Day)` are different operations. No method takes a relative date
+string like `"+3 days"`. Each step is a typed call, and the `72h` and `30d` duration literals keep them
+short (`rule:types/duration`).
 
 ### Entry points on `Core\Time`
 
@@ -463,24 +449,23 @@ string is validated and its plan prepared at compile time. **A CLDR pattern is a
 one is taken — `Time::parse`'s `$format` and every `format(string $pattern)` below — because it is one of
 R11's four grammars, per `Core\Str::format`'s note in § 1; the `$text` being parsed is data and stays
 contagious. **Patterns are CLDR** (`yyyy-MM-dd HH:mm:ss`,
-`EEEE, d MMMM yyyy`), not PHP's `date()` letters, because the intl extension needs CLDR anyway. The same patterns serve `DateTime::format`. The **subset** of CLDR field letters implemented,
-and the fact that a name renders in CLDR's root locale because there is no `setlocale`
+`EEEE, d MMMM yyyy`), because the intl extension needs CLDR anyway. The same patterns serve `DateTime::format`. The **subset** of CLDR field letters implemented,
+and the fact that a name renders in CLDR's root locale because there is no ambient locale
 (`rule:core-api/tier-placement`), are `crates/nvs-stdlib/src/cldr.rs`'s own docs; a
 letter outside the subset is a diagnostic naming itself, never a silent literal.
 
-PHP's free-form `strtotime` is **not** implemented, in either half. Every expression it accepts is a typed
-call:
+There is **no** free-form date-expression parser. Each common date question is a typed call:
 
-| PHP | Novis |
+| Task | Novis |
 |---|---|
-| `strtotime("now")` | `Time::now()->in($z)` |
-| `strtotime("+3 days")` | `Time::now()->in($z)->plus(3, Unit::Day)` — or `Time::now()->plus(72h)` for an exact offset |
-| `strtotime("today")` | `Time::now()->in($z)->startOf(Unit::Day)` |
-| `strtotime("next monday")` | `Time::now()->in($z)->next(DateTime::Weekday::Monday)` |
-| `strtotime("first day of next month")` | `Time::now()->in($z)->startOf(Unit::Month)->plus(1, Unit::Month)` |
-| `strtotime("last day of this month")` | `Time::now()->in($z)->endOf(Unit::Month)` |
-| `strtotime("2024-03-01")` | `Time::parse($t, "yyyy-MM-dd", $z)` |
-| `strtotime($userSuppliedRelativeString)` | `Duration::parse($s)`, for the exact-duration subset only |
+| the current time in a zone | `Time::now()->in($z)` |
+| three days from now | `Time::now()->in($z)->plus(3, Unit::Day)` — or `Time::now()->plus(72h)` for an exact offset |
+| the start of today | `Time::now()->in($z)->startOf(Unit::Day)` |
+| next Monday | `Time::now()->in($z)->next(DateTime::Weekday::Monday)` |
+| the first day of next month | `Time::now()->in($z)->startOf(Unit::Month)->plus(1, Unit::Month)` |
+| the last day of this month | `Time::now()->in($z)->endOf(Unit::Month)` |
+| a date in a known format | `Time::parse($t, "yyyy-MM-dd", $z)` |
+| a relative length a user supplied | `Duration::parse($s)`, for exact durations only |
 
 A relative expression arriving at run time — a `retention = "30d"` in config, a `--since=7d` flag — is a
 `Duration`, never a calendar step, because a count and a unit that are not known until run time are exactly
@@ -491,34 +476,34 @@ what `Duration::parse` takes. "Next monday" is not a value a config file supplie
 | Member | Signature | Notes |
 |---|---|---|
 | `in` | `$i->in(Zone $zone): DateTime` | the only instant→calendar conversion; a zone is never implicit |
-| `toEpochSeconds` | `$i->toEpochSeconds(): int` | replaces `getTimestamp`, `date("U")` |
-| `toEpochMillis` | `$i->toEpochMillis(): int` | plus `toEpochMicros`, replacing `microtime(true)`'s two halves |
-| `plus` / `minus` | `$i->plus(Duration $d): Instant` | replaces `date_add`, `date_sub`, `modify` |
-| `since` | `$i->since(Instant $earlier): Duration` | replaces `date_diff`, `DateInterval` arithmetic |
+| `toEpochSeconds` | `$i->toEpochSeconds(): int` | the whole seconds since 1970-01-01 UTC |
+| `toEpochMillis` | `$i->toEpochMillis(): int` | the milliseconds since 1970-01-01 UTC. `toEpochMicros` gives microseconds |
+| `plus` / `minus` | `$i->plus(Duration $d): Instant` | moves the instant by an exact duration |
+| `since` | `$i->since(Instant $earlier): Duration` | the exact time between two instants |
 | `compareTo` | `$i->compareTo(Instant $other): int` | `Instant` implements `Comparable` (`rule:classes/comparable`), so `<`/`>` work directly |
-| `toIso` | `$i->toIso(): string` | replaces `date(DATE_ATOM)` |
+| `toIso` | `$i->toIso(): string` | the instant as an ISO 8601 string |
 
 ### `Core\Time\DateTime` — a civil date and time in a zone
 
 | Member | Signature | Notes |
 |---|---|---|
-| `format` | `$d->format(string $pattern): string` | `rule:expressions/intrinsic-constant-arguments` intrinsic, CLDR patterns. Replaces `date`, `gmdate`, `idate`, `strftime`, `date_format` |
-| `plus` / `minus` | `$d->plus(int $count, Unit $unit): DateTime` | calendar arithmetic: adding `1, Unit::Month` lands on the same day-of-month, clamped to the month's length, and crossing a DST boundary is a 23- or 25-hour day. Replaces `date_add`, `date_sub`, `modify`, `strtotime`'s relative half |
-| `next` / `previous` | `$d->next(Weekday $w): DateTime` | the nearest strictly later (earlier) day with that weekday, time-of-day preserved. Replaces `strtotime("next monday")` |
-| `with` | `$d->with({year?, month?, day?, hour?, minute?, second?, nanos?}): DateTime` | replaces `setDate`, `setTime`, `setISODate` |
+| `format` | `$d->format(string $pattern): string` | `rule:expressions/intrinsic-constant-arguments` intrinsic, CLDR patterns |
+| `plus` / `minus` | `$d->plus(int $count, Unit $unit): DateTime` | calendar arithmetic: adding `1, Unit::Month` lands on the same day-of-month, clamped to the month's length, and crossing a DST boundary is a 23- or 25-hour day |
+| `next` / `previous` | `$d->next(Weekday $w): DateTime` | the nearest strictly later (earlier) day with that weekday, time-of-day preserved |
+| `with` | `$d->with({year?, month?, day?, hour?, minute?, second?, nanos?}): DateTime` | a copy with the named fields changed |
 | `withTime` | `$d->withTime(TimeOfDay $t): DateTime` | the common half of `with`, spelled as the operation it is |
 | `startOf` / `endOf` | `$d->startOf(Unit $u): DateTime` | distinct operations at a DST boundary, which is why both exist |
-| `difference` | `$d->difference(DateTime $other, Unit $unit): int` | whole units from the receiver **to** `$other`, counted in the *receiver's* zone — an age in years, a term in months. Replaces `date_diff` + `DateInterval`'s `y`/`m`/`d` fields |
+| `difference` | `$d->difference(DateTime $other, Unit $unit): int` | whole units from the receiver **to** `$other`, counted in the *receiver's* zone — an age in years, a term in months |
 | `toInstant` | `$d->toInstant(): Instant` | |
 | `date` / `timeOfDay` / `zone` | `$d->date(): Date` | component views |
-| `weekday` | `$d->weekday(): Weekday` | replaces `date("N")` |
-| `dayOfYear` | `$d->dayOfYear(): uint` | replaces `date("z")` |
-| `isLeapYear` | `$d->isLeapYear(): bool` | replaces `date("L")`, `checkdate`'s year half |
+| `weekday` | `$d->weekday(): Weekday` | the day of the week |
+| `dayOfYear` | `$d->dayOfYear(): uint` | the day of the year, counted from `1` |
+| `isLeapYear` | `$d->isLeapYear(): bool` | `true` when the date's year is a leap year |
 
 `Core\Time\Date` and `Core\Time\TimeOfDay` are the zone-free component types, with the same `plus`/`minus`/
 `with`/`compareTo`/`format` shape and the constructors `Date::at(int $y, uint $m, uint $d)` and
-`TimeOfDay::at(uint $hour, uint $minute, {second?: uint, nanos?: uint})`. `checkdate` has no equivalent
-because constructing an invalid date throws.
+`TimeOfDay::at(uint $hour, uint $minute, {second?: uint, nanos?: uint})`. Constructing an invalid date
+throws, so no separate validity check exists.
 
 ### `Core\Time\Duration` and `Core\Time\Zone`
 
@@ -528,30 +513,30 @@ because constructing an invalid date throws.
 | `Duration::parse` | `parse(string $text): Duration` | the run-time form of that same literal grammar, one implementation for both. Throws on anything it does not accept, so it **launders** a `tainted` config value |
 | `$d->toSeconds` | `$d->toSeconds(): int` | plus `toMilliseconds`, `toMicroseconds`, `toNanoseconds` |
 | `$d->plus` / `minus` / `multipliedBy` / `negated` | `$d->plus(Duration $d): Duration` / `$d->minus(Duration $d): Duration` / `$d->multipliedBy(int $factor): Duration` / `$d->negated(): Duration` | `Duration` is `Comparable` and `Stringable`, emitting the literal grammar so it round-trips through `parse` |
-| `Zone::of` | `of(string $id): Zone` | IANA identifier; throws on an unknown one. Replaces `DateTimeZone` |
+| `Zone::of` | `of(string $id): Zone` | IANA identifier; throws on an unknown one |
 | `Zone::fixed` | `fixed(Duration $offset): Zone` | a fixed offset from UTC, for a timestamp that carries one instead of a region |
-| `Zone::system` | `system(): Zone` | the host's configured zone, read once at boot. Replaces `date_default_timezone_get` |
+| `Zone::system` | `system(): Zone` | the host's configured zone, read once at boot |
 | `Zone::UTC` | constant | the only zone that is ever a default, and only where written explicitly |
-| `$z->offsetAt` | `$z->offsetAt(Instant $i): Duration` | replaces `getOffset` |
+| `$z->offsetAt` | `$z->offsetAt(Instant $i): Duration` | the zone's offset from UTC at that instant |
 
 `Zone::system()` is **not** an ambient default: it is an ordinary value a program asks for and then passes
-explicitly, so a call site still names the zone it converts in. What has no equivalent is
-`date_default_timezone_set` — nothing installs a zone that a later conversion silently picks up, which is
-the unsoundness `rule:core-api/tier-placement` rejects `setlocale` for.
+explicitly, so a call site still names the zone it converts in. Nothing installs a default zone that a
+later conversion silently picks up, for the same reason `rule:core-api/tier-placement` gives for having no
+ambient locale.
 
 Enums: `Weekday { Monday … Sunday }`, `Month { January … December }`,
 `Unit { Nanosecond, Microsecond, Millisecond, Second, Minute, Hour, Day, Week, Month, Quarter, Year }` —
 full words, because R7's closed abbreviation list does not reach enum cases either.
 
-PHP's `calendar` extension (`cal_days_in_month`, `easter_date`, the Julian/Jewish/French converters) is
-dropped outright (`rule:core-api/tier-placement`); `cal_days_in_month` is
-`$d->startOf(Unit::Month)->plus(…)` arithmetic, and the rest has no place in a Tier 0 library.
+There are no calendar-system converters and no holiday dates (`rule:core-api/tier-placement`); they have
+no place in a Tier 0 library. The number of days in a month is `$d->startOf(Unit::Month)->plus(…)`
+arithmetic.
 
 ## 5. `Core\Regex`
 
 Semantics — the two-tier engine, the step budget, why the *pattern* is a sink while the subject is not —
-are `rule:core-classes/regex-two-tiers`. `preg_match`'s `$matches` out-parameter is a returned
-`?Match` (R3), and there are no `PREG_*` flag constants (R11).
+are `rule:core-classes/regex-two-tiers`. A match is returned as a `?Match` (R3), and options are named
+flags on `compile` (R11).
 
 | Member | Signature | Q |
 |---|---|---|
@@ -564,23 +549,22 @@ are `rule:core-classes/regex-two-tiers`. `preg_match`'s `$matches` out-parameter
 | `split` | `split(string $subject, Pattern\|string $pattern, {limit?: int, keepEmpty?: bool}): array<string>` | **sink** (pattern) |
 | `quote` | `quote(string $text): string` | **launder** (for the pattern sink) |
 
-`Match` replaces the positional-array shape with four members:
+`Match` has four members:
 
 | Member | Signature | Answers |
 |---|---|---|
 | `group` | `$match->group(int\|string $group): ?string` | one group's text; `null` where the pattern declares it and this match did not reach it, and a **throw** for a group the pattern does not declare |
-| `groups` | `$match->groups(): array<?string>` | every group at once, in `preg_match`'s own order: a named group under its name, then under its number |
-| `offset` | `$match->offset(): int` | where the whole match starts, in `rule:types/string-is-utf8`'s unit — not `PREG_OFFSET_CAPTURE`'s bytes |
+| `groups` | `$match->groups(): array<?string>` | every group at once, in pattern order. A named group appears under its name, then under its number |
+| `offset` | `$match->offset(): int` | where the whole match starts, counted in graphemes (`rule:types/string-is-utf8`), not bytes |
 | `text` | `$match->text(): string` | the whole match, which is group `0` |
 
 `match`'s `from` is a position in that same unit, negative counting from the end (R8), and the match is
-still made against the whole subject so a look-behind sees what precedes it. One divergence from
-`preg_match` is deliberate: a declared group that did not participate is **present and `null`** rather than
-absent, which is what lets `group` distinguish "no text" from "no such group". `preg_last_error` has no
-equivalent: a failure throws (R4). `replaceWith`'s
+still made against the whole subject so a look-behind sees what precedes it. A declared group that did not
+participate is **present and `null`**, which is what lets `group` distinguish "no text" from "no such
+group". A failure throws (R4), so there is no last-error accessor. `replaceWith`'s
 callback is `callable(Match): string` — the one place a `Core` callback does not receive `($value, $key)`,
-because a match is one value with named parts rather than a pair. `preg_grep` has no member:
-`Arr::filter($a, fn($v) => Regex::matches($v, $p))` is the same thing in the same number of characters.
+because a match is one value with named parts rather than a pair. Filtering an array by a pattern has no
+member: it is `Arr::filter($a, fn($v) => Regex::matches($v, $p))`.
 
 ## 6. `Core\Json`
 
@@ -594,9 +578,8 @@ because a match is one value with named parts rather than a pair. `preg_grep` ha
 `decode` throws `ParseError` on malformed input — there is no flag to choose between throwing and
 returning `null`, and no error-code accessor (R4). **`maxDepth` defaults to 512 and exceeding it throws**:
 nesting depth is the one JSON input that costs unbounded work before any value exists, so the cap is on by
-default rather than opt-in, exactly as PHP's `$depth` is. An integer literal too large for `int` throws
-rather than degrading to `float`, because silent precision loss on a wire format is the bug
-`JSON_BIGINT_AS_STRING` exists to work around. A class participates by implementing
+default. An integer literal too large for `int` throws and never degrades to `float`, because silent
+precision loss on a wire format is a bug. A class participates by implementing
 `Core\Json\Codec`, which declares `toJson(): mixed` and a static `fromJson(mixed $value): static`; there is
 no magic hook and no structural encoding of public properties
 (`rule:core-api/written-participation`). An inline shape
@@ -634,14 +617,14 @@ honestly fail (`rule:types/bytes`).
 | `toHex` / `fromHex` | `toHex(bytes $b): string` / `fromHex(string $s): bytes` | |
 | `toBase32` / `fromBase32` | `toBase32(bytes $b): string` / `fromBase32(string $s): bytes` | |
 
-`quoted_printable_encode`/`_decode` and `convert_uuencode`/`_decode` are dropped; quoted-printable survives
-only inside `Core\Mail`, which is the one thing that ever needed it.
+There is no quoted-printable or uuencode member. Quoted-printable exists only inside `Core\Mail`, which is
+the one thing that needs it.
 
 `Core\Bytes` is the binary counterpart of `Core\Str`, with the same subject-first shape and the same member
 names wherever the operation is the same: `length`, `at`, `slice`, `indexOf`, `compare`, `contains`,
 `startsWith`, `endsWith`, `join(array<bytes> $parts, bytes $separator = "")`, `fill`, `repeat`, plus
-`pack(string $format, mixed ...$values)` and `unpack(bytes $b, string $format): array<mixed>` (replacing
-`pack`/`unpack`, with the format string an `rule:expressions/intrinsic-constant-arguments` intrinsic and, on both members, a **sink** — it is one
+`pack(string $format, mixed ...$values)` and `unpack(bytes $b, string $format): array<mixed>` (the format
+string is an `rule:expressions/intrinsic-constant-arguments` intrinsic and, on both members, a **sink** — it is one
 of R11's four grammars, per `Core\Str::format` above). The three predicates are what magic-byte
 sniffing needs, and `join` rather than a `concat` of its own keeps R6's pairing with `Core\Str`. There is
 no `bytes` literal — see [00-overview § 5](00-overview.md).
@@ -655,14 +638,13 @@ Enums: `Charset` — one case per encoding in the **WHATWG Encoding Standard**, 
 implements, named in Novis casing: `Utf8`, `Utf16Le`, `Utf16Be`, `Latin1`, `Windows1252`, `Ascii`,
 `ShiftJis`, `EucJp`, `Gbk`, `Big5`, `EucKr`, and the rest of that document's index. The roster is that
 standard's, not a list this file curates, so adding an encoding is a dependency update rather than a design
-decision — and `iconv`'s open-ended `//TRANSLIT` and `//IGNORE` suffixes have no equivalent, since a
-conversion that cannot be exact throws (R4).
+decision. There is no transliterating or byte-skipping mode, since a conversion that cannot be exact
+throws (R4).
 
 Two departures from the index, because a `Charset` argument is an *instruction* where the standard's index
 is a guess about a mislabelled document. `Ascii` and `Latin1` are cases of their own rather than aliases of
 `Windows1252`, which is what the standard resolves those labels to; the three disagree over `0x80`-`0x9f`,
-and `isValidText($b, Charset::Ascii)` — the `mb_check_encoding` call the table above replaces — would
-otherwise be true of every byte string. And `replacement` is absent, since a case that maps every input to
+and `isValidText($b, Charset::Ascii)` would otherwise be true of every byte string. And `replacement` is absent, since a case that maps every input to
 an error is surface with no meaning behind it. `crates/nvs-stdlib/src/encoding.rs` owns both, and which
 cases it converts itself rather than delegating.
 
@@ -687,18 +669,18 @@ point. `fromCwd` reads the process's working directory, and throws while a reque
 | `fromCwd` | `fromCwd(string $path): string` | |
 
 Every member accepts `/` and `\` alike as a separator on every platform and emits `Path::SEPARATOR`, so a
-path written with forward slashes in source is correct on Windows — the reverse of PHP, where
-`DIRECTORY_SEPARATOR` string-building is the portability burden.
+path written with forward slashes in source is correct on Windows.
 
-Constant: `Path::SEPARATOR` (replacing `DIRECTORY_SEPARATOR`). `Path::normalize` is **not** a launderer:
+Constant: `Path::SEPARATOR`.
+
+`Path::normalize` is **not** a launderer:
 `../` removal is not path-traversal safety, because the base directory is not part of the input. The
 launderer is `Core\IO::within`, in § 14, which is where the base is known.
 
 ## 9. Collections: `Core\ObjectMap`, `Core\ObjectSet`, `Core\Heap`
 
-`array<T>` is list, stack, queue and dictionary, so `SplStack`, `SplQueue`, `SplDoublyLinkedList`,
-`SplFixedArray`, `ArrayObject` and `ArrayIterator` are dropped as restatements of it. These three survive
-because an insertion-ordered `string`-keyed hash cannot express them
+`array<T>` works as a list, a stack, a queue and a dictionary, so `Core` has no separate class for those.
+These three classes exist because an ordered array with `string` keys cannot do what they do
 (`rule:types/arrays`).
 
 | Type | Members |
@@ -708,7 +690,7 @@ because an insertion-ordered `string`-keyed hash cannot express them
 | `Heap<T>` | `push`, `peek`, `pop`, `count`, `isEmpty`; `Iterable` |
 
 **`ObjectMap::get` returns `?V`**, not a throwing read: these types have no subscript
-(`rule:iteration/two-interfaces` rejects `ArrayAccess`), so they cannot offer the
+(`rule:iteration/two-interfaces`), so they cannot offer the
 `$a[$k]` / `$a[$k] ?? $d` pair that `array<T>` does, and R5 bans a `getOrNull` twin. `diff` is spelled as
 it is on `Core\Arr` rather than `difference`, because one operation gets one name.
 
@@ -718,19 +700,16 @@ persistent structure would give up the O(log n) that justifies their existence a
 so `rule:types/declaration`'s reference semantics apply and nothing about R3 is in
 question.
 
-**A `foreach` yields the one thing each collection has to say**: a map's *keys*, as `SplObjectStorage`
-does and because a key hands `get` back its value while a value hands nothing back; a set's members; and a
-heap's elements in `pop` order. All three are non-destructive and re-iterable — PHP's heap iteration
-empties the heap, and this one does not — because the loop walks a snapshot taken when it began, so a
-mutation inside the body cannot disturb the walk it is inside. `Heap` is `Iterable` for that reason
-alone: without it a heap's contents are unreachable except by emptying it, which is exactly the PHP
-behaviour these three replace.
+**A `foreach` yields the one thing each collection has to say**: a map's *keys*, because a key gives `get`
+its value while a value gives nothing back; a set's members; and a heap's elements in `pop` order. All
+three are non-destructive and re-iterable: iterating a heap does not empty it. The loop walks a snapshot
+taken when it began, so a mutation inside the body cannot disturb the walk it is inside. `Heap` is
+`Iterable` for that reason alone: without it a heap's contents are unreachable except by emptying it.
 
 ## 10. `Core\Error` — the exception types
 
-A small closed set on one axis. PHP's 13 SPL exception classes are not reproduced: their boundaries are
-undefined in practice, and half of the parallel `Error` tree (`TypeError`, `ArgumentCountError`, most
-`ValueError`) is unreachable because those programs do not compile.
+`Core` has a small, closed set of error classes in one tree. There is no error class for a wrong type or
+a wrong argument count, because a program with that mistake does not compile.
 
 ```
 Throwable                     // the root; user classes extend it directly
@@ -750,8 +729,8 @@ Members are readonly properties, not `getX()` accessors: `$e->message`, `$e->pre
 `type Core\Issue = {path: string, message: string};` — so a failed decode reports **every** offending field
 at once rather than the first, each located by a dotted path (`"address.city"`, `"tags.3"`) or, for a row, by
 its column name (`rule:core-classes/derive-reports-every-field`). It is empty on any error that has no field
-list to report. There is no `getCode()`: an `int` code with no declared meaning is what a user-defined
-subclass with a typed property does properly. `Throwable`'s message is a `secret` sink
+list to report. There is no integer error code: a user-defined subclass with a typed property carries
+that information properly. `Throwable`'s message is a `secret` sink
 (`rule:security/secret-qualifier`). Resource-limit reports are **not**
 `Throwable` at all and never reach a `catch` (`rule:errors/escalation-ladder`).
 `RecursionError` is not a counter-example to that: `rule:errors/on-limit` puts a **soft** depth above the call-stack
@@ -765,9 +744,8 @@ user-defined home.
 
 ## 11. `Core\Random`, `Core\Uuid`, `Core\Hash`
 
-`Core\Random` is a CSPRNG, always — PHP's `rand`/`mt_rand`/`shuffle`/`str_shuffle`/`array_rand` and its
-newer `Random\Randomizer` OOP twin all collapse into it, and none of the insecure generators survives
-under any name.
+`Core\Random` always uses a cryptographically secure random number generator. `Core` has no insecure
+generator under any name.
 
 | Member | Signature | Q |
 |---|---|---|
@@ -781,8 +759,8 @@ under any name.
 
 `Core\Random\Seeded` is a separate object with the same members, constructed from an explicit seed. It is
 not a second spelling of the above: its guarantee is reproducibility, not unpredictability, and making the
-distinction a *type* is what stops a test helper being reached for in production code. `srand`/`mt_srand`
-have no equivalent, because seeding the global generator is exactly what that separation removes.
+distinction a *type* is what stops a test helper being reached for in production code. There is no way to
+seed the global generator, because that is exactly what the separation removes.
 
 | Member | Signature | Q |
 |---|---|---|
@@ -812,7 +790,7 @@ A length is the whole of what `fromBytes` refuses, because every 128-bit pattern
 one of the two `tryParse`s `rule:core-api/shape-rules` R5 admits
 (`rule:expressions/try-parse`). `$s as ?Uuid` does **not** compile; `as`
 never targets a class. There is no `Uuid::isValid`, because it was exactly `tryParse` asked a second time
-and R17 keeps one — the same argument, and the same CVE, that § 12 gives for `Uri`. `v7` is time-ordered across
+and R17 keeps one — the same argument that § 12 gives for `Uri`. `v7` is time-ordered across
 milliseconds and random inside one — the property that makes it the right primary key and the wrong public
 identifier, since a `v7` handed to a stranger tells them when the row was created.
 
@@ -825,7 +803,7 @@ the reason. Password hashing takes no algorithm argument at all and is in § 16.
 
 | Case | Octets | S | Notes |
 |---|---|---|---|
-| `Digest::Crc32` | 4 | | CRC-32/ISO-HDLC, PHP's `crc32b`. A checksum: accidental corruption only |
+| `Digest::Crc32` | 4 | | CRC-32/ISO-HDLC, the CRC-32 that zip and gzip use. A checksum: accidental corruption only |
 | `Digest::Crc32c` | 4 | | CRC-32C/Castagnoli — the checksum S3 and GCS stamp objects with |
 | `Digest::Md5` | 16 | | Collision-broken since 2004. Interop only |
 | `Digest::Sha1` | 20 | | Collision-broken since 2017. Interop only |
@@ -839,11 +817,11 @@ the reason. Password hashing takes no algorithm argument at all and is in § 16.
 | `Digest::Sha3_256` | 32 | ✓ | |
 | `Digest::Sha3_384` | 48 | ✓ | |
 | `Digest::Sha3_512` | 64 | ✓ | |
-| `Digest::Blake3` | 32 | | The fastest here, and the one algorithm PHP cannot compute |
+| `Digest::Blake3` | 32 | | The fastest here |
 
 `Blake3` is outside `StrongDigest` for a different reason than `Sha1` is: HMAC-BLAKE3 is a construction
 nobody uses, because BLAKE3 is keyed natively, so it waits for a keyed member designed as one rather than
-being bent into `hmac`. The underscore spellings are PHP's `sha512/256` and `sha3-256` written as
+being bent into `hmac`. The underscore spellings write the standard names SHA-512/256 and SHA3-256 as
 identifiers; the digit after it is the output width in bits, and `Sha512_256` is not `Sha512` truncated by
 the caller — it is a different IV and a different function.
 
@@ -852,9 +830,8 @@ and reads it back, so reordering these is a behaviour change rather than a cosme
 `StrongDigest` is backward compatible and narrowing it is not.
 
 A `Hash\Stream` is **consumed by its own `finish`**: the digest is final, so a second `finish`, or any
-`update` after one, throws rather than continuing from where the first left off. PHP's `HashContext` says
-the same thing by making `hash_final` invalidate the context, and a program that wants two digests of one
-input opens two streams.
+`update` after one, throws rather than continuing from where the first left off. A program that wants two
+digests of one input opens two streams.
 
 ## 12. `Core\Uri`, `Core\Validate`, `Core\Csv`, `Core\Out`
 
@@ -914,14 +891,12 @@ owns all of it, including why `verifySignature` answers nothing and throws rathe
 the one spelling `rule:core-api/shape-rules` R5 admits `try…` for
 (`rule:expressions/try-parse`). `$s as ?Uri` does **not** compile: `as`
 never targets a class, which is § 3's row without exceptions. There is no `Uri::isValid` either, by R17:
-a validator written as a *separate* implementation from the parser is how
-`filter_var(FILTER_VALIDATE_URL)` came to accept user-info that `parse_url` read differently
-(CVE-2024-5458), and `tryParse` cannot drift from `parse` because it *is* `parse`. The narrower question
-`FILTER_VALIDATE_URL` is actually asked — "is this an **absolute** URI" — is one reader call further on,
-`Uri::tryParse($s)?->scheme() != null`, and it launders nothing either way: whether a URL may be *fetched*
-is `Core\Http::allowUrl` at § 16.
+a validator written as a *separate* implementation from the parser can accept text that the parser reads
+differently, and `tryParse` cannot drift from `parse` because it *is* `parse`. The narrower question "is
+this an **absolute** URI" is one reader call further on, `Uri::tryParse($s)?->scheme() != null`, and it
+launders nothing either way: whether a URL may be *fetched* is `Core\Http::allowUrl` at § 16.
 
-The eight readers are what `parse_url`'s array keys become, with two differences that array cannot express:
+Two of the eight readers make a distinction worth stating:
 `host()` is `null` where no authority was written and `""` where an empty one was (`file:///tmp`), and
 `userInfo()` is one reader rather than a `user` and a `pass` key, because RFC 3986 § 3.2.1 deprecates the
 `user:password` form and a member that split it would be one that recommended writing it.
@@ -934,9 +909,9 @@ three octets it spells. A caller who wants text writes `as string`, which is
 is the honest one: an encoder takes text and escapes it, a decoder is handed a wire and cannot promise what
 is on it. The encoders are this class's two laundering rows and are unchanged.
 
-**`parseQuery` reads PHP's bracket convention in full**, and `buildQuery` writes it: `a[]=1&a[]=2` builds
-a list under the key `"a"`, `a[b]=c` builds a map, and the two nest to arbitrary depth. It is not a URL-spec
-feature, but it is how every PHP form posts, and reproducing it here is what lets `Core\Request::queryArray`
+**`parseQuery` reads the bracket convention for nested names in full**, and `buildQuery` writes it:
+`a[]=1&a[]=2` builds a list under the key `"a"`, `a[b]=c` builds a map, and the two nest to arbitrary depth.
+It is not a URL-spec feature, but it is how many web forms post, and reading it here is what lets `Core\Request::queryArray`
 and `::queryAs` (§ 15) read the same names from the same code rather than answering the question a second time. The
 cost is the return type: every value is a `bytes` **or** a nested `array<mixed>`, which is why the row above
 is `array<mixed>` rather than `array<bytes>` — the one place in Part I where a member's element type is not
@@ -944,20 +919,20 @@ statable more precisely. A **name** is the array key the pair is placed under, s
 whose escapes decode outside UTF-8 is refused; a value has no such refusal. What § 15 shares is the bracket
 walk and not the element type — `Core\Request`'s field readers read a served request's parameters as text
 at the door and keep that refusal for a value too. A repeated key without brackets (`a=1&a=2`) keeps the last
-value, as PHP does.
+value.
 
-`Core\Validate` is what survives of `filter`: the genuine validators only. Its *sanitizing* filters are
-dropped, because half-escaping produces exactly the false confidence
+`Core\Validate` has validators only. It has no *sanitizing* filters, because half-escaping produces exactly
+the false confidence
 `rule:security/tainted-qualifier` exists to prevent — **no `Validate` member
 launders anything.**
 
 `isEmail`, `isIp(string $s, {version?: 4|6})`, `isMac`, `isDomain`, `isAscii`, `isPrintable` — all
-`(subject, …): bool`, all neutral. Replaces `filter_var`'s validate half and its 20 `FILTER_*` constants.
+`(subject, …): bool`, all neutral.
 
-Three members that were here are gone as duplicates, each with a one-line rewrite: `isUrl` is
-`Uri::tryParse($s)?->scheme() != null`, `oneOf($value, $allowed)` is `Arr::contains($allowed, $value)` — the same operation with
-PHP's argument order, which R10 exists to stop — and `isIpV4`/`isIpV6` are `{version: 4}`/`{version: 6}`,
-a closed literal set (`rule:types/single-value-types`) rather than two more names.
+Three tests have no member because another call already does them: a URL test is
+`Uri::tryParse($s)?->scheme() != null`, a test for one of several allowed values is
+`Arr::contains($allowed, $value)` (subject first, by R10), and an IPv4 or IPv6 test is `{version: 4}` or
+`{version: 6}`, a closed literal set (`rule:types/single-value-types`) rather than two more names.
 
 **There is no `isInteger`, `isFloat` or `isBoolean`**: each is `$s as ?int`/`?float`/`?bool != null`
 (`rule:expressions/nullable-conversion`), and R17 forbids the second spelling. Every
@@ -971,11 +946,10 @@ is not.
 | `Csv::rows` | `rows(Core\IO\File $file, {separator?, quote?, escape?, header?: bool}): Core\Csv\Rows` | |
 | `Out::capture` | `capture(callable(): mixed $fn, {through?: callable}): Sink` | |
 
-`Core\Out` has exactly this one member. A buffer is scoped to a callable and nests by call nesting, so
-PHP's global `ob_*` stack — start in one function, end in another, ten functions to inspect the stack — has
-no equivalent, and neither does implicit flushing. `capture` always **swallows**: `{through: $filter}`
-transforms what was captured, and re-emitting it is a visible `echo Out::capture(…)` rather than
-`ob_start($callback)`'s invisible pass-through.
+`Core\Out` has exactly this one member. A buffer is scoped to a callable and nests by call nesting. There
+is no global buffer stack that one function starts and another ends, and no implicit flushing. `capture`
+always **swallows**: `{through: $filter}` transforms what was captured, and re-emitting it is a visible
+`echo Out::capture(…)`.
 
 `Sink` above is not a type name — it is **the carrier of the sink in force**, `Core\Html\Markup` under an
 HTTP request and `Cli\Text` in every other context
@@ -1001,21 +975,21 @@ same shape rules.
 
 | Class | Owns | ADR |
 |---|---|---|
-| `Core\Reflect` | `forClass`, `forObject`, `typeOf(mixed): TypeKind`, and the visibility-respecting walk. Replaces `ReflectionClass` **and** `get_class`, `get_object_vars`, `get_class_methods`, `method_exists`, `property_exists`, `class_exists`, `is_a`, `is_subclass_of`, `class_implements`, `spl_object_id` | `rule:core-classes/reflect` |
+| `Core\Reflect` | `forClass`, `forObject`, `typeOf(mixed): TypeKind`, and the visibility-respecting walk | `rule:core-classes/reflect` |
 | `Core\Ast` | `parse(string): Node` returning inert typed data | `rule:core-classes/ast-is-inert` |
 | `Core\Attributes` | `get<T>`, `all<T>` — structural, not a `Reflect` walk | `rule:attributes/structural-retrieval` |
 | `Core\Program` | `implementing<T>()`, and `implementingWith<I, T>(string $member = "")` — the same enumeration with one attribute retrieval joined per class, each row holding the instance and its matching payload or null — and `constructors<T, C>()`, the same classes in the same order, each row holding the class name and a `make` callable typed `C` that builds it | `rule:programs/implementing`, `rule:programs/implementing-with`, `rule:programs/constructors` |
 | `Core\Router` | `match(Http\Method $method, tainted string $path): ?Router\Match`, `methodsFor(tainted string $path): array<Http\Method>` (empty ⇒ 404, else 405 + `Allow:`), `dispatch(Router\Gate $gate): void` (calls the matched route's method, the gate answering every request that method does not run for — `rule:routing/a-gate-answers-around-every-handler`), `url(string $name, array<string, mixed> $params): string` (**launder**, URL path), `urlAbsolute(...)` (**launder**, URL — prepends the mount's configured `origin`) and `urlSigned(..., {keys: array<secret bytes>, until: ?Time\Instant} $settings): string` (`url` with a `_sig` parameter over the route's *name* and `$params`, so a link survives a remount — `rule:core-classes/router-signed-url`), over a table built while compiling from `#[Route]`. The server matches once per request and `Core\Request::route()` is that match. A duplicate route, a `{param}` with no matching method parameter, an unknown literal `url()` name and a `url()` key that is neither a capture nor a declared `#[Query]` parameter are compile errors | `rule:routing/matching-is-not-dispatching` |
 | `Core\Router\Gate` | The interface a program's own class implements for `Core\Router::dispatch`: `allows(Router\Match $route): bool`, `refused(Router\Refusal $reason, ?Router\Match $route): void` and `failed(?Router\Match $route, ?Throwable $error): void`, each required of the class. `Router\Refusal` is `NotFound`, `MethodNotAllowed`, `UnknownMethod`, `Denied`, `Csrf`, `BodyTooLarge` and `BadCapture`, each naming the status `dispatch` sets before it calls `refused` | `rule:routing/a-gate-answers-around-every-handler` |
 | `Core\Command` | `run(): uint`, `help(?string): Cli\Text` and `completions(Command::Shell): string`, over a table built while compiling from `#[Command]`/`#[Option]`/`#[Argument]`. A duplicate command name, two options sharing a spelling and an `#[Option]` on a parameter with no conversion from `string` are compile errors. `run()` calls the matched handler itself, because a CLI has one entry point and no middleware question | `rule:tooling/commands-are-compiled` |
-| `Core\Decimal`, `Core\BigInt` | the non-operator members of the `decimal` scalar and arbitrary-precision integers. Replaces `bcmath`, `gmp` | `rule:types/decimal` |
-| `Core\Serialize` | `encode(mixed $value): bytes` and `decode(bytes $data): mixed` — the user-facing half of the one graph-copy operation the `spawn` boundary already runs. `decode` is a **`tainted` sink**. Replaces `serialize`, `unserialize` | `rule:classes/serialize-is-a-closed-format` |
+| `Core\Decimal`, `Core\BigInt` | the non-operator members of the `decimal` scalar and arbitrary-precision integers | `rule:types/decimal` |
+| `Core\Serialize` | `encode(mixed $value): bytes` and `decode(bytes $data): mixed` — the user-facing half of the one graph-copy operation the `spawn` boundary already runs. `decode` is a **`tainted` sink** | `rule:classes/serialize-is-a-closed-format` |
 | `Core\Test` | the assertions, each ending in a `{message?: string}` bag: `assertSame<T>(T $actual, T $expected)`, `assertEquals<T>(T $actual, T $expected)`, `assertEqualsDeep<T>(T $actual, T $expected)`, `assertTrue(bool $actual)`, `assertNull(mixed $actual)`, `assertCount<T>(array<T> $actual, uint $expected)`, `assertContains<T>(array<T> $actual, T $expected)`, `assertMatchesInline(mixed $actual, string $expected)`, `assertThrows(callable(): mixed $body, string $expected)`, `assertDoesNotThrow(callable(): mixed $body)` and `assertCompletes(callable(): mixed $body, {within: Time\Duration} $settings)`; `expectFailure(callable(): mixed $body): void`, which passes when `$body` fails an assertion. Doubles: `double<T>(object $answers): T`, `partial<T>(T $real, object $answers): T`, `assertCalled(object $double, method $method, {times?: uint, with?: array<mixed>, message?: string})` and `assertNeverCalled(object $double, method $method, {message?: string})`. The clock and the `Core\Cli` prompts: `advance(Time\Duration $by): void` and `scriptAnswers(array<string> $answers): void`. The program's own routes: `request(Http\Method $method, string $path, {headers?: array<string>, body?: string\|bytes, mount?: string, captures?: array<string>}): Core\Test\Response` — one in-process request against the `#[Route]` table — and `serverUrl(): ?string`. Outbound calls: `answerHttp(string $url, uint $status, {json?: mixed, body?: string\|bytes, headers?: array<string\|array<string>>, tls?: Http\TlsInfo}): void`, `tlsSession({version?, cipher?, verified?, subject?, issuer?, expiry?}): Http\TlsInfo`, `sentHttp(): array<Core\Test\SentRequest>`, `answerSocket(string $url, array<string\|bytes> $frames, {protocol?: string}): void` and `sentSocket(): array<Socket\Message>`. Every assertion is subject-first and generic where it compares | `rule:testing/assertions-are-typed` |
 | `Core\Test\Response` | what `Core\Test::request` returns: `status(): uint`, `body(): string`, `header(string $name): ?string`, `headers(): array<array<string>>`, `cookies(): array<string>`, `json({maxDepth?: uint}): mixed` and `jsonAs<T>({maxDepth?: uint}): T`, the last two reading the body as `Core\Request::json` and `::jsonAs` do | `rule:testing/in-process-request` |
 | `Core\Test\SentRequest` | one outbound call `Core\Test::sentHttp` recorded: `method(): Http\Method`, `url(): string`, `header(string $name): ?string` and `body(): bytes` | `rule:testing/an-outbound-call-is-answered-from-a-table` |
 
-`Core\Reflect::typeOf` is the single replacement for PHP's 14 `is_*` predicates plus `gettype`: they are
-only meaningful on a `mixed`, and the checker already knows every other case.
+`Core\Reflect::typeOf` is the one runtime type test. It is only meaningful on a `mixed`, because the checker
+already knows every other case.
 
 **`Core\Test` is a surface plus a compiler feature**, which is why it sits here rather than in Part I. Its
 members are ordinary `Core` members obeying `rule:core-api/shape-rules`; what is not
@@ -1025,18 +999,18 @@ runs in its own isolate. `rule:testing/test-attribute` owns all of that,
 including which milestone each piece lands in; this file fixes only the roster's shape.
 
 **`Core\Serialize::decode` is a `tainted` sink**, which is the whole reason the class is worth having
-rather than deferring to `Core\Json`. `unserialize()` on attacker-controlled bytes is PHP's most
-productive remote-code-execution class; Novis has already removed its gadget machinery — no `__wakeup`, no
-`__destruct`, no `__toString` hook (`rule:classes/no-magic-methods`) — and
-refusing the qualifier closes the input side structurally rather than by advice. What remains without the
+rather than deferring to `Core\Json`. Deserializing attacker-controlled bytes is a well-known
+remote-code-execution class. Novis has no gadget machinery, because a class has no magic hook that runs on
+decode or destruction (`rule:classes/no-magic-methods`), and refusing the qualifier closes the input side
+structurally rather than by advice. What remains without the
 sink is not code execution but **type confusion** — a payload that reconstructs a `User` with
 `isAdmin: true`, bypassing the constructor — which is why contagion would be the wrong classification: the
 danger is the object graph itself, not a string that later reaches an output sink. Bytes the program
 serialized from a value that provably carries no outside text are not `tainted` and decode normally;
 `encode` over a value that may carry it answers `tainted bytes`, which the program round-tripping its own
 value passes through `Core\Taint::assertTrustedBytes` once. Bytes that arrived from outside are refused,
-and no sink-named launderer exists for them. The format is versioned, self-describing and Novis's own; it is not
-compatible with PHP's, and there is no hook to customise it
+and no sink-named launderer exists for them. The format is versioned, self-describing and Novis's own, and
+there is no hook to customise it
 (`rule:classes/two-copy-depths`).
 
 ---
@@ -1055,28 +1029,23 @@ an `fs.read` or `fs.write` capability. `resource` is never exposed — an open f
 object (R14).
 
 - **Whole-file:** `read(string $path): bytes`, `readText(string $path, {charset?}): string`,
-  `write(string $path, bytes|string $data)`, `append(…)`, `lines(string $path): Iterable<string>` —
-  replacing `file_get_contents`, `file_put_contents`, `file`, `readfile`, `fpassthru`.
+  `write(string $path, bytes|string $data)`, `append(…)`, `lines(string $path): Iterable<string>`.
 - **Streaming write:** `writeStream(string $path, Iterable<bytes> $src, {max?, overwrite?})` — any stream to
   disk in one member: an upload part, `Core\Request::bodyStream()`, a decompressed archive. `overwrite`
   defaults to `false`, and a write that fails mid-stream removes the partial file
   (`rule:core-classes/io-write-stream`).
-- **Metadata:** `exists`, `isFile`, `isDir`, `isReadable`, `isWritable`, `size`, `modifiedAt`, `stat` —
-  replacing `file_exists`, `is_file`, `is_dir`, `filesize`, `filemtime`, `fileperms`, `stat`, `lstat`.
+- **Metadata:** `exists`, `isFile`, `isDir`, `isReadable`, `isWritable`, `size`, `modifiedAt`, `stat`.
 - **Manipulation:** `copy`, `move`, `remove`, `makeDir`, `removeDir`, `list(string $path): array<string>`,
-  `walk(string $path): Iterable<string>`, `temporaryDir` — replacing `copy`, `rename`,
-  `unlink`, `mkdir`, `rmdir`, `scandir`, `glob`, `opendir`/`readdir`/`closedir`, `tempnam`, `tmpfile`,
-  `sys_get_temp_dir`, and the `DirectoryIterator` family. There is no `temporaryFile` — a program that
+  `walk(string $path): Iterable<string>`, `temporaryDir`. There is no `temporaryFile` — a program that
   needs one temporary file needs somewhere to put the second — and what `temporaryDir` creates is deleted
   by the runtime when the script ends
   (`rule:core-classes/temporary-dir-sweep`).
-- **Resolution:** `canonicalize(string $path): string` (`realpath`), and `within(string $base, tainted
+- **Resolution:** `canonicalize(string $path): string`, the absolute path with every link resolved, and `within(string $base, tainted
   string $path): string` — **the path-traversal launderer**: it resolves and then proves containment,
   which is the check `Core\Path::normalize` structurally cannot make.
 - **Handles:** `open(string $path, FileMode $mode): File`; `$file->read`, `->readLine`, `->write`,
   `->seek`, `->tell`, `->truncate`, `->flush`, `->lock`, `->close`. `FileMode` is an enum, never a
-  mode string (R11) — replacing `fopen`'s `"r+b"` grammar and the whole `fread`/`fgets`/`fwrite`/`fseek`/
-  `ftell`/`feof`/`flock`/`fstat` family plus `SplFileObject`.
+  mode string like `"r+b"` (R11).
 - **Standard input:** `stdin(): tainted string` — everything the invoker attached to the program,
   read to end of input in one call. It is
   a value and not a `File`: a descriptor the process was handed has no position to seek, no length to
@@ -1085,18 +1054,18 @@ object (R14).
   `rule:tooling/terminal-output-is-a-sink`'s sink, whose one door is
   `Core\Cli::write`, and a raw handle onto either would be a hole in it.
 
-No stream wrappers, no `php://`, no `phar://`, no user-registered protocols
-(`rule:security/closed-doors`).
+A path is always a file path. There are no stream wrappers, no `scheme://` paths and no user-registered
+protocols (`rule:security/closed-doors`).
 
 ## 15. Request-facing: `Core\Server`, `Core\Request`, `Core\Response`, `Core\Session`, `Core\Env`, `Core\Cap`, `Core\Cli`
 
-These replace PHP's superglobals (`rule:statements/no-host-populated-variables`); every value they return that
-originates outside the process is `tainted` (`rule:security/tainted-qualifier`).
+These classes give a program its request, its response, its session, its environment and its terminal.
+No variable is filled in by the host (`rule:statements/no-host-populated-variables`). Every value they return
+that comes from outside the process is `tainted` (`rule:security/tainted-qualifier`).
 
 - `Core\Request`: `method`, `path`, `query`, `queryArray`, `queryAs`, `post`, `postArray`, `postAs`, `body`, `bytes`, `json`, `jsonAs`, `bodyStream`,
   `header`, `headers`, `cookie`,
-  `files`, `clientIp`, `scheme`, `host`, `mount`, `route`, `isHead` — replacing `$_GET`, `$_POST`, `$_FILES`,
-  `$_COOKIE`, `$_REQUEST`, `filter_input`. `path` is the request path with the matched mount's prefix
+  `files`, `clientIp`, `scheme`, `host`, `mount`, `route`, `isHead`. `path` is the request path with the matched mount's prefix
   **removed** and `mount(): Request\Mount` answers what was removed — a `prefix(): string` and that mount's
   glob `captures(): array<tainted string>` — which is how a host-mounted deployment learns which tenant it
   serves, and never `null`, because a request that reached a program reached it through some mount;
@@ -1108,7 +1077,7 @@ originates outside the process is `tainted` (`rule:security/tainted-qualifier`).
   `files(): Iterable<Part>` is the **only** way to receive an uploaded file and yields parts lazily, each
   answering `name()`, a `filename()` that is never a path and a `contentType()` — all three `tainted` —
   and consumed by `readAll({max?}): tainted bytes`, by iterating `content(): Iterable<bytes>`, or by
-  `saveTo(string $path, {max?, overwrite?})` — there is no temp path, no `move_uploaded_file` and no `size`
+  `saveTo(string $path, {max?, overwrite?})` — there is no temp path, no separate move step and no `size`
   (`rule:http-server/an-upload-is-received-only-through-files`); a
   multipart form's non-file parts are buffered into `post()` as usual;
   `query(string $name): ?tainted string` reads one query parameter by name, and `null` is both an absent
@@ -1136,7 +1105,7 @@ originates outside the process is `tainted` (`rule:security/tainted-qualifier`).
   (`rule:types/string-is-utf8`).
   `queryAs<T>({name?: string}): T` and `postAs<T>({name?: string}): T` are `Core\Arr::shapeAs` over what
   `query` and `post` parse: with no `name` the whole parameter set is the subject — the only way a program
-  reaches it, since neither `$_GET` nor `$_POST` has a public array spelling here — and with one it is the
+  reaches it, since no variable holds the parameters as an array — and with one it is the
   subtree that name reaches under the bracket convention. Each field converts with `as`, so a form's text
   fits a declared `int`, and a key `T` does not name is left behind. `body`,
   `bytes`, `post`, `postArray`, `postAs`, `json` and `jsonAs` are **buffering** readers, which keep what they read and so may follow
@@ -1147,13 +1116,12 @@ originates outside the process is `tainted` (`rule:security/tainted-qualifier`).
   (`rule:http-server/a-mount-table-expands-at-boot`, `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`, `rule:http-server/head-runs-as-get`, `rule:http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it` and `rule:http-server/the-body-is-read-on-demand-under-two-caps`).
 - `Core\Response`: `setStatus`, `setHeader`, `addCookie`, `redirect`, and the body members
   `html(Core\Html\Markup)`, `json(mixed)`, `text(string)`, `bytes(bytes, string $contentType)`,
-  `sendFile(string $path)`, `stream(string $contentType)` — replacing `header`, `headers_sent`, `setcookie`,
-  `setrawcookie`, `http_response_code`.
+  `sendFile(string $path)`, `stream(string $contentType)`.
   `setHeader` is a header **sink** and overrides a policy-owned header on one response; `addCookie`'s
   options shape defaults every field from `[http.cookies]`, so a cookie written with no options is
   `Secure; HttpOnly; SameSite=Lax; Path=/` and `SameSite` is an enum, never a string
   (`rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`). **One body member per shape, each setting its
-  own `Content-Type`**, replacing a single `write`: `json` serializes the value itself so a tainted one is
+  own `Content-Type`**, and there is no general `write`: `json` serializes the value itself so a tainted one is
   safe, `text` accepts tainted because `nosniff` is on by default, and `bytes`' content type is a sink.
   `sendFile` takes the path alone and the path is a sink: a download name is `Content-Disposition`
   through `setHeader`, and what the bytes are called is the static-file policy's media-type table
@@ -1166,12 +1134,11 @@ originates outside the process is `tainted` (`rule:security/tainted-qualifier`).
 - `Core\Server`: `traceId(): string`, which is
   present on every request whether or not the trace is sampled and is Novis's only request identifier
   (`rule:observability/the-runtime-exports-what-it-already-measures`), and `isDraining(): bool`, true once graceful shutdown
-  has begun (`rule:http-server/the-server-block-is-boot-class`). Nothing in this class replaces `$_SERVER`:
+  has begun (`rule:http-server/the-server-block-is-boot-class`). This class has no other request facts:
   `Core\Request` has the method, path, query, headers, host, scheme and client address, and `Core\Env`
   has the environment variables. The HTTP version and the server's and client's ports have no member.
 - `Core\Session`: `start`, `get`, `set`, `remove`, `clear`, `regenerate`, `destroy`, `setSecret`,
-  `getSecret` — replacing all ~25
-  `session_*` functions. `start` is the one that reaches the store, and a member called before it throws
+  `getSecret`. `start` is the one that reaches the store, and a member called before it throws
   (`rule:core-classes/session-is-started-explicitly`). Where the record lives is `[session] backend`, which
   names the shared cache tier or the database and refuses the in-process ones
   (`rule:http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`, enforcing
@@ -1186,8 +1153,8 @@ originates outside the process is `tainted` (`rule:security/tainted-qualifier`).
   the constants `EOL`, `OS`, `VERSION`; its three enums are `Env::Mode` — `Production`, `Development` —,
   `Env::Context` — `Request`, `Command`, `Isolate`, `Schedule`, `Job`, `Test`, `Connection`, one per kind of
   run (`rule:core-classes/env-context`) — and `Env::Platform` — `Windows`, `Darwin`, `Linux`, `BSD`,
-  `Solaris`, `Unknown` —, the type of `OS`. Read-only —
-  `putenv` has no equivalent, because a process-global mutation is unsound across cores. `mode` reads the
+  `Solaris`, `Unknown` —, the type of `OS`. The environment is read-only, because a process-global
+  mutation is unsound across cores. `mode` reads the
   run mode (`rule:config/two-modes-and-the-default-is-production`); it is set
   through `Core\Config`, like every other directive, and no environment variable is consulted for it.
 - `Core\Cap`: `has(string $capability): bool`, and nothing else. Reports whether the **calling namespace**
@@ -1203,7 +1170,7 @@ originates outside the process is `tainted` (`rule:security/tainted-qualifier`).
   `secret(): secret tainted string`; and the scoped regions `live<T>` and `progress<T>`. Its value types
   are `Cli\Text` — built by `plain`/`styled`, composed with `+`, and read back by `text(): string` —
   `Cli\Style` and `Cli\Color`, its enums `Cli::Stream`, `Cli::ColorDepth` and `Command::Shell`.
-  Replaces `$argv`, `$argc`, `readline`, `mb_strwidth`, `posix_isatty`. **Terminal output is a `tainted`
+  **Terminal output is a `tainted`
   sink** that substitutes every control byte with a visible glyph; `Cli\Text` is the only thing that writes
   raw. The byte-and-line side of standard input is `Core\IO` (§ 14), not here; process exit is the `exit`
   keyword (`rule:statements/nvs-is-the-only-open-tag`).
@@ -1212,35 +1179,35 @@ originates outside the process is `tainted` (`rule:security/tainted-qualifier`).
 
 | Class | Surface | ADR |
 |---|---|---|
-| `Core\Http\Client` | `get`, `post`, `put`, `patch`, `delete`, `head`, plus `request(Core\Http\Method, …)` for a verb chosen at run time and `stream(Core\Http\Method, …)` for a body read as it arrives — each over `string \| Core\Http\Target`, and there is no `Core\Http\Request` class. `Core\Http::allowUrl` is the SSRF launderer, and the `Target` it answers carries every approved address. `Core\Http::methodName(Core\Http\Method): string` answers a case's wire token (`GET`), for an `Allow` header or a log line. Replaces all ~30 `curl_*` functions and their handle. One trailing `Core\Http\Options` shape — the bounds `{deadline?, connectTimeout?, idle?, maxDuration?}`, the retry keys `{retryAttempts?, retryBackoff?, retryIdempotencyKey?}`, `{headers?, followRedirects?}`, at most one body of `{json?, form?, body? + contentType?, multipart?}`, and the connection keys `{identity?, connectTo?, redirectToHttp?, tlsCa?, tlsPin?, tlsVerifyHost?, tlsVerify?, tlsMinVersion?}` — with **no spelling for an unbounded wait**: `deadline` covers every attempt and every hop, `idle` and `maxDuration` bound a streamed body, retry is jittered, and two body keys, a body on `get`, or `post`/`patch` with `retryAttempts` and no `retryIdempotencyKey`, are compile errors. A reply answers `status`, `text`, `bytes`, `header`, `headers`, `jsonAs<T>` and `tls`, all of it `tainted`; a `Core\Http\Stream` answers the head and then `events`, `lines`, `chunks` or `saveTo` — one of them, once. `Http\Part::file`/`::bytes` are a body sent without being held, `Http\Identity::read` is a client certificate, and `Core\Test::answerHttp`/`::sentHttp` answer outbound calls from a table so a test needs no network | `rule:http-server/allow-url-pins-the-address`, `rule:http-server/no-spelling-for-an-unbounded-wait` |
+| `Core\Http\Client` | `get`, `post`, `put`, `patch`, `delete`, `head`, plus `request(Core\Http\Method, …)` for a verb chosen at run time and `stream(Core\Http\Method, …)` for a body read as it arrives — each over `string \| Core\Http\Target`, and there is no `Core\Http\Request` class. `Core\Http::allowUrl` is the SSRF launderer, and the `Target` it answers carries every approved address. `Core\Http::methodName(Core\Http\Method): string` answers a case's wire token (`GET`), for an `Allow` header or a log line. One trailing `Core\Http\Options` shape — the bounds `{deadline?, connectTimeout?, idle?, maxDuration?}`, the retry keys `{retryAttempts?, retryBackoff?, retryIdempotencyKey?}`, `{headers?, followRedirects?}`, at most one body of `{json?, form?, body? + contentType?, multipart?}`, and the connection keys `{identity?, connectTo?, redirectToHttp?, tlsCa?, tlsPin?, tlsVerifyHost?, tlsVerify?, tlsMinVersion?}` — with **no spelling for an unbounded wait**: `deadline` covers every attempt and every hop, `idle` and `maxDuration` bound a streamed body, retry is jittered, and two body keys, a body on `get`, or `post`/`patch` with `retryAttempts` and no `retryIdempotencyKey`, are compile errors. A reply answers `status`, `text`, `bytes`, `header`, `headers`, `jsonAs<T>` and `tls`, all of it `tainted`; a `Core\Http\Stream` answers the head and then `events`, `lines`, `chunks` or `saveTo` — one of them, once. `Http\Part::file`/`::bytes` are a body sent without being held, `Http\Identity::read` is a client certificate, and `Core\Test::answerHttp`/`::sentHttp` answer outbound calls from a table so a test needs no network | `rule:http-server/allow-url-pins-the-address`, `rule:http-server/no-spelling-for-an-unbounded-wait` |
 | `Core\RateLimit` | `consume(tainted string $key, uint $limit, Duration $per, {burst?, cost?}): RateLimit\Decision` over the shared store, and `shed(…)` per core and approximate. `Decision` is readonly `allowed: bool`, `limit: uint`, `remaining: uint`, `retryAfter: ?Duration`. Both **neutral**; a `secret` key is refused; an unreachable store throws | `rule:core-classes/ratelimit-two-members` |
 | `Core\Metrics` | `increment(string $name, {by?, labels?})`, `observe(string $name, float $value, {labels?})`, `gauge(…)`. A `labels` **value** is a `tainted` sink with no launderer — label by an enum, an `as`-converted scalar or a route name | `rule:observability/metrics-three-members` |
 | `Core\Task` | § 19 below — `all`, `map`, `afterResponse` | `rule:concurrency/one-scheduler` |
-| `Core\Net` | TCP/UDP/Unix sockets over the runtime's own reactor. Replaces `socket_*`, `stream_socket_*`, `fsockopen` — three PHP APIs for one job | `rule:core-api/tier-roster` |
+| `Core\Net` | TCP, UDP and Unix sockets. One class covers all three | `rule:core-api/tier-roster` |
 | `Core\Sse`, `Core\Sse\Message` | server-sent events, as two doors onto one type (`rule:concurrency/two-doors-one-isolate`). On the class: `upgrade(entry, args)` opens the connection isolate that outlives the request, `stream()` writes an event stream that ends with it, and `current()` answers whichever handle is open. On the handle: `send(mixed $data, ?string $event, ?string $id)` — a `string` goes out raw and anything else is JSON-encoded — `retry(Duration $after)`, and `receive(): ?Core\Sse\Message`, which waits on this stream's own subscriptions and throws a `LogicError` on the request-scoped door, there being no isolate for a wait to park in. `$data` accepts `tainted`; `$event` and `$id` are **sinks**, and a `\n`, `\r` or NUL in either is refused, as is an empty `$data` and a `setStatus` on a path that opens a stream. `Message` is `topic(): string` and `value(): mixed`. There is no replay buffer: resumption is the client's `Last-Event-ID`, read off the request by the handler and passed through `args` | `rule:concurrency/a-stream-that-outlives-its-request-is-a-connection` |
-| `Core\Db` | the full surface is § 18 below — the one subsystem in Part II too large for a row. Replaces `PDO` **and** the procedural `mysqli`/`pgsql`/`sqlite3` APIs | `rule:core-classes/db-one-api` |
-| `Core\Crypto`, `Core\Crypto\PublicKey`, `Core\Crypto\KeyPair` | AEAD only, no ECB, no unauthenticated CBC, no cipher-name-as-string — and no algorithm argument with a default. `generateKey`, `seal`/`open` over a required `Crypto::Cipher` (`XChaCha20Poly1305`, `Aes256Gcm`), `deriveKey` (PBKDF2-HMAC-SHA256, a required iteration count bounded at 100,000 and 2,000,000), `expandKey` (HKDF-SHA256), `generateKeyPair`/`agree` over `Crypto\KeyKind`, and `sign`/`verify`, whose scheme is the key's kind. On the two key types: `read`/`write` over `Crypto\PublicKey::Format` (`Raw`, `Spki`, `Jwk`) and PKCS#8, with every public key validated at `read` and no RSA pair ever generated. AES-GCM seals as `nonce(12) ‖ ciphertext ‖ tag(16)`, which is what WebCrypto answers. Replaces `openssl_*`'s primitive half and `sodium_*` | `rule:core-api/tier-roster`, `rule:core-classes/crypto-interop-tier` |
-| `Core\Password` | `hash(secret string): string`, `verify(secret string, string): bool`, `needsRehash(string): bool` — **no algorithm argument**. `verify` and `needsRehash` also read a PHP-stored bcrypt hash (`verify` verifies it, `needsRehash` answers `true`); `hash` writes only Argon2id. Replaces `password_hash`, `password_verify`, `crypt` | `rule:core-api/no-mode-strings`, `rule:security/bcrypt-read-roster` |
+| `Core\Db` | the full surface is § 18 below — the one subsystem in Part II too large for a row. One API covers every supported database | `rule:core-classes/db-one-api` |
+| `Core\Crypto`, `Core\Crypto\PublicKey`, `Core\Crypto\KeyPair` | AEAD only, no ECB, no unauthenticated CBC, no cipher-name-as-string — and no algorithm argument with a default. `generateKey`, `seal`/`open` over a required `Crypto::Cipher` (`XChaCha20Poly1305`, `Aes256Gcm`), `deriveKey` (PBKDF2-HMAC-SHA256, a required iteration count bounded at 100,000 and 2,000,000), `expandKey` (HKDF-SHA256), `generateKeyPair`/`agree` over `Crypto\KeyKind`, and `sign`/`verify`, whose scheme is the key's kind. On the two key types: `read`/`write` over `Crypto\PublicKey::Format` (`Raw`, `Spki`, `Jwk`) and PKCS#8, with every public key validated at `read` and no RSA pair ever generated. AES-GCM seals as `nonce(12) ‖ ciphertext ‖ tag(16)`, which is what WebCrypto answers | `rule:core-api/tier-roster`, `rule:core-classes/crypto-interop-tier` |
+| `Core\Password` | `hash(secret string): string`, `verify(secret string, string): bool`, `needsRehash(string): bool` — **no algorithm argument**. `verify` and `needsRehash` also read a bcrypt hash that PHP wrote. `verify` checks it, and `needsRehash` returns `true` for it. `hash` writes only Argon2id | `rule:core-api/no-mode-strings`, `rule:security/bcrypt-read-roster` |
 | `Core\Jwt`, `Core\Jwe`, `Core\Csrf`, `Core\Totp`, `Core\SignedCookie`, `Core\Signature` | the closed roster; a JWT's algorithm comes from the key, never the token. `Jwt::sign` widens to `secret bytes\|Crypto\KeyPair` (HS256, RS256, PS256, ES256 or EdDSA by the key's kind), `Jwt::signObject` signs a shape or deriving class under a pair alone, and `Jwt::verifyIssued<T>` verifies a token another party issued against a `Jwt\KeySet` key found by `kid`, answering its claims as a `tainted` shape (`rule:security/jws-issued-subset`). `Core\Jwe` is compact JWE with `A256GCM` alone, its key-management algorithm picked by which `Jwe\Key` static built the key — `shared` (`dir`), `password` (`PBES2-HS256+A128KW`), `recipient`/`own` (`ECDH-ES`) — and its payload answered **`tainted`** (`rule:security/jwe-compact-subset`). `Core\Signature::sign(array<string> $payload, {keys: array<secret bytes>, until: ?Time\Instant} $settings): string` and `::verify(string $token, array<secret bytes> $keys): array<tainted string>` are the detached pair — a canonical payload map, never assembled text; `until` is a required key whose `null` is the forever spelling; `verify` answers a **`tainted`** payload or throws (`rule:core-classes/signature`). A payload value is text at both halves for the reason a JWT claim is: `tainted` is defined over `string` and `bytes`, so an `array<mixed>` could not have carried the qualifier a program reaches | `rule:security/protocol-roster` |
 | `Core\Process` | `run`, `spawn` — argv only, never a shell string | `rule:core-classes/process-is-argv-only` |
-| `Core\Mail` | an SMTP client with structured headers. Replaces `mail()` | `rule:core-api/tier-roster` |
-| `Core\Cache` | `local(): Cache\Store`, `process(): Cache\Store`, `shared(): Cache\Store` — a member per tier, none of them taking an argument. `process()` is one store per serving process, coherent across its cores, in memory only and bounded by `[cache.process] max_size`. On the store: `put(string $key, mixed $value, {ttl?: Duration}): void` / `get(string $key): mixed` — copy-in/copy-out, and a miss answers `null` rather than throwing — plus `forget(string $key): void`, all three tiers gaining a lifetime and a `forget` together. A secret meets a cache only through `putSecret(string $key, secret string $value, Duration $ttl, array<secret bytes> $keys): void` and `getSecret(string $key, array<secret bytes> $keys, {fill?: callable(): Cache\SecretEntry, wait?: Duration}): ?secret string`, which store XChaCha20-Poly1305 **ciphertext** bound to the app, the entry's name and its expiry — so no `secret` crosses the boundary, `put` still refuses one and `get` answers `null` for a sealed entry. A sealed entry that does not open, under any key of the ring or past its sealed expiry, is a **miss**; on a miss `fill` runs in exactly one caller per process while every other waits for at most its `wait` (`[cache.process] fill_wait`) and then throws `TimeoutError`, a throwing `fill` releases the waiters with nothing, and an entry inside the last fifth of its lifetime is answered to everyone while one caller replaces it. `Cache\SecretEntry::of(secret string $value, Duration $ttl)` is what a `fill` answers. Sealing hides a secret from code that knows an entry's name but not the ring and keeps it out of the shared store in the clear; it does not protect it from a compromised process. Replaces `apcu_*`, `memcached` for the local case | `rule:core-api/two-cache-tiers`, `rule:concurrency/a-secret-is-cached-only-sealed` |
+| `Core\Mail` | an SMTP client with structured headers | `rule:core-api/tier-roster` |
+| `Core\Cache` | `local(): Cache\Store`, `process(): Cache\Store`, `shared(): Cache\Store` — a member per tier, none of them taking an argument. `process()` is one store per serving process, coherent across its cores, in memory only and bounded by `[cache.process] max_size`. On the store: `put(string $key, mixed $value, {ttl?: Duration}): void` / `get(string $key): mixed` — copy-in/copy-out, and a miss answers `null` rather than throwing — plus `forget(string $key): void`, all three tiers gaining a lifetime and a `forget` together. A secret meets a cache only through `putSecret(string $key, secret string $value, Duration $ttl, array<secret bytes> $keys): void` and `getSecret(string $key, array<secret bytes> $keys, {fill?: callable(): Cache\SecretEntry, wait?: Duration}): ?secret string`, which store XChaCha20-Poly1305 **ciphertext** bound to the app, the entry's name and its expiry — so no `secret` crosses the boundary, `put` still refuses one and `get` answers `null` for a sealed entry. A sealed entry that does not open, under any key of the ring or past its sealed expiry, is a **miss**; on a miss `fill` runs in exactly one caller per process while every other waits for at most its `wait` (`[cache.process] fill_wait`) and then throws `TimeoutError`, a throwing `fill` releases the waiters with nothing, and an entry inside the last fifth of its lifetime is answered to everyone while one caller replaces it. `Cache\SecretEntry::of(secret string $value, Duration $ttl)` is what a `fill` answers. Sealing hides a secret from code that knows an entry's name but not the ring and keeps it out of the shared store in the clear; it does not protect it from a compromised process | `rule:core-api/two-cache-tiers`, `rule:concurrency/a-secret-is-cached-only-sealed` |
 | `Core\Log`, `Core\Fatal` | structured logging. `write(Log::Level, string $message, array<string, mixed> $fields = [])`, where `Log::Level` is `Debug`, `Info`, `Warn`, `Error`, `Critical`. Both refuse a `secret` argument at the call site — a sink on the `secret` axis (`rule:security/secret-sinks-refuse`); on the `tainted` axis neither is a sink, because a field is *data* (`rule:security/log-is-not-a-sink`) and logging tainted input is the point | `rule:errors/log-write`, `rule:errors/log-level` |
-| `Core\Debug` | `dump(mixed ...$values)` and `render(mixed)` — replacing `var_dump`, `print_r`, `var_export`, `debug_zval_refcount` — plus the coverage, tracing and profiling controls | `dump`/`render`: `rule:errors/debug-dump`; the probes: `rule:testing/debug-probes` |
-| `Core\Signal` | graceful shutdown only. What remains of `pcntl_*` after `fork` is refused | `rule:core-api/tier-roster` |
-| `Core\Script` | `onExit(callable(Script\ExitReport): mixed $hook): void` — FIFO end-of-script hooks, run once as the last user code at every non-fatal ending (normal, `exit`, uncaught throw, `finish`); each receives a readonly `Script\ExitReport` — `reason: Script\ExitReport::Reason` (`Normal`, `ExitCall`, `UncaughtThrow`, `Finish`), `status: int`, `error: ?Throwable` — and may declare no parameter. Never fires on a `FATAL` or a cancellation, and observes the ending rather than changing it. Replaces `register_shutdown_function`'s non-fatal uses. `finish(): void` ends the script where it is called and does not return: every `finally` between the call and the root runs, then that queue drains with `reason: Finish` at status `0`, which is the ending `exit` is not. The value it raises is a second, parentless root of the exception tree, so no `catch` arm admits it and an arm naming that class is refused at compile time | `rule:observability/script-on-exit`, `rule:observability/three-endings-fire-the-exit-queue` |
-| `Core\Os` | host and process facts (`pid`, `hostname`, `cpuCount`, `residentBytes`, `loadAverage`). Replaces `posix_*` minus fork, `php_uname`, `getrusage`, `sys_getloadavg`. A **request's** memory is `Core\Budget`'s and never here — `residentBytes` is the process's resident set, which is the question `Core\Os` is entitled to answer | `rule:core-api/tier-roster`, `rule:observability/memory-is-three-numbers-on-core-budget` |
-| `Core\Budget` | `memoryHeld(): int`, `memoryPeak(): int`, `memoryLimit(): int` — this request's held bytes, its high-water mark and the ceiling both are measured against. Three members and no `$real_usage` boolean; an uncapped request answers `0` from `memoryLimit`. Replaces `memory_get_usage` and `memory_get_peak_usage` | `rule:observability/memory-is-three-numbers-on-core-budget`, `rule:config/ceilings-are-their-own-directives` |
-| `Core\Config` | `set(string, string): bool`, `get(string): ?string`, `restore(string): void`, `all(): array<string, string>` — the request-local overlay over `nvs.toml`. Replaces `ini_set`, `ini_get`, `ini_restore`, `ini_get_all`, `set_time_limit`. String-in/string-out because the directive name is dynamic; the registry parses with the same parser the boot path uses | `rule:config/a-runtime-set-is-request-local`, `rule:config/ini-set-is-core-config-set` |
+| `Core\Debug` | `dump(mixed ...$values)` and `render(mixed)`, plus the coverage, tracing and profiling controls | `dump`/`render`: `rule:errors/debug-dump`; the probes: `rule:testing/debug-probes` |
+| `Core\Signal` | graceful shutdown only. There is no `fork` | `rule:core-api/tier-roster` |
+| `Core\Script` | `onExit(callable(Script\ExitReport): mixed $hook): void` — FIFO end-of-script hooks, run once as the last user code at every non-fatal ending (normal, `exit`, uncaught throw, `finish`); each receives a readonly `Script\ExitReport` — `reason: Script\ExitReport::Reason` (`Normal`, `ExitCall`, `UncaughtThrow`, `Finish`), `status: int`, `error: ?Throwable` — and may declare no parameter. Never fires on a `FATAL` or a cancellation, and observes the ending rather than changing it. `finish(): void` ends the script where it is called and does not return: every `finally` between the call and the root runs, then that queue drains with `reason: Finish` at status `0`, which is the ending `exit` is not. The value it raises is a second, parentless root of the exception tree, so no `catch` arm admits it and an arm naming that class is refused at compile time | `rule:observability/script-on-exit`, `rule:observability/three-endings-fire-the-exit-queue` |
+| `Core\Os` | host and process facts (`pid`, `hostname`, `cpuCount`, `residentBytes`, `loadAverage`). A **request's** memory is `Core\Budget`'s and never here — `residentBytes` is the process's resident set, which is the question `Core\Os` is entitled to answer | `rule:core-api/tier-roster`, `rule:observability/memory-is-three-numbers-on-core-budget` |
+| `Core\Budget` | `memoryHeld(): int`, `memoryPeak(): int`, `memoryLimit(): int` — this request's held bytes, its high-water mark and the ceiling both are measured against. There are three members and no flag argument. An uncapped request gets `0` from `memoryLimit` | `rule:observability/memory-is-three-numbers-on-core-budget`, `rule:config/ceilings-are-their-own-directives` |
+| `Core\Config` | `set(string, string): bool`, `get(string): ?string`, `restore(string): void`, `all(): array<string, string>` — the request-local overlay over `nvs.toml`. String-in/string-out because the directive name is dynamic; the registry parses with the same parser the boot path uses | `rule:config/a-runtime-set-is-request-local`, `rule:config/ini-set-is-core-config-set` |
 
 ## 17. Documents and formats
 
 | Class | Surface | Note |
 |---|---|---|
 | `Core\Html` | `escape` (the auto-applied launderer), `sanitize`, `Markup`, and the WHATWG HTML parser — never-failing, producing `Core\Xml`'s tree: one node family, two front doors | `rule:security/tainted-qualifier` owns both launderers; the parser and the shared tree are `rule:core-classes/html-parsing` |
-| `Core\Xml` | one API replacing DOM, SimpleXML, XMLReader, XMLWriter, `xml_parser_*` and XSLTProcessor. Its **tree** API and its **streaming** reader/writer are different jobs, not twins — the tree materialises, the stream does not, and no operation is available through both | the one place in this file where two shapes of the same subsystem coexist, stated explicitly so it is not read as an exception to R17. The tree is also what `Core\Html`'s parser produces (`rule:core-classes/html-parsing`), and lands with it |
-| `Core\Compress` | `compress(bytes\|string $data, Codec $codec): bytes` and `decompress(bytes $data, Codec $codec, uint $maxBytes = 67108864, uint $maxRatio = 1000): bytes` — one API replacing `gzopen` handles, `deflate_init` contexts and `zlib.*` stream filters. `Core\Compress::Codec` is five cases, not four: `Gzip`, `Zlib` and `Deflate` are one stream under three headers, which is what PHP spelled as three function names, plus `Brotli` and `Zstd`. The incremental half is `compressor(Codec $codec): Compress\Compressor` and `decompressor(Codec $codec, uint $maxBytes = 67108864, uint $maxRatio = 1000): Compress\Decompressor`, each an object with `add` and `finish`, replacing `deflate_init`/`deflate_add` and `inflate_init`/`inflate_add` — two classes because a `Compress\Decompressor`'s `finish` answers `tainted bytes` and a `Compress\Compressor`'s answers `bytes` | the bound is `rule:core-classes/decompression-bound`, and a decompressing stream carries it once for the whole stream rather than once per chunk; `crates/nvs-stdlib/src/compress.rs` owns why the streams hold their chunks and what that spends |
-| `Core\Zip` | `entries(bytes $archive): array<tainted string>`, `read(bytes $archive, string $name, uint $maxBytes = 67108864, uint $maxRatio = 1000): tainted bytes` and `extract(bytes $archive, string $destination, uint $maxBytes = 67108864, uint $maxRatio = 1000): uint` — replacing `zip_*`, `ZipArchive` and the checking every caller of `extractTo` was supposed to remember. Core rather than an extension because `../` entries, absolute-path entries, symlink entries and decompression bombs are *policy*, and policy must be non-optional. **The refusals are the reader's**, so a program that walks the entries itself has nothing left it could have checked; the bomb half is `Core\Compress`'s bound applied per entry and across the archive, not a second rule | `rule:core-api/tier-roster`, `rule:core-classes/decompression-bound`; the names are tainted for `rule:security/tainted-sources`' reason, and what is on disk is `crates/nvs-stdlib/src/zip.rs`'s known gaps |
+| `Core\Xml` | one API for XML. Its **tree** API and its **streaming** reader/writer are different jobs, not twins — the tree materialises, the stream does not, and no operation is available through both | the one place in this file where two shapes of the same subsystem coexist, stated explicitly so it is not read as an exception to R17. The tree is also what `Core\Html`'s parser produces (`rule:core-classes/html-parsing`), and lands with it |
+| `Core\Compress` | `compress(bytes\|string $data, Codec $codec): bytes` and `decompress(bytes $data, Codec $codec, uint $maxBytes = 67108864, uint $maxRatio = 1000): bytes`. `Core\Compress::Codec` has five cases: `Gzip`, `Zlib` and `Deflate`, which are one stream under three headers, plus `Brotli` and `Zstd`. The incremental half is `compressor(Codec $codec): Compress\Compressor` and `decompressor(Codec $codec, uint $maxBytes = 67108864, uint $maxRatio = 1000): Compress\Decompressor`, each an object with `add` and `finish` — two classes because a `Compress\Decompressor`'s `finish` answers `tainted bytes` and a `Compress\Compressor`'s answers `bytes` | the bound is `rule:core-classes/decompression-bound`, and a decompressing stream carries it once for the whole stream rather than once per chunk; `crates/nvs-stdlib/src/compress.rs` owns why the streams hold their chunks and what that spends |
+| `Core\Zip` | `entries(bytes $archive): array<tainted string>`, `read(bytes $archive, string $name, uint $maxBytes = 67108864, uint $maxRatio = 1000): tainted bytes` and `extract(bytes $archive, string $destination, uint $maxBytes = 67108864, uint $maxRatio = 1000): uint`. The reader checks every entry, so no caller has to remember the checks. Core rather than an extension because `../` entries, absolute-path entries, symlink entries and decompression bombs are *policy*, and policy must be non-optional. **The refusals are the reader's**, so a program that walks the entries itself has nothing left it could have checked; the bomb half is `Core\Compress`'s bound applied per entry and across the archive, not a second rule | `rule:core-api/tier-roster`, `rule:core-classes/decompression-bound`; the names are tainted for `rule:security/tainted-sources`' reason, and what is on disk is `crates/nvs-stdlib/src/zip.rs`'s known gaps |
 | `Core\Mime` | `detect(bytes $data): Mime::Type` and `mediaType(Mime::Type $type): string` — type detection by magic bytes, from a fixed table of literal signatures rather than libmagic's rule interpreter, and never from a file extension: a type read off a name is a type an attacker chose. `Core\Mime::Type` is closed and its zero case is `Unknown`, so a caller compares against a case rather than against a spelling that may never occur, and a format serialized as text answers `Unknown` rather than a guess | detection launders nothing (`rule:security/launderers-are-sink-named`): bytes that detect as `image/png` are still `tainted`. The table's shape, and what deliberately has no case, are `crates/nvs-stdlib/src/mime.rs`'s module doc |
 
 ## 18. `Core\Db`
@@ -1259,8 +1226,8 @@ in a root-owned `[db.<name>]` block (`rule:config/the-file-is-nvs-toml-and-it-is
 | `inList` | `inList(array<mixed> $values): Db\InList` | |
 | `quoteIdentifier` | `quoteIdentifier(tainted string $name): string` | **launder** (identifier) |
 
-`PDO::quote`, `mysqli_real_escape_string` and `pg_escape_string` have **no equivalent**: binding is the
-mechanism (`rule:security/sink-predicate`).
+There is **no** member that escapes a value into SQL text: binding is the mechanism
+(`rule:security/sink-predicate`).
 
 ### `Core\Db\Queryable` — the interface both a connection and a transaction satisfy
 
@@ -1379,27 +1346,3 @@ process loses the work.
 
 `Core\Task\Channel` and the `spawn`/`await` keywords are the concurrency *language* surface and belong to
 [docs/spec/00-overview.md](00-overview.md) § 2 with M5, not to this file.
-
----
-
-## Counting the result
-
-| | PHP | Novis |
-|---|---|---|
-| Global functions / `Core` members | ~1,900 | ~450 |
-| Sort functions | 11 + `array_multisort` | 2 |
-| `array_diff`/`array_intersect` variants | 12 | 2 |
-| Array-combining rules | 5, chosen by a key's type | 4, chosen by the member's name |
-| `strpos` variants | 12 | 4 |
-| `printf` variants | 9 | 2 |
-| Date APIs | ~40 procedural + 2 mutable/immutable class trees | 1 immutable object tree |
-| XML APIs | 6 | 1 |
-| Socket APIs | 3 | 1 |
-| Ways to run a program | 7 | 1 |
-| Ways to hash | 3 | 1 |
-| Database APIs | 4 (`PDO`, `mysqli` ×2, `pgsql`, `sqlite3`) | 1 |
-| Exception classes in the stdlib | 13 SPL + 8 `Error` | 9 |
-
-The reduction is entirely in restatements. The library covers strictly more than PHP's: an HTTP client,
-SMTP, cache, CSV, UUID, a test surface, `rule:security/protocol-roster`'s
-protocol roster, and typed date arithmetic are all things PHP leaves to userland.
