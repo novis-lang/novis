@@ -380,24 +380,22 @@ const CARD: ClassDoc = ClassDoc {
 
 /// `Core\Reflect::forClass`'s reference card — `rule:core-api/reference-card`.
 const FOR_CLASS_DOC: MethodDoc = MethodDoc {
-    short: "Describes the class `$name` names, reaching it by name rather than through a value. \
-            Replaces `ReflectionClass`'s constructor and `class_exists`.",
+    short: "Describes the class with the name `$name`. You do not need an object of that class.",
     params: &[ParamDoc {
         name: "name",
         desc: "The class's name as its declaration writes it, namespace included and with no \
                leading separator — what `Core\\Reflect\\ClassInfo::name` answers.",
         shape: &[],
     }],
-    ret: "A description of that class, or `null` where the running program declares no class of \
-          that name — the `null` is `class_exists`'s answer, which is why asking is not a \
-          failure.",
+    ret: "A description of that class. The result is `null` if the running program declares no \
+          class with that name. This is not an error.",
     errors: &[],
 };
 
 /// `Core\Reflect::forObject`'s reference card — `rule:core-api/reference-card`.
 const FOR_OBJECT_DOC: MethodDoc = MethodDoc {
-    short: "Describes `$object`'s class — its name, and the properties code outside the class can \
-            see. Replaces `get_class` and `get_object_vars`.",
+    short: "Describes the class of `$object`: its name, and the properties that code outside the \
+            class can see.",
     params: &[ParamDoc {
         name: "object",
         desc: "The value to describe. Reflection is for the receiver whose class is not known \
@@ -422,8 +420,8 @@ const TYPE_OF_DOC: MethodDoc = MethodDoc {
                answer, so the interesting receiver is the one whose type was erased.",
         shape: &[],
     }],
-    ret: "One `Core\\Reflect::TypeKind` case — exactly one, since the cases partition the \
-          representations rather than overlapping the way `is_scalar` and `is_int` do.",
+    ret: "One `Core\\Reflect::TypeKind` case. Every value matches exactly one case, because the \
+          cases do not overlap.",
     errors: &[],
 };
 
@@ -464,7 +462,7 @@ const TYPE_KIND_DOC: EnumDoc = EnumDoc {
     cases: &[
         CaseDoc {
             name: "Null",
-            desc: "The `null` value; what `is_null` asked.",
+            desc: "The `null` value.",
         },
         CaseDoc {
             name: "Bool",
@@ -480,7 +478,7 @@ const TYPE_KIND_DOC: EnumDoc = EnumDoc {
         },
         CaseDoc {
             name: "Float",
-            desc: "A `float`; what `is_float` and its `is_double` alias asked.",
+            desc: "A `float`.",
         },
         CaseDoc {
             name: "Decimal",
@@ -489,8 +487,7 @@ const TYPE_KIND_DOC: EnumDoc = EnumDoc {
         },
         CaseDoc {
             name: "Text",
-            desc: "A `string`, which is UTF-8 by the language's own guarantee; what `is_string` \
-                   asked.",
+            desc: "A `string`. A string is always valid UTF-8.",
         },
         CaseDoc {
             name: "Bytes",
@@ -499,8 +496,7 @@ const TYPE_KIND_DOC: EnumDoc = EnumDoc {
         },
         CaseDoc {
             name: "Array",
-            desc: "An `array<T>`; what `is_array`, `is_iterable` and `is_countable` between them \
-                   asked.",
+            desc: "An `array<T>`.",
         },
         CaseDoc {
             name: "Object",
@@ -673,8 +669,8 @@ const NAME_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Reflect\ClassInfo::constants`'s reference card — `rule:core-api/reference-card`.
 const CONSTANTS_DOC: MethodDoc = MethodDoc {
-    short: "The described class's constants — its own and every inherited one — each with its name \
-            and its visibility. Replaces `ReflectionClass::getReflectionConstants`.",
+    short: "Returns the constants of the described class, its own and every inherited one. Each \
+            has its name and its visibility.",
     params: &[],
     ret: "One `Core\\Reflect\\ConstantInfo` per constant the class answers, its own declarations \
           first. A constant a subclass redeclares appears once, with the declaration that wins. \
@@ -685,9 +681,8 @@ const CONSTANTS_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Reflect\ClassInfo::constant`'s reference card — `rule:core-api/reference-card`.
 const CONSTANT_DOC: MethodDoc = MethodDoc {
-    short: "The value of the class constant `$name`, under exactly the visibility ordinary code at \
-            this call site would face. Replaces `ReflectionClassConstant::getValue`, and there is \
-            no `setAccessible` to lift the check with.",
+    short: "Returns the value of the class constant `$name`. The visibility rules are the same as \
+            for ordinary code at this call site, and nothing can turn them off.",
     params: &[ParamDoc {
         name: "name",
         desc: "The constant's name, as the declaration writes it — no class qualifier and no \
@@ -717,9 +712,8 @@ const CONSTANT_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Reflect\ClassInfo::properties`'s reference card — `rule:core-api/reference-card`.
 const PROPERTIES_DOC: MethodDoc = MethodDoc {
-    short: "The described class's properties — its own and every inherited one — each with its \
-            name, its visibility and the type its declaration spells. Replaces \
-            `ReflectionClass::getProperties`.",
+    short: "Returns the properties of the described class, its own and every inherited one. Each \
+            has its name, its visibility and its declared type.",
     params: &[],
     ret: "One `Core\\Reflect\\PropertyInfo` per declared property, in slot order: every \
           ancestor's first, then the class's own. A `private` or `protected` property is among \
@@ -730,8 +724,8 @@ const PROPERTIES_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Reflect\ClassInfo::readableProperties`'s reference card — `rule:core-api/reference-card`.
 const READABLE_PROPERTIES_DOC: MethodDoc = MethodDoc {
-    short: "The property names a read written at this call site may make, in slot order. Replaces \
-            `get_object_vars`, whose answer is scope-sensitive in the same way.",
+    short: "Returns the names of the properties that code at this call site may read, in the \
+            same order as `properties`. The result depends on where the call is written.",
     params: &[],
     ret: "One name per property this site may read, `$`-sigil excluded: every declared property \
           where the call is written inside the described class, and the `public` ones anywhere \
@@ -742,8 +736,7 @@ const READABLE_PROPERTIES_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Reflect\ClassInfo::hasProperty`'s reference card — `rule:core-api/reference-card`.
 const HAS_PROPERTY_DOC: MethodDoc = MethodDoc {
-    short: "Whether the described class declares a property called `$name`. Replaces \
-            `property_exists`.",
+    short: "Checks whether the described class declares a property called `$name`.",
     params: &[ParamDoc {
         name: "name",
         desc: "The property's name, `$`-sigil excluded, as the declaration writes it.",
@@ -757,8 +750,8 @@ const HAS_PROPERTY_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Reflect\ClassInfo::methods`'s reference card — `rule:core-api/reference-card`.
 const METHODS_DOC: MethodDoc = MethodDoc {
-    short: "The described class's methods — its own and every inherited one — each with its name, \
-            its visibility and how many parameters it declares. Replaces `get_class_methods`.",
+    short: "Returns the methods of the described class, its own and every inherited one. Each has \
+            its name, its visibility and the number of parameters it declares.",
     params: &[],
     ret: "One `Core\\Reflect\\MethodInfo` per declared method, in name order, and a method the \
           calling site could not call is among them carrying `isPublic() === false`. Naming a \
@@ -769,8 +762,7 @@ const METHODS_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Reflect\ClassInfo::hasMethod`'s reference card — `rule:core-api/reference-card`.
 const HAS_METHOD_DOC: MethodDoc = MethodDoc {
-    short: "Reports whether the described class declares or inherits a method named `$name`. \
-            Replaces `method_exists`.",
+    short: "Checks whether the described class declares or inherits a method named `$name`.",
     params: &[ParamDoc {
         name: "name",
         desc: "The method's name, as the declaration writes it and as `methods` spells it.",
@@ -783,9 +775,8 @@ const HAS_METHOD_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Reflect\ClassInfo::get`'s reference card — `rule:core-api/reference-card`.
 const GET_DOC: MethodDoc = MethodDoc {
-    short: "Reads `$object`'s `$name` property, under exactly the visibility ordinary code at \
-            this call site would face. Replaces `ReflectionProperty::getValue`, and there is no \
-            `setAccessible` to lift the check with.",
+    short: "Reads the `$name` property of `$object`. The visibility rules are the same as for \
+            ordinary code at this call site, and nothing can turn them off.",
     params: &[
         ParamDoc {
             name: "object",
@@ -818,9 +809,9 @@ const GET_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Reflect\ClassInfo::set`'s reference card — `rule:core-api/reference-card`.
 const SET_DOC: MethodDoc = MethodDoc {
-    short: "Writes `$object`'s `$name` property, under exactly the visibility ordinary code at \
-            this call site would face, and then runs the `PropertyObserver` an ordinary write \
-            runs. Replaces `ReflectionProperty::setValue`, again with no `setAccessible`.",
+    short: "Writes the `$name` property of `$object`, and then runs the `PropertyObserver` that an \
+            ordinary write runs. The visibility rules are the same as for ordinary code at this \
+            call site, and nothing can turn them off.",
     params: &[
         ParamDoc {
             name: "object",
@@ -963,9 +954,8 @@ fn site_class(operand: Value) -> Option<&'static str> {
 
 /// `Core\Reflect\ClassInfo::call`'s reference card — `rule:core-api/reference-card`.
 const CALL_DOC: MethodDoc = MethodDoc {
-    short: "Calls `$object`'s `$name` method with `$arguments`, under exactly the visibility \
-            ordinary code at this call site would face. Replaces `ReflectionMethod::invoke`, and \
-            there is no `setAccessible` to lift the check with.",
+    short: "Calls the `$name` method of `$object` with `$arguments`. The visibility rules are the \
+            same as for ordinary code at this call site, and nothing can turn them off.",
     params: &[
         ParamDoc {
             name: "object",
@@ -1006,10 +996,9 @@ const CALL_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Reflect\ClassInfo::construct`'s reference card — `rule:core-api/reference-card`.
 const CONSTRUCT_DOC: MethodDoc = MethodDoc {
-    short: "Builds an instance of the described class, running its constructor with `$arguments` \
-            under exactly the visibility a `new` written at this call site would face. Replaces \
-            `ReflectionClass::newInstanceArgs`, and there is no `setAccessible` to lift the check \
-            with.",
+    short: "Builds an instance of the described class and runs its constructor with `$arguments`. \
+            The visibility rules are the same as for a `new` written at this call site, and \
+            nothing can turn them off.",
     params: &[ParamDoc {
         name: "arguments",
         desc: "One entry per declared constructor parameter, in order, keys ignored. Entries \

@@ -458,9 +458,9 @@ pub(crate) const WRITE_STREAM_OPTIONS: &[CoreOption] = &[
 
 /// `Core\IO::read`'s reference card — `rule:core-api/reference-card`.
 const READ_DOC: MethodDoc = MethodDoc {
-    short: "The whole content of a file, as text — `file_get_contents`. Needs the `fs.read` \
-            capability for the path, which is checked against its canonical spelling, so a \
-            symlink or a `..` that leaves the granted roots is refused.",
+    short: "Returns the whole content of a file as text. It needs the `fs.read` capability for the \
+            path. The check uses the resolved path, so a symlink or a `..` that leaves the allowed \
+            folders throws an error.",
     params: &[ParamDoc {
         name: "path",
         desc: "The file to read. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it.",
@@ -487,9 +487,9 @@ const READ_DOC: MethodDoc = MethodDoc {
 
 /// `Core\IO::write`'s reference card — `rule:core-api/reference-card`.
 const WRITE_DOC: MethodDoc = MethodDoc {
-    short: "Replaces a file's whole content, creating it if it does not exist — \
-            `file_put_contents`. Needs the `fs.write` capability for the path; being allowed to \
-            read a root is not permission to write in it.",
+    short: "Replaces a file's whole content. It creates the file if it does not exist. It needs the \
+            `fs.write` capability for the path. Permission to read a folder does not give \
+            permission to write in it.",
     params: &[
         ParamDoc {
             name: "path",
@@ -521,9 +521,8 @@ const WRITE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\IO::append`'s reference card — `rule:core-api/reference-card`.
 const APPEND_DOC: MethodDoc = MethodDoc {
-    short: "Adds to the end of a file, creating it if it is not there — `file_put_contents` with \
-            `FILE_APPEND`, which is a member here rather than a flag on the member that \
-            replaces. Needs the `fs.write` capability for the path.",
+    short: "Adds content to the end of a file. It creates the file if it does not exist. It needs \
+            the `fs.write` capability for the path.",
     params: &[
         ParamDoc {
             name: "path",
@@ -603,9 +602,9 @@ const WRITE_STREAM_DOC: MethodDoc = MethodDoc {
 
 /// `Core\IO::exists`'s reference card — `rule:core-api/reference-card`.
 const EXISTS_DOC: MethodDoc = MethodDoc {
-    short: "Reports whether anything is at `$path` — `file_exists`, and true for a directory as \
-            well as a file. Needs the `fs.read` capability, which is asked before the path is \
-            touched, so an ungranted path throws rather than answering `false`.",
+    short: "Checks whether anything is at `$path`. The result is `true` for a directory as well as \
+            a file. It needs the `fs.read` capability. The capability is checked before the path is \
+            used, so a path outside it throws an error.",
     params: &[ParamDoc {
         name: "path",
         desc: "The name to look for. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it.",
@@ -630,9 +629,9 @@ const EXISTS_DOC: MethodDoc = MethodDoc {
 
 /// `Core\IO::isFile`'s reference card — `rule:core-api/reference-card`.
 const IS_FILE_DOC: MethodDoc = MethodDoc {
-    short: "Reports whether `$path` names a regular file — `is_file`. Symbolic links are followed, \
-            so a link to a file answers `true`. Needs the `fs.read` capability, which is asked \
-            before the path is touched.",
+    short: "Checks whether `$path` is a regular file. Symbolic links are followed, so a link to a \
+            file gives `true`. It needs the `fs.read` capability, which is checked before the path \
+            is used.",
     params: &[ParamDoc {
         name: "path",
         desc: "The name to ask about. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it.",
@@ -658,8 +657,8 @@ const IS_FILE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\IO::isDir`'s reference card — `rule:core-api/reference-card`.
 const IS_DIR_DOC: MethodDoc = MethodDoc {
-    short: "Reports whether `$path` names a directory — `is_dir`. Symbolic links are followed, so \
-            a link to a directory answers `true`. Needs the `fs.read` capability.",
+    short: "Checks whether `$path` is a directory. Symbolic links are followed, so a link to a \
+            directory gives `true`. It needs the `fs.read` capability.",
     params: &[ParamDoc {
         name: "path",
         desc: "The name to ask about. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it.",
@@ -683,9 +682,9 @@ const IS_DIR_DOC: MethodDoc = MethodDoc {
 
 /// `Core\IO::isReadable`'s reference card — `rule:core-api/reference-card`.
 const IS_READABLE_DOC: MethodDoc = MethodDoc {
-    short: "Whether this process could read what is at `$path` right now — `is_readable`. Needs \
-            the `fs.read` capability, which is a separate and earlier gate: a path outside the \
-            grant is refused rather than reported as unreadable.",
+    short: "Checks whether this process can read what is at `$path` right now. It needs the \
+            `fs.read` capability, which is checked first. A path outside that capability throws \
+            an error.",
     params: &[ParamDoc {
         name: "path",
         desc: "The file or directory to ask about. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it.",
@@ -702,9 +701,8 @@ const IS_READABLE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\IO::isWritable`'s reference card — `rule:core-api/reference-card`.
 const IS_WRITABLE_DOC: MethodDoc = MethodDoc {
-    short: "Whether this process could write what is at `$path` right now — `is_writable`. Needs \
-            the `fs.write` capability, because the whole question is about writing: a program \
-            granted only reads cannot ask where it could write.",
+    short: "Checks whether this process can write to what is at `$path` right now. It needs the \
+            `fs.write` capability. A program that may only read cannot check where it could write.",
     params: &[ParamDoc {
         name: "path",
         desc: "The file or directory to ask about. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it.",
@@ -720,8 +718,8 @@ const IS_WRITABLE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\IO::size`'s reference card — `rule:core-api/reference-card`.
 const SIZE_DOC: MethodDoc = MethodDoc {
-    short: "The size of the file at `$path` in bytes, as the operating system reports it — \
-            `filesize`. Needs the `fs.read` capability: measuring a file is reading it.",
+    short: "Returns the size of the file at `$path` in bytes, as the operating system reports it. \
+            It needs the `fs.read` capability.",
     params: &[ParamDoc {
         name: "path",
         desc: "The file to measure. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it.",
@@ -745,9 +743,8 @@ const SIZE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\IO::modifiedAt`'s reference card — `rule:core-api/reference-card`.
 const MODIFIED_AT_DOC: MethodDoc = MethodDoc {
-    short: "When the file at `$path` was last written, as a `Core\\Time\\Instant` — `filemtime`, \
-            with the unit in the type instead of in the caller's memory. Needs the `fs.read` \
-            capability: asking when a file changed is reading it.",
+    short: "Returns the time the file at `$path` was last written, as a `Core\\Time\\Instant`. It \
+            needs the `fs.read` capability.",
     params: &[ParamDoc {
         name: "path",
         desc: "The file or directory to ask about. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it.",
@@ -771,10 +768,9 @@ const MODIFIED_AT_DOC: MethodDoc = MethodDoc {
 
 /// `Core\IO::stat`'s reference card — `rule:core-api/reference-card`.
 const STAT_DOC: MethodDoc = MethodDoc {
-    short: "Everything one `stat` answers about `$path`, as a `Core\\IO\\Metadata` — `stat`, \
-            `lstat` and `filemtime` in one call, so a program asking more than one question \
-            about a file pays for one syscall rather than one per question. Needs the \
-            `fs.read` capability.",
+    short: "Returns what the operating system reports about `$path`, as a `Core\\IO\\Metadata`. A \
+            program that needs several facts about a file makes only one system call. It needs \
+            the `fs.read` capability.",
     params: &[ParamDoc {
         name: "path",
         desc: "The file or directory to measure. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it.",
@@ -797,9 +793,8 @@ const STAT_DOC: MethodDoc = MethodDoc {
 
 /// `Core\IO::copy`'s reference card — `rule:core-api/reference-card`.
 const COPY_DOC: MethodDoc = MethodDoc {
-    short: "Duplicates a file — `copy`. Needs `fs.read` for the source and `fs.write` for the \
-            destination, which are two grants and not one: reading a directory is never permission \
-            to fill it.",
+    short: "Copies a file. It needs `fs.read` for the source and `fs.write` for the destination. \
+            Permission to read a folder never gives permission to write in it.",
     params: &[
         ParamDoc {
             name: "from",
@@ -835,9 +830,8 @@ const COPY_DOC: MethodDoc = MethodDoc {
 
 /// `Core\IO::move`'s reference card — `rule:core-api/reference-card`.
 const MOVE_DOC: MethodDoc = MethodDoc {
-    short: "Renames a file, which is how it is moved — `rename`. Needs `fs.write` for **both** \
-            paths, and not `copy`'s read for the source: a move takes the source away, and taking a \
-            file away is destroying it.",
+    short: "Moves a file by renaming it. It needs `fs.write` for **both** paths. The source needs \
+            `fs.write` too, because a move removes the source file.",
     params: &[
         ParamDoc {
             name: "from",
@@ -871,9 +865,8 @@ const MOVE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\IO::makeDir`'s reference card — `rule:core-api/reference-card`.
 const MAKE_DIR_DOC: MethodDoc = MethodDoc {
-    short: "Makes sure a directory exists at `$path`, creating any missing parent along the way — \
-            `mkdir` with `$recursive` true, which is a parameter there and the only behaviour \
-            here. Needs the `fs.write` capability.",
+    short: "Makes sure a directory exists at `$path`. It also creates every missing parent \
+            directory. It needs the `fs.write` capability.",
     params: &[ParamDoc {
         name: "path",
         desc: "The directory that is to exist. Every missing component above it is created too; \
@@ -900,9 +893,8 @@ const MAKE_DIR_DOC: MethodDoc = MethodDoc {
 
 /// `Core\IO::remove`'s reference card — `rule:core-api/reference-card`.
 const REMOVE_DOC: MethodDoc = MethodDoc {
-    short: "Deletes the file at `$path` — `unlink`. Needs the `fs.write` capability: removal is a \
-            write, because an account that may replace a file's whole content can already destroy \
-            it.",
+    short: "Deletes the file at `$path`. It needs the `fs.write` capability, because deleting a \
+            file is a write.",
     params: &[ParamDoc {
         name: "path",
         desc: "The file to delete. A directory is `removeDir`'s argument, not this one.",
@@ -918,18 +910,17 @@ const REMOVE_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The capability allowed it and the operating system did not — nothing is at the \
-                   path, it is a directory, or the process may not unlink it.",
+            desc: "The capability allowed the call, but the operating system did not. Nothing is \
+                   at the path, it is a directory, or the process may not delete it.",
         },
     ],
 };
 
 /// `Core\IO::removeDir`'s reference card — `rule:core-api/reference-card`.
 const REMOVE_DIR_DOC: MethodDoc = MethodDoc {
-    short: "Deletes the **empty** directory at `$path` — `rmdir`. Needs the `fs.write` capability. \
-            There is no recursive form: a tree deleted by one grant check is one wrong argument \
-            away from deleting everything under it, so a program that means to empty a directory \
-            walks it and removes each entry the capability was asked about.",
+    short: "Deletes the **empty** directory at `$path`. It needs the `fs.write` capability. There \
+            is no recursive form, so one wrong argument cannot delete a whole tree. To empty a \
+            directory, a program walks it and removes each entry.",
     params: &[ParamDoc {
         name: "path",
         desc: "The directory to delete, which must hold no entries.",
@@ -951,13 +942,9 @@ const REMOVE_DIR_DOC: MethodDoc = MethodDoc {
 
 /// `Core\IO::list`'s reference card — `rule:core-api/reference-card`.
 const LIST_DOC: MethodDoc = MethodDoc {
-    short: "The entries of the directory at `$path`, as an `array<string>` of bare names — \
-            replacing `scandir`, `glob` and the whole `opendir`/`readdir`/`closedir` sequence. \
-            `.` and `..` are not entries: they are the two names every `scandir` caller filters \
-            out, so they are never handed over. Needs the `fs.read` capability. The order is the \
-            operating system's own and nothing here sorts it — `Core\\Arr::sort` is one call and \
-            a member that sorted by default would charge every caller for a guarantee most do not \
-            need.",
+    short: "Returns the names of the entries in the directory at `$path`, as an `array<string>`. \
+            The list never contains `.` and `..`. It needs the `fs.read` capability. The order is \
+            the operating system's own, and the list is not sorted. `Core\\Arr::sort` sorts it.",
     params: &[ParamDoc {
         name: "path",
         desc: "The directory to read. A file throws rather than answering a one-element array.",
@@ -984,12 +971,11 @@ const LIST_DOC: MethodDoc = MethodDoc {
 
 /// `Core\IO::walk`'s reference card — `rule:core-api/reference-card`.
 const WALK_DOC: MethodDoc = MethodDoc {
-    short: "Every entry of the tree under `$path`, as an `Iterable<string>` of paths relative to it \
-            — replacing `RecursiveDirectoryIterator`, `RecursiveIteratorIterator` and a recursive \
-            `glob`. `list` is the one-directory member and this is the whole-tree one; needs the \
-            `fs.read` capability, which is asked for **every** directory the walk enters and not \
-            only for the root. A symbolic link is an entry and is never descended into, so the walk \
-            is finite whatever the links say.",
+    short: "Returns every entry in the tree under `$path`, as an `Iterable<string>` of paths \
+            relative to `$path`. `list` reads one directory, and this method reads the whole tree. \
+            It needs the `fs.read` capability for **every** directory it enters, including the \
+            first one. A symbolic link is returned as an entry and is never followed, so the walk \
+            always ends.",
     params: &[ParamDoc {
         name: "path",
         desc: "The directory the walk starts at. A file throws, exactly as `list` does.",
@@ -1017,13 +1003,11 @@ const WALK_DOC: MethodDoc = MethodDoc {
 
 /// `Core\IO::temporaryDir`'s reference card — `rule:core-api/reference-card`.
 const TEMPORARY_DIR_DOC: MethodDoc = MethodDoc {
-    short: "Creates a new, empty, private directory under the root Novis owns — `[io] temp_root`, \
-            or the `tmp` folder in the data folder — and answers its path. \
-            `sys_get_temp_dir` and `tempnam` in one member, and the directory is made rather than \
-            merely named, so there is no window between choosing a name and owning it. Needs the \
-            `fs.write` capability **for the path it creates**: the name is chosen first and asked \
-            about second, so a configuration granting only the working directory does not reach \
-            the temporary root.",
+    short: "Creates a new, empty, private directory and returns its path. The directory is under \
+            `[io] temp_root`, or under the `tmp` folder in the data folder. It is created at once, \
+            so no other program can take its name first. It needs the `fs.write` capability **for \
+            the path it creates**. A configuration that allows only the working directory does not \
+            cover the temporary folder.",
     params: &[],
     ret: "The absolute path of a directory that exists, holds nothing, and belongs to this script. \
           The runtime deletes it, and everything in it, when the script ends — after the last user \
@@ -1047,11 +1031,11 @@ const TEMPORARY_DIR_DOC: MethodDoc = MethodDoc {
 
 /// `Core\IO::canonicalize`'s reference card — `rule:core-api/reference-card`.
 const CANONICALIZE_DOC: MethodDoc = MethodDoc {
-    short: "The absolute path `$path` resolves to, with every `.`, `..` and symbolic link followed \
-            by the operating system — `realpath`. Needs the `fs.read` capability: resolving a name \
-            reads the directories on the way to it. **This is not the traversal check.** It \
-            resolves and stops there; `within` is the member that resolves and then proves \
-            containment, and it is the one an untrusted path has to pass through.",
+    short: "Returns the absolute path that `$path` resolves to. The operating system follows every \
+            `.`, `..` and symbolic link. It needs the `fs.read` capability, because resolving a \
+            name reads the directories on the way. **This is not a path traversal check.** Use \
+            `within` for a path from outside: it resolves the path and checks that it stays inside \
+            a folder.",
     params: &[ParamDoc {
         name: "path",
         desc: "The name to resolve. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it. Every \
@@ -1122,10 +1106,9 @@ const WITHIN_DOC: MethodDoc = MethodDoc {
 
 /// `Core\IO::readText`'s reference card — `rule:core-api/reference-card`.
 const READ_TEXT_DOC: MethodDoc = MethodDoc {
-    short: "The whole content of a file, decoded from the charset it is written in — \
-            `file_get_contents` and the `mb_convert_encoding` a caller writes after it, with the \
-            failure that pair does not have. Needs the `fs.read` capability for the path, exactly \
-            as `read` does.",
+    short: "Returns the whole content of a file, converted from the charset it is written in. If a \
+            byte cannot be converted exactly, it throws an error. It needs the `fs.read` capability \
+            for the path, as `read` does.",
     params: &[
         ParamDoc {
             name: "path",
@@ -1159,9 +1142,9 @@ const READ_TEXT_DOC: MethodDoc = MethodDoc {
 
 /// `Core\IO::lines`'s reference card — `rule:core-api/reference-card`.
 const LINES_DOC: MethodDoc = MethodDoc {
-    short: "Every line of a file, without its terminator — `file()` and the `fgets` loop that \
-            replaces it, over the one definition of a line `Core\\Str::lines` already uses. Needs \
-            the `fs.read` capability for the path, exactly as `read` does.",
+    short: "Returns every line of a file, without its line ending. The file is split into lines \
+            the same way `Core\\Str::lines` splits a string. It needs the `fs.read` capability for \
+            the path, as `read` does.",
     params: &[ParamDoc {
         name: "path",
         desc: "The file to read. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it.",
@@ -1185,9 +1168,9 @@ const LINES_DOC: MethodDoc = MethodDoc {
 
 /// `Core\IO::open`'s reference card — `rule:core-api/reference-card`.
 const OPEN_DOC: MethodDoc = MethodDoc {
-    short: "Opens a file and answers the handle every later read and write goes through — `fopen`, \
-            with the mode string replaced by an enum. Needs `fs.read` for `Read`, `fs.write` for \
-            `Write` and `Append`, and both for `ReadWrite`.",
+    short: "Opens a file and returns a handle to read and write it. The mode is an enum value. It \
+            needs `fs.read` for `Read`, `fs.write` for `Write` and `Append`, and both for \
+            `ReadWrite`.",
     params: &[
         ParamDoc {
             name: "path",
@@ -1217,11 +1200,9 @@ const OPEN_DOC: MethodDoc = MethodDoc {
 
 /// `Core\IO::stdin`'s reference card — `rule:core-api/reference-card`.
 const STDIN_DOC: MethodDoc = MethodDoc {
-    short: "Reads everything the program's standard input will produce, in one call — \
-            the `fgets(STDIN)` loop and every wrapper spelling of the same stream, with no wrapper \
-            grammar in front of either. The result is `tainted`: the bytes are the invoker's, not \
-            the program's. Needs no capability, because the descriptor is a grant the program \
-            was started with.",
+    short: "Reads everything from the program's standard input in one call. The result is \
+            `tainted`, because the bytes come from whoever started the program. It needs no \
+            capability, because the program starts with its standard input already open.",
     params: &[],
     ret: "Every byte until end of input, as one `tainted string` — the empty string when input \
           is already closed, which is what a program started with no input sees. Input ends when \
@@ -1273,22 +1254,22 @@ const FILE_MODE_DOC: EnumDoc = EnumDoc {
     cases: &[
         CaseDoc {
             name: "Read",
-            desc: "Reading only, from the start of a file that must already exist — `fopen`'s `r`.",
+            desc: "Reading only, from the start of a file that must already exist.",
         },
         CaseDoc {
             name: "Write",
-            desc: "Writing only, emptying the file first and creating it if it is not there — \
-                   `fopen`'s `w`.",
+            desc: "Writing only. The file is emptied first, and it is created if it does not \
+                   exist.",
         },
         CaseDoc {
             name: "Append",
-            desc: "Writing only, always at the end whatever else has written since, creating the \
-                   file if it is not there — `fopen`'s `a`.",
+            desc: "Writing only, always at the end of the file, even if something else wrote to it \
+                   since. The file is created if it does not exist.",
         },
         CaseDoc {
             name: "ReadWrite",
-            desc: "Both, creating the file if it is not there and emptying nothing — `fopen`'s \
-                   `c+`, which is the one of its four `+` forms that surprises nobody.",
+            desc: "Reading and writing. The file is created if it does not exist, and its content \
+                   is kept.",
         },
     ],
 };
@@ -1476,8 +1457,8 @@ pub(crate) const FILE: CoreClass = CoreClass {
 
 /// `Core\IO\File::read`'s reference card — `rule:core-api/reference-card`.
 const FILE_READ_DOC: MethodDoc = MethodDoc {
-    short: "Reads up to `$max` bytes from where the handle is, and moves it past them — `fread`. \
-            Needs no capability of its own: the descriptor was checked when `open` produced it.",
+    short: "Reads up to `$max` bytes from the handle's position and moves the position past them. \
+            It needs no capability of its own, because `open` already checked it.",
     params: &[ParamDoc {
         name: "max",
         desc: "The most bytes to read. Fewer are returned when the file ends first.",
@@ -1506,9 +1487,9 @@ const FILE_READ_DOC: MethodDoc = MethodDoc {
 
 /// `Core\IO\File::readLine`'s reference card — `rule:core-api/reference-card`.
 const FILE_READ_LINE_DOC: MethodDoc = MethodDoc {
-    short: "Reads the next line and moves the handle past it — `fgets`. The terminator is consumed \
-            and never returned, and `\\n`, `\\r\\n` and `\\r` all end a line, exactly as \
-            `Core\\Str::lines` and `Core\\IO::lines` divide one.",
+    short: "Reads the next line and moves the handle past it. The line ending is read but not \
+            returned. `\\n`, `\\r\\n` and `\\r` all end a line, as they do for `Core\\Str::lines` \
+            and `Core\\IO::lines`.",
     params: &[],
     ret: "The line without its terminator, or `null` at the end of the file — which is R5's \
           spelling of an absence, and the reason this member needs no separate `eof`. A last line \
@@ -1532,8 +1513,8 @@ const FILE_READ_LINE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\IO\File::write`'s reference card — `rule:core-api/reference-card`.
 const FILE_WRITE_DOC: MethodDoc = MethodDoc {
-    short: "Writes `$data` at the handle's position and moves it past what went out — `fwrite`. \
-            Needs no capability of its own: the descriptor was checked when `open` produced it.",
+    short: "Writes `$data` at the handle's position and moves the position past it. It needs no \
+            capability of its own, because `open` already checked it.",
     params: &[ParamDoc {
         name: "data",
         desc: "The data to write, as a `string` or as `bytes`. It is written exactly as it is.",
@@ -1555,9 +1536,8 @@ const FILE_WRITE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\IO\File::seek`'s reference card — `rule:core-api/reference-card`.
 const FILE_SEEK_DOC: MethodDoc = MethodDoc {
-    short: "Moves the handle to `$offset` bytes from the start of the file — `fseek`, with no \
-            `whence`. Seeking past the end is allowed and is how a sparse file is written: the \
-            gap becomes zeroes when something is written after it.",
+    short: "Moves the handle to `$offset` bytes from the start of the file. You can move past the \
+            end of the file. If you then write, the gap is filled with zeroes.",
     params: &[ParamDoc {
         name: "offset",
         desc: "How many bytes from the start of the file the next read or write happens at.",
@@ -1580,9 +1560,9 @@ const FILE_SEEK_DOC: MethodDoc = MethodDoc {
 
 /// `Core\IO\File::tell`'s reference card — `rule:core-api/reference-card`.
 const FILE_TELL_DOC: MethodDoc = MethodDoc {
-    short: "Answers where the handle is, in bytes from the start of the file — `ftell`. It is the \
-            position the next `read` or `write` acts at, which every member of this class leaves \
-            just past what it touched.",
+    short: "Returns the handle's position, in bytes from the start of the file. The next `read` or \
+            `write` happens at this position. Every method of this class leaves the position just \
+            after the bytes it used.",
     params: &[],
     ret: "The position, as a `uint`. Zero on a handle nothing has read or written yet, unless \
           `FileMode::Append` put it at the end.",
@@ -1601,9 +1581,8 @@ const FILE_TELL_DOC: MethodDoc = MethodDoc {
 
 /// `Core\IO\File::truncate`'s reference card — `rule:core-api/reference-card`.
 const FILE_TRUNCATE_DOC: MethodDoc = MethodDoc {
-    short: "Sets the file's length to `$size` bytes — `ftruncate`. A smaller size drops \
-            everything past it; a larger one extends the file with zeroes, which is the same \
-            hole a write past the end leaves.",
+    short: "Sets the file's length to `$size` bytes. A smaller size deletes everything after it. A \
+            larger size fills the new part with zeroes.",
     params: &[ParamDoc {
         name: "size",
         desc: "How long the file is to be afterwards, in bytes from its start.",
@@ -1627,12 +1606,10 @@ const FILE_TRUNCATE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\IO\File::flush`'s reference card — `rule:core-api/reference-card`.
 const FILE_FLUSH_DOC: MethodDoc = MethodDoc {
-    short: "Hands everything written on this handle to the operating system — `fflush`. Novis \
-            writes straight to the descriptor, so there is nothing of its own left to push, and \
-            this member is the promise that a program never has to know that.",
+    short: "Sends everything written on this handle to the operating system. Novis writes directly \
+            to the operating system, so there is never data waiting in the handle.",
     params: &[],
-    ret: "Nothing. It is **not** `fsync`: reaching the operating system is not reaching the disk, \
-          and durability is not something this member promises.",
+    ret: "Nothing. This method does not wait until the data is on the disk.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
@@ -1649,9 +1626,8 @@ const FILE_FLUSH_DOC: MethodDoc = MethodDoc {
 
 /// `Core\IO\File::lock`'s reference card — `rule:core-api/reference-card`.
 const FILE_LOCK_DOC: MethodDoc = MethodDoc {
-    short: "Takes an exclusive lock on the file and holds it until the handle closes — `flock` \
-            with `LOCK_EX`. It never waits: a lock another handle holds is refused rather than \
-            queued for, so there is no `LOCK_NB` to remember and no unbounded wait to forget.",
+    short: "Takes an exclusive lock on the file. The lock lasts until the handle closes. It never \
+            waits: if another handle has the lock, it throws an error at once.",
     params: &[],
     ret: "Nothing, and there is no `unlock` — the lock's lifetime is the handle's, so `close` \
           releases it and so does the end of the request.",
@@ -1671,8 +1647,8 @@ const FILE_LOCK_DOC: MethodDoc = MethodDoc {
 
 /// `Core\IO\File::close`'s reference card — `rule:core-api/reference-card`.
 const FILE_CLOSE_DOC: MethodDoc = MethodDoc {
-    short: "Closes the handle and releases the descriptor — `fclose`. Calling it is optional: a \
-            handle the program never closes is closed when the request ends.",
+    short: "Closes the handle and frees the file descriptor. Calling it is optional, because every \
+            open handle is closed when the request ends.",
     params: &[],
     ret: "Nothing.",
     errors: &[ErrorDoc {
