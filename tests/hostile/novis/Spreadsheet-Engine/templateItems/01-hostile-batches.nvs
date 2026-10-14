@@ -1,0 +1,90 @@
+<?nvs
+// Attack: a request calls `Engine::templateItems` directly with lists and items that `Template::fill` never sends.
+// Each item should be written as escaped text, or the call should throw an error.
+use Novis\Spreadsheet\Engine;
+use Novis\Spreadsheet\Filling;
+use Novis\Spreadsheet\Workbook;
+
+class Attack
+{
+    type Value = {text: string}|{number: float}|{integer: int}|{decimal: string}|{boolean: bool}|{date: Core\Time\Date}|{time: Core\Time\TimeOfDay}|{duration: Core\Time\Duration}|{day: Core\Time\Date, clock: Core\Time\TimeOfDay}|{formula: string, cachedText: ?string, cachedNumber: ?float};
+    type Item = array<{path: string, value: ?Value}>;
+
+    // This method returns a template with the placeholder `{{note}}` and a row for the list `items`.
+    public static function template(): bytes
+    {
+        var $design = Workbook::createInMemory();
+        $design->sheet('Shop')->addAll([['{{note}}'], ['{{items.name}}', '{{items.qty}}']]);
+        return $design->finish()->bytes ?? Core\Bytes::fill(0, 0);
+    }
+
+    // This method returns a template that is filled and ready for its items.
+    public static function filling(bytes $template): Filling
+    {
+        Filling $filling = Engine::templateOpen($template, { maxBytes: null, maxRatio: null });
+        Engine::templateFill($filling, [{ path: 'note', value: { text: 'Shop' } }], ['items']);
+        return $filling;
+    }
+
+    // This method writes `$items` to the list `$name` of a filled template and finishes it.
+    // It prints the rows of the sheet, and whether the sheet has the text `<evil/>` unescaped.
+    public static function attempt(int $step, bytes $template, string $name, array<Item> $items): void
+    {
+        try {
+            Filling $filling = Engine::templateOpen($template, { maxBytes: null, maxRatio: null });
+            array<bytes> $parts = [Engine::templateFill($filling, [{ path: 'note', value: { text: 'Shop' } }], ['items'])->data];
+            $parts[] = Engine::templateItems($filling, { name: $name, items: $items });
+            var $last = Engine::templateFinish($filling, $template);
+            $parts[] = $last->data;
+            string $raw = Core\Str::contains(Core\Zip::read(Core\Bytes::join($parts), 'xl/worksheets/sheet1.xml') as string, '<evil/>') ? ', raw text' : '';
+            echo 'step ', $step, ' ran ', $last->rows[0]->rows, ' rows', $raw, "\n";
+        } catch (Throwable $e) {
+            echo 'step ', $step, ' stopped ', $e::class, "\n";
+        }
+    }
+}
+
+bytes $template = Attack::template();
+
+// 1. An item whose values close the XML element of the cell.
+array<Attack::Item> $xml = [[{ path: 'name', value: { text: '</t></is></c><evil/>' } }, { path: 'qty', value: { formula: '1</f><evil/>', cachedText: null, cachedNumber: null } }]];
+Attack::attempt(1, $template, 'items', $xml);
+
+// 2. A list the template does not have, an empty list name, and a path the item row does not have.
+array<Attack::Item> $one = [[{ path: 'name', value: { text: 'Pen' } }]];
+Attack::attempt(2, $template, 'secret', $one);
+Attack::attempt(2, $template, '', $one);
+array<Attack::Item> $wrong = [[{ path: '../note', value: { text: 'Pen' } }]];
+Attack::attempt(2, $template, 'items', $wrong);
+
+// 3. Items before the template is filled, and after it is finished.
+try {
+    Filling $early = Engine::templateOpen($template, { maxBytes: null, maxRatio: null });
+    Engine::templateItems($early, { name: 'items', items: $one });
+    echo "step 3 ran before fill\n";
+} catch (Throwable $e) {
+    echo 'step 3 stopped ', $e::class, "\n";
+}
+try {
+    Filling $late = Attack::filling($template);
+    Engine::templateFinish($late, $template);
+    Engine::templateItems($late, { name: 'items', items: $one });
+    echo "step 3 ran after finish\n";
+} catch (Throwable $e) {
+    echo 'step 3 stopped ', $e::class, "\n";
+}
+
+// 4. 50,000 items in batches of 10,000.
+try {
+    Filling $many = Attack::filling($template);
+    array<Attack::Item> $batch = [];
+    for (int $at = 0; $at < 10000; $at++) {
+        $batch[] = [{ path: 'name', value: { text: 'Pen' } }, { path: 'qty', value: { integer: $at } }];
+    }
+    for (int $count = 0; $count < 5; $count++) {
+        Engine::templateItems($many, { name: 'items', items: $batch });
+    }
+    echo "step 4 ran\n";
+} catch (Throwable $e) {
+    echo 'step 4 stopped ', $e::class, "\n";
+}

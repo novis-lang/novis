@@ -1,0 +1,62 @@
+<?nvs
+// Attack: a request calls `Engine::templateFinish` directly at the wrong time, and with a source that is not the template.
+// Each call should return the end of the file or throw an error.
+use Novis\Spreadsheet\Engine;
+use Novis\Spreadsheet\Filling;
+use Novis\Spreadsheet\Workbook;
+
+class Attack
+{
+    // This method returns a template with the placeholder `{{note}}` in cell A1 of the sheet `Shop`.
+    public static function template(): bytes
+    {
+        var $design = Workbook::createInMemory();
+        $design->sheet('Shop')->addAll([['{{note}}', 'Widget']]);
+        return $design->finish()->bytes ?? Core\Bytes::fill(0, 0);
+    }
+
+    // This method returns a template that is filled.
+    public static function filled(bytes $template): Filling
+    {
+        Filling $filling = Engine::templateOpen($template, { maxBytes: null, maxRatio: null });
+        Engine::templateFill($filling, [{ path: 'note', value: { text: 'Shop' } }], []);
+        return $filling;
+    }
+
+    // This method finishes `$filling` with `$source` and prints the size of the file, or the class of the error.
+    public static function attempt(int $step, Filling $filling, mixed $source): void
+    {
+        try {
+            var $last = Engine::templateFinish($filling, $source);
+            echo 'step ', $step, ' ran ', $last->size, " bytes\n";
+        } catch (Throwable $e) {
+            echo 'step ', $step, ' stopped ', $e::class, "\n";
+        }
+    }
+}
+
+bytes $template = Attack::template();
+
+// 1. A template that is not filled.
+Attack::attempt(1, Engine::templateOpen($template, { maxBytes: null, maxRatio: null }), $template);
+
+// 2. Sources that are not `bytes` or a file: text, a number and `null`.
+Attack::attempt(2, Attack::filled($template), 'Shop');
+Attack::attempt(2, Attack::filled($template), 42);
+Attack::attempt(2, Attack::filled($template), null);
+
+// 3. A source that is not the template: another workbook, no bytes, and the template cut short.
+Attack::attempt(3, Attack::filled($template), Workbook::fromRows([['title' => 'Post']], { sheet: 'Shop' })->bytes());
+Attack::attempt(3, Attack::filled($template), Core\Bytes::fill(0, 0));
+Attack::attempt(3, Attack::filled($template), Core\Bytes::slice($template, 0, 2000));
+
+// 4. The same template finished twice.
+Filling $twice = Attack::filled($template);
+Attack::attempt(4, $twice, $template);
+Attack::attempt(4, $twice, $template);
+
+// 5. 300 templates, each filled and finished in the same request.
+for (int $count = 0; $count < 300; $count++) {
+    Engine::templateFinish(Attack::filled($template), $template);
+}
+Attack::attempt(5, Attack::filled($template), $template);

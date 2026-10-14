@@ -164,6 +164,110 @@
       "perf": "`new Chart` stores eight values and calls nothing; every type method, `series` and `combine` build one on every call, so their figures include this one.",
       "hostile": "`new Chart` stores eight typed read-only values and calls nothing, so a wrong value does not compile; the titles, ranges, names and colors a request sends are checked when `Sheet::chart` places the chart, and the attacks of the type methods, `series` and `combine` send hostile ones."
     },
+    "Novis\\Spreadsheet\\Engine::readerHeader": {
+      "examples": "The manifest export `Reader::rows` calls once when it reads with a header row, after it builds the read options; a reader learns from that member's examples, and one here would teach an options shape a program never writes.",
+      "perf": "`Reader::rows` with `header: true` is this one crossing plus its batches of rows, so its figure bounds this export's."
+    },
+    "Novis\\Spreadsheet\\Engine::readerImages": {
+      "examples": "The manifest export `Reader::images` calls once for one sheet; a reader learns from that member's examples, and one here would teach the `Reading` handle a program never holds.",
+      "perf": "`Reader::images` is this one crossing for one sheet, so its figure is this export's."
+    },
+    "Novis\\Spreadsheet\\Engine::readerLinks": {
+      "examples": "The manifest export `Reader::links` calls once for one sheet; a reader learns from that member's examples, and one here would teach the `Reading` handle a program never holds.",
+      "perf": "`Reader::links` is this one crossing for one sheet, so its figure is this export's."
+    },
+    "Novis\\Spreadsheet\\Engine::readerMacros": {
+      "examples": "The manifest export `Reader::macros` calls once; a reader learns from that member's examples, and one here would teach the `Reading` handle a program never holds.",
+      "perf": "`Reader::macros` is this one crossing, so its figure is this export's."
+    },
+    "Novis\\Spreadsheet\\Engine::readerMerged": {
+      "examples": "The manifest export `Reader::merged` calls once for one sheet; a reader learns from that member's examples, and one here would teach the `Reading` handle a program never holds.",
+      "perf": "`Reader::merged` is this one crossing for one sheet, so its figure is this export's."
+    },
+    "Novis\\Spreadsheet\\Engine::readerNames": {
+      "examples": "The manifest export `Reader::names` calls once; a reader learns from that member's examples, and one here would teach the `Reading` handle a program never holds.",
+      "perf": "`Reader::names` is this one crossing, so its figure is this export's."
+    },
+    "Novis\\Spreadsheet\\Engine::readerNotes": {
+      "examples": "The manifest export `Reader::notes` calls once for one sheet; a reader learns from that member's examples, and one here would teach the `Reading` handle a program never holds.",
+      "perf": "`Reader::notes` is this one crossing for one sheet, so its figure is this export's."
+    },
+    "Novis\\Spreadsheet\\Engine::readerOpen": {
+      "examples": "The manifest export `Reader::open` calls once for a workbook and keeps the result in a `Reader`; a reader learns from that member's examples, and one here would teach the `Reading` handle a program never holds.",
+      "perf": "`Reader::open` is this one crossing plus building the `Reader`, so its figure bounds this export's."
+    },
+    "Novis\\Spreadsheet\\Engine::readerProperties": {
+      "examples": "The manifest export `Reader::properties` calls once and turns the creation time into an `Instant`; a reader learns from that member's examples, and one here would teach the `Reading` handle a program never holds.",
+      "perf": "`Reader::properties` is this one crossing plus one time conversion, so its figure bounds this export's."
+    },
+    "Novis\\Spreadsheet\\Engine::readerRows": {
+      "examples": "The manifest export `Reader::rows` calls for 1,000 rows at a time and gives one `Row` at a time; a reader learns from that member's examples, and one here would teach batches and options a program never writes.",
+      "perf": "`Reader::rows` is these crossings plus building each `Row`, so its figure bounds this export's."
+    },
+    "Novis\\Spreadsheet\\Engine::readerSheets": {
+      "examples": "The manifest export `Reader::sheets` calls once and returns the same list; a reader learns from that member's examples, and one here would teach the `Reading` handle a program never holds.",
+      "perf": "`Reader::sheets` is this one crossing, so its figure is this export's."
+    },
+    "Novis\\Spreadsheet\\Engine::readerTables": {
+      "examples": "The manifest export `Reader::tables` calls once for one sheet; a reader learns from that member's examples, and one here would teach the `Reading` handle a program never holds.",
+      "perf": "`Reader::tables` is this one crossing for one sheet, so its figure is this export's."
+    },
+    "Novis\\Spreadsheet\\Engine::templateFill": {
+      "examples": "The manifest export `Template::fill` calls once after it turns the data into paths; a reader learns from that member's examples, and one here would teach a path list a program never writes.",
+      "perf": "`Template::fill` is this one crossing plus walking the data, so its figure bounds this export's."
+    },
+    "Novis\\Spreadsheet\\Engine::templateFinish": {
+      "examples": "The `Export` that `Template::fill` returns calls it once when it is written, after the last items; a reader learns from the examples of `Template::fill` and `Export`, and one here would teach the `Filling` handle a program never holds.",
+      "perf": "Writing the `Export` of `Template::fill` with `bytes` is this crossing plus the items, so the bench of `Template::fill` bounds this export's."
+    },
+    "Novis\\Spreadsheet\\Engine::templateItems": {
+      "examples": "The `Export` that `Template::fill` returns calls it for 1,000 items at a time when it is written; a reader learns from the examples of `Template::fill` and `Export`, and one here would teach item batches a program never writes.",
+      "perf": "Writing the `Export` of `Template::fill` is these crossings plus the rest of the file, so the bench of `Template::fill` bounds this export's."
+    },
+    "Novis\\Spreadsheet\\Engine::templateOpen": {
+      "examples": "The manifest export `Template::open` calls once and keeps the result in a `Template`; a reader learns from that member's examples, and one here would teach the `Filling` handle a program never holds.",
+      "perf": "`Template::open` is this one crossing plus building the `Template`, so its figure bounds this export's."
+    },
+    "Novis\\Spreadsheet\\Engine::templateSet": {
+      "examples": "The manifest export `Template::set` calls once after it turns the value into a cell value; a reader learns from that member's examples, and one here would teach the `Filling` handle a program never holds.",
+      "perf": "`Template::set` is this one crossing plus one value conversion, so its figure bounds this export's."
+    },
+    "Novis\\Spreadsheet\\Engine::writerCell": {
+      "examples": "The manifest export `Sheet::cell` calls once after it finds the column of a key; a reader learns from that member's examples, and one here would teach the `Writer` handle a program never holds.",
+      "perf": "`Sheet::cell` is this one crossing plus finding the column, so its figure bounds this export's."
+    },
+    "Novis\\Spreadsheet\\Engine::writerColumn": {
+      "examples": "The manifest export `Sheet::column` calls once after it sends the rows that wait; a reader learns from that member's examples, and one here would teach the `Writer` handle a program never holds.",
+      "perf": "`Sheet::column` is this one crossing plus sending the rows that wait, so its figure bounds this export's."
+    },
+    "Novis\\Spreadsheet\\Engine::writerDefine": {
+      "examples": "The manifest export `Workbook::define` calls once for each name; a reader learns from that member's examples, and one here would teach the `Writer` handle a program never holds.",
+      "perf": "`Workbook::define` is this one crossing, so its figure is this export's."
+    },
+    "Novis\\Spreadsheet\\Engine::writerFinish": {
+      "examples": "The manifest export `Workbook::finish` calls once and returns a `Written`; a reader learns from that member's examples, and one here would teach the `Writer` handle a program never holds.",
+      "perf": "`Workbook::finish` is this one crossing plus sending the rows that wait, so its figure bounds this export's."
+    },
+    "Novis\\Spreadsheet\\Engine::writerOpen": {
+      "examples": "The manifest exports `Workbook::createInMemory`, `createForFile`, `createForStream` and `createForDownload` each call it once and keep the result in a `Workbook`; a reader learns from their examples, and one here would teach the `Writer` handle a program never holds.",
+      "perf": "`Workbook::createInMemory` is this one crossing plus building the `Workbook`, so its figure bounds this export's."
+    },
+    "Novis\\Spreadsheet\\Engine::writerPart": {
+      "examples": "The manifest exports `Sheet::merge`, `link`, `note`, `validate`, `group`, `table`, `conditional`, `image`, `chart`, `print` and `protect` each call it once with the part they build; a reader learns from their examples, and one here would teach part shapes a program never writes.",
+      "perf": "Each of those `Sheet` methods is this one crossing plus building its part, so their figures bound this export's."
+    },
+    "Novis\\Spreadsheet\\Engine::writerRows": {
+      "examples": "The manifest exports `Sheet::add` and `Sheet::addAll` collect rows and call it with 1,000 rows at a time; a reader learns from their examples, and one here would teach row shapes a program never writes.",
+      "perf": "`Sheet::addAll` is these crossings plus building each row, so its figure bounds this export's."
+    },
+    "Novis\\Spreadsheet\\Engine::writerSheet": {
+      "examples": "The manifest export `Workbook::sheet` calls once for each sheet after it builds the sheet options; a reader learns from that member's examples, and one here would teach an options shape a program never writes.",
+      "perf": "`Workbook::sheet` is this one crossing plus building the options, so its figure bounds this export's."
+    },
+    "Novis\\Spreadsheet\\Engine::writerStyle": {
+      "examples": "The manifest exports `Sheet::add` and `Sheet::addAll` call it the first time they write a `Style`; a reader learns from their examples and from those of `Style::of`, and one here would teach the `Writer` handle a program never holds.",
+      "perf": "`Style::of` builds the fields, and `Sheet::add` with a style is this one crossing the first time, so their figures bound this export's."
+    },
     "Novis\\Spreadsheet\\Export::constructor": {
       "examples": "`new Export` stores its function and options and calls nothing; a program meets an `Export` from `Workbook::fromRows` or `Template::fill`, and the examples of `save`, `to`, `bytes` and `download` show it, one of them through `new Export`.",
       "perf": "`new Export` stores three values and calls nothing; `Workbook::fromRows` builds one on every call, so the benches of `download`, `save`, `to` and `bytes` include this one.",

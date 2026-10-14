@@ -1,0 +1,59 @@
+<?nvs
+// Attack: a request calls `Engine::readerNotes` directly with sheet names and sources that `Reader::notes` never sends.
+// Each call should return the notes or throw an error, and a note that looks like XML should come back as text.
+use Novis\Spreadsheet\Engine;
+use Novis\Spreadsheet\Reading;
+use Novis\Spreadsheet\Workbook;
+
+class Attack
+{
+    // This method returns a workbook with 500 notes on its sheet `Shop`, and a second sheet `Blog`.
+    public static function book(): bytes
+    {
+        var $book = Workbook::createInMemory();
+        var $sheet = $book->sheet('Shop');
+        for (int $row = 1; $row <= 500; $row++) {
+            $sheet->add(['Widget']);
+            $sheet->note('A' . $row as string, '</t><evil/>', { author: '"/><evil/>' });
+        }
+        $book->sheet('Blog')->add(['Post']);
+        return $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+    }
+
+    // This method prints how many notes the sheet has, and whether the first note came back as written, or the class of the error.
+    public static function attempt(int $step, Reading $reader, mixed $source, string $sheet): void
+    {
+        try {
+            var $notes = Engine::readerNotes($reader, $source, $sheet);
+            string $text = Core\Arr::count($notes) > 0 && $notes[0]->note == '</t><evil/>' ? ', the text as written' : '';
+            echo 'step ', $step, ' ran ', Core\Arr::count($notes), ' notes', $text, "\n";
+        } catch (Throwable $e) {
+            echo 'step ', $step, ' stopped ', $e::class, "\n";
+        }
+    }
+}
+
+bytes $file = Attack::book();
+Reading $reader = Engine::readerOpen($file, { maxBytes: null, maxRatio: null });
+
+// 1. Sheet names the workbook does not have: an empty name, a name with a NUL byte, and paths of parts inside the file.
+Attack::attempt(1, $reader, $file, '');
+Attack::attempt(1, $reader, $file, "Shop\u{0}");
+Attack::attempt(1, $reader, $file, 'xl/comments1.xml');
+Attack::attempt(1, $reader, $file, '../../xl/workbook.xml');
+
+// 2. Sources that are not `bytes` or a file.
+Attack::attempt(2, $reader, 'Shop', 'Shop');
+Attack::attempt(2, $reader, 42, 'Shop');
+
+// 3. A source that is not the one the reader opened: another workbook, no bytes, and the file cut short.
+Attack::attempt(3, $reader, Workbook::fromRows([['title' => 'Post']], { sheet: 'Shop' })->bytes(), 'Shop');
+Attack::attempt(3, $reader, Core\Bytes::fill(0, 0), 'Shop');
+Attack::attempt(3, $reader, Core\Bytes::slice($file, 0, 2000), 'Shop');
+
+// 4. The real sheets, read 200 times each.
+for (int $count = 0; $count < 200; $count++) {
+    Engine::readerNotes($reader, $file, 'Shop');
+}
+Attack::attempt(4, $reader, $file, 'Shop');
+Attack::attempt(4, $reader, $file, 'Blog');

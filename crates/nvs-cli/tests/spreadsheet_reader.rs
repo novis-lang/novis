@@ -91,6 +91,7 @@ foreach ($reader->rows("Shop", {header: true}) as Row $row) {
 /// `links` returns each link with its cell, target, text, tooltip and whether it leaves the
 /// workbook, and `notes` each note with its cell, text and author, `null` when it has none.
 // covers: Novis\Spreadsheet\Reader::links, Novis\Spreadsheet\Reader::notes
+// covers: Novis\Spreadsheet\Engine::readerLinks, Novis\Spreadsheet\Engine::readerNotes
 #[test]
 fn links_and_notes_carry_every_field() {
     let body = [
@@ -112,6 +113,7 @@ echo Core\Json::encode($reader->notes(0)), "\n";
 /// `tables` returns the table's name, range and sheet, `images` the picture's cell, format and
 /// the same bytes that were written, and `merged` each merged range.
 // covers: Novis\Spreadsheet\Reader::tables, Novis\Spreadsheet\Reader::images, Novis\Spreadsheet\Reader::merged
+// covers: Novis\Spreadsheet\Engine::readerTables, Novis\Spreadsheet\Engine::readerImages, Novis\Spreadsheet\Engine::readerMerged
 #[test]
 fn tables_images_and_merged_cells_read_back() {
     let body = [
@@ -136,6 +138,7 @@ echo Core\Json::encode($reader->merged("Totals")), "\n";
 /// `names` returns a workbook-wide name with a `null` sheet, `properties` the title, author and
 /// creation time written and `null` for the rest, and `macros` nothing for an xlsx file.
 // covers: Novis\Spreadsheet\Reader::names, Novis\Spreadsheet\Reader::properties, Novis\Spreadsheet\Reader::macros
+// covers: Novis\Spreadsheet\Engine::readerNames, Novis\Spreadsheet\Engine::readerProperties, Novis\Spreadsheet\Engine::readerMacros, Novis\Spreadsheet\Engine::writerDefine
 #[test]
 fn names_properties_and_macros_of_a_workbook() {
     let body = [

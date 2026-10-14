@@ -1,0 +1,72 @@
+<?nvs
+// Attack: a request calls `Engine::writerFinish` directly at the wrong time: twice, with no sheet, and after an error.
+// Each call should return the end of a valid file or throw an error.
+use Novis\Spreadsheet\Engine;
+use Novis\Spreadsheet\Visibility;
+use Novis\Spreadsheet\Writer;
+
+class Attack
+{
+    // This method opens a workbook. With `$sheet`, it also starts one sheet named `Shop`.
+    public static function writer(bool $sheet): Writer
+    {
+        Writer $writer = Engine::writerOpen({ properties: { title: null, subject: null, author: null, company: null, keywords: null, created: null }, target: 'Shop.xlsx' });
+        if ($sheet) {
+            Engine::writerSheet($writer, {
+                name: 'Shop',
+                position: null,
+                visibility: Visibility::Visible,
+                columns: [],
+                freezeRows: 0,
+                freezeColumns: 0,
+                autofilter: null,
+                tabColor: null,
+                zoom: null,
+                gridlines: true,
+                rightToLeft: false,
+                header: { defaultStyle: false, style: null, freeze: false, filter: false },
+                newSheetOnOverflow: false,
+            }, []);
+        }
+        return $writer;
+    }
+
+    // This method finishes `$writer` and prints the size of the file and its row counts, or the class of the error.
+    public static function attempt(int $step, Writer $writer): void
+    {
+        try {
+            var $last = Engine::writerFinish($writer);
+            echo 'step ', $step, ' ran ', $last->size, ' bytes, ', Core\Arr::count($last->rows), " sheets\n";
+        } catch (Throwable $e) {
+            echo 'step ', $step, ' stopped ', $e::class, "\n";
+        }
+    }
+}
+
+// 1. A workbook with no sheet.
+Attack::attempt(1, Attack::writer(false));
+
+// 2. The same workbook finished twice.
+Writer $twice = Attack::writer(true);
+Attack::attempt(2, $twice);
+Attack::attempt(2, $twice);
+
+// 3. A workbook whose last call threw an error: a row with more cells than a sheet has columns.
+Writer $broken = Attack::writer(true);
+array<{value: ?{integer: int}, style: ?uint}> $wide = [];
+for (int $at = 0; $at < 16385; $at++) {
+    $wide[] = { value: { integer: $at }, style: null };
+}
+try {
+    Engine::writerRows($broken, [{ cells: $wide, style: null, height: null, hidden: false, level: 0, header: false }]);
+    echo "step 3 wrote the row\n";
+} catch (Throwable $e) {
+    echo 'step 3 stopped ', $e::class, "\n";
+}
+Attack::attempt(3, $broken);
+
+// 4. 300 workbooks, each opened and finished in the same request.
+for (int $count = 0; $count < 300; $count++) {
+    Engine::writerFinish(Attack::writer(true));
+}
+Attack::attempt(4, Attack::writer(true));

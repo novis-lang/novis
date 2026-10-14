@@ -1,0 +1,49 @@
+<?nvs
+// Attack: a request calls `Engine::readerSheets` directly with sources that `Reader::sheets` never sends.
+// Each call should return the sheets or throw an error.
+use Novis\Spreadsheet\Engine;
+use Novis\Spreadsheet\Reading;
+use Novis\Spreadsheet\Workbook;
+
+class Attack
+{
+    // This method returns a workbook with 100 sheets. Their names look like XML.
+    public static function book(): bytes
+    {
+        var $book = Workbook::createInMemory();
+        for (int $at = 0; $at < 100; $at++) {
+            $book->sheet('<b>&amp;' . $at as string)->add(['Widget']);
+        }
+        return $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+    }
+
+    // This method prints how many sheets there are and the name of the first, or the class of the error.
+    public static function attempt(int $step, Reading $reader, mixed $source): void
+    {
+        try {
+            var $sheets = Engine::readerSheets($reader, $source);
+            echo 'step ', $step, ' ran ', Core\Arr::count($sheets), ' sheets, the first is ', Core\Arr::count($sheets) > 0 ? $sheets[0]->name : 'none', "\n";
+        } catch (Throwable $e) {
+            echo 'step ', $step, ' stopped ', $e::class, "\n";
+        }
+    }
+}
+
+bytes $file = Attack::book();
+Reading $reader = Engine::readerOpen($file, { maxBytes: null, maxRatio: null });
+
+// 1. Sources that are not `bytes` or a file: text, a number and `null`.
+Attack::attempt(1, $reader, 'Shop');
+Attack::attempt(1, $reader, 42);
+Attack::attempt(1, $reader, null);
+
+// 2. A source that is not the one the reader opened: another workbook, no bytes, and the file cut short.
+Attack::attempt(2, $reader, Workbook::fromRows([['title' => 'Post']], { sheet: 'Blog' })->bytes());
+Attack::attempt(2, $reader, Core\Bytes::fill(0, 0));
+Attack::attempt(2, $reader, Core\Bytes::slice($file, 0, 2000));
+
+// 3. The real file, read 200 times.
+for (int $count = 0; $count < 200; $count++) {
+    Engine::readerSheets($reader, $file);
+}
+Attack::attempt(3, $reader, $file);

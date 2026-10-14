@@ -1,0 +1,100 @@
+<?nvs
+// Attack: a request calls `Engine::writerPart` directly with links, notes, ranges and pictures that `Sheet` never builds.
+// Each part should be written as escaped text or throw an error, and no link should run code.
+use Novis\Spreadsheet\ChartKind;
+use Novis\Spreadsheet\Engine;
+use Novis\Spreadsheet\Legend;
+use Novis\Spreadsheet\Visibility;
+use Novis\Spreadsheet\Writer;
+
+class Attack
+{
+    // This method opens a workbook with one sheet named `Shop`.
+    public static function writer(): Writer
+    {
+        Writer $writer = Engine::writerOpen({ properties: { title: null, subject: null, author: null, company: null, keywords: null, created: null }, target: 'Shop.xlsx' });
+        Engine::writerSheet($writer, {
+            name: 'Shop',
+            position: null,
+            visibility: Visibility::Visible,
+            columns: [],
+            freezeRows: 0,
+            freezeColumns: 0,
+            autofilter: null,
+            tabColor: null,
+            zoom: null,
+            gridlines: true,
+            rightToLeft: false,
+            header: { defaultStyle: false, style: null, freeze: false, filter: false },
+            newSheetOnOverflow: false,
+        }, []);
+        return $writer;
+    }
+
+    // This method finishes the workbook and prints the size of the file.
+    // It also prints whether a part of the file has the text `<evil/>` unescaped.
+    public static function finish(int $step, Writer $writer): void
+    {
+        try {
+            bytes $last = Engine::writerFinish($writer)->data;
+            string $found = '';
+            foreach (Core\Zip::entries($last) as var $entry) {
+                if (Core\Str::contains(Core\Zip::read($last, $entry) as string, '<evil/>')) {
+                    $found = ', raw text';
+                }
+            }
+            echo 'step ', $step, ' finished', $found, "\n";
+        } catch (Throwable $e) {
+            echo 'step ', $step, ' finish stopped ', $e::class, "\n";
+        }
+    }
+
+    // This method prints whether one call ran or threw an error.
+    public static function report(int $step, callable(): bytes $call): void
+    {
+        try {
+            $call();
+            echo 'step ', $step, " ran\n";
+        } catch (Throwable $e) {
+            echo 'step ', $step, ' stopped ', $e::class, "\n";
+        }
+    }
+}
+
+Writer $writer = Attack::writer();
+
+// 1. Links to a script, to a file on the server and to a cell with XML in its name.
+Attack::report(1, fn(): bytes => Engine::writerPart($writer, { anchor: 'A1', target: 'javascript:alert(1)', text: null, tooltip: null }));
+Attack::report(1, fn(): bytes => Engine::writerPart($writer, { anchor: 'A2', target: 'file:///etc/passwd', text: null, tooltip: null }));
+Attack::report(1, fn(): bytes => Engine::writerPart($writer, { anchor: 'A3', target: "'</a><evil/>'!A1", text: '<evil/>', tooltip: '<evil/>' }));
+
+// 2. A note, a print header and a chart title that close the XML element.
+Attack::report(2, fn(): bytes => Engine::writerPart($writer, { noted: 'B1', note: '</t><evil/>', author: '"/><evil/>' }));
+Attack::report(2, fn(): bytes => Engine::writerPart($writer, { orientation: null, fitWidth: null, fitHeight: null, margins: null, header: '</oddHeader><evil/>', footer: null, repeatRows: null, area: null }));
+array<{values: string, categories: ?string, name: ?string, color: ?string}> $series = [{ values: 'Shop!$A$1:$A$3', categories: null, name: '</c:v><evil/>', color: null }];
+array<{kind: ChartKind, series: array<{values: string, categories: ?string, name: ?string, color: ?string}>}> $layers = [{ kind: ChartKind::Column, series: $series }];
+Attack::report(2, fn(): bytes => Engine::writerPart($writer, { placed: 'D2', layers: $layers, title: '</a:t><evil/>', xTitle: null, yTitle: null, legend: Legend::Hidden, labels: false, width: null, height: null }));
+
+// 3. Ranges that are not ranges: XML, a range past the last row, and a merge that overlaps another.
+Attack::report(3, fn(): bytes => Engine::writerPart($writer, { merge: '"/><evil/>' }));
+Attack::report(3, fn(): bytes => Engine::writerPart($writer, { merge: 'A1:XFE1048577' }));
+Attack::report(3, fn(): bytes => Engine::writerPart($writer, { merge: 'C1:C3' }));
+Attack::report(3, fn(): bytes => Engine::writerPart($writer, { merge: 'C2:C4' }));
+
+// 4. A picture that is not an image, and one with a size that is not a number.
+Attack::report(4, fn(): bytes => Engine::writerPart($writer, { at: 'E1', image: 'not an image' as bytes, width: null, height: null, offsetX: null, offsetY: null }));
+Attack::report(4, fn(): bytes => Engine::writerPart($writer, { at: 'E2', image: Core\Encoding::fromBase64('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='), width: Core\Math::NAN, height: -1.0, offsetX: Core\Math::INFINITY, offsetY: null }));
+Attack::finish(4, $writer);
+
+// 5. 5,000 merged ranges on one sheet, and a part after the workbook is finished.
+Writer $many = Attack::writer();
+try {
+    for (int $row = 1; $row <= 5000; $row++) {
+        Engine::writerPart($many, { merge: 'A' . $row as string . ':B' . $row as string });
+    }
+    echo "step 5 ran\n";
+} catch (Throwable $e) {
+    echo 'step 5 stopped ', $e::class, "\n";
+}
+Attack::finish(5, $many);
+Attack::report(5, fn(): bytes => Engine::writerPart($many, { merge: 'A1:B1' }));

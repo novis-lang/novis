@@ -1,0 +1,58 @@
+<?nvs
+// Attack: a request calls `Engine::readerMerged` directly with sheet names and sources that `Reader::merged` never sends.
+// Each call should return the merged ranges or throw an error, and no call should read another part of the file.
+use Novis\Spreadsheet\Engine;
+use Novis\Spreadsheet\Reading;
+use Novis\Spreadsheet\Workbook;
+
+class Attack
+{
+    // This method returns a workbook with 1,000 merged ranges on its sheet `Shop`, and a second sheet `Blog`.
+    public static function book(): bytes
+    {
+        var $book = Workbook::createInMemory();
+        var $sheet = $book->sheet('Shop');
+        $sheet->add(['Widget', 2.5]);
+        for (int $row = 1; $row <= 1000; $row++) {
+            $sheet->merge('A' . $row as string . ':B' . $row as string);
+        }
+        $book->sheet('Blog')->add(['Post']);
+        return $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+    }
+
+    // This method prints how many merged ranges the sheet has, or the class of the error.
+    public static function attempt(int $step, Reading $reader, mixed $source, string $sheet): void
+    {
+        try {
+            var $merged = Engine::readerMerged($reader, $source, $sheet);
+            echo 'step ', $step, ' ran ', Core\Arr::count($merged), " ranges\n";
+        } catch (Throwable $e) {
+            echo 'step ', $step, ' stopped ', $e::class, "\n";
+        }
+    }
+}
+
+bytes $file = Attack::book();
+Reading $reader = Engine::readerOpen($file, { maxBytes: null, maxRatio: null });
+
+// 1. Sheet names the workbook does not have: an empty name, a name with a NUL byte, and paths of parts inside the file.
+Attack::attempt(1, $reader, $file, '');
+Attack::attempt(1, $reader, $file, "Shop\u{0}");
+Attack::attempt(1, $reader, $file, 'xl/worksheets/sheet1.xml');
+Attack::attempt(1, $reader, $file, '../../xl/workbook.xml');
+
+// 2. Sources that are not `bytes` or a file.
+Attack::attempt(2, $reader, 'Shop', 'Shop');
+Attack::attempt(2, $reader, null, 'Shop');
+
+// 3. A source that is not the one the reader opened: another workbook, no bytes, and the file cut short.
+Attack::attempt(3, $reader, Workbook::fromRows([['title' => 'Post']], { sheet: 'Shop' })->bytes(), 'Shop');
+Attack::attempt(3, $reader, Core\Bytes::fill(0, 0), 'Shop');
+Attack::attempt(3, $reader, Core\Bytes::slice($file, 0, 2000), 'Shop');
+
+// 4. The real sheets, read 200 times each.
+for (int $count = 0; $count < 200; $count++) {
+    Engine::readerMerged($reader, $file, 'Shop');
+}
+Attack::attempt(4, $reader, $file, 'Shop');
+Attack::attempt(4, $reader, $file, 'Blog');

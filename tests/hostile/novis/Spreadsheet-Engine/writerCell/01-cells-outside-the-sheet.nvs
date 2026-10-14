@@ -1,0 +1,71 @@
+<?nvs
+// Attack: a request calls `Engine::writerCell` directly with columns and rows outside a sheet, and at the wrong time.
+// Each call should return an address such as `C7` or throw an error.
+use Novis\Spreadsheet\Engine;
+use Novis\Spreadsheet\Visibility;
+use Novis\Spreadsheet\Writer;
+
+class Attack
+{
+    // This method opens a workbook. With `$sheet`, it also starts one sheet named `Shop`.
+    public static function writer(bool $sheet): Writer
+    {
+        Writer $writer = Engine::writerOpen({ properties: { title: null, subject: null, author: null, company: null, keywords: null, created: null }, target: 'Shop.xlsx' });
+        if ($sheet) {
+            Engine::writerSheet($writer, {
+                name: 'Shop',
+                position: null,
+                visibility: Visibility::Visible,
+                columns: [],
+                freezeRows: 0,
+                freezeColumns: 0,
+                autofilter: null,
+                tabColor: null,
+                zoom: null,
+                gridlines: true,
+                rightToLeft: false,
+                header: { defaultStyle: false, style: null, freeze: false, filter: false },
+                newSheetOnOverflow: false,
+            }, []);
+        }
+        return $writer;
+    }
+
+    // This method prints the address `writerCell` returns, or the class of the error.
+    public static function attempt(int $step, Writer $writer, uint $column, uint $row): void
+    {
+        try {
+            string $address = Engine::writerCell($writer, $column, $row);
+            echo 'step ', $step, ' ran ', $address, "\n";
+        } catch (Throwable $e) {
+            echo 'step ', $step, ' stopped ', $e::class, "\n";
+        }
+    }
+}
+
+Writer $writer = Attack::writer(true);
+
+// 1. The last cell of a sheet, and the cells one past it in each direction.
+Attack::attempt(1, $writer, 16383, 1048576);
+Attack::attempt(1, $writer, 16384, 1);
+Attack::attempt(1, $writer, 0, 1048577);
+
+// 2. Row 0, which does not exist, and the largest numbers a `uint` can have.
+Attack::attempt(2, $writer, 0, 0);
+Attack::attempt(2, $writer, 18446744073709551615, 1);
+Attack::attempt(2, $writer, 0, 18446744073709551615);
+
+// 3. A workbook with no sheet yet.
+Attack::attempt(3, Attack::writer(false), 0, 1);
+
+// 4. A workbook that is finished.
+Writer $done = Attack::writer(true);
+Engine::writerFinish($done);
+Attack::attempt(4, $done, 0, 1);
+
+// 5. 20,000 addresses in one request.
+string $last = '';
+for (int $at = 0; $at < 20000; $at++) {
+    $last = Engine::writerCell($writer, ($at % 16384) as uint, ($at + 1) as uint);
+}
+echo 'step 5 ran ', $last, "\n";

@@ -1,0 +1,85 @@
+<?nvs
+// Attack: a request calls `Engine::writerSheet` directly with names and options that `Workbook::sheet` never builds.
+// Each call should start the sheet or throw an error, and the file should stay valid.
+use Novis\Spreadsheet\Engine;
+use Novis\Spreadsheet\Visibility;
+use Novis\Spreadsheet\Writer;
+
+class Attack
+{
+    type Column = {width: ?float, auto: bool, style: ?uint, format: ?string, hidden: bool};
+    type Layout = {name: string, position: ?uint, visibility: Visibility, columns: array<Column>, freezeRows: uint, freezeColumns: uint, autofilter: ?string, tabColor: ?string, zoom: ?uint, gridlines: bool, rightToLeft: bool, header: {defaultStyle: bool, style: ?uint, freeze: bool, filter: bool}, newSheetOnOverflow: bool};
+
+    // This method returns the options of a sheet named `$name`, with the given columns, frozen rows, filter, tab color and zoom.
+    public static function layout(string $name, array<Column> $columns, uint $freeze, ?string $filter, ?string $color, ?uint $zoom): Layout
+    {
+        return {
+            name: $name,
+            position: null,
+            visibility: Visibility::Visible,
+            columns: $columns,
+            freezeRows: $freeze,
+            freezeColumns: $freeze,
+            autofilter: $filter,
+            tabColor: $color,
+            zoom: $zoom,
+            gridlines: true,
+            rightToLeft: false,
+            header: { defaultStyle: false, style: null, freeze: false, filter: false },
+            newSheetOnOverflow: false,
+        };
+    }
+
+    // This method opens a workbook, starts one sheet with `$layout` and finishes the workbook.
+    // It prints the size of the file, or the class of the error.
+    public static function attempt(int $step, Layout $layout): void
+    {
+        try {
+            Writer $writer = Engine::writerOpen({ properties: { title: null, subject: null, author: null, company: null, keywords: null, created: null }, target: 'Shop.xlsx' });
+            bytes $first = Engine::writerSheet($writer, $layout, []);
+            var $last = Engine::writerFinish($writer);
+            bytes $file = Core\Bytes::join([$first, $last->data]);
+            echo 'step ', $step, ' ran ', $last->size, ' bytes', Core\Str::contains(Core\Zip::read($file, 'xl/workbook.xml') as string, '<evil/>') ? ', raw text' : '', "\n";
+        } catch (Throwable $e) {
+            echo 'step ', $step, ' stopped ', $e::class, "\n";
+        }
+    }
+}
+
+array<Attack::Column> $plain = [];
+
+// 1. Sheet names that close the XML element, an empty name, a name of 1,000 letters and the reserved name `History`.
+Attack::attempt(1, Attack::layout('"/><evil/>', $plain, 0, null, null, null));
+Attack::attempt(1, Attack::layout('', $plain, 0, null, null, null));
+Attack::attempt(1, Attack::layout(Core\Str::repeat('a', 1000), $plain, 0, null, null, null));
+Attack::attempt(1, Attack::layout('History', $plain, 0, null, null, null));
+
+// 2. A tab color and a filter range that are XML, and a zoom of four billion percent.
+Attack::attempt(2, Attack::layout('Shop', $plain, 0, null, '"/><evil/>', null));
+Attack::attempt(2, Attack::layout('Shop', $plain, 0, '"/><evil/>', null, null));
+Attack::attempt(2, Attack::layout('Shop', $plain, 0, null, null, 4000000000));
+
+// 3. Four billion frozen rows and columns.
+Attack::attempt(3, Attack::layout('Shop', $plain, 4000000000, null, null, null));
+
+// 4. 20,000 columns, more than a sheet has, each with a width that is not a number and a format that is XML.
+array<Attack::Column> $wide = [];
+for (int $at = 0; $at < 20000; $at++) {
+    $wide[] = { width: Core\Math::NAN, auto: false, style: 999999, format: '"/><evil/>', hidden: false };
+}
+Attack::attempt(4, Attack::layout('Shop', $wide, 0, null, null, null));
+
+// 5. 2,000 sheets in one workbook, two of them with the same name in another case.
+try {
+    Writer $many = Engine::writerOpen({ properties: { title: null, subject: null, author: null, company: null, keywords: null, created: null }, target: 'Shop.xlsx' });
+    for (int $count = 0; $count < 2000; $count++) {
+        Engine::writerSheet($many, Attack::layout('Shop ' . $count as string, $plain, 0, null, null, null), []);
+    }
+    echo 'step 5 ran ', Engine::writerFinish($many)->size, " bytes\n";
+    Writer $twice = Engine::writerOpen({ properties: { title: null, subject: null, author: null, company: null, keywords: null, created: null }, target: 'Shop.xlsx' });
+    Engine::writerSheet($twice, Attack::layout('Shop', $plain, 0, null, null, null), []);
+    Engine::writerSheet($twice, Attack::layout('SHOP', $plain, 0, null, null, null), []);
+    echo "step 5 ran twice\n";
+} catch (Throwable $e) {
+    echo 'step 5 stopped ', $e::class, "\n";
+}

@@ -1,0 +1,73 @@
+<?nvs
+// Attack: a request calls `Engine::writerOpen` directly with text that looks like XML, very long text and odd targets.
+// Each workbook should be written with that text escaped, or the call should throw an error.
+use Novis\Spreadsheet\Engine;
+use Novis\Spreadsheet\Visibility;
+use Novis\Spreadsheet\Writer;
+
+class Attack
+{
+    type Created = ?{day: Core\Time\Date, clock: Core\Time\TimeOfDay};
+
+    // This method opens a workbook with `$text` in every property, adds one empty sheet and finishes it.
+    // It prints the size of the file and whether `docProps/core.xml` has the text unescaped.
+    public static function attempt(int $step, string $text, string $target, Created $created): void
+    {
+        try {
+            Writer $writer = Engine::writerOpen({
+                properties: { title: $text, subject: $text, author: $text, company: $text, keywords: $text, created: $created },
+                target: $target,
+            });
+            bytes $first = Engine::writerSheet($writer, {
+                name: 'Shop',
+                position: null,
+                visibility: Visibility::Visible,
+                columns: [],
+                freezeRows: 0,
+                freezeColumns: 0,
+                autofilter: null,
+                tabColor: null,
+                zoom: null,
+                gridlines: true,
+                rightToLeft: false,
+                header: { defaultStyle: false, style: null, freeze: false, filter: false },
+                newSheetOnOverflow: false,
+            }, []);
+            var $last = Engine::writerFinish($writer);
+            bytes $file = Core\Bytes::join([$first, $last->data]);
+            string $found = 'no zip';
+            if (Core\Bytes::length($file) > 2 && Core\Bytes::slice($file, 0, 2) == 'PK' as bytes) {
+                $found = Core\Str::contains(Core\Zip::read($file, 'docProps/core.xml') as string, '<evil/>') ? 'raw text' : 'escaped text';
+            }
+            echo 'step ', $step, ' ran ', $last->size, ' bytes, ', $found, "\n";
+        } catch (Throwable $e) {
+            echo 'step ', $step, ' stopped ', $e::class, "\n";
+        }
+    }
+}
+
+Attack::Created $none = null;
+
+// 1. Properties that close the XML element, and properties with a NUL byte and control characters.
+Attack::attempt(1, '</dc:title><evil/><dc:title>', 'Shop.xlsx', $none);
+Attack::attempt(1, "Shop\u{0}\u{1}\u{1b}<evil/>", 'Shop.xlsx', $none);
+
+// 2. A title of one million letters.
+Attack::attempt(2, Core\Str::repeat('a', 1000000), 'Shop.xlsx', $none);
+
+// 3. Targets that name a path outside the program, an empty target and a CSV target.
+Attack::attempt(3, 'Shop', '../../../etc/passwd', $none);
+Attack::attempt(3, 'Shop', '', $none);
+Attack::attempt(3, '<evil/>', 'Shop.csv', $none);
+
+// 4. A creation date in the year 9999 and one in the year 1.
+var $late = Core\Time::fromEpoch(253402207200)->in(Core\Time\Zone::of('UTC'));
+var $early = Core\Time::fromEpoch(-62135596800)->in(Core\Time\Zone::of('UTC'));
+Attack::attempt(4, 'Shop', 'Shop.xlsx', { day: $late->date(), clock: $late->timeOfDay() });
+Attack::attempt(4, 'Shop', 'Shop.xlsx', { day: $early->date(), clock: $early->timeOfDay() });
+
+// 5. 200 workbooks opened and never finished, and one more written after them.
+for (int $count = 0; $count < 200; $count++) {
+    Engine::writerOpen({ properties: { title: null, subject: null, author: null, company: null, keywords: null, created: null }, target: 'Shop.xlsx' });
+}
+Attack::attempt(5, 'Shop', 'Shop.xlsx', $none);

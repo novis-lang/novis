@@ -1,0 +1,70 @@
+<?nvs
+// Attack: a request calls `Engine::writerColumn` directly for columns outside a sheet, and at the wrong time.
+// Each call should return a range such as `C2:C9` or throw an error.
+use Novis\Spreadsheet\Engine;
+use Novis\Spreadsheet\Visibility;
+use Novis\Spreadsheet\Writer;
+
+class Attack
+{
+    type Row = {cells: array<{value: ?{integer: int}, style: ?uint}>, style: ?uint, height: ?float, hidden: bool, level: uint, header: bool};
+
+    // This method opens a workbook. With `$sheet`, it also starts one sheet named `Shop` with the rows in `$rows`.
+    public static function writer(bool $sheet, array<Row> $rows): Writer
+    {
+        Writer $writer = Engine::writerOpen({ properties: { title: null, subject: null, author: null, company: null, keywords: null, created: null }, target: 'Shop.xlsx' });
+        if ($sheet) {
+            Engine::writerSheet($writer, {
+                name: 'Shop',
+                position: null,
+                visibility: Visibility::Visible,
+                columns: [],
+                freezeRows: 0,
+                freezeColumns: 0,
+                autofilter: null,
+                tabColor: null,
+                zoom: null,
+                gridlines: true,
+                rightToLeft: false,
+                header: { defaultStyle: false, style: null, freeze: false, filter: false },
+                newSheetOnOverflow: false,
+            }, $rows);
+        }
+        return $writer;
+    }
+
+    // This method prints the range `writerColumn` returns, or the class of the error.
+    public static function attempt(int $step, Writer $writer, uint $column): void
+    {
+        try {
+            string $range = Engine::writerColumn($writer, $column);
+            echo 'step ', $step, ' ran ', $range, "\n";
+        } catch (Throwable $e) {
+            echo 'step ', $step, ' stopped ', $e::class, "\n";
+        }
+    }
+}
+
+array<Attack::Row> $none = [];
+array<Attack::Row> $rows = [];
+for (int $at = 0; $at < 3; $at++) {
+    $rows[] = { cells: [{ value: { integer: $at }, style: null }], style: null, height: null, hidden: false, level: 0, header: $at == 0 };
+}
+Writer $writer = Attack::writer(true, $rows);
+
+// 1. The last column of a sheet, the column one past it, and the largest number a `uint` can have.
+Attack::attempt(1, $writer, 16383);
+Attack::attempt(1, $writer, 16384);
+Attack::attempt(1, $writer, 18446744073709551615);
+
+// 2. A sheet with no rows yet, and a sheet with only a header row.
+Attack::attempt(2, Attack::writer(true, $none), 0);
+array<Attack::Row> $header = [$rows[0]];
+Attack::attempt(2, Attack::writer(true, $header), 0);
+
+// 3. A workbook with no sheet yet.
+Attack::attempt(3, Attack::writer(false, $none), 0);
+
+// 4. A workbook that is finished.
+Engine::writerFinish($writer);
+Attack::attempt(4, $writer, 0);

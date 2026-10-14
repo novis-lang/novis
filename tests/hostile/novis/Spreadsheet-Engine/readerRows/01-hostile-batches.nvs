@@ -1,0 +1,74 @@
+<?nvs
+// Attack: a request calls `Engine::readerRows` directly with batch sizes and options that `Reader::rows` never builds.
+// Each call should return rows or throw an error, and no call should run without end.
+use Novis\Spreadsheet\Engine;
+use Novis\Spreadsheet\Reading;
+use Novis\Spreadsheet\Workbook;
+
+class Attack
+{
+    type Asked = {sheet: string, headerRow: ?uint, from: ?uint, limit: ?uint, columns: array<string>, text: array<string>, textAll: bool, formulas: bool, keepEmptyRows: bool, fillMerged: bool, skipHidden: bool, locale: string};
+
+    // This method returns the options for the sheet `$sheet`, from row `$from`, with the columns `$columns`.
+    public static function asked(string $sheet, ?uint $from, array<string> $columns): Asked
+    {
+        return {
+            sheet: $sheet,
+            headerRow: null,
+            from: $from,
+            limit: null,
+            columns: $columns,
+            text: [],
+            textAll: true,
+            formulas: true,
+            keepEmptyRows: true,
+            fillMerged: true,
+            skipHidden: true,
+            locale: 'en',
+        };
+    }
+
+    // This method prints how many rows one call returns and whether the sheet is done, or the class of the error.
+    public static function attempt(int $step, Reading $reader, bytes $source, Asked $asked, uint $max): void
+    {
+        try {
+            var $batch = Engine::readerRows($reader, $source, $asked, $max);
+            echo 'step ', $step, ' ran ', Core\Arr::count($batch->rows), ' rows', $batch->done ? ', done' : '', "\n";
+        } catch (Throwable $e) {
+            echo 'step ', $step, ' stopped ', $e::class, "\n";
+        }
+    }
+}
+
+array<array<mixed>> $rows = [];
+for (int $at = 0; $at < 5000; $at++) {
+    $rows[] = ['item' => 'Widget', 'price' => $at];
+}
+bytes $file = Workbook::fromRows($rows, { sheet: 'Shop' })->bytes();
+Reading $reader = Engine::readerOpen($file, { maxBytes: null, maxRatio: null });
+array<string> $all = [];
+
+// 1. A batch of zero rows, which returns nothing and never ends the sheet.
+Attack::attempt(1, $reader, $file, Attack::asked('Shop', null, $all), 0);
+
+// 2. A batch of the largest size a `uint` can have, which reads the whole sheet in one call.
+Attack::attempt(2, $reader, $file, Attack::asked('Shop', null, $all), 18446744073709551615);
+
+// 3. A first row past the last row, and in the largest row a `uint` can have.
+Attack::attempt(3, $reader, $file, Attack::asked('Shop', 1048577, $all), 100);
+Attack::attempt(3, $reader, $file, Attack::asked('Shop', 18446744073709551615, $all), 100);
+
+// 4. Columns that are not columns, and a sheet the workbook does not have.
+Attack::attempt(4, $reader, $file, Attack::asked('Shop', null, ['', 'XFE', 'A:B', '<evil/>']), 100);
+Attack::attempt(4, $reader, $file, Attack::asked('Blog', null, $all), 100);
+
+// 5. Batches that go back to an earlier row after each call, 200 times.
+try {
+    for (int $count = 0; $count < 200; $count++) {
+        uint $from = $count % 2 == 0 ? 4000 : 1;
+        Engine::readerRows($reader, $file, Attack::asked('Shop', $from, $all), 10);
+    }
+    echo "step 5 ran\n";
+} catch (Throwable $e) {
+    echo 'step 5 stopped ', $e::class, "\n";
+}

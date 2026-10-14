@@ -1,0 +1,73 @@
+<?nvs
+// Attack: a request calls `Engine::templateSet` directly with addresses and values that `Template::set` never sends.
+// Each value should be written as escaped text, or the call should throw an error.
+use Novis\Spreadsheet\Engine;
+use Novis\Spreadsheet\Filling;
+use Novis\Spreadsheet\Workbook;
+
+class Attack
+{
+    type Value = {text: string}|{number: float}|{integer: int}|{decimal: string}|{boolean: bool}|{date: Core\Time\Date}|{time: Core\Time\TimeOfDay}|{duration: Core\Time\Duration}|{day: Core\Time\Date, clock: Core\Time\TimeOfDay}|{formula: string, cachedText: ?string, cachedNumber: ?float};
+
+    // This method returns a template with the placeholder `{{note}}` in cell A1 of the sheet `Shop`.
+    public static function template(): bytes
+    {
+        var $design = Workbook::createInMemory();
+        $design->sheet('Shop')->addAll([['{{note}}', 'B1', 'C1']]);
+        return $design->finish()->bytes ?? Core\Bytes::fill(0, 0);
+    }
+
+    // This method sets one cell of a new template, fills the template and writes it.
+    // It prints whether the sheet has the text `<evil/>` unescaped, or the class of the error.
+    public static function attempt(int $step, bytes $template, string $address, ?Value $value): void
+    {
+        try {
+            Filling $filling = Engine::templateOpen($template, { maxBytes: null, maxRatio: null });
+            Engine::templateSet($filling, $address, $value);
+            array<bytes> $parts = [Engine::templateFill($filling, [{ path: 'note', value: { text: 'Shop' } }], [])->data];
+            $parts[] = Engine::templateFinish($filling, $template)->data;
+            bytes $file = Core\Bytes::join($parts);
+            echo 'step ', $step, ' ran', Core\Str::contains(Core\Zip::read($file, 'xl/worksheets/sheet1.xml') as string, '<evil/>') ? ', raw text' : '', "\n";
+        } catch (Throwable $e) {
+            echo 'step ', $step, ' stopped ', $e::class, "\n";
+        }
+    }
+}
+
+bytes $template = Attack::template();
+
+// 1. Text and formula text that close the XML element of the cell.
+Attack::attempt(1, $template, 'Shop!B1', { text: '</t></is></c><evil/>' });
+Attack::attempt(1, $template, 'Shop!C1', { formula: '1</f><evil/>', cachedText: '</v><evil/>', cachedNumber: null });
+
+// 2. Addresses that are not cells: past the last column, XML, a range and a sheet the template does not have.
+Attack::attempt(2, $template, 'Shop!XFE1', { text: 'x' });
+Attack::attempt(2, $template, '<evil/>', { text: 'x' });
+Attack::attempt(2, $template, 'Shop!A1:B2', { text: 'x' });
+Attack::attempt(2, $template, 'Blog!A1', { text: 'x' });
+
+// 3. The cell of a placeholder, a number that is not finite, and a decimal that is not a number.
+Attack::attempt(3, $template, 'Shop!A1', { text: '{{note}}' });
+Attack::attempt(3, $template, 'Shop!B1', { number: Core\Math::INFINITY });
+Attack::attempt(3, $template, 'Shop!B1', { decimal: '1e999999' });
+
+// 4. A cell after the template is filled.
+try {
+    Filling $late = Engine::templateOpen($template, { maxBytes: null, maxRatio: null });
+    Engine::templateFill($late, [{ path: 'note', value: { text: 'Shop' } }], []);
+    Engine::templateSet($late, 'Shop!B1', { text: 'late' });
+    echo "step 4 ran\n";
+} catch (Throwable $e) {
+    echo 'step 4 stopped ', $e::class, "\n";
+}
+
+// 5. The last cell of the sheet, set 1,000 times in one template.
+try {
+    Filling $many = Engine::templateOpen($template, { maxBytes: null, maxRatio: null });
+    for (int $count = 0; $count < 1000; $count++) {
+        Engine::templateSet($many, 'Shop!XFD1048576', { integer: $count });
+    }
+    echo "step 5 ran\n";
+} catch (Throwable $e) {
+    echo 'step 5 stopped ', $e::class, "\n";
+}

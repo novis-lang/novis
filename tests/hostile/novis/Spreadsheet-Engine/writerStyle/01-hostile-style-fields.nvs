@@ -1,0 +1,101 @@
+<?nvs
+// Attack: a request calls `Engine::writerStyle` directly with fields that `Style::of` never builds.
+// Each call should return a style number or throw an error, and the file should stay valid.
+use Novis\Spreadsheet\Engine;
+use Novis\Spreadsheet\Visibility;
+use Novis\Spreadsheet\Writer;
+
+class Attack
+{
+    type Fields = {font: ?string, size: ?float, bold: ?bool, italic: ?bool, strike: ?bool, underline: ?Novis\Spreadsheet\Underline, color: ?string, fill: ?string, border: ?{top: ?Novis\Spreadsheet\Line, right: ?Novis\Spreadsheet\Line, bottom: ?Novis\Spreadsheet\Line, left: ?Novis\Spreadsheet\Line}, borderColor: ?string, align: ?Novis\Spreadsheet\Align, valign: ?Novis\Spreadsheet\Valign, wrap: ?bool, rotate: ?int, indent: ?uint, format: ?string, locked: ?bool, hideFormula: ?bool};
+
+    // This method returns style fields with a font, a size, a color, a rotation and a number format, and nothing else set.
+    public static function fields(?string $font, ?float $size, ?string $color, ?int $rotate, ?string $format): Fields
+    {
+        return {
+            font: $font,
+            size: $size,
+            bold: null,
+            italic: null,
+            strike: null,
+            underline: null,
+            color: $color,
+            fill: $color,
+            border: null,
+            borderColor: $color,
+            align: null,
+            valign: null,
+            wrap: null,
+            rotate: $rotate,
+            indent: null,
+            format: $format,
+            locked: null,
+            hideFormula: null,
+        };
+    }
+
+    // This method opens a workbook with one sheet.
+    public static function writer(): Writer
+    {
+        Writer $writer = Engine::writerOpen({ properties: { title: null, subject: null, author: null, company: null, keywords: null, created: null }, target: 'Shop.xlsx' });
+        Engine::writerSheet($writer, {
+            name: 'Shop',
+            position: null,
+            visibility: Visibility::Visible,
+            columns: [],
+            freezeRows: 0,
+            freezeColumns: 0,
+            autofilter: null,
+            tabColor: null,
+            zoom: null,
+            gridlines: true,
+            rightToLeft: false,
+            header: { defaultStyle: false, style: null, freeze: false, filter: false },
+            newSheetOnOverflow: false,
+        }, []);
+        return $writer;
+    }
+
+    // This method adds the style to a new workbook and finishes it. It prints the size of the file,
+    // and whether `xl/styles.xml` has the text `<evil/>` unescaped. If a step throws, it prints the class of the error.
+    public static function attempt(int $step, Fields $fields): void
+    {
+        try {
+            Writer $writer = Attack::writer();
+            Engine::writerStyle($writer, $fields);
+            var $last = Engine::writerFinish($writer);
+            echo 'step ', $step, ' ran ', $last->size, ' bytes', Core\Str::contains(Core\Zip::read($last->data, 'xl/styles.xml') as string, '<evil/>') ? ', raw text' : '', "\n";
+        } catch (Throwable $e) {
+            echo 'step ', $step, ' stopped ', $e::class, "\n";
+        }
+    }
+}
+
+// 1. A font name and a number format that close the XML element.
+Attack::attempt(1, Attack::fields('"/><evil/><font name="', null, null, null, null));
+Attack::attempt(1, Attack::fields(null, null, null, null, '"/><evil/>'));
+
+// 2. Colors that are not colors: XML, a word and an empty string.
+Attack::attempt(2, Attack::fields(null, null, '"/><evil/>', null, null));
+Attack::attempt(2, Attack::fields(null, null, 'red', null, null));
+Attack::attempt(2, Attack::fields(null, null, '', null, null));
+
+// 3. Sizes that are not a number, infinite and negative, and a rotation of one million degrees.
+Attack::attempt(3, Attack::fields(null, Core\Math::NAN, null, null, null));
+Attack::attempt(3, Attack::fields(null, Core\Math::INFINITY, null, null, null));
+Attack::attempt(3, Attack::fields(null, -12.0, null, null, null));
+Attack::attempt(3, Attack::fields(null, null, null, 1000000, null));
+
+// 4. A font name and a number format of 100,000 letters.
+Attack::attempt(4, Attack::fields(Core\Str::repeat('a', 100000), null, null, null, Core\Str::repeat('0', 100000)));
+
+// 5. 10,000 different styles in one workbook.
+try {
+    Writer $many = Attack::writer();
+    for (int $at = 0; $at < 10000; $at++) {
+        Engine::writerStyle($many, Attack::fields(null, null, null, null, $at as string));
+    }
+    echo 'step 5 ran ', Engine::writerFinish($many)->size, " bytes\n";
+} catch (Throwable $e) {
+    echo 'step 5 stopped ', $e::class, "\n";
+}

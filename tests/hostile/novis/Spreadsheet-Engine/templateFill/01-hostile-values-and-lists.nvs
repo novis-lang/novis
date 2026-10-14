@@ -1,0 +1,69 @@
+<?nvs
+// Attack: a request calls `Engine::templateFill` directly with paths and list names that `Template::fill` never builds.
+// Each value should be written as escaped text, or the call should throw an error.
+use Novis\Spreadsheet\Engine;
+use Novis\Spreadsheet\Filling;
+use Novis\Spreadsheet\Workbook;
+
+class Attack
+{
+    type Value = {text: string}|{number: float}|{integer: int}|{decimal: string}|{boolean: bool}|{date: Core\Time\Date}|{time: Core\Time\TimeOfDay}|{duration: Core\Time\Duration}|{day: Core\Time\Date, clock: Core\Time\TimeOfDay}|{formula: string, cachedText: ?string, cachedNumber: ?float};
+    type Placeholder = {path: string, value: ?Value};
+
+    // This method returns a template with the placeholder `{{note}}` and a row for the list `items`.
+    public static function template(): bytes
+    {
+        var $design = Workbook::createInMemory();
+        $design->sheet('Shop')->addAll([['{{note}}', '{{customer.name}}'], ['{{items.name}}', '{{items.qty}}']]);
+        return $design->finish()->bytes ?? Core\Bytes::fill(0, 0);
+    }
+
+    // This method fills a new template with `$values` and `$lists`, and writes it with no items.
+    // It prints the lists the template returns, and whether the sheet has the text `<evil/>` unescaped.
+    public static function attempt(int $step, bytes $template, array<Placeholder> $values, array<string> $lists): void
+    {
+        try {
+            Filling $filling = Engine::templateOpen($template, { maxBytes: null, maxRatio: null });
+            var $filled = Engine::templateFill($filling, $values, $lists);
+            bytes $file = Core\Bytes::join([$filled->data, Engine::templateFinish($filling, $template)->data]);
+            string $raw = Core\Str::contains(Core\Zip::read($file, 'xl/worksheets/sheet1.xml') as string, '<evil/>') ? ', raw text' : '';
+            echo 'step ', $step, ' ran ', Core\Json::encode($filled->lists), $raw, "\n";
+        } catch (Throwable $e) {
+            echo 'step ', $step, ' stopped ', $e::class, "\n";
+        }
+    }
+}
+
+bytes $template = Attack::template();
+array<string> $items = ['items'];
+
+// 1. Values that close the XML element of the cell, as text and as a formula.
+Attack::attempt(1, $template, [{ path: 'note', value: { text: '</t></is></c><evil/>' } }, { path: 'customer.name', value: { text: 'Shop' } }], $items);
+Attack::attempt(1, $template, [{ path: 'note', value: { formula: '1</f><evil/>', cachedText: '<evil/>', cachedNumber: null } }, { path: 'customer.name', value: { text: 'Shop' } }], $items);
+
+// 2. A placeholder with no value, a path the template does not have, and an empty path.
+Attack::attempt(2, $template, [{ path: 'customer.name', value: { text: 'Shop' } }], $items);
+Attack::attempt(2, $template, [{ path: 'note', value: null }, { path: 'customer.name', value: { text: 'Shop' } }, { path: 'secret', value: { text: 'x' } }, { path: '', value: { text: 'x' } }], $items);
+
+// 3. List names the template does not have, the same list twice, and no lists at all.
+Attack::attempt(3, $template, [{ path: 'note', value: { text: 'x' } }, { path: 'customer.name', value: { text: 'Shop' } }], ['items', 'secret', '{{note}}']);
+Attack::attempt(3, $template, [{ path: 'note', value: { text: 'x' } }, { path: 'customer.name', value: { text: 'Shop' } }], ['items', 'items']);
+array<string> $none = [];
+Attack::attempt(3, $template, [{ path: 'note', value: { text: 'x' } }, { path: 'customer.name', value: { text: 'Shop' } }], $none);
+
+// 4. The same template filled twice.
+try {
+    Filling $twice = Engine::templateOpen($template, { maxBytes: null, maxRatio: null });
+    Engine::templateFill($twice, [{ path: 'note', value: { text: 'x' } }, { path: 'customer.name', value: { text: 'Shop' } }], $items);
+    Engine::templateFill($twice, [{ path: 'note', value: { text: 'y' } }, { path: 'customer.name', value: { text: 'Shop' } }], $items);
+    echo "step 4 ran twice\n";
+} catch (Throwable $e) {
+    echo 'step 4 stopped ', $e::class, "\n";
+}
+
+// 5. 50,000 values for the same placeholder.
+array<Attack::Placeholder> $many = [{ path: 'customer.name', value: { text: 'Shop' } }];
+for (int $at = 0; $at < 50000; $at++) {
+    $many[] = { path: 'note', value: { integer: $at } };
+}
+Attack::attempt(5, $template, $many, $items);

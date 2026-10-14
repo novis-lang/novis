@@ -227,6 +227,7 @@ echo Workbook::fromRows([["item" => "Pen", "price" => 1.5]], {format: "csv"})->b
 /// `define` writes the name into `xl/workbook.xml` with its reference escaped, and a name that is
 /// a cell address throws a `LogicError`.
 // covers: Novis\Spreadsheet\Workbook::define
+// covers: Novis\Spreadsheet\Engine::writerDefine
 #[test]
 fn define_writes_a_defined_name() {
     let out = run(

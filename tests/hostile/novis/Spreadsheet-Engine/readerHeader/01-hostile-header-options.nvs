@@ -1,0 +1,68 @@
+<?nvs
+// Attack: a request calls `Engine::readerHeader` directly with options that `Reader::rows` never builds.
+// Each call should return the header names or throw an error.
+use Novis\Spreadsheet\Engine;
+use Novis\Spreadsheet\Reading;
+use Novis\Spreadsheet\Workbook;
+
+class Attack
+{
+    type Asked = {sheet: string, headerRow: ?uint, from: ?uint, limit: ?uint, columns: array<string>, text: array<string>, textAll: bool, formulas: bool, keepEmptyRows: bool, fillMerged: bool, skipHidden: bool, locale: string};
+
+    // This method returns the options for the sheet `$sheet` with the header in row `$headerRow`, the columns `$columns` and the locale `$locale`.
+    public static function asked(string $sheet, ?uint $headerRow, array<string> $columns, string $locale): Asked
+    {
+        return {
+            sheet: $sheet,
+            headerRow: $headerRow,
+            from: null,
+            limit: null,
+            columns: $columns,
+            text: $columns,
+            textAll: false,
+            formulas: false,
+            keepEmptyRows: false,
+            fillMerged: false,
+            skipHidden: false,
+            locale: $locale,
+        };
+    }
+
+    // This method prints how many header names there are and the last one, or the class of the error.
+    public static function attempt(int $step, Reading $reader, bytes $source, Asked $asked): void
+    {
+        try {
+            var $names = Engine::readerHeader($reader, $source, $asked);
+            int $count = Core\Arr::count($names) as int;
+            echo 'step ', $step, ' ran ', $count, ' names', $count > 0 ? ', the last is ' . $names[$count - 1] : '', "\n";
+        } catch (Throwable $e) {
+            echo 'step ', $step, ' stopped ', $e::class, "\n";
+        }
+    }
+}
+
+// The header row has 500 cells, and every cell is `Name`.
+array<string> $header = [];
+for (int $at = 0; $at < 500; $at++) {
+    $header[] = 'Name';
+}
+var $book = Workbook::createInMemory();
+$book->sheet('Shop')->addAll([$header, ['Widget']]);
+bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+Reading $reader = Engine::readerOpen($file, { maxBytes: null, maxRatio: null });
+array<string> $all = [];
+
+// 1. The header in row 0, which does not exist, in a row past the last one, and in the largest row a `uint` can have.
+Attack::attempt(1, $reader, $file, Attack::asked('Shop', 0, $all, 'en'));
+Attack::attempt(1, $reader, $file, Attack::asked('Shop', 1048577, $all, 'en'));
+Attack::attempt(1, $reader, $file, Attack::asked('Shop', 18446744073709551615, $all, 'en'));
+
+// 2. Columns that are not columns: an empty name, a letter past the last column, a range and XML.
+Attack::attempt(2, $reader, $file, Attack::asked('Shop', 1, ['', 'XFE', 'A:B', '<evil/>'], 'en'));
+
+// 3. A locale that is not a locale, and a sheet the workbook does not have.
+Attack::attempt(3, $reader, $file, Attack::asked('Shop', 1, $all, '../../etc/passwd'));
+Attack::attempt(3, $reader, $file, Attack::asked('Blog', 1, $all, 'en'));
+
+// 4. The header row of 500 cells with the same name. Each name after the first gets a number after it.
+Attack::attempt(4, $reader, $file, Attack::asked('Shop', 1, $all, 'en'));

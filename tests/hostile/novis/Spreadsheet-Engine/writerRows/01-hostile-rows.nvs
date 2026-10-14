@@ -1,0 +1,84 @@
+<?nvs
+// Attack: a request calls `Engine::writerRows` directly with rows that `Sheet::add` never builds.
+// Each call should write the rows or throw an error, and text should never be written as XML.
+use Novis\Spreadsheet\Engine;
+use Novis\Spreadsheet\Visibility;
+use Novis\Spreadsheet\Writer;
+
+class Attack
+{
+    type Value = {text: string}|{number: float}|{integer: int}|{decimal: string}|{boolean: bool}|{date: Core\Time\Date}|{time: Core\Time\TimeOfDay}|{duration: Core\Time\Duration}|{day: Core\Time\Date, clock: Core\Time\TimeOfDay}|{formula: string, cachedText: ?string, cachedNumber: ?float};
+    type Cell = {value: ?Value, style: ?uint};
+    type Row = {cells: array<Cell>, style: ?uint, height: ?float, hidden: bool, level: uint, header: bool};
+
+    // This method returns a row with `$cells`, the row style `$style`, the height `$height` and the outline level `$level`.
+    public static function row(array<Cell> $cells, ?uint $style, ?float $height, uint $level): Row
+    {
+        return { cells: $cells, style: $style, height: $height, hidden: false, level: $level, header: false };
+    }
+
+    // This method opens a workbook with one sheet, writes `$rows` and finishes the workbook.
+    // It prints the size of the file, and whether the sheet has the text `<evil/>` unescaped.
+    public static function attempt(int $step, array<Row> $rows): void
+    {
+        try {
+            Writer $writer = Engine::writerOpen({ properties: { title: null, subject: null, author: null, company: null, keywords: null, created: null }, target: 'Shop.xlsx' });
+            array<bytes> $parts = [];
+            $parts[] = Engine::writerSheet($writer, {
+                name: 'Shop',
+                position: null,
+                visibility: Visibility::Visible,
+                columns: [],
+                freezeRows: 0,
+                freezeColumns: 0,
+                autofilter: null,
+                tabColor: null,
+                zoom: null,
+                gridlines: true,
+                rightToLeft: false,
+                header: { defaultStyle: false, style: null, freeze: false, filter: false },
+                newSheetOnOverflow: false,
+            }, []);
+            $parts[] = Engine::writerRows($writer, $rows);
+            $parts[] = Engine::writerFinish($writer)->data;
+            bytes $file = Core\Bytes::join($parts);
+            var $sheet = Core\Zip::read($file, 'xl/worksheets/sheet1.xml') as string;
+            echo 'step ', $step, ' ran ', Core\Bytes::length($file), ' bytes', Core\Str::contains($sheet, '<evil/>') ? ', raw text' : '', "\n";
+        } catch (Throwable $e) {
+            echo 'step ', $step, ' stopped ', $e::class, "\n";
+        }
+    }
+}
+
+// 1. Text and formula text that close the XML element, and text with a NUL byte and control characters.
+array<Attack::Cell> $xml = [{ value: { text: '</t></is></c><evil/>' }, style: null }, { value: { formula: '1</f><evil/>', cachedText: '</v><evil/>', cachedNumber: null }, style: null }];
+Attack::attempt(1, [Attack::row($xml, null, null, 0)]);
+array<Attack::Cell> $control = [{ value: { text: "Shop\u{0}\u{1}\u{fffe}" }, style: null }];
+Attack::attempt(1, [Attack::row($control, null, null, 0)]);
+
+// 2. Text of 40,000 letters, which is more than a cell can have, and numbers that are not finite.
+array<Attack::Cell> $long = [{ value: { text: Core\Str::repeat('a', 40000) }, style: null }];
+Attack::attempt(2, [Attack::row($long, null, null, 0)]);
+array<Attack::Cell> $numbers = [{ value: { number: Core\Math::NAN }, style: null }, { value: { number: Core\Math::INFINITY }, style: null }];
+Attack::attempt(2, [Attack::row($numbers, null, null, 0)]);
+
+// 3. Style numbers the workbook never returned, a height that is not a number and an outline level of four billion.
+array<Attack::Cell> $styled = [{ value: { integer: 1 }, style: 999999 }];
+Attack::attempt(3, [Attack::row($styled, 4000000000, null, 0)]);
+Attack::attempt(3, [Attack::row($styled, null, Core\Math::NAN, 0)]);
+Attack::attempt(3, [Attack::row($styled, null, null, 4000000000)]);
+
+// 4. One row with 20,000 cells, more than a sheet has columns.
+array<Attack::Cell> $wide = [];
+for (int $at = 0; $at < 20000; $at++) {
+    $wide[] = { value: { integer: $at }, style: null };
+}
+Attack::attempt(4, [Attack::row($wide, null, null, 0)]);
+
+// 5. 50,000 empty rows in one call.
+array<Attack::Row> $many = [];
+array<Attack::Cell> $empty = [];
+for (int $count = 0; $count < 50000; $count++) {
+    $many[] = Attack::row($empty, null, null, 0);
+}
+Attack::attempt(5, $many);
