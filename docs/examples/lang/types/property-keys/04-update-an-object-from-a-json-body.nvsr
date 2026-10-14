@@ -1,0 +1,9 @@
+--METHOD--
+POST
+--PATH--
+/profile
+--HEADERS--
+host: example.com
+content-type: application/json
+--BODY--
+{"city": "Paris", "role": "admin"}
