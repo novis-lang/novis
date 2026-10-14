@@ -68,7 +68,7 @@ use nvs_host::tls::NvsTls;
 use crate::conn::{BlockError, DbErrorKind, Driver, Endpoint, MariaConn, State, written_value};
 #[cfg(unix)]
 use crate::mysql::REQUIRED_OVER_A_SOCKET;
-use crate::mysql::{Backend, Login, MyStream, REQUIRED_CAPABILITIES, Wire};
+use crate::mysql::{Backend, Login, MyStream, Peer, REQUIRED_CAPABILITIES, Wire};
 use crate::sql::{StatementCache, statement_cache_for, time_zone_for};
 
 /// MariaDB's port, which an absent `port` in a `[db.<name>]` block means.
@@ -368,7 +368,8 @@ impl MariaConn {
         target: &MariaTarget<'_>,
         deadline: Option<Instant>,
     ) -> io::Result<MariaConn> {
-        let (mut wire, greeting) = match endpoint.into() {
+        let endpoint = endpoint.into();
+        let (mut wire, greeting) = match endpoint.clone() {
             Endpoint::Tcp(address) => {
                 let mut tcp = match deadline {
                     Some(at) => NvsTcp::connect_timeout(
@@ -444,6 +445,15 @@ impl MariaConn {
             depth: Cell::new(0),
             // Nothing is parked until `stream` parks it — see the field.
             reading: None,
+            peer: Peer::new(
+                endpoint,
+                target.host,
+                target.user,
+                target.password,
+                target.database,
+                target.tls_ca_file,
+                greeting.connection_id,
+            ),
         })
     }
 
@@ -453,6 +463,36 @@ impl MariaConn {
     /// [`crate::Connection::set_deadline`] files through the enum.
     pub fn set_deadline(&mut self, at: Option<Instant>) {
         self.wire.set_deadline(at);
+    }
+
+    /// [`crate::MySqlConn::settle`]'s twin: MariaDB's `KILL QUERY` is MySQL's,
+    /// and the second connection opens with this driver's roster.
+    ///
+    /// # Errors
+    ///
+    /// As [`crate::MySqlConn::settle`].
+    pub fn settle(&mut self, at: Instant) -> io::Result<()> {
+        let peer = &self.peer;
+        crate::mysql::settle_interrupted(
+            &mut self.wire,
+            &self.state,
+            self.capabilities,
+            &mut self.reading,
+            at,
+            || {
+                let target = MariaTarget {
+                    host: &peer.host,
+                    user: &peer.user,
+                    password: &peer.password,
+                    database: &peer.database,
+                    tls_ca_file: peer.tls_ca_file.as_deref(),
+                    time_zone: 0,
+                    statement_cache: 1,
+                };
+                let mut killer = MariaConn::connect(peer.endpoint.clone(), &target, Some(at))?;
+                crate::mysql::kill_query(&mut killer.wire, killer.capabilities, peer.connection_id)
+            },
+        )
     }
 
     /// The zone a zone-less `DATETIME` or `TIMESTAMP` off this connection is

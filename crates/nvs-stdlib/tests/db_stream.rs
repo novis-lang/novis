@@ -665,12 +665,12 @@ const INTERRUPTED_AFTER: Duration = Duration::from_millis(200);
 /// because the server stopped the statement, so the cancel reached it. The
 /// connection is then `Idle`, poolable, and runs the next statement.
 ///
-/// **PostgreSQL's leg is the one that asserts.** The other drivers send no
-/// cancel yet, and their connection is closed at the deadline instead, which
-/// `nvs_db::Connection::settle` owns.
+/// **PostgreSQL's, MySQL's and MariaDB's legs are the ones that assert.**
+/// SQL Server sends no cancel yet, and its connection is closed at the
+/// deadline instead, which `nvs_db::Connection::settle` owns.
 #[test]
 fn a_deadline_cancels_a_running_statement_through_the_driver() {
-    let Some(mut conn) = postgres_leg() else {
+    let Some(mut conn) = cancelling_leg() else {
         return;
     };
     interrupt(&mut conn);
@@ -696,7 +696,7 @@ fn a_deadline_cancels_a_running_statement_through_the_driver() {
 /// lease takes it back and runs a statement on it.
 #[test]
 fn a_cancelled_connection_returns_to_the_pool_in_a_known_state() {
-    let Some(mut conn) = postgres_leg() else {
+    let Some(mut conn) = cancelling_leg() else {
         return;
     };
     interrupt(&mut conn);
@@ -724,7 +724,7 @@ fn a_cancelled_connection_returns_to_the_pool_in_a_known_state() {
 /// this is the connection that missed it whatever the server does.
 #[test]
 fn a_connection_that_misses_its_timeout_after_a_cancel_is_closed_and_not_returned() {
-    let Some(mut conn) = postgres_leg() else {
+    let Some(mut conn) = cancelling_leg() else {
         return;
     };
     interrupt(&mut conn);
@@ -748,32 +748,52 @@ fn a_connection_that_misses_its_timeout_after_a_cancel_is_closed_and_not_returne
     );
 }
 
-/// This process's connection when the harness pointed it at PostgreSQL, and
-/// `None` on every other leg.
+/// This process's connection when the harness pointed it at a driver whose
+/// cancel is built, and `None` on every other leg.
 ///
-/// The other drivers send no cancel yet, and their connection is closed at the
-/// deadline instead, which `nvs_db::Connection::settle` owns.
-fn postgres_leg() -> Option<Connection> {
-    leg().filter(|conn| matches!(conn, Connection::Postgres(_)))
+/// SQL Server sends no cancel yet, and its connection is closed at the
+/// deadline instead, which `nvs_db::Connection::settle` owns. SQLite stops the
+/// statement in the engine and leaves the connection idle, so it has nothing
+/// to settle.
+fn cancelling_leg() -> Option<Connection> {
+    leg().filter(|conn| {
+        matches!(
+            conn,
+            Connection::Postgres(_) | Connection::MySql(_) | Connection::MariaDb(_)
+        )
+    })
 }
 
 /// Starts a statement [`SLEEP`] seconds long on `conn` and lets a deadline
 /// [`INTERRUPTED_AFTER`] away stop the read, leaving the connection poisoned
 /// mid-statement.
 fn interrupt(conn: &mut Connection) {
-    let Connection::Postgres(pg) = conn else {
-        unreachable!("`postgres_leg` opened a PostgreSQL connection");
-    };
-    pg.set_deadline(Some(Instant::now() + INTERRUPTED_AFTER));
-    let interrupted = match pg.query(&format!("select pg_sleep({SLEEP})"), &[]) {
-        Ok(mut rows) => loop {
-            match rows.next_row() {
-                Ok(Some(_)) => {}
-                Ok(None) => panic!("a statement {SLEEP}s long finished inside its deadline"),
-                Err(stopped) => break stopped,
+    macro_rules! stopped {
+        ($started:expr) => {
+            match $started {
+                Ok(mut rows) => loop {
+                    match rows.next_row() {
+                        Ok(Some(_)) => {}
+                        Ok(None) => {
+                            panic!("a statement {SLEEP}s long finished inside its deadline")
+                        }
+                        Err(stopped) => break stopped,
+                    }
+                },
+                Err(stopped) => stopped,
             }
-        },
-        Err(stopped) => stopped,
+        };
+    }
+
+    conn.set_deadline(Some(Instant::now() + INTERRUPTED_AFTER))
+        .expect("a driver with a wire takes a deadline");
+    let interrupted = match conn {
+        Connection::Postgres(pg) => stopped!(pg.query(&format!("select pg_sleep({SLEEP})"), &[])),
+        Connection::MySql(my) => stopped!(my.query(&format!("select sleep({SLEEP})"), &[])),
+        Connection::MariaDb(maria) => {
+            stopped!(maria.query(&format!("select sleep({SLEEP})"), &[]))
+        }
+        _ => unreachable!("`cancelling_leg` opened a driver whose cancel is built"),
     };
     assert_eq!(
         interrupted.kind(),

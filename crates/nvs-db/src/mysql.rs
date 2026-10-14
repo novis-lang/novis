@@ -634,6 +634,33 @@ pub(crate) struct Wire<S: Read + Write = MyStream> {
     /// the upgrade would put the connection out of sync on its first
     /// authenticated byte.
     codec: PacketCodec,
+    /// What the server still owes for the command in flight, as far as
+    /// [`settle_interrupted`] can read it back to a boundary.
+    ///
+    /// [`read_answer`] files [`Owed::Answer`] and clears it once the answer is
+    /// read, [`next_row_of`] files [`Owed::Rows`], and [`Wire::send`] clears it
+    /// for every other command, whose answer nothing here drains.
+    owed: Owed,
+    /// Whether the last failure was a read this end stopped — its deadline
+    /// passed, or its task was cancelled — with every write whole and no
+    /// packet half taken.
+    ///
+    /// [`crate::pg`]'s `Wire::stalled`, for its reason: only such a wire can be
+    /// settled. A failed write, a frame that did not decode and a peer that
+    /// closed each clear it.
+    stalled: bool,
+}
+
+/// What the server still owes this end for the command in flight.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Owed {
+    /// Nothing that [`settle_interrupted`] can read to a boundary.
+    Nothing,
+    /// A command's answer: a status, an error, or a column count and the
+    /// result set behind it.
+    Answer,
+    /// Rows, up to the terminator or an error that ends them.
+    Rows,
 }
 
 impl<S: Read + Write> std::fmt::Debug for Wire<S> {
@@ -668,6 +695,8 @@ impl<S: Read + Write> Wire<S> {
             inbox: BytesMut::new(),
             backend,
             codec,
+            owed: Owed::Nothing,
+            stalled: false,
         }
     }
 
@@ -708,6 +737,8 @@ impl<S: Read + Write> Wire<S> {
             inbox: self.inbox,
             backend: self.backend,
             codec: self.codec,
+            owed: self.owed,
+            stalled: self.stalled,
         })
     }
 
@@ -731,12 +762,19 @@ impl<S: Read + Write> Wire<S> {
     /// `InvalidInput` for a payload past [`MAX_PACKET`], and whatever the
     /// stream reported.
     pub(crate) fn send(&mut self, payload: &[u8]) -> io::Result<()> {
+        self.owed = Owed::Nothing;
         let mut out = BytesMut::new();
         self.codec
             .encode(&mut &payload[..], &mut out)
             .map_err(codec_failed)?;
-        self.stream.write_all(&out)?;
-        self.stream.flush()
+        let result = self
+            .stream
+            .write_all(&out)
+            .and_then(|()| self.stream.flush());
+        if result.is_err() {
+            self.stalled = false;
+        }
+        result
     }
 
     /// Reads until the inbox holds a whole packet, and takes its payload.
@@ -752,12 +790,14 @@ impl<S: Read + Write> Wire<S> {
     pub(crate) fn read_packet(&mut self) -> io::Result<Vec<u8>> {
         let mut packet = Vec::new();
         loop {
-            if self
-                .codec
-                .decode(&mut self.inbox, &mut packet)
-                .map_err(codec_failed)?
-            {
-                return Ok(packet);
+            let decoded = self.codec.decode(&mut self.inbox, &mut packet);
+            match decoded {
+                Ok(true) => return Ok(packet),
+                Ok(false) => {}
+                Err(e) => {
+                    self.stalled = false;
+                    return Err(codec_failed(e));
+                }
             }
 
             let filled = self.inbox.len();
@@ -769,12 +809,21 @@ impl<S: Read + Write> Wire<S> {
                 Ok(read) => read,
                 Err(e) => {
                     self.inbox.truncate(filled);
+                    // A packet past 16 MiB arrives in pieces, and the pieces
+                    // already taken are gone with `packet`, so a read stopped
+                    // part-way through one leaves no boundary.
+                    self.stalled = packet.is_empty()
+                        && matches!(
+                            e.kind(),
+                            io::ErrorKind::TimedOut | io::ErrorKind::ConnectionAborted
+                        );
                     return Err(e);
                 }
             };
             self.inbox.truncate(filled + read);
 
             if read == 0 {
+                self.stalled = false;
                 return Err(io::Error::new(
                     io::ErrorKind::UnexpectedEof,
                     "the server closed the connection part-way through a packet",
@@ -838,6 +887,9 @@ pub(crate) struct Greeting {
     /// has authenticated yet, and refusing a connection over the spelling of a
     /// banner is a refusal no operator could act on.
     pub(crate) banner: String,
+    /// The server's id for this connection, which a `KILL QUERY` from a
+    /// second connection names — [`Peer::connection_id`].
+    pub(crate) connection_id: u32,
 }
 
 /// Reads the server's greeting off a plaintext socket, requiring `required` of
@@ -891,6 +943,7 @@ pub(crate) fn read_greeting<S: Read + Write>(
             .to_vec(),
         server_version: handshake.server_version_parsed().unwrap_or((5, 5, 3)),
         banner: String::from_utf8_lossy(handshake.server_version_ref()).into_owned(),
+        connection_id: handshake.connection_id(),
     })
 }
 
@@ -1360,7 +1413,9 @@ pub(crate) fn read_answer<S: Read + Write>(
     wire: &mut Wire<S>,
     capabilities: CapabilityFlags,
 ) -> io::Result<Answer> {
+    wire.owed = Owed::Answer;
     let packet = wire.read_packet()?;
+    wire.owed = Owed::Nothing;
     match packet.first() {
         Some(0x00) if packet.len() >= 7 => {
             let ok = OkPacketDeserializer::<CommonOkPacket>::deserialize(
@@ -1603,7 +1658,8 @@ impl MySqlConn {
         target: &MySqlTarget<'_>,
         deadline: Option<Instant>,
     ) -> io::Result<MySqlConn> {
-        let (mut wire, greeting) = match endpoint.into() {
+        let endpoint = endpoint.into();
+        let (mut wire, greeting) = match endpoint.clone() {
             Endpoint::Tcp(address) => {
                 let mut tcp = match deadline {
                     Some(at) => NvsTcp::connect_timeout(
@@ -1683,6 +1739,15 @@ impl MySqlConn {
             depth: Cell::new(0),
             // Nothing is parked until `stream` parks it — see the field.
             reading: None,
+            peer: Peer::new(
+                endpoint,
+                target.host,
+                target.user,
+                target.password,
+                target.database,
+                target.tls_ca_file,
+                greeting.connection_id,
+            ),
         })
     }
 
@@ -1692,6 +1757,31 @@ impl MySqlConn {
     /// [`crate::Connection::set_deadline`] files through the enum.
     pub fn set_deadline(&mut self, at: Option<Instant>) {
         self.wire.set_deadline(at);
+    }
+
+    /// Cancels the statement a deadline interrupted with `KILL QUERY` and
+    /// reads this connection back to a boundary before `at` —
+    /// [`settle_interrupted`], with the second connection opened to this
+    /// connection's [`Peer`].
+    ///
+    /// # Errors
+    ///
+    /// As [`settle_interrupted`], and whatever opening the second connection
+    /// reported. The connection stays [`State::Poisoned`] on every error.
+    pub fn settle(&mut self, at: Instant) -> io::Result<()> {
+        let peer = &self.peer;
+        settle_interrupted(
+            &mut self.wire,
+            &self.state,
+            self.capabilities,
+            &mut self.reading,
+            at,
+            || {
+                let mut killer =
+                    MySqlConn::connect(peer.endpoint.clone(), &peer.mysql_target(), Some(at))?;
+                kill_query(&mut killer.wire, killer.capabilities, peer.connection_id)
+            },
+        )
     }
 
     /// The zone a zone-less `DATETIME` or `TIMESTAMP` off this connection is
@@ -3465,6 +3555,7 @@ pub(crate) fn next_row_of<S: Read + Write>(
         return Ok(None);
     }
 
+    wire.owed = Owed::Rows;
     let packet = match wire.read_packet() {
         Ok(packet) => packet,
         Err(e) => return Err(poison_on_write(state, e)),
@@ -3580,6 +3671,222 @@ pub(crate) fn end_stream_of<S: Read + Write>(
     *reading = None;
 }
 
+/// Where a `KILL QUERY` for one connection is sent, and who to be there.
+///
+/// [`crate::pg`]'s `Peer` plus the credential. PostgreSQL's cancel carries a
+/// key the server issued for it, and this protocol's names nothing but a
+/// connection id, so the second connection logs in as the first one did.
+///
+/// **What it spends:** a copy of the block's host, user, password and
+/// database per open connection. The password is the cost that matters: it is
+/// a second copy of a `secret` the configuration snapshot already holds, and
+/// this type's `Debug` leaves it out.
+pub(crate) struct Peer {
+    /// Where the connection was opened to.
+    pub(crate) endpoint: Endpoint,
+    /// The name the server's certificate is checked against.
+    pub(crate) host: String,
+    /// Who the connection logged in as.
+    pub(crate) user: String,
+    /// That user's password.
+    pub(crate) password: String,
+    /// The schema the connection selected.
+    pub(crate) database: String,
+    /// The bundle the certificate was checked against, if the block named one.
+    pub(crate) tls_ca_file: Option<std::path::PathBuf>,
+    /// The server's id for the connection, off its greeting.
+    pub(crate) connection_id: u32,
+}
+
+impl Peer {
+    /// What a `KILL QUERY` for the connection `connection_id` names needs.
+    pub(crate) fn new(
+        endpoint: Endpoint,
+        host: &str,
+        user: &str,
+        password: &str,
+        database: &str,
+        tls_ca_file: Option<&Path>,
+        connection_id: u32,
+    ) -> Peer {
+        Peer {
+            endpoint,
+            host: host.to_owned(),
+            user: user.to_owned(),
+            password: password.to_owned(),
+            database: database.to_owned(),
+            tls_ca_file: tls_ca_file.map(Path::to_path_buf),
+            connection_id,
+        }
+    }
+
+    /// The target the second connection opens with. Its zone and its
+    /// statement cache are never used: it sends one text command and closes.
+    fn mysql_target(&self) -> MySqlTarget<'_> {
+        MySqlTarget {
+            host: &self.host,
+            user: &self.user,
+            password: &self.password,
+            database: &self.database,
+            tls_ca_file: self.tls_ca_file.as_deref(),
+            time_zone: 0,
+            statement_cache: 1,
+        }
+    }
+}
+
+impl std::fmt::Debug for Peer {
+    /// Everything but the password.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Peer")
+            .field("endpoint", &self.endpoint)
+            .field("host", &self.host)
+            .field("user", &self.user)
+            .field("database", &self.database)
+            .field("connection_id", &self.connection_id)
+            .finish_non_exhaustive()
+    }
+}
+
+/// Sends `KILL QUERY` for the connection `connection_id` over `wire`, a second
+/// connection that is idle.
+///
+/// The id is a number this process read off the greeting, so the one text
+/// statement it renders binds nothing a program wrote.
+///
+/// # Errors
+///
+/// As [`text_command`]; the server's own refusal arrives as a [`ServerError`].
+pub(crate) fn kill_query<S: Read + Write>(
+    wire: &mut Wire<S>,
+    capabilities: CapabilityFlags,
+    connection_id: u32,
+) -> io::Result<()> {
+    let state = Cell::new(State::Idle);
+    text_command(
+        wire,
+        &state,
+        capabilities,
+        &format!("KILL QUERY {connection_id}"),
+    )
+}
+
+/// Cancels the statement a deadline interrupted and reads `wire` back to a
+/// boundary before `at` —
+/// `rule:concurrency/a-deadline-bounds-the-cancel-not-the-return`.
+///
+/// `kill` sends the `KILL QUERY` over a second connection, because the server
+/// reads nothing else from this one while the statement runs. The statement
+/// then ends with an error or with its own end, and [`drain_to_boundary`]
+/// reads to it. The kill and the drain share the one instant. A parked walk
+/// is over: its rows went with the drain.
+///
+/// A connection that is not poisoned answers `Ok` and sends nothing.
+///
+/// # Errors
+///
+/// `InvalidInput` for a wire that did not stall, or that stalled where no
+/// answer can be read to; otherwise what `kill` or the drain reported —
+/// `TimedOut` once `at` passes. The connection stays [`State::Poisoned`] on
+/// every error.
+pub(crate) fn settle_interrupted<S: Read + Write + nvs_host::net::Deadline>(
+    wire: &mut Wire<S>,
+    state: &Cell<State>,
+    capabilities: CapabilityFlags,
+    reading: &mut Option<MySqlCursor>,
+    at: Instant,
+    kill: impl FnOnce() -> io::Result<()>,
+) -> io::Result<()> {
+    if state.get() != State::Poisoned {
+        return Ok(());
+    }
+    if !wire.stalled || wire.owed == Owed::Nothing {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "the connection failed where it has no boundary to return to, so it is closed",
+        ));
+    }
+    kill()?;
+    wire.set_deadline(Some(at));
+    let drained = drain_to_boundary(wire, capabilities);
+    wire.set_deadline(None);
+    drained?;
+    wire.stalled = false;
+    *reading = None;
+    state.set(State::Idle);
+    Ok(())
+}
+
+/// Reads what the server still owes for an interrupted command, to the packet
+/// that ends it.
+///
+/// [`Wire::owed`] says where the reading starts. An answer is a status, an
+/// error, or a column count, whose definitions are skipped before the rows. A
+/// row is read and dropped. An error ends the command wherever it arrives,
+/// which is how a killed statement usually ends (1317). A status that says
+/// another result follows starts the reading again at an answer.
+///
+/// # Errors
+///
+/// `InvalidInput` for a wire that owes nothing this reads, `InvalidData` for a
+/// packet that cannot be where it arrived, and whatever the stream reported.
+fn drain_to_boundary<S: Read + Write>(
+    wire: &mut Wire<S>,
+    capabilities: CapabilityFlags,
+) -> io::Result<()> {
+    let unexpected = || {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            "the server sent a packet that cannot follow an interrupted command",
+        )
+    };
+    let mut owed = wire.owed;
+    loop {
+        let packet = wire.read_packet()?;
+        let status = match (owed, packet.first()) {
+            (Owed::Nothing, _) => {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "the connection owes no answer this driver can read to",
+                ));
+            }
+            (_, Some(0xFF)) => return Ok(()),
+            (Owed::Answer, Some(0x00)) if packet.len() >= 7 => {
+                OkPacketDeserializer::<CommonOkPacket>::deserialize(
+                    capabilities,
+                    &mut ParseBuf(&packet),
+                )?
+                .into_inner()
+                .status_flags()
+            }
+            (Owed::Answer, Some(0xFB | 0xFE) | None) => return Err(unexpected()),
+            (Owed::Answer, Some(_)) => {
+                let count = ParseBuf(&packet)
+                    .checked_eat_lenenc_int()
+                    .ok_or_else(unexpected)?;
+                for _ in 0..count {
+                    wire.read_packet()?;
+                }
+                owed = Owed::Rows;
+                continue;
+            }
+            (Owed::Rows, Some(0xFE)) if packet.len() < 0xFF_FFFF => {
+                OkPacketDeserializer::<ResultSetTerminator>::deserialize(
+                    capabilities,
+                    &mut ParseBuf(&packet),
+                )?
+                .into_inner()
+                .status_flags()
+            }
+            (Owed::Rows, _) => continue,
+        };
+        if !status.contains(StatusFlags::SERVER_MORE_RESULTS_EXISTS) {
+            return Ok(());
+        }
+        owed = Owed::Answer;
+    }
+}
+
 impl<S: Read + Write> Drop for MySqlRows<'_, S> {
     /// Abandonment, and it is the ordinary case rather than an error —
     /// [`drain_result`] is the whole of it and owns the reasoning.
@@ -3634,6 +3941,7 @@ mod tests {
         execute_many, kind_of, next_row_of, offset_literal, open_result, plugin_or_refuse,
         read_greeting, read_ok, request_tls, roll_back, scalar, server_refusal, start_statement,
     };
+    use super::{MySqlCursor, Owed, Peer as KillPeer, drain_to_boundary, read_answer};
     use crate::conn::ColumnType as NovisType;
     use crate::conn::{BlockError, Driver, Isolation};
     use crate::maria::{
@@ -4211,6 +4519,7 @@ mod tests {
                 plugin: super::CACHING_SHA2_PASSWORD.as_bytes().to_vec(),
                 server_version: (8, 0, 36),
                 banner: String::from("8.0.36"),
+                connection_id: 7,
             }
         );
         assert!(!rendered.contains(PASSWORD));
@@ -4219,6 +4528,139 @@ mod tests {
             !target.contains(PASSWORD),
             "a target rendered its password: {target}"
         );
+        let peer = format!(
+            "{:?}",
+            KillPeer::new(
+                crate::conn::Endpoint::Tcp(([127, 0, 0, 1], 3306).into()),
+                "db.example.com",
+                "app",
+                PASSWORD,
+                "shop",
+                None,
+                7,
+            )
+        );
+        assert!(
+            !peer.contains(PASSWORD),
+            "the peer a `KILL QUERY` is sent to rendered its password: {peer}"
+        );
+    }
+
+    /// A stream that answers each read with the next chunk, and `TimedOut`
+    /// for a `None`, as a socket whose deadline passed does.
+    struct Stalling {
+        chunks: std::collections::VecDeque<Option<Vec<u8>>>,
+    }
+
+    impl io::Read for Stalling {
+        fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+            match self.chunks.pop_front() {
+                None => Ok(0),
+                Some(None) => Err(io::Error::new(
+                    io::ErrorKind::TimedOut,
+                    "the deadline passed",
+                )),
+                Some(Some(chunk)) => {
+                    buf[..chunk.len()].copy_from_slice(&chunk);
+                    Ok(chunk.len())
+                }
+            }
+        }
+    }
+
+    impl io::Write for Stalling {
+        fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+            Ok(buf.len())
+        }
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+
+    /// The read state of a result set with no columns, past its definitions.
+    fn streaming_cursor() -> MySqlCursor {
+        MySqlCursor {
+            capabilities: server_capabilities(),
+            columns: std::sync::Arc::from(Vec::new()),
+            rows: 0,
+            affected: 0,
+            last_id: None,
+            ended: false,
+            span: crate::span::QuerySpan::opened(Driver::MySql, "select"),
+        }
+    }
+
+    /// `ER_QUERY_INTERRUPTED`, the error a killed statement usually ends with.
+    fn interrupted_error() -> Vec<u8> {
+        let mut body = vec![0xFF, 0x25, 0x05, b'#'];
+        body.extend_from_slice(b"70100Query execution was interrupted");
+        body
+    }
+
+    /// `settle_interrupted`'s precondition and its drain: a read the deadline
+    /// stopped while the answer was owed leaves the wire stalled, and the
+    /// drain skips the column definitions and the rows to the error that ends
+    /// the killed statement.
+    #[test]
+    fn a_read_the_deadline_stopped_drains_through_the_result_to_the_kill() {
+        let mut rest = packet(0, &[0x01]);
+        rest.extend(packet(1, &column_def("slept")));
+        rest.extend(packet(2, &[0x00, 0x00, 0x01]));
+        rest.extend(packet(3, &interrupted_error()));
+        let mut wire = Wire::new(Stalling {
+            chunks: [None, Some(rest)].into(),
+        });
+
+        let stopped = read_answer(&mut wire, server_capabilities())
+            .expect_err("a read the deadline stopped answered a packet");
+        assert_eq!(stopped.kind(), io::ErrorKind::TimedOut);
+        assert!(
+            wire.stalled,
+            "a read the deadline stopped leaves the wire stalled"
+        );
+        assert_eq!(wire.owed, Owed::Answer);
+
+        drain_to_boundary(&mut wire, server_capabilities())
+            .expect("the statement's result and its error arrived");
+        assert!(
+            wire.inbox.is_empty(),
+            "the drain stopped short of the error"
+        );
+    }
+
+    /// The same drain from the middle of the rows, ending at the terminator a
+    /// statement that finished before the kill reached it sends. A peer that
+    /// closed leaves no boundary, so its wire is not stalled.
+    #[test]
+    fn a_read_stopped_mid_rows_drains_to_the_terminator_and_a_closed_peer_does_not_stall() {
+        let ended = packet(1, &result_set_end(0x0002));
+        let (head, tail) = ended.split_at(3);
+        let mut rest = packet(0, &[0x00, 0x00]);
+        rest.extend_from_slice(head);
+        let mut wire = Wire::new(Stalling {
+            chunks: [Some(rest), None, Some(tail.to_vec())].into(),
+        });
+        let state = Cell::new(State::Streaming);
+        let mut reading = streaming_cursor();
+
+        next_row_of(&mut wire, &state, &mut reading).expect("the first row arrived whole");
+        let stopped = next_row_of(&mut wire, &state, &mut reading)
+            .expect_err("a read the deadline stopped answered a row");
+        assert_eq!(stopped.kind(), io::ErrorKind::TimedOut);
+        assert_eq!(state.get(), State::Poisoned);
+        assert!(wire.stalled);
+        assert_eq!(wire.owed, Owed::Rows);
+        drain_to_boundary(&mut wire, server_capabilities())
+            .expect("the rest of the terminator arrived");
+        assert!(wire.inbox.is_empty());
+
+        let mut closed = Wire::new(Stalling {
+            chunks: [None].into(),
+        });
+        drop(read_answer(&mut closed, server_capabilities()));
+        assert!(closed.stalled);
+        drop(read_answer(&mut closed, server_capabilities()));
+        assert!(!closed.stalled, "a peer that closed leaves no boundary");
     }
 
     /// `COM_STMT_PREPARE_OK`: the status byte, the handle, and the two counts.

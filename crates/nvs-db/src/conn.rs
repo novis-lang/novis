@@ -919,6 +919,10 @@ pub struct MySqlConn {
     /// O(pooled connections) rather than O(requests served), and § 13's `max`
     /// per core is the cap on it.
     pub(crate) reading: Option<crate::mysql::MySqlCursor>,
+    /// Where a `KILL QUERY` for this connection is sent, and who to be there —
+    /// `rule:concurrency/a-deadline-bounds-the-cancel-not-the-return`.
+    /// `crate::mysql`'s `Peer` says what it spends.
+    pub(crate) peer: crate::mysql::Peer,
 }
 
 /// A MariaDB connection: `mysql_common`'s codec, its own auth plugins, its own
@@ -962,6 +966,8 @@ pub struct MariaConn {
     /// [`MySqlConn::reading`]'s twin, and the *same* type, because one protocol
     /// is read one way and `crate::mysql`'s row loop serves both servers.
     pub(crate) reading: Option<crate::mysql::MySqlCursor>,
+    /// [`MySqlConn::peer`]'s twin: MariaDB's `KILL QUERY` is MySQL's.
+    pub(crate) peer: crate::mysql::Peer,
 }
 
 /// A SQL Server connection over TDS 7.4, all of which is written here: there is
@@ -1249,12 +1255,13 @@ impl Connection {
     /// poolable; one that does not stays poisoned, so the release closes it
     /// rather than pooling it.
     ///
-    /// PostgreSQL's arm is [`crate::PgConn::settle`]. SQLite interrupts the
-    /// statement in the engine when the deadline passes
+    /// PostgreSQL's arm is [`crate::PgConn::settle`], and MySQL's and
+    /// MariaDB's are [`MySqlConn::settle`] and [`MariaConn::settle`]. SQLite
+    /// interrupts the statement in the engine when the deadline passes
     /// ([`crate::sqlite::Interrupt`]), which leaves the connection idle, so it
-    /// never reaches this poisoned. MySQL, MariaDB and SQL Server send no
-    /// cancel yet, and their connection is closed at the deadline instead,
-    /// which is the rule's fallback for a cancel that is not built.
+    /// never reaches this poisoned. SQL Server sends no cancel yet, and its
+    /// connection is closed at the deadline instead, which is the rule's
+    /// fallback for a cancel that is not built.
     ///
     /// # Errors
     ///
@@ -1263,6 +1270,8 @@ impl Connection {
     pub fn settle(&mut self, at: std::time::Instant) -> std::io::Result<()> {
         match self {
             Connection::Postgres(c) => c.settle(at),
+            Connection::MySql(c) => c.settle(at),
+            Connection::MariaDb(c) => c.settle(at),
             _ if self.state() != State::Poisoned => Ok(()),
             _ => Err(std::io::Error::new(
                 std::io::ErrorKind::Unsupported,

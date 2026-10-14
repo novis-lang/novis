@@ -107,7 +107,8 @@ pub const SETTLE_WITHIN: std::time::Duration = nvs_config::defaults::DB_POOL_ACQ
 /// answers `true` and nothing is sent.
 ///
 /// **What it spends:** the wait, up to `within`, on the request whose
-/// deadline fired, and one short-lived second connection on PostgreSQL.
+/// deadline fired, and one short-lived second connection on PostgreSQL, MySQL
+/// and MariaDB.
 pub fn settle_interrupted(
     connection: &mut nvs_db::Connection,
     within: std::time::Duration,
