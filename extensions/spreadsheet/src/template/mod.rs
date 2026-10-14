@@ -36,7 +36,7 @@ use std::fmt::Write as _;
 
 use crate::read::Source;
 use crate::read::xml::{self, Token};
-use crate::read::zip::{Directory, Part, whole};
+use crate::read::zip::{Bound, Directory, Part};
 use crate::zip::Archive;
 use crate::{Error, Finished, SheetRows, Value};
 use sheet::{Cell, Row, Sheet, placeholders};
@@ -116,7 +116,7 @@ fn text_of(bytes: Vec<u8>, path: &str) -> Result<String, Error> {
 fn read(directory: &Directory, source: &dyn Source, path: &str) -> Result<Option<String>, Error> {
     directory
         .find(path)
-        .map(|entry| text_of(whole(source, entry)?, path))
+        .map(|entry| text_of(directory.whole(source, entry)?, path))
         .transpose()
 }
 
@@ -475,9 +475,9 @@ fn recalculating(workbook: &str) -> String {
 }
 
 impl Template {
-    /// Opens the template `source` is: an xlsx or xlsm file.
-    pub fn open(source: &dyn Source) -> Result<Self, Error> {
-        let directory = Directory::read(source)?;
+    /// Opens the template `source` is: an xlsx or xlsm file, its parts read under `bound`.
+    pub fn open(source: &dyn Source, bound: Bound) -> Result<Self, Error> {
+        let directory = Directory::read(source, bound)?;
         let workbook = read(&directory, source, "xl/workbook.xml")?
             .ok_or_else(|| broken("it has no workbook part"))?;
         let rels = read(&directory, source, "xl/_rels/workbook.xml.rels")?.unwrap_or_default();
@@ -915,7 +915,7 @@ impl Template {
         shifts: &[Shift],
     ) -> Result<Option<String>, Error> {
         let lower = entry.name.to_ascii_lowercase();
-        let read = || text_of(whole(source, entry)?, &entry.name);
+        let read = || text_of(self.directory.whole(source, entry)?, &entry.name);
         Ok(Some(match lower.as_str() {
             "[content_types].xml" => without(
                 &read()?,

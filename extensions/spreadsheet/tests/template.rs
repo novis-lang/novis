@@ -4,7 +4,7 @@
 use std::collections::BTreeMap;
 
 use nvs_spreadsheet::read::Source;
-use nvs_spreadsheet::read::zip::{Directory, whole};
+use nvs_spreadsheet::read::zip::{Bound, Directory};
 use nvs_spreadsheet::template::shift::{self, Shift};
 use nvs_spreadsheet::template::{Placeholder, Template};
 use nvs_spreadsheet::zip::Archive;
@@ -120,12 +120,12 @@ fn template(rows: &str, names: &str, macros: bool) -> Vec<u8> {
 /// Every part of the zip `bytes`, by name, as text.
 fn parts(bytes: &[u8]) -> BTreeMap<String, String> {
     let source = Bytes(bytes.to_vec());
-    let directory = Directory::read(&source).unwrap();
+    let directory = Directory::read(&source, Bound::default()).unwrap();
     directory
         .entries()
         .iter()
         .map(|entry| {
-            let text = String::from_utf8(whole(&source, entry).unwrap()).unwrap();
+            let text = String::from_utf8(directory.whole(&source, entry).unwrap()).unwrap();
             (entry.name.clone(), text)
         })
         .collect()
@@ -166,7 +166,7 @@ fn fill(
     lists: &[(&str, Vec<Vec<Placeholder>>)],
 ) -> Result<Vec<u8>, Error> {
     let source = Bytes(template.to_vec());
-    let mut filled = Template::open(&source)?;
+    let mut filled = Template::open(&source, Bound::default())?;
     for (address, value) in sets {
         filled.set(address, value.clone())?;
     }
@@ -517,7 +517,7 @@ fn set_writes_one_cell_by_address() {
     );
 
     let source = Bytes(template(PLAIN, "", false));
-    let mut filled = Template::open(&source).unwrap();
+    let mut filled = Template::open(&source, Bound::default()).unwrap();
     assert!(
         matches!(filled.set("Nowhere!A1", None), Err(Error::Invalid(m)) if m.contains("`Nowhere`"))
     );

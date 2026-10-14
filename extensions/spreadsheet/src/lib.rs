@@ -496,7 +496,9 @@ mod guest {
     struct Lent<'a>(&'a Source);
 
     fn not_a_source() -> crate::Error {
-        crate::Error::Invalid("A workbook is read from `bytes` or an open `Core\\IO\\File`.".to_owned())
+        crate::Error::Invalid(
+            "A workbook is read from `bytes` or an open `Core\\IO\\File`.".to_owned(),
+        )
     }
 
     impl crate::read::Source for Lent<'_> {
@@ -518,6 +520,16 @@ mod guest {
                 read.extend_from_slice(&block);
             }
             Ok(read)
+        }
+    }
+
+    /// The bound the host clamped, each half missing only where no host did, and then the
+    /// shipped default.
+    fn bound_of(bound: wit::DecompressionBound) -> crate::read::zip::Bound {
+        let shipped = crate::read::zip::Bound::default();
+        crate::read::zip::Bound {
+            bytes: bound.max_bytes.unwrap_or(shipped.bytes),
+            ratio: bound.max_ratio.unwrap_or(shipped.ratio),
         }
     }
 
@@ -1087,8 +1099,12 @@ mod guest {
             with(writer, crate::Writer::finish).map(finished)
         }
 
-        fn reader_open(source: &Source) -> Result<wit::Reading, wit::Error> {
-            let reader = crate::read::Reader::open(&Lent(source)).map_err(error)?;
+        fn reader_open(
+            source: &Source,
+            bound: wit::DecompressionBound,
+        ) -> Result<wit::Reading, wit::Error> {
+            let reader =
+                crate::read::Reader::open(&Lent(source), bound_of(bound)).map_err(error)?;
             Ok(wit::Reading::new(Reader {
                 reader: RefCell::new(reader),
             }))
@@ -1294,8 +1310,12 @@ mod guest {
                 .map_err(error)
         }
 
-        fn template_open(source: &Source) -> Result<wit::Filling, wit::Error> {
-            let template = crate::template::Template::open(&Lent(source)).map_err(error)?;
+        fn template_open(
+            source: &Source,
+            bound: wit::DecompressionBound,
+        ) -> Result<wit::Filling, wit::Error> {
+            let template =
+                crate::template::Template::open(&Lent(source), bound_of(bound)).map_err(error)?;
             Ok(wit::Filling::new(Filling {
                 template: RefCell::new(template),
             }))

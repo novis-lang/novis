@@ -606,9 +606,19 @@ interface engine {
     /// `Novis\Spreadsheet` and `Reader` is the Novis class over it.
     resource reading;
 
+    /// `rule:core-classes/decompression-bound` for one workbook: a part held
+    /// whole decompresses to at most `max-bytes` across the archive, and every
+    /// part to at most `max-ratio` times its compressed size. The host sets
+    /// both to the request's `[limits]` before the call, so `none` reads as
+    /// the shipped default only where no host clamped it.
+    record decompression-bound {
+        max-bytes: option<u64>,
+        max-ratio: option<u64>,
+    }
+
     /// Opens the workbook `source` holds: reads its directory and its
     /// workbook part, and nothing of a sheet.
-    reader-open: func(source: borrow<value>) -> result<reading, error>;
+    reader-open: func(source: borrow<value>, bound: decompression-bound) -> result<reading, error>;
     reader-sheets: func(reader: borrow<reading>, source: borrow<value>) -> result<list<sheet-info>, error>;
     /// The header's keys: a duplicate numbered, an empty one its column
     /// letter.
@@ -657,7 +667,7 @@ interface engine {
     /// the Novis class over it.
     resource filling;
 
-    template-open: func(source: borrow<value>) -> result<filling, error>;
+    template-open: func(source: borrow<value>, bound: decompression-bound) -> result<filling, error>;
     /// Fills one cell by address, such as `Summary!B2`, before `template-fill`.
     template-set: func(template: borrow<filling>, address: string, value: option<cell-value>) -> result<_, error>;
     /// Fills every placeholder that is not in a list, finds the block of each

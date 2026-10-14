@@ -39,7 +39,7 @@ final class Template
         if ($zoneName != null) {
             $zone = Core\Time\Zone::of($zoneName);
         }
-        return new Template(Engine::templateOpen($source), $source, $zone);
+        return new Template(Engine::templateOpen($source, {maxBytes: null, maxRatio: null}), $source, $zone);
     }
 
     /// `set` puts `$value` in the cell at `$address`, such as `'Summary!B2'`. Call it before `fill`.

@@ -30861,7 +30861,7 @@ Keywords: writerOpen, writerStyle, writerSheet, writerRows, writerPart, writerDe
 | [`Novis\Spreadsheet\Engine::writerCell`](#core-novis-spreadsheet-engine-writercell) | `writerCell(Writer $writer, uint $column, uint $row): string` |
 | [`Novis\Spreadsheet\Engine::writerColumn`](#core-novis-spreadsheet-engine-writercolumn) | `writerColumn(Writer $writer, uint $column): string` |
 | [`Novis\Spreadsheet\Engine::writerFinish`](#core-novis-spreadsheet-engine-writerfinish) | `writerFinish(Writer $writer): {data: bytes, rows: array<{name: string, rows: uint}>, size: uint}` |
-| [`Novis\Spreadsheet\Engine::readerOpen`](#core-novis-spreadsheet-engine-readeropen) | `readerOpen(mixed $source): Reading` |
+| [`Novis\Spreadsheet\Engine::readerOpen`](#core-novis-spreadsheet-engine-readeropen) | `readerOpen(mixed $source, {maxBytes: ?uint, maxRatio: ?uint} $bound): Reading` |
 | [`Novis\Spreadsheet\Engine::readerSheets`](#core-novis-spreadsheet-engine-readersheets) | `readerSheets(Reading $reader, mixed $source): array<{name: string, position: uint, visibility: Visibility, rows: uint, columns: uint, kind: SheetKind}>` |
 | [`Novis\Spreadsheet\Engine::readerMacros`](#core-novis-spreadsheet-engine-readermacros) | `readerMacros(Reading $reader, mixed $source): array<string>` |
 | [`Novis\Spreadsheet\Engine::readerMerged`](#core-novis-spreadsheet-engine-readermerged) | `readerMerged(Reading $reader, mixed $source, string $sheet): array<string>` |
@@ -30873,7 +30873,7 @@ Keywords: writerOpen, writerStyle, writerSheet, writerRows, writerPart, writerDe
 | [`Novis\Spreadsheet\Engine::readerProperties`](#core-novis-spreadsheet-engine-readerproperties) | `readerProperties(Reading $reader, mixed $source): {title: ?string, subject: ?string, author: ?string, company: ?string, keywords: ?string, created: ?{day: Core\Time\Date, clock: Core\Time\TimeOfDay}}` |
 | [`Novis\Spreadsheet\Engine::readerHeader`](#core-novis-spreadsheet-engine-readerheader) | `readerHeader(Reading $reader, mixed $source, {sheet: string, headerRow: ?uint, from: ?uint, limit: ?uint, columns: array<string>, text: array<string>, textAll: bool, formulas: bool, keepEmptyRows: bool, fillMerged: bool, skipHidden: bool, locale: string} $options): array<string>` |
 | [`Novis\Spreadsheet\Engine::readerRows`](#core-novis-spreadsheet-engine-readerrows) | `readerRows(Reading $reader, mixed $source, {sheet: string, headerRow: ?uint, from: ?uint, limit: ?uint, columns: array<string>, text: array<string>, textAll: bool, formulas: bool, keepEmptyRows: bool, fillMerged: bool, skipHidden: bool, locale: string} $options, uint $max): {rows: array<{number: uint, cells: array<{column: uint, value: ?ReadValue, formula: ?string, display: ?string}>}>, done: bool}` |
-| [`Novis\Spreadsheet\Engine::templateOpen`](#core-novis-spreadsheet-engine-templateopen) | `templateOpen(mixed $source): Filling` |
+| [`Novis\Spreadsheet\Engine::templateOpen`](#core-novis-spreadsheet-engine-templateopen) | `templateOpen(mixed $source, {maxBytes: ?uint, maxRatio: ?uint} $bound): Filling` |
 | [`Novis\Spreadsheet\Engine::templateSet`](#core-novis-spreadsheet-engine-templateset) | `templateSet(Filling $template, string $address, ?CellValue $value): void` |
 | [`Novis\Spreadsheet\Engine::templateFill`](#core-novis-spreadsheet-engine-templatefill) | `templateFill(Filling $template, array<{path: string, value: ?CellValue}> $values, array<string> $lists): {data: bytes, lists: array<string>}` |
 | [`Novis\Spreadsheet\Engine::templateItems`](#core-novis-spreadsheet-engine-templateitems) | `templateItems(Filling $template, {name: string, items: array<array<{path: string, value: ?CellValue}>>} $batch): bytes` |
@@ -31028,14 +31028,15 @@ Finishes the last sheet and the workbook. Returns the last bytes of the file, th
 #### `Novis\Spreadsheet\Engine::readerOpen`
 
 ```nvs skip
-Novis\Spreadsheet\Engine::readerOpen(mixed $source): Reading
+Novis\Spreadsheet\Engine::readerOpen(mixed $source, {maxBytes: ?uint, maxRatio: ?uint} $bound): Reading
 ```
 
-Opens the workbook in `source`, which is `bytes` or an open `Core\IO\File`. This reads the list of sheets and no rows.
+Opens the workbook in `source`, which is `bytes` or an open `Core\IO\File`. This reads the list of sheets and no rows. A part of the file that is kept whole decompresses to at most `maxBytes` bytes, and every part to at most `maxRatio` times its compressed size. The server sets both from `[limits]`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$source` | `mixed` |  |
+| `$bound` | `{maxBytes: ?uint, maxRatio: ?uint}` |  |
 
 **Returns** `Reading`
 
@@ -31227,7 +31228,7 @@ Returns the next rows of a sheet, at most `max` of them. To get the rows after t
 #### `Novis\Spreadsheet\Engine::templateOpen`
 
 ```nvs skip
-Novis\Spreadsheet\Engine::templateOpen(mixed $source): Filling
+Novis\Spreadsheet\Engine::templateOpen(mixed $source, {maxBytes: ?uint, maxRatio: ?uint} $bound): Filling
 ```
 
 Opens the template in `source`, which is `bytes` or an open `Core\IO\File`. A template is a workbook with placeholders such as `{{name}}` in its cells.
@@ -31235,6 +31236,7 @@ Opens the template in `source`, which is `bytes` or an open `Core\IO\File`. A te
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$source` | `mixed` |  |
+| `$bound` | `{maxBytes: ?uint, maxRatio: ?uint}` |  |
 
 **Returns** `Filling`
 

@@ -186,7 +186,7 @@ pub fn read(source: &dyn Source, directory: &zip::Directory) -> Result<Vec<Liste
     let entry = directory
         .find("content.xml")
         .ok_or_else(|| broken("it has no content.xml"))?;
-    let content = zip::whole(source, entry)?;
+    let content = directory.whole(source, entry)?;
     let mut hidden_styles: Vec<String> = Vec::new();
     let mut style: Option<String> = None;
     let mut tables: Vec<Table> = Vec::new();

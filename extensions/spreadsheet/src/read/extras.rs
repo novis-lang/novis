@@ -21,7 +21,7 @@
 //! What it spends, per call: the part it reads whole, or one block of a sheet's part and the
 //! inflater's window, and the list it returns. An image's bytes are held once, in the list.
 
-use super::{Reader, Source, civil, days_from_civil, letters, relationships, sheet, xml, zip};
+use super::{Reader, Source, civil, days_from_civil, letters, relationships, sheet, xml};
 use crate::{Clock, Error, Properties, TimeOfDay};
 use xml::Token;
 
@@ -185,7 +185,7 @@ impl Reader {
     fn whole_part(&self, source: &dyn Source, part: &str) -> Result<Option<Vec<u8>>, Error> {
         self.directory
             .find(part)
-            .map(|entry| zip::whole(source, entry))
+            .map(|entry| self.directory.whole(source, entry))
             .transpose()
     }
 
@@ -350,7 +350,9 @@ impl Reader {
             let mut at = 0;
             while let Some((token, size)) = xml::next(&bytes[at..])? {
                 at += size;
-                if let Token::Open { name: tag, attrs, .. } = token
+                if let Token::Open {
+                    name: tag, attrs, ..
+                } = token
                     && xml::local(tag) == b"table"
                 {
                     let shown = xml::attr_text(attrs, b"displayName")?;
@@ -392,7 +394,11 @@ impl Reader {
             while let Some((token, size)) = xml::next(&bytes[at..])? {
                 at += size;
                 match token {
-                    Token::Open { name: tag, attrs, empty } => match xml::local(tag) {
+                    Token::Open {
+                        name: tag,
+                        attrs,
+                        empty,
+                    } => match xml::local(tag) {
                         b"twoCellAnchor" | b"oneCellAnchor" | b"absoluteAnchor" => from = None,
                         b"from" => {
                             in_from = !empty;
@@ -414,21 +420,20 @@ impl Reader {
                             let embed = xml::attr_text(attrs, b"embed")?;
                             let link = xml::attr_text(attrs, b"link")?;
                             let target = |id: &str| {
-                                pictures.iter().find(|(rid, _, _, _)| rid == id).map(
-                                    |(_, _, target, external)| (target.clone(), *external),
-                                )
+                                pictures
+                                    .iter()
+                                    .find(|(rid, _, _, _)| rid == id)
+                                    .map(|(_, _, target, external)| (target.clone(), *external))
                             };
                             if let Some((target, false)) = embed.as_deref().and_then(target) {
-                                let image =
-                                    self.whole_part(source, &target)?.unwrap_or_default();
+                                let image = self.whole_part(source, &target)?.unwrap_or_default();
                                 images.push(Image {
                                     at,
                                     format: format(&image, &target),
                                     image,
                                     link: None,
                                 });
-                            } else if let Some((target, _)) = link.as_deref().and_then(target)
-                            {
+                            } else if let Some((target, _)) = link.as_deref().and_then(target) {
                                 images.push(Image {
                                     at,
                                     format: format(&[], &target),
@@ -490,7 +495,9 @@ impl Reader {
             while let Some((token, size)) = xml::next(&bytes[at..])? {
                 at += size;
                 match token {
-                    Token::Open { name, empty: false, .. } => {
+                    Token::Open {
+                        name, empty: false, ..
+                    } => {
                         let field = match xml::local(name) {
                             b"title" => "title",
                             b"subject" => "subject",
@@ -548,8 +555,14 @@ mod tests {
     #[test]
     fn a_creation_time_reads_in_utc() {
         assert_eq!(clock("2024-03-05T14:30:09Z"), Some((2024, 3, 5, 14, 30, 9)));
-        assert_eq!(clock("2024-03-05T01:30:00+02:00"), Some((2024, 3, 4, 23, 30, 0)));
-        assert_eq!(clock("2024-12-31T23:00:00-01:30"), Some((2025, 1, 1, 0, 30, 0)));
+        assert_eq!(
+            clock("2024-03-05T01:30:00+02:00"),
+            Some((2024, 3, 4, 23, 30, 0))
+        );
+        assert_eq!(
+            clock("2024-12-31T23:00:00-01:30"),
+            Some((2025, 1, 1, 0, 30, 0))
+        );
         assert_eq!(clock("2024-03-05"), Some((2024, 3, 5, 0, 0, 0)));
         assert_eq!(clock("yesterday"), None);
         assert_eq!(

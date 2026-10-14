@@ -43,7 +43,7 @@ final class Reader
                 return new Reader(null, $source, $text, 0);
             }
         }
-        return new Reader(Engine::readerOpen($source), $source, null, 0);
+        return new Reader(Engine::readerOpen($source, {maxBytes: null, maxRatio: null}), $source, null, 0);
     }
 
     /// `sheets` returns each sheet in tab order, with its name, its position from 0, whether it is hidden, its size and its kind.

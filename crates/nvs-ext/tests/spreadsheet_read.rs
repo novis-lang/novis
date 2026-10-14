@@ -39,6 +39,11 @@ fn shape(fields: Vec<(&str, Value)>) -> Value {
     )
 }
 
+/// `readerOpen`'s bound with neither half set, which the guest reads as the shipped default.
+fn shipped() -> Value {
+    shape(vec![("maxBytes", Value::Null), ("maxRatio", Value::Null)])
+}
+
 fn strings(values: &[&str]) -> Value {
     Value::Array(
         values
@@ -276,9 +281,13 @@ impl Read {
         let meter = Arc::new(Meter::new(Duration::from_secs(60), None));
         let request = host.request(meter.clone());
         let source = Value::Bytes(bytes);
-        let reader = block_on(request.call_values(&extension, "readerOpen", vec![source.clone()]))
-            .unwrap_or_else(|err| panic!("`readerOpen` answers: {err}"))
-            .unwrap();
+        let reader = block_on(request.call_values(
+            &extension,
+            "readerOpen",
+            vec![source.clone(), shipped()],
+        ))
+        .unwrap_or_else(|err| panic!("`readerOpen` answers: {err}"))
+        .unwrap();
         Self {
             request,
             extension,
@@ -553,9 +562,10 @@ fn a_lent_source_is_read_through_the_budget_a_block_at_a_time() {
     });
     let request = host.request(lends.clone());
     let source = Value::Lent { id: 0, size };
-    let reader = block_on(request.call_values(&extension, "readerOpen", vec![source.clone()]))
-        .unwrap_or_else(|err| panic!("`readerOpen` answers: {err}"))
-        .unwrap();
+    let reader =
+        block_on(request.call_values(&extension, "readerOpen", vec![source.clone(), shipped()]))
+            .unwrap_or_else(|err| panic!("`readerOpen` answers: {err}"))
+            .unwrap();
     let mut from = None;
     let mut count = 0u64;
     loop {
@@ -1137,9 +1147,12 @@ fn a_document_type_declaration_is_never_read() {
     let host = Host::new(1, |_| Ok(())).expect("the host starts");
     let extension = spreadsheet(&host);
     let request = host.request(Arc::new(Meter::new(Duration::from_secs(30), None)));
-    let err =
-        block_on(request.call_values(&extension, "readerOpen", vec![Value::Bytes(zip(&parts))]))
-            .expect_err("a DTD is refused");
+    let err = block_on(request.call_values(
+        &extension,
+        "readerOpen",
+        vec![Value::Bytes(zip(&parts)), shipped()],
+    ))
+    .expect_err("a DTD is refused");
     assert!(
         err.to_string().contains("document type declaration"),
         "{err}"
@@ -1827,8 +1840,9 @@ fn xlsm_xls_and_ods_are_read_whole() {
     let host = Host::new(2, |_| Ok(())).expect("the host starts");
     let extension = spreadsheet(&host);
     let request = host.request(Arc::new(Meter::new(Duration::from_secs(60), None)));
-    let refused = block_on(request.call_values(&extension, "readerOpen", vec![Value::Bytes(old)]))
-        .expect_err("an Excel 95 file is not read");
+    let refused =
+        block_on(request.call_values(&extension, "readerOpen", vec![Value::Bytes(old), shipped()]))
+            .expect_err("an Excel 95 file is not read");
     assert!(refused.to_string().contains("Excel 95"), "{refused}");
     block_on(request.end()).expect("the request ends");
 
