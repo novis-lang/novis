@@ -1,0 +1,16 @@
+<?nvs
+// Shows how `external` tells a link to a website apart from a link to a cell in the same workbook.
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet('Blog');
+$sheet->link('A1', 'https://example.com/blog')->link('A2', 'Totals!A1');
+$sheet->addAll([['Read the blog'], ['See the totals']]);
+$book->sheet('Totals')->add([42]);
+var $reader = Reader::open($book->finish()->bytes ?? Core\Bytes::fill(0, 0));
+
+// `external` is `true` for a URL. It is `false` for a cell such as `Totals!A1`.
+foreach ($reader->links(0) as var $link) {
+    echo $link->anchor, ': ', $link->target, $link->external ? ' (external)' : ' (in the workbook)', "\n";
+}

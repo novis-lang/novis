@@ -61,6 +61,7 @@ class Show {
     }
 }
 echo Show::field($p, $key), "\n";
+// covers: lang:types/property-keys
 --EXPECT--
 ada@example.com
 grace@example.com

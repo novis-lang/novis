@@ -730,6 +730,7 @@ fn an_elapsed_time_format_reads_as_a_duration() {
     block_on(read.request.end()).expect("the request ends");
 }
 
+// covers: Novis\Spreadsheet\CellError
 #[test]
 fn an_error_cell_reads_as_its_cell_error_case() {
     let errors = [
@@ -836,6 +837,41 @@ fn a_duplicate_header_is_numbered_and_an_empty_one_is_its_column_letter() {
         10,
     );
     assert_eq!(rows, vec![(3, vec![(1, text("Tea"))])]);
+    block_on(read.request.end()).expect("the request ends");
+}
+
+#[test]
+fn a_header_of_every_column_equal_is_numbered_in_linear_time() {
+    let mut data = String::from(r#"<row r="1">"#);
+    for at in 0..16_384_u32 {
+        let mut column = String::new();
+        let mut rest = at + 1;
+        while rest > 0 {
+            column.insert(0, char::from(b'A' + u8::try_from((rest - 1) % 26).unwrap()));
+            rest = (rest - 1) / 26;
+        }
+        let text = if at == 1 { "Name (2)" } else { "Name" };
+        data.push_str(&format!(
+            r#"<c r="{column}1" t="inlineStr"><is><t>{text}</t></is></c>"#
+        ));
+    }
+    data.push_str("</row>");
+    let read = Read::open(xlsx(&[sheet("Shop", data)], &[]));
+    let started = std::time::Instant::now();
+    let header = read.call("readerHeader", vec![options("Shop").value()]);
+    let elapsed = started.elapsed();
+    let mut want = vec!["Name".to_owned(), "Name (2)".to_owned()];
+    want.extend((3..=16_384).map(|count| format!("Name ({count})")));
+    let want: Vec<&str> = want.iter().map(String::as_str).collect();
+    assert_eq!(
+        header,
+        strings(&want),
+        "a name given in the file is skipped"
+    );
+    assert!(
+        elapsed < std::time::Duration::from_secs(10),
+        "a full row of equal headers is read in {elapsed:?}"
+    );
     block_on(read.request.end()).expect("the request ends");
 }
 
@@ -1054,6 +1090,7 @@ fn empty_rows_merged_cells_and_hidden_rows_follow_their_options() {
     }
 }
 
+// covers: Novis\Spreadsheet\Visibility
 #[test]
 fn sheets_gives_name_position_visibility_size_and_kind() {
     let book = xlsx(
@@ -1135,6 +1172,64 @@ fn sheets_gives_name_position_visibility_size_and_kind() {
         vec![options("Orders").value(), Value::Uint(1)],
     );
     assert!(missing.contains("no sheet named `Orders`"), "{missing}");
+    block_on(read.request.end()).expect("the request ends");
+}
+
+// covers: Novis\Spreadsheet\SheetKind
+#[test]
+fn a_chartsheet_is_listed_as_one_and_has_no_rows() {
+    let main = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+    let rel = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+    let relationships = "http://schemas.openxmlformats.org/package/2006/relationships";
+    let book = zip(&[
+        ("[Content_Types].xml", b"<Types/>".to_vec()),
+        (
+            "_rels/.rels",
+            format!(r#"<?xml version="1.0"?><Relationships xmlns="{relationships}"><Relationship Id="rId1" Type="{rel}/officeDocument" Target="xl/workbook.xml"/></Relationships>"#).into_bytes(),
+        ),
+        (
+            "xl/workbook.xml",
+            format!(r#"<?xml version="1.0"?><workbook xmlns="{main}" xmlns:r="{rel}"><sheets><sheet name="Shop" sheetId="1" r:id="rId1"/><sheet name="Sales chart" sheetId="2" r:id="rId2"/></sheets></workbook>"#).into_bytes(),
+        ),
+        (
+            "xl/_rels/workbook.xml.rels",
+            format!(r#"<?xml version="1.0"?><Relationships xmlns="{relationships}"><Relationship Id="rId1" Type="{rel}/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="{rel}/chartsheet" Target="chartsheets/sheet1.xml"/><Relationship Id="rIdS" Type="{rel}/styles" Target="styles.xml"/></Relationships>"#).into_bytes(),
+        ),
+        ("xl/styles.xml", STYLES.as_bytes().to_vec()),
+        (
+            "xl/worksheets/sheet1.xml",
+            format!(r#"<?xml version="1.0"?><worksheet xmlns="{main}"><sheetData>{}</sheetData></worksheet>"#, row(1, &[("", 0, "<v>1</v>")])).into_bytes(),
+        ),
+        (
+            "xl/chartsheets/sheet1.xml",
+            format!(r#"<?xml version="1.0"?><chartsheet xmlns="{main}"/>"#).into_bytes(),
+        ),
+    ]);
+    let read = Read::open(book);
+    let sheets = read.call("readerSheets", vec![]);
+    let kinds: Vec<(String, String)> = entries(&sheets)
+        .into_iter()
+        .map(|sheet| {
+            let (Value::String(name), Value::Case(kind)) =
+                (field(sheet, "name"), field(sheet, "kind"))
+            else {
+                panic!("{sheet:?} is not a sheet's shape");
+            };
+            (name.clone(), kind.clone())
+        })
+        .collect();
+    assert_eq!(
+        kinds,
+        vec![
+            ("Shop".to_owned(), "Worksheet".to_owned()),
+            ("Sales chart".to_owned(), "Chartsheet".to_owned()),
+        ]
+    );
+    let chart = read.failure(
+        "readerRows",
+        vec![options("Sales chart").value(), Value::Uint(1)],
+    );
+    assert!(chart.contains("is a chart. It has no rows"), "{chart}");
     block_on(read.request.end()).expect("the request ends");
 }
 

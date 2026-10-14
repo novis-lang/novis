@@ -1,0 +1,61 @@
+<?nvs
+// Shows a gate that writes a short message for each reason a route method did not run.
+use Core\Http\Method;
+use Core\Router\Refusal;
+
+class Shop
+{
+    #[Core\Route(path: "/products/{id}", method: Method::Get, name: "Shop::product")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function product(int $id): void
+    {
+        echo 'product ', $id;
+    }
+
+    #[Core\Route(path: "/admin", method: Method::Get, name: "Shop::admin")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function admin(): void
+    {
+        echo 'admin page';
+    }
+}
+
+class Gate implements Core\Router\Gate
+{
+    // This gate does not allow the admin page.
+    public function allows(Core\Router\Match $route): bool
+    {
+        return $route->name() != 'Shop::admin';
+    }
+
+    // `dispatch` already set the status for the reason. This method writes only the body.
+    public function refused(Refusal $reason, ?Core\Router\Match $route): void
+    {
+        echo match ($reason) {
+            Refusal::NotFound => 'This page does not exist.',
+            Refusal::MethodNotAllowed => 'This page does not accept this method.',
+            Refusal::BadCapture => 'This address is not valid.',
+            Refusal::Denied, Refusal::Csrf => 'You cannot open this page.',
+            Refusal::UnknownMethod, Refusal::BodyTooLarge => 'The request was not accepted.',
+        };
+    }
+
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void
+    {
+        echo 'Something went wrong.';
+    }
+}
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    Core\Router::dispatch(new Gate());
+} else {
+    // This prints 200, 404, 405 and 403, each with its body.
+    var $found = Core\Test::request(Method::Get, '/products/7');
+    echo $found->status(), ' ', $found->body(), "\n";
+    var $missing = Core\Test::request(Method::Get, '/basket');
+    echo $missing->status(), ' ', $missing->body(), "\n";
+    var $wrong = Core\Test::request(Method::Delete, '/products/7');
+    echo $wrong->status(), ' ', $wrong->body(), "\n";
+    var $denied = Core\Test::request(Method::Get, '/admin');
+    echo $denied->status(), ' ', $denied->body(), "\n";
+}

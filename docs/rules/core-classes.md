@@ -3,7 +3,7 @@
 
 # The Core classes
 
-*16 of 115 rules below are **designed** rather than shipped, and are marked where they appear.*
+*4 of 115 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="core-classes-cli-arguments"></a>
 
@@ -4272,7 +4272,7 @@ contained trap or a whole page (`crates/nvs-ext/tests/image_decode.rs`). The thr
 
 <a id="core-classes-spreadsheet-has-no-io"></a>
 
-## `Novis\Spreadsheet` is a built-in component that never touches disk, fetches nothing and executes nothing it reads  *(designed — owned by goal spreadsheet)*
+## `Novis\Spreadsheet` is a built-in component that never touches disk, fetches nothing and executes nothing it reads
 
 `rule:core-classes/spreadsheet-has-no-io`
 
@@ -4375,7 +4375,7 @@ surfaced as data and nothing resolved.
 
 <a id="core-classes-spreadsheet-roster"></a>
 
-## `Novis\Spreadsheet` is `Workbook`, `Sheet`, `Written`, `Export`, `Reader`, `Template`, `Style`, `Cell`, `Formula`, `Chart` and `CellError`, with `Engine` the manifest class  *(designed — owned by goal spreadsheet)*
+## `Novis\Spreadsheet` is `Workbook`, `Sheet`, `Written`, `Export`, `Reader`, `Template`, `Style`, `Cell`, `Formula`, `Chart` and `CellError`, with `Engine` the manifest class
 
 `rule:core-classes/spreadsheet-roster`
 
@@ -4423,10 +4423,13 @@ a lying record length, a bomb — throws `ParseError`. Anything else the compone
 `RuntimeError`. A trap throws `ExtensionError`, and the request's memory or CPU cap ends the request
 ([`packaging/a-guest-crash-throws`](packaging.md#packaging-a-guest-crash-throws)).
 
+**On disk.** Every member the table names but `Cell::rich`, in `extensions/spreadsheet/nvs/`, and
+the enums in `extensions/spreadsheet/manifest.json`. `Visibility` is at namespace scope with the
+style enums, not owned by `Reader`. A `Style` also has the readonly `fields` and `key` that
+`Workbook` reads.
+
 **Not shipped.** `Cell::rich`: the writer writes rich text, and no Novis method reaches it, so a
-`Cell` is `of` alone. `Visibility` is at namespace scope with the style enums, not owned by `Reader`.
-A `Style` also has the readonly `fields` and `key` that `Workbook` reads. Every other member the
-table names is on disk.
+`Cell` is `of` alone.
 
 **Declined:**
 - **One `Spreadsheet` class with every member.** Writing, reading and filling share no state, and a
@@ -4440,7 +4443,7 @@ table names is on disk.
 
 <a id="core-classes-spreadsheet-writes-as-a-stream"></a>
 
-## A workbook is written as a stream to the target it was created for, one sheet after another, and finished with `finish()`  *(designed — owned by goal spreadsheet)*
+## A workbook is written as a stream to the target it was created for, one sheet after another, and finished with `finish()`
 
 `rule:core-classes/spreadsheet-writes-as-a-stream`
 
@@ -4508,11 +4511,13 @@ paragraphs, written down once.
   the request's cap and freed when the request ends. A million rows cost one batch, never the sheet,
   so a large export runs in the request and not in a queue.
 
-**Not shipped.** The streaming writer (`extensions/spreadsheet/src/writer.rs`), the four targets,
+**On disk.** The streaming writer (`extensions/spreadsheet/src/writer.rs`), the four targets,
 `sheet`, `finish`, `Written`, `Sheet`'s `add` and `addAll` in batches of 1,000 rows, `fromRows` and
-`Export` are on disk (`extensions/spreadsheet/nvs/Workbook.nvs`, `Sheet.nvs`, `Export.nvs`), with
-every sheet option above, the sheet-name rules, and the row options `height`, `hidden`, `level` and
-`style`, and so are `define` and CSV. Not on disk: the cut-off download, which the server cannot do yet
+`Export` (`extensions/spreadsheet/nvs/Workbook.nvs`, `Sheet.nvs`, `Export.nvs`), with every sheet
+option above, the sheet-name rules, the row options `height`, `hidden`, `level` and `style`,
+`define` and CSV.
+
+**Not shipped.** The cut-off download, which the server cannot do yet
 (`data/gaps/nvs-server/a-streamed-body-cannot-be-cut-off.json`).
 
 **Declined:**
@@ -4533,7 +4538,7 @@ every sheet option above, the sheet-name rules, and the row options `height`, `h
 
 <a id="core-classes-spreadsheet-value-types"></a>
 
-## Every Novis value writes as one cell type and every cell reads as one Novis type, and an `Instant` needs a zone  *(designed — owned by goal spreadsheet)*
+## Every Novis value writes as one cell type and every cell reads as one Novis type, and an `Instant` needs a zone
 
 `rule:core-classes/spreadsheet-value-types`
 
@@ -4592,11 +4597,10 @@ The tradeoffs. **Usability:** an import gets an `int` where the sheet has a whol
 where it has a date, with no parse in the program. **Simplicity:** one table per direction, and the
 display text is one option away when the table is not what the program wants.
 
-**Not shipped.** The write table and the zone rule are on disk: the Novis half picks a value's
-case (`extensions/spreadsheet/nvs/Workbook.nvs`) and the component writes it
-(`extensions/spreadsheet/src/cells.rs`). The read table and `{text: ...}` are on disk
-(`extensions/spreadsheet/src/read/mod.rs`, `extensions/spreadsheet/src/format/mod.rs`). `Cell::of`
-is not.
+**On disk.** The write table, `Cell::of` and the zone rule: the Novis half picks a value's case
+(`extensions/spreadsheet/nvs/Workbook.nvs`) and the component writes it
+(`extensions/spreadsheet/src/cells.rs`). The read table and `{text: ...}`
+(`extensions/spreadsheet/src/read/mod.rs`, `extensions/spreadsheet/src/format/mod.rs`).
 
 **Declined:**
 - **A `string` that looks like a number written as a number.** The cell would depend on the content,
@@ -4612,7 +4616,7 @@ is not.
 
 <a id="core-classes-spreadsheet-formula-is-a-value"></a>
 
-## Only an explicit `Formula` value writes a formula cell, so an export built from user data is inert  *(designed — owned by goal spreadsheet)*
+## Only an explicit `Formula` value writes a formula cell, so an export built from user data is inert
 
 `rule:core-classes/spreadsheet-formula-is-a-value`
 
@@ -4648,7 +4652,7 @@ The component's tests owe a `tainted` string beginning `=` that lands as a text 
 expression as a `Formula` value that lands as a formula cell, both asserted on the written bytes
 rather than the builder's state.
 
-**Not shipped.** Nothing: `Formula`, the three helpers and the text-cell rule are on disk
+**On disk.** `Formula`, the three helpers and the text-cell rule
 (`extensions/spreadsheet/nvs/Formula.nvs`, `Sheet.nvs`).
 
 **Declined:**
@@ -4661,7 +4665,7 @@ rather than the builder's state.
 
 <a id="core-classes-spreadsheet-styles-and-defaults"></a>
 
-## A `Style` layers column, row and cell, and a sheet with a header row is bold, bordered, frozen, filtered and auto-width by default  *(designed — owned by goal spreadsheet)*
+## A `Style` layers column, row and cell, and a sheet with a header row is bold, bordered, frozen, filtered and auto-width by default
 
 `rule:core-classes/spreadsheet-styles-and-defaults`
 
@@ -4726,10 +4730,12 @@ a sheet.
 - **Memory:** per writing request, one entry per distinct style combination until `finish()`, and the
   auto-width window of at most 1,000 rows before the first chunk leaves.
 
-**Not shipped.** The style enums under `Style`. `Style::of`, `Cell::of`, the row's `style`, `columns`
-with `header`, `width`, `format`, `style`, `hidden` and `formula`, the header row and its four
-defaults, and auto width through the number-format renderer are on disk
-(`extensions/spreadsheet/nvs/Workbook.nvs`, `Style.nvs`, `extensions/spreadsheet/src/width.rs`).
+**On disk.** `Style::of`, `Cell::of`, the row's `style`, `columns` with `header`, `width`, `format`,
+`style`, `hidden` and `formula`, the header row and its four defaults, and auto width through the
+number-format renderer (`extensions/spreadsheet/nvs/Workbook.nvs`, `Style.nvs`,
+`extensions/spreadsheet/src/width.rs`).
+
+**Not shipped.** The style enums under `Style`: they are at namespace scope.
 
 **Declined:**
 - **A style as an options bag on every call, with no value.** A report repeats the same few styles on
@@ -4746,7 +4752,7 @@ defaults, and auto width through the number-format renderer are on disk
 
 <a id="core-classes-spreadsheet-sheet-end-parts"></a>
 
-## Merges, links, notes, validation, tables, conditional formats, images and charts may point at any written row until the sheet ends  *(designed — owned by goal spreadsheet)*
+## Merges, links, notes, validation, tables, conditional formats, images and charts may point at any written row until the sheet ends
 
 `rule:core-classes/spreadsheet-sheet-end-parts`
 
@@ -4828,8 +4834,12 @@ and they are small beside the rows.
   the same height, and one flag per column, until the sheet is finished. A sheet with no custom height
   keeps none, and one whose every row differs from the row before keeps 8 MB at Excel's 1,048,576 rows.
 
-**Not shipped.** `Cell::rich` ([`core-classes/spreadsheet-roster`](core-classes.md#core-classes-spreadsheet-roster)). Every other sheet-end part
-is on disk (`extensions/spreadsheet/nvs/Sheet.nvs`).
+**On disk.** Every sheet-end part above, called from `extensions/spreadsheet/nvs/Sheet.nvs` and
+written by `extensions/spreadsheet/src/tail.rs`, `table.rs`, `conditional.rs`, `drawing.rs` and
+`chart.rs`.
+
+**Not shipped.** `Cell::rich`, so no Novis method writes rich text in one cell
+([`core-classes/spreadsheet-roster`](core-classes.md#core-classes-spreadsheet-roster)).
 
 **Declined:**
 - **Pivot tables, sparklines and threaded comments.** Each is a part with its own cache or model, for
@@ -4849,7 +4859,7 @@ is on disk (`extensions/spreadsheet/nvs/Sheet.nvs`).
 
 <a id="core-classes-spreadsheet-template-fill"></a>
 
-## A template fill copies every part but the filled cells, repeats the rows a list marks, and shifts every reference below them  *(designed — owned by goal spreadsheet)*
+## A template fill copies every part but the filled cells, repeats the rows a list marks, and shifts every reference below them
 
 `rule:core-classes/spreadsheet-template-fill`
 
@@ -4892,11 +4902,13 @@ memory:** the repeated rows stream, so a template of a thousand items costs what
   the drawings, the parts the shift rewrites), the template's sheet rows as they stream through, and
   one batch of repeated rows, freed when the request ends.
 
+**On disk.** `Template::open`, `set` and `fill`, and an `Export` from `fill` to all four targets
+(`extensions/spreadsheet/nvs/Template.nvs`, `extensions/spreadsheet/src/template/`).
+
 **Not shipped.** Blocks on more than one sheet: every block is on one sheet, or `fill` throws. A
 shared formula (`<f t="shared">`) in a repeated row is copied as it is, so its copies share one
 `si`, and an `x14` conditional format under `extLst` is not moved. A list is an array: an
-`Iterator` in `$data` is not a list. `Template::open`, `set` and `fill`, and an `Export` from `fill`
-to all four targets, are on disk.
+`Iterator` in `$data` is not a list.
 
 **Declined:**
 - **A list inside a list.** It needs nested blocks whose shifts compound, for a layout almost nobody
@@ -4912,7 +4924,7 @@ to all four targets, are on disk.
 
 <a id="core-classes-spreadsheet-reads-as-a-stream"></a>
 
-## xlsx and xlsb are read through byte ranges a host import serves from the lent source, into typed rows keyed by their row numbers  *(designed — owned by goal spreadsheet)*
+## xlsx and xlsb are read through byte ranges a host import serves from the lent source, into typed rows keyed by their row numbers
 
 `rule:core-classes/spreadsheet-reads-as-a-stream`
 
@@ -5023,12 +5035,15 @@ one. The engine's resource is `reading`, because a manifest's resource is a clas
 An xlsb stores a formula as parsed tokens and not as text, so with `formulas: true` an xlsb cell
 reads as its stored result and gives no `Formula`.
 
+**On disk.** `Reader::open`, `sheets()`, `rows()` and the extras read xlsx, xlsm, xlsb, xls, ods
+and CSV, from `bytes` or an open `Core\IO\File` (`extensions/spreadsheet/nvs/Reader.nvs`,
+`extensions/spreadsheet/src/read/`). A CSV is read by `Core\Csv` in the Novis half
+([`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io)).
+
 **Not shipped.** `links`, `notes`, `names`, `tables` and `images` from an xlsb, xls or ods file, and
 `properties` from an xls or ods file: each throws naming the format. An ods cell's `text` is
 rendered under the default format of its type, and not under the file's own number style.
-Month and day names are English in every `locale`. `Reader::open`,
-`sheets()` and `rows()` read xlsx, xlsm, xlsb, xls, ods and CSV, from `bytes` or an open
-`Core\IO\File`; a CSV is read by `Core\Csv` in the Novis half ([`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io)).
+Month and day names are English in every `locale`.
 
 **Declined:**
 - **A pull loop in the Novis half.** It costs a guest return and a Novis call per block on the request
@@ -5045,7 +5060,7 @@ Month and day names are English in every `locale`. `Reader::open`,
 
 <a id="core-classes-spreadsheet-bulk-boundary"></a>
 
-## A workbook crosses the boundary a batch at a time, never a cell at a time, and Excel's grid is the only limit it adds  *(designed — owned by goal spreadsheet)*
+## A workbook crosses the boundary a batch at a time, never a cell at a time, and Excel's grid is the only limit it adds
 
 `rule:core-classes/spreadsheet-bulk-boundary`
 
@@ -5067,8 +5082,8 @@ a hint: memory is measured as it is spent.
 - **Memory:** a batch of rows on each side of the boundary, never the sheet. Each crossing is charged
   to the request while it is converted (`crates/nvs-ext/src/call.rs`'s module doc).
 
-**Not shipped.** Nothing: every limit above throws (`extensions/spreadsheet/src/`, and the reader's
-under `extensions/spreadsheet/src/read/`).
+**On disk.** Every limit above throws: the writer's in `extensions/spreadsheet/src/`, and the
+reader's under `extensions/spreadsheet/src/read/`.
 
 **Declined:**
 - **A cell cap with its own knob, read from the declared dimensions.** A streamed read holds a batch
@@ -5082,7 +5097,7 @@ under `extensions/spreadsheet/src/read/`).
 
 <a id="core-classes-spreadsheet-evaluation-and-roster"></a>
 
-## The roster reads xlsx, xlsm, xlsb, xls, ods and CSV and writes xlsx and CSV, a macro is never written, and nothing evaluates  *(designed — owned by goal spreadsheet)*
+## The roster reads xlsx, xlsm, xlsb, xls, ods and CSV and writes xlsx and CSV, a macro is never written, and nothing evaluates
 
 `rule:core-classes/spreadsheet-evaluation-and-roster`
 
@@ -5117,8 +5132,10 @@ writing ods; neither is in the first wave's acceptance. An evaluate call would r
 functions and references it could not compute, so a test asserts that list is empty — the visibility
 rule the PDF component applies to dropped CSS ([`core-classes/pdf-css-subset`](core-classes.md#core-classes-pdf-css-subset)).
 
-**Not shipped.** An evaluate call and writing ods, both second-wave work. Every format the roster
-reads and writes is on disk.
+**On disk.** Every format the roster reads (`extensions/spreadsheet/src/read/`) and writes
+(`extensions/spreadsheet/src/writer.rs`, and CSV in `extensions/spreadsheet/nvs/`).
+
+**Not shipped.** An evaluate call and writing ods, the second wave.
 
 **Declined:**
 - **Evaluating formulas on read.** Recalculating on open turns reading an attacker's upload into
@@ -5132,7 +5149,7 @@ reads and writes is on disk.
 
 <a id="core-classes-spreadsheet-output-is-inert"></a>
 
-## The writer and the template filler embed no executable content and no entropy, so equal input gives byte-equal output  *(designed — owned by goal spreadsheet)*
+## The writer and the template filler embed no executable content and no entropy, so equal input gives byte-equal output
 
 `rule:core-classes/spreadsheet-output-is-inert`
 
@@ -5148,7 +5165,9 @@ and it exists for the same reason: a test that cannot compare bytes ends up comp
 The component's tests owe a filled `.xlsm` template whose output a scanner finds no `vbaProject`
 part in, and the same input written twice and filled twice, each pair compared byte for byte.
 
-**Not shipped.** Nothing: the writer and the template filler both hold the rule.
+**On disk.** The writer (`extensions/spreadsheet/src/writer.rs`) and the template filler
+(`extensions/spreadsheet/src/template/`) both hold the rule, and `extensions/spreadsheet/tests/excel.rs`
+reads what each makes back through two readers.
 
 <sub>See also [`core-classes/pdf-output-is-inert`](core-classes.md#core-classes-pdf-output-is-inert), [`core-classes/spreadsheet-evaluation-and-roster`](core-classes.md#core-classes-spreadsheet-evaluation-and-roster).</sub>
 

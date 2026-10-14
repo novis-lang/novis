@@ -16,8 +16,8 @@ a hint: memory is measured as it is spent.
 - **Memory:** a batch of rows on each side of the boundary, never the sheet. Each crossing is charged
   to the request while it is converted (`crates/nvs-ext/src/call.rs`'s module doc).
 
-**Not shipped.** Nothing: every limit above throws (`extensions/spreadsheet/src/`, and the reader's
-under `extensions/spreadsheet/src/read/`).
+**On disk.** Every limit above throws: the writer's in `extensions/spreadsheet/src/`, and the
+reader's under `extensions/spreadsheet/src/read/`.
 
 **Declined:**
 - **A cell cap with its own knob, read from the declared dimensions.** A streamed read holds a batch

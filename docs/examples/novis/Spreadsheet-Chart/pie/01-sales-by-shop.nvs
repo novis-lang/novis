@@ -1,0 +1,23 @@
+<?nvs
+// Shows a pie chart with one slice for the sales of each shop.
+use Novis\Spreadsheet\Chart;
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet('Shops');
+$sheet->addAll([
+    ['shop' => 'North', 'sales' => 340],
+    ['shop' => 'South', 'sales' => 210],
+    ['shop' => 'East', 'sales' => 95],
+]);
+
+// Each value is one slice. The shop names are the names of the slices in the legend.
+var $chart = Chart::pie({ title: 'Sales by shop' })
+    ->series($sheet->column('sales'), { categories: $sheet->column('shop') });
+$sheet->chart('D2', $chart);
+bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+
+// `Core\Zip::read` returns the XML of the chart. These lines check what it contains.
+var $xml = Core\Zip::read($file, 'xl/charts/chart1.xml') as string;
+echo Core\Str::contains($xml, '<c:pieChart>') ? 'a pie chart' : 'another type', "\n";
+echo Core\Str::contains($xml, '<c:valAx>') ? 'with axes' : 'without axes', "\n";

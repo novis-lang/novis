@@ -1,0 +1,25 @@
+<?nvs
+// Lists the notes of a price sheet, as an import does to show the notes beside each row.
+// bench: iterations 32
+// bench: complexity constant
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        var $book = Workbook::createInMemory();
+        $book->sheet('Prices')->note('B2', 'New supplier.', { author: 'Ann' })->note('B3', 'Check this price.')->addAll([['Item', 'Price'], ['Widget', 2.5], ['Gadget', 4.0]]);
+        Reader $reader = Reader::open($book->finish()->bytes ?? Core\Bytes::fill(0, 0));
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + Core\Arr::count($reader->notes('Prices'));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(32), "\n";

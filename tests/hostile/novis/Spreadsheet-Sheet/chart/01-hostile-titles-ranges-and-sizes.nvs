@@ -1,0 +1,45 @@
+<?nvs
+// Attack: a request builds charts with hostile titles and series names, ranges of other files, huge sizes, and very many series.
+// `chart` should write each title and name as data, and throw an error for a chart Excel cannot open.
+use Novis\Spreadsheet\Chart;
+use Novis\Spreadsheet\Workbook;
+
+class Attack
+{
+    // This method adds `$chart` at E2 and prints whether the file was written, or the class of the error.
+    public static function attempt(int $step, Chart $chart, float $width): void
+    {
+        try {
+            var $book = Workbook::createInMemory();
+            var $sheet = $book->sheet('Shop');
+            $sheet->addAll([['month' => 'January', 'sales' => 120], ['month' => 'February', 'sales' => 150]]);
+            $sheet->chart('E2', $chart, { width: $width });
+            bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+            echo 'step ', $step, ' wrote ', Core\Bytes::length($file) > 0 ? 'a file' : 'nothing', "\n";
+        } catch (Throwable $e) {
+            echo 'step ', $step, ' stopped ', $e::class, "\n";
+        }
+    }
+}
+
+// 1. A title and a series name with markup, and a title of 100,000 characters.
+Attack::attempt(1, Chart::column({ title: '</a:t><x>' })->series('B2:B3', { name: '<script>alert(1)</script>' }), 480.0);
+Attack::attempt(1, Chart::line({ title: Core\Str::repeat('t', 100000) })->series('B2:B3'), 480.0);
+
+// 2. Ranges of another file, a formula, and text that is not a range.
+Attack::attempt(2, Chart::column()->series('[other.xlsx]Shop!B2:B3'), 480.0);
+Attack::attempt(2, Chart::column()->series('=WEBSERVICE("https://example.com")'), 480.0);
+Attack::attempt(2, Chart::column()->series('B2:B3', { categories: '</c:f><x>' }), 480.0);
+
+// 3. A colour that is not a colour, a negative width, and a width of ten million pixels.
+Attack::attempt(3, Chart::pie()->series('B2:B3', { color: 'url(javascript:alert(1))' }), 480.0);
+Attack::attempt(3, Chart::column()->series('B2:B3'), -1.0);
+Attack::attempt(3, Chart::column()->series('B2:B3'), 10000000.0);
+
+// 4. A chart with no series, and a chart with 1,000 series.
+Attack::attempt(4, Chart::column(), 480.0);
+var $many = Chart::line();
+for (int $n = 0; $n < 1000; $n++) {
+    $many = $many->series('B2:B3', { name: "Series {$n}" });
+}
+Attack::attempt(4, $many, 480.0);

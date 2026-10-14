@@ -56,6 +56,7 @@ mod xls;
 pub mod xml;
 pub mod zip;
 
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use crate::format::{Options, Separators, Value, locale};
@@ -758,22 +759,32 @@ impl Reader {
             }
         };
         let last = row.cells.iter().map(|cell| cell.column).max().unwrap_or(0);
-        let mut names: Vec<String> = Vec::new();
+        let values: HashMap<u64, &Read> = row
+            .cells
+            .iter()
+            .filter_map(|cell| Some((cell.column, cell.value.as_ref()?)))
+            .collect();
+        // A header row of many equal cells is an upload's to send, so a name is found in linear
+        // time: `taken` has every name given, and `counts` the last number tried for each base,
+        // which every earlier number of that base is already taken past.
+        let mut names: Vec<String> = Vec::with_capacity(row.cells.len());
+        let mut taken: HashSet<String> = HashSet::with_capacity(row.cells.len());
+        let mut counts: HashMap<String, u64> = HashMap::new();
         for column in 1..=last {
-            let text = row
-                .cells
-                .iter()
-                .find(|cell| cell.column == column)
-                .and_then(|cell| cell.value.as_ref())
-                .map(header_text)
+            let text = values
+                .get(&column)
+                .map(|value| header_text(value))
                 .filter(|text| !text.is_empty());
             let base = text.unwrap_or_else(|| letters(column));
             let mut name = base.clone();
-            let mut count = 1;
-            while names.contains(&name) {
-                count += 1;
-                name = format!("{base} ({count})");
+            if taken.contains(&name) {
+                let count = counts.entry(base.clone()).or_insert(1);
+                while taken.contains(&name) {
+                    *count += 1;
+                    name = format!("{base} ({count})");
+                }
             }
+            taken.insert(name.clone());
             names.push(name);
         }
         Ok(names)

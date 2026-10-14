@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to link each product to its page on a website.
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet('Products');
+$sheet->addAll([['product' => 'Widget', 'page' => 'Open'], ['product' => 'Gadget', 'page' => 'Open']]);
+
+// `text` is the text the cell shows. `tooltip` is the text over the link.
+$sheet->link('B2', 'https://example.com/widget', { text: 'Widget page', tooltip: 'Opens the website' });
+$sheet->link('B3', 'https://example.com/gadget');
+bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+
+foreach (Reader::open($file)->links('Products') as var $link) {
+    echo $link->anchor, ' -> ', $link->target, ', text: ', $link->text ?? 'none', "\n";
+}

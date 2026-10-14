@@ -1,10 +1,16 @@
 {
   "title": "Merges, links, notes, validation, tables, conditional formats, images and charts may point at any written row until the sheet ends",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "core-classes/spreadsheet-writes-as-a-stream",
     "core-classes/spreadsheet-formula-is-a-value"
   ],
-  "guardedBy": [],
-  "goal": "spreadsheet"
+  "guardedBy": [
+    "extensions/spreadsheet/tests/sheet_end.rs",
+    "extensions/spreadsheet/tests/chart.rs",
+    "extensions/spreadsheet/tests/excel.rs",
+    "tests/conformance/novis/spreadsheet-a-sheet-part-writes-its-kind-and-operator.nvst",
+    "tests/conformance/novis/spreadsheet-a-report-carries-a-chart.nvst",
+    "tests/conformance/novis/spreadsheet-an-image-of-another-format-throws.nvst"
+  ]
 }

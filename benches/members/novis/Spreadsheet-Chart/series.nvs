@@ -1,0 +1,23 @@
+<?nvs
+// Adds a series with its labels, name and color to a column chart, as every chart of a report does.
+// bench: iterations 32
+// bench: complexity constant
+use Novis\Spreadsheet\Chart;
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        var $start = Chart::column({ title: 'Sales by month' });
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            var $chart = $start->series('B2:B13', { categories: 'A2:A13', name: 'Sales', color: '#1F77B4' });
+            $total = $total + Core\Arr::count($chart->series);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(32), "\n";

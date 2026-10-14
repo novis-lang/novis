@@ -1,0 +1,33 @@
+<?nvs
+// Sorts a product table by the column a visitor picks in the web address.
+
+class Product {
+    public string $name;
+    public int $price;
+    public int $stock;
+
+    public function constructor(string $name, int $price, int $stock) {
+        $this->name = $name;
+        $this->price = $price;
+        $this->stock = $stock;
+    }
+}
+
+array<Product> $products = [
+    new Product("Lamp", 40, 3),
+    new Product("Chair", 85, 12),
+    new Product("Desk", 120, 1),
+];
+
+// The address ends with `?sort=price`. `as ?property<Product>` converts "price"
+// to a property key. A name that is not a public property gives `null`.
+?property<Product> $picked = Core\Request::query("sort") as ?property<Product>;
+
+// Without a valid column, the table is sorted by "name".
+property<Product> $column = $picked ?? "name" as property<Product>;
+
+// `$product->$column` reads the property that the key names.
+array<Product> $sorted = Core\Arr::sort($products, {by: fn(Product $product) => $product->$column});
+foreach ($sorted as Product $product) {
+    echo $product->name, " ", $product->$column, "\n";
+}

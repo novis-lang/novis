@@ -1,0 +1,21 @@
+<?nvs
+// Shows a doughnut chart with the legend on the left and the value on each part.
+use Novis\Spreadsheet\Chart;
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet('Tickets');
+$sheet->addAll([
+    ['state' => 'Open', 'count' => 12],
+    ['state' => 'Waiting', 'count' => 5],
+    ['state' => 'Closed', 'count' => 40],
+]);
+
+var $chart = Chart::doughnut({ legend: 'left', labels: true })
+    ->series($sheet->column('count'), { categories: $sheet->column('state'), name: 'Tickets' });
+$sheet->chart('D2', $chart);
+bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+
+var $xml = Core\Zip::read($file, 'xl/charts/chart1.xml') as string;
+echo Core\Str::contains($xml, '<c:legendPos val="l"/>') ? 'the legend is on the left' : 'the legend is elsewhere', "\n";
+echo Core\Str::contains($xml, '<c:showVal val="1"/>') ? 'each part shows its value' : 'no values', "\n";

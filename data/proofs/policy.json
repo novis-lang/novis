@@ -46,6 +46,11 @@
       "perf": "`new Cell` stores two values and calls nothing; `Cell::of` builds one on every call, so its figure includes this one.",
       "hostile": "`new Cell` stores two typed read-only values and calls nothing, so a wrong style does not compile; a hostile value is checked when the row is written, and the attack of `Cell::of` sends one."
     },
+    "Novis\\Spreadsheet\\Chart::constructor": {
+      "examples": "`new Chart` stores eight values and calls nothing; a program starts a chart with `Chart::column` or another type, and the examples of those methods and of `series` and `combine` show every way a chart is built.",
+      "perf": "`new Chart` stores eight values and calls nothing; every type method, `series` and `combine` build one on every call, so their figures include this one.",
+      "hostile": "`new Chart` stores eight typed read-only values and calls nothing, so a wrong value does not compile; the titles, ranges, names and colors a request sends are checked when `Sheet::chart` places the chart, and the attacks of the type methods, `series` and `combine` send hostile ones."
+    },
     "Novis\\Spreadsheet\\Export::constructor": {
       "examples": "`new Export` stores its function and options and calls nothing; a program meets an `Export` from `Workbook::fromRows` or `Template::fill`, and the examples of `save`, `to`, `bytes` and `download` show it, one of them through `new Export`.",
       "perf": "`new Export` stores three values and calls nothing; `Workbook::fromRows` builds one on every call, so the benches of `download`, `save`, `to` and `bytes` include this one.",
@@ -55,6 +60,16 @@
       "examples": "`new Formula` stores two values and calls nothing; a program makes a formula with `Formula::of` and meets one from `Reader` with `formulas: true`, and the examples of `Formula::of` show both.",
       "perf": "`new Formula` stores two values and calls nothing; `Formula::of` builds one on every call, so its figure includes this one.",
       "hostile": "`new Formula` stores two typed read-only values and calls nothing, so a wrong value does not compile; formula text and cached values are written when the row is written, and the attack of `Formula::of` sends hostile ones."
+    },
+    "Novis\\Spreadsheet\\Row::constructor": {
+      "examples": "`new Row` stores two values and calls nothing; a program meets a `Row` from `Reader::rows`, whose examples read both of them.",
+      "perf": "`new Row` stores two values and calls nothing; `Reader::rows` builds one for each row it reads, so its figure includes this one.",
+      "hostile": "`new Row` stores two typed read-only values and calls nothing, so a wrong value does not compile; the values of a hostile file are read by `Reader::rows`, whose attack sends them."
+    },
+    "Novis\\Spreadsheet\\Sheet::constructor": {
+      "examples": "`new Sheet` stores six values and calls nothing; a program meets a `Sheet` from `Workbook::sheet`, and the examples of that method and of `add` show how a sheet is started and filled.",
+      "perf": "`new Sheet` stores six values and calls nothing; `Workbook::sheet` builds one on every call, so its figure includes this one.",
+      "hostile": "`new Sheet` stores six typed read-only values and calls nothing, so a wrong value does not compile; the rows and parts a request sends reach the sheet through `add` and the part methods, whose attacks send hostile ones."
     },
     "Novis\\Spreadsheet\\Style::constructor": {
       "examples": "`new Style` stores two values and calls nothing; a program makes a style with `Style::of`, whose examples show every way a style is used.",

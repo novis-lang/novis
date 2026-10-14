@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to read the time a workbook was created and show it in a time zone.
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+var $made = Core\Time::parse('2024-03-01 09:30', 'yyyy-MM-dd HH:mm', Core\Time\Zone::of('UTC'))->toInstant();
+var $book = Workbook::createInMemory({ properties: { created: $made } });
+$book->sheet('Orders')->add(['Order']);
+var $reader = Reader::open($book->finish()->bytes ?? Core\Bytes::fill(0, 0));
+
+// `created` is an `Instant`, one moment with no time zone. `in` gives the local time of a zone.
+var $created = $reader->properties()->created;
+if ($created != null) {
+    echo 'created: ', $created->toIso(), "\n";
+    echo 'in Berlin: ', $created->in(Core\Time\Zone::of('Europe/Berlin'))->format('yyyy-MM-dd HH:mm'), "\n";
+}

@@ -1,0 +1,19 @@
+<?nvs
+// Shows the error for a rule that has no style, and for a kind that does not exist.
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet('Orders');
+
+// A `cell` rule changes the look of a cell, so it needs a `style`.
+try {
+    $sheet->conditional('C2:C9', { kind: 'cell', operator: 'equal', values: ['"open"'] });
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+
+try {
+    $sheet->conditional('C2:C9', { kind: 'stars' });
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}

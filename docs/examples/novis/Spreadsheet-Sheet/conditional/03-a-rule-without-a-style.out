@@ -1,0 +1,2 @@
+The cell conditional format over `C2:C9` needs a `style` for the cells it formats.
+The conditional format `kind` is `'cell'`, `'formula'`, `'colorScale'`, `'dataBar'`, `'iconSet'`, `'top'`, `'bottom'`, `'duplicates'` or `'unique'`. It has `'stars'`.

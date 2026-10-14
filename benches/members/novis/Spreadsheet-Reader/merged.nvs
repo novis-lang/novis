@@ -1,0 +1,25 @@
+<?nvs
+// Lists the merged cells of a report sheet, as an import does before it reads the rows.
+// bench: iterations 32
+// bench: complexity constant
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        var $book = Workbook::createInMemory();
+        $book->sheet('Report')->merge('A1:C1')->merge('A3:A4')->addAll([['Sales'], ['Shop', 'Month', 'Sales'], ['North', 'May', 120], [null, 'June', 95]]);
+        Reader $reader = Reader::open($book->finish()->bytes ?? Core\Bytes::fill(0, 0));
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + Core\Arr::count($reader->merged('Report'));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(32), "\n";

@@ -1100,6 +1100,51 @@ pub(crate) fn written_class_name(analysed: &Analysed, offset: BytePos) -> Option
     })
 }
 
+/// The operand of `as property<T>` or `as ?property<T>` the cursor at `offset`
+/// is inside, quotes included, and the class `T` names.
+///
+/// `rule:types/property-key`'s conversion, found the way
+/// [`written_class_name`] finds `as class<T>`'s: the type the conversion wrote
+/// ends where the conversion ends, and its `T` is read off the type the
+/// checker recorded for it. The cursor has to be between the quotes.
+pub(crate) fn written_property_key(analysed: &Analysed, offset: BytePos) -> Option<(Span, QName)> {
+    let path = analysed.index.at(offset);
+    let [string, conversion, ..] = path.nodes() else {
+        return None;
+    };
+    if string.kind != "Str"
+        || conversion.kind != "Conversion"
+        || !(string.span.start < offset && offset < string.span.end)
+    {
+        return None;
+    }
+    let entry = analysed
+        .loaded
+        .iter()
+        .find(|loaded| loaded.id == analysed.entry)?;
+    let end = conversion.span.end;
+    let ty = written_types_in(&entry.stmts, end, end)
+        .into_iter()
+        .find(|ty| ty.span.end == end && ty.span.start >= string.span.end)?;
+    let interner = &analysed.interner;
+    let declared = analysed.exprs.declared_ty(ty.span)?;
+    let mut keys = match interner.get(declared) {
+        Ty::Union(members) => members.clone(),
+        _ => vec![declared],
+    };
+    keys.retain(|member| !matches!(interner.get(*member), Ty::Null));
+    let [key] = keys.as_slice() else {
+        return None;
+    };
+    let Ty::PropertyKey(argument) = interner.get(*key) else {
+        return None;
+    };
+    match interner.get(*argument) {
+        Ty::Class(qname, _) => Some((string.span, qname.clone())),
+        _ => None,
+    }
+}
+
 /// The `T` of a `class<T>` or a `?class<T>`, and `None` for any other type.
 fn class_ref_base(interner: &TypeInterner, ty: TypeId) -> Option<&QName> {
     let ty = match interner.get(ty) {

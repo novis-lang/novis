@@ -1,0 +1,30 @@
+<?nvs
+// Opens an invoice template from its bytes, as a shop does before it fills each order.
+// bench: iterations 32
+// bench: complexity constant
+use Novis\Spreadsheet\Template;
+use Novis\Spreadsheet\Workbook;
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        var $design = Workbook::createInMemory();
+        $design->sheet('Invoice')->addAll([
+            ['Invoice {{number}}', '{{customer}}'],
+            ['Item', 'Qty'],
+            ['{{items.name}}', '{{items.qty}}'],
+        ]);
+        bytes $template = $design->finish()->bytes ?? Core\Bytes::fill(0, 0);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            Template::open($template);
+            $total = $total + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(32), "\n";

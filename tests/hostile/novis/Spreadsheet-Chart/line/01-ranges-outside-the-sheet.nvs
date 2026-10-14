@@ -1,0 +1,43 @@
+<?nvs
+// Attack: a request gives line charts ranges that are reversed, too large, or outside the sheet.
+// Each range should be written as given or throw an error, and no other cell should be read.
+use Novis\Spreadsheet\Chart;
+use Novis\Spreadsheet\Workbook;
+
+class Attack
+{
+    // This method adds a line of `$values` at D2 and prints whether the file was written, or the class of the error.
+    public static function attempt(int $step, string $values): void
+    {
+        try {
+            var $book = Workbook::createInMemory();
+            var $sheet = $book->sheet('Blog');
+            $sheet->addAll([['day' => 'Monday', 'visitors' => 420], ['day' => 'Tuesday', 'visitors' => 515]]);
+            $sheet->chart('D2', Chart::line()->series($values));
+            bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+            echo 'step ', $step, ' wrote ', Core\Bytes::length($file) > 0 ? 'a file' : 'nothing', "\n";
+        } catch (Throwable $e) {
+            echo 'step ', $step, ' stopped ', $e::class, "\n";
+        }
+    }
+}
+
+// 1. A reversed range and a range of one cell.
+Attack::attempt(1, 'B3:B2');
+Attack::attempt(1, 'B2');
+
+// 2. Ranges past the last row and the last column of a sheet.
+Attack::attempt(2, 'B1:B1048577');
+Attack::attempt(2, 'XFE1:XFE3');
+Attack::attempt(2, 'B0:B3');
+Attack::attempt(2, 'B-1:B3');
+
+// 3. Ranges with numbers too large for any integer type.
+Attack::attempt(3, 'B1:B99999999999999999999999');
+Attack::attempt(3, Core\Str::repeat('Z', 10000) . '1:B2');
+
+// 4. Text that is close to a range, with spaces, a newline and two colons.
+Attack::attempt(4, ' B2:B3');
+Attack::attempt(4, "B2:B3\nC2");
+Attack::attempt(4, 'B2::B3');
+Attack::attempt(4, '');

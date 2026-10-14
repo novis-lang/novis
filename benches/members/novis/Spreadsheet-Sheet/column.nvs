@@ -1,0 +1,24 @@
+<?nvs
+// Finds the range of a column after the last row, as a report does to build its total formula.
+// bench: iterations 32
+// bench: complexity constant
+use Novis\Spreadsheet\Workbook;
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        var $book = Workbook::createInMemory();
+        var $sheet = $book->sheet('Sales');
+        $sheet->addAll([['shop' => 'North', 'sales' => 120], ['shop' => 'South', 'sales' => 80]]);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + Core\Str::length($sheet->column('sales'));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(32), "\n";

@@ -1,0 +1,39 @@
+<?nvs
+// Attack: a request asks for the address of cells outside the sheet, with keys that are ranges, formulas or very long text.
+// `cell` should return one plain address, or throw an error for a cell the sheet does not have.
+use Novis\Spreadsheet\Workbook;
+
+class Attack
+{
+    // This method prints the address of `$key` in row `$row`, or the class of the error.
+    public static function attempt(int $step, Novis\Spreadsheet\Sheet $sheet, string $key, int $row): void
+    {
+        try {
+            string $address = $sheet->cell($key, $row);
+            echo 'step ', $step, ' returned ', $address, "\n";
+        } catch (Throwable $e) {
+            echo 'step ', $step, ' stopped ', $e::class, "\n";
+        }
+    }
+}
+
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet('Shop');
+$sheet->add(['order' => 1042, 'total' => 19.9]);
+
+// 1. Row 0, a negative row, the last row of a sheet and the row after it.
+Attack::attempt(1, $sheet, 'total', 0);
+Attack::attempt(1, $sheet, 'total', -5);
+Attack::attempt(1, $sheet, 'total', 1048576);
+Attack::attempt(1, $sheet, 'total', 1048577);
+
+// 2. The last column of a sheet, the column after it, and a key of 1,000 letters.
+Attack::attempt(2, $sheet, 'XFD', 1);
+Attack::attempt(2, $sheet, 'XFE', 1);
+Attack::attempt(2, $sheet, Core\Str::repeat('Z', 1000), 1);
+
+// 3. Keys that are a range, a formula, another sheet and an empty text.
+Attack::attempt(3, $sheet, 'A1:B2', 1);
+Attack::attempt(3, $sheet, '=SUM(A1)', 1);
+Attack::attempt(3, $sheet, "Blog'!A1", 1);
+Attack::attempt(3, $sheet, '', 1);

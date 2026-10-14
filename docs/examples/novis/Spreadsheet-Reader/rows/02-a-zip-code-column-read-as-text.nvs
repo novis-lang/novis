@@ -1,0 +1,21 @@
+<?nvs
+// Shows how to read a zip code column as text, so a zip code keeps its leading zero.
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+// In this file a zip code is a number with the format `00000`. Excel shows 2134 as `02134`.
+bytes $file = Workbook::fromRows(
+    [['shop' => 'North', 'zip' => 2134], ['shop' => 'South', 'zip' => 98101]],
+    { columns: ['shop' => { header: 'Shop' }, 'zip' => { header: 'Zip', format: '00000' }] },
+)->bytes();
+var $reader = Reader::open($file);
+
+// Without `text`, the cell is the number 2134.
+foreach ($reader->rows(0, { header: true }) as var $row) {
+    echo $row->values['Shop'], ': ', $row->values['Zip'], "\n";
+}
+
+// `text: ['Zip']` reads that column as the text Excel shows. The result is the string `02134`.
+foreach ($reader->rows(0, { header: true, text: ['Zip'] }) as var $row) {
+    echo $row->values['Shop'], ': ', $row->values['Zip'], "\n";
+}

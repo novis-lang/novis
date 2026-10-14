@@ -1,12 +1,18 @@
 {
   "title": "xlsx and xlsb are read through byte ranges a host import serves from the lent source, into typed rows keyed by their row numbers",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "core-classes/spreadsheet-value-types",
     "core-classes/spreadsheet-has-no-io",
     "core-classes/decompression-bound",
     "packaging/values-cross-as-handles"
   ],
-  "guardedBy": [],
-  "goal": "spreadsheet"
+  "guardedBy": [
+    "crates/nvs-ext/tests/spreadsheet_read.rs",
+    "crates/nvs-ext/tests/spreadsheet.rs",
+    "crates/nvs-stdlib/src/zip.rs",
+    "crates/nvs-stdlib/tests/ext_world.rs",
+    "tests/conformance/novis/spreadsheet-reads-typed-rows-by-row-number.nvst",
+    "tests/conformance/novis/spreadsheet-reads-an-open-file.nvst"
+  ]
 }

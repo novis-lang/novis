@@ -29,8 +29,10 @@ writing ods; neither is in the first wave's acceptance. An evaluate call would r
 functions and references it could not compute, so a test asserts that list is empty — the visibility
 rule the PDF component applies to dropped CSS (`rule:core-classes/pdf-css-subset`).
 
-**Not shipped.** An evaluate call and writing ods, both second-wave work. Every format the roster
-reads and writes is on disk.
+**On disk.** Every format the roster reads (`extensions/spreadsheet/src/read/`) and writes
+(`extensions/spreadsheet/src/writer.rs`, and CSV in `extensions/spreadsheet/nvs/`).
+
+**Not shipped.** An evaluate call and writing ods, the second wave.
 
 **Declined:**
 - **Evaluating formulas on read.** Recalculating on open turns reading an attacker's upload into

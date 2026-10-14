@@ -1,0 +1,96 @@
+<?nvs
+// Attack: a request fills a template with user text that looks like XML, a formula or a placeholder,
+// and with data of the wrong shape. Each value should be written as text, or `fill` should throw an error.
+use Novis\Spreadsheet\Formula;
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Template;
+use Novis\Spreadsheet\Workbook;
+
+class Attack
+{
+    public static function template(): bytes
+    {
+        var $design = Workbook::createInMemory();
+        $design->sheet('Shop')->addAll([
+            ['{{note}}', '{{customer.name}}'],
+            ['{{items.name}}', '{{items.qty}}'],
+            ['Sum', Formula::of('SUM(B2:B2)')],
+        ]);
+        return $design->finish()->bytes ?? Core\Bytes::fill(0, 0);
+    }
+
+    // This method fills the template and reads the file back. It prints the number of rows,
+    // and whether cell A1 has the same text as `note`. If a step throws, it prints the class of the error.
+    public static function attempt(int $step, array<mixed> $data): void
+    {
+        try {
+            bytes $file = Template::open(Attack::template())->fill($data)->bytes();
+            int $rows = 0;
+            string $first = 'empty';
+            foreach (Reader::open($file)->rows('Shop', { formulas: true }) as var $row) {
+                $rows++;
+                if ($row->number == 1) {
+                    mixed $value = $row->values['A'] ?? null;
+                    if ($value is Formula) {
+                        $first = 'a formula';
+                    } elseif ($value == ($data['note'] ?? null)) {
+                        $first = 'the same text';
+                    } else {
+                        $first = 'other text';
+                    }
+                }
+            }
+            echo 'step ', $step, ' ran ', $rows, ' rows, A1 is ', $first, "\n";
+        } catch (Throwable $e) {
+            echo 'step ', $step, ' stopped ', $e::class, "\n";
+        }
+    }
+
+    public static function data(mixed $note, mixed $items): array<mixed>
+    {
+        return ['note' => $note, 'customer' => ['name' => 'Shop'], 'items' => $items];
+    }
+}
+
+// 1. Text that closes the XML of the cell, a formula, a placeholder, a NUL byte and 100,000 letters.
+Attack::attempt(1, Attack::data('</t></is></c><c r="Z9" t="str"><f>1+1</f>', []));
+Attack::attempt(1, Attack::data("=cmd|' /C calc'!A0", []));
+Attack::attempt(1, Attack::data('{{customer.name}}', []));
+Attack::attempt(1, Attack::data("Shop\u{0}", []));
+Attack::attempt(1, Attack::data(Core\Str::repeat('a', 100000), []));
+
+// 2. Data of the wrong shape: an item that is a list, an item that is a number, and a list in an item.
+Attack::attempt(2, Attack::data('note', [['Pen', 2]]));
+Attack::attempt(2, Attack::data('note', [7]));
+Attack::attempt(2, Attack::data('note', [['name' => 'Pen', 'qty' => ['a', 'b']]]));
+Attack::attempt(2, Attack::data(['a', 'b'], []));
+
+// 3. Keys with a dot or braces, and a value that is not a cell value.
+Attack::attempt(3, ['note' => 'x', 'customer.name' => 'Shop', 'items' => []]);
+Attack::attempt(3, ['note' => 'x', '{{note}}' => 'y', 'customer' => ['name' => 'Shop'], 'items' => []]);
+Attack::attempt(3, Attack::data(new Attack(), []));
+
+// 4. 20,000 items in one list.
+array<mixed> $items = [];
+for (int $at = 0; $at < 20000; $at++) {
+    $items[] = ['name' => 'Pen', 'qty' => $at];
+}
+Attack::attempt(4, Attack::data('note', $items));
+
+// 5. A second `fill`, and a second `bytes` on the same export.
+var $template = Template::open(Attack::template());
+$template->fill(Attack::data('note', []));
+try {
+    $template->fill(Attack::data('note', []));
+    echo "step 5 filled twice\n";
+} catch (Throwable $e) {
+    echo 'step 5 stopped ', $e::class, "\n";
+}
+var $export = Template::open(Attack::template())->fill(Attack::data('note', []));
+$export->bytes();
+try {
+    $export->bytes();
+    echo "step 5 wrote twice\n";
+} catch (Throwable $e) {
+    echo 'step 5 stopped ', $e::class, "\n";
+}

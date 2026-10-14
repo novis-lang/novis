@@ -1,0 +1,19 @@
+--TEST--
+inside the string converted with `as property<T>` the list is every public property `T` declares or inherits, each with its declared type, and never a `protected` or `private` one, because the conversion accepts no other name — `rule:types/property-key`
+--FILE--
+<?nvs
+class Person {
+    public string $name = "ada";
+    protected string $note = "kept";
+}
+class User extends Person {
+    public int $age = 3;
+    private string $secret = "hidden";
+}
+
+property<User> $key = '<|>' as property<User>;
+--REQUEST--
+completion
+--EXPECT--
+age     property  int
+name    property  string

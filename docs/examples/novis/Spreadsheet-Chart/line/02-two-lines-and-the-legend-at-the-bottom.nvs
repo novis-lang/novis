@@ -1,0 +1,22 @@
+<?nvs
+// Shows a line chart with two lines and the legend under the chart.
+use Novis\Spreadsheet\Chart;
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet('Blog');
+$sheet->addAll([
+    ['day' => 'Monday', 'visitors' => 420, 'comments' => 31],
+    ['day' => 'Tuesday', 'visitors' => 515, 'comments' => 44],
+]);
+
+// Each series is one line. The `name` of each line is in the legend.
+var $chart = Chart::line({ legend: 'bottom' })
+    ->series($sheet->column('visitors'), { categories: $sheet->column('day'), name: 'Visitors' })
+    ->series($sheet->column('comments'), { categories: $sheet->column('day'), name: 'Comments', color: '#C00000' });
+$sheet->chart('E2', $chart);
+bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+
+var $xml = Core\Zip::read($file, 'xl/charts/chart1.xml') as string;
+echo Core\Str::contains($xml, '<c:legendPos val="b"/>') ? 'the legend is at the bottom' : 'the legend is elsewhere', "\n";
+echo Core\Str::contains($xml, '<a:srgbClr val="C00000"/>') ? 'the comments line is red' : 'another color', "\n";

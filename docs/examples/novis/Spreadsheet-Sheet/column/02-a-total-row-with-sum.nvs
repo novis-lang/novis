@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to add a total row that sums a column.
+use Novis\Spreadsheet\Formula;
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet('Sales');
+$sheet->addAll([['shop' => 'North', 'sales' => 120], ['shop' => 'South', 'sales' => 80]]);
+
+// `column` is called after the last row of data, so the sum covers every shop.
+// `cached` is the value a reader sees before Excel calculates the formula.
+$sheet->add(['shop' => 'Total', 'sales' => Formula::of('=SUM(' . $sheet->column('sales') . ')', { cached: 200 })]);
+bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+
+// Without `formulas: true`, the reader returns the cached value of a formula.
+foreach (Reader::open($file)->rows('Sales', { header: true }) as var $row) {
+    echo $row->values['shop'], ': ', $row->values['sales'], "\n";
+}

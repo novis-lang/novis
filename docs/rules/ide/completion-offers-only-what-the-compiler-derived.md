@@ -22,7 +22,10 @@ string converted with `as class<T>`, which completes as the classes the program 
 parameter the registry marks as a class name, which completes as the classes the program declares, and
 as the ones that are a `Throwable` where the member expects an error; a string argument at a parameter
 whose declared type is a set of allowed string values (`rule:types/single-value-types`), which completes as
-those values, read off the parameter types the checker records on the call it resolved; `#[Api]` fields and
+those values, read off the parameter types the checker records on the call it resolved; the string
+converted with `as property<T>`, and a string argument at a parameter whose type takes a `property<T>`
+beside a `string`, which complete as `T`'s public declared properties with their types, read off the set
+the checker tests that conversion against (`rule:types/property-key`); `#[Api]` fields and
 every attribute's anonymous object, whose shape is a declared type; and enum cases, members off a resolved receiver
 and in-scope variables, which are the same rule and not an exception to it.
 
@@ -46,6 +49,16 @@ error, named in a one-row table in `crate::arguments`, since the mark says only 
 name. A parameter whose type is a set of allowed string values completes them as items of kind
 `value`, its `null` aside, and is offered a completion file's list beside them, merged by value; it gets
 no warning for a literal outside the set, because the checker already rejects one.
+
+A property name is an item of kind `property` with its declared type at the right. The checker records
+the set for each class a `property<T>` names at an `as` conversion, and at a string literal argument for
+a parameter whose type has a `property<T>` member, because the walk that makes the set needs the signature
+table and the editor does not keep one. A parameter typed `property<T>|string` takes any string, so a
+literal outside the set gets no warning there. A parameter typed `property<T>` alone is offered nothing,
+because a string literal does not satisfy it and an offered item would write a call that does not compile.
+
+- **Memory:** one list of names and types per class a `property<T>` names, kept with the checker's
+  table for the length of the analysis. Nothing at run time.
 
 What it refuses has no subject rather than being declined: ORM columns (a codec's fields are declared
 properties, already reached as members), service-container and facade resolution (constructor injection

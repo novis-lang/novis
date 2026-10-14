@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to write a value into one cell of a template by its address.
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Template;
+use Novis\Spreadsheet\Workbook;
+
+var $design = Workbook::createInMemory();
+$design->sheet('Report')->addAll([['Report', null], ['Sales', '{{sales}}']]);
+bytes $template = $design->finish()->bytes ?? Core\Bytes::fill(0, 0);
+
+// Cell B1 has no placeholder. `set` writes the value there. Call `set` before `fill`.
+bytes $file = Template::open($template)->set('Report!B1', 'May 2024')->fill(['sales' => 1200])->bytes();
+
+foreach (Reader::open($file)->rows('Report') as var $row) {
+    echo $row->values['A'], ': ', $row->values['B'], "\n";
+}

@@ -1,0 +1,31 @@
+<?nvs
+// Shows the error you get when the data has no value for a placeholder.
+use Novis\Spreadsheet\Template;
+use Novis\Spreadsheet\Workbook;
+
+var $design = Workbook::createInMemory();
+$design->sheet('Invoice')->addAll([
+    ['Invoice {{number}}', '{{customer.name}}'],
+]);
+bytes $template = $design->finish()->bytes ?? Core\Bytes::fill(0, 0);
+
+// The data has `customer`, but not `customer.name`. The error names the cell and the placeholder.
+// Put the call that writes the file, here `bytes`, inside the `try` block too.
+try {
+    Template::open($template)->fill(['number' => 42, 'customer' => ['email' => 'shop@example.com']])->bytes();
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+
+// A value of `null` is allowed. The cell is empty.
+bytes $file = Template::open($template)->fill(['number' => 42, 'customer' => ['name' => null]])->bytes();
+echo Core\Bytes::length($file) > 0 ? 'the file is written' : 'the file is empty', "\n";
+
+// `fill` can be called once on each template. Open the template again for a second file.
+var $once = Template::open($template);
+$once->fill(['number' => 1, 'customer' => ['name' => 'Shop']]);
+try {
+    $once->fill(['number' => 2, 'customer' => ['name' => 'Blog']]);
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}

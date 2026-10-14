@@ -38,7 +38,7 @@ Conventions the whole file uses:
 ### Part A — The language
 
 - A.1 [Programs, files and names](#lang-programs) — what a `.nvs` file is, how it runs, how names are spelled and resolved, and how one file reaches another *(<?nvs, <?=, ?>, inline HTML, shebang, nvs run, echo, print, comments, doc comment, ///, docblock, @see, @example, exit, namespace, use, require, autoload, discover, class name, casing, constructor, visibility, top-level statements, main)*
-- A.2 [Types, declarations and conversions](#lang-types) — every type, how a binding declares one, every value written in the code, the `as` conversion and its table, implicit widening, narrowing, truthiness, and the `tainted`/`secret` qualifiers *(bool, int, uint, float, decimal, string, bytes, array<T>, callable, class<T>, class reference, mixed, object, nullable, ?T, union, single-value type, enum, shape, anonymous object, type alias, void, never, self, static, iterable, intersection, var, declaration, inout, variadic, default parameter, constant, string literal, numeric literal, heredoc, nowdoc, interpolation, duration, html, markup, template, html template, page, escape, xss, as, conversion, cast, convert to int, convert to string, type check, type of a value, widening, narrowing, is, truthy, falsy, tainted, secret)*
+- A.2 [Types, declarations and conversions](#lang-types) — every type, how a binding declares one, every value written in the code, the `as` conversion and its table, implicit widening, narrowing, truthiness, and the `tainted`/`secret` qualifiers *(bool, int, uint, float, decimal, string, bytes, array<T>, callable, class<T>, class reference, property<T>, property key, property name, dynamic property, mixed, object, nullable, ?T, union, single-value type, enum, shape, anonymous object, type alias, void, never, self, static, iterable, intersection, var, declaration, inout, variadic, default parameter, constant, string literal, numeric literal, heredoc, nowdoc, interpolation, duration, html, markup, template, html template, page, escape, xss, as, conversion, cast, convert to int, convert to string, type check, type of a value, widening, narrowing, is, truthy, falsy, tainted, secret)*
 - A.3 [Expressions and operators](#lang-expressions) — every operator with its precedence and what it accepts, calls, anonymous functions and method references, `match`, arrays and anonymous objects in expression position, and the operators and forms that do not parse *(operators, precedence, associativity, arithmetic, +, -, *, /, %, **, pow, concatenation, ., .=, ==, !=, ===, !==, <>, <=>, spaceship, comparison, <, <=, >, >=, &&, ||, !, and, or, xor, ??, ??=, ??+=, ??-=, ??.=, defaulting assignment, ?:, elvis, ternary, ?->, nullsafe, match, is, new, clone, throw expression, print, isset, empty, unset, anonymous function, fn, function, use, callable, method reference, named arguments, spread, ..., variadic, inout, array literal, subscript, append, [], destructuring, anonymous object, shape, ++, --, increment, bitwise, &, |, ^, ~, <<, >>, shift, overflow, ArithmeticError, division by zero, @, backticks, eval, reference, |>, pipeline, pipe, $_, hole, substitution)*
 - A.4 [Statements and control flow](#lang-statements) — expression statements, blocks and local declarations, `if`, the four loops, `switch`, `break`/`continue` with levels, `return`, `try`/`catch`/`finally`, `throw`, `echo`, `unset`, and the statement forms that do not parse *(statement, block, scope, definite assignment, if, elseif, else if, else, endif, alternative syntax, while, endwhile, do while, for, foreach, endforeach, as, key, value, inout, by reference, Iterator, Iterable, switch, case, default, fallthrough, break, continue, break 2, continue 2, levels, return, try, catch, finally, multi-catch, throw, echo, print, unset, exit, yield, goto, label, declare, global, static variable)*
 - A.5 [Classes, interfaces and objects](#lang-classes) — declaring a class, its properties, methods and constants; inheritance; interfaces, default methods and `by` delegation; hooks, `LateInit`, guards, observers, `Stringable`, `Comparable`; what an object is and what `clone` copies *(class, constructor, __construct, new, public, protected, private, static, self, parent, $this, abstract, final, extends, implements, interface, trait, delegation, by, readonly, lateinit, isinit, LateInit, initProperty, property hooks, get, set, PropertyGuard, beforePropertySet, beforePropertyUnset, PropertyObserver, Stringable, __toString, Comparable, compareTo, clone, __clone, is, object, ?->, nullsafe, __get, __set, __call, __callStatic, __invoke, __destruct, anonymous class, const, ::class, class<T>, class reference, new $cls, late static binding)*
@@ -633,7 +633,7 @@ stopping
 <a id="lang-types"></a>
 ## A.2 Types, declarations and conversions
 
-Keywords: bool, int, uint, float, decimal, string, bytes, array<T>, callable, class<T>, class reference, mixed, object, nullable, ?T, union, single-value type, enum, shape, anonymous object, type alias, void, never, self, static, iterable, intersection, var, declaration, inout, variadic, default parameter, constant, string literal, numeric literal, heredoc, nowdoc, interpolation, duration, html, markup, template, html template, page, escape, xss, as, conversion, cast, convert to int, convert to string, type check, type of a value, widening, narrowing, is, truthy, falsy, tainted, secret
+Keywords: bool, int, uint, float, decimal, string, bytes, array<T>, callable, class<T>, class reference, property<T>, property key, property name, dynamic property, mixed, object, nullable, ?T, union, single-value type, enum, shape, anonymous object, type alias, void, never, self, static, iterable, intersection, var, declaration, inout, variadic, default parameter, constant, string literal, numeric literal, heredoc, nowdoc, interpolation, duration, html, markup, template, html template, page, escape, xss, as, conversion, cast, convert to int, convert to string, type check, type of a value, widening, narrowing, is, truthy, falsy, tainted, secret
 
 ### Every binding has a type
 
@@ -1423,8 +1423,131 @@ The conversion table. A pair not listed is a compile error naming both types.
 | `mixed`, `object`, a union, a class | a shape | the value must have every field the shape names, at the named types, or it throws; a value whose type already has them converts for free |
 | `string` | `class<T>` | the name must denote `T` or a class that is one, or it throws; a written `Foo::class` operand is decided at compile time and never throws |
 | `class<U>` | `class<T>` | `U` must be a `T`, tested against the class the reference holds |
+| `string` | `property<T>` | the name of a public property of `T`, or it throws; a name written directly in the code is checked while compiling |
+| `property<U>` | `property<T>` | the name must also be a public property of `T`, or it throws |
+| `property<T>` | `string` | total: the property's name |
 | any | a set of allowed values or an enum-case union | a `mixed` must equal a member; a typed operand converts first, then is tested |
 | any | `mixed` | free |
+
+### Property keys
+
+`property<T>` is a type. Its values are the names of the public properties of the class `T`, and of
+the public properties `T` inherits. A value of this type is called a property key. A key reads or
+writes a property whose name is known only while the program runs, such as a sort column from a
+request or a field in a form.
+
+- `as` is the only way to make a key. A name written directly in the code is checked while
+  compiling: `"emial" as property<User>` does not compile (`E0405`).
+- Any other string is checked by `as` while the program runs. If it is not the name of a public
+  property of `T`, `as` throws a `RuntimeError`. `as` also throws for the name of a `private` or
+  `protected` property.
+- `as ?property<T>` gives `null` in every case where `as property<T>` throws.
+- `$obj->$key` and `$obj->{$expr}` read or write the property that the key names. A plain `string`
+  is not allowed there (`E0235`).
+- A read through a key has the type of every property the key can name, as a union. For a class with
+  a `string` and an `int` property, that type is `string|int`.
+- A write through a key is checked while the program runs. A value of the wrong type for that
+  property throws a `RuntimeError`. If `T` has a public `readonly` property, a write through a key
+  does not compile (`E0782`).
+- A `property<Animal>` key works on a `Dog`, because a `Dog` has every property of an `Animal`. A
+  `property<Dog>` key does not work on an `Animal`.
+- A parameter typed `property<T>|string` accepts a key or any string. Inside the function,
+  `as ?property<T>` checks the string. In the editor, a string at such a parameter, and the string in
+  `"…" as property<T>`, offer the property names of `T`.
+- `$key as string` gives the name. Two keys are equal when they name the same property.
+
+```nvs
+<?nvs
+class User {
+    public string $email = "ada@example.com";
+    public int $age = 36;
+    private string $password = "secret";
+}
+
+User $user = new User();
+property<User> $written = "email" as property<User>;
+echo $user->$written, "\n";
+
+string $field = "age";
+property<User> $key = $field as property<User>;
+$user->$key = 37;
+echo $user->age, " ", $key as string, "\n";
+
+string|int $value = $user->$key;
+echo $value is int ? "an int" : "a string", "\n";
+
+string $hidden = "password";
+?property<User> $none = $hidden as ?property<User>;
+echo $none == null ? "null" : "a key", "\n";
+try {
+    property<User> $bad = $hidden as property<User>;
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+}
+try {
+    $user->$key = "old";
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+}
+```
+```output
+ada@example.com
+37 age
+an int
+null
+`"password"` is not one of `User`'s public declared properties: `$age`, `$email`
+`User` declares field `age` as int, so a string cannot be written to it
+```
+
+```nvs
+<?nvs
+class Animal {
+    public string $name = "Rex";
+}
+class Dog extends Animal {
+    public string $breed = "beagle";
+}
+
+class Show {
+    public static function field(Dog $dog, property<Dog>|string $name): string {
+        ?property<Dog> $key = $name as ?property<Dog>;
+        if ($key == null) {
+            return "no such field";
+        }
+        return $dog->$key;
+    }
+}
+
+Dog $dog = new Dog();
+property<Animal> $key = "name" as property<Animal>;
+echo $dog->$key, "\n";
+echo Show::field($dog, "breed"), "\n";
+echo Show::field($dog, "colour"), "\n";
+```
+```output
+Rex
+beagle
+no such field
+```
+
+```nvs error
+<?nvs
+class Order {
+    public readonly int $id;
+    public string $status = "new";
+
+    public function constructor(int $id) {
+        $this->id = $id;
+    }
+}
+
+Order $order = new Order(7);
+property<Order> $key = "status" as property<Order>;
+$order->$key = "paid";
+```
+```output
+`Order::$id` is `readonly`, so only `Order`'s constructor writes it
+```
 
 ### Narrowing
 
@@ -32256,6 +32379,14 @@ Every subcommand also takes `--config <PATH>` (see `nvs run`), `--data <PATH>` a
   line and reads the rest as code, as if `<?nvs` stood there, so `#!/usr/bin/env nvs` makes a
   script you run as `./tool` on Linux and macOS. An `<?nvs` in such a file before any `?>` is
   `E0009`. `#!` anywhere else is ordinary text.
+
+```nvs
+#!/usr/bin/env nvs
+echo "This line runs as code.", "\n";
+```
+```output
+This line runs as code.
+```
 
 ### nvs run
 

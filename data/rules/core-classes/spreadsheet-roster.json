@@ -1,12 +1,15 @@
 {
   "title": "`Novis\\Spreadsheet` is `Workbook`, `Sheet`, `Written`, `Export`, `Reader`, `Template`, `Style`, `Cell`, `Formula`, `Chart` and `CellError`, with `Engine` the manifest class",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "core-classes/spreadsheet-has-no-io",
     "core-classes/spreadsheet-writes-as-a-stream",
     "core-classes/spreadsheet-reads-as-a-stream",
     "core-api/options-bag"
   ],
-  "guardedBy": [],
-  "goal": "spreadsheet"
+  "guardedBy": [
+    "crates/nvs-stdlib/tests/ext_world.rs",
+    "crates/nvs-cli/tests/spreadsheet_engine.rs",
+    "tests/conformance/novis/spreadsheet-writes-with-no-configuration.nvst"
+  ]
 }

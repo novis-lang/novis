@@ -698,6 +698,42 @@ pub(crate) fn public_property_names(qname: &QName, env: &Env<'_>) -> Vec<String>
     names
 }
 
+/// Records [`public_property_names`] for `qname` in the expression table, each
+/// name with its declared type, once per class. What the table keeps it for is
+/// [`crate::expr_table::ExprTypeTable::property_keys`]'s to say.
+pub(crate) fn record_property_keys(qname: &QName, env: &mut Env<'_>) {
+    let label = qname.to_string();
+    if env.exprs.has_property_keys(&label) {
+        return;
+    }
+    let keys = public_property_names(qname, env)
+        .into_iter()
+        .filter_map(|name| {
+            crate::signatures::resolve_property_owned(qname, &name, env.signatures, env.graph)
+                .map(|(_, ty)| (name, ty))
+        })
+        .collect();
+    env.exprs.record_property_keys(label, keys);
+}
+
+/// Records [`record_property_keys`] for each class a `property<T>` member of
+/// `ty` names, where `ty` is the parameter type a string literal argument is
+/// checked against.
+pub(crate) fn record_parameter_property_keys(ty: TypeId, env: &mut Env<'_>) {
+    let members = match env.interner.get(ty) {
+        Ty::Union(members) => members.clone(),
+        _ => vec![ty],
+    };
+    for member in members {
+        let Some(argument) = property_key_argument(member, env.interner) else {
+            continue;
+        };
+        if let Ty::Class(qname, _) = env.interner.get(argument).clone() {
+            record_property_keys(&qname, env);
+        }
+    }
+}
+
 /// [`public_property_names`]'s recursion, with the `seen` guard that keeps a
 /// cyclic `extends` — which the graph may hold, since reporting the cycle is
 /// `nvs_hir`'s job and not this walk's — from running forever.

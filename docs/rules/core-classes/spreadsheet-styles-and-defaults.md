@@ -59,10 +59,12 @@ a sheet.
 - **Memory:** per writing request, one entry per distinct style combination until `finish()`, and the
   auto-width window of at most 1,000 rows before the first chunk leaves.
 
-**Not shipped.** The style enums under `Style`. `Style::of`, `Cell::of`, the row's `style`, `columns`
-with `header`, `width`, `format`, `style`, `hidden` and `formula`, the header row and its four
-defaults, and auto width through the number-format renderer are on disk
-(`extensions/spreadsheet/nvs/Workbook.nvs`, `Style.nvs`, `extensions/spreadsheet/src/width.rs`).
+**On disk.** `Style::of`, `Cell::of`, the row's `style`, `columns` with `header`, `width`, `format`,
+`style`, `hidden` and `formula`, the header row and its four defaults, and auto width through the
+number-format renderer (`extensions/spreadsheet/nvs/Workbook.nvs`, `Style.nvs`,
+`extensions/spreadsheet/src/width.rs`).
+
+**Not shipped.** The style enums under `Style`: they are at namespace scope.
 
 **Declined:**
 - **A style as an options bag on every call, with no value.** A report repeats the same few styles on

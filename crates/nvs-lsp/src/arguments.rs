@@ -101,6 +101,11 @@ pub(crate) struct Named {
     /// text: `["a", "b"]` for `"a"|"b"` and for `"a"|"b"|null`, and nothing for
     /// `string` or for a union with any other member.
     pub members: Vec<String>,
+    /// The class of each `property<T>` in the parameter's declared type, as
+    /// its whole name, where that type also takes a `string`: `["User"]` for
+    /// `property<User>|string`, and nothing for `property<User>` alone, which
+    /// a string literal does not satisfy.
+    pub key_classes: Vec<String>,
 }
 
 /// A node that holds the literal, with the spans and kinds of its own
@@ -277,7 +282,37 @@ fn name(analysed: &Analysed, literal: Span, holders: &[Holder]) -> Option<Named>
             .get(index)
             .map(|ty| string_members(analysed, *ty))
             .unwrap_or_default(),
+        key_classes: call
+            .param_tys
+            .get(index)
+            .map(|ty| key_classes(analysed, *ty))
+            .unwrap_or_default(),
     })
+}
+
+/// The class of each `property<T>` member of `ty`, where `ty` also has a
+/// `string` or `tainted string` member. Empty for any other type.
+fn key_classes(analysed: &Analysed, ty: TypeId) -> Vec<String> {
+    let interner = &analysed.interner;
+    let Ty::Union(members) = interner.get(ty) else {
+        return Vec::new();
+    };
+    if !members
+        .iter()
+        .any(|member| matches!(interner.get(*member), Ty::String | Ty::TaintedString))
+    {
+        return Vec::new();
+    }
+    members
+        .iter()
+        .filter_map(|member| match interner.get(*member) {
+            Ty::PropertyKey(argument) => match interner.get(*argument) {
+                Ty::Class(qname, _) => Some(qname.to_string()),
+                _ => None,
+            },
+            _ => None,
+        })
+        .collect()
 }
 
 /// The text of each single-value string type in `ty`, in the order the union

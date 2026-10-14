@@ -1,0 +1,67 @@
+--TEST--
+`Style::of` turns the strings of `border`, `underline`, `align` and `valign` into their `Line`, `Underline`, `Align` and `Valign` cases, the styles part writes each case as Excel names it, and a string outside the set throws: rule:core-classes/spreadsheet-styles-and-defaults
+--FILE--
+<?nvs
+// covers: Novis\Spreadsheet\Line, Novis\Spreadsheet\Underline, Novis\Spreadsheet\Align, Novis\Spreadsheet\Valign
+use Novis\Spreadsheet\Align;
+use Novis\Spreadsheet\Line;
+use Novis\Spreadsheet\Style;
+use Novis\Spreadsheet\Underline;
+use Novis\Spreadsheet\Valign;
+use Novis\Spreadsheet\Workbook;
+
+var $style = Style::of({border: {top: "thin", bottom: "double"}, underline: true, align: "justify", valign: "center"});
+var $fields = $style->fields;
+echo $fields->border?->top == Line::Thin ? "top thin" : "top wrong", "\n";
+echo $fields->border?->bottom == Line::Double ? "bottom double" : "bottom wrong", "\n";
+echo $fields->border?->left == null ? "left none" : "left wrong", "\n";
+echo $fields->underline == Underline::Single ? "underline single" : "underline wrong", "\n";
+echo $fields->align == Align::Justify ? "align justify" : "align wrong", "\n";
+echo $fields->valign == Valign::Center ? "valign center" : "valign wrong", "\n";
+
+var $all = Style::of({border: "dotted", underline: "double", align: "fill", valign: "bottom"})->fields;
+echo $all->border?->right == Line::Dotted && $all->underline == Underline::Double ? "dotted, double" : "wrong", "\n";
+echo $all->align == Align::Fill && $all->valign == Valign::Bottom ? "fill, bottom" : "wrong", "\n";
+echo Style::of({underline: false})->fields->underline == null ? "no underline" : "underline", "\n";
+
+var $book = Workbook::createInMemory();
+$book->sheet("Shop")->add(["Tea", 3], {style: $style});
+bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+var $styles = Core\Zip::read($file, "xl/styles.xml") as string;
+echo Core\Str::contains($styles, "<top style=\"thin\">") ? "thin is written" : "thin is missing", "\n";
+echo Core\Str::contains($styles, "<bottom style=\"double\">") ? "double is written" : "double is missing", "\n";
+echo Core\Str::contains($styles, "<u/>") ? "single underline is written" : "single underline is missing", "\n";
+echo Core\Str::contains($styles, "<alignment horizontal=\"justify\" vertical=\"center\"/>") ? "alignment is written" : "alignment is missing", "\n";
+
+array<{border?: string, underline?: string, align?: string, valign?: string}> $wrong = [
+    {border: "wavy"},
+    {underline: "triple"},
+    {align: "middle"},
+    {valign: "middle"},
+];
+foreach ($wrong as var $asked) {
+    try {
+        Style::of($asked);
+        echo "not reached\n";
+    } catch (LogicError $e) {
+        echo $e->message, "\n";
+    }
+}
+--EXPECT--
+top thin
+bottom double
+left none
+underline single
+align justify
+valign center
+dotted, double
+fill, bottom
+no underline
+thin is written
+double is written
+single underline is written
+alignment is written
+The style field `border` is `'thin'`, `'medium'`, `'thick'`, `'dashed'`, `'dotted'` or `'double'`. It has `'wavy'`.
+The style field `underline` is `true`, `'single'` or `'double'`. It has `'triple'`.
+The style field `align` is `'left'`, `'center'`, `'right'`, `'fill'` or `'justify'`. It has `'middle'`.
+The style field `valign` is `'top'`, `'center'` or `'bottom'`. It has `'middle'`.

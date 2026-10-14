@@ -1,0 +1,49 @@
+<?nvs
+// Attack: a request groups rows and columns outside the sheet, with broken ranges, and nests more groups than Excel allows.
+// `group` should write each good group and throw an error for every other one.
+use Novis\Spreadsheet\Workbook;
+
+class Attack
+{
+    // This method adds the group to a new sheet and prints whether the file was written, or the class of the error.
+    public static function attempt(int $step, string $rows): void
+    {
+        try {
+            var $book = Workbook::createInMemory();
+            $book->sheet('Shop')->group($rows, { collapsed: true })->add(['Order']);
+            bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+            echo 'step ', $step, ' wrote ', Core\Bytes::length($file) > 0 ? 'a file' : 'nothing', "\n";
+        } catch (Throwable $e) {
+            echo 'step ', $step, ' stopped ', $e::class, "\n";
+        }
+    }
+}
+
+// 1. Every row of a sheet, and rows past the last row.
+Attack::attempt(1, '1:1048576');
+Attack::attempt(1, '2:1048577');
+
+// 2. Every column of a sheet, and columns past the last column.
+Attack::attempt(2, 'A:XFD');
+Attack::attempt(2, 'B:XFE');
+
+// 3. A reversed range, a cell range, an empty text and text with markup.
+Attack::attempt(3, '9:5');
+Attack::attempt(3, 'A1:B2');
+Attack::attempt(3, '');
+Attack::attempt(3, '5:9"/><x>');
+
+// 4. Nine groups over the same rows. Excel allows seven levels.
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet('Shop');
+try {
+    for (int $level = 1; $level <= 9; $level++) {
+        $sheet->group('2:3');
+    }
+    $sheet->addAll([['Order'], ['Line'], ['Line']]);
+    bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+    var $xml = Core\Zip::read($file, 'xl/worksheets/sheet1.xml') as string;
+    echo 'step 4 wrote level 9: ', Core\Str::contains($xml, 'outlineLevel="9"') ? 'yes' : 'no', "\n";
+} catch (LogicError $e) {
+    echo "step 4 stopped LogicError\n";
+}

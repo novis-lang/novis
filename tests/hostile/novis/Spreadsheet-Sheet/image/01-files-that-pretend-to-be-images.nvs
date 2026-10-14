@@ -1,0 +1,56 @@
+<?nvs
+// Attack: a request uploads files that pretend to be images, images with a broken header, and huge sizes.
+// `image` should throw an error for every file that is not a PNG, JPEG or GIF image, and for a size it cannot write.
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+class Attack
+{
+    // This method puts `$data` at B2 and prints the format read back, or the class of the error.
+    public static function attempt(int $step, bytes $data, float $width): void
+    {
+        try {
+            var $book = Workbook::createInMemory();
+            $book->sheet('Shop')->image('B2', $data, { width: $width, height: $width })->add(['Logo']);
+            bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+            foreach (Reader::open($file)->images('Shop') as var $image) {
+                echo 'step ', $step, ' read a ', $image->format, " image\n";
+            }
+        } catch (Throwable $e) {
+            echo 'step ', $step, ' stopped ', $e::class, "\n";
+        }
+    }
+}
+
+bytes $png = Core\Encoding::fromBase64('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==');
+
+// 1. No bytes, an SVG file with a script, an HTML file, and a zip file.
+Attack::attempt(1, Core\Bytes::fill(0, 0), 32.0);
+Attack::attempt(1, '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>' as bytes, 32.0);
+Attack::attempt(1, '<html><script>alert(1)</script></html>' as bytes, 32.0);
+Attack::attempt(1, Core\Bytes::join(['PK' as bytes, Core\Bytes::fill(100, 0)]), 32.0);
+
+// 2. The 8 bytes that start a PNG file and nothing else, and a PNG file cut in half.
+Attack::attempt(2, Core\Bytes::slice($png, 0, 8), 32.0);
+Attack::attempt(2, Core\Bytes::slice($png, 0, 30), 32.0);
+
+// 3. A good image with a width of 0, a negative width, and a width of ten million pixels.
+Attack::attempt(3, $png, 0.0);
+Attack::attempt(3, $png, -50.0);
+Attack::attempt(3, $png, 10000000.0);
+
+// 4. A good image at a cell outside the sheet, and at a range.
+try {
+    var $book = Workbook::createInMemory();
+    $book->sheet('Shop')->image('XFE1', $png);
+    echo "step 4 added an image outside the sheet\n";
+} catch (LogicError $e) {
+    echo "step 4 stopped LogicError\n";
+}
+try {
+    var $other = Workbook::createInMemory();
+    $other->sheet('Shop')->image('A1:B2', $png);
+    echo "step 4 added an image at a range\n";
+} catch (LogicError $e) {
+    echo "step 4 stopped LogicError\n";
+}

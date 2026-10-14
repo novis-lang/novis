@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to find every table in a workbook, on all of its sheets.
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+$book->sheet('Shop')->table('A1:B2', { name: 'Prices' })->addAll([['Item', 'Price'], ['Widget', 2.5]]);
+$book->sheet('Notes')->add(['This sheet has no table.']);
+$book->sheet('Blog')->table('A1:A2', { name: 'Posts' })->addAll([['Title'], ['Hello']]);
+var $reader = Reader::open($book->finish()->bytes ?? Core\Bytes::fill(0, 0));
+
+// A sheet without tables gives an empty list.
+foreach ($reader->sheets() as var $info) {
+    uint $count = Core\Arr::count($reader->tables($info->position as int));
+    echo $info->name, ': ', $count, "\n";
+}

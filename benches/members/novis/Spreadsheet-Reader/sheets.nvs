@@ -1,0 +1,27 @@
+<?nvs
+// Lists the three sheets of an uploaded workbook, as an import does to let a person choose a sheet.
+// bench: iterations 32
+// bench: complexity constant
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        var $book = Workbook::createInMemory();
+        $book->sheet('Orders')->add(['Order', 'Total']);
+        $book->sheet('Customers')->add(['Name', 'City']);
+        $book->sheet('Lookup', { hidden: true })->add(['Code', 'Rate']);
+        Reader $reader = Reader::open($book->finish()->bytes ?? Core\Bytes::fill(0, 0));
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + Core\Arr::count($reader->sheets());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(32), "\n";

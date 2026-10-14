@@ -1,0 +1,8 @@
+--METHOD--
+GET
+--PATH--
+/account
+--QUERY--
+field[]=token&field[]=note&field[]=&field[]=own%00er&field[]=owner-%3Etoken&field[]=OWNER&field[]=%20owner&field[]=owner%0A&field[]=%24owner&field[]=constructor&hidden=token&number=balance
+--HEADERS--
+host: bank.example.com

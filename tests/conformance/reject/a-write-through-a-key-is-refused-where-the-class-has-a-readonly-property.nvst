@@ -1,0 +1,30 @@
+--TEST--
+A write through a `property<T>` is `E0782` where `T`'s public set holds a `readonly` property, even when the key holds another name, while a read through the same key compiles — `rule:types/property-key-access`
+--FILE--
+<?nvs
+class Order {
+    public readonly int $id;
+    public string $status = "new";
+
+    public function constructor(int $id) {
+        $this->id = $id;
+    }
+}
+
+Order $order = new Order(7);
+
+// The read compiles, and the key names the assignable property.
+property<Order> $key = "status" as property<Order>;
+echo $order->$key, "\n";
+
+// The write is refused at the write, naming the `readonly` property, because
+// the key's type cannot say which of the set's names it holds.
+$order->$key = "paid";
+// covers: lang:types/property-keys
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0782]: `Order::$id` is `readonly`, so only `Order`'s constructor writes it
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

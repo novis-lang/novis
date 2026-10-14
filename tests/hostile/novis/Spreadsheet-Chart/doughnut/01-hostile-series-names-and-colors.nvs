@@ -1,0 +1,39 @@
+<?nvs
+// Attack: a request gives doughnut charts series names and colors that try to break the XML.
+// Each name should be written as text, and each color that is not a color should throw an error.
+use Novis\Spreadsheet\Chart;
+use Novis\Spreadsheet\Workbook;
+
+class Attack
+{
+    // This method adds a doughnut at D2 and prints whether the file was written, or the class of the error.
+    public static function attempt(int $step, ?{categories?: string, name?: string, color?: string} $options): void
+    {
+        try {
+            var $book = Workbook::createInMemory();
+            var $sheet = $book->sheet('Tickets');
+            $sheet->addAll([['state' => 'Open', 'count' => 12], ['state' => 'Closed', 'count' => 40]]);
+            $sheet->chart('D2', Chart::doughnut({ labels: true })->series('B2:B3', $options));
+            bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+            echo 'step ', $step, ' wrote ', Core\Bytes::length($file) > 0 ? 'a file' : 'nothing', "\n";
+        } catch (Throwable $e) {
+            echo 'step ', $step, ' stopped ', $e::class, "\n";
+        }
+    }
+}
+
+// 1. Names with markup, an entity, and a name of 100,000 characters.
+Attack::attempt(1, { categories: 'A2:A3', name: '</c:v></c:tx><c:extLst/>' });
+Attack::attempt(1, { name: '&amp;&#0;&#xD800;' });
+Attack::attempt(1, { name: Core\Str::repeat('n', 100000) });
+
+// 2. Colors with markup, with a script, too long, too short, and without the `#`.
+Attack::attempt(2, { color: '"/><a:srgbClr val="FF0000' });
+Attack::attempt(2, { color: 'url(javascript:alert(1))' });
+Attack::attempt(2, { color: '#1234567' });
+Attack::attempt(2, { color: '#12' });
+Attack::attempt(2, { color: 'FF0000' });
+Attack::attempt(2, { color: '' });
+
+// 3. A name and a color made of control characters.
+Attack::attempt(3, { name: "\u{0}\u{8}\u{1F}", color: "#\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}" });

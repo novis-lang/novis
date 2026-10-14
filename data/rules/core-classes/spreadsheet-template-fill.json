@@ -1,11 +1,16 @@
 {
   "title": "A template fill copies every part but the filled cells, repeats the rows a list marks, and shifts every reference below them",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "core-classes/spreadsheet-value-types",
     "core-classes/spreadsheet-output-is-inert",
     "core-classes/spreadsheet-formula-is-a-value"
   ],
-  "guardedBy": [],
-  "goal": "spreadsheet"
+  "guardedBy": [
+    "extensions/spreadsheet/tests/template.rs",
+    "extensions/spreadsheet/tests/excel.rs",
+    "crates/nvs-ext/tests/spreadsheet_hostile.rs",
+    "tests/conformance/novis/spreadsheet-a-template-fills-an-item-list.nvst",
+    "tests/conformance/novis/spreadsheet-a-missing-placeholder-throws.nvst"
+  ]
 }

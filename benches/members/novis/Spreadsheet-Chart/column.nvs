@@ -1,0 +1,22 @@
+<?nvs
+// Starts a column chart with a title and a legend, as a sales report does before it adds the series.
+// bench: iterations 32
+// bench: complexity constant
+use Novis\Spreadsheet\Chart;
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            var $chart = Chart::column({ title: 'Sales by month', yTitle: 'Sales', legend: 'bottom' });
+            $total = $total + Core\Str::length($chart->title ?? '');
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(32), "\n";

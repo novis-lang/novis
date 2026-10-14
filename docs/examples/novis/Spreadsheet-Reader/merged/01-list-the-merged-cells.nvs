@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to list the merged cells of a sheet.
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet('Report');
+$sheet->merge('A1:C1')->merge('A4:A5');
+$sheet->addAll([['Sales report'], ['Shop', 'Month', 'Sales'], ['North', 'May', 120], ['South', 'May', 80], [null, 'June', 95]]);
+var $reader = Reader::open($book->finish()->bytes ?? Core\Bytes::fill(0, 0));
+
+// Each merged area is a range from its top-left cell to its bottom-right cell.
+foreach ($reader->merged('Report') as tainted string $range) {
+    echo $range, "\n";
+}

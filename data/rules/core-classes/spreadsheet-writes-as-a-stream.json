@@ -1,12 +1,17 @@
 {
   "title": "A workbook is written as a stream to the target it was created for, one sheet after another, and finished with `finish()`",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "core-classes/spreadsheet-roster",
     "core-classes/spreadsheet-sheet-end-parts",
     "core-classes/spreadsheet-styles-and-defaults",
     "core-classes/spreadsheet-bulk-boundary"
   ],
-  "guardedBy": [],
-  "goal": "spreadsheet"
+  "guardedBy": [
+    "crates/nvs-ext/tests/spreadsheet.rs",
+    "extensions/spreadsheet/tests/write.rs",
+    "tests/conformance/novis/spreadsheet-writes-to-a-file-and-an-open-file.nvst",
+    "tests/conformance/novis/spreadsheet-sheets-are-written-one-after-another.nvst",
+    "tests/conformance/novis/spreadsheet-an-export-writes-the-same-file-to-each-target.nvst"
+  ]
 }

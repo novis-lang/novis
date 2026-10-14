@@ -1,0 +1,51 @@
+<?nvs
+// Attack: a request uploads a sheet whose notes have markup, control characters or very long text, or has very many notes.
+// `notes` should return each text exactly as it was written, and a note the writer does not allow should throw an error.
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+class Attack
+{
+    // This method writes one note in A1, reads it back and prints whether the text is the same, or the class of the error.
+    public static function attempt(int $step, string $text, string $author): void
+    {
+        try {
+            var $book = Workbook::createInMemory();
+            $book->sheet('Shop')->note('A1', $text, { author: $author })->add(['Widget']);
+            bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+            foreach (Reader::open($file)->notes(0) as var $note) {
+                bool $same = $note->note == $text && $note->author == $author;
+                echo 'step ', $step, ' read the note ', $same ? 'unchanged' : 'changed', "\n";
+            }
+        } catch (Throwable $e) {
+            echo 'step ', $step, ' stopped ', $e::class, "\n";
+        }
+    }
+}
+
+// 1. Markup and XML that try to end the note early.
+Attack::attempt(1, '<script>alert(1)</script>', 'Ann');
+Attack::attempt(1, '</t></r><r><t>injected', '"><x y="');
+Attack::attempt(1, '<![CDATA[ ]]> &amp; &lt;', 'Ann');
+
+// 2. Control characters, a zero byte and text in other scripts.
+Attack::attempt(2, "line\none\ttab\u{0}zero", 'Ann');
+Attack::attempt(2, 'Ünïcödé ✓ 中文 עברית', 'Ann');
+
+// 3. A note of 100,000 characters.
+Attack::attempt(3, Core\Str::repeat('x', 100000), 'Ann');
+
+// 4. 5,000 notes on one sheet, and a sheet that does not exist.
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet('Shop');
+for (int $n = 1; $n <= 5000; $n++) {
+    $sheet->note("A{$n}", "Note {$n}");
+}
+$sheet->add(['Widget']);
+Reader $reader = Reader::open($book->finish()->bytes ?? Core\Bytes::fill(0, 0));
+echo 'step 4 read ', Core\Arr::count($reader->notes('Shop')), " notes\n";
+try {
+    $reader->notes(7);
+} catch (LogicError $e) {
+    echo "step 4 stopped LogicError\n";
+}

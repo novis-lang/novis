@@ -1,0 +1,29 @@
+<?nvs
+// Adds a page of ten order rows to a sheet, as an export does for each page it reads from a database.
+// bench: iterations 32
+// bench: complexity constant
+use Novis\Spreadsheet\Workbook;
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<array<mixed>> $page = [];
+        uint $n = 0;
+        while ($n < 10) {
+            $page[] = ['order' => $n, 'customer' => 'Customer', 'total' => 19.9];
+            $n = $n + 1;
+        }
+        var $book = Workbook::createInMemory();
+        var $sheet = $book->sheet('Orders');
+        uint $i = 0;
+        while ($i < $rounds) {
+            $sheet->addAll($page);
+            $i = $i + 1;
+        }
+        var $written = $book->finish();
+        return $written->rows['Orders'] as uint;
+    }
+}
+
+echo Bench::run(32), "\n";

@@ -1,0 +1,54 @@
+<?nvs
+// Attack: a request uploads a sheet with tables that are huge, overlap or have strange names, or with very many tables.
+// `tables` should return each table as text, and a table the writer does not allow should throw an error.
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+class Attack
+{
+    // This method writes the tables `$ranges` with the name `$name`, reads them back and prints the count, or the class of the error.
+    public static function attempt(int $step, array<string> $ranges, string $name): void
+    {
+        try {
+            var $book = Workbook::createInMemory();
+            var $sheet = $book->sheet('Shop');
+            int $n = 0;
+            foreach ($ranges as string $range) {
+                $n++;
+                $sheet->table($range, { name: "{$name}{$n}" });
+            }
+            $sheet->add(['Item', 'Price']);
+            bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+            echo 'step ', $step, ' read ', Core\Arr::count(Reader::open($file)->tables(0)), " tables\n";
+        } catch (Throwable $e) {
+            echo 'step ', $step, ' stopped ', $e::class, "\n";
+        }
+    }
+}
+
+// 1. A table over every row of the sheet, a table over every column, and a table of one cell.
+Attack::attempt(1, ['A1:B1048576'], 'Shop');
+Attack::attempt(1, ['A1:XFD2'], 'Shop');
+Attack::attempt(1, ['A1:A1'], 'Shop');
+
+// 2. Two tables that overlap.
+Attack::attempt(2, ['A1:B5', 'B1:C5'], 'Shop');
+
+// 3. Names with markup, spaces, or the syntax of a cell.
+Attack::attempt(3, ['A1:B2'], '<script>');
+Attack::attempt(3, ['A1:B2'], 'Two words');
+Attack::attempt(3, ['A1:B2'], 'C');
+
+// 4. 1,000 tables on one sheet, one below the other, read 20 times.
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet('Shop');
+for (int $n = 1; $n <= 1000; $n++) {
+    $sheet->table('A' . (2 * $n - 1) . ':B' . (2 * $n), { name: "Prices{$n}" });
+    $sheet->addAll([['Item', 'Price'], ['Widget', $n]]);
+}
+Reader $reader = Reader::open($book->finish()->bytes ?? Core\Bytes::fill(0, 0));
+uint $count = 0;
+for (int $round = 0; $round < 20; $round++) {
+    $count = Core\Arr::count($reader->tables('Shop'));
+}
+echo 'step 4 read ', $count, " tables\n";

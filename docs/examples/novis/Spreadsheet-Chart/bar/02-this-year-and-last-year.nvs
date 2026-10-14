@@ -1,0 +1,23 @@
+<?nvs
+// Shows a bar chart with two series, one bar for each year.
+use Novis\Spreadsheet\Chart;
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet('Shops');
+$sheet->addAll([
+    ['shop' => 'North', 'now' => 340, 'before' => 300],
+    ['shop' => 'South', 'now' => 210, 'before' => 260],
+]);
+
+// Each series has a name for the legend and its own color.
+var $chart = Chart::bar({ legend: 'bottom' })
+    ->series($sheet->column('now'), { categories: $sheet->column('shop'), name: 'This year', color: '#1F77B4' })
+    ->series($sheet->column('before'), { categories: $sheet->column('shop'), name: 'Last year', color: '#AEC7E8' });
+echo Core\Arr::count($chart->series), " series\n";
+$sheet->chart('E2', $chart);
+bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+
+var $xml = Core\Zip::read($file, 'xl/charts/chart1.xml') as string;
+echo Core\Str::contains($xml, '<c:v>Last year</c:v>') ? 'the legend names Last year' : 'no name', "\n";
+echo Core\Str::contains($xml, '<a:srgbClr val="AEC7E8"/>') ? 'its bars are light blue' : 'another color', "\n";

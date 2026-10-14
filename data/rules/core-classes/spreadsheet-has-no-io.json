@@ -1,11 +1,17 @@
 {
   "title": "`Novis\\Spreadsheet` is a built-in component that never touches disk, fetches nothing and executes nothing it reads",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "core-classes/spreadsheet-formula-is-a-value",
     "core-classes/spreadsheet-bulk-boundary",
     "core-classes/pdf-render-has-no-io"
   ],
-  "guardedBy": [],
-  "goal": "spreadsheet"
+  "guardedBy": [
+    "crates/nvs-ext/tests/builtin.rs",
+    "crates/nvs-ext/tests/spreadsheet.rs",
+    "crates/nvs-ext/tests/spreadsheet_read.rs",
+    "crates/nvs-ext/tests/spreadsheet_hostile.rs",
+    "tests/conformance/novis/spreadsheet-a-cell-read-from-an-upload-is-tainted.nvst",
+    "tests/conformance/novis/spreadsheet-reads-csv-with-the-same-row-shape.nvst"
+  ]
 }

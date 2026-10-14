@@ -1,0 +1,47 @@
+<?nvs
+// Attack: a request adds notes with markup, formulas and very long text, and very many notes on one sheet.
+// `note` should write each text as plain text, and throw an error for a cell the sheet does not have.
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+class Attack
+{
+    // This method adds a note to `$cell` and prints the length of the note read back, or the class of the error.
+    public static function attempt(int $step, string $cell, string $text, string $author): void
+    {
+        try {
+            var $book = Workbook::createInMemory();
+            $book->sheet('Shop')->note($cell, $text, { author: $author })->add(['Order']);
+            bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+            foreach (Reader::open($file)->notes('Shop') as var $note) {
+                echo 'step ', $step, ' read a note of ', Core\Str::length($note->note), " characters\n";
+            }
+        } catch (Throwable $e) {
+            echo 'step ', $step, ' stopped ', $e::class, "\n";
+        }
+    }
+}
+
+// 1. Markup, a formula, a zero byte and text that closes the XML of the note.
+Attack::attempt(1, 'A1', '<script>alert(1)</script>', 'Ann');
+Attack::attempt(1, 'A1', '=cmd|calc!A0', '=1+1');
+Attack::attempt(1, 'A1', "before\u{0}after", 'Ann');
+Attack::attempt(1, 'A1', '</t></r></text></comment><x>', '</author>');
+
+// 2. A note of 100,000 characters and an author of 10,000 characters.
+Attack::attempt(2, 'A1', Core\Str::repeat('n', 100000), Core\Str::repeat('a', 10000));
+
+// 3. A cell outside the sheet, a range, and an empty cell name.
+Attack::attempt(3, 'XFE1', 'note', 'Ann');
+Attack::attempt(3, 'A1:B2', 'note', 'Ann');
+Attack::attempt(3, '', 'note', 'Ann');
+
+// 4. 5,000 notes on one sheet.
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet('Shop');
+for (int $n = 1; $n <= 5000; $n++) {
+    $sheet->note("A{$n}", "Note {$n}");
+}
+$sheet->add(['Order']);
+bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+echo 'step 4 read ', Core\Arr::count(Reader::open($file)->notes('Shop')), " notes\n";

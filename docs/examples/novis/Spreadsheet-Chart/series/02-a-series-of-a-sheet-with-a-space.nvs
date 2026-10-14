@@ -1,0 +1,19 @@
+<?nvs
+// Shows a series that uses the rows of a sheet whose name has a space.
+use Novis\Spreadsheet\Chart;
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $orders = $book->sheet('Shop orders');
+$orders->addAll([['day' => 'Monday', 'orders' => 14], ['day' => 'Tuesday', 'orders' => 19]]);
+string $values = $orders->column('orders');
+
+// A sheet name with a space goes in single quotes, such as `'Shop orders'!B2:B3`.
+var $summary = $book->sheet('Summary');
+$summary->add(['note' => 'Orders of each day']);
+$summary->chart('A3', Chart::line()->series("'Shop orders'!{$values}", { name: 'Orders' }));
+bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+
+// `Core\Zip::read` returns the XML of the chart. This line checks the range of its values.
+var $xml = Core\Zip::read($file, 'xl/charts/chart1.xml') as string;
+echo Core\Str::contains($xml, "<c:f>'Shop orders'!\$B\$2:\$B\$3</c:f>") ? 'the values are on Shop orders' : 'other values', "\n";

@@ -1,0 +1,21 @@
+<?nvs
+// Shows how to check the target of a link from an upload before your program shows it on a web page.
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet('Products');
+$sheet->link('A2', 'https://example.com/widget', { text: 'Widget', tooltip: 'Open the product page' });
+$sheet->link('A3', 'http://example.com/gadget');
+$sheet->addAll([['Product'], ['Widget'], ['Gadget']]);
+var $reader = Reader::open($book->finish()->bytes ?? Core\Bytes::fill(0, 0));
+
+// The target is `tainted`. This program accepts only `https:` links.
+// `text` and `tooltip` are `null` when the link does not have them.
+foreach ($reader->links('Products') as var $link) {
+    if (Core\Str::startsWith($link->target, 'https://')) {
+        echo $link->anchor, ': accepted, tooltip ', $link->tooltip ?? 'none', "\n";
+    } else {
+        echo $link->anchor, ": not https, skipped\n";
+    }
+}
