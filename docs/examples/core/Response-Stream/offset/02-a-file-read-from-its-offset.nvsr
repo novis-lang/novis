@@ -1,0 +1,6 @@
+--METHOD--
+GET
+--PATH--
+/notes
+--HEADERS--
+host: example.com

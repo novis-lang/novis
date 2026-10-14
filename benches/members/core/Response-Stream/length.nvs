@@ -1,0 +1,21 @@
+<?nvs
+// Reads how many bytes are left to write, as the loop that sends a video does before each part.
+// bench: iterations 2048
+// bench: allocations 0
+// bench: calls 0
+// bench: complexity constant
+
+class Bench {
+    public static function run(Core\Response\Stream $body, uint $rounds): int {
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + $body->length() + ($total % 3);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+Core\Response\Stream $video = Core\Response::stream("text/plain", 1);
+$video->write((Bench::run($video, 2048) % 10) as string);

@@ -1,0 +1,32 @@
+<?nvs
+// Attack: a program starts streams with lengths at the edges, and the request asks for parts
+// that do not exist. Each stream should give a part inside its length, or throw a `LogicError`.
+
+// 1. Asks for the offset of a stream without a length. The `LogicError` is caught.
+Core\Response\Stream $none = Core\Response::stream('text/plain');
+try {
+    $none->write($none->offset() as string);
+} catch (LogicError $error) {
+    $none->write('');
+}
+
+// 2. Starts a stream with a negative length. The `LogicError` is caught.
+try {
+    Core\Response\Stream $negative = Core\Response::stream('text/plain', -1);
+    $negative->write('x');
+} catch (LogicError $error) {
+    $none->write('');
+}
+
+// 3. Starts a stream with the largest `int` as its length, and writes only a few bytes.
+Core\Response\Stream $huge = Core\Response::stream('text/plain', 9223372036854775807);
+$huge->write(Core\Bytes::slice('abc' as bytes, $huge->offset(), 3));
+
+// 4. Starts a stream with a length of 0, so there is nothing to write.
+Core\Response\Stream $empty = Core\Response::stream('text/plain', 0, 'v1');
+$empty->write(Core\Bytes::slice('abc' as bytes, $empty->offset(), $empty->length()));
+
+// 5. The request asks for a part past the end of the largest `int`, and for an empty part.
+bytes $text = 'Hello, world' as bytes;
+Core\Response\Stream $body = Core\Response::stream('text/plain', Core\Bytes::length($text) as int, 'v1');
+$body->write(Core\Bytes::slice($text, $body->offset(), $body->length()));

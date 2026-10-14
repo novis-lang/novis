@@ -1,0 +1,31 @@
+<?nvs
+// Shows how to send a video from storage so that a browser can seek in it.
+
+// A real server already has the video. The example writes a short text file in its place,
+// so that the output is easy to read.
+string $path = Core\Path::join(Core\IO::temporaryDir(), "intro.mp4");
+Core\IO::write($path, "frame 1\nframe 2\nframe 3\n");
+
+// With a length, the browser can ask for any part of the video with a `Range` header.
+// `"intro-1"` is the version name. A real program stores one with each video.
+Core\Response\Stream $video = Core\Response::stream("video/mp4", Core\IO::size($path) as int, "intro-1");
+
+// The loop reads the part the browser asked for, 64 KiB at a time.
+// This request has no `Range` header, so the part is the whole file.
+Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Read);
+$file->seek($video->offset() as uint);
+int $left = $video->length();
+while ($left > 0) {
+    uint $size = 65536;
+    if ($left < 65536) {
+        $size = $left as uint;
+    }
+    string $piece = $file->read($size);
+    if ($piece == "") {
+        // The file is shorter than its size said. The connection is closed.
+        break;
+    }
+    $video->write($piece);
+    $left = $left - (Core\Bytes::length($piece as bytes) as int);
+}
+$file->close();
