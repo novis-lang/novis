@@ -1,6 +1,6 @@
 ---
 summary: the value a captured terminal write comes back as — bytes that have already been through the output sink
-keywords: Core\Out::capture, ob_start, ob_get_clean, terminal output, ANSI, escape sequences, captured output, carrier
+keywords: Core\Out::capture, terminal output, ANSI, escape sequences, captured output, carrier
 ---
 
 `Core\Cli\Text` is what `Core\Out::capture` answers when the program is not serving an HTTP request: the

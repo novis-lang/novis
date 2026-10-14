@@ -2,19 +2,19 @@
 id: concurrency
 title: Tasks, channels and isolates
 summary: structured concurrency with `Core\Task`, bounded channels, and `spawn script` isolates that share nothing
-keywords: Core\Task, all, map, limit, deadline, TimeoutError, sleep, usleep, Core\Task\Channel, send, close, spawn script, await, Core\Script\Handle, isolate, ScriptResult, script.spawn, args, output, capture, inherit, async, await, Fiber, pcntl, pcntl_fork, pthreads, parallel, curl_multi, threads, workers, shared state
+keywords: Core\Task, all, map, limit, deadline, TimeoutError, sleep, Core\Task\Channel, send, close, spawn script, await, Core\Script\Handle, isolate, ScriptResult, script.spawn, args, output, capture, inherit, async, await, fibers, fork, parallel, concurrent requests, threads, workers, shared state
 ---
 
 # No colouring: I/O just waits
 
-There is no `async`, no `await` on a promise, no `Fiber`, no callback style. A member that waits
+There is no `async`, no `await` on a promise and no callback style. A member that waits
 — `Core\Time::sleep`, a file read, a channel `send` — parks the calling task and returns when it
 is done; the code around it is ordinary sequential code. Concurrency is expressed by *running
 several tasks*, and every task is a child of the call that started it: the call does not return
 while any child is still running.
 
-`async function`, `new Fiber(…)`, `pcntl_fork()` and threads do not exist; `Core\Task::map` is
-what `curl_multi_*` was for. Nothing is shared between requests: there are no globals that outlive
+`async function`, fibers, process forking and threads do not exist. `Core\Task::map` runs many
+calls at once, such as many HTTP requests. Nothing is shared between requests: there are no globals that outlive
 one, and no `Core` member that keeps state across them.
 
 ```nvs
@@ -406,9 +406,9 @@ try {
 
 # What does not exist
 
-- `async`, a promise-style `await`, `Fiber`, generators as coroutines: a task is a callable handed to
+- `async`, a promise-style `await`, fibers, generators as coroutines: a task is a callable handed to
   `Core\Task`, and waiting is implicit.
-- `pcntl_fork`, `pthreads`, `parallel`, a `spawn worker`: an isolate is the one unit of separate
+- Process forking, threads, a `spawn worker`: an isolate is the one unit of separate
   execution, and its entry is a whole file or a static method.
 - An anonymous function as a spawn entry: refused. It would carry the variables it captures into
   a child that shares nothing but compiled code.

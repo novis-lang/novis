@@ -1,6 +1,6 @@
 ---
 summary: an incremental digest — fed piece by piece with `update`, closed once with `finish`
-keywords: hash_init, hash_update, hash_final, HashContext, incremental hash, streaming digest, chunked input
+keywords: incremental hash, streaming digest, chunked input, hash a large file, checksum
 ---
 
 A `Core\Hash\Stream` is opened by `Core\Hash::stream` with a `Core\Hash::Digest` case and digests

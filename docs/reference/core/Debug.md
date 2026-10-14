@@ -1,6 +1,6 @@
 ---
 summary: one readable rendering of any value — `dump` writes it to stderr, `render` answers it as text
-keywords: var_dump, print_r, var_export, debug_zval_refcount, dump, inspect, stderr, diagnostic
+keywords: dump, inspect, print a value, debug output, render, stderr, diagnostic
 ---
 
 `Core\Debug::dump` renders each argument as a typed record — `int(42)`, `string(2) "42"`, an

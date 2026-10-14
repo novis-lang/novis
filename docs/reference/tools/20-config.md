@@ -2,13 +2,13 @@
 id: config
 title: "Configuration: nvs.toml, limits and capabilities"
 summary: the `nvs.toml` file — where it is read from, every block the binary accepts, resource limits and their ceilings, capability grants, per-application blocks, includes, secrets, and reading it from a program with `Core\Config`
-keywords: nvs.toml, configuration, config, TOML, limits, memory_limit, max_execution_time, limits.hard, ceiling, capabilities, fs.read, fs.write, script.spawn, net.connect, net.listen, net.local, process.exec, cache.shared, capability, permission, sandbox, [[app]], entry, root, include, mode, development, production, ini_get, ini_set, ini_restore, ini_get_all, php.ini, .htaccess, secret, secrets, password_file, /run/secrets, SOPS, sops, age, encrypted secrets, sealed secrets, Vault, LoadCredential, mail, Core\Config
+keywords: nvs.toml, configuration, config, TOML, limits, memory limit, time limit, limits.hard, ceiling, capabilities, fs.read, fs.write, script.spawn, net.connect, net.listen, net.local, process.exec, cache.shared, capability, permission, sandbox, [[app]], entry, root, include, mode, development, production, read a setting, change a setting, .htaccess, secret, secrets, password_file, /run/secrets, SOPS, sops, age, encrypted secrets, sealed secrets, Vault, LoadCredential, mail, Core\Config
 ---
 
 # The file and where it is read from
 
-Configuration is one TOML file, `nvs.toml`. There is no `php.ini`, no `.htaccess`, no environment
-variable and no command-line switch that sets a directive: what the file says is what is in force.
+Configuration is one TOML file, `nvs.toml`. No `.htaccess` file, environment variable or
+command-line switch sets a directive: what the file says is what is in force.
 
 - `nvs` reads `./nvs.toml` from the **working directory**. It does not look in the program's
   directory.
@@ -530,8 +530,7 @@ them.
 
 # Reading and changing it from a program: `Core\Config`
 
-`Core\Config::get`, `set`, `restore` and `all` are the program's view of the configuration — the
-replacements for `ini_get`, `ini_set`, `ini_restore` and `ini_get_all`.
+`Core\Config::get`, `set`, `restore` and `all` are the program's view of the configuration.
 
 - A name is the dotted path the file writes: `limits.hard.memory`, `log.level`, `mode.default`. A
   **bare limit name** — `memory`, `cpu_time`, `wall_time`, `max_tasks`, `max_output` — is the

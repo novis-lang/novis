@@ -1,6 +1,6 @@
 ---
 summary: render HTML and CSS as a PDF file, with page headers, footers and the files the HTML uses
-keywords: pdf, dompdf, mpdf, tcpdf, fpdf, wkhtmltopdf, html to pdf, invoice, report, page number, header, footer, pdf/a, factur-x
+keywords: pdf, generate pdf, html to pdf, wkhtmltopdf, invoice, report, page number, header, footer, pdf/a, factur-x
 ---
 
 `Novis\Pdf\Document` is an HTML document that `render` turns into a PDF file. Each method returns a

@@ -2,7 +2,7 @@
 id: iteration
 title: Iteration and generators
 summary: what `foreach` accepts — arrays, `Iterable<T>`, `Iterator<T>` — how a class becomes iterable, and how a method with `yield` is a lazy `Iterator<T>`
-keywords: foreach, Iterable, Iterator, iterate, advance, current, yield, generator, Generator, yield from, IteratorAggregate, Traversable, ArrayAccess, Countable, iterator_to_array, Core\Arr::from, lazy, finally, ObjectMap, ObjectSet, Heap, Channel
+keywords: foreach, Iterable, Iterator, iterate, advance, current, yield, generator, Generator, yield from, Core\Arr::from, lazy, finally, ObjectMap, ObjectSet, Heap, Channel
 ---
 
 # What `foreach` walks
@@ -437,9 +437,8 @@ echo Core\Arr::count($b), "\n";
 # What does not exist
 
 `ArrayAccess`, `Countable`, `IteratorAggregate`, `Traversable` and the `Generator` class are not
-declared — naming one is a compile error. `iterator_to_array`, `count`, `current`, `next`,
-`reset` and every other free function do not exist; a generator's own members and `Core\Arr` are
-the replacements. Element access on an object (`$obj[0]`) has no interface to implement: give
+declared — naming one is a compile error. There are no free functions: use a generator's own
+members and `Core\Arr`. Element access on an object (`$obj[0]`) has no interface to implement: give
 the class a method.
 
 ```nvs error

@@ -2,7 +2,7 @@
 id: errors
 title: Errors, exceptions and limits
 summary: the throwable tree, `throw`/`try`/`catch`/`finally`, what an uncaught throw does, and the fatal limits no `catch` sees
-keywords: Throwable, Exception, Error, LogicError, RuntimeError, IOError, ParseError, TimeoutError, RecursionError, ArithmeticError, throw, try, catch, finally, rethrow, previous, backtrace, location, message, getMessage, getPrevious, getTrace, getCode, set_error_handler, set_exception_handler, trigger_error, error_reporting, fatal, FATAL, memory limit, onLimit, capability, fs.read, script.spawn, Core\Fatal, Core\Debug, var_dump, print_r, assert, Core\Test\Failure
+keywords: Throwable, Exception, Error, LogicError, RuntimeError, IOError, ParseError, TimeoutError, RecursionError, ArithmeticError, throw, try, catch, finally, rethrow, previous, backtrace, location, message, getMessage, getPrevious, getTrace, getCode, uncaught exception, error handler, fatal, FATAL, memory limit, onLimit, capability, fs.read, script.spawn, Core\Fatal, Core\Debug, dump a value, assertion, Core\Test\Failure
 ---
 
 # The throwable tree
@@ -340,8 +340,7 @@ A throw that no `catch` handles ends the program with exit status 1. Standard ou
 everything written before it; standard error gets one log record holding the message, the error's
 class and one entry per frame, innermost first, ending with the top-level frame `<script>()`.
 `[log] format` picks how that record is written: one JSON line by default, readable text under
-`format = "text"`. There is no `set_exception_handler` and no `set_error_handler`:
-catch it, or let it end the program.
+`format = "text"`. No global handler can intercept the throw: catch it, or let it end the program.
 
 ```nvs exit=1
 <?nvs
@@ -518,8 +517,8 @@ flag should be set: Core\Test::assertTrue failed: `$actual` is false
 
 # Inspecting a value
 
-`Core\Debug::dump` writes one rendering per argument to standard error — never to standard
-output, and never into a captured buffer — which is what `var_dump` is for. `Core\Debug::render`
+`Core\Debug::dump` writes one rendering per argument to standard error. It never writes to standard
+output or into a captured buffer. `Core\Debug::render`
 returns the same rendering as text, so it can be echoed or embedded. Control bytes are made
 visible, a deep or long structure is elided, a cycle is marked, and a `secret` property is redacted.
 

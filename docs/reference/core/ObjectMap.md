@@ -1,6 +1,6 @@
 ---
-summary: a map keyed by object identity — the typed replacement for `SplObjectStorage` used as a map and for every `spl_object_id` side table
-keywords: SplObjectStorage, spl_object_id, WeakMap, identity, object key, side table, map, dictionary, lookup
+summary: a map keyed by object identity — a typed side table that keeps a value for each object
+keywords: identity, object identity, object key, per-object data, side table, map, dictionary, lookup
 ---
 
 `Core\ObjectMap<K, V>` associates a value with an object, matched by **identity**: the one object is one

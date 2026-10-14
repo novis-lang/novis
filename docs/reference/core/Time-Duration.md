@@ -1,6 +1,6 @@
 ---
 summary: an exact, signed span of nanoseconds — a duration written like `1h30m` is a value of this class
-keywords: DateInterval, sleep, usleep, hrtime, strtotime("+3 days"), 1h30m, 250ms, nanoseconds, exact offset, timeout
+keywords: duration, interval, time span, sleep, 1h30m, 250ms, nanoseconds, exact offset, parse a duration, timeout
 ---
 
 A `Duration` is a signed count of nanoseconds. You write one directly in the code as a number and a

@@ -1,6 +1,6 @@
 ---
 summary: regular expressions without delimiters — match, capture, replace and split, linear-time by default with a step budget for the patterns that need backtracking
-keywords: preg_match, preg_match_all, preg_replace, preg_replace_callback, preg_split, preg_quote, PREG_OFFSET_CAPTURE, PREG_SET_ORDER, PREG_UNMATCHED_AS_NULL, pcre.backtrack_limit, regex, regexp, pattern, named group, lookahead, lookbehind, backreference, ReDoS
+keywords: regex, regexp, regular expression, pattern, match, replace, split, capture group, named group, match offset, lookahead, lookbehind, backreference, backtracking limit, escape a pattern, ReDoS
 ---
 
 A `Core\Regex` pattern is a plain string — no `/…/` delimiters and no trailing modifiers; the

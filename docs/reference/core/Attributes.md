@@ -1,6 +1,6 @@
 ---
 summary: reads the attributes attached to a class, a method, a property or a parameter — each one an anonymous object, read by the shape it satisfies, at compile time
-keywords: ReflectionAttribute, getAttributes, newInstance, attribute, metadata, annotation, #[...], anonymous object
+keywords: attribute, metadata, annotation, #[...], read attributes, attribute arguments, anonymous object
 ---
 
 `Core\Attributes::get<T>` returns the one attribute on a target whose payload object satisfies the

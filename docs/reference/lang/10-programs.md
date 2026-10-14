@@ -2,7 +2,7 @@
 id: programs
 title: Programs, files and names
 summary: what a `.nvs` file is, how it runs, how names are spelled and resolved, and how one file reaches another
-keywords: <?nvs, <?=, ?>, inline HTML, shebang, nvs run, echo, print, comments, doc comment, ///, docblock, PHPDoc, @see, @example, exit, namespace, use, require, autoload, discover, class name, casing, constructor, visibility, top-level statements, main
+keywords: <?nvs, <?=, ?>, inline HTML, shebang, nvs run, echo, print, comments, doc comment, ///, docblock, @see, @example, exit, namespace, use, require, autoload, discover, class name, casing, constructor, visibility, top-level statements, main
 ---
 
 # A program is a file of top-level statements

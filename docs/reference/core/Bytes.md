@@ -1,6 +1,6 @@
 ---
 summary: octet buffers — read, search, compare, build and lay out as a wire format with `pack`/`unpack`
-keywords: strlen, ord, chr, substr, strpos, strcmp, str_contains, str_starts_with, str_ends_with, str_repeat, implode, pack, unpack, binary string, byte offset, magic bytes, wire format, bytes
+keywords: bytes, binary data, binary string, byte length, byte offset, byte order, endianness, compare bytes, search bytes, magic bytes, wire format, pack, unpack
 ---
 
 `Core\Bytes` reads and builds `bytes` — a buffer of octets with no character in it. Every position,

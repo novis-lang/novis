@@ -1,6 +1,6 @@
 ---
 summary: three cache tiers with three promises — `local` is one core's own memory and the next request may not see it, `process` is one map for the whole `nvs serve` (or `nvs run`) process, `shared` is an external store such as Redis that every process and machine sees
-keywords: apcu_store, apcu_fetch, apcu_delete, apcu_exists, shmop, sysvshm, cache, memoize, per-core, per-process, redis, ttl, coherence, hit, miss, cross-request state
+keywords: cache, memoize, shared memory, per-core, per-process, redis, ttl, expiry, coherence, hit, miss, cross-request state
 ---
 
 `Core\Cache` is where a value outlives the request that made it, in three tiers that hand back the

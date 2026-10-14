@@ -1,6 +1,6 @@
 ---
 summary: one uploaded part — what it declared about itself, and the three ways to spend its bytes
-keywords: $_FILES, tmp_name, move_uploaded_file, UPLOAD_ERR_OK, upload name, client filename, Content-Disposition, Content-Type, multipart part, file_get_contents upload
+keywords: uploaded file, upload name, client filename, form field, Content-Disposition, Content-Type, multipart part, read an upload, save an upload
 ---
 
 A `Core\Request\Part` is one file part of a `multipart/form-data` body, handed to the loop body by the

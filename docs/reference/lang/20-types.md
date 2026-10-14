@@ -2,7 +2,7 @@
 id: types
 title: Types, declarations and conversions
 summary: every type, how a binding declares one, every value written in the code, the `as` conversion and its table, implicit widening, narrowing, truthiness, and the `tainted`/`secret` qualifiers
-keywords: bool, int, uint, float, decimal, string, bytes, array<T>, callable, class<T>, class reference, mixed, object, nullable, ?T, union, single-value type, enum, shape, anonymous object, type alias, void, never, self, static, iterable, intersection, var, declaration, inout, variadic, default parameter, constant, string literal, numeric literal, heredoc, nowdoc, interpolation, duration, html, markup, template, html template, page, escape, xss, as, conversion, cast, (int), (string), (float), (bool), (array), intval, strval, floatval, boolval, settype, gettype, is_int, is_string, is_array, is_null, is_numeric, widening, narrowing, is, truthy, falsy, tainted, secret, resource
+keywords: bool, int, uint, float, decimal, string, bytes, array<T>, callable, class<T>, class reference, mixed, object, nullable, ?T, union, single-value type, enum, shape, anonymous object, type alias, void, never, self, static, iterable, intersection, var, declaration, inout, variadic, default parameter, constant, string literal, numeric literal, heredoc, nowdoc, interpolation, duration, html, markup, template, html template, page, escape, xss, as, conversion, cast, convert to int, convert to string, type check, type of a value, widening, narrowing, is, truthy, falsy, tainted, secret
 ---
 
 # Every binding has a type
@@ -1172,7 +1172,7 @@ cannot be passed to `Core\Json::encode`
 - No free function converts a value or tests its type. A variable's type never changes, so a
   conversion goes into a new variable. A `mixed` is tested with `is` for a class,
   `($m as ?int) != null` for a scalar and `== null` for `null`.
-- There is no `resource` type. A handle is a `Core` object.
+- A handle, such as an open file or a connection, is a `Core` object.
 - A string or an array is never a `callable`. A `callable` comes from an anonymous function
   `fn (…) => …` or a method reference such as `Foo::bar(...)`.
 - `$s[0]` on a string is a compile error. Write `Core\Str::at` or `Core\Str::slice`.

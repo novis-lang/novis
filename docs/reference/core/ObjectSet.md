@@ -1,6 +1,6 @@
 ---
-summary: a set of objects held by identity — the typed replacement for `SplObjectStorage` used as a set
-keywords: SplObjectStorage, spl_object_id, identity, set, membership, union, intersect, diff, deduplicate objects
+summary: a typed set of objects held by identity
+keywords: identity, object identity, set, membership, union, intersect, diff, deduplicate objects
 ---
 
 `Core\ObjectSet<T>` holds each object at most once, matched by **identity**: adding the same object twice

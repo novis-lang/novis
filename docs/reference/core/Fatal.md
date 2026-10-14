@@ -1,6 +1,6 @@
 ---
 summary: the one hook that runs after a resource limit has stopped the request — what `register_shutdown_function` was for on a fatal
-keywords: register_shutdown_function, memory limit, resource limit, FATAL, onLimit, cpu_time, wall_time, max_output, out of memory, shutdown handler
+keywords: memory limit, resource limit, FATAL, onLimit, cpu_time, wall_time, max_output, out of memory, shutdown handler
 ---
 
 `Core\Fatal::onLimit` registers the callable the request runs when a resource limit — memory, CPU time,

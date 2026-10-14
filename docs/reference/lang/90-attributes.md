@@ -2,7 +2,7 @@
 id: attributes
 title: Attributes, routes, commands and derived codecs
 summary: `#[...]` metadata as anonymous objects, how it is read back, and the names the compiler acts on — JSON codecs, the route table, the command table, and program enumeration
-keywords: attribute, #[...], Attribute, Reflection, ReflectionAttribute, getAttributes, Core\Attributes, get, all, #[Route], Symfony route, Laravel route, Route, Access, Query, Api, OpenAPI, Router::url, urlAbsolute, Command, Option, Symfony Console, Json\Derive, Json\Field, JsonSerializable, decodeAs, Program::implementing, autoload
+keywords: attribute, #[...], Attribute, reflection, read attributes, Core\Attributes, get, all, #[Route], route attribute, Route, Access, Query, Api, OpenAPI, Router::url, urlAbsolute, Command, Option, console command, Json\Derive, Json\Field, JSON encoding, decodeAs, Program::implementing, autoload
 ---
 
 # An attribute is an anonymous object attached to a declaration
@@ -112,8 +112,7 @@ payload, so nothing is reflected on at run time.
   value a read of that same name inlines — folded in the scope the attribute was *written* in, not
   the one it is read from. A constant whose own declaration folds to nothing is the one refusal
   left.
-- There is no reflection API, so `ReflectionClass` and `ReflectionAttribute` do not exist. A
-  retrieved payload is a plain shape value, read with `->`.
+- There is no reflection API. A retrieved payload is a plain shape value, read with `->`.
 
 ```nvs
 <?nvs
@@ -173,7 +172,7 @@ The rest are below.
 
 `#[Core\Json\Derive]` on a class gives it an encoder and a decoder, so `Core\Json::encode` accepts
 its instances and `Core\Json::decodeAs<T>` builds them. Without the attribute both refuse the class
-with a `LogicError` — there is no `JsonSerializable` and no automatic encoding of an object.
+with a `LogicError`. An object is never encoded automatically.
 
 ```nvs
 <?nvs

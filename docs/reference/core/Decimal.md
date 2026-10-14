@@ -1,13 +1,13 @@
 ---
 summary: what a `decimal` reaches for where the operators cannot say it — two divisions that name their own rounding, the split whose parts add back exactly, the exact power, and the four cuts to a scale
-keywords: decimal, division, divExact, divRound, allocate, penny split, remainder, pow, power, rounding, scale, money, currency, banker's rounding, half-even, bcmath, bcdiv, exact, floor, ceil, truncate, round
+keywords: decimal, division, divExact, divRound, allocate, penny split, remainder, pow, power, rounding, scale, money, currency, banker's rounding, half-even, arbitrary precision, fixed-point, exact, floor, ceil, truncate, round
 ---
 
 Novis's `decimal` scalar carries its own arithmetic as operators — `+`, `-`, `*`, `%` and `/` all work
 directly on it, exactly, with no class in the way. Division is the one operation that may be inexact, and
 the `/` operator's answer to that is fixed in the language: round half to even, at the widest scale the
-result admits. There is no `bcscale()` and never will be, because an ambient precision that unrelated later
-code reads is a global by another name.
+result admits. No setting changes this precision for the whole program. Such a setting would be a global
+variable that unrelated code reads.
 
 `Core\Decimal` is where a program says something the operator cannot. These questions come up in money
 code, and nowhere else does the type system help with them:

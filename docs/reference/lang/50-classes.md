@@ -1291,7 +1291,7 @@ it: assigning it, passing it, or storing it never copies the object, and a write
 handle is seen through every other. `==` on two objects is identity — true only for the same
 object. `clone` makes a new object of the same class (a subclass clone keeps its class) with a
 copy of every property: an array property is copied, an object property is shared, and no
-method runs. `__clone` does not exist.
+method runs.
 <!-- src: `rule:classes/two-copy-depths` -->
 
 ```nvs

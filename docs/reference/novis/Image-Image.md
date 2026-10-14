@@ -1,6 +1,6 @@
 ---
 summary: open, resize, crop and convert images, with nothing decoded until the result is written
-keywords: image, gd, imagick, imagecreatefromstring, imagecopyresampled, imagejpeg, imagepng, imagewebp, getimagesize, thumbnail, resize, crop, rotate, convert, jpeg, png, webp
+keywords: image, picture, thumbnail, resize, scale, crop, rotate, convert, image size, image dimensions, jpeg, png, webp
 ---
 
 `Novis\Image\Image` is an image and a list of steps to run on it. Each step method, such as

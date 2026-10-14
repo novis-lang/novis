@@ -1,6 +1,6 @@
 ---
 summary: a wall-clock reading with no date and no zone, wrapping within the day
-keywords: setTime, date("H:i"), wall clock, time of day, clock reading, hour, minute
+keywords: wall clock, time of day, time without a date, clock reading, hour, minute, second
 ---
 
 A `TimeOfDay` is a clock reading — hour, minute, second, nanosecond — with no date and no zone, built by

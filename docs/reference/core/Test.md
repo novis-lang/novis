@@ -1,10 +1,10 @@
 ---
-summary: the typed assertion roster a `#[Test]` method calls — what PHPUnit's `assert*` family becomes when testing is part of the language
-keywords: PHPUnit, assert(), assertion, unit test, #[Test], #[Core\Test], Core\Test\Failure, nvs test, expectException, assertSame, assertEquals, ledger, fixed clock
+summary: the typed assertions a `#[Test]` method calls, built into the language
+keywords: assertion, assertEquals, assertThrows, unit test, #[Test], #[Core\Test], Core\Test\Failure, nvs test, test failure, expected exception, ledger, fixed clock
 ---
 
 `Core\Test` is the assertion surface: every member is `static`, takes the subject **first**
-(`assertEquals($actual, $expected)` — the reverse of PHPUnit's order), and is generic, so comparing an
+(`assertEquals($actual, $expected)`), and is generic, so comparing an
 `int` with a `string` is a compile error rather than a failed test. A failed assertion throws
 `Core\Test\Failure`, an ordinary `Throwable` a `catch` may take — but the runner keeps its own ledger of
 what held and what failed, and a `catch` does not erase an entry; `expectFailure` is the one member that

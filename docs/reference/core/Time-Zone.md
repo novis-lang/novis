@@ -1,13 +1,13 @@
 ---
 summary: a time zone — an IANA region, a fixed offset, or `UTC` — named explicitly at every conversion
-keywords: DateTimeZone, date_default_timezone_get, date_default_timezone_set, getOffset, timezone, IANA, Europe/Berlin, UTC, offset, DST
+keywords: timezone, time zone, IANA, tz database, Europe/Berlin, UTC, offset, UTC offset, DST, daylight saving time, convert time zone, system time zone
 ---
 
 A `Zone` is what turns an `Instant` into a calendar reading and back: `Zone::of` looks up an IANA
 identifier such as `Europe/Berlin` in the bundled database and throws on one it does not have,
 `Zone::fixed` is a constant offset with no DST rules, and `Zone::UTC` is the one constant. There is
 no ambient zone: `Zone::system()` answers the host's zone as an ordinary value the program then
-passes on, and nothing like `date_default_timezone_set` exists. A zone with DST has no single
+passes on, and no call sets a default zone for the program. A zone with DST has no single
 offset, so `offsetAt` asks for the instant.
 
 ```nvs

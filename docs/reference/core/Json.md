@@ -1,13 +1,13 @@
 ---
 summary: JSON in and out — `encode` any value, `decode` to `mixed`, `decodeAs<T>` straight into a class that declares its codec
-keywords: json_encode, json_decode, json_validate, json_last_error, json_last_error_msg, JSON_PRETTY_PRINT, JSON_UNESCAPED_UNICODE, JSON_THROW_ON_ERROR, JsonSerializable, hydration, typed decoding, Derive, Field
+keywords: JSON, encode, decode, parse JSON, validate JSON, pretty print, hydration, typed decoding, JSON to class, Derive, Field
 ---
 
 `Core\Json::encode` writes any scalar, array or instance of a class carrying `#[Core\Json\Derive]`
 as JSON: a list becomes a JSON array, any other array a JSON object with its insertion order kept,
 and an instance of a class without the attribute is refused. `decode` answers `mixed` — an object
-as a string-keyed array — and throws `ParseError` on a malformed or too-deep document, so there is
-no `json_last_error`. `decodeAs<T>` reads a document straight into a class that carries
+as a string-keyed array — and throws `ParseError` on a malformed or too-deep document.
+`decodeAs<T>` reads a document straight into a class that carries
 `#[Core\Json\Derive]`, checking every declared field — private ones included — against its type
 (`?T` is the only way a field admits `null`) and reporting every failure at once in one
 `ParseError`'s `issues`. `#[Core\Json\Field(name: "…")]` gives one field its wire name. `T` is that

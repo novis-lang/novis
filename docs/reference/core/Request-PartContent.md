@@ -1,6 +1,6 @@
 ---
 summary: one uploaded part's bytes as a walk over its chunks — `Core\Request\Part::content()`'s answer, holding one chunk at a time and valid only while its part is the current one
-keywords: streaming upload, chunk, fread, stream_get_contents, multipart/form-data, large file upload, memory_limit, Iterable bytes, tmp_name, move_uploaded_file
+keywords: streaming upload, chunk, read in chunks, multipart/form-data, large file upload, memory limit, Iterable bytes
 ---
 
 `Core\Request\PartContent` is what `Core\Request\Part::content()` answers with: an `Iterable<tainted

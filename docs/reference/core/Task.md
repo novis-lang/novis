@@ -1,6 +1,6 @@
 ---
 summary: structured concurrency — run a fixed set or a whole array of callables as child tasks and get every result back before the call returns
-keywords: curl_multi_*, structured concurrency, parallel, concurrent, child task, fan-out, limit, deadline, TimeoutError, cancellation, all, map
+keywords: structured concurrency, parallel, concurrent, concurrent requests, run at once, wait for all, child task, fan-out, limit, deadline, TimeoutError, cancellation, all, map
 ---
 
 `Core\Task` runs callables as concurrent child tasks and never returns while one is still running.

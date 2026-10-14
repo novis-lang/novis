@@ -1,6 +1,6 @@
 ---
 summary: a 128-bit UUID value — random v4, time-ordered v7, parsed from canonical text
-keywords: uniqid, com_create_guid, uuid_is_valid, ramsey/uuid, GUID, RFC 9562, RFC 4122, v4, v7, primary key, identifier
+keywords: uuid, GUID, unique id, random id, RFC 9562, RFC 4122, v4, v7, primary key, identifier
 ---
 
 A `Uuid` is an opaque 128-bit value, not a string: `v4` draws a random one, `v7` a time-ordered one

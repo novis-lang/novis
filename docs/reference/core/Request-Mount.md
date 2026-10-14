@@ -1,6 +1,6 @@
 ---
 summary: the door a request came through — the prefix the server stripped and the glob captures of the mount row that took it, so one compiled program serves many tenants
-keywords: SCRIPT_NAME, PATH_INFO, base path, base URL, RewriteBase, subdirectory install, sub-folder deployment, virtual host, multi-tenant, subdomain routing, $_SERVER['REQUEST_URI']
+keywords: SCRIPT_NAME, PATH_INFO, base path, base URL, mount prefix, RewriteBase, subdirectory install, sub-folder deployment, virtual host, multi-tenant, subdomain routing, request URI
 ---
 
 `Core\Request\Mount` is what `Core\Request::mount()` answers with, and it holds two facts about the door
@@ -43,9 +43,7 @@ echo "serving ", $tenant, " under ", $mount->prefix(), "\n";
 
 A program therefore never derives its own base path from the request target, and `Core\Router::url`
 prepends the prefix on the way back out, so the same compiled route table serves at `/ModuleA`, at
-`/{1}` or at `/` with no recompile. `$_SERVER['SCRIPT_NAME']`, `PATH_INFO` and the `RewriteBase` guessing
-that goes with them have nothing left to describe. Without a request, the class is unreachable in the
-ordinary way:
+`/{1}` or at `/` with no recompile. Without a request, the class is unreachable in the ordinary way:
 
 ```nvs
 <?nvs
