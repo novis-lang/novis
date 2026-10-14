@@ -1,0 +1,2 @@
+Shipped: 2024-06-01 14:00
+The value for `{{shipped}}` is an `Instant`, and the template has no `zone`. Set `zone` in the options of `Template::open`, such as `zone: 'Europe/Berlin'`.

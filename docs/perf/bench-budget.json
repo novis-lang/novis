@@ -1,5 +1,5 @@
 {
-  "total": 112771816,
+  "total": 112772916,
   "benches": {
     "benches/members/core/Arr/all.nvs": 1542,
     "benches/members/core/Arr/any.nvs": 1542,
@@ -1008,6 +1008,8 @@
     "benches/members/novis/Spreadsheet-Sheet/chart.nvs": 147862,
     "benches/members/novis/Spreadsheet-Style/of.nvs": 7942,
     "benches/members/novis/Spreadsheet-Template/fill.nvs": 78972,
+    "benches/members/novis/Spreadsheet-Template/open.nvs": 554,
+    "benches/members/novis/Spreadsheet-Template/set.nvs": 546,
     "benches/members/novis/Spreadsheet-Workbook/createForDownload.nvs": 10405,
     "benches/members/novis/Spreadsheet-Workbook/createForFile.nvs": 7014,
     "benches/members/novis/Spreadsheet-Workbook/createForStream.nvs": 8711,

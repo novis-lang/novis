@@ -1,0 +1,75 @@
+<?nvs
+// Attack: a request passes user text as the address of `set`: cells past the end of a sheet, ranges,
+// sheets that do not exist and XML. Each address should be written as one cell, or `set` should throw an error.
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Template;
+use Novis\Spreadsheet\Workbook;
+
+class Attack
+{
+    public static function template(): bytes
+    {
+        var $design = Workbook::createInMemory();
+        $design->sheet('Shop')->addAll([['Order', '{{order}}']]);
+        return $design->finish()->bytes ?? Core\Bytes::fill(0, 0);
+    }
+
+    // This method sets one cell, fills the template, and prints how many rows the file has.
+    // If a step throws, it prints the class of the error.
+    public static function attempt(int $step, string $address, mixed $value): void
+    {
+        try {
+            bytes $file = Template::open(Attack::template())->set($address, $value)->fill(['order' => 1])->bytes();
+            int $rows = 0;
+            foreach (Reader::open($file)->rows('Shop') as var $row) {
+                $rows++;
+            }
+            echo 'step ', $step, ' ran ', $rows, " rows\n";
+        } catch (Throwable $e) {
+            echo 'step ', $step, ' stopped ', $e::class, "\n";
+        }
+    }
+}
+
+// 1. Cells past the last row and column, row 0, and a number too large for any row.
+Attack::attempt(1, 'Shop!XFD1048576', 'x');
+Attack::attempt(1, 'Shop!XFE1', 'x');
+Attack::attempt(1, 'Shop!A1048577', 'x');
+Attack::attempt(1, 'Shop!A0', 'x');
+Attack::attempt(1, 'Shop!A99999999999999999999', 'x');
+
+// 2. No sheet, an empty cell part, a range, a whole column, and a sheet name in quotes.
+Attack::attempt(2, 'A1', 'x');
+Attack::attempt(2, 'Shop!', 'x');
+Attack::attempt(2, 'Shop!A1:B2', 'x');
+Attack::attempt(2, 'Shop!A:A', 'x');
+Attack::attempt(2, "'Shop'!B3", 'x');
+
+// 3. XML and a NUL byte in the address, and a sheet name of 100,000 letters.
+Attack::attempt(3, 'Shop!A1"/><c r="B1', 'x');
+Attack::attempt(3, "Shop!A1\u{0}", 'x');
+Attack::attempt(3, Core\Str::repeat('S', 100000) . '!A1', 'x');
+
+// 4. XML as the value, a value that is not a cell value, and the cell of a placeholder.
+Attack::attempt(4, 'Shop!C1', '</t></is></c><c r="D1"><f>1+1</f>');
+Attack::attempt(4, 'Shop!C1', new Attack());
+Attack::attempt(4, 'Shop!B1', 'not the order');
+
+// 5. `set` after `fill`, and 10,000 cells set on one template.
+var $template = Template::open(Attack::template());
+$template->fill(['order' => 1]);
+try {
+    $template->set('Shop!C1', 'late');
+    echo "step 5 set after fill\n";
+} catch (Throwable $e) {
+    echo 'step 5 stopped ', $e::class, "\n";
+}
+var $many = Template::open(Attack::template());
+for (int $at = 2; $at < 10002; $at++) {
+    $many->set('Shop!A' . ($at as string), $at);
+}
+int $rows = 0;
+foreach (Reader::open($many->fill(['order' => 1])->bytes())->rows('Shop') as var $row) {
+    $rows++;
+}
+echo 'step 5 ran ', $rows, " rows\n";
