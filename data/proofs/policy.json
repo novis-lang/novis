@@ -154,6 +154,11 @@
       "examples": "The manifest export `Document::render` calls once, or twice for a header, a footer or slots, after it builds every shape; a reader learns from that member's examples, and one here would teach shapes a program never writes.",
       "perf": "`Document::render` is one or two of these crossings plus building the shapes, so its figure bounds this export's."
     },
+    "Novis\\Spreadsheet\\Written::constructor": {
+      "examples": "`new Written` stores three values and calls nothing; a program meets a `Written` as the result of `Workbook::finish`, whose examples read every one of them.",
+      "perf": "`new Written` stores three values and calls nothing; `Workbook::finish` builds one on every call, so its figure includes this one.",
+      "hostile": "`new Written` stores three typed read-only values and calls nothing, so a wrong value does not compile and there is no input left to attack."
+    },
     "lang:attributes/core-api-and-the-openapi-document": {
       "perf": "`#[Api]` is read while the program compiles and has no runtime surface to iterate; a loop here would measure the annotated method call instead."
     },
