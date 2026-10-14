@@ -14,9 +14,9 @@ const PHP = new Set(
     .filter((line) => line && !line.startsWith("#")),
 );
 // Words that are PHP functions and mean something else first: a gettext alias, Novis's `exit` and
-// `clone`, the JOSE `dir` key algorithm, digest names, Unix commands and C's `printf`. The same list is
-// `NOT_PHP` in `crates/nvs-stdlib/src/registry.rs`.
-const NOT_PHP = new Set(["_", "exit", "clone", "dir", "md5", "sha1", "crc32", "chmod", "chown", "symlink", "printf"]);
+// `clone`, the JOSE `dir` key algorithm, digest names, Unix commands, the Unix `syslog` service and C's
+// `printf`. The same list is `NOT_PHP` in `crates/nvs-stdlib/src/registry.rs`.
+const NOT_PHP = new Set(["_", "exit", "clone", "dir", "md5", "sha1", "crc32", "chmod", "chown", "symlink", "syslog", "printf"]);
 
 /** Every name Novis gives a `Core` class, member, enum case or constant, lower-cased. */
 function novisNames(): Set<string> {
