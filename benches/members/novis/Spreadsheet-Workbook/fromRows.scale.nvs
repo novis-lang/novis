@@ -1,0 +1,29 @@
+<?nvs
+// Exports a growing number of orders as an xlsx file, up to a million rows, as a shop does for a yearly report.
+// bench: start 1024
+// bench: max 1048576
+use Novis\Spreadsheet\Workbook;
+
+class Orders {
+    public function constructor(private uint $size) {}
+
+    public function rows(): Iterator<array<mixed>> {
+        yield ["Order", "Customer", "Total"];
+        uint $n = 1;
+        while ($n < $this->size) {
+            yield [$n, "Customer", ($n as float) * 1.25];
+            $n = $n + 1;
+        }
+    }
+}
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        var $orders = new Orders($size);
+        return Core\Bytes::length(Workbook::fromRows($orders->rows(), {header: true})->bytes());
+    }
+}
+
+echo Bench::run(1024), "\n";
