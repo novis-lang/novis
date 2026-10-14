@@ -89,6 +89,65 @@ pub(super) fn bound_connection<'a>(
     Ok(connection)
 }
 
+/// How long a connection waits to settle after a cancel when its `connect` or
+/// `open` named no `timeout`.
+///
+/// `[db.<name>.pool] acquire`'s default, because both bound a wait for a
+/// connection that a request needs before it can go on.
+pub const SETTLE_WITHIN: std::time::Duration = nvs_config::defaults::DB_POOL_ACQUIRE;
+
+/// Cancels the statement an interrupted read left running on `connection`, and
+/// answers whether the connection is back in a known state within `within`.
+///
+/// `rule:concurrency/a-deadline-bounds-the-cancel-not-the-return`:
+/// `nvs_db::Connection::settle` sends the driver's cancel and reads the wire
+/// back to a boundary. A connection that settles is idle and the release pools
+/// it. One that misses `within`, or whose driver sends no cancel, stays
+/// poisoned and the release closes it. A connection that is not poisoned
+/// answers `true` and nothing is sent.
+///
+/// **What it spends:** the wait, up to `within`, on the request whose
+/// deadline fired, and one short-lived second connection on PostgreSQL.
+pub fn settle_interrupted(
+    connection: &mut nvs_db::Connection,
+    within: std::time::Duration,
+) -> bool {
+    if connection.state() != nvs_db::State::Poisoned {
+        return true;
+    }
+    connection
+        .settle(std::time::Instant::now() + within)
+        .is_ok()
+}
+
+/// [`settle_interrupted`] for the connection filed under `key`, bounded by the
+/// `timeout` its `connect` or `open` named, or [`SETTLE_WITHIN`].
+///
+/// Every member whose statement failed calls this before the failure reaches
+/// the program, so the wait is part of the call the deadline stopped. A key
+/// that names no open connection settles nothing.
+pub(super) fn settle_filed(ctx: &mut nvs_runtime::Ctx, key: u64) {
+    let within = ctx.connection_timeout(key).unwrap_or(SETTLE_WITHIN);
+    let filed = ctx
+        .open_connection_mut(key)
+        .and_then(|held| held.as_any_mut().downcast_mut::<nvs_db::Connection>());
+    if let Some(connection) = filed {
+        settle_interrupted(connection, within);
+    }
+}
+
+/// `result`, after [`settle_filed`] has run on `key` if it is an error.
+pub(super) fn settled<T>(
+    ctx: &mut nvs_runtime::Ctx,
+    key: u64,
+    result: Result<T, Fault>,
+) -> Result<T, Fault> {
+    if result.is_err() {
+        settle_filed(ctx, key);
+    }
+    result
+}
+
 /// A connection `rule:core-classes/db-transactions`'s commands are written for, borrowed as one thing.
 ///
 /// The drivers spell a transaction differently — `nvs_db::mysql`'s `begin`
@@ -361,7 +420,8 @@ pub(super) fn queried_rows(
     // A read stopped at the memory ceiling ends the request with the limit's
     // `FATAL`, which names the ceiling and the reading, and no `catch` sees it.
     // [`rows_fit`]'s own fault is only for a caller with no context to ask.
-    let (answered, taken) = read.map_err(|fault| ctx.memory_breach().unwrap_or(fault))?;
+    let (answered, taken) =
+        settled(ctx, statement.key, read).map_err(|fault| ctx.memory_breach().unwrap_or(fault))?;
     watch.file(ctx, taken);
     Ok(answered)
 }
@@ -1387,12 +1447,12 @@ nvs_runtime::nvs_helper! {
         // Branched as [`queried_rows`] is, and the arms hand the event back for
         // the same borrow reason: the rows hold the connection, which holds the
         // context the span is filed on.
-        let (written, taken) = match bound_connection(ctx, statement.key, EXECUTE, deadline)? {
+        let wrote = match bound_connection(ctx, statement.key, EXECUTE, deadline)? {
             nvs_db::Connection::Postgres(postgres) => {
-                postgres_write(postgres, &statement, &sending, source, watch, EXECUTE)?
+                postgres_write(postgres, &statement, &sending, source, watch, EXECUTE)
             }
             nvs_db::Connection::MySql(mysql) => {
-                mysql_write(Framed::MySql(mysql), &statement, &sending, source, watch, EXECUTE)?
+                mysql_write(Framed::MySql(mysql), &statement, &sending, source, watch, EXECUTE)
             }
             nvs_db::Connection::MariaDb(maria) => mysql_write(
                 Framed::MariaDb(maria),
@@ -1401,16 +1461,17 @@ nvs_runtime::nvs_helper! {
                 source,
                 watch,
                 EXECUTE,
-            )?,
+            ),
             nvs_db::Connection::SqlServer(tds) => {
-                tds_write(tds, &statement, &sending, source, watch, EXECUTE)?
+                tds_write(tds, &statement, &sending, source, watch, EXECUTE)
             }
             // As `query`'s: this arm's parameters are [`Binds::sqlite`]'s and
             // `sending` is not what it reads.
             nvs_db::Connection::Sqlite(sqlite) => {
-                sqlite_write(sqlite, &statement, source, watch, EXECUTE)?
+                sqlite_write(sqlite, &statement, source, watch, EXECUTE)
             }
         };
+        let (written, taken) = settled(ctx, statement.key, wrote)?;
         watch.file(ctx, taken);
         Ok(write_object(&written))
     }
@@ -1503,7 +1564,8 @@ nvs_runtime::nvs_helper! {
         }
         .map_err(|refused| {
             statement_failure(EXECUTE_MANY, &batch.block, args[1].as_text(), &refused)
-        })?;
+        });
+        let written = settled(ctx, batch.key, written)?;
         // § 4's sum is the batch's affected count, and the span's rows stay at
         // zero: nothing was handed back, and a batch that inserted a thousand
         // rows reporting a thousand rows *returned* would read as a select.

@@ -307,6 +307,10 @@ pub(super) struct OpenConnection {
     /// connection and is still undecided at, or `None` while no enqueue waits
     /// on a commit. [`Ctx::note_enqueued_under`] owns the reading.
     enqueued_under: Option<u32>,
+    /// The `timeout` the program's `connect` or `open` named for this
+    /// connection, or `None` where it named none.
+    /// [`Ctx::note_connection_timeout`] owns the reading.
+    timeout: Option<std::time::Duration>,
 }
 
 impl Ctx {
@@ -651,6 +655,7 @@ impl Ctx {
             lease,
             connection: Some(connection),
             enqueued_under: None,
+            timeout: None,
         });
         // The index, one-based, so that a handle slot never holds a key a
         // zeroed value could be mistaken for.
@@ -786,6 +791,31 @@ impl Ctx {
         let around = level.saturating_sub(1);
         held.enqueued_under = (committed && around > 0).then_some(around);
         committed && around == 0
+    }
+
+    /// Records the `timeout` the program's `connect` or `open` named for
+    /// connection `key`, replacing one a call before it named.
+    ///
+    /// The same bound waits for the connection after a deadline cancels a
+    /// statement on it —
+    /// `rule:concurrency/a-deadline-bounds-the-cancel-not-the-return` — so
+    /// it outlives the handshake it was named for. A key this request never
+    /// filed records nothing.
+    ///
+    /// **What it spends:** one `Option<Duration>` per connection a request has
+    /// open.
+    pub fn note_connection_timeout(&mut self, key: u64, timeout: std::time::Duration) {
+        if let Some(held) = self.open_connection_entry(key) {
+            held.timeout = Some(timeout);
+        }
+    }
+
+    /// What [`Ctx::note_connection_timeout`] recorded for `key`, or `None`
+    /// where nothing named one.
+    #[must_use]
+    pub fn connection_timeout(&self, key: u64) -> Option<std::time::Duration> {
+        let index = usize::try_from(key.checked_sub(1)?).ok()?;
+        self.open_connections.get(index)?.timeout
     }
 
     /// The entry `key` names, open or closed, or `None` for a key this request

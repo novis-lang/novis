@@ -40,6 +40,7 @@ use std::io;
 use std::net::{SocketAddr, ToSocketAddrs};
 use std::time::{Duration, Instant};
 
+use nvs_config::db::PoolBounds;
 use nvs_config::tree::Database;
 use nvs_db::matrix::{self, Location, Server};
 use nvs_db::{
@@ -47,6 +48,7 @@ use nvs_db::{
     SqliteTarget, SqliteValue, State, TdsConn, TdsTarget,
 };
 use nvs_runtime::Value;
+use nvs_runtime::pool::{self, Ticket};
 
 /// How long the whole of one handshake here may take.
 ///
@@ -668,13 +670,100 @@ const INTERRUPTED_AFTER: Duration = Duration::from_millis(200);
 /// `nvs_db::Connection::settle` owns.
 #[test]
 fn a_deadline_cancels_a_running_statement_through_the_driver() {
-    let Some(mut conn) = leg() else {
+    let Some(mut conn) = postgres_leg() else {
         return;
     };
-    let Connection::Postgres(pg) = &mut conn else {
-        return;
-    };
+    interrupt(&mut conn);
 
+    let started = Instant::now();
+    conn.settle(started + DEADLINE)
+        .expect("the cancel reached the server and the wire read back to a boundary");
+    assert!(
+        started.elapsed() < DEADLINE,
+        "the settle waited for the statement to end by itself"
+    );
+    assert_eq!(conn.state(), State::Idle, "a settled connection is idle");
+    assert!(conn.is_poolable(), "a settled connection may be pooled");
+    probe(&mut conn).expect("a settled connection runs the next statement");
+}
+
+/// The wait `Core\Db` puts after a cancel, through the pool a request
+/// releases its connection to.
+///
+/// `nvs_stdlib::db::settle_interrupted` is what every statement member calls
+/// once its read fails, with the `timeout` the program's `connect` named. A
+/// connection that settles inside it is released to the pool, and the next
+/// lease takes it back and runs a statement on it.
+#[test]
+fn a_cancelled_connection_returns_to_the_pool_in_a_known_state() {
+    let Some(mut conn) = postgres_leg() else {
+        return;
+    };
+    interrupt(&mut conn);
+
+    let started = Instant::now();
+    assert!(
+        nvs_stdlib::db::settle_interrupted(&mut conn, DEADLINE),
+        "the cancel reached the server and the wire read back to a boundary"
+    );
+    assert!(
+        started.elapsed() < DEADLINE,
+        "the settle waited for the statement to end by itself"
+    );
+    assert_eq!(conn.state(), State::Idle, "a settled connection is idle");
+
+    let mut back = released_and_taken("a-cancelled-connection", conn)
+        .expect("a settled connection rejoins the pool");
+    probe(&mut back).expect("the pooled connection runs the next statement");
+}
+
+/// The other end of the same wait: a connection that does not settle inside
+/// its `timeout` stays poisoned, and the release closes it.
+///
+/// A timeout of one nanosecond has passed before the cancel can be sent, so
+/// this is the connection that missed it whatever the server does.
+#[test]
+fn a_connection_that_misses_its_timeout_after_a_cancel_is_closed_and_not_returned() {
+    let Some(mut conn) = postgres_leg() else {
+        return;
+    };
+    interrupt(&mut conn);
+
+    assert!(
+        !nvs_stdlib::db::settle_interrupted(&mut conn, Duration::from_nanos(1)),
+        "a connection settled inside a timeout that had already passed"
+    );
+    assert_eq!(
+        conn.state(),
+        State::Poisoned,
+        "a connection that missed its timeout is still mid-statement"
+    );
+    assert!(
+        !conn.is_poolable(),
+        "a poisoned connection may not be pooled"
+    );
+    assert!(
+        released_and_taken("a-connection-that-missed-its-timeout", conn).is_none(),
+        "the pool handed back a connection that never settled"
+    );
+}
+
+/// This process's connection when the harness pointed it at PostgreSQL, and
+/// `None` on every other leg.
+///
+/// The other drivers send no cancel yet, and their connection is closed at the
+/// deadline instead, which `nvs_db::Connection::settle` owns.
+fn postgres_leg() -> Option<Connection> {
+    leg().filter(|conn| matches!(conn, Connection::Postgres(_)))
+}
+
+/// Starts a statement [`SLEEP`] seconds long on `conn` and lets a deadline
+/// [`INTERRUPTED_AFTER`] away stop the read, leaving the connection poisoned
+/// mid-statement.
+fn interrupt(conn: &mut Connection) {
+    let Connection::Postgres(pg) = conn else {
+        unreachable!("`postgres_leg` opened a PostgreSQL connection");
+    };
     pg.set_deadline(Some(Instant::now() + INTERRUPTED_AFTER));
     let interrupted = match pg.query(&format!("select pg_sleep({SLEEP})"), &[]) {
         Ok(mut rows) => loop {
@@ -696,17 +785,22 @@ fn a_deadline_cancels_a_running_statement_through_the_driver() {
         State::Poisoned,
         "an interrupted read leaves the wire mid-statement"
     );
+}
 
-    let started = Instant::now();
-    conn.settle(started + DEADLINE)
-        .expect("the cancel reached the server and the wire read back to a boundary");
-    assert!(
-        started.elapsed() < DEADLINE,
-        "the settle waited for the statement to end by itself"
-    );
-    assert_eq!(conn.state(), State::Idle, "a settled connection is idle");
-    assert!(conn.is_poolable(), "a settled connection may be pooled");
-    probe(&mut conn).expect("a settled connection runs the next statement");
+/// Releases `conn` to this thread's pool under `key`, as a request's teardown
+/// does, and takes back whatever the next lease under that key is handed.
+fn released_and_taken(key: &str, conn: Connection) -> Option<Connection> {
+    let ticket = Ticket::for_settings(key.to_owned(), PoolBounds::DEFAULT);
+    let lease = pool::admit(ticket.clone()).expect("an empty pool grants a slot");
+    pool::release(lease, Instant::now(), Box::new(conn));
+    let again = pool::admit(ticket).expect("the release gave the slot back");
+    let taken = pool::take(&again, Instant::now())?;
+    Some(
+        *taken
+            .into_any()
+            .downcast::<Connection>()
+            .expect("the pool holds the connection this case released"),
+    )
 }
 
 /// `rule:core-classes/server-version-is-what-the-server-said`'s member, asserted where the string

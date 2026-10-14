@@ -205,54 +205,64 @@ fn stream_step(ctx: &mut nvs_runtime::Ctx, value: Value) -> Result<Value, Fault>
     // Read before the connection is borrowed, for [`QueryWatch`]'s reason: the
     // arm below holds the thing the span is filed on.
     let watch = QueryWatch::of(ctx, &block);
-    let (row, taken) = match filed_connection(ctx, key, STREAM_MEMBER)? {
-        nvs_db::Connection::Postgres(postgres) => {
-            let read = postgres
-                .stream_next_row()
-                .map_err(|refused| statement_failure(STREAM_MEMBER, &block, None, &refused))?;
-            match read {
-                Some(read) => {
-                    // Read after the row and not before it: the row is owned, so
-                    // the description can be borrowed rather than copied per
-                    // row — which is what keeps this walk's per-row cost the
-                    // decode and nothing else.
-                    let zone = postgres.time_zone();
-                    let columns = postgres.stream_columns().unwrap_or(&[]);
-                    // Built whole before it is parked, on
-                    // [`postgres_rows`]' reasoning: a column this driver cannot
-                    // read back releases the half-built row rather than leaving
-                    // it in the slot.
-                    let mut one = NvsArray::new();
-                    for (index, column) in columns.iter().enumerate() {
-                        let body = read.column(index).map_err(|refused| {
-                            statement_failure(STREAM_MEMBER, &block, None, &refused)
-                        })?;
-                        let scalar = column.scalar(body).map_err(|refused| {
-                            statement_failure(STREAM_MEMBER, &block, None, &refused)
-                        })?;
-                        let value = column_value(scalar, zone, STREAM_MEMBER, &column.name)?;
-                        one.set(NvsStr::new(column.name.as_bytes()), value);
-                    }
-                    (Some(one), None)
-                }
-                None => {
-                    let taken = postgres.stream_span().and_then(|span| watch.taken(span));
-                    // The portal is already drained — `stream_next_row` read the
-                    // `ReadyForQuery` that ended it — so this drops the parked
-                    // state rather than draining anything, and the connection is
-                    // idle and poolable from here.
-                    postgres.end_stream();
-                    (None, taken)
-                }
-            }
-        }
-        nvs_db::Connection::MySql(mysql) => mysql_step(Framed::MySql(mysql), &block, &watch)?,
-        nvs_db::Connection::MariaDb(maria) => mysql_step(Framed::MariaDb(maria), &block, &watch)?,
-        nvs_db::Connection::SqlServer(tds) => tds_step(tds, &block, &watch)?,
-        nvs_db::Connection::Sqlite(sqlite) => sqlite_step(sqlite, &block, &watch)?,
+    let stepped = match filed_connection(ctx, key, STREAM_MEMBER)? {
+        nvs_db::Connection::Postgres(postgres) => postgres_step(postgres, &block, &watch),
+        nvs_db::Connection::MySql(mysql) => mysql_step(Framed::MySql(mysql), &block, &watch),
+        nvs_db::Connection::MariaDb(maria) => mysql_step(Framed::MariaDb(maria), &block, &watch),
+        nvs_db::Connection::SqlServer(tds) => tds_step(tds, &block, &watch),
+        nvs_db::Connection::Sqlite(sqlite) => sqlite_step(sqlite, &block, &watch),
     };
+    // A step the walk's deadline stopped cancels the statement and waits for
+    // the connection before the program sees the failure.
+    let (row, taken) = settled(ctx, key, stepped)?;
     watch.file(ctx, taken);
     park_row(ctx, receiver, row, class)
+}
+
+/// One step of a walk over PostgreSQL, for [`stream_step`]'s arms.
+///
+/// # Errors
+///
+/// [`statement_failure`]'s for anything the server refused mid-walk or a wire
+/// that failed under it, and [`column_value`]'s for a column with no Novis
+/// representation.
+fn postgres_step(
+    postgres: &mut nvs_db::PgConn,
+    block: &Value,
+    watch: &QueryWatch,
+) -> Result<Stepped, Fault> {
+    let read = postgres
+        .stream_next_row()
+        .map_err(|refused| statement_failure(STREAM_MEMBER, block, None, &refused))?;
+    let Some(read) = read else {
+        let taken = postgres.stream_span().and_then(|span| watch.taken(span));
+        // The portal is already drained — `stream_next_row` read the
+        // `ReadyForQuery` that ended it — so this drops the parked state rather
+        // than draining anything, and the connection is idle and poolable from
+        // here.
+        postgres.end_stream();
+        return Ok((None, taken));
+    };
+    // Read after the row and not before it: the row is owned, so the
+    // description can be borrowed rather than copied per row — which is what
+    // keeps this walk's per-row cost the decode and nothing else.
+    let zone = postgres.time_zone();
+    let columns = postgres.stream_columns().unwrap_or(&[]);
+    // Built whole before it is parked, on [`postgres_rows`]' reasoning: a
+    // column this driver cannot read back releases the half-built row rather
+    // than leaving it in the slot.
+    let mut one = NvsArray::new();
+    for (index, column) in columns.iter().enumerate() {
+        let body = read
+            .column(index)
+            .map_err(|refused| statement_failure(STREAM_MEMBER, block, None, &refused))?;
+        let scalar = column
+            .scalar(body)
+            .map_err(|refused| statement_failure(STREAM_MEMBER, block, None, &refused))?;
+        let value = column_value(scalar, zone, STREAM_MEMBER, &column.name)?;
+        one.set(NvsStr::new(column.name.as_bytes()), value);
+    }
+    Ok((Some(one), None))
 }
 
 /// What one step of a walk produced: the row where there was one, and

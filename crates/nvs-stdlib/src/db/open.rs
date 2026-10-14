@@ -95,6 +95,23 @@ pub(super) fn deadline_of(args: &[Value]) -> Result<Option<std::time::Instant>, 
     ))
 }
 
+/// Files on connection `key` the `timeout` its `connect` or `open` named,
+/// read back off the `deadline` that call made of it at `asked`.
+///
+/// A deadline that cancels a statement on this connection waits for it under
+/// the same bound — [`super::execute::settle_filed`]. A call that named no
+/// `timeout` files nothing.
+fn note_timeout(
+    ctx: &mut nvs_runtime::Ctx,
+    key: u64,
+    asked: std::time::Instant,
+    deadline: Option<std::time::Instant>,
+) {
+    if let Some(at) = deadline {
+        ctx.note_connection_timeout(key, at.saturating_duration_since(asked));
+    }
+}
+
 /// Where a block's `host` and `port` are, as one address.
 ///
 /// **Pinned here and asked nothing else**, which is `rule:core-classes/db-capabilities`: the endpoint
@@ -191,6 +208,7 @@ nvs_runtime::nvs_helper! {
                 args[SHARED_ARG].tag_byte()
             ))
         })?;
+        let asked = std::time::Instant::now();
         let deadline = deadline_of(args)?;
 
         nvs_runtime::capability::require(
@@ -201,6 +219,7 @@ nvs_runtime::nvs_helper! {
         )?;
 
         let key = open_named(ctx, &name, shared, deadline, CONNECT)?;
+        note_timeout(ctx, key, asked, deadline);
         let block = Value::str(NvsStr::new(name.as_bytes()));
         Ok(crate::instance::build(&CONNECTION, [Value::uint(key), block]))
     }
@@ -766,6 +785,7 @@ nvs_runtime::nvs_helper! {
         } else {
             crate::time::zone_offset_now(args, TIME_ZONE_ARG, "open")?
         };
+        let asked = std::time::Instant::now();
         let deadline = open_deadline(args)?;
         let memo = settings_key(
             &[host, user, database, password, driver.matrix_name()],
@@ -894,6 +914,7 @@ nvs_runtime::nvs_helper! {
         };
         let key =
             ctx.hold_open_connection(shared.then_some(memo), Some(lease), Box::new(opened));
+        note_timeout(ctx, key, asked, deadline);
         Ok(crate::instance::build(
             &CONNECTION,
             [Value::uint(key), Value::str(NvsStr::new(host.as_bytes()))],
@@ -979,6 +1000,7 @@ pub(super) fn sqlite_settings(
     } else {
         crate::time::zone_offset_now(args, TIME_ZONE_ARG, "open")?
     };
+    let asked = std::time::Instant::now();
     let deadline = open_deadline(args)?;
     // The path stands where a host stands, and the three credential fields are
     // empty because this arm declares none — two settings objects naming
@@ -1049,6 +1071,7 @@ pub(super) fn sqlite_settings(
         }
     };
     let key = ctx.hold_open_connection(shared.then_some(memo), Some(lease), Box::new(opened));
+    note_timeout(ctx, key, asked, deadline);
     Ok(crate::instance::build(
         &CONNECTION,
         [Value::uint(key), Value::str(NvsStr::new(path.as_bytes()))],
