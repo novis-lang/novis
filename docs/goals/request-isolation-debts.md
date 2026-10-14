@@ -6,7 +6,7 @@ context: []
 stages:
   - id: 1
     title: host matching
-    status: open
+    status: done
     context: [crates/nvs-server/src/mount.rs, crates/nvs-config/src/mount.rs, crates/nvs-cli/src/serve.rs, crates/nvs-stdlib/src/request.rs]
     extra:
       context:
@@ -217,12 +217,12 @@ the manifest parser, never by a string search.
 
 **Does:** the server matches a mount on the host part alone, and refuses an absent or non-ASCII `Host`.
 
-- [ ] `select` folds case and one trailing dot after the port is stripped, and a non-ASCII `Host` is refused, not `None` (`rule:http-server/host-matching-is-on-the-host-part-only`). `crates/nvs-server/src/mount.rs:215`
-- [ ] A declared host is held in ASCII lower case for the duplicate check and an override. `crates/nvs-config/src/mount.rs:58`
-- [ ] The door answers `400` to an HTTP/1.1 request with no `Host` and to a non-ASCII one. `crates/nvs-cli/src/serve.rs:935`
-- [ ] The comment on `host_named` checked against the door, and the fragment rewritten. `crates/nvs-stdlib/src/request.rs:2691`
-- [ ] The proxy note on the reverse-proxy page. `website/src/content/docs/guides/production/reverse-proxy.mdx:1`
-- [ ] `Core\Request::host`'s feature proofs updated where their text names the old matching (`bun nv proofs --id 'Core\Request::host'`). `docs/examples/core/Request/host/about.md:1`
+- [x] `select` folds case and one trailing dot after the port is stripped, and a non-ASCII `Host` is refused, not `None` (`rule:http-server/host-matching-is-on-the-host-part-only`). `crates/nvs-server/src/mount.rs:215`
+- [x] A declared host is held in ASCII lower case for the duplicate check and an override. `crates/nvs-config/src/mount.rs:58`
+- [x] The door answers `400` to an HTTP/1.1 request with no `Host` and to a non-ASCII one. `crates/nvs-cli/src/serve.rs:935`
+- [x] The comment on `host_named` checked against the door, and the fragment rewritten. `crates/nvs-stdlib/src/request.rs:2691`
+- [x] The proxy note on the reverse-proxy page. `website/src/content/docs/guides/production/reverse-proxy.mdx:1`
+- [x] `Core\Request::host`'s feature proofs updated where their text names the old matching (`bun nv proofs --id 'Core\Request::host'`). `docs/examples/core/Request/host/about.md:1`
 
 ### 2. a queue payload keeps its qualifiers
 
@@ -282,24 +282,23 @@ the manifest parser, never by a string search.
 
 ### State
 
-The goal is written; nothing of it is built. The user placed these eight rules here when every
-`designed` rule was given an owner. § *Standing decisions* holds the calls. The anchors were read when
-the goal was written: `select` turns a non-ASCII `Host` into `None` and falls to the host-less mounts,
-nothing in `nvs-server` answers `400` to an absent `Host`, the cache maps its file
-(`crates/nvs-cli/src/cache.rs:1320`), and `pg::CancelKey` is kept and never used.
+Stage 1 is done and its rule is `shipped`. `nvs_server::mount::host` reads and folds a request's
+host, `host_is_refused` is the door's `400` (absent on HTTP/1.1, non-ASCII, or two `Host` lines), and
+`Table::resolve` refuses the same hosts again. The nightly CI failures the sweep reported all ran
+`origin/main`, which is far behind local `main` because the loop never pushes. Lint, the docs job,
+`ruzstd`, the LDAP cases and perf staleness were already fixed locally. `website/src/data/core.json`
+was stale, and `Core\Router\Gate` owed its proofs; both are fixed. The macOS warm-start budget
+(`bun nv bench --warm-start --max-work-ms 6`) cannot be measured here, so it is *not checked*.
 
 ### Next
 
-**Stage 1: host matching**, one file set: `crates/nvs-server/src/mount.rs`, `crates/nvs-config/src/mount.rs`, `crates/nvs-cli/src/serve.rs`.
-
-- [ ] Fold case and one trailing dot, and refuse a non-ASCII `Host` (`rule:http-server/host-matching-is-on-the-host-part-only`). `crates/nvs-server/src/mount.rs:215`
-- [ ] Hold a declared host in ASCII lower case (`rule:http-server/host-matching-is-on-the-host-part-only`). `crates/nvs-config/src/mount.rs:58`
-- [ ] A `400` at the door for an absent or non-ASCII `Host` on HTTP/1.1 (`rule:http-server/host-matching-is-on-the-host-part-only`). `crates/nvs-cli/src/serve.rs:935`
-
 **Stage 2: a queue payload keeps its qualifiers**, one file set: `crates/nvs-stdlib/src/queue.rs`, `crates/nvs-stdlib/src/script.rs`.
 
-- [ ] Record and restore each value's qualifiers (`rule:concurrency/a-payload-refuses-secret-and-keeps-its-qualifiers`). `crates/nvs-stdlib/src/queue.rs:3234`
+- [ ] Record each value's qualifiers in the payload column (`rule:concurrency/a-payload-refuses-secret-and-keeps-its-qualifiers`). `crates/nvs-stdlib/src/queue.rs:3208`
+- [ ] Restore them in the decoder, so `Core\Script::args()` returns them (`rule:concurrency/a-payload-refuses-secret-and-keeps-its-qualifiers`). `crates/nvs-stdlib/src/queue.rs:3234`
+- [ ] Check what already refuses a `secret` argument before writing a new diagnostic: the type checker has one (`rule:security/secret-sinks-refuse`). `crates/nvs-types/src/expr/quals.rs:1279`
 
 ### Backlog
 
 - Stages 3 to 8 — this file's § *Stages*.
+- The macOS warm-start budget in the nightly cost guards, once `origin/main` is pushed — `tools/nv/cmd/bench.ts`.

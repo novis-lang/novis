@@ -670,6 +670,17 @@ impl Reply {
         Self::status(StatusCode::FORBIDDEN)
     }
 
+    /// A request whose `Host` no mount may be matched against: `400`, before a
+    /// mount is chosen.
+    ///
+    /// `rule:http-server/host-matching-is-on-the-host-part-only` is the
+    /// decision and [`crate::mount::host_is_refused`] the question; the caller
+    /// asks it and answers with this. Bodiless like every other refusal here.
+    #[must_use]
+    pub fn bad_host() -> Self {
+        Self::status(StatusCode::BAD_REQUEST)
+    }
+
     /// `rule:http-server/a-request-resolves-in-five-steps` step 1's third arrow — no mount covers the request, so
     /// there is no application to give it to and none to have written this.
     ///

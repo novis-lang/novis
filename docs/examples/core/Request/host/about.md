@@ -5,6 +5,10 @@ The result is always in lower case. A port such as `:8443` is removed, and so is
 of the name. So `Shop.Example.com.:8443` returns `shop.example.com`. An IPv6 address keeps its
 brackets, for example `[2001:db8::1]`. The result is `null` when the request has no `Host` header.
 
+The server answers `400` to an HTTP/1.1 request that has no `Host` header. It also answers `400`
+when the `Host` header has a character that is not ASCII, or when there are two `Host` headers.
+Your program does not run for these requests.
+
 `host` reads only the `Host` header. Headers such as `X-Forwarded-Host` are never read, because any
 client can send them. If you need the port, `Core\Request::header("host")` returns the header
 exactly as it arrived.

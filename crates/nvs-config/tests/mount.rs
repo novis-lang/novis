@@ -526,12 +526,11 @@ fn two_captures_a_transform_folds_together_are_a_duplicate() {
     assert_eq!(refused.code, Some(code::E_BAD_MOUNT));
 }
 
-/// A host is held in ASCII lower case, because that is how a request's `Host` is compared. Two
-/// blocks whose hosts differ only in case are therefore one key: a boot error when both are
-/// explicit, and § 3's override when one is scanned.
+/// A host is held in ASCII lower case, because that is how a request's `Host` is compared. A
+/// capture substituted into it is folded with it, and the capture itself keeps its own case.
 #[test]
-fn a_host_is_one_key_whatever_case_it_is_written_in() {
-    let fs = Fake::with(&["/www/Blog/public/index.nvs", "/www/other/app.nvs"]);
+fn a_declared_host_is_held_in_ascii_lower_case() {
+    let fs = Fake::with(&["/www/Blog/public/index.nvs"]);
     let mounts = table(
         &fs,
         "[server]\nroot = \"/www\"\n\n[[server.mount]]\nscan = \"*/public/index.nvs\"\n\
@@ -539,6 +538,13 @@ fn a_host_is_one_key_whatever_case_it_is_written_in() {
     );
     assert_eq!(mounts[0].host.as_deref(), Some("blog.local.test"));
     assert_eq!(mounts[0].captures, vec!["Blog".to_string()]);
+}
+
+/// Two blocks whose hosts differ only in case are one key, as they are to a request: a boot error
+/// when both are explicit, and § 3's override when one is scanned.
+#[test]
+fn two_mounts_whose_hosts_differ_only_in_case_are_a_duplicate() {
+    let fs = Fake::with(&["/www/Blog/public/index.nvs", "/www/other/app.nvs"]);
 
     // An explicit block in another case overrides the scanned one rather than sitting beside it.
     let mounts = table(

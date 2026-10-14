@@ -927,6 +927,12 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
             // once the mount is chosen, which is by path alone, because a
             // program that calls `Core\Router::dispatch` answers it itself.
             let unknown_verb = !nvs_stdlib::request::is_known_verb(request.method().as_str());
+            // A host no mount may be matched against is refused ahead of every
+            // mount and of the probe
+            // (`rule:http-server/host-matching-is-on-the-host-part-only`).
+            if nvs_server::mount::host_is_refused(&request) {
+                return Reply::bad_host();
+            }
             // The tree standing now, read once for everything below that the
             // handler reads from it: the table's switches, the trace sample
             // and the CSRF key. A reload reaches the next request.

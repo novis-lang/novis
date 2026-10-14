@@ -45,6 +45,10 @@ server {
 }
 ```
 
+Keep the line `proxy_set_header Host $host;`. Without it, nginx sends the address from `proxy_pass`
+as the host, here `127.0.0.1:8000`. Novis chooses a mount by the host of the request. A mount with
+a `host` setting then gets no requests, and the mounts without a `host` get them all.
+
 ## Tell Novis which proxy to trust
 
 By default, Novis reads no forwarding header. `Core\Request::clientIp()` then returns the address of

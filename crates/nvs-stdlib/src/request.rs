@@ -2688,10 +2688,10 @@ fn scheme_text(inbound: &Inbound) -> &'static str {
 /// it back.
 ///
 /// `None` where the request named no authority, a `Host` line with nothing in it
-/// included. A served request with no `Host` reaches a program too: the server
-/// does not refuse it yet, and routes it to the mounts that declare no host
-/// (`rule:http-server/host-matching-is-on-the-host-part-only`, which
-/// request-isolation-debts builds).
+/// included. A served request reaches a program that way only over HTTP/1.0 or
+/// HTTP/2: the server answers `400` to HTTP/1.1 with no `Host`, and to a `Host`
+/// that is not ASCII or is written twice, before any mount is chosen
+/// (`rule:http-server/host-matching-is-on-the-host-part-only`).
 fn host_named(inbound: &Inbound) -> Option<Vec<u8>> {
     let line = joined_field(inbound, b"host")?;
     let text = line.trim_ascii();

@@ -3,7 +3,7 @@
 
 # The HTTP server
 
-*5 of 80 rules below are **designed** rather than shipped, and are marked where they appear.*
+*4 of 80 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="http-server-two-deployments-and-nothing-a-proxy-owns"></a>
 
@@ -444,21 +444,17 @@ There is **no `X-Forwarded-Host` and no absolute-URL generation from `Host`**. `
 
 <a id="http-server-host-matching-is-on-the-host-part-only"></a>
 
-## An absent `Host` is a `400`; matching strips the port, folds ASCII case and one trailing dot, refuses non-ASCII, and an unknown host on a host-mounted deployment is a `404`  *(designed — owned by goal request-isolation-debts)*
+## An absent `Host` is a `400`; matching strips the port, folds ASCII case and one trailing dot, refuses non-ASCII, and an unknown host on a host-mounted deployment is a `404`
 
 `rule:http-server/host-matching-is-on-the-host-part-only`
 
-An absent `Host` on HTTP/1.1 is a `400`. A mount's `host` is compared against the host part only: the port is stripped, the value is ASCII-lowercased and one trailing dot is removed — three equivalences the relevant specifications define, so this is the *accept verbatim* branch of [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused) rather than a repair. Non-ASCII in `Host` is refused; punycode matches literally. `Host: A.EXAMPLE.COM:8080.` matches the mount declared for `a.example.com`. The mount table holds a declared host in ASCII lower case for the same reason, so `host = "A.example.com"` and `host = "a.example.com"` are one key to the duplicate check and to an explicit mount's override, exactly as they are one name to a request.
+An absent `Host` on HTTP/1.1 is a `400`. A mount's `host` is compared against the host part only: the port is stripped, the value is ASCII-lowercased and one trailing dot is removed — three equivalences the relevant specifications define, so this is the *accept verbatim* branch of [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused) rather than a repair. Non-ASCII in `Host` is refused, and so are two `Host` lines; punycode matches literally. `Host: A.EXAMPLE.COM:8080.` matches the mount declared for `a.example.com`. The mount table holds a declared host in ASCII lower case for the same reason, so `host = "A.example.com"` and `host = "a.example.com"` are one key to the duplicate check and to an explicit mount's override, exactly as they are one name to a request.
+
+The refusal is the door's, ahead of every mount and of the health probe (`nvs_server::mount::host_is_refused`, answered in `nvs serve`'s handler). The mount table refuses the same host again: a caller that skipped the door still matches no mount on it, and never falls through to the mounts that declare no host — which is what reading it as no host at all would do, handing the request to a tenant it did not name. HTTP/1.0 may leave `Host` out and reaches those host-less mounts; HTTP/2's `:authority` is the host there, read from the request target.
 
 A deployment that declares only host mounts gets a `404` for an unknown host, with no allowlist directive to remember — the failure Django had to add `ALLOWED_HOSTS` for. The forwarded walk never reaches this value: what a trusted proxy may assert is the client address and the scheme, and neither is read here.
 
-The proxy note that belongs in the operator documentation: nginx's `proxy_pass` sends `Host: $proxy_host` unless told otherwise, so a host-mounted deployment must set `proxy_set_header Host $host;` or every request arrives with the wrong name and lands on the fallback — silently.
-
-**Not on disk.** The port is stripped and the comparison ignores ASCII case
-(`crates/nvs-server/src/mount.rs:214`, `:289`), and the mount table holds a declared host in lower case
-(`crates/nvs-config/src/mount.rs:571`). A trailing dot is not removed, and a `Host` with non-ASCII in it
-is read as no `Host`. A request with no `Host` is not a `400`: it skips every host mount and reaches the
-mounts that declare no host (`crates/nvs-server/src/mount.rs:290`).
+The proxy note is on the reverse-proxy page of the website: nginx's `proxy_pass` sends `Host: $proxy_host` unless told otherwise, so a host-mounted deployment must set `proxy_set_header Host $host;` or every request arrives with the wrong name and lands on the fallback — silently.
 
 <sub>See also [`http-server/a-mount-table-expands-at-boot`](http-server.md#http-server-a-mount-table-expands-at-boot), [`http-server/x-forwarded-proto-sets-the-scheme-and-hsts-only`](http-server.md#http-server-x-forwarded-proto-sets-the-scheme-and-hsts-only), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused).</sub>
 

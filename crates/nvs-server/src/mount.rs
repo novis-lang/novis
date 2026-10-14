@@ -72,12 +72,13 @@
 //! every request and never rebuilt on the request path.
 //!
 
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
-use hyper::Request;
 use hyper::body::Incoming;
 use hyper::header::HOST;
+use hyper::{Request, Version};
 use nvs_config::mount::Mounted;
 use nvs_config::tree::Config;
 use nvs_runtime::Inbound;
@@ -202,9 +203,9 @@ impl Table {
 
     /// Step 0 and then § 4's five steps, over one arrived request.
     ///
-    /// The host is the `Host` header's without its port, falling back to the
-    /// request target's own authority for the absolute-form target h1 still
-    /// allows. § 6's forwarded walk ([`crate::forwarded`]) does not reach this
+    /// The host is [`host`]'s reading of the request, and a request whose
+    /// host it refuses reaches no mount at all: the door answers it `400`
+    /// before it gets here. § 6's forwarded walk ([`crate::forwarded`]) does not reach this
     /// value and never will: that section reads **no** `X-Forwarded-Host` and
     /// generates no absolute URL from `Host`, because deriving an origin from a
     /// header is host-header injection and `rule:routing/matching-is-not-dispatching` already makes
@@ -212,13 +213,11 @@ impl Table {
     /// is the client address and the scheme, and neither is read here.
     #[must_use]
     pub fn select(&self, request: &Request<Incoming>, disk: &dyn Existing) -> Option<Resolved<'_>> {
-        let host = request
-            .headers()
-            .get(HOST)
-            .and_then(|value| value.to_str().ok())
-            .map(named)
-            .or_else(|| request.uri().host());
-        self.resolve(host, request.uri().path(), disk)
+        match host(request) {
+            Host::Named(named) => self.resolve(Some(&named), request.uri().path(), disk),
+            Host::Absent => self.resolve(None, request.uri().path(), disk),
+            Host::Refused => None,
+        }
     }
 
     /// Step 0 and § 4's five steps over a host and a path, which is
@@ -237,13 +236,21 @@ impl Table {
         path: &str,
         disk: &dyn Existing,
     ) -> Option<Resolved<'_>> {
+        // A host is folded here as well as in `select`, so a caller that took
+        // the request apart itself cannot match a mount on a spelling a
+        // request is refused for.
+        let host = match host.map(folded) {
+            Some(Host::Refused) => return None,
+            Some(Host::Named(named)) => Some(named),
+            Some(Host::Absent) | None => None,
+        };
         // 0. Ahead of step 1, so that no mount can shadow it — including a mount
         // at `/`, which covers every path there is.
         if self.health.as_deref() == Some(path) {
             return Some(Resolved::Health);
         }
         // 1.
-        let mount = self.matched(host, path)?;
+        let mount = self.matched(host.as_deref(), path)?;
         // 2.
         let remainder = strip(&mount.prefix, path);
         // 3 and 4, in that order, and each only where its switch is on. One
@@ -281,12 +288,15 @@ impl Table {
     /// `/` — which is a request answered by the wrong tenant, not a longer
     /// match. A prefix matches on a **segment boundary**: `/blog` selects
     /// `/blog` and `/blog/post`, and never `/blogger`.
+    ///
+    /// `host` is already [`folded`], and a mount's host is held in ASCII lower
+    /// case by [`nvs_config::mount::expand`], so the comparison is exact.
     fn matched(&self, host: Option<&str>, path: &str) -> Option<&Mounted> {
         let longest = |on_host: bool| {
             self.mounts
                 .iter()
                 .filter(|mount| match (&mount.host, host) {
-                    (Some(mounted), Some(asked)) => on_host && mounted.eq_ignore_ascii_case(asked),
+                    (Some(mounted), Some(asked)) => on_host && mounted == asked,
                     (None, _) => !on_host,
                     (Some(_), None) => false,
                 })
@@ -370,6 +380,72 @@ pub enum What {
     /// assembled from request bytes.
     ///
     Run(PathBuf),
+}
+
+/// What a request says its host is, read the way
+/// `rule:http-server/host-matching-is-on-the-host-part-only` compares a host
+/// mount by.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Host<'a> {
+    /// The host part: no port, ASCII lower case, and one trailing dot removed.
+    /// Those three are equivalences the specifications define, so this is the
+    /// value as written rather than a repair of it, and punycode is compared
+    /// as the letters it is.
+    Named(Cow<'a, str>),
+    /// The request names no authority: no `Host` line, or an empty one, and
+    /// no authority in its target. On HTTP/1.1 the door answers it `400`.
+    Absent,
+    /// A host no mount may match: a byte that is not ASCII, or more than one
+    /// `Host` line. The door answers it `400`, and [`Table::select`] gives it
+    /// no mount, because a host-less mount taking it would answer a request
+    /// for a tenant the deployment never named.
+    Refused,
+}
+
+/// [`Host`] for one request: the `Host` line, or for a target in absolute
+/// form with no `Host` line, the target's own authority, which is also where
+/// HTTP/2's `:authority` arrives.
+///
+/// Costs nothing per request but an allocation where the host has an
+/// upper-case letter in it.
+pub fn host<B>(request: &Request<B>) -> Host<'_> {
+    let mut lines = request.headers().get_all(HOST).iter();
+    match (lines.next(), lines.next()) {
+        (Some(_), Some(_)) => Host::Refused,
+        (Some(line), None) => line.to_str().map_or(Host::Refused, folded),
+        (None, _) => request.uri().host().map_or(Host::Absent, folded),
+    }
+}
+
+/// Whether the door answers `400` for this request's host: a host [`host`]
+/// refuses, or no host at all on HTTP/1.1, which requires the line. HTTP/1.0
+/// may leave it out, and goes to the mounts that declare no host.
+pub fn host_is_refused<B>(request: &Request<B>) -> bool {
+    match host(request) {
+        Host::Refused => true,
+        Host::Absent => request.version() == Version::HTTP_11,
+        Host::Named(_) => false,
+    }
+}
+
+/// One authority as a [`Host`]: the port stripped, then one trailing dot,
+/// then ASCII case folded.
+fn folded(authority: &str) -> Host<'_> {
+    if !authority.is_ascii() {
+        return Host::Refused;
+    }
+    let host = named(authority.trim_ascii());
+    let host = host
+        .strip_suffix('.')
+        .filter(|rest| !rest.is_empty())
+        .unwrap_or(host);
+    if host.is_empty() {
+        Host::Absent
+    } else if host.bytes().any(|byte| byte.is_ascii_uppercase()) {
+        Host::Named(Cow::Owned(host.to_ascii_lowercase()))
+    } else {
+        Host::Named(Cow::Borrowed(host))
+    }
 }
 
 /// An authority's host, without the port a client is entitled to send with it.
@@ -1431,6 +1507,135 @@ mod tests {
             what("/blog/style.css"),
             What::Static(p("/www/public/style.css")),
             "and through the prefix the rows above tried to escape from"
+        );
+    }
+
+    /// A request built with the `Host` lines given, and `target` as its target.
+    fn request_to(target: &str, hosts: &[&[u8]]) -> Request<()> {
+        let mut request = Request::builder().uri(target);
+        for host in hosts {
+            request = request.header(HOST, *host);
+        }
+        request.body(()).expect("the request is well formed")
+    }
+
+    /// A blog mounted on its host and a shop mounted on none, the table every
+    /// host case below is asked of.
+    fn blog_and_shop() -> (Fake, Table) {
+        let fs = Fake::with(&["/www/blog/index.nvs", "/www/shop/index.nvs"]);
+        let table = Table::new(
+            vec![
+                mount("/", Some("a.example.com"), "/www/blog/index.nvs"),
+                mount("/", None, "/www/shop/index.nvs"),
+            ],
+            Dispatch::Entry,
+            false,
+        );
+        (fs, table)
+    }
+
+    /// The entry a host reaches on [`blog_and_shop`]'s table, or `None`.
+    fn entry_for(table: &Table, fs: &Fake, host: &str) -> Option<PathBuf> {
+        table
+            .resolve(Some(host), "/", fs)
+            .and_then(Resolved::selection)
+            .map(|selected| selected.mount.entry.clone())
+    }
+
+    /// The rule's own example and each of its three equivalences alone: the
+    /// port, ASCII case and one trailing dot are not part of the name.
+    #[test]
+    fn a_host_with_a_port_a_capital_and_a_trailing_dot_matches_its_mount() {
+        let (fs, table) = blog_and_shop();
+        for host in [
+            "A.EXAMPLE.COM:8080.",
+            "a.example.com:8080",
+            "A.Example.Com",
+            "a.example.com.",
+            "a.example.com.:443",
+            " a.example.com ",
+        ] {
+            assert_eq!(
+                entry_for(&table, &fs, host),
+                Some(p("/www/blog/index.nvs")),
+                "for {host:?}"
+            );
+        }
+        // One dot, and only one: two is a different name, which no mount holds.
+        assert_eq!(
+            entry_for(&table, &fs, "a.example.com.."),
+            Some(p("/www/shop/index.nvs"))
+        );
+        // Punycode is compared as its letters, and the letters are another host.
+        assert_eq!(
+            entry_for(&table, &fs, "xn--a-example-com"),
+            Some(p("/www/shop/index.nvs"))
+        );
+
+        // `select` reads the same three off a request's `Host` line.
+        assert_eq!(
+            host(&request_to("/", &[b"A.EXAMPLE.COM:8080."])),
+            Host::Named("a.example.com".into())
+        );
+        assert_eq!(
+            host(&request_to("http://B.Example.Com:81/x", &[])),
+            Host::Named("b.example.com".into()),
+            "a target in absolute form names the host when no line does"
+        );
+        assert_eq!(host(&request_to("/", &[])), Host::Absent);
+        assert_eq!(host(&request_to("/", &[b""])), Host::Absent);
+        assert_eq!(
+            host(&request_to("/", &[b"[::1]:8080"])),
+            Host::Named("[::1]".into())
+        );
+    }
+
+    /// A non-ASCII host is refused rather than read as no host, which would
+    /// hand it to the host-less shop. The same holds for two `Host` lines.
+    #[test]
+    fn a_non_ascii_host_reaches_no_mount() {
+        let (fs, table) = blog_and_shop();
+        assert_eq!(entry_for(&table, &fs, "bl\u{f6}g.example.com"), None);
+        assert_eq!(entry_for(&table, &fs, "a.example.com\u{3002}"), None);
+
+        // The bytes of a `Host` line that are not ASCII at all, and the
+        // UTF-8 of one that is.
+        assert_eq!(
+            host(&request_to("/", &[b"bl\xf6g.example.com"])),
+            Host::Refused
+        );
+        assert_eq!(
+            host(&request_to("/", &["bl\u{f6}g.example.com".as_bytes()])),
+            Host::Refused
+        );
+        assert_eq!(
+            host(&request_to("/", &[b"a.example.com", b"other.example.com"])),
+            Host::Refused
+        );
+        // The probe is not answered for a refused host either.
+        let probed =
+            Table::new(Vec::new(), Dispatch::Entry, false).with_health(Some("/healthz".into()));
+        assert_eq!(probed.resolve(Some("bl\u{f6}g"), "/healthz", &fs), None);
+    }
+
+    /// A table of host mounts alone answers an unknown host with no mount,
+    /// which the door turns into a `404`. No list of allowed hosts is needed.
+    #[test]
+    fn an_unknown_host_on_a_host_mounted_table_reaches_no_mount() {
+        let fs = Fake::with(&["/www/blog/index.nvs"]);
+        let table = Table::new(
+            vec![mount("/", Some("a.example.com"), "/www/blog/index.nvs")],
+            Dispatch::Entry,
+            false,
+        );
+        assert_eq!(entry_for(&table, &fs, "evil.example.com"), None);
+        assert!(
+            table.resolve(None, "/", &fs).is_none(),
+            "nor does no host at all"
+        );
+        assert_eq!(
+            entry_for(&table, &fs, "A.example.com"),
+            Some(p("/www/blog/index.nvs"))
         );
     }
 }

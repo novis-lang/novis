@@ -12,9 +12,18 @@
 //! The format itself is `nvs_test::request`'s and is asserted there;
 //! `rule:security/request-state-throws-in-an-isolate` is what the second test
 //! pins.
+//!
+//! The last two cases run `nvs serve` itself, because the `Host` a request
+//! arrives with is checked at the door, before a request file could describe
+//! it.
 
-use std::path::PathBuf;
-use std::process::{Command, Output};
+use std::io::{BufRead, BufReader, Write};
+use std::net::{SocketAddr, TcpStream};
+use std::path::{Path, PathBuf};
+use std::process::{Child, Command, Output, Stdio};
+use std::sync::mpsc;
+use std::thread;
+use std::time::Duration;
 
 /// The directory every fixture in this file lives in.
 fn fixtures() -> PathBuf {
@@ -130,5 +139,142 @@ fn an_upgraded_event_stream_with_no_events_file_ends_at_its_first_wait() {
     assert_eq!(
         String::from_utf8_lossy(&out.stdout),
         "data: hello ada\n\nclient left\n"
+    );
+}
+
+/// A running `nvs serve app.nvs` whose program prints `ran`, in a directory
+/// named for the case. Dropping it stops the process and removes the directory.
+struct Served {
+    child: Child,
+    addr: SocketAddr,
+    dir: PathBuf,
+    _data: nvs_repo::Scratch,
+}
+
+impl Served {
+    /// Starts the server on a free loopback port.
+    ///
+    /// # Panics
+    ///
+    /// When it does not print its `listening on` line within a minute.
+    fn start(case: &str) -> Self {
+        let dir = Path::new(env!("CARGO_TARGET_TMPDIR"))
+            .join(format!("request-{case}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("the case's directory is created");
+        std::fs::write(dir.join("app.nvs"), "<?nvs\necho \"ran\";\n")
+            .expect("the program is written");
+        let data = nvs_repo::scratch_private("nvsdata");
+        let mut child = Command::new(env!("CARGO_BIN_EXE_nvs"))
+            .arg("--data")
+            .arg(&*data)
+            .args(["serve", "app.nvs", "--listen", "127.0.0.1:0"])
+            .current_dir(&dir)
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+            .expect("the `nvs` binary this test was built beside starts");
+        let out = child.stdout.take().expect("standard output is piped");
+        let (sent, bound) = mpsc::channel();
+        thread::spawn(move || {
+            for line in BufReader::new(out).lines().map_while(Result::ok) {
+                if let Some(rest) = line.strip_prefix("listening on http://") {
+                    let _ = sent.send(
+                        rest.split_whitespace()
+                            .next()
+                            .unwrap_or_default()
+                            .to_owned(),
+                    );
+                }
+            }
+        });
+        let Ok(addr) = bound.recv_timeout(Duration::from_secs(60)) else {
+            let _ = child.kill();
+            let _ = child.wait();
+            panic!("`nvs serve` did not start listening");
+        };
+        Self {
+            child,
+            addr: addr.parse().expect("the server printed an address"),
+            dir,
+            _data: data,
+        }
+    }
+
+    /// The status line the server answers `raw` with.
+    fn status_of(&self, raw: &[u8]) -> String {
+        let mut stream = TcpStream::connect(self.addr).expect("the server answers");
+        stream
+            .set_read_timeout(Some(Duration::from_secs(30)))
+            .expect("a read timeout is set");
+        stream.write_all(raw).expect("the request is sent");
+        let mut line = String::new();
+        BufReader::new(stream)
+            .read_line(&mut line)
+            .expect("an answer arrives");
+        line.trim_end().to_owned()
+    }
+}
+
+impl Drop for Served {
+    fn drop(&mut self) {
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+        let _ = std::fs::remove_dir_all(&self.dir);
+    }
+}
+
+/// `rule:http-server/host-matching-is-on-the-host-part-only`: HTTP/1.1 requires
+/// a `Host` line, so the door answers `400` before any mount is chosen. HTTP/1.0
+/// does not, and reaches the mount that declares no host.
+#[test]
+fn an_http_1_1_request_with_no_host_is_a_400() {
+    let served = Served::start("no-host");
+    assert_eq!(
+        served.status_of(b"GET / HTTP/1.1\r\nConnection: close\r\n\r\n"),
+        "HTTP/1.1 400 Bad Request"
+    );
+    assert_eq!(
+        served.status_of(b"GET / HTTP/1.1\r\nHost: \r\nConnection: close\r\n\r\n"),
+        "HTTP/1.1 400 Bad Request",
+        "an empty line names no host either"
+    );
+    assert_eq!(
+        served.status_of(b"GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n"),
+        "HTTP/1.1 200 OK"
+    );
+    assert!(
+        served
+            .status_of(b"GET / HTTP/1.0\r\n\r\n")
+            .ends_with(" 200 OK"),
+        "HTTP/1.0 may leave the line out"
+    );
+}
+
+/// A `Host` with a byte that is not ASCII is refused at the door. It does not
+/// reach the mount that declares no host, as it did when it was read as no
+/// host at all. Two `Host` lines are refused the same way.
+#[test]
+fn a_request_with_a_non_ascii_host_is_a_400() {
+    let served = Served::start("non-ascii-host");
+    for raw in [
+        &b"GET / HTTP/1.1\r\nHost: bl\xc3\xb6g.example.com\r\nConnection: close\r\n\r\n"[..],
+        b"GET / HTTP/1.1\r\nHost: bl\xf6g.example.com\r\nConnection: close\r\n\r\n",
+        b"GET / HTTP/1.0\r\nHost: bl\xc3\xb6g.example.com\r\n\r\n",
+        b"GET / HTTP/1.1\r\nHost: a.example.com\r\nHost: b.example.com\r\nConnection: close\r\n\r\n",
+    ] {
+        assert!(
+            served.status_of(raw).ends_with(" 400 Bad Request"),
+            "for {}",
+            String::from_utf8_lossy(raw)
+        );
+    }
+    assert_eq!(
+        served.status_of(
+            b"GET / HTTP/1.1\r\nHost: xn--blg-una.example.com\r\nConnection: close\r\n\r\n"
+        ),
+        "HTTP/1.1 200 OK",
+        "punycode is ASCII"
     );
 }
