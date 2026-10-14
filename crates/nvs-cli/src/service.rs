@@ -778,7 +778,7 @@ fn exec_words(line: &str) -> Vec<String> {
 /// `'` quotes removed, backslash escapes decoded inside quotes and outside,
 /// and each `%%` halved. An escape systemd does not know is kept as written.
 ///
-/// [`decode`] is the same half of the Windows round trip, and the two are
+/// [`nvs_diagnostics::argv::decode`] is the same half of the Windows round trip, and the two are
 /// separate because the encodings are: `CommandLineToArgvW`'s backslash rule
 /// has nothing to do with systemd's, and one function serving both would be a
 /// third encoding neither platform reads.
@@ -1609,7 +1609,7 @@ pub(crate) mod registration {
     /// What the platform still holds about an installed service.
     ///
     /// On Windows that is the `ImagePath` and nothing else (`rule:packaging/the-argv-lives-in-imagepath`), read back
-    /// through [`decode`]; on Linux it is the unit's `ExecStart`. A value
+    /// through [`nvs_diagnostics::argv::decode`]; on Linux it is the unit's `ExecStart`. A value
     /// rather than something [`uninstall_actions`] reads for itself, so the
     /// property `rule:packaging/a-service-answers-its-manager` closes on — an uninstall leaves no key, no source, no unit
     /// and no granted ACL — is one a case can assert against the very install

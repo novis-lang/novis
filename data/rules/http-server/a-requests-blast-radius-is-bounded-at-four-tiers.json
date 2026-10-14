@@ -1,6 +1,6 @@
 {
   "title": "Nothing a request can send terminates or wedges a worker: its blast radius is bounded at four named tiers, and the residue is one stated fault class",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "http-server/containment-does-not-end-at-the-helper",
     "http-server/no-path-reaches-abort",
@@ -17,7 +17,7 @@
     "packaging/a-service-is-one-stored-argv"
   ],
   "guardedBy": [
-    "benches/abi-probe/tests/invariants.rs"
-  ],
-  "goal": "request-isolation-debts"
+    "benches/abi-probe/tests/invariants.rs",
+    "crates/nvs-cli/src/cache.rs"
+  ]
 }
