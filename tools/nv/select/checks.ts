@@ -12,7 +12,7 @@
 // | `bun test <file>` of the tools | `nvtest:<file>` | that file |
 // | any other `bun nv` command | `nv:<id>` | the command, its reads recorded |
 // | any other command | `check:<id>` | the command, recorded |
-// | a heavy check (`accept/accept.ts` `isHeavy`) | `heavy:<id>` | the command, with the floor gate open |
+// | a heavy check (`accept/accept.ts` `isHeavy`) | `heavy:<id>` | the command, in looper's sweep after the session |
 //
 // The atoms a test binary, a case, a test file or a proof program is are shared with `nv verify` and
 // `nv proofs`, so a run of any one of them answers all three. A check's own atom (`check:`, `nv:`,
@@ -532,7 +532,7 @@ export function describeGroup(c: Check, g: Grouped, graph: Graph | null, root: s
     case "nv":
       return [`${head} its own atom ${own}, keyed on what the command was seen to read`];
     case "heavy": {
-      const lines = [`${head} a heavy check, its own atom ${own}, held for the floor gate`];
+      const lines = [`${head} a heavy check, its own atom ${own}, held for looper's sweep after the session`];
       const twin = graph && !predicted(c) ? heavyTwin(c, graph) : null;
       if (graph && predicted(c)) {
         const { crates, extra } = heavyCrates(c, graph, root);

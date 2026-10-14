@@ -5,7 +5,7 @@ import {
   acceptance,
   allReds,
   firstErrLine,
-  heldByGate,
+  heldBack,
   judgeCommand,
   judgeProgram,
   judgeTests,
@@ -539,7 +539,7 @@ describe("the whole sweep", () => {
   });
 
 
-  describe("a setup command with the floor gate shut", () => {
+  describe("a setup command in a run that leaves the heavy checks out", () => {
     // The shape of the queue fixture's pair: a migration never memoized, and the fixture that reads its tables.
     const migrate = check({ id: "migrate", argv: ["{nvs}", "queue", "migrate"], setup: true, memoize: false });
     const fixture = check({ id: "queue-fix", kind: "exact", file: "q.nvs", want: [] });
@@ -548,9 +548,9 @@ describe("the whole sweep", () => {
     const whole = [bench, fixture, live, migrate];
 
     test("is never held, while every other heavy check is", () => {
-      expect(heldByGate(migrate)).toBe(false);
-      expect([bench, live].map(heldByGate)).toEqual([true, true]);
-      expect(whole.filter((c) => !heldByGate(c)).map((c) => c.id)).toEqual(["queue-fix", "migrate"]);
+      expect(heldBack(migrate)).toBe(false);
+      expect([bench, live].map(heldBack)).toEqual([true, true]);
+      expect(whole.filter((c) => !heldBack(c)).map((c) => c.id)).toEqual(["queue-fix", "migrate"]);
     });
 
     test("rides along with a filter that selects a fixture, and with no other one", () => {
@@ -561,7 +561,7 @@ describe("the whole sweep", () => {
 
     test("runs before the fixture that reads what it writes", async () => {
       const s = fake([]);
-      const shown = withSetups(whole.filter((c) => c.id === "queue-fix" && !heldByGate(c)), whole);
+      const shown = withSetups(whole.filter((c) => c.id === "queue-fix" && !heldBack(c)), whole);
       await acceptance(shown, opts(s));
       expect(s.ran).toEqual(["migrate", "queue-fix"]);
     });

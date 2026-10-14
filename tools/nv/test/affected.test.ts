@@ -9,7 +9,7 @@ describe("nv affected", () => {
     expect(await changeOf({ since: "no-such-rev-anywhere" })).toBe("`no-such-rev-anywhere` names no commit");
   });
 
-  test("the checks that cost minutes wait for the floor gate", () => {
+  test("the checks that cost minutes are heavy, and wait for the loop", () => {
     const c = (o: Record<string, unknown>) => ({ id: "x", kind: "command", stage: 1, ...o });
     expect(heavy(c({ argv: ["bun", "nv", "bench", "--warm-start"] }))).toBe(true);
     expect(heavy(c({ kind: "cargo-named", args: ["test", "--release", "-p", "nvs-abi-probe"] }))).toBe(true);

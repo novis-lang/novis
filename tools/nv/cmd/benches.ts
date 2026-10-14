@@ -1,14 +1,15 @@
-// `bun nv benches`: the bench turn by hand, the one the loop runs whenever its floor gate is open.
+// `bun nv benches`: the bench turn by hand.
 //
 //     bun nv benches [--owed]
 //
 // Every bench the selection picks, owed, red, new or reached, is judged on the release build and
 // recorded (`runBenches`, `proofs/select.ts`), under the sweep lock, since a bench's growth is read off
-// the cores. It is how a person pays the bench debt the sessions' `nv verify` and `bun nv affected --run`
-// leave, without waiting for the floor gate, and it resumes a pass that was stopped, since each bench is
-// recorded the moment it is judged. `--owed` narrows it to the benches selected for being owed; a bench
-// never recorded stays unrecorded, and the next pass without `--owed` picks it up. `bun nv sweep` calls
-// `benchTurn` in-process when the floor gate opens, and `nv guard` refuses this command as a heavy run.
+// the cores. It is how a person pays the whole bench debt the sessions' `nv verify` and `bun nv affected
+// --run` leave, where `bun nv sweep` pays it a budget at a time, and it resumes a pass that was stopped,
+// since each bench is recorded the moment it is judged. `--owed` narrows it to the benches selected for
+// being owed; a bench never recorded stays unrecorded, and the next pass without `--owed` picks it up.
+// `bun nv sweep` calls `benchTurn` in-process with the benches it pays and its deadline, and `nv guard`
+// refuses this command as a heavy run.
 //
 // It exits 0 when no bench is red, 1 when one is or the release build failed, and 2 on a usage error.
 
@@ -18,23 +19,33 @@ export const summary = "the bench turn by hand: judges and records every bench t
 
 const USAGE = "usage: bun nv benches [--owed]";
 
+/** The benches `bun nv sweep` pays, by `bench:` id in the order they run, and when none may start. */
+export interface BenchDebt {
+  ids: string[];
+  deadline: number;
+}
+
 /**
  * Every bench the selection picks, owed, red, new or reached, judged and recorded by `runBenches`, under
- * the sweep lock. With `owedOnly`, only the benches selected for being owed run. Returns a red line naming
- * the red benches, or the release build that failed, and "" when there is neither.
+ * the sweep lock. With `owedOnly`, only the benches selected for being owed run. With `debt`, only its
+ * benches run, in its order, and none starts past its deadline. Returns a red line naming the red
+ * benches, or the release build that failed, and "" when there is neither.
  */
-export async function benchTurn(note: (line: string) => void, owedOnly = false): Promise<string> {
+export async function benchTurn(note: (line: string) => void, owedOnly = false, debt?: BenchDebt): Promise<string> {
   const { runBenches } = await import("../proofs/select.ts");
   const lock = await takeSweepLock({ note });
   let got: Awaited<ReturnType<typeof runBenches>>;
   try {
-    got = await runBenches(note, owedOnly ? (s) => s.why === "owed" : undefined);
+    got = debt
+      ? await runBenches(note, new Set(debt.ids), { order: debt.ids, deadline: debt.deadline })
+      : await runBenches(note, owedOnly ? (s) => s.why === "owed" : undefined);
   } finally {
     lock.release();
   }
   if (typeof got === "string") return `benches: the release build failed: ${got.split("\n")[0]}`;
   for (const r of got.red) note(`benches: RED ${r.path}: ${r.findings.join("; ")}`);
-  note(`benches: ${got.reached} selected, ${got.ran} judged and recorded, ${got.skipped.size} skipped as proven, ${got.red.length} red`);
+  const left = got.left > 0 ? `, ${got.left} left for the next run` : "";
+  note(`benches: ${got.reached} selected, ${got.ran} judged and recorded, ${got.skipped.size} skipped as proven, ${got.red.length} red${left}`);
   if (got.red.length === 0) return "";
   const named = got.red.slice(0, 5).map((r) => r.path).join(", ");
   return `benches: ${got.red.length} red bench(es), their growth failed: ${named}${got.red.length > 5 ? ", ..." : ""}`;

@@ -1,7 +1,7 @@
 // The acceptance sweep over a goal's checks, on the selection store: `sweepOver` runs the checks a change
 // reaches, with the origin and the sweep lock when the checks need them, and `sweepIds` is the sweep
 // `bun nv affected --run` runs over the check ids it chose. After a session, looper runs the goal's
-// checks itself, and `bun nv sweep` runs the Linux legs through `cmd/legs.ts` when the floor gate opens.
+// checks itself, and `bun nv sweep` runs the Linux legs through `cmd/legs.ts` when one of them is owed.
 //
 // `livePlan` is the goal a process works on: the side goal `SIDE_ENV` names, or else the chain's live goal,
 // each read through `lib/chain.ts` and nothing else.

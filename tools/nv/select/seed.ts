@@ -163,14 +163,17 @@ export async function seed(store: SelectStore, opts: SeedOptions = {}): Promise<
 }
 
 /** Judges every program of `programs` on the proof binary, then records each one through
- * `recordProgram`, the way `bun nv proofs` records one. `bun nv select --full` runs it too. */
-export async function seedProofs(ctx: Ctx, programs: { what: "examples" | "hostile"; path: string }[]): Promise<void> {
+ * `recordProgram`, the way `bun nv proofs` records one, `o.batch` programs at a time. `bun nv select
+ * --full` runs it too. `o.stop` is asked before each batch starts, and once it says yes no other batch
+ * starts. */
+export async function seedProofs(ctx: Ctx, programs: { what: "examples" | "hostile"; path: string }[], o: { batch?: number; stop?: () => boolean } = {}): Promise<void> {
   if (programs.length === 0) return;
   const bin = await proofBinary();
   if (typeof bin === "string") throw new Error(`select: no proof binary to judge the proof programs on: ${bin}`);
   const dir = join(ctx.r.dir, "proofs");
   let done = 0;
-  for (const batch of chunks(programs, 96)) {
+  for (const batch of chunks(programs, o.batch ?? 96)) {
+    if (o.stop?.()) return;
     rmSync(dir, { recursive: true, force: true });
     mkdirSync(dir, { recursive: true });
     // Every program of the batch is judged before any is recorded, so a judged run never shares the
@@ -186,12 +189,14 @@ export async function seedProofs(ctx: Ctx, programs: { what: "examples" | "hosti
 }
 
 /** Runs every test executable of `exes` whole, in its package directory, and records each one. `bun nv
- * select --full` runs it too. */
-export async function seedTests(ctx: Ctx, exes: { pkg: string; t: TestExe }[]): Promise<void> {
+ * select --full` runs it too. `stop` is asked before each executable starts, and one it says yes to is
+ * not started. */
+export async function seedTests(ctx: Ctx, exes: { pkg: string; t: TestExe }[], stop: () => boolean = () => false): Promise<void> {
   const width = Math.max(1, Math.min(4, Math.floor(ctx.jobs / 2)));
   const threads = String(Math.max(1, Math.floor(cpus().length / width)));
   let done = 0;
   await pool(exes, width, async ({ pkg, t }) => {
+    if (stop()) return;
     const id = testId(pkg, t);
     const name = recordName(id);
     // The binary's own compile cache starts empty, so the first compile of each program runs whole.

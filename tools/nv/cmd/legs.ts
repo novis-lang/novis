@@ -5,9 +5,10 @@
 // The goal is `--goal`'s, else the one `LOOPER_GOAL` names, else the current one (`lib/chain.ts`
 // `namedPlan`). Its `env.wsl.targetDir`, `env.valgrind.skip`, fixture list and checks build the legs'
 // options through `legsOptions`, and `linuxLegs` runs them. A leg the change does not reach is judged
-// from the selection store; `--full` runs both whatever changed, which is how the floor gate runs them
-// (`cmd/sweep.ts`). A leg that runs is recorded green or red in the store, whose tree stays where it is
-// (`PlanSweep.discard`). The run takes the sweep lock, and on Linux the local origin.
+// from the selection store, and an owed or red leg runs, which is how `bun nv sweep` (`cmd/sweep.ts`)
+// pays an owed leg. `--full` runs both whatever changed. A leg that runs is recorded green or red in the
+// store, whose tree stays where it is (`PlanSweep.discard`). The run takes the sweep lock, and on Linux
+// the local origin.
 //
 // On a host where the legs do not apply, Windows with no WSL or a goal with no WSL target, or Linux with
 // no valgrind, it says so and exits 0. Otherwise it exits 0 when both legs are green, 1 when one is red,
@@ -72,7 +73,7 @@ const REAL: LegsCmdSeams = { plan: namedPlan, store: sweepStore, hold: holdShare
  * Both legs over `goal`'s fixtures and suites, each recorded green or red in the store, whose tree stays
  * where it is. A leg the change does not reach is judged from the store unless `full` is set. Returns the
  * red line, or "" when both legs are green, skipped or not reached. `bun nv sweep` runs the legs here
- * with `full` set when the floor gate opens.
+ * without `full` when one of them is owed.
  */
 export async function legsOver(goal: Goal, full: boolean, over: Partial<LegsCmdSeams> = {}): Promise<string> {
   const s: LegsCmdSeams = { ...REAL, ...over };

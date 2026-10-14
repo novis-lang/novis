@@ -9,17 +9,23 @@
 //   (`seed.ts` `seedProofs`);
 // - every Rust test executable of the covws build (`seed.ts` `seedTests`);
 // - the tools' `tsc` and every tools test file (`nvtests.ts`);
-// - every check of the plan that a shut floor gate does not hold and that is its own atom, a fixture or a
-//   command, `bun nv` ones among them, as the sweep runs it (`accept/runner.ts` `PlanSweep`).
+// - every check of the plan that is not heavy and that is its own atom, a fixture or a command, `bun nv`
+//   ones among them, and every setup command, as the sweep runs them (`accept/runner.ts` `PlanSweep`).
 //
 // The cases and the proof programs run a copy of the covws `nvs` taken when the build ends
 // (`Recorder.pin`), so a rebuild by another process during the run changes nothing they record. The
 // test executables start the build's own `nvs`, the path they were compiled with.
 //
-// The heavy checks keep the floor gate's own cadence and are not run here. Each atom's run counts the
-// moment it is recorded, stamped with the tree the selection was read at (`store.ts`), so a selected
-// run after a full run that was killed skips what it finished; the full run itself runs everything
-// again. The store's tree then moves past the change, as after any sweep.
+// The heavy checks are not run here. Each atom's run counts the moment it is recorded, stamped with the
+// tree the selection was read at (`store.ts`), so a selected run after a full run that was killed skips
+// what it finished; the full run itself runs everything again. The store's tree then moves past the
+// change, as after any sweep.
+//
+// The same run pays debt for `bun nv sweep` (`cmd/sweep.ts`): `only` names the atoms that run, in their
+// order, and `deadline` is when no further one starts. Each kind's turn comes when its first atom's turn
+// comes in `only`. The deadline is asked before each batch of cases or proof programs, which is one pool's
+// width, and before each test executable, tools test file and plan check. An atom that started runs to
+// its end, and every selected atom that did not run is owed when the tree moves, as after any run.
 //
 // A selection miss is an atom red in this run that the selection did not pick. The selection picks every
 // atom last red, owed or never recorded, and every atom the tree names that the store does not know, so
@@ -29,20 +35,20 @@
 
 import { cpus } from "node:os";
 import type { Check } from "../accept/accept.ts";
-import { heldByGate, tiers } from "../accept/accept.ts";
+import { heldBack, tiers, withSetups } from "../accept/accept.ts";
 import { holdOrigin } from "../accept/origin.ts";
 import { PlanSweep } from "../accept/runner.ts";
 import { needLine, sharedResources, takeSweepLock } from "../accept/sweep-lock.ts";
 import { currentPlan } from "../lib/chain.ts";
 import { buildCovws } from "../lib/covws.ts";
 import { ROOT } from "../lib/paths.ts";
-import { caseFiles, nvTestFiles, proofPrograms } from "./atoms.ts";
+import { caseFiles, caseId, nvTestFiles, nvTestId, proofId, proofPrograms, testId } from "./atoms.ts";
 import type { How } from "./checks.ts";
 import { runNvTest, runTsc } from "./nvtests.ts";
 import { pool, Recorder, recordCases } from "./record.ts";
 import { type Ctx, seedProofs, seedTests } from "./seed.ts";
 import type { Selection } from "./select.ts";
-import type { AtomKind, AtomRow, SelectStore, Verdict } from "./store.ts";
+import { type AtomKind, type AtomRow, kindOfAtom, type SelectStore, type Verdict } from "./store.ts";
 
 export interface FullOptions {
   root?: string;
@@ -50,6 +56,11 @@ export interface FullOptions {
   say?: (line: string) => void;
   /** Only these kinds of the atoms named by the tree run; the plan's own checks run with `check`. */
   kinds?: ("case" | "proof" | "test" | "nvtest" | "check")[];
+  /** Only these atoms run, in this order; a plan check runs when its own atom is here. Unset, every
+   * atom of `kinds` runs. */
+  only?: string[];
+  /** When no further atom starts, in milliseconds since the epoch. */
+  deadline?: number;
 }
 
 export interface Miss {
@@ -117,27 +128,51 @@ export function keptMisses(store: SelectStore): Map<string, { lastGreen: number;
   return out;
 }
 
-/** The checks of `plan` a full run runs as the sweep does, in the order of their tiers: every one a shut
- * floor gate does not hold whose atom is its own (`howOf`, the check's group), and every setup command,
- * so a setup comes before the fixtures that read what it writes. The other checks are made of cases,
- * test binaries, proof programs and tools tests, which the full run runs whole. */
-export function ownChecks(plan: Check[], howOf: (c: Check) => How | undefined): Check[] {
+/** The checks of `plan` a full run runs as the sweep does, in the order of their tiers: every one that is
+ * not heavy whose atom is its own (`howOf`, the check's group), and every setup command, so a setup comes
+ * before the fixtures that read what it writes. The other checks are made of cases, test binaries, proof
+ * programs and tools tests, which the full run runs whole. With `only`, a check that is not a setup runs
+ * when `ownOf` names an atom of `only`, and a setup when a fixture runs that reads what it writes. */
+export function ownChecks(plan: Check[], howOf: (c: Check) => How | undefined, only: Set<string> | null = null, ownOf: (c: Check) => string | undefined = () => undefined): Check[] {
   const own = plan.filter((c) => {
-    if (c.setup === true) return true;
-    if (heldByGate(c)) return false;
+    if (c.setup === true) return only === null;
+    if (heldBack(c)) return false;
     const how = howOf(c);
-    return how === "fixture" || how === "command" || how === "nv";
+    if (how !== "fixture" && how !== "command" && how !== "nv") return false;
+    return only === null || only.has(ownOf(c) ?? "");
   });
-  return tiers(own).flatMap((t) => t.checks);
+  return tiers(only === null ? own : withSetups(own, plan)).flatMap((t) => t.checks);
 }
 
-/** Runs every atom that is not heavy on `store`, records each, moves the store's tree, and reports the
- * selection misses. The caller closes the store. */
+/** `xs` narrowed to the ones whose atom `only` names, in the order it names them; `xs` whole when `only`
+ * is null. */
+export function inOnly<T>(xs: T[], id: (x: T) => string, only: string[] | null): T[] {
+  if (only === null) return xs;
+  const rank = new Map(only.map((a, i) => [a, i]));
+  return xs.filter((x) => rank.has(id(x))).sort((a, b) => rank.get(id(a))! - rank.get(id(b))!);
+}
+
+/** The full run's turn an atom runs in, by its kind; null for a kind the full run never runs. */
+function turnOf(id: string): FullKind | null {
+  const kind = kindOfAtom(id);
+  if (kind === "check" || kind === "nv") return "check";
+  return kind === "case" || kind === "proof" || kind === "test" || kind === "nvtest" ? kind : null;
+}
+
+type FullKind = "case" | "proof" | "test" | "nvtest" | "check";
+
+/** Runs every atom that is not heavy on `store`, or the ones `opts.only` names, records each, moves the
+ * store's tree, and reports the selection misses. The caller closes the store. */
 export async function fullRun(store: SelectStore, opts: FullOptions = {}): Promise<FullReport> {
   const root = opts.root ?? ROOT;
   const say = opts.say ?? ((line: string) => console.log(line));
   const jobs = opts.jobs ?? Math.max(2, Math.floor(cpus().length / 2));
-  const kinds = new Set(opts.kinds ?? ["case", "proof", "test", "nvtest", "check"]);
+  const only = opts.only ?? null;
+  const onlySet = only === null ? null : new Set(only);
+  // Each kind's turn, in the order its first atom has in `only`, or the run's own order without it.
+  const order: FullKind[] = only === null ? ["case", "proof", "test", "nvtest", "check"] : [...new Set(only.map(turnOf).filter((k) => k !== null))];
+  const kinds = new Set(order.filter((k) => (opts.kinds ?? order).includes(k)));
+  const spent = () => opts.deadline !== undefined && Date.now() >= opts.deadline;
   const started = Date.now();
   const since = store.base() ?? "";
   const before = new Map(store.atoms().map((a) => [a.id, a]));
@@ -146,7 +181,7 @@ export async function fullRun(store: SelectStore, opts: FullOptions = {}): Promi
   const plan = (found?.goal.checks ?? []) as Check[];
   const labels = new Map((found?.goal.stages ?? []).map((s) => [s.number, `${s.number} ${s.title}`]));
   const label = (n: number) => labels.get(n) ?? String(n);
-  const sweep = await PlanSweep.open(plan, label, { full: true, store, say, onRun: (what) => say(`select: ${what}`) });
+  const sweep = await PlanSweep.open(plan, label, { full: only === null, store, say, onRun: (what) => say(`select: ${what}`) });
   const selection = sweep.sel;
   const report: FullReport = { since, selection, ran: new Map(), kinds: {}, misses: [], owed: 0, seconds: 0 };
 
@@ -163,39 +198,55 @@ export async function fullRun(store: SelectStore, opts: FullOptions = {}): Promi
 
   const r = await Recorder.open(store, sweep.change.view, sweep.graph, "full", { root, say });
   const ctx: Ctx = { r, nvs: r.pin(build.nvs), built: build.nvs, jobs, say, tally: () => {}, root };
-  try {
-    if (kinds.has("case")) {
-      await recordCases(r, ctx.nvs, caseFiles(root), { jobs, onBatch: (done, total) => say(`select: cases ${done}/${total}`), root });
-    }
-    if (kinds.has("proof")) await seedProofs(ctx, await proofPrograms(ctx.nvs));
-    if (kinds.has("test")) await seedTests(ctx, [...build.tests].flatMap(([pkg, ts]) => ts.map((t) => ({ pkg, t }))));
-    if (kinds.has("nvtest")) {
-      say("select: tsc --noEmit");
-      await runTsc(r);
-      const files = nvTestFiles(root);
+  // A run of `only` takes one pool's width of cases or proof programs at a time, so the deadline is asked
+  // before each of them starts.
+  const batch = only === null ? undefined : jobs;
+  const turns: Record<FullKind, () => Promise<void>> = {
+    case: async () => {
+      await recordCases(r, ctx.nvs, inOnly(caseFiles(root), caseId, only), { jobs, ...(batch !== undefined && { batch }), stop: spent, onBatch: (done, total) => say(`select: cases ${done}/${total}`), root });
+    },
+    proof: async () => seedProofs(ctx, inOnly(await proofPrograms(ctx.nvs), (p) => proofId(p.path), only), { ...(batch !== undefined && { batch }), stop: spent }),
+    test: () => seedTests(ctx, inOnly([...build.tests].flatMap(([pkg, ts]) => ts.map((t) => ({ pkg, t }))), (x) => testId(x.pkg, x.t), only), spent),
+    nvtest: async () => {
+      if (only === null) {
+        say("select: tsc --noEmit");
+        await runTsc(r);
+      }
+      const files = inOnly(nvTestFiles(root), nvTestId, only);
       const width = Math.max(1, Math.min(4, Math.floor((cpus().length || 4) / 4)));
       let done = 0;
       await pool(files, width, async (f) => {
+        if (spent()) return;
         await runNvTest(r, f);
         say(`select: tools tests ${++done}/${files.length}`);
       });
-    }
+    },
     // The plan checks take the sweep lock and hold the origin up by the rule a sweep follows
     // (`accept/sweep-lock.ts`): a fixture of `examples/http.nvs` needs both. No leg runs here, and a
     // heavy check only when it is a setup.
-    if (kinds.has("check")) {
-      const own = ownChecks(plan, (c) => sweep.groups.get(c.id)?.how);
+    check: async () => {
+      const own = ownChecks(plan, (c) => sweep.groups.get(c.id)?.how, onlySet, (c) => sweep.groups.get(c.id)?.own?.id);
+      if (own.length === 0) return;
       const need = sharedResources(own, false, () => false);
       say(`select: ${needLine(need)}`);
       const lock = need.lock ? await takeSweepLock({ note: (l) => say(`select: ${l}`) }) : null;
       const origin = need.origin ? await holdOrigin() : null;
       try {
         if (origin !== null) say(`select: ${origin.line}`);
-        for (const c of own) await sweep.check(c);
+        for (const c of own) {
+          if (spent()) break;
+          await sweep.check(c);
+        }
       } finally {
         origin?.close();
         lock?.release();
       }
+    },
+  };
+  try {
+    for (const kind of order) {
+      if (!kinds.has(kind) || spent()) continue;
+      await turns[kind]();
     }
   } finally {
     r.close();

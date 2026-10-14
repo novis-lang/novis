@@ -64,4 +64,21 @@ describe("planBenches", () => {
     expect(again).toEqual(once);
     expect(once.ran).toEqual(["k", "q"]);
   });
+
+  test("a stop starts no further bench, and leaves each one not run and not proven", async () => {
+    const reach: Reach[] = [
+      { path: "red", items: null },
+      { path: "old", items: ["x"] },
+      { path: "newer", items: ["y"] },
+    ];
+    const judged: string[] = [];
+    // The budget is spent once one bench has run; the one that started ran to its end.
+    const got = await planBenches(reach, async (path) => (judged.push(path), false), { order: (r) => r, stop: () => judged.length >= 1 });
+    expect(got.ran).toEqual(["red"]);
+    expect(judged).toEqual(["red"]);
+    expect(got.left).toEqual(["old", "newer"]);
+    expect(got.skipped.size).toBe(0);
+    // With no stop, the same order runs every bench.
+    expect((await planBenches(reach, async () => false, { order: (r) => r })).ran).toEqual(["red", "old", "newer"]);
+  });
 });

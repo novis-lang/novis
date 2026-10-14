@@ -1,32 +1,33 @@
-// `bun nv sweep`: the floor gate, which looper runs after every session as `looper.toml`'s
-// `after_session` hook.
+// `bun nv sweep`: what looper runs after every session as `looper.toml`'s `after_session` hook.
 //
 //     bun nv sweep [--goal <slug>] [--keep-runs <n>]
 //
 // looper runs the live goal's acceptance checks itself after every session (`[loop] sweep = "every"`), so
-// this command runs none of them. It runs what those checks leave out. Each run counts one session in the
-// selection store's meta (`FLOOR_META`), and one run in `FLOOR_GATE_EVERY` opens the floor gate, which
-// runs, in order:
+// this command runs none of them. Each run does three things, in this order.
 //
-// - `bun nv select --full` (`select/full.ts` `fullRun`): every atom that is not heavy runs and records,
-//   and a red one the selection did not pick is a selection miss;
-// - both Linux legs, the WSL leg and the valgrind sweep, over every fixture and suite of the goal,
-//   whatever changed, as `bun nv legs --full` runs them (`cmd/legs.ts` `legsOver`). A leg records no
-//   footprint of its own, so this run is the safety net for what its selection cannot see. The goal is
-//   `--goal`'s, else the one `LOOPER_GOAL` names, else the current one (`lib/chain.ts` `namedPlan`), and
-//   only the legs read it;
-// - every bench the selection picks, on the release build (`cmd/benches.ts` `benchTurn`).
+// **It pays floor debt for at most `DEBT_BUDGET_MS`.** The debt is what the selection store holds that no
+// session runs: every bench owed or red, and every proof program, case, test executable, tools test file,
+// plan check and Linux leg that is owed. `nv verify` and `bun nv affected --run` mark owed each atom a
+// change reached that they did not run (`select/record.ts` `advance`). The red atoms go first, then the
+// owed ones, each list by its last run, oldest first (`debtTurns`). One runner takes each turn, and the
+// turns go in the order of their first atoms: `select/full.ts` `fullRun` with `only` for every kind but
+// the benches and the legs, `cmd/benches.ts` `benchTurn` for the benches, and `cmd/legs.ts` `legsOver`
+// for the legs. The legs run over `--goal`'s goal, else the one `LOOPER_GOAL` names, else the current one
+// (`lib/chain.ts` `namedPlan`). The budget is asked before each turn, and each runner asks it again before
+// each atom starts. An atom that started runs to its end, and what the budget did not reach stays owed for
+// the next run. It prints what it paid and what debt is left, by kind.
 //
-// The count goes back to 0 once the three have run, red or green. A step that throws leaves the count
-// where it was, so the next run opens the gate again. Every run then sweeps the disk, as `nv disk
-// --clean` does: the build is warm, and nothing else is building.
+// **It sweeps the disk**, as `nv disk --clean` does: the build is warm, and nothing else is building.
 //
-// What the gate found goes into `.loop/last-sweep.md`, the file looper writes from its own sweep just
-// before this hook runs, and which its orient prints under "Fix these first". This command owns only the
-// lines that start with `FLOOR_LINE`. It replaces them with this run's lines and leaves looper's lines
-// alone, and it removes the file when no line is left. A shut gate finds nothing, so it only removes
-// lines an earlier run left there. A run that cannot work, because of a bad argument or a step that
-// threw, writes why as one of those lines.
+// **It reads the newest nightly CI run back** (`readNightly`): the newest completed `workflow_dispatch`
+// run of `ci.yml` on `main`, which the cron on `landing` dispatches. It asks `gh`, and it only reads.
+//
+// What it found goes into `.loop/last-sweep.md`, the file looper writes from its own sweep just before
+// this hook runs, and which its orient prints under "Fix these first". This command owns the lines that
+// start with `FLOOR_LINE`, each red the debt run found, and with `NIGHTLY_LINE`, each job the nightly run
+// failed. Each run replaces both sets with what it found and leaves looper's lines alone, and it removes
+// the file when no line is left. A run that cannot work, because of a bad argument or a runner that threw,
+// writes why as a `FLOOR_LINE`; a nightly run `gh` cannot read is one `NIGHTLY_LINE` that says so.
 //
 // It always exits 0, because looper pauses the loop on a hook that fails: the file is the verdict.
 
@@ -34,115 +35,245 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node
 import { dirname, join } from "node:path";
 import { namedPlan } from "../lib/chain.ts";
 import { ROOT } from "../lib/paths.ts";
-import { describeFull, fullRun } from "../select/full.ts";
-import { SelectStore } from "../select/store.ts";
+import { run as proc } from "../lib/proc.ts";
+import { LEGS, legId } from "../select/checks.ts";
+import { fullRun } from "../select/full.ts";
+import { type AtomRow, SelectStore } from "../select/store.ts";
 import { benchTurn } from "./benches.ts";
 import { clean, freedLines, freeGb, human, KEEP_RUNS, total } from "./disk.ts";
 import { type LegsCmdSeams, legsOver } from "./legs.ts";
 
-/** The file looper writes with its sweep's reds, repo-relative, to which the floor gate adds its own. */
+/** The file looper writes with its sweep's reds, repo-relative, to which this command adds its own. */
 export const LAST_SWEEP = ".loop/last-sweep.md";
-/** How each line the floor gate writes into `LAST_SWEEP` starts; every other line is looper's. */
-export const FLOOR_LINE = "- floor gate: ";
-/** Runs since the floor gate last opened, in the selection store's `meta`. */
-export const FLOOR_META = "floor-gate:since";
+/** How each line about the floor debt starts in `LAST_SWEEP`. */
+export const FLOOR_LINE = "- floor debt: ";
+/** How each line about the nightly CI run starts in `LAST_SWEEP`. Every line with neither prefix is looper's. */
+export const NIGHTLY_LINE = "- nightly CI: ";
 /**
- * One run in this many opens the floor gate. A regression only the full run, a Linux leg or a bench sees
- * waits at most this many sessions to be named.
+ * How long one run pays floor debt, in milliseconds. Ten minutes keeps the hook short beside the session it
+ * follows, so the loop is not held between sessions, and is long enough for a bench or a pool of proof
+ * programs to finish. Debt larger than the budget is paid over the runs that follow.
  */
-export const FLOOR_GATE_EVERY = 10;
+export const DEBT_BUDGET_MS = 10 * 60_000;
 
-export const summary = `the floor gate looper runs after each session: 1 run in ${FLOOR_GATE_EVERY} runs the full selection run, the Linux legs and the benches, every run sweeps the disk, and the reds go into ${LAST_SWEEP}: nv sweep [--goal <slug>] [--keep-runs <n>]`;
+export const summary = `looper's hook after each session: pays owed and red atoms for at most ${DEBT_BUDGET_MS / 60_000} minutes, sweeps the disk, reads the newest nightly CI run, and writes what is red into ${LAST_SWEEP}: nv sweep [--goal <slug>] [--keep-runs <n>]`;
 
 const USAGE = "usage: bun nv sweep [--goal <slug>] [--keep-runs <n>]";
 
-/** How the gate reports itself: the command prints it, and a test silences it. */
+/** A kind of floor debt: an atom kind, or `leg` for the atom of a Linux leg. */
+export type DebtKind = "bench" | "proof" | "case" | "test" | "nvtest" | "check" | "nv" | "leg";
+
+/** One atom of the floor debt. */
+export interface DebtAtom {
+  id: string;
+  kind: DebtKind;
+  verdict: "red" | "owed";
+  /** When it last ran, in milliseconds since the epoch; 0 for never. */
+  lastRun: number;
+}
+
+/** What runs a turn of the debt: `fullRun`, `benchTurn` or `legsOver`. */
+export type Runner = "full" | "bench" | "leg";
+
+/** The atoms one runner pays, in the order they run. */
+export interface DebtTurn {
+  runner: Runner;
+  ids: string[];
+}
+
+/** How the command reports itself: the command prints it, and a test silences it. */
 export interface SweepVoice {
-  /** A step of the gate. */
+  /** A step of the run. */
   step(line: string): void;
   /** A line under a step. */
   note(line: string): void;
 }
 
-/** Everything the gate reads or starts, replaced under test. Each one left out is the real one. */
+/** What `gh` printed, and how it exited. */
+export interface GhRun {
+  code: number;
+  stdout: string;
+  stderr: string;
+}
+
+/** Everything the command reads or starts, replaced under test. Each one left out is the real one. */
 export interface SweepSeams {
   root: string;
-  /** The count the store's `meta` holds under `key`, or `missing` when it holds none. */
-  meta(key: string, missing: number): number;
-  setMeta(key: string, count: number): void;
-  /** `bun nv select --full`: a red line naming the selection misses, or "". */
-  fullRun(note: (line: string) => void): Promise<string>;
-  /** Both Linux legs over every fixture and suite of goal `slug`, `namedPlan`'s goal, whatever changed: a red line, or "". */
-  legs(slug: string | undefined, note: (line: string) => void): Promise<string>;
-  /** The bench turn: a red line, or "". */
-  benches(note: (line: string) => void): Promise<string>;
+  /** The clock the budget is read on, in milliseconds since the epoch. */
+  now(): number;
+  /** The floor debt the store holds now. */
+  debt(): DebtAtom[];
+  /** Runs one turn, no atom of it starting at or after `deadline`: a red line, or "". `slug` is the goal
+   * the legs run over, `namedPlan`'s when unset. */
+  pay(turn: DebtTurn, deadline: number, slug: string | undefined, note: (line: string) => void): Promise<string>;
+  /** `gh` with `args`. It throws when `gh` cannot start. */
+  gh(args: string[]): Promise<GhRun>;
   /** The disk sweep's one-line summary. */
   disk(keepRuns: number, say: (line: string) => void): Promise<string>;
 }
 
-/** What the gate runs over. */
-export interface FloorInput {
+/** What the debt run runs over. */
+export interface DebtInput {
   /** The goal whose fixtures and suites the legs run, `--goal`'s; `namedPlan` decides when unset. */
   slug?: string;
   keepRuns: number;
 }
 
-/** What the gate did. */
-export interface FloorOutcome {
-  /** The gate opened on this run. */
-  open: boolean;
-  /** Each red line the full run, the legs and the benches returned. */
+/** What the debt run did. */
+export interface DebtOutcome {
+  /** The atoms of the debt that ran. */
+  paid: DebtAtom[];
+  /** The debt the store holds after the run. */
+  left: DebtAtom[];
+  /** Each red line a turn returned. */
   reds: string[];
 }
 
-function metaCount(key: string, missing: number): number {
-  const store = new SelectStore();
-  try {
-    const raw = store.meta(key);
-    const since = raw === null ? NaN : Number(raw);
-    return Number.isInteger(since) && since >= 0 ? since : missing;
-  } finally {
-    store.close();
+// ---- the debt ----------------------------------------------------------------------------------------
+
+const LEG_IDS = new Set<string>(LEGS.map(legId));
+
+/** Each atom of `rows` that is floor debt: a bench owed or red, and an owed atom of the other kinds. */
+export function debtOf(rows: Pick<AtomRow, "id" | "kind" | "verdict" | "lastRun">[]): DebtAtom[] {
+  const out: DebtAtom[] = [];
+  for (const a of rows) {
+    let kind: DebtKind | null = null;
+    if (a.kind === "heavy") kind = LEG_IDS.has(a.id) ? "leg" : null;
+    else if (a.kind === "bench" || a.kind === "proof" || a.kind === "case" || a.kind === "test" || a.kind === "nvtest" || a.kind === "check" || a.kind === "nv") kind = a.kind;
+    if (kind === null) continue;
+    if (a.verdict === "owed" || (a.verdict === "red" && kind === "bench")) out.push({ id: a.id, kind, verdict: a.verdict, lastRun: a.lastRun });
   }
+  return out;
 }
 
-function setMetaCount(key: string, count: number): void {
+function runnerOf(kind: DebtKind): Runner {
+  return kind === "bench" ? "bench" : kind === "leg" ? "leg" : "full";
+}
+
+/**
+ * The turns that pay `debt`: the red atoms first, then the owed ones, each list ordered by last run,
+ * oldest first, then by id. Within each list the atoms of one runner form one turn, and the turns go in
+ * the order of their first atoms.
+ */
+export function debtTurns(debt: DebtAtom[]): DebtTurn[] {
+  const byAge = (a: DebtAtom, b: DebtAtom) => a.lastRun - b.lastRun || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+  const turns: DebtTurn[] = [];
+  for (const verdict of ["red", "owed"] as const) {
+    const byRunner = new Map<Runner, string[]>();
+    for (const a of debt.filter((d) => d.verdict === verdict).sort(byAge)) {
+      const r = runnerOf(a.kind);
+      (byRunner.get(r) ?? byRunner.set(r, []).get(r)!).push(a.id);
+    }
+    for (const [runner, ids] of byRunner) turns.push({ runner, ids });
+  }
+  return turns;
+}
+
+/** The atoms of `before` that ran: gone from the debt, or with a newer run or another verdict. */
+export function paidOf(before: DebtAtom[], after: DebtAtom[]): DebtAtom[] {
+  const now = new Map(after.map((a) => [a.id, a]));
+  return before.filter((a) => {
+    const b = now.get(a.id);
+    return b === undefined || b.lastRun !== a.lastRun || b.verdict !== a.verdict;
+  });
+}
+
+/** `atoms` counted by kind, as `3 proof, 1 bench`, most first. */
+export function byKind(atoms: DebtAtom[]): string {
+  const n = new Map<DebtKind, number>();
+  for (const a of atoms) n.set(a.kind, (n.get(a.kind) ?? 0) + 1);
+  return [...n].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1)).map(([k, c]) => `${c} ${k}`).join(", ");
+}
+
+function minutes(ms: number): string {
+  const s = Math.max(0, Math.round(ms / 1000));
+  return `${Math.floor(s / 60)}m${String(s % 60).padStart(2, "0")}s`;
+}
+
+/**
+ * Pays the floor debt for at most `DEBT_BUDGET_MS`, sweeps the disk, and writes the reds after
+ * `FLOOR_LINE`. No turn starts once the budget is spent, and each runner is handed the deadline.
+ */
+export async function payDebt(i: DebtInput, voice: SweepVoice, s: SweepSeams): Promise<DebtOutcome> {
+  const before = s.debt();
+  const started = s.now();
+  const deadline = started + DEBT_BUDGET_MS;
+  const reds: string[] = [];
+  if (before.length === 0) voice.step("floor debt: none");
+  else {
+    voice.step(`floor debt: ${before.length} atom(s), ${byKind(before)}; paying for at most ${minutes(DEBT_BUDGET_MS)}, the red ones first, then the oldest owed`);
+    for (const turn of debtTurns(before)) {
+      if (s.now() >= deadline) {
+        voice.step("floor debt: the budget is spent, so the rest waits for the next run");
+        break;
+      }
+      const kinds = byKind(before.filter((a) => turn.ids.includes(a.id)));
+      voice.step(`floor debt: paying ${kinds}, by ${turn.runner === "full" ? "the full run's runners" : turn.runner === "bench" ? "the bench turn" : "the Linux legs"}`);
+      reds.push(await s.pay(turn, deadline, i.slug, voice.note));
+    }
+  }
+  const left = before.length === 0 ? [] : s.debt();
+  const paid = paidOf(before, left);
+  if (before.length > 0) {
+    voice.step(`floor debt: paid ${paid.length}${paid.length > 0 ? ` (${byKind(paid)})` : ""} in ${minutes(s.now() - started)}; left ${left.length}${left.length > 0 ? ` (${byKind(left)})` : ""}`);
+  }
+  voice.step(await s.disk(i.keepRuns, voice.note));
+  const found = reds.filter((r) => r !== "");
+  writeOwnLines(s.root, FLOOR_LINE, found.flatMap(redsOf));
+  return { paid, left, reds: found };
+}
+
+/** The reds a turn's line names: its first line, and each `also red:` line after it. */
+function redsOf(red: string): string[] {
+  const [first, ...rest] = red.split("\n");
+  return [first!.trim(), ...rest.filter((l) => l.trim().startsWith("also red: ")).map((l) => l.trim().slice("also red: ".length))];
+}
+
+// ---- the real runners --------------------------------------------------------------------------------
+
+function storeDebt(): DebtAtom[] {
   const store = new SelectStore();
   try {
-    store.setMeta(key, String(count));
+    return debtOf(store.atoms());
   } finally {
     store.close();
   }
 }
 
 /**
- * `bun nv select --full` inside the gate: every atom that is not heavy runs and records, and the store's
- * tree moves past the change. `fullRun` takes the sweep lock itself while a plan check needs the origin.
- * Returns a red line naming the selection misses, or a covws build that failed, and "" when there is
- * neither.
+ * The atoms of `ids` that are not benches or legs, run by `fullRun` in their order until `deadline`, each
+ * recorded. Returns a red line naming the atoms that ran red, or the covws build that failed, and "" when
+ * there is neither.
  */
-async function fullRunTurn(note: (line: string) => void): Promise<string> {
+async function fullTurn(ids: string[], deadline: number, note: (line: string) => void): Promise<string> {
   const store = new SelectStore();
   try {
-    const r = await fullRun(store, { say: note });
-    for (const line of describeFull(r)) note(line);
-    if (r.buildFailed) return "full run: the covws build failed";
-    if (r.misses.length === 0) return "";
-    const named = r.misses.slice(0, 5).map((m) => m.id).join(", ");
-    return `full run: ${r.misses.length} selection miss(es), red now and not selected by the change that broke them: ${named}${r.misses.length > 5 ? ", ..." : ""}`;
+    const r = await fullRun(store, { only: ids, deadline, say: note });
+    if (r.buildFailed) return "owed atoms: not run, the covws build failed";
+    const red = [...r.ran].filter(([, v]) => v === "red").map(([id]) => id);
+    note(`owed atoms: ${r.ran.size} ran, ${red.length} red, in ${r.seconds}s`);
+    if (red.length === 0) return "";
+    return `owed atoms: ${red.length} ran red: ${red.slice(0, 5).join(", ")}${red.length > 5 ? ", ..." : ""}`;
   } finally {
     store.close();
   }
 }
 
 /**
- * Both legs over `namedPlan`'s goal, whatever changed, or a red line saying no goal is there to read them
- * from. `over` replaces what `legsOver` reads or starts, under test.
+ * The Linux legs over `namedPlan`'s goal, or a red line saying no goal is there to read them from. With
+ * `full`, both legs run whatever changed; without it, a leg runs when the store selects it, owed or red
+ * among the reasons. `over` replaces what `legsOver` reads or starts, under test.
  */
-export async function legsTurn(slug: string | undefined, note: (line: string) => void, over: Partial<LegsCmdSeams> = {}): Promise<string> {
+export async function legsTurn(slug: string | undefined, note: (line: string) => void, full: boolean, over: Partial<LegsCmdSeams> = {}): Promise<string> {
   const found = (over.plan ?? namedPlan)(slug);
   if (found === null) return `Linux legs: not run, ${slug ? `no goal record for \`${slug}\`` : "no goal is named or current"}`;
-  return legsOver(found.goal, true, { say: note, ...over });
+  return legsOver(found.goal, full, { say: note, ...over });
+}
+
+async function payTurn(turn: DebtTurn, deadline: number, slug: string | undefined, note: (line: string) => void): Promise<string> {
+  if (turn.runner === "bench") return benchTurn(note, false, { ids: turn.ids, deadline });
+  if (turn.runner === "leg") return legsTurn(slug, note, false);
+  return fullTurn(turn.ids, deadline, note);
 }
 
 /** `nv disk --clean`'s sweep. Says each part, and returns the one-line summary. */
@@ -164,60 +295,101 @@ async function sweepDisk(keepRuns: number, say: (line: string) => void, root: st
 
 const REAL: SweepSeams = {
   root: ROOT,
-  meta: metaCount,
-  setMeta: setMetaCount,
-  fullRun: fullRunTurn,
-  legs: legsTurn,
-  benches: (note) => benchTurn(note),
+  now: () => Date.now(),
+  debt: storeDebt,
+  pay: payTurn,
+  gh: async (args) => {
+    const r = await proc(["gh", ...args], { timeoutMs: 60_000 });
+    return { code: r.code, stdout: r.stdout, stderr: r.stderr };
+  },
   disk: (keepRuns, say) => sweepDisk(keepRuns, say),
 };
 
-/** The floor gate after one session: counts it, runs the gate when it opens, sweeps the disk, and writes the reds. */
-export async function floorGate(i: FloorInput, voice: SweepVoice, over: Partial<SweepSeams> = {}): Promise<FloorOutcome> {
-  const s: SweepSeams = { ...REAL, ...over };
-  const since = s.meta(FLOOR_META, FLOOR_GATE_EVERY) + 1;
-  const open = since >= FLOOR_GATE_EVERY;
-  const reds: string[] = [];
-  if (open) {
-    voice.step(`floor gate open, 1 run in ${FLOOR_GATE_EVERY}: the full run, the Linux legs and the benches`);
-    voice.step("full run: every atom that is not heavy runs and records, and a red one the selection did not pick is a selection miss");
-    reds.push(await s.fullRun(voice.note));
-    voice.step("Linux legs: the WSL leg and the valgrind sweep over every fixture and suite of the goal, whatever changed");
-    reds.push(await s.legs(i.slug, voice.note));
-    voice.step("benches: every selected bench, owed, red, new or reached, is judged on the release build and recorded");
-    reds.push(await s.benches(voice.note));
-  } else {
-    voice.step(`floor gate shut: run ${since} of ${FLOOR_GATE_EVERY} since it last opened`);
-  }
-  s.setMeta(FLOOR_META, open ? 0 : since);
-  voice.step(await s.disk(i.keepRuns, voice.note));
-  const found = reds.filter((r) => r !== "");
-  writeFloorLines(s.root, found.flatMap(redsOf));
-  return { open, reds: found };
+// ---- the nightly CI run ------------------------------------------------------------------------------
+
+/** The nightly run as `ci.yml` makes it: a `workflow_dispatch` run on `main`, which the cron on
+ * `landing` starts. A push to `main` is a `push` run, so the event tells the two apart. */
+const NIGHTLY = ["--workflow", "ci.yml", "--branch", "main", "--event", "workflow_dispatch"];
+/** How many of the newest nightly runs are read to find the newest completed one. */
+const NIGHTLY_LOOKBACK = 5;
+/** A job conclusion that is no failure. */
+const PASSED = new Set(["success", "skipped", "neutral"]);
+
+/** The newest completed nightly run: its URL, and one line per job it failed, none when it is green. */
+export interface Nightly {
+  url: string;
+  failed: string[];
 }
 
-/** The reds a step's line names: its first line, and each `also red:` line after it. */
-function redsOf(red: string): string[] {
-  const [first, ...rest] = red.split("\n");
-  return [first!.trim(), ...rest.filter((l) => l.trim().startsWith("also red: ")).map((l) => l.trim().slice("also red: ".length))];
+function ghError(what: string, r: GhRun): string {
+  const why = `${r.stderr}\n${r.stdout}`.split("\n").map((l) => l.trim()).find((l) => l !== "") ?? `exit ${r.code}`;
+  return `\`gh ${what}\` exited ${r.code}: ${why}`;
 }
 
 /**
- * Replaces the floor gate's lines in `.loop/last-sweep.md` with `reds`, each after `FLOOR_LINE`, and
- * keeps every other line as looper wrote it. Removes the file when no line is left.
+ * The newest completed nightly run, read through `gh`, or null when `gh` lists none. A run still in
+ * progress is passed over, so the newest completed one still decides. Returns why the run could not be
+ * read instead, when `gh` cannot start, fails, or prints what does not parse.
  */
-export function writeFloorLines(root: string, reds: string[]): void {
+export async function readNightly(gh: SweepSeams["gh"]): Promise<Nightly | null | string> {
+  try {
+    const list = await gh(["run", "list", ...NIGHTLY, "--limit", String(NIGHTLY_LOOKBACK), "--json", "databaseId,status,conclusion,url"]);
+    if (list.code !== 0) return ghError("run list", list);
+    const runs = JSON.parse(list.stdout) as { databaseId: number; status: string; conclusion: string; url: string }[];
+    const done = runs.find((r) => r.status === "completed");
+    if (done === undefined) return null;
+    if (done.conclusion === "success") return { url: done.url, failed: [] };
+    const view = await gh(["run", "view", String(done.databaseId), "--json", "jobs"]);
+    if (view.code !== 0) return ghError("run view", view);
+    const jobs = (JSON.parse(view.stdout) as { jobs: { name: string; conclusion: string }[] }).jobs;
+    const failed = jobs.filter((j) => !PASSED.has(j.conclusion)).map((j) => `job \`${j.name}\` ended \`${j.conclusion}\``);
+    return { url: done.url, failed: failed.length > 0 ? failed : [`the run ended \`${done.conclusion}\``] };
+  } catch (e) {
+    return `\`gh\` failed: ${(e as Error).message.split("\n")[0]}`;
+  }
+}
+
+/** Reads the nightly run and replaces the `NIGHTLY_LINE` lines with what it found. It never throws. */
+export async function nightlyTurn(s: Pick<SweepSeams, "root" | "gh">, voice: SweepVoice): Promise<void> {
+  const got = await readNightly(s.gh);
+  let lines: string[];
+  if (typeof got === "string") {
+    lines = [`could not be read: ${got}`];
+    voice.step(`nightly CI: could not be read: ${got}`);
+  } else if (got === null) {
+    lines = [];
+    voice.step("nightly CI: no completed nightly run");
+  } else {
+    lines = got.failed.map((f) => `${f}: ${got.url}`);
+    voice.step(got.failed.length === 0 ? `nightly CI: green, ${got.url}` : `nightly CI: ${got.failed.length} job(s) red, ${got.url}`);
+  }
+  try {
+    writeOwnLines(s.root, NIGHTLY_LINE, lines);
+  } catch (e) {
+    console.error(`nv sweep: ${LAST_SWEEP} could not be written: ${(e as Error).message}`);
+  }
+}
+
+// ---- the file ----------------------------------------------------------------------------------------
+
+/**
+ * Replaces the lines of `.loop/last-sweep.md` that start with `prefix` with `lines`, each after `prefix`,
+ * at the end of the file, and keeps every other line as it was. Removes the file when no line is left.
+ */
+export function writeOwnLines(root: string, prefix: string, lines: string[]): void {
   const path = join(root, LAST_SWEEP);
   const before = existsSync(path) ? readFileSync(path, "utf8").replace(/\r\n/g, "\n") : "";
-  const kept = before.split("\n").filter((l) => !l.startsWith(FLOOR_LINE)).join("\n").trimEnd();
-  const lines = [...(kept === "" ? [] : [kept]), ...reds.map((r) => `${FLOOR_LINE}${r}`)];
-  if (lines.length === 0) {
+  const kept = before.split("\n").filter((l) => !l.startsWith(prefix)).join("\n").trimEnd();
+  const all = [...(kept === "" ? [] : [kept]), ...lines.map((l) => `${prefix}${l}`)];
+  if (all.length === 0) {
     rmSync(path, { force: true });
     return;
   }
   mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, `${lines.join("\n")}\n`);
+  writeFileSync(path, `${all.join("\n")}\n`);
 }
+
+// ---- the command -------------------------------------------------------------------------------------
 
 /** How the command reports itself: every line to stdout, which looper keeps in the hook's log. */
 const PRINTED: SweepVoice = {
@@ -225,38 +397,40 @@ const PRINTED: SweepVoice = {
   note: (l) => console.log(`   ${l}`),
 };
 
-/** What the command reads besides the gate's seams: how it reports itself. */
+/** What the command reads besides the seams: how it reports itself. */
 export interface SweepCmdSeams extends SweepSeams {
   voice: SweepVoice;
 }
 
-/** Parses, runs the floor gate and writes its lines into `.loop/last-sweep.md`; returns 0 whatever it found. */
+/** Parses, pays the debt, reads the nightly run and writes their lines into `.loop/last-sweep.md`;
+ * returns 0 whatever it found. */
 export async function sweep(args: string[], over: Partial<SweepCmdSeams> = {}): Promise<number> {
-  const root = over.root ?? ROOT;
+  const s: SweepSeams = { ...REAL, ...over };
   const voice = over.voice ?? PRINTED;
   let slug: string | undefined;
   let keepRuns = KEEP_RUNS;
-  for (let i = 0; i < args.length; i++) {
+  let bad = "";
+  for (let i = 0; i < args.length && bad === ""; i++) {
     const a = args[i]!;
     const value = args[i + 1];
-    let bad = "";
     if (a === "--goal" && value !== undefined) slug = args[++i];
     else if (a === "--keep-runs" && value !== undefined && /^\d+$/.test(value)) keepRuns = Number(args[++i]);
     else bad = a === "--goal" || a === "--keep-runs" ? `${a} needs a value` : `unexpected argument ${a}`;
-    if (bad) {
-      console.error(`${USAGE}\nnv sweep: error: ${bad}`);
-      writeFloorLines(root, [`could not run: \`bun nv sweep\` was started with a bad argument: ${bad}`]);
-      return 0;
+  }
+  if (bad !== "") {
+    console.error(`${USAGE}\nnv sweep: error: ${bad}`);
+    writeOwnLines(s.root, FLOOR_LINE, [`could not run: \`bun nv sweep\` was started with a bad argument: ${bad}`]);
+  } else {
+    try {
+      const out = await payDebt({ ...(slug !== undefined && { slug }), keepRuns }, voice, s);
+      voice.step(out.reds.length > 0 ? `RED: ${LAST_SWEEP} names what the debt run found` : "GREEN: the floor debt this run paid");
+    } catch (e) {
+      const why = (e as Error).message.split("\n")[0] ?? String(e);
+      console.error(`nv sweep: ${why}`);
+      writeOwnLines(s.root, FLOOR_LINE, [`could not run: the debt run stopped: ${why}`]);
     }
   }
-  try {
-    const out = await floorGate({ ...(slug !== undefined && { slug }), keepRuns }, voice, over);
-    voice.step(out.reds.length > 0 ? `RED: ${LAST_SWEEP} names what the floor gate found` : out.open ? "GREEN: the floor gate" : "the floor gate stays shut");
-  } catch (e) {
-    const why = (e as Error).message.split("\n")[0] ?? String(e);
-    console.error(`nv sweep: ${why}`);
-    writeFloorLines(root, [`could not run: the gate stopped: ${why}`]);
-  }
+  await nightlyTurn(s, voice);
   return 0;
 }
 
