@@ -296,6 +296,8 @@ fn check_property_key_conversion(
     if roster.is_empty() {
         reject_empty_property_key_set(&qname, ty.span, env);
     }
+    // The editor offers these names inside the operand, written out or not.
+    super::members::record_property_keys(&qname, env);
     let ExprKind::Str(text) = &inner.kind else {
         // § 2's `string` and `property<U>` rows: the name arrives when the
         // statement runs, so the set it must be one of travels to the lowering

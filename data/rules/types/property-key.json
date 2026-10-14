@@ -10,6 +10,7 @@
   "guardedBy": [
     "tests/conformance/class/a-property-key-is-checked-where-the-name-arrives.nvst",
     "tests/conformance/class/a-name-outside-the-public-set-throws-at-the-conversion.nvst",
-    "tests/conformance/reject/a-private-property-is-not-a-property-key.nvst"
+    "tests/conformance/reject/a-private-property-is-not-a-property-key.nvst",
+    "tests/conformance/class/a-property-key-or-string-parameter-takes-any-string.nvst"
   ]
 }

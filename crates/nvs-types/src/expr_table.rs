@@ -1389,6 +1389,7 @@ pub struct ExprTypeTable {
     property_defaults: FxHashMap<String, Vec<(String, crate::defaults::ConstArg)>>,
     property_default_types: FxHashMap<Span, TypeId>,
     property_types: FxHashMap<String, Vec<(String, TypeId)>>,
+    property_keys: FxHashMap<String, Vec<(String, TypeId)>>,
     lateinit_properties: FxHashMap<String, Vec<String>>,
     static_properties: FxHashMap<String, Vec<(String, Option<crate::defaults::ConstArg>)>>,
     to_string: FxHashMap<Span, ResolvedCall>,
@@ -2251,6 +2252,32 @@ impl ExprTypeTable {
     #[must_use]
     pub fn property_types(&self, label: &str) -> &[(String, TypeId)] {
         self.property_types.get(label).map_or(&[], Vec::as_slice)
+    }
+
+    /// Whether [`Self::property_keys`] already has the class labelled `label`.
+    pub(crate) fn has_property_keys(&self, label: &str) -> bool {
+        self.property_keys.contains_key(label)
+    }
+
+    /// Records the names a `property<T>` over the class labelled `label` may
+    /// hold, each with the type it is declared at. See [`Self::property_keys`].
+    pub(crate) fn record_property_keys(&mut self, label: String, keys: Vec<(String, TypeId)>) {
+        self.property_keys.insert(label, keys);
+    }
+
+    /// `rule:types/property-key`'s set for the class labelled `label`: its
+    /// public declared properties and its ancestors', sorted by name, each
+    /// with its declared type.
+    ///
+    /// Recorded only for a class a written `property<T>` names, at an `as
+    /// property<T>` conversion and at a string literal argument for a
+    /// parameter whose type has a `property<T>` member. `nvs_lsp::completion`
+    /// offers these names inside those two literals, and reads them here
+    /// because the walk that makes the set needs the signature table, which
+    /// the editor does not keep. Empty for every other class.
+    #[must_use]
+    pub fn property_keys(&self, label: &str) -> &[(String, TypeId)] {
+        self.property_keys.get(label).map_or(&[], Vec::as_slice)
     }
 
     /// Records that the property initializer at `span` is written into a

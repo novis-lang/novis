@@ -22,6 +22,12 @@ A qualifier is stripped for a reason narrower than the general row's: the conver
 range is the set of properties `User` declares `public` in this program's own source. A tainted string
 cannot widen that set, name a field the author did not write down, or reach a `private` one.
 
+A parameter typed **`property<T>|string`** takes a key and any string. A string literal written there
+stays a `string`, and the body converts the value with `as ?property<T>` to find out whether it names one
+of `T`'s properties. The editor offers `T`'s names inside such a literal
+(`rule:ide/completion-offers-only-what-the-compiler-derived`), so a call site that may pass any string is
+still shown the names. A parameter typed `property<T>` alone takes a key and nothing else.
+
 It is its own **equality domain**: two keys are equal when they name the same property, nothing else is
 ever equal to one, and ordering one is refused (`rule:types/ordering`). `property` is a keyword only
 in type position — `$property`, a method named `property` and a class named `Property` are untouched.

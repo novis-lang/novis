@@ -1405,7 +1405,10 @@ string converted with `as class<T>`, which completes as the classes the program 
 parameter the registry marks as a class name, which completes as the classes the program declares, and
 as the ones that are a `Throwable` where the member expects an error; a string argument at a parameter
 whose declared type is a set of allowed string values ([`types/single-value-types`](types.md#types-single-value-types)), which completes as
-those values, read off the parameter types the checker records on the call it resolved; `#[Api]` fields and
+those values, read off the parameter types the checker records on the call it resolved; the string
+converted with `as property<T>`, and a string argument at a parameter whose type takes a `property<T>`
+beside a `string`, which complete as `T`'s public declared properties with their types, read off the set
+the checker tests that conversion against ([`types/property-key`](types.md#types-property-key)); `#[Api]` fields and
 every attribute's anonymous object, whose shape is a declared type; and enum cases, members off a resolved receiver
 and in-scope variables, which are the same rule and not an exception to it.
 
@@ -1429,6 +1432,16 @@ error, named in a one-row table in `crate::arguments`, since the mark says only 
 name. A parameter whose type is a set of allowed string values completes them as items of kind
 `value`, its `null` aside, and is offered a completion file's list beside them, merged by value; it gets
 no warning for a literal outside the set, because the checker already rejects one.
+
+A property name is an item of kind `property` with its declared type at the right. The checker records
+the set for each class a `property<T>` names at an `as` conversion, and at a string literal argument for
+a parameter whose type has a `property<T>` member, because the walk that makes the set needs the signature
+table and the editor does not keep one. A parameter typed `property<T>|string` takes any string, so a
+literal outside the set gets no warning there. A parameter typed `property<T>` alone is offered nothing,
+because a string literal does not satisfy it and an offered item would write a call that does not compile.
+
+- **Memory:** one list of names and types per class a `property<T>` names, kept with the checker's
+  table for the length of the analysis. Nothing at run time.
 
 What it refuses has no subject rather than being declined: ORM columns (a codec's fields are declared
 properties, already reached as members), service-container and facade resolution (constructor injection
@@ -1666,7 +1679,7 @@ although the access node spans its own arguments.
 
 <a id="ide-completion-is-asked-where-a-spelling-ends"></a>
 
-## A trigger character opens a list only where it finished `->`, `::`, `\`, `$` or `<?`, or opened or extended a `require` or `autoload` path string, the string of `as class<T>`, a string argument at a path or class-name parameter or one at a parameter a completion file names, and `$`, a lone `:` and `<?` each narrow what is offered
+## A trigger character opens a list only where it finished `->`, `::`, `\`, `$` or `<?`, or opened or extended a `require` or `autoload` path string, the string of `as class<T>` or `as property<T>`, a string argument at a path or class-name parameter, at one whose type lists string values or takes a `property<T>` beside a `string`, or at one a completion file names, and `$`, a lone `:` and `<?` each narrow what is offered
 
 `rule:ide/completion-is-asked-where-a-spelling-ends`
 
@@ -1677,11 +1690,14 @@ whole spelling. Each of them is also an operator's character, and an editor asks
 answering `$a >` or `Core\Str:` with whatever the position offers opens a list nobody asked for. `-` is
 not a trigger, because it finishes nothing. A quote and `/` open and extend a literal the compiler reads
 as a path or a name, and a request one of them raised is answered only where the cursor is inside one: a
-`require` or `autoload` path string, an `autoload` prefix, the string converted with `as class<T>`, or a
-string argument at a path or class-name parameter. A quote opens one and a `/` starts a path's next
-segment. A quote also opens a string argument at a parameter a completion file names
-([`ide/completion-files-offer-values-at-named-parameters`](ide.md#ide-completion-files-offer-values-at-named-parameters)), and inside one `.`, `/` and `:` start
-the next segment only where a value that applies at the call is split on that separator. A client offers
+`require` or `autoload` path string, an `autoload` prefix, the string converted with `as class<T>` or `as
+property<T>`, or a string argument at a path or class-name parameter. A quote opens one and a `/` starts a
+path's next segment. A quote also opens a string argument at a parameter whose type lists string values
+([`types/single-value-types`](types.md#types-single-value-types)) or takes a `property<T>` beside a `string` ([`types/property-key`](types.md#types-property-key)),
+and one at a parameter a completion file names
+([`ide/completion-files-offer-values-at-named-parameters`](ide.md#ide-completion-files-offer-values-at-named-parameters)). Inside such an argument `.`, `/` and `:`
+start the next segment only where a value that applies at the call is split on that separator. A quote
+at a parameter typed `property<T>` alone opens nothing, because a string literal there does not compile. A client offers
 nothing inside a string unless asked. Everywhere else a quote opens a string, `/` divides and `.`
 concatenates. A request the developer raised by hand, or by typing a name, is not held to this.
 

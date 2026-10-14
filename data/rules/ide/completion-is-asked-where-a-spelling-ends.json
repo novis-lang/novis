@@ -1,11 +1,12 @@
 {
-  "title": "A trigger character opens a list only where it finished `->`, `::`, `\\`, `$` or `<?`, or opened or extended a `require` or `autoload` path string, the string of `as class<T>`, a string argument at a path or class-name parameter or one at a parameter a completion file names, and `$`, a lone `:` and `<?` each narrow what is offered",
+  "title": "A trigger character opens a list only where it finished `->`, `::`, `\\`, `$` or `<?`, or opened or extended a `require` or `autoload` path string, the string of `as class<T>` or `as property<T>`, a string argument at a path or class-name parameter, at one whose type lists string values or takes a `property<T>` beside a `string`, or at one a completion file names, and `$`, a lone `:` and `<?` each narrow what is offered",
   "status": "shipped",
   "seeAlso": [
     "ide/a-template-region-gets-the-editors-services-and-formatter",
     "statements/nvs-is-the-only-open-tag"
   ],
   "guardedBy": [
+    "crates/nvs-lsp/tests/completion.rs",
     "crates/nvs-lsp/tests/completion_edits.rs",
     "crates/nvs-lsp/tests/completion_file_values.rs",
     "tests/lsp/completion/a-half-written-open-tag-offers-the-two-tags-and-nothing-else.lspt",

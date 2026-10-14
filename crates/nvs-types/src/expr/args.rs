@@ -105,6 +105,11 @@ fn check_arg_list(
     let mut arg_types = Vec::with_capacity(list.len());
     for (arg, &slot) in list.iter().zip(&slots) {
         let expected = declared_for(slot, &sig, env.interner);
+        // A string literal at a `property<T>|string` parameter is where the
+        // editor offers `T`'s property names, which it reads off the table.
+        if let (ExprKind::Str(_), Some(want)) = (&arg.value.kind, expected) {
+            super::members::record_parameter_property_keys(want, env);
+        }
         // `rule:security/unclassified-parameter-refuses-tainted`'s admission and `rule:core-classes/secret-reveal`'s, asked at the one position
         // that can answer either — a parameter a registry row classified. The
         // two axes are independent, so the marks are asked separately and a

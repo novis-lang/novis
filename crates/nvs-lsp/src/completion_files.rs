@@ -248,6 +248,18 @@ impl Value {
         }
     }
 
+    /// A value no completion file declares: the name of one of the public
+    /// properties a `property<T>` may hold, offered as `property` with its
+    /// declared type at the right.
+    #[must_use]
+    pub fn property(name: String, ty: String) -> Self {
+        Self {
+            kind: CompletionItemKind::PROPERTY,
+            label_description: Some(ty),
+            ..Self::member(name)
+        }
+    }
+
     /// [`Self::documentation`], with each relative link and image target rewritten as a `file:`
     /// URI under [`Self::folder`]. A target with a scheme, an absolute path or a `#` fragment is
     /// left as written.

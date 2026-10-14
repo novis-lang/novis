@@ -423,6 +423,35 @@ fn a_path_character_outside_a_written_path_is_not_answered() {
     }
 }
 
+/// A quote opens the property names inside the operand of `as property<T>`
+/// and at a parameter typed `property<T>|string`, and not at a parameter typed
+/// `property<T>` alone, where a string literal does not compile.
+#[test]
+fn a_quote_at_a_property_key_string_opens_the_property_names() {
+    let declared = "class Grid {\n\
+                    public static function loose(property<User>|string $c): void { }\n\
+                    public static function strict(property<User> $c): void { }\n\
+                    }\n";
+    for (construct, tail, answered) in [
+        ("property<User> $k = '", "' as property<User>;", true),
+        ("?property<User> $k = \"", "\" as ?property<User>;", true),
+        ("Grid::loose('", "');", true),
+        ("Grid::strict('", "');", false),
+    ] {
+        let source = format!("{TRIGGER_DOC}{declared}{construct}{tail}\n");
+        let (_documents, analysis) = analysed(&source);
+        assert_eq!(
+            completion::continues_a_trigger(
+                &analysis,
+                &CompletionFiles::default(),
+                after(&source, construct)
+            ),
+            answered,
+            "the quote that ends `{construct}`"
+        );
+    }
+}
+
 /// One function of `nvs_lsp::completion`, with the signature that says whether
 /// it produces an offered item and the body that says where the value in it
 /// came from.
@@ -511,7 +540,10 @@ fn sources() -> Vec<Source> {
 /// allowed values reach that arm as values too, and add no producer of their own:
 /// `crate::arguments` reads them off `ResolvedCall::param_tys` and the
 /// checker's type interner, the types the checker recorded on the call it
-/// resolved.
+/// resolved. The property names offered inside the operand of `as
+/// property<T>`, and at a parameter whose type takes a `property<T>` beside a
+/// `string`, reach that arm the same way: `ExprTypeTable::property_keys`, the
+/// set the checker tests that conversion against.
 ///
 /// The deprecation tag adds no item. It shapes a declared member's item from
 /// `Analysed::deprecated`, the walk the checker raises `W1003` from.

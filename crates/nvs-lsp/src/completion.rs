@@ -632,8 +632,9 @@ enum Literal {
     /// starting at this byte after its opening quote, and the classes it may
     /// name.
     Class(BytePos, ClassBound),
-    /// An argument at a parameter a completion file names: the literal,
-    /// quotes included, and the values that apply at its call.
+    /// An argument at a parameter a completion file names or whose type lists
+    /// values, or the operand of `as property<T>`: the literal, quotes
+    /// included, and the values that apply there.
     Values(Span, Vec<Arc<completion_files::Value>>),
     /// The route name of a `Core\Router` link, starting at this byte after
     /// its opening quote.
@@ -670,9 +671,10 @@ enum Files {
 /// of their own, so they are read off the declaration the walk parsed, which
 /// is the parse the index was built from. The operand of `as class<T>` and an
 /// argument at a class-name parameter are
-/// [`crate::definition::written_class_name`]'s, and an argument at a path
-/// parameter is [`crate::arguments::at`]'s. In every case the cursor has to be
-/// between the quotes.
+/// [`crate::definition::written_class_name`]'s, the operand of `as
+/// property<T>` is [`crate::definition::written_property_key`]'s, and an
+/// argument at a path parameter is [`crate::arguments::at`]'s. In every case
+/// the cursor has to be between the quotes.
 fn literal_at(
     analysed: &Analysed,
     files: &CompletionFiles,
@@ -693,6 +695,13 @@ fn literal_at(
     }
     if let Some(literal) = written_class_name(analysed, offset) {
         return Some(Literal::Class(literal.span.start + 1, literal.bound));
+    }
+    if let Some((literal, class)) = crate::definition::written_property_key(analysed, offset) {
+        let keys = property_keys(analysed, &class.to_string());
+        return Some(Literal::Values(
+            literal,
+            keys.into_iter().map(Arc::new).collect(),
+        ));
     }
     if let Some(literal) = crate::arguments::route_name_at(analysed, offset) {
         return Some(Literal::Route(literal.start + 1));
@@ -742,7 +751,8 @@ fn literal_at(
 /// The string argument the cursor at `offset` is inside, quotes included, and
 /// the values offered at it: those of the completion-file attachments that
 /// apply at its call, then each string in the parameter's set of allowed values
-/// that no file lists. `None` where no value applies.
+/// that no file lists, then each name of a `property<T>` the parameter's type
+/// takes beside a `string`. `None` where no value applies.
 fn named_values(
     analysed: &Analysed,
     files: &CompletionFiles,
@@ -755,7 +765,28 @@ fn named_values(
             values.push(Arc::new(completion_files::Value::member(member)));
         }
     }
+    for class in &named.key_classes {
+        for key in property_keys(analysed, class) {
+            if !values.iter().any(|value| value.value == key.value) {
+                values.push(Arc::new(key));
+            }
+        }
+    }
     (!values.is_empty()).then_some((named.span, values))
+}
+
+/// The names a `property<T>` over the class labelled `class` may hold, each
+/// with its declared type, as the checker recorded them
+/// (`rule:types/property-key`).
+fn property_keys(analysed: &Analysed, class: &str) -> Vec<completion_files::Value> {
+    analysed
+        .exprs
+        .property_keys(class)
+        .iter()
+        .map(|(name, ty)| {
+            completion_files::Value::property(name.clone(), analysed.interner.describe(*ty))
+        })
+        .collect()
 }
 
 /// The items a completion file adds at an argument a path or class-name

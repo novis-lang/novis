@@ -1,0 +1,36 @@
+--TEST--
+A parameter typed `property<T>|string` takes a key and any string, and the body learns which strings name a property with `as ?property<T>` — `rule:types/property-key`
+--FILE--
+<?nvs
+class User {
+    public string $email = "a@example.com";
+    public int $age = 3;
+    private string $secret = "hidden";
+}
+
+class Pick {
+    public static function read(User $user, property<User>|string $name): string {
+        ?property<User> $key = $name as ?property<User>;
+        if ($key == null) {
+            return "no property";
+        }
+        return $user->$key as string;
+    }
+}
+
+User $user = new User();
+
+// A string literal is a `string`, so any text is accepted at the call.
+echo Pick::read($user, "email"), "\n";
+echo Pick::read($user, "nickname"), "\n";
+
+// A private property is outside the set, exactly as at any other conversion.
+echo Pick::read($user, "secret"), "\n";
+
+// A key passes as it is, with no conversion back to `string`.
+echo Pick::read($user, "age" as property<User>), "\n";
+--EXPECT--
+a@example.com
+no property
+no property
+3
