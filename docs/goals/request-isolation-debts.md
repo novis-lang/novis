@@ -30,7 +30,7 @@ stages:
         shapes: []
   - id: 4
     title: "a guest runs under the request's own budget"
-    status: open
+    status: done
     context: [crates/nvs-cli/src/extensions.rs, crates/nvs-ext/src/call.rs]
     extra:
       context:
@@ -235,9 +235,9 @@ the manifest parser, never by a string search.
 
 **Does:** a guest spends the request's CPU deadline and memory count, and a limit reaches `onLimit`.
 
-- [ ] `Spent`'s meter reads the request's own deadline and charges the runtime's memory count. `crates/nvs-cli/src/extensions.rs:362`
-- [ ] A guest past a limit raises the resource-limit `FATAL`, which reaches `onLimit`. `crates/nvs-ext/src/call.rs:106`
-- [ ] The module doc and the fragment say what is built. `crates/nvs-cli/src/extensions.rs:38`
+- [x] `Spent`'s meter reads the request's own deadline and charges the runtime's memory count. `crates/nvs-cli/src/extensions.rs:362`
+- [x] A guest past a limit raises the resource-limit `FATAL`, which reaches `onLimit`. `crates/nvs-ext/src/call.rs:106`
+- [x] The module doc and the fragment say what is built. `crates/nvs-cli/src/extensions.rs:38`
 
 ### 5. a deadline sends the driver-side cancel
 
@@ -273,26 +273,27 @@ the manifest parser, never by a string search.
 
 ### State
 
-Stages 1 to 3 are done. `Cache::load` reads a unit with one `fs::read` into a `Box<[u8]>` that
-`Verified` owns, and the `unsafe` `Mmap::map` block is gone; `memmap2` stays for the loader's
-anonymous executable pages. `rule:packaging/the-artifact-cache-is-read-not-mapped` is `shipped`,
-guarded by `a_cached_unit_is_read_into_memory_and_never_mapped` and
-`truncating_a_cached_file_after_its_load_leaves_the_loaded_unit_whole`, and the tier A caveat in
-`rule:http-server/a-requests-blast-radius-is-bounded-at-four-tiers` is removed. The nightly CI reds
-are from `origin/main`, far behind local `main`; the two causes checked earlier (`records --check`
-and `ruzstd` 0.9.0) are fixed locally, and the other jobs are *not checked*. The macOS warm-start
-budget is still *not checked*.
+Stages 1 to 4 are done. A guest's budget is the request's own: `Spent` (`crates/nvs-cli/src/extensions.rs`)
+reads the request tree's `CPU_LIMIT` flag, which the watchdog raises against all the request has run
+since it started, and charges each linear-memory growth to the runtime's per-thread count through
+`nvs_runtime::budget::{headroom, carry}`. A guest past either limit runs the limit handler and ends with
+the resource-limit `FATAL` (`past`). `rule:packaging/a-guest-runs-under-the-requests-budget` is
+`shipped`, guarded by the three `extensions::tests` cases and
+`a_looping_guest_reaches_on_limit_and_the_next_request_is_served`. The nightly CI reds are from
+`origin/main`, far behind local `main`; the two causes checked earlier (`records --check` and `ruzstd`
+0.9.0) are fixed locally, and the other jobs are *not checked*. The macOS warm-start budget is still
+*not checked*.
 
 ### Next
 
-**Stage 4, a guest runs under the request's own budget**, file set: `crates/nvs-cli/src/extensions.rs`, `crates/nvs-ext/src/call.rs`.
+**Stage 5, a deadline sends the driver-side cancel**, file set: `crates/nvs-db/src/pg.rs`, `crates/nvs-db/src/mysql.rs`, `crates/nvs-stdlib/src/db/execute.rs`, `crates/nvs-stdlib/src/db/pool.rs`.
 
-- [ ] `Spent`'s `Meter` takes the request's own CPU deadline, counted from the request's start, not a fresh `cpu_limit` at the first call (`rule:packaging/a-guest-runs-under-the-requests-budget`). `crates/nvs-cli/src/extensions.rs:358` `crates/nvs-cli/src/extensions.rs:372`
-- [ ] `Budget::charge` charges the runtime's memory count for the request instead of a second allowance. `crates/nvs-cli/src/extensions.rs:535` `crates/nvs-ext/src/call.rs:106`
-- [ ] A guest past either limit ends the request with the resource-limit `FATAL` that reaches `onLimit`, with the `guest-budget` and `guest-budget-on-limit` tests; the module doc and fragment say what is built. `crates/nvs-cli/src/extensions.rs:38`
+- [ ] PostgreSQL sends `CancelRequest` over a second connection with the key `BackendKeyData` kept, when a statement deadline fires (`rule:concurrency/a-deadline-bounds-the-cancel-not-the-return`). `crates/nvs-db/src/pg.rs:349` `crates/nvs-db/src/pg.rs:535`
+- [ ] MySQL and MariaDB send `KILL QUERY` over a second connection, SQLite calls `sqlite3_interrupt`, and TDS sends attention. `crates/nvs-db/src/mysql.rs:1238`
+- [ ] The call waits for the connection to reach a known state under its own `timeout`, and closes one that misses it and never pools it, with the `deadline-cancel` tests in `crates/nvs-stdlib/tests/db_stream.rs` (`rule:concurrency/nothing-is-still-running-when-a-call-returns`). `crates/nvs-stdlib/src/db/execute.rs:70`
 
 ### Backlog
 
-- Stages 5 to 8 — this file's § *Stages*.
+- Stages 6 to 8 — this file's § *Stages*.
 - The macOS warm-start budget in the nightly cost guards, once `origin/main` is pushed — `tools/nv/cmd/bench.ts`.
 - The nightly CI jobs not checked against local `main`, once `origin/main` is pushed — `.github/workflows/`.
