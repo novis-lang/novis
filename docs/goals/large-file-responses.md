@@ -22,7 +22,7 @@ stages:
         shapes: []
   - id: 3
     title: the rule, the reference card and the feature proofs
-    status: open
+    status: done
     context: [docs/rules/http-server/static-serving-is-one-policy.md, crates/nvs-stdlib/src/response.rs, docs/examples/core/Response/sendFile/about.md]
     extra:
       context:
@@ -192,10 +192,10 @@ named parameters on `stream` and two methods on `Core\Response\Stream`; `sendFil
 
 **Does:** the rule, the `sendFile` card and the examples say what is now true.
 
-- [ ] The fragment is rewritten whole: `If-Range`, and a `**Memory:**` bullet. `docs/rules/http-server/static-serving-is-one-policy.md:3`
-- [ ] The rule's `guardedBy` names the new tests. `data/rules/http-server/static-serving-is-one-policy.json:9`
-- [ ] The `sendFile` card says that a browser can seek in a video and resume a download. `crates/nvs-stdlib/src/response.rs:788`
-- [ ] A fourth example: a download behind an access check, with `Content-Disposition`. `docs/examples/core/Response/sendFile/about.md:1`
+- [x] The fragment is rewritten whole: `If-Range`, and a `**Memory:**` bullet. `docs/rules/http-server/static-serving-is-one-policy.md:3`
+- [x] The rule's `guardedBy` names the new tests. `data/rules/http-server/static-serving-is-one-policy.json:9`
+- [x] The `sendFile` card says that a browser can seek in a video and resume a download. `crates/nvs-stdlib/src/response.rs:703`
+- [x] A fourth example: a download behind an access check, with `Content-Disposition`. `docs/examples/core/Response/sendFile/about.md:1`
 
 ### 4. a stream with a declared length answers a range
 
@@ -212,26 +212,25 @@ named parameters on `stream` and two methods on `Core\Response\Stream`; `sendFil
 
 ### State
 
-Stages 1 and 2 are built and their four checks pass. A file body is `Answer::File`, read one
-`FILE_CHUNK` per poll (`crates/nvs-server/src/serve.rs:129`). `statics::Source` is one `open`
-(`crates/nvs-server/src/statics.rs:137`), and the body error is `BodyCut`. `If-Range` is
-`statics::still_the_same`, and `statics::asked` copies it. The rule fragment, the `sendFile` card and
-the proofs do not mention any of this yet.
+Stages 1 to 3 are done and their checks pass. A file body is `Answer::File`, read one `FILE_CHUNK`
+per poll, and `If-Range` is `statics::still_the_same` (`crates/nvs-server/src/statics.rs:314`). The
+rule fragment states `If-Range`, the streamed body and its `**Memory:**` bullet, and `guardedBy`
+names `statics.rs` and `serve.rs`, the two files holding the five tests. The `sendFile` card and
+`about.md` say a browser can seek and resume, and `04-a-download-behind-an-access-check.nvs` is the
+fourth example.
 
-The acceptance sweep's nightly failures ran on `origin/main` at `cb7021a24`, which is behind local
-`main`. At HEAD, the docs, lint, conformance, proofs and website jobs are already fixed. The macOS
-warm-start budget passed and failed on that same commit across nights, so it is the runner. The
-supply-chain job was real: `ruzstd` and `rustls` advisories, fixed in `265d4b7ea`.
+The acceptance sweep's nightly failures are the run on `cb7021a24`, already triaged as behind local
+`main`. Nothing on `main` needed a fix this session.
 
 ### Next
 
-**Stage 3: the rule, the reference card and the feature proofs**, one file set: the rule fragment and its record, `crates/nvs-stdlib/src/response.rs`, the `sendFile` examples.
+**Stage 4: one decision in `nvs-runtime`, and `stream` takes `length` and `etag`**, one file set: `crates/nvs-server/src/statics.rs`, a new module in `crates/nvs-runtime/src/`, `crates/nvs-stdlib/src/response.rs`.
 
-- [ ] The fragment is rewritten whole, with `If-Range` and a `**Memory:**` bullet (`rule:http-server/static-serving-is-one-policy`). `docs/rules/http-server/static-serving-is-one-policy.md:3`
-- [ ] `guardedBy` names the five new tests (`rule:http-server/static-serving-is-one-policy`). `data/rules/http-server/static-serving-is-one-policy.json:9`
-- [ ] The `sendFile` card says a browser can seek in a video and resume a download (`rule:core-api/reference-card`). `crates/nvs-stdlib/src/response.rs:692`
-- [ ] A fourth example: a download behind an access check (`rule:testing/feature-proofs`). `docs/examples/core/Response/sendFile/about.md:1`
+- [ ] The conditional and range decision moves to `nvs-runtime` as one pure function over header text, and `statics::send` calls it (`rule:http-server/static-serving-is-one-policy`). `crates/nvs-server/src/statics.rs:217`
+- [ ] `stream` takes `length` and `etag`, runs the decision, and sends the head (`rule:concurrency/a-stream-that-outlives-its-request-is-a-connection`). `crates/nvs-stdlib/src/response.rs:1908`
+- [ ] `Core\Response\Stream::offset` and `length`, and `write` holds the exact count (`rule:core-api/reference-card`). `crates/nvs-stdlib/src/response.rs:561`
+- [ ] A streamed body with a length has an exact `size_hint`, and a short end is `BodyCut` (`rule:http-server/static-serving-is-one-policy`). `crates/nvs-server/src/serve.rs:457`
 
 ### Backlog
 
-- Stage 4, a stream with a declared length answers a range — this file's § *Stages*.
+- The cards of `stream`, `offset` and `length`, their feature proofs and the fragment's stream sentence: this file's § *Stages*, stage 4.
