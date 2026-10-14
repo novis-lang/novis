@@ -1,0 +1,44 @@
+<?nvs
+// Attack: a request asks for the range of columns outside the sheet, with keys that are formulas, and on a finished sheet.
+// `column` should return one plain range, or throw an error for a column the sheet does not have.
+use Novis\Spreadsheet\Workbook;
+
+class Attack
+{
+    // This method prints the range of `$key`, or the class of the error.
+    public static function attempt(int $step, Novis\Spreadsheet\Sheet $sheet, string $key): void
+    {
+        try {
+            string $range = $sheet->column($key);
+            echo 'step ', $step, ' returned ', $range, "\n";
+        } catch (Throwable $e) {
+            echo 'step ', $step, ' stopped ', $e::class, "\n";
+        }
+    }
+}
+
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet('Shop');
+for (int $n = 1; $n <= 3000; $n++) {
+    $sheet->add(['order' => $n, 'total' => $n * 1.5]);
+}
+
+// 1. A key, the last column of a sheet, the column after it, and a key of 1,000 letters.
+Attack::attempt(1, $sheet, 'total');
+Attack::attempt(1, $sheet, 'XFD');
+Attack::attempt(1, $sheet, 'XFE');
+Attack::attempt(1, $sheet, Core\Str::repeat('Q', 1000));
+
+// 2. Keys that are a formula, a range of another sheet, and text with a line break.
+Attack::attempt(2, $sheet, '=1+1');
+Attack::attempt(2, $sheet, 'Blog!A1:A9');
+Attack::attempt(2, $sheet, "total\nB1");
+
+// 3. The same key 10,000 times, and a key on a sheet that is finished.
+string $last = '';
+for (int $call = 0; $call < 10000; $call++) {
+    $last = $sheet->column('total');
+}
+echo 'step 3 returned ', $last, "\n";
+$book->sheet('Blog');
+Attack::attempt(3, $sheet, 'total');

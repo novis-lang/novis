@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to hide the detail columns of a report in a group a person can open.
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet('Sales');
+
+// A group of columns is added before the first row. `collapsed: true` hides columns B and C.
+$sheet->group('B:C', { collapsed: true });
+$sheet->add(['shop' => 'North', 'january' => 120, 'february' => 140, 'total' => 260]);
+$sheet->add(['shop' => 'South', 'january' => 80, 'february' => 95, 'total' => 175]);
+bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+
+// `Core\Zip::read` returns the XML of the sheet. This line checks that column B is hidden.
+var $xml = Core\Zip::read($file, 'xl/worksheets/sheet1.xml') as string;
+echo Core\Str::contains($xml, '<col min="2" max="2" width="8" customWidth="1" hidden="1" outlineLevel="1"/>') ? 'column B is hidden' : 'column B is shown', "\n";

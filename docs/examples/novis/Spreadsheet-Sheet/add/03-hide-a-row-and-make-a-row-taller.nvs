@@ -1,0 +1,21 @@
+<?nvs
+// Shows how to hide a row, and how to make a row taller and bold.
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Style;
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet('Prices');
+
+// `height` is in points. `style` applies to every cell of the row.
+$sheet->add(['item' => 'Pen', 'price' => 1.5], { height: 30.0, style: Style::of({ bold: true }) });
+
+// `hidden: true` hides this row in Excel. The row is still in the file.
+$sheet->add(['item' => 'Old pen', 'price' => 0.9], { hidden: true });
+$sheet->add(['item' => 'Ink', 'price' => 2.0]);
+bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+
+// `hidden: 'skip'` reads only the rows a person sees. This prints rows 2 and 4.
+foreach (Reader::open($file)->rows('Prices', { header: true, hidden: 'skip' }) as var $row) {
+    echo $row->number, ': ', $row->values['item'], "\n";
+}

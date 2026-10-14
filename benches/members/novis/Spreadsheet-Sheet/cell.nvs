@@ -1,0 +1,24 @@
+<?nvs
+// Finds the address of the quantity in a row, as an invoice does to build the formula of each line.
+// bench: iterations 32
+// bench: complexity constant
+use Novis\Spreadsheet\Workbook;
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        var $book = Workbook::createInMemory();
+        var $sheet = $book->sheet('Invoice');
+        $sheet->add(['item' => 'Widget', 'price' => 2.5, 'qty' => 4]);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + Core\Str::length($sheet->cell('qty', ($i + 2) as int));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(32), "\n";

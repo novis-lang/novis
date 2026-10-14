@@ -1,0 +1,47 @@
+<?nvs
+// Attack: a request sets the page setup from user data, with hostile header text, broken areas and impossible margins.
+// `print` should write each text as data, and throw an error for a setting Excel cannot open.
+use Novis\Spreadsheet\Workbook;
+
+class Attack
+{
+    // This method sets `$options` on a new sheet and prints whether the file was written, or the class of the error.
+    public static function attempt(int $step, Novis\Spreadsheet\Sheet::PrintOptions $options): void
+    {
+        try {
+            var $book = Workbook::createInMemory();
+            $book->sheet('Shop')->print($options)->add(['Order']);
+            bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+            echo 'step ', $step, ' wrote ', Core\Bytes::length($file) > 0 ? 'a file' : 'nothing', "\n";
+        } catch (Throwable $e) {
+            echo 'step ', $step, ' stopped ', $e::class, "\n";
+        }
+    }
+}
+
+// 1. A header with markup, a footer with Excel codes, and a header of 10,000 characters.
+Attack::attempt(1, { header: '</oddHeader><x>' });
+Attack::attempt(1, { footer: '&P of &N &[Path]&F' });
+Attack::attempt(1, { header: Core\Str::repeat('h', 10000) });
+
+// 2. Areas and repeated rows that are not ranges, or are ranges of another sheet.
+Attack::attempt(2, { area: 'Blog!A1:B9' });
+Attack::attempt(2, { area: "A1'!B2" });
+Attack::attempt(2, { repeatRows: '1:1048577' });
+Attack::attempt(2, { repeatRows: 'A:B' });
+
+// 3. Negative margins, margins of a million inches, and a fit of a million pages.
+Attack::attempt(3, { margins: { top: -1.0, right: 0.5, bottom: 0.5, left: 0.5 } });
+Attack::attempt(3, { margins: { top: 1000000.0, right: 0.5, bottom: 0.5, left: 0.5 } });
+Attack::attempt(3, { fitToPage: { width: 1000000, height: 1000000 } });
+
+// 4. An orientation in capital letters, and a fit set after the first row.
+Attack::attempt(4, { orientation: 'LANDSCAPE' });
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet('Shop');
+$sheet->add(['Order']);
+try {
+    $sheet->print({ fitToPage: { width: 1 } });
+} catch (LogicError $e) {
+    echo "step 4 stopped LogicError\n";
+}

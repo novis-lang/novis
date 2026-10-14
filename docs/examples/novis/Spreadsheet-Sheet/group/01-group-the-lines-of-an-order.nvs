@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to group the lines of an order under the row of the order.
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet('Orders');
+
+// The group is added before rows 3 and 4 are added.
+$sheet->group('3:4');
+$sheet->add(['what' => 'Order 1042', 'total' => 9.5]);
+$sheet->add(['what' => 'Widget', 'total' => 5.0]);
+$sheet->add(['what' => 'Gadget', 'total' => 4.5]);
+bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+
+// `Core\Zip::read` returns the XML of the sheet. These lines check that rows 3 and 4 are in the group.
+var $xml = Core\Zip::read($file, 'xl/worksheets/sheet1.xml') as string;
+echo Core\Str::contains($xml, '<row r="3" outlineLevel="1">') ? 'row 3 is in the group' : 'row 3 is not', "\n";
+echo Core\Str::contains($xml, '<row r="4" outlineLevel="1">') ? 'row 4 is in the group' : 'row 4 is not', "\n";

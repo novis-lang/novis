@@ -1,0 +1,23 @@
+<?nvs
+// Adds one order row to a sheet, as an export does for each order it reads.
+// bench: iterations 32
+// bench: complexity constant
+use Novis\Spreadsheet\Workbook;
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        var $book = Workbook::createInMemory();
+        var $sheet = $book->sheet('Orders');
+        uint $i = 0;
+        while ($i < $rounds) {
+            $sheet->add(['order' => $i, 'customer' => 'Customer', 'total' => 19.9]);
+            $i = $i + 1;
+        }
+        var $written = $book->finish();
+        return $written->rows['Orders'] as uint;
+    }
+}
+
+echo Bench::run(32), "\n";

@@ -1,0 +1,3 @@
+a person can sort
+a person can filter
+`everything` is not something a protected sheet can allow. The names are objects, scenarios, formatCells, formatColumns, formatRows, insertColumns, insertRows, insertHyperlinks, deleteColumns, deleteRows, selectLockedCells, sort, autoFilter, pivotTables, selectUnlockedCells.

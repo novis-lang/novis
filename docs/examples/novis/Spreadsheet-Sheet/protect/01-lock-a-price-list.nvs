@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to lock a price list, so nobody changes a price by mistake.
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet('Prices');
+$sheet->addAll([['item' => 'Widget', 'price' => 2.5], ['item' => 'Gadget', 'price' => 4.0]]);
+
+// A person types this password in Excel to unlock the sheet.
+$sheet->protect({ password: 'shop-prices' });
+bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+
+// `Core\Zip::read` returns the XML of the sheet. This line checks that the sheet is locked.
+var $xml = Core\Zip::read($file, 'xl/worksheets/sheet1.xml') as string;
+echo Core\Str::contains($xml, '<sheetProtection password=') ? 'the sheet is locked' : 'the sheet is open', "\n";
+
+// The file has a hash of the password. It does not have the password itself.
+echo Core\Str::contains($xml, 'shop-prices') ? 'the password is in the file' : 'the password is not in the file', "\n";

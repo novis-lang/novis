@@ -1,0 +1,22 @@
+<?nvs
+// Shows how to merge the shop name over all the rows of that shop.
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet('Orders');
+$sheet->addAll([
+    ['shop' => 'North', 'order' => 1042],
+    ['shop' => 'North', 'order' => 1043],
+    ['shop' => 'South', 'order' => 1044],
+    ['shop' => 'South', 'order' => 1045],
+]);
+
+// The rows are already added. `merge` can still use them.
+$sheet->merge('A2:A3')->merge('A4:A5');
+bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+
+// With `merged: 'fill'`, every cell of a merged range has the value of its top left cell.
+foreach (Reader::open($file)->rows('Orders', { header: true, merged: 'fill' }) as var $row) {
+    echo $row->values['order'], ': ', $row->values['shop'], "\n";
+}

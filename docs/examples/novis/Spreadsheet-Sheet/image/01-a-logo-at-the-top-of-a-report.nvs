@@ -1,0 +1,20 @@
+<?nvs
+// Shows how to put a logo at the top of a report, with its own size.
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+// A PNG image of one pixel, written as base64 text so it fits in this file.
+bytes $logo = Core\Encoding::fromBase64('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==');
+
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet('Report');
+
+// The image is added before the first row, so it is written at once.
+// It is 120 by 40 pixels, and it starts 4 pixels right of the corner of D1.
+$sheet->image('D1', $logo, { width: 120.0, height: 40.0, offsetX: 4.0 });
+$sheet->addAll([['shop' => 'North', 'sales' => 340], ['shop' => 'South', 'sales' => 210]]);
+bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+
+foreach (Reader::open($file)->images('Report') as var $image) {
+    echo $image->at, ': ', $image->format, ', ', Core\Bytes::length($image->image), " bytes\n";
+}

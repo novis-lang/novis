@@ -1,0 +1,14 @@
+<?nvs
+// Shows the error for two merged ranges that overlap.
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet('Report');
+$sheet->merge('A1:C1');
+
+// The cell B1 is in both ranges, so the second `merge` throws a `LogicError`.
+try {
+    $sheet->merge('B1:D1');
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}

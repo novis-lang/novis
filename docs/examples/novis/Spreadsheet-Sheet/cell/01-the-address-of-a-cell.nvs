@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to find the address of a cell from the key of its column.
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet('Orders');
+$sheet->add(['order' => 1042, 'customer' => 'Ann', 'qty' => 3]);
+
+// `qty` is the third key, so its column is `C`. This prints `C7`.
+echo $sheet->cell('qty', 7), "\n";
+
+// A column letter works too. This prints `A2`.
+echo $sheet->cell('A', 2), "\n";

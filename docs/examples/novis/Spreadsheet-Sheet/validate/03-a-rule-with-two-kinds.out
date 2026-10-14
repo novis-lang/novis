@@ -1,0 +1,2 @@
+The validation of `B2:B9` needs one of `list`, `whole`, `decimal`, `date`, `length` or `formula`. It has 2.
+The validation of `C2:C9` needs `min`, `max` or both.

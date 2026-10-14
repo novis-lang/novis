@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to print a wide report across one page, turned sideways.
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet('Sales');
+
+// `fitToPage` is set before the first row. `height: 0` means as many pages tall as needed.
+$sheet->print({ orientation: 'landscape', fitToPage: { width: 1, height: 0 }, footer: 'Shop sales report' });
+$sheet->add(['shop' => 'North', 'january' => 120, 'february' => 140, 'march' => 135]);
+$sheet->add(['shop' => 'South', 'january' => 80, 'february' => 95, 'march' => 90]);
+bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+
+// `Core\Zip::read` returns the XML of the sheet. This line checks the page setup.
+var $xml = Core\Zip::read($file, 'xl/worksheets/sheet1.xml') as string;
+echo Core\Str::contains($xml, '<pageSetup orientation="landscape" fitToWidth="1" fitToHeight="0"/>') ? 'landscape, one page wide' : 'other setup', "\n";

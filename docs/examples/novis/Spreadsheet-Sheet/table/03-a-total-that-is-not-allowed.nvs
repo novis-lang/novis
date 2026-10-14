@@ -1,0 +1,14 @@
+<?nvs
+// Shows the error for a total that is not one of the five names.
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet('Sales');
+$sheet->addAll([['shop' => 'North', 'sales' => 120], ['shop' => 'South', 'sales' => 80]]);
+
+// `median` is not allowed, so `table` throws a `LogicError`. A `Formula` can compute it.
+try {
+    $sheet->table('A1:B3', { totals: ['sales' => 'median'] });
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
