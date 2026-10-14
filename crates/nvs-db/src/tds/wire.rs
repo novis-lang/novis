@@ -37,6 +37,15 @@ pub struct Wire<S: Read + Write = NvsTls<Tunnel<NvsTcp>>> {
     /// The depth stays on the connection because § 7's *nesting* is this
     /// driver's own accounting; the descriptor is the server's.
     descriptor: u64,
+    /// Whether the last failure was a read this end stopped — its deadline
+    /// passed, or its task was cancelled — with every write whole.
+    ///
+    /// [`crate::mysql`]'s `Wire::stalled`, for its reason: only such a wire can
+    /// be settled. A packet that arrived in part stays in the inbox, so a stop
+    /// anywhere in a packet still leaves the framing in step. A failed write, a
+    /// header that did not decode and a peer that closed each clear it, and so
+    /// does every packet read or message sent whole.
+    stalled: bool,
 }
 
 impl<S: Read + Write> std::fmt::Debug for Wire<S> {
@@ -58,6 +67,7 @@ impl<S: Read + Write> Wire<S> {
             inbox: Vec::new(),
             codec: Codec::default(),
             descriptor: NO_TRANSACTION,
+            stalled: false,
         }
     }
 
@@ -83,6 +93,7 @@ impl<S: Read + Write> Wire<S> {
             inbox: self.inbox,
             codec: self.codec,
             descriptor: self.descriptor,
+            stalled: self.stalled,
         })
     }
 
@@ -155,8 +166,53 @@ impl<S: Read + Write> Wire<S> {
     pub fn send(&mut self, kind: PacketType, status: Status, payload: &[u8]) -> io::Result<()> {
         let mut out = Vec::with_capacity(payload.len() + HEADER);
         self.codec.encode(kind, status, payload, &mut out);
+        self.stalled = false;
         self.stream.write_all(&out)?;
         self.stream.flush()
+    }
+
+    /// Whether the last failure on this wire was a read this end stopped,
+    /// which is the one failure [`Wire::cancel`] can recover from.
+    #[must_use]
+    pub fn stalled(&self) -> bool {
+        self.stalled
+    }
+
+    /// Sends an [`PacketType::Attention`] and reads to the server's
+    /// acknowledgment of it —
+    /// `rule:concurrency/a-deadline-bounds-the-cancel-not-the-return`.
+    ///
+    /// The attention goes over this same socket: TDS reads it while a request
+    /// runs, so no second connection is needed. The server then ends the
+    /// request and sends a `DONE` with [`DONE_ATTN`] as the last token of a
+    /// message. What comes before it is the rest of the cancelled answer, and
+    /// it is read and dropped a packet at a time. Only the last thirteen bytes
+    /// of the stream are kept, because a `DONE` is that long and may be cut
+    /// across two packets.
+    ///
+    /// The caller bounds the wait with [`Wire::set_deadline`].
+    ///
+    /// # Errors
+    ///
+    /// Whatever the write or [`Wire::read_packet`] reported.
+    pub fn cancel(&mut self) -> io::Result<()> {
+        const DONE_LEN: usize = 13;
+        self.send(PacketType::Attention, Status::NORMAL, &[])?;
+        let mut tail: Vec<u8> = Vec::with_capacity(DONE_LEN * 2);
+        loop {
+            let packet = self.read_packet()?;
+            tail.extend_from_slice(&packet.payload);
+            if tail.len() > DONE_LEN {
+                tail.drain(..tail.len() - DONE_LEN);
+            }
+            if packet.status.contains(Status::EOM)
+                && tail.len() == DONE_LEN
+                && tail[0] == TOKEN_DONE
+                && u16::from_le_bytes([tail[1], tail[2]]) & DONE_ATTN != 0
+            {
+                return Ok(());
+            }
+        }
     }
 
     /// Reads until the inbox holds a whole packet, and takes it.
@@ -173,9 +229,11 @@ impl<S: Read + Write> Wire<S> {
     /// header [`decode`] refuses, and whatever the stream reported.
     pub fn read_packet(&mut self) -> io::Result<Packet> {
         loop {
-            if let Some(framed) = decode(&self.inbox)? {
+            let decoded = decode(&self.inbox).inspect_err(|_| self.stalled = false)?;
+            if let Some(framed) = decoded {
                 let payload = self.inbox[framed.body].to_vec();
                 self.inbox.drain(..framed.total);
+                self.stalled = false;
                 return Ok(Packet {
                     kind: framed.kind,
                     status: framed.status,
@@ -183,7 +241,14 @@ impl<S: Read + Write> Wire<S> {
                 });
             }
 
-            if fill(&mut self.stream, &mut self.inbox)? == 0 {
+            let filled = fill(&mut self.stream, &mut self.inbox).inspect_err(|e| {
+                self.stalled = matches!(
+                    e.kind(),
+                    io::ErrorKind::TimedOut | io::ErrorKind::ConnectionAborted
+                );
+            })?;
+            if filled == 0 {
+                self.stalled = false;
                 return Err(io::Error::new(
                     io::ErrorKind::UnexpectedEof,
                     "the server closed the connection part-way through a TDS packet",
@@ -243,5 +308,98 @@ mod tests {
         let mut expected = Vec::new();
         Codec::default().encode(PacketType::PreLogin, Status::NORMAL, b"abc", &mut expected);
         assert_eq!(wire.peer().sent, expected);
+    }
+
+    /// A stream that answers each read with the next chunk, and `TimedOut`
+    /// for a `None`, as a socket whose deadline passed does.
+    struct Stalling {
+        chunks: std::collections::VecDeque<Option<Vec<u8>>>,
+        sent: Vec<u8>,
+    }
+
+    impl Read for Stalling {
+        fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+            match self.chunks.pop_front() {
+                None => Ok(0),
+                Some(None) => Err(io::Error::new(
+                    io::ErrorKind::TimedOut,
+                    "the deadline passed",
+                )),
+                Some(Some(chunk)) => {
+                    buf[..chunk.len()].copy_from_slice(&chunk);
+                    Ok(chunk.len())
+                }
+            }
+        }
+    }
+
+    impl Write for Stalling {
+        fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+            self.sent.extend_from_slice(buf);
+            Ok(buf.len())
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+
+    /// `TdsConn::settle`'s precondition and its drain: a read the deadline
+    /// stopped part-way through a packet leaves the wire stalled, and
+    /// `cancel` sends an attention and reads past the rest of the answer to
+    /// the `DONE` with the attention bit, even when that `DONE` is cut across
+    /// two packets.
+    #[test]
+    fn a_stalled_read_is_cancelled_and_drained_to_the_attention_acknowledgment() {
+        let answer = packet(
+            PacketType::TabularResult,
+            Status::EOM,
+            1,
+            &done_token(DONE_COUNT, 0),
+        );
+        let (head, rest) = answer.split_at(5);
+        let ack = done_token(DONE_ATTN, 0);
+        let mut tail = rest.to_vec();
+        tail.extend(packet(
+            PacketType::TabularResult,
+            Status::NORMAL,
+            1,
+            &ack[..4],
+        ));
+        tail.extend(packet(PacketType::TabularResult, Status::EOM, 2, &ack[4..]));
+        let mut wire = Wire::new(Stalling {
+            chunks: [Some(head.to_vec()), None, Some(tail)].into(),
+            sent: Vec::new(),
+        });
+
+        let stopped = wire
+            .read_packet()
+            .expect_err("a read the deadline stopped answered a packet");
+        assert_eq!(stopped.kind(), io::ErrorKind::TimedOut);
+        assert!(
+            wire.stalled(),
+            "a read the deadline stopped leaves the wire stalled"
+        );
+
+        wire.cancel()
+            .expect("the rest of the answer and the acknowledgment arrived");
+        assert!(!wire.stalled());
+        assert!(wire.inbox.is_empty(), "the drain stopped short of the ack");
+        let mut attention = Vec::new();
+        Codec::default().encode(PacketType::Attention, Status::NORMAL, &[], &mut attention);
+        assert_eq!(wire.stream.sent, attention);
+    }
+
+    /// A peer that closed leaves no boundary, so its wire is not stalled.
+    #[test]
+    fn a_closed_peer_does_not_stall_the_wire() {
+        let mut wire = Wire::new(Stalling {
+            chunks: [None].into(),
+            sent: Vec::new(),
+        });
+        drop(wire.read_packet());
+        assert!(wire.stalled());
+        drop(wire.read_packet());
+        assert!(!wire.stalled(), "a peer that closed leaves no boundary");
     }
 }

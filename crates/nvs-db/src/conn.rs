@@ -1255,27 +1255,26 @@ impl Connection {
     /// poolable; one that does not stays poisoned, so the release closes it
     /// rather than pooling it.
     ///
-    /// PostgreSQL's arm is [`crate::PgConn::settle`], and MySQL's and
-    /// MariaDB's are [`MySqlConn::settle`] and [`MariaConn::settle`]. SQLite
-    /// interrupts the statement in the engine when the deadline passes
-    /// ([`crate::sqlite::Interrupt`]), which leaves the connection idle, so it
-    /// never reaches this poisoned. SQL Server sends no cancel yet, and its
-    /// connection is closed at the deadline instead, which is the rule's
-    /// fallback for a cancel that is not built.
+    /// PostgreSQL's arm is [`crate::PgConn::settle`], MySQL's and MariaDB's
+    /// are [`MySqlConn::settle`] and [`MariaConn::settle`], and SQL Server's is
+    /// [`TdsConn::settle`]. SQLite interrupts the statement in the engine when
+    /// the deadline passes ([`crate::sqlite::Interrupt`]), which leaves the
+    /// connection idle, so it never reaches this poisoned.
     ///
     /// # Errors
     ///
-    /// The driver's, and `Unsupported` for a poisoned connection on a driver
-    /// whose cancel is not built. Either way the connection stays poisoned.
+    /// The driver's, and `Unsupported` for a poisoned SQLite connection, which
+    /// has no cancel to send. Either way the connection stays poisoned.
     pub fn settle(&mut self, at: std::time::Instant) -> std::io::Result<()> {
         match self {
             Connection::Postgres(c) => c.settle(at),
             Connection::MySql(c) => c.settle(at),
             Connection::MariaDb(c) => c.settle(at),
+            Connection::SqlServer(c) => c.settle(at),
             _ if self.state() != State::Poisoned => Ok(()),
             _ => Err(std::io::Error::new(
                 std::io::ErrorKind::Unsupported,
-                "this driver sends no cancel yet, so an interrupted connection is closed \
+                "this driver sends no cancel, so an interrupted connection is closed \
                  rather than settled",
             )),
         }

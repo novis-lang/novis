@@ -1,11 +1,12 @@
 {
   "title": "A deadline bounds when cancellation is asked for, not when the call returns",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "concurrency/nothing-is-still-running-when-a-call-returns",
     "core-classes/db-one-api",
     "core-classes/db-connection-busy-state"
   ],
-  "guardedBy": [],
-  "goal": "request-isolation-debts"
+  "guardedBy": [
+    "crates/nvs-stdlib/tests/db_stream.rs"
+  ]
 }

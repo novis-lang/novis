@@ -665,9 +665,8 @@ const INTERRUPTED_AFTER: Duration = Duration::from_millis(200);
 /// because the server stopped the statement, so the cancel reached it. The
 /// connection is then `Idle`, poolable, and runs the next statement.
 ///
-/// **PostgreSQL's, MySQL's and MariaDB's legs are the ones that assert.**
-/// SQL Server sends no cancel yet, and its connection is closed at the
-/// deadline instead, which `nvs_db::Connection::settle` owns.
+/// **Every wire driver's leg asserts.** SQLite stops the statement in the
+/// engine and has nothing to settle.
 #[test]
 fn a_deadline_cancels_a_running_statement_through_the_driver() {
     let Some(mut conn) = cancelling_leg() else {
@@ -751,17 +750,10 @@ fn a_connection_that_misses_its_timeout_after_a_cancel_is_closed_and_not_returne
 /// This process's connection when the harness pointed it at a driver whose
 /// cancel is built, and `None` on every other leg.
 ///
-/// SQL Server sends no cancel yet, and its connection is closed at the
-/// deadline instead, which `nvs_db::Connection::settle` owns. SQLite stops the
-/// statement in the engine and leaves the connection idle, so it has nothing
-/// to settle.
+/// SQLite stops the statement in the engine and leaves the connection idle,
+/// so it has nothing to settle.
 fn cancelling_leg() -> Option<Connection> {
-    leg().filter(|conn| {
-        matches!(
-            conn,
-            Connection::Postgres(_) | Connection::MySql(_) | Connection::MariaDb(_)
-        )
-    })
+    leg().filter(|conn| !matches!(conn, Connection::Sqlite(_)))
 }
 
 /// Starts a statement [`SLEEP`] seconds long on `conn` and lets a deadline
@@ -792,6 +784,9 @@ fn interrupt(conn: &mut Connection) {
         Connection::MySql(my) => stopped!(my.query(&format!("select sleep({SLEEP})"), &[])),
         Connection::MariaDb(maria) => {
             stopped!(maria.query(&format!("select sleep({SLEEP})"), &[]))
+        }
+        Connection::SqlServer(tds) => {
+            stopped!(tds.query(&format!("waitfor delay '00:00:{SLEEP:02}'"), &[]))
         }
         _ => unreachable!("`cancelling_leg` opened a driver whose cancel is built"),
     };

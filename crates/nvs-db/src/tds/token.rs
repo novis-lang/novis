@@ -71,6 +71,9 @@ pub(super) const DONE_ERROR: u16 = 0x0002;
 /// `DONE`'s `Status`: the row count means something. Without it the field is a
 /// number the server did not intend to report, which is not the same as zero.
 pub(super) const DONE_COUNT: u16 = 0x0010;
+/// `DONE`'s `Status`: this acknowledges an [`PacketType::Attention`], and
+/// nothing of the cancelled request follows it.
+pub(super) const DONE_ATTN: u16 = 0x0020;
 
 /// `ENVCHANGE` type 1: the database this session is in.
 pub(super) const ENV_DATABASE: u8 = 1;

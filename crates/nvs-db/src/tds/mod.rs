@@ -423,6 +423,38 @@ impl TdsConn {
         self.wire.set_deadline(at);
     }
 
+    /// Cancels the statement a deadline interrupted with an attention and
+    /// reads this connection back to a boundary before `at` —
+    /// `rule:concurrency/a-deadline-bounds-the-cancel-not-the-return`.
+    ///
+    /// [`Wire::cancel`] sends the attention and reads to its acknowledgment.
+    /// A parked walk is over: its rows went with the drain. A connection that
+    /// is not poisoned answers `Ok` and sends nothing.
+    ///
+    /// # Errors
+    ///
+    /// `InvalidInput` for a wire that did not stall, and otherwise what
+    /// [`Wire::cancel`] reported, `TimedOut` once `at` passes. The connection
+    /// stays [`State::Poisoned`] on every error.
+    pub fn settle(&mut self, at: Instant) -> io::Result<()> {
+        if self.state.get() != State::Poisoned {
+            return Ok(());
+        }
+        if !self.wire.stalled() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "the connection failed where it has no boundary to return to, so it is closed",
+            ));
+        }
+        self.wire.set_deadline(Some(at));
+        let cancelled = self.wire.cancel();
+        self.wire.set_deadline(None);
+        cancelled?;
+        self.reading = None;
+        self.state.set(State::Idle);
+        Ok(())
+    }
+
     /// `rule:security/db-pool-reset-is-a-boundary`'s reset, before this
     /// connection may be handed to another request.
     ///
