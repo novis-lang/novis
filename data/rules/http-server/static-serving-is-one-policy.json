@@ -7,6 +7,7 @@
   ],
   "guardedBy": [
     "crates/nvs-server/src/statics.rs",
-    "crates/nvs-server/src/serve.rs"
+    "crates/nvs-server/src/serve.rs",
+    "crates/nvs-runtime/src/conditional.rs"
   ]
 }

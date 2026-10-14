@@ -17,3 +17,4 @@ A single `Range` is honoured; a multi-range request, a unit other than `bytes`, 
 - **Reading the whole file or the whole range into memory.** A download of several gigabytes would hold several gigabytes per connection, and the first byte would wait for the last read.
 - **A `Last-Modified` validator, or a date in `If-Range`.** One-second granularity serves stale bytes and splices a download edited twice in one second.
 - **Serving the range when `If-Range` does not match.** The client would write the tail of a changed file onto the head of the old one.
+- **A stream that writes from byte 0 and a server that drops the bytes before the range.** A seek near the end of a large stream would make the program produce everything before it.
