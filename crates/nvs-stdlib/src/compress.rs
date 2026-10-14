@@ -637,6 +637,14 @@ impl Bound {
     }
 }
 
+/// The operator's bound as `(max_decompressed, max_decompression_ratio)`, for
+/// the extension host to clamp a component's call to: the same
+/// [`Bound::ceiling`] this module's own decodes run under.
+pub fn decompression_ceiling(ctx: &Ctx) -> (u64, u64) {
+    let bound = Bound::ceiling(ctx);
+    (bound.bytes, bound.ratio)
+}
+
 /// One `[limits]` directive as a quantity of `unit`, or `fallback` where the
 /// configuration does not state a usable one.
 ///

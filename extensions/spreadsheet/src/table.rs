@@ -373,6 +373,8 @@ impl Placed {
         );
         if self.totaled {
             out.push_str(" totalsRowCount=\"1\"");
+        } else {
+            out.push_str(" totalsRowShown=\"0\"");
         }
         out.push('>');
         if self.filter {
@@ -405,10 +407,13 @@ impl Placed {
                     formula: Some(formula),
                     ..
                 }) => {
+                    // Inside the table's own part, Excel writes a reference to the table's
+                    // columns with no table name: `SUM([qty])`. `[@qty]` is still written in
+                    // its long form, `[[#This Row],[qty]]`.
                     out.push_str(" totalsRowFunction=\"custom\"><totalsRowFormula>");
                     xml::text(
                         &mut out,
-                        &expand(formula.strip_prefix('=').unwrap_or(formula), &self.name),
+                        &expand(formula.strip_prefix('=').unwrap_or(formula), ""),
                     );
                     out.push_str("</totalsRowFormula></tableColumn>");
                 }
@@ -428,7 +433,8 @@ impl Placed {
 
 /// `formula` with each structured reference that names no table qualified by `table`: `[@qty]`
 /// and `[@[unit price]]` become `table[[#This Row],[qty]]`, and `[qty]` becomes `table[qty]`.
-/// Text inside quotes and a reference that already names a table stay as they are.
+/// Text inside quotes and a reference that already names a table stay as they are. An empty
+/// `table` names none, so only `[@qty]` changes, to `[[#This Row],[qty]]`.
 pub fn expand(formula: &str, table: &str) -> String {
     let mut out = String::with_capacity(formula.len());
     let mut chars = formula.char_indices().peekable();

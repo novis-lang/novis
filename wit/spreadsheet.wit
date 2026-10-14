@@ -606,9 +606,19 @@ interface engine {
     /// `Novis\Spreadsheet` and `Reader` is the Novis class over it.
     resource reading;
 
+    /// `rule:core-classes/decompression-bound` for one workbook: a part held
+    /// whole decompresses to at most `max-bytes` across the archive, and every
+    /// part to at most `max-ratio` times its compressed size. The host sets
+    /// both to the request's `[limits]` before the call, so `none` reads as
+    /// the shipped default only where no host clamped it.
+    record decompression-bound {
+        max-bytes: option<u64>,
+        max-ratio: option<u64>,
+    }
+
     /// Opens the workbook `source` holds: reads its directory and its
     /// workbook part, and nothing of a sheet.
-    reader-open: func(source: borrow<value>) -> result<reading, error>;
+    reader-open: func(source: borrow<value>, bound: decompression-bound) -> result<reading, error>;
     reader-sheets: func(reader: borrow<reading>, source: borrow<value>) -> result<list<sheet-info>, error>;
     /// The header's keys: a duplicate numbered, an empty one its column
     /// letter.
@@ -630,33 +640,45 @@ interface engine {
 
     // ---- template fill ----
 
-    /// One placeholder's path, such as `customer.name`, and its value.
+    /// One placeholder's path, such as `customer.name`, and its value. An
+    /// absent value is an empty cell.
     record placeholder {
         path: string,
-        value: cell,
+        value: option<cell-value>,
     }
 
-    /// A batch of a list's items, each its own placeholders under the
-    /// list's name.
+    /// A batch of a list's items, each its own placeholders by their paths
+    /// inside the item, such as `qty`.
     record item-batch {
         name: string,
         items: list<list<placeholder>>,
     }
 
-    /// A designed workbook being filled (`rule:core-classes/spreadsheet-template-fill`).
-    resource template;
+    /// The bytes `template-fill` wrote, and the lists the template repeats in
+    /// the order their blocks stand. A list the template does not use is not
+    /// in `lists`.
+    record filled {
+        data: list<u8>,
+        lists: list<string>,
+    }
 
-    template-open: func(source: borrow<value>) -> result<template, error>;
-    /// Fills one cell by address, such as `Summary!B2`.
-    template-set: func(template: borrow<template>, address: string, value: cell) -> result<_, error>;
-    /// Fills every placeholder that is not in a list, and returns the bytes
-    /// up to the first repeated block.
-    template-fill: func(template: borrow<template>, source: borrow<value>, values: list<placeholder>) -> result<list<u8>, error>;
+    /// A designed workbook being filled (`rule:core-classes/spreadsheet-template-fill`).
+    /// It is not named `template`, because `Novis\Spreadsheet\Template` is
+    /// the Novis class over it.
+    resource filling;
+
+    template-open: func(source: borrow<value>, bound: decompression-bound) -> result<filling, error>;
+    /// Fills one cell by address, such as `Summary!B2`, before `template-fill`.
+    template-set: func(template: borrow<filling>, address: string, value: option<cell-value>) -> result<_, error>;
+    /// Fills every placeholder that is not in a list, finds the block of each
+    /// of `lists`, and returns the bytes up to the first block.
+    template-fill: func(template: borrow<filling>, values: list<placeholder>, lists: list<string>) -> result<filled, error>;
     /// Writes a batch of a list's items and returns the bytes ready to leave.
-    template-items: func(template: borrow<template>, source: borrow<value>, batch: item-batch) -> result<list<u8>, error>;
-    /// Writes everything after the last block, shifted, and returns the last
-    /// bytes.
-    template-finish: func(template: borrow<template>, source: borrow<value>) -> result<finished, error>;
+    /// The batches come in the order `filled` gives the lists.
+    template-items: func(template: borrow<filling>, batch: item-batch) -> result<list<u8>, error>;
+    /// Writes everything after the last block, shifted, and every other part,
+    /// and returns the last bytes.
+    template-finish: func(template: borrow<filling>, source: borrow<value>) -> result<finished, error>;
 }
 
 /// The spreadsheet component: everything an extension may import, and

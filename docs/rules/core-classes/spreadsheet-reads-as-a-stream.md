@@ -109,7 +109,8 @@ reads as its stored result and gives no `Formula`.
 `properties` from an xls or ods file: each throws naming the format. An ods cell's `text` is
 rendered under the default format of its type, and not under the file's own number style.
 Month and day names are English in every `locale`. `Reader::open`,
-`sheets()` and `rows()` read xlsx, xlsm, xlsb, xls and ods, from `bytes` or an open `Core\IO\File`.
+`sheets()` and `rows()` read xlsx, xlsm, xlsb, xls, ods and CSV, from `bytes` or an open
+`Core\IO\File`; a CSV is read by `Core\Csv` in the Novis half (`rule:core-classes/spreadsheet-has-no-io`).
 
 **Declined:**
 - **A pull loop in the Novis half.** It costs a guest return and a Novis call per block on the request

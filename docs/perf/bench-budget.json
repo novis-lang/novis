@@ -1,5 +1,5 @@
 {
-  "total": 111835743,
+  "total": 112613465,
   "benches": {
     "benches/members/core/Arr/all.nvs": 1542,
     "benches/members/core/Arr/any.nvs": 1542,
@@ -997,6 +997,10 @@
     "benches/members/lang/types/values-written-in-the-code.nvs": 3077,
     "benches/members/lang/types/void-never-self-static.nvs": 2565,
     "benches/members/lang/types/what-does-not-exist.nvs": 1884,
-    "benches/members/lang/types/widening-without-as.nvs": 5125
+    "benches/members/lang/types/widening-without-as.nvs": 5125,
+    "benches/members/novis/Spreadsheet-Reader/rows.nvs": 300916,
+    "benches/members/novis/Spreadsheet-Sheet/chart.nvs": 147862,
+    "benches/members/novis/Spreadsheet-Template/fill.nvs": 78972,
+    "benches/members/novis/Spreadsheet-Workbook/fromRows.nvs": 249972
   }
 }

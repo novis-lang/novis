@@ -58,8 +58,8 @@ pub mod zip;
 
 use std::sync::Arc;
 
-use crate::{Clock, Date, Error, TimeOfDay, Visibility};
 use crate::format::{Options, Separators, Value, locale};
+use crate::{Clock, Date, Error, TimeOfDay, Visibility};
 use format::{Kind, Style};
 use merge::{Fill, Merge};
 use xml::Token;
@@ -417,7 +417,7 @@ fn relationships(
     let Some(entry) = directory.find(&rels) else {
         return Ok(Vec::new());
     };
-    let bytes = zip::whole(source, entry)?;
+    let bytes = directory.whole(source, entry)?;
     let mut out = Vec::new();
     let mut at = 0;
     while let Some((token, size)) = xml::next(&bytes[at..])? {
@@ -476,8 +476,9 @@ fn styles(part: &[u8]) -> Result<Vec<Style>, Error> {
 }
 
 impl Reader {
-    /// Opens the workbook `source` is: its directory and its workbook part.
-    pub fn open(source: &dyn Source) -> Result<Self, Error> {
+    /// Opens the workbook `source` is: its directory and its workbook part. A zip archive's
+    /// parts are read under `bound`.
+    pub fn open(source: &dyn Source, bound: zip::Bound) -> Result<Self, Error> {
         let head = source.range(0, 8)?;
         if cfb::is_compound(&head) {
             let book = xls::read(&source.range(0, source.size()?)?)?;
@@ -497,7 +498,7 @@ impl Reader {
                     .to_owned(),
             ));
         }
-        let directory = zip::Directory::read(source)?;
+        let directory = zip::Directory::read(source, bound)?;
         let workbook = relationships(source, &directory, "")?
             .into_iter()
             .find(|(_, kind, _, _)| kind == "officeDocument")
@@ -508,9 +509,14 @@ impl Reader {
                 return Err(broken("it has no workbook part"));
             }
             let sheets = ods::read(source, &directory)?;
-            return Ok(Self::whole(directory, sheets, ods::KINDS.map(Style::of_kind).to_vec(), false));
+            return Ok(Self::whole(
+                directory,
+                sheets,
+                ods::KINDS.map(Style::of_kind).to_vec(),
+                false,
+            ));
         };
-        let book = zip::whole(source, entry)?;
+        let book = directory.whole(source, entry)?;
         let rels = relationships(source, &directory, &workbook)?;
         let (date1904, listed) = if binary {
             let book = binary::workbook(&book)?;
@@ -567,8 +573,8 @@ impl Reader {
                 .map(|(_, _, target, _)| target.clone())
         };
         let styles = match part_of("styles").and_then(|part| directory.find(&part).cloned()) {
-            Some(entry) if binary => binary::styles(&zip::whole(source, &entry)?)?,
-            Some(entry) => styles(&zip::whole(source, &entry)?)?,
+            Some(entry) if binary => binary::styles(&directory.whole(source, &entry)?)?,
+            Some(entry) => styles(&directory.whole(source, &entry)?)?,
             None => Vec::new(),
         };
         // Excel always names the VBA part in the workbook's relationships. A part at the usual
@@ -628,7 +634,7 @@ impl Reader {
         else {
             return Ok(Vec::new());
         };
-        let bytes = zip::whole(source, entry)?;
+        let bytes = self.directory.whole(source, entry)?;
         vba::modules(&cfb::File::open(&bytes)?, &["VBA"])
     }
 
@@ -1152,6 +1158,10 @@ pub(crate) fn civil(days: i64) -> Date {
         day,
     }
 }
+
+/// The most rows and columns a sheet has.
+const MOST_ROWS: u64 = 1_048_576;
+const MOST_COLUMNS: u64 = 16_384;
 
 /// The column letters of `column`, from 1.
 fn letters(column: u64) -> String {

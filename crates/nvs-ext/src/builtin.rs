@@ -9,8 +9,9 @@
 //!
 //! The bytes are only data here. Nothing reads or compiles them until a component is loaded.
 //!
-//! [`cap_pixels`] is the host's half of the image component's pixel cap: it clamps a call's
-//! arguments to the cap the request's snapshot gives, before they cross.
+//! [`cap_pixels`] is the host's half of the image component's pixel cap, and
+//! [`cap_decompression`] of the spreadsheet component's decompression bound: each clamps a call's
+//! arguments to what the request's snapshot gives, before they cross.
 
 use crate::convert::{Key, Value};
 
@@ -83,15 +84,46 @@ fn field<'a>(fields: &'a mut [(Key, Value)], name: &str) -> Option<&'a mut Value
         .map(|(_, value)| value)
 }
 
+/// The configured decompression bound, `[limits] max_decompressed` and
+/// `[limits] max_decompression_ratio`, as [`cap_decompression`] clamps a call to it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Decompression {
+    /// The most octets a part held whole decompresses to.
+    pub bytes: u64,
+    /// The most octets of output per octet of input.
+    pub ratio: u64,
+}
+
+/// `rule:core-classes/decompression-bound` on the host's side of a call: the bound of a
+/// `Novis\Spreadsheet\Engine::readerOpen` or `::templateOpen` call, its second argument, gets
+/// `maxBytes` and `maxRatio` set to the smaller of its own and `in_force`'s, the calling request's
+/// `[limits]`. A bound with neither gets `in_force`'s, so a call can lower the bound and never
+/// raise it. Any other call is left as it is, and a bound that is not a shape is left for the
+/// manifest's conversion to refuse.
+pub fn cap_decompression(class: &str, method: &str, args: &mut [Value], in_force: Decompression) {
+    if class != SPREADSHEET_CLASS || !matches!(method, "readerOpen" | "templateOpen") {
+        return;
+    }
+    if let Some(Value::Array(fields)) = args.get_mut(1) {
+        clamp(fields, "maxBytes", in_force.bytes);
+        clamp(fields, "maxRatio", in_force.ratio);
+    }
+}
+
 fn cap_source(source: &mut Value, in_force: u64) {
     let Value::Array(fields) = source else {
         return;
     };
-    if field(fields, "data").is_none() {
-        return;
+    if field(fields, "data").is_some() {
+        clamp(fields, "maxPixels", in_force);
     }
-    match field(fields, "maxPixels") {
-        None => fields.push((Key::String("maxPixels".to_owned()), Value::Uint(in_force))),
+}
+
+/// Sets the whole number under `key` to the smaller of its own and `in_force`, or to `in_force`
+/// when it is missing or `null`.
+fn clamp(fields: &mut Vec<(Key, Value)>, key: &str, in_force: u64) {
+    match field(fields, key) {
+        None => fields.push((Key::String(key.to_owned()), Value::Uint(in_force))),
         Some(cap @ Value::Null) => *cap = Value::Uint(in_force),
         Some(Value::Uint(cap)) => *cap = (*cap).min(in_force),
         Some(cap @ Value::Int(_)) => {

@@ -4298,9 +4298,28 @@ the program opened, or of `bytes` it holds, through the call that lent them
 ([`core-classes/spreadsheet-reads-as-a-stream`](core-classes.md#core-classes-spreadsheet-reads-as-a-stream)). No preopen and no outbound HTTP is granted to the
 component, under any configuration. **The component fetches nothing**: an external-workbook reference,
 a linked image or a data connection in a read file comes back as **data** — the reference itself — and
-is never resolved, and an image placed on write is bytes the caller supplies. CSV goes through the
-same classes and is parsed and formatted by `Core\Csv` in the Novis half, so CSV has one parser and
-one API for the job.
+is never resolved, and an image placed on write is bytes the caller supplies.
+
+**CSV goes through the same classes and is parsed and formatted by `Core\Csv` in the Novis half**, so
+CSV has one parser and one API for the job. `Reader::open` reads a source as CSV when it does not
+start with a zip's `PK` and a control byte and its start is UTF-8 (`bytes` decoded whole, a file's
+first four bytes); anything else goes to the engine, which throws for a file that is no workbook. A
+CSV is one sheet, `Sheet1`, with no extras. `rows` takes every option and gives the xlsx row shape:
+the header keys numbered and lettered as the engine does, an empty field an empty cell, a short
+record's missing keys `null`, a record numbered by its place in the file. Every value is a `string`.
+`Workbook` writes CSV for a name ending in `.csv` or `{format: 'csv'}`: each batch of rows goes
+through `Core\Csv::format` with each value as its text, and a second sheet throws naming both. The
+engine still opens a writer, which checks the sheet name and logs a workbook never finished, and its
+bytes are dropped, so styles, widths and every sheet-end part are left out. **A string that starts
+with `=`, `+`, `-`, `@`, a tab or a carriage return is written with a `'` first**, because Excel reads
+such a field as a formula, and a string is always text; reading does not strip it.
+
+- **Performance:** a CSV write still instantiates the component once, for the writer's checks; the
+  rows never cross. A read of `bytes` parses the whole text each time `sheets` or `rows` walks it.
+- **Memory:** a read of `bytes` holds the decoded text and its records, per request; a read of a
+  `Core\IO\File` holds one record (`Core\Csv::rows`). A write holds one batch of rows.
+- **Usability:** one import loop for xlsx and CSV. The `'` a guarded string carries is in the file
+  for every tool that reads it, not only for Excel.
 
 **Reading evaluates nothing.** A cell reads as its stored scalar, or as its formula text with the cached
 result the file's author wrote beside it, and the two are distinguishable at the API, because a cached
@@ -4330,7 +4349,7 @@ surfaced as data and nothing resolved.
   once per process and shared by every core, and per calling request one instance under the request's
   cap, freed when the request ends. What a write and a read hold inside it are their own fragments'.
 
-**Not shipped.** Nothing of `Novis\Spreadsheet` is on disk.
+**Not shipped.** A CSV dialect other than `,` and `"`, and a CSV in another encoding than UTF-8.
 
 **Declined:**
 - **A first-party `[[extension]]` package, `nvs/spreadsheet`.** It is one configuration step for a
@@ -4339,6 +4358,10 @@ surfaced as data and nothing resolved.
   parser of hostile bytes, and the Novis half already holds the file the program opened.
 - **CSV left to `Core\Csv` alone, beside the component.** An import that accepts xlsx and CSV would be
   two APIs with two row shapes; through one `Reader` it is one loop.
+- **A CSV string written as it is.** A string such as `=HYPERLINK(...)` from a user would run as a
+  formula in Excel, and the program wrote a string, which is always text.
+- **Typed CSV values, a number read as `int`.** CSV has no types, so a guess would read `00123` as
+  `123`; a program converts the `string` it expects with `as ?int`.
 - **Written in Novis.** It would reimplement OOXML and BIFF parsing that production crates already
   carry, unfuzzed and ours to maintain, and buy nothing the wasm build does not give. Novis code
   belongs in the builder.
@@ -4702,11 +4725,10 @@ a sheet.
 - **Memory:** per writing request, one entry per distinct style combination until `finish()`, and the
   auto-width window of at most 1,000 rows before the first chunk leaves.
 
-**Not shipped.** `Style::of`, the row's `style`, `columns` with `header`, `width`, `format`, `style`
-and `hidden`, the header row and its four defaults, and auto width are on disk
-(`extensions/spreadsheet/nvs/Workbook.nvs`, `Style.nvs`, `extensions/spreadsheet/src/width.rs`). Until the
-number-format renderer exists, auto width measures a number as the text the engine stores and a date
-by the length of its default format, not through the column's format code. Not on disk: a column's `formula`, `Cell::of`, and the style enums under `Style`.
+**Not shipped.** The style enums under `Style`. `Style::of`, `Cell::of`, the row's `style`, `columns`
+with `header`, `width`, `format`, `style`, `hidden` and `formula`, the header row and its four
+defaults, and auto width through the number-format renderer are on disk
+(`extensions/spreadsheet/nvs/Workbook.nvs`, `Style.nvs`, `extensions/spreadsheet/src/width.rs`).
 
 **Declined:**
 - **A style as an options bag on every call, with no value.** A report repeats the same few styles on
@@ -4783,8 +4805,17 @@ axis titles, the legend, series colours and data labels. Any other combination t
 A series names its ranges with `$sheet->column($key)`, so a chart over a stream covers every row the
 sheet ends with: the chart is written when the sheet ends, and a range on its own sheet that ends at
 the row `column` gives when the chart is added ends at the sheet's last row. Any other range is
-written as given, and the chart holds no values. Its XML follows `rust_xlsxwriter`'s output for the same chart, ported for the subset
-and attributed in the module that writes it.
+written as given, and the chart holds no values. **A series' categories are a number reference**
+when they are a column of the chart's own sheet whose every value is a number or a date, which the
+writer knows from one flag per column kept as rows pass, and a text reference otherwise. Its XML
+follows `rust_xlsxwriter`'s output for the same chart, ported for the subset and attributed in the
+module that writes it.
+
+**An image or a chart is anchored from its cell to the cell its size ends at**, as Excel anchors
+one, with that cell's offset. The end cell needs the width of every column and the height of every
+row the anchor spans, and an anchor may be added after its rows have left. So the writer keeps the
+open sheet's custom row heights, one entry per run of rows with the same height. A sheet with no
+custom height keeps nothing, and an anchor added before its rows finds its end cell as they pass.
 
 The tradeoffs. **Usability:** a report's merges, totals and chart are written after the rows they
 summarise, in the order a program computes them. **Memory:** the parts are held until the sheet ends,
@@ -4792,6 +4823,9 @@ and they are small beside the rows.
 
 - **Memory:** per writing request, each sheet-end part of the open sheet until the sheet is finished,
   and the bytes of each image added after the sheet's first row, until the sheet is finished.
+- **Memory:** per writing request, the open sheet's custom row heights, 8 bytes per run of rows with
+  the same height, and one flag per column, until the sheet is finished. A sheet with no custom height
+  keeps none, and one whose every row differs from the row before keeps 8 MB at Excel's 1,048,576 rows.
 
 **Not shipped.** Nothing of `Novis\Spreadsheet` is on disk.
 
@@ -4802,6 +4836,12 @@ and they are small beside the rows.
   combination, chartsheets and 3D.** The subset is what reports use; the rest is Excel's to add.
 - **An image that is not PNG, JPEG or GIF converted on the way in.** `Novis\Image` converts it in one
   call, and the writer stays a writer.
+- **A chart's cached values, the `numCache` and `strCache` Excel writes beside each reference.** A
+  chart added after its rows finds them gone, so a cache would mean keeping every cell of every sheet,
+  and one only for a chart added first would make the file depend on call order. Excel and LibreOffice
+  read the cells when they open the file, and every workbook is flagged to recalculate. A viewer that
+  draws from the cache alone shows the chart empty. The Excel comparison removes the caches from
+  Excel's file and names that in its harness.
 
 <sub>See also [`core-classes/spreadsheet-writes-as-a-stream`](core-classes.md#core-classes-spreadsheet-writes-as-a-stream), [`core-classes/spreadsheet-formula-is-a-value`](core-classes.md#core-classes-spreadsheet-formula-is-a-value).</sub>
 
@@ -4825,7 +4865,8 @@ formula refers to the cells that do.
 **Repeated rows.** A row whose placeholder goes through a list, `{{items.qty}}`, is written once per
 item of `$data['items']`, each copy with the template row's style and height. A block of several rows
 repeats as one when a defined name equal to the list's name covers it, so an item can span two rows.
-**A list inside a list throws**, naming both.
+**A list inside a list throws**, naming both. An item whose copy would end past row 1,048,576 throws
+`LogicError` naming the list, before any of its rows is written.
 
 **The shift.** Every row below a repeated block moves down by the rows it added, and every part that
 points at those rows moves with it: merged ranges, formulas, defined names, the print area, the
@@ -4849,7 +4890,11 @@ memory:** the repeated rows stream, so a template of a thousand items costs what
   the drawings, the parts the shift rewrites), the template's sheet rows as they stream through, and
   one batch of repeated rows, freed when the request ends.
 
-**Not shipped.** Nothing of `Novis\Spreadsheet` is on disk.
+**Not shipped.** Blocks on more than one sheet: every block is on one sheet, or `fill` throws. A
+shared formula (`<f t="shared">`) in a repeated row is copied as it is, so its copies share one
+`si`, and an `x14` conditional format under `extLst` is not moved. A list is an array: an
+`Iterator` in `$data` is not a list. `Template::open`, `set` and `fill`, and an `Export` from `fill`
+to all four targets, are on disk.
 
 **Declined:**
 - **A list inside a list.** It needs nested blocks whose shifts compound, for a layout almost nobody
@@ -4980,7 +5025,8 @@ reads as its stored result and gives no `Formula`.
 `properties` from an xls or ods file: each throws naming the format. An ods cell's `text` is
 rendered under the default format of its type, and not under the file's own number style.
 Month and day names are English in every `locale`. `Reader::open`,
-`sheets()` and `rows()` read xlsx, xlsm, xlsb, xls and ods, from `bytes` or an open `Core\IO\File`.
+`sheets()` and `rows()` read xlsx, xlsm, xlsb, xls, ods and CSV, from `bytes` or an open
+`Core\IO\File`; a CSV is read by `Core\Csv` in the Novis half ([`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io)).
 
 **Declined:**
 - **A pull loop in the Novis half.** It costs a guest return and a Novis call per block on the request

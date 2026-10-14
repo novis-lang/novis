@@ -12,7 +12,8 @@ formula refers to the cells that do.
 **Repeated rows.** A row whose placeholder goes through a list, `{{items.qty}}`, is written once per
 item of `$data['items']`, each copy with the template row's style and height. A block of several rows
 repeats as one when a defined name equal to the list's name covers it, so an item can span two rows.
-**A list inside a list throws**, naming both.
+**A list inside a list throws**, naming both. An item whose copy would end past row 1,048,576 throws
+`LogicError` naming the list, before any of its rows is written.
 
 **The shift.** Every row below a repeated block moves down by the rows it added, and every part that
 points at those rows moves with it: merged ranges, formulas, defined names, the print area, the
@@ -36,7 +37,11 @@ memory:** the repeated rows stream, so a template of a thousand items costs what
   the drawings, the parts the shift rewrites), the template's sheet rows as they stream through, and
   one batch of repeated rows, freed when the request ends.
 
-**Not shipped.** Nothing of `Novis\Spreadsheet` is on disk.
+**Not shipped.** Blocks on more than one sheet: every block is on one sheet, or `fill` throws. A
+shared formula (`<f t="shared">`) in a repeated row is copied as it is, so its copies share one
+`si`, and an `x14` conditional format under `extLst` is not moved. A list is an array: an
+`Iterator` in `$data` is not a list. `Template::open`, `set` and `fill`, and an `Export` from `fill`
+to all four targets, are on disk.
 
 **Declined:**
 - **A list inside a list.** It needs nested blocks whose shifts compound, for a layout almost nobody

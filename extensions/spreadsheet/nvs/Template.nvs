@@ -1,0 +1,205 @@
+<?nvs
+namespace Novis\Spreadsheet;
+
+use LogicError;
+
+/// A workbook designed in Excel, with placeholders such as `{{customer.name}}` in its cells. Open one with `Template::open`.
+/// `fill` puts your data in the placeholders. A row with a list placeholder, such as `{{items.qty}}`, is written once for each item.
+final class Template
+{
+    type Options = ?{zone?: string};
+    type Value = {text: string}|{number: float}|{integer: int}|{decimal: string}|{boolean: bool}|{date: Core\Time\Date}|{time: Core\Time\TimeOfDay}|{duration: Core\Time\Duration}|{day: Core\Time\Date, clock: Core\Time\TimeOfDay}|{formula: string, cachedText: ?string, cachedNumber: ?float};
+    type Placeholder = {path: string, value: ?Value};
+
+    private bool $filled = false;
+    private bool $written = false;
+    private bytes $first;
+    private array<string> $order = [];
+    private array<string> $names = [];
+    private array<array<mixed>> $lists = [];
+    private array<bytes> $kept = [];
+    // The placeholders `walk` finds, and the list it is inside, or `null`.
+    private array<Placeholder> $found = [];
+    private ?string $inside = null;
+
+    private function constructor(
+        private readonly Filling $filling,
+        private readonly tainted bytes|Core\IO\File $source,
+        private readonly ?Core\Time\Zone $zone,
+    ) {
+        $this->first = Core\Bytes::fill(0, 0);
+    }
+
+    /// `Template::open` opens the template in `$source`, the bytes of an xlsx or xlsm file or a file your program opened.
+    /// `zone` is the time zone for an `Instant`, such as `'Europe/Berlin'`. Without `zone`, an `Instant` throws an error.
+    public static function open(tainted bytes|Core\IO\File $source, Options $options = null): Template
+    {
+        ?Core\Time\Zone $zone = null;
+        ?string $zoneName = $options?->zone ?? null;
+        if ($zoneName != null) {
+            $zone = Core\Time\Zone::of($zoneName);
+        }
+        return new Template(Engine::templateOpen($source, {maxBytes: null, maxRatio: null}), $source, $zone);
+    }
+
+    /// `set` puts `$value` in the cell at `$address`, such as `'Summary!B2'`. Call it before `fill`.
+    public function set(string $address, mixed $value): Template
+    {
+        Engine::templateSet($this->filling, $address, $this->cell($value, $address));
+        return $this;
+    }
+
+    /// `fill` puts the value at each placeholder's path in `$data` into its cell. A placeholder that `$data` does not have throws an error.
+    /// The file is written when you call `download`, `save`, `to` or `bytes` on the result.
+    public function fill(array<mixed> $data): Export
+    {
+        if ($this->filled) {
+            throw new LogicError("The template is already filled. Call `fill` once.");
+        }
+        $this->filled = true;
+        $this->found = [];
+        $this->inside = null;
+        $this->walk("", $data);
+        var $filled = Engine::templateFill($this->filling, $this->found, $this->names);
+        $this->found = [];
+        $this->first = $filled->data;
+        $this->order = $filled->lists;
+        return new Export(fn (Workbook $book): void => {}, null, fn (callable(bytes): void $send, bool $keep): Written => $this->write($send, $keep));
+    }
+
+    // Adds a placeholder for each value in `$data` under `$prefix`, and keeps each list for `write`. A list inside a list throws.
+    private function walk(string $prefix, array<mixed> $data): void
+    {
+        foreach ($data as tainted string $tainted => mixed $value) {
+            string $path = $prefix . Core\Taint::assertTrusted($tainted, "a key is a path that the template's placeholders are matched against");
+            if ($value is array<mixed>) {
+                if (!Core\Arr::isList($value)) {
+                    $this->walk($path . ".", $value);
+                } elseif ($this->inside != null) {
+                    string $outer = $this->inside ?? "";
+                    throw new LogicError("The list `{$path}` is inside the list `{$outer}`. A template cannot repeat a list inside a list.");
+                } else {
+                    $this->names[] = $path;
+                    $this->lists[$path] = $value;
+                }
+            } else {
+                string $list = $this->inside == null ? "" : ($this->inside ?? "") . ".";
+                $this->found[] = {path: $path, value: $this->cell($value, "{{" . $list . $path . "}}")};
+            }
+        }
+    }
+
+    // Sends the filled file to `$send`: the part `fill` wrote, the items of each list in batches of 1,000, and the rest.
+    private function write(callable(bytes): void $send, bool $keep): Written
+    {
+        if ($this->written) {
+            throw new LogicError("The template is already written. Call `download`, `save`, `to` or `bytes` once.");
+        }
+        $this->written = true;
+        $this->deliver($send, $keep, $this->first);
+        foreach ($this->order as string $name) {
+            array<array<Placeholder>> $batch = [];
+            foreach ($this->lists[$name] as mixed $item) {
+                $batch[] = $this->item($name, $item);
+                if (Core\Arr::count($batch) >= 1000) {
+                    $this->deliver($send, $keep, Engine::templateItems($this->filling, {name: $name, items: $batch}));
+                    $batch = [];
+                }
+            }
+            if (Core\Arr::count($batch) > 0) {
+                $this->deliver($send, $keep, Engine::templateItems($this->filling, {name: $name, items: $batch}));
+            }
+        }
+        var $last = Engine::templateFinish($this->filling, $this->source);
+        $this->deliver($send, $keep, $last->data);
+        array<int> $rows = [];
+        foreach ($last->rows as var $sheet) {
+            $rows[$sheet->name] = $sheet->rows as int;
+        }
+        if (!$keep) {
+            return new Written($rows, $last->size as int, null);
+        }
+        var $whole = Core\Bytes::join($this->kept);
+        $this->kept = [];
+        return new Written($rows, $last->size as int, $whole);
+    }
+
+    private function deliver(callable(bytes): void $send, bool $keep, bytes $chunk): void
+    {
+        $send($chunk);
+        if ($keep) {
+            $this->kept[] = $chunk;
+        }
+    }
+
+    // The placeholders of one item of the list `$name`, by their paths inside the item.
+    private function item(string $name, mixed $item): array<Placeholder>
+    {
+        if (!($item is array<mixed>) || Core\Arr::isList($item)) {
+            throw new LogicError("Each item of the list `{$name}` must be an array with keys, such as `['qty' => 2]`.");
+        }
+        $this->found = [];
+        $this->inside = $name;
+        $this->walk("", $item);
+        array<Placeholder> $found = $this->found;
+        $this->found = [];
+        return $found;
+    }
+
+    private function cell(mixed $value, string $where): ?Value
+    {
+        if ($value == null) {
+            return null;
+        }
+        if ($value is string) {
+            return {text: Core\Taint::assertTrusted($value, "the engine writes a string as a text cell and escapes it")};
+        }
+        if ($value is bool) {
+            return {boolean: $value};
+        }
+        if ($value is int) {
+            return {integer: $value};
+        }
+        if ($value is uint) {
+            return {decimal: $value as string};
+        }
+        if ($value is float) {
+            return {number: $value};
+        }
+        if ($value is decimal) {
+            return {decimal: $value as string};
+        }
+        if ($value is Core\Time\Date) {
+            return {date: $value};
+        }
+        if ($value is Core\Time\TimeOfDay) {
+            return {time: $value};
+        }
+        if ($value is Core\Time\Duration) {
+            return {duration: $value};
+        }
+        if ($value is Core\Time\DateTime) {
+            return {day: $value->date(), clock: $value->timeOfDay()};
+        }
+        if ($value is Core\Time\Instant) {
+            ?Core\Time\Zone $zone = $this->zone;
+            if ($zone == null) {
+                throw new LogicError("The value for `{$where}` is an `Instant`, and the template has no `zone`. Set `zone` in the options of `Template::open`, such as `zone: 'Europe/Berlin'`.");
+            }
+            var $local = $value->in($zone);
+            return {day: $local->date(), clock: $local->timeOfDay()};
+        }
+        if ($value is Formula) {
+            string $formula = Core\Taint::assertTrusted($value->text, "a Formula is written as a formula only when the program passes one");
+            string|int|float|null $cached = $value->cached;
+            if ($cached is string) {
+                return {formula: $formula, cachedText: $cached, cachedNumber: null};
+            }
+            if ($cached is int || $cached is float) {
+                return {formula: $formula, cachedText: null, cachedNumber: $cached as float};
+            }
+            return {formula: $formula, cachedText: null, cachedNumber: null};
+        }
+        throw new LogicError("The value for `{$where}` cannot be in a cell. A cell can contain a `string`, a number, a `bool`, `null`, or a date, a time or a duration from `Core\\Time`.");
+    }
+}

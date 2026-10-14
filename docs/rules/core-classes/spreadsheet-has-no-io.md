@@ -20,9 +20,28 @@ the program opened, or of `bytes` it holds, through the call that lent them
 (`rule:core-classes/spreadsheet-reads-as-a-stream`). No preopen and no outbound HTTP is granted to the
 component, under any configuration. **The component fetches nothing**: an external-workbook reference,
 a linked image or a data connection in a read file comes back as **data** — the reference itself — and
-is never resolved, and an image placed on write is bytes the caller supplies. CSV goes through the
-same classes and is parsed and formatted by `Core\Csv` in the Novis half, so CSV has one parser and
-one API for the job.
+is never resolved, and an image placed on write is bytes the caller supplies.
+
+**CSV goes through the same classes and is parsed and formatted by `Core\Csv` in the Novis half**, so
+CSV has one parser and one API for the job. `Reader::open` reads a source as CSV when it does not
+start with a zip's `PK` and a control byte and its start is UTF-8 (`bytes` decoded whole, a file's
+first four bytes); anything else goes to the engine, which throws for a file that is no workbook. A
+CSV is one sheet, `Sheet1`, with no extras. `rows` takes every option and gives the xlsx row shape:
+the header keys numbered and lettered as the engine does, an empty field an empty cell, a short
+record's missing keys `null`, a record numbered by its place in the file. Every value is a `string`.
+`Workbook` writes CSV for a name ending in `.csv` or `{format: 'csv'}`: each batch of rows goes
+through `Core\Csv::format` with each value as its text, and a second sheet throws naming both. The
+engine still opens a writer, which checks the sheet name and logs a workbook never finished, and its
+bytes are dropped, so styles, widths and every sheet-end part are left out. **A string that starts
+with `=`, `+`, `-`, `@`, a tab or a carriage return is written with a `'` first**, because Excel reads
+such a field as a formula, and a string is always text; reading does not strip it.
+
+- **Performance:** a CSV write still instantiates the component once, for the writer's checks; the
+  rows never cross. A read of `bytes` parses the whole text each time `sheets` or `rows` walks it.
+- **Memory:** a read of `bytes` holds the decoded text and its records, per request; a read of a
+  `Core\IO\File` holds one record (`Core\Csv::rows`). A write holds one batch of rows.
+- **Usability:** one import loop for xlsx and CSV. The `'` a guarded string carries is in the file
+  for every tool that reads it, not only for Excel.
 
 **Reading evaluates nothing.** A cell reads as its stored scalar, or as its formula text with the cached
 result the file's author wrote beside it, and the two are distinguishable at the API, because a cached
@@ -52,7 +71,7 @@ surfaced as data and nothing resolved.
   once per process and shared by every core, and per calling request one instance under the request's
   cap, freed when the request ends. What a write and a read hold inside it are their own fragments'.
 
-**Not shipped.** Nothing of `Novis\Spreadsheet` is on disk.
+**Not shipped.** A CSV dialect other than `,` and `"`, and a CSV in another encoding than UTF-8.
 
 **Declined:**
 - **A first-party `[[extension]]` package, `nvs/spreadsheet`.** It is one configuration step for a
@@ -61,6 +80,10 @@ surfaced as data and nothing resolved.
   parser of hostile bytes, and the Novis half already holds the file the program opened.
 - **CSV left to `Core\Csv` alone, beside the component.** An import that accepts xlsx and CSV would be
   two APIs with two row shapes; through one `Reader` it is one loop.
+- **A CSV string written as it is.** A string such as `=HYPERLINK(...)` from a user would run as a
+  formula in Excel, and the program wrote a string, which is always text.
+- **Typed CSV values, a number read as `int`.** CSV has no types, so a guess would read `00123` as
+  `123`; a program converts the `string` it expects with `as ?int`.
 - **Written in Novis.** It would reimplement OOXML and BIFF parsing that production crates already
   carry, unfuzzed and ours to maintain, and buy nothing the wasm build does not give. Novis code
   belongs in the builder.

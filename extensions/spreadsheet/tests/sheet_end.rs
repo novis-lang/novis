@@ -805,7 +805,7 @@ fn a_table_with_a_totals_row_and_structured_references_is_written() {
          <autoFilter ref=\"A1:C4\"/><tableColumns count=\"3\">\
          <tableColumn id=\"1\" name=\"item\" totalsRowLabel=\"Total\"/>\
          <tableColumn id=\"2\" name=\"qty\" totalsRowFunction=\"sum\"/>\
-         <tableColumn id=\"3\" name=\"total\" totalsRowFunction=\"custom\"><totalsRowFormula>SUM(Orders[total])/2</totalsRowFormula></tableColumn>\
+         <tableColumn id=\"3\" name=\"total\" totalsRowFunction=\"custom\"><totalsRowFormula>SUM([total])/2</totalsRowFormula></tableColumn>\
          </tableColumns><tableStyleInfo name=\"TableStyleMedium9\" showFirstColumn=\"0\" showLastColumn=\"0\" showRowStripes=\"1\" showColumnStripes=\"0\"/></table>"
     );
     assert!(
@@ -994,7 +994,7 @@ fn every_conditional_format_kind_is_written_with_its_style() {
         "<dxfs count=\"2\">\
          <dxf><font><color rgb=\"FF9C0006\"/></font><fill><patternFill><bgColor rgb=\"FFFFC7CE\"/></patternFill></fill></dxf>\
          <dxf><font><b/></font><numFmt numFmtId=\"4\" formatCode=\"#,##0.00\"/>\
-         <border><left/><right/><top/><bottom style=\"thin\"><color auto=\"1\"/></bottom><diagonal/></border></dxf>\
+         <border><left/><right/><top/><bottom style=\"thin\"><color auto=\"1\"/></bottom><vertical/><horizontal/></border></dxf>\
          </dxfs>"
     ), "{styles}");
 }

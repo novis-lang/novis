@@ -14,12 +14,8 @@
 //! file does not write is given when it lies in a range below the range's top row, because its
 //! cells have a value to fill.
 
-use super::{Read, ReadCell, ReadRow, letters, sheet};
+use super::{MOST_COLUMNS, MOST_ROWS, Read, ReadCell, ReadRow, letters, sheet};
 use crate::Error;
-
-/// The most rows and columns a sheet has.
-const MOST_ROWS: u64 = 1_048_576;
-const MOST_COLUMNS: u64 = 16_384;
 
 /// One merged range, its rows and columns from 1.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

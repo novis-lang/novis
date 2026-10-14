@@ -8,10 +8,11 @@
 //! the header's cutoff is kept in the mini stream, in sectors of 64 bytes, and is read through the
 //! mini table.
 //!
-//! **A chain is followed at most once round the table.** A chain longer than the table has
-//! sectors, a sector number past the table, or a stream longer than its chain is
-//! [`Error::Parse`], so a chain that loops back on itself ends the read and is never followed
-//! again. The directory's tree of siblings and children is walked the same way: a walk that
+//! **A chain visits each sector once.** A chain that comes back to a sector it already read, a
+//! sector number past the table, or a stream longer than its chain is [`Error::Parse`]. So a
+//! chain that loops ends the read at its first repeat, and no stream is the same sectors read
+//! twice. Following a chain keeps one flag per entry of its table, and frees them when it ends.
+//! The directory's tree of siblings and children is walked with a count instead: a walk that
 //! visits more entries than the directory has is [`Error::Parse`].
 
 use crate::Error;
@@ -177,12 +178,9 @@ impl<'a> File<'a> {
     fn chain(&self, start: u32, size: Option<u64>) -> Result<Vec<u8>, Error> {
         let mut out = Vec::new();
         let mut id = start;
-        let mut steps = 0;
+        let mut seen = vec![false; self.table.len()];
         while id != END_OF_CHAIN && id != FREE {
-            steps += 1;
-            if steps > self.table.len() {
-                return Err(broken("a sector chain loops"));
-            }
+            visit(&mut seen, id)?;
             out.extend_from_slice(self.sector_bytes(id)?);
             if size.is_some_and(|size| out.len() as u64 >= size) {
                 break;
@@ -199,12 +197,9 @@ impl<'a> File<'a> {
     fn mini_chain(&self, start: u32, size: u64) -> Result<Vec<u8>, Error> {
         let mut out = Vec::new();
         let mut id = start;
-        let mut steps = 0;
+        let mut seen = vec![false; self.mini_table.len()];
         while id != END_OF_CHAIN && id != FREE && (out.len() as u64) < size {
-            steps += 1;
-            if steps > self.mini_table.len() {
-                return Err(broken("a sector chain loops"));
-            }
+            visit(&mut seen, id)?;
             let at = id as usize * MINI_SECTOR;
             out.extend_from_slice(
                 self.mini_stream
@@ -285,6 +280,19 @@ impl<'a> File<'a> {
             self.chain(stream.start, Some(stream.size))
         }
     }
+}
+
+/// Flags the sector `id` in `seen`, a chain's flags. A sector flagged before is a chain that
+/// loops, and a number past `seen` is past the table.
+fn visit(seen: &mut [bool], id: u32) -> Result<(), Error> {
+    let flag = seen
+        .get_mut(id as usize)
+        .ok_or_else(|| broken("a sector number is past the sector table"))?;
+    if *flag {
+        return Err(broken("a sector chain loops"));
+    }
+    *flag = true;
+    Ok(())
 }
 
 fn cut(mut bytes: Vec<u8>, size: Option<u64>) -> Result<Vec<u8>, Error> {

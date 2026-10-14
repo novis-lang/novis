@@ -5,11 +5,12 @@
 //! counted as two, and the longest line of a text with line breaks. A column's width is its
 //! widest cell plus one, capped at [`MAX_AUTO`]. There are no font metrics.
 //!
-//! **Not done yet.** A number is measured as the text the writer stores, a date or a time as the
-//! length of its default format, so a column's own format code is not applied: Stage 8 of goal
-//! `spreadsheet` measures through the number-format renderer.
+//! What a cell shows is the number-format renderer's text (`crate::format`) for the cell's format
+//! code, the one its layers set or the write table's for its value, with English separators and
+//! the 1900 epoch the writer always uses.
 
-use crate::{RichRun, Value};
+use crate::format::{self, Options};
+use crate::{RichRun, Value, cells};
 
 /// The widest a measured column is, in characters.
 pub const MAX_AUTO: f64 = 60.0;
@@ -44,13 +45,13 @@ pub fn text(text: &str) -> usize {
         .unwrap_or(0)
 }
 
-fn number(value: f64) -> usize {
-    if !value.is_finite() {
-        return 0;
-    }
-    let mut out = String::new();
-    crate::cells::number(&mut out, value);
-    out.len()
+/// The width of `shown` rendered under `code`, General when there is none.
+fn rendered(code: Option<&str>, shown: format::Value<'_>) -> usize {
+    text(&format::render(
+        code.unwrap_or("General"),
+        shown,
+        &Options::default(),
+    ))
 }
 
 fn rich(runs: &[RichRun]) -> usize {
@@ -58,33 +59,36 @@ fn rich(runs: &[RichRun]) -> usize {
     text(&whole)
 }
 
-/// The width of a cell holding `value`.
-pub fn value(value: &Value) -> usize {
+/// The width of a cell holding `value`. `code` gives the cell's format code for the format the
+/// write table gives its value, `None` for General.
+pub fn value<'a>(
+    value: &Value,
+    code: impl FnOnce(crate::styles::Implicit) -> Option<&'a str>,
+) -> usize {
+    if let Some((number, implicit)) = cells::stored_number(value) {
+        return rendered(code(implicit), format::Value::Number(number));
+    }
+    let code = code(crate::styles::Implicit::None);
     match value {
-        Value::Text(value) => text(value),
-        Value::Number(value) => number(*value),
-        Value::Integer(value) => itoa::Buffer::new().format(*value).len(),
-        Value::Decimal(value) => value.len(),
-        Value::Boolean(true) => 4,
-        Value::Boolean(false) => 5,
-        Value::Date(_) => 10,
-        Value::Time(_) => 8,
-        Value::Duration(nanos) => {
-            let hours = nanos.unsigned_abs() / 3_600_000_000_000;
-            let sign = usize::from(*nanos < 0);
-            itoa::Buffer::new().format(hours).len().max(1) + 6 + sign
+        // An integer or decimal past 15 significant digits is a text cell.
+        Value::Text(value) | Value::Decimal(value) => rendered(code, format::Value::Text(value)),
+        Value::Integer(value) => {
+            rendered(code, format::Value::Text(itoa::Buffer::new().format(*value)))
         }
-        Value::Clock(_) => 16,
+        Value::Boolean(value) => rendered(code, format::Value::Boolean(*value)),
         Value::Formula {
             cached_text,
             cached_number,
             ..
         } => match (cached_text, cached_number) {
-            (Some(cached), _) => text(cached),
-            (None, Some(cached)) => number(*cached),
-            (None, None) => 0,
+            (Some(cached), _) => rendered(code, format::Value::Text(cached)),
+            (None, Some(cached)) if cached.is_finite() => {
+                rendered(code, format::Value::Number(*cached))
+            }
+            _ => 0,
         },
         Value::Rich(runs) => rich(runs),
+        _ => 0,
     }
 }
 

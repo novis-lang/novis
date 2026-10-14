@@ -70,7 +70,8 @@
 //! process. A tree with no `[[extension]]` is an empty set, so `nvs run` and `nvs test` always
 //! install a [`Calls`]. Before a call crosses, `nvs_ext::builtin::cap_pixels` clamps an image
 //! call's sources to the `[image] max_pixels` of the request's snapshot
-//! (`rule:core-classes/image-pixel-cap`).
+//! (`rule:core-classes/image-pixel-cap`), and `nvs_ext::builtin::cap_decompression` a spreadsheet
+//! reader's or template's bound to its `[limits]` (`rule:core-classes/decompression-bound`).
 //!
 //! What it spends: each loaded component's compiled code, once per process and shared by every
 //! core, and during a reload the old set and the new one together until the swap. On disk, one
@@ -655,6 +656,9 @@ impl nvs_runtime::extension::Extensions for Calls {
             .config()
             .map_or(nvs_config::image::DEFAULT, nvs_config::image::in_force);
         nvs_ext::builtin::cap_pixels(class, method, &mut args, in_force);
+        let (bytes, ratio) = nvs_stdlib::decompression_ceiling(ctx);
+        let bound = nvs_ext::builtin::Decompression { bytes, ratio };
+        nvs_ext::builtin::cap_decompression(class, method, &mut args, bound);
         let (request, spent) = self.request(ctx)?;
         spent.enter(ctx);
         let called = drive(request.call_values(extension, method, args), || {

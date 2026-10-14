@@ -49,35 +49,35 @@ stages:
         shapes: ["A `.nvst` test case"]
   - id: 8
     title: the number-format renderer
-    status: open
+    status: done
     extra:
       context:
         rules: []
         shapes: ["A `.nvst` test case"]
   - id: 9
     title: CSV through the same API
-    status: open
+    status: done
     extra:
       context:
         rules: [core-api/one-paradigm-per-operation]
         shapes: ["A `.nvst` test case"]
   - id: 10
     title: template fill
-    status: open
+    status: done
     extra:
       context:
         rules: [core-classes/spreadsheet-output-is-inert, core-classes/spreadsheet-formula-is-a-value]
         shapes: ["A `.nvst` test case"]
   - id: 11
     title: limits and hostile files
-    status: open
+    status: done
     extra:
       context:
         rules: [core-classes/spreadsheet-bulk-boundary, core-classes/decompression-bound, core-classes/xml-refuses-by-construction, packaging/a-guest-runs-under-the-requests-budget, testing/hostile-case-contract]
         shapes: []
   - id: 12
     title: "100 MB, the growth and the benches"
-    status: open
+    status: done
     extra:
       context:
         rules: [testing/feature-proofs, packaging/the-first-party-components-are-built-in]
@@ -743,7 +743,9 @@ One file set: `extensions/spreadsheet/tests/` (the reference comparisons), `exte
   (MIT/Apache-2.0). The fixtures for styles, tables, conditional formats, data validation, images and
   every chart type in the subset are copied with attribution, and each part our writer produces is
   compared as XML with the same normalisation that suite uses. A difference is fixed in the writer,
-  never in the fixture.
+  never in the fixture, except a difference `rule:core-classes/spreadsheet-sheet-end-parts` declines,
+  which the comparison removes and names in one place in its harness. Axis ids, which Excel picks at
+  random, are renumbered in both files by order of appearance, so each axis still names its partner.
 - **Pinned by** the Stage 13 checks.
 
 ### 14. the feature proofs
@@ -768,28 +770,29 @@ One file set: `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/n
 
 ### State
 
-**Stage 8 is mostly on disk and not yet verified.** This session stopped at the hand-off budget before `looper verify` and before the zip-code case finished running.
+**Stage 13 has six of its eight tests green** in `extensions/spreadsheet/tests/excel.rs`: the round trip (calamine 0.36 as a host-only dev dependency, kept out of the `wasm32-wasip2` graph, and `cargo deny` still passes), and styles, tables, conditional formats and data validation. Each of those four compares its parts with Excel-made `rust_xlsxwriter` fixtures under `extensions/spreadsheet/tests/fixtures/excel/`, whose `README.md` lists every file. The writer now writes a bottom alignment, a dxf border, `totalsRowShown` and a table part's `totalsRowFormula` the way Excel does.
 
-- **The renderer** is `extensions/spreadsheet/src/format/` (`mod.rs` sections, lexer and `choose`; `number.rs`; `date.rs`; `locale.rs`). It covers General, `0` `#` `?`, grouping and scaling, percent, scientific, fractions, literals, `@`, conditions, colours (dropped), dates, times, elapsed time, both epochs, the 1900 leap day, built-in ids 0 to 49 and `[$-407]` prefixes. Its module doc says what it does.
-- `extensions/spreadsheet/tests/format.rs` has the six Stage 8 tests, and all six pass. The committed reference table is `extensions/spreadsheet/tests/fixtures/number-formats.txt`, with 120 rows. The rows were written by hand from SSF's rules. They were not checked against Excel and not copied from SSF's files.
-- The locale separators are a CLDR table in `extensions/spreadsheet/src/format/locale.rs`. Each row was checked against `Novis\Intl\NumberFormat::decimal`'s output. The table is not a call into `Novis\Intl`'s data, because the component cannot call another component. Grouping is by three digits in every locale, so `en-IN` is not Indian grouping.
-- `read::format::classify` now uses the renderer's lexer. This fixes a bug: a custom `0.00E+00` read as a date before.
-- **The reader's `text` wiring is written but not verified.** Each style keeps its format code (`read::format::Style`). `Reader::rows` resolves `text` names to columns, header keys first and column letters second (`extensions/spreadsheet/src/read/mod.rs`'s `shown`), and fills `ReadCell::display` (`display`). `Reader.nvs` drops `text` from `firstRow` and `keys` through `with`'s new `$shown` parameter, and takes `$display` as `?tainted string`.
-- `tests/conformance/novis/spreadsheet-a-zip-code-column-reads-as-text.nvst` is new and has never run green. Its error case expects `LogicError`, and that guess is not checked.
+`images_match_the_excel_made_fixtures` and `every_chart_type_in_the_subset_matches_its_excel_made_fixture` are not written. The user decided the four design differences, and `rule:core-classes/spreadsheet-sheet-end-parts` and the stage's text record them: Excel's `twoCellAnchor` with custom row heights kept as runs, no chart cache (Declined, removed in the comparison), `numRef` categories from a per-column flag, and axis ids renumbered in the test.
 
 ### Next
 
-**Stage 8, close it: verify the wiring, then auto width through the renderer.** Files: `extensions/spreadsheet/src/read/mod.rs`, `tests/conformance/novis/spreadsheet-a-zip-code-column-reads-as-text.nvst`, `extensions/spreadsheet/src/width.rs`, `extensions/spreadsheet/src/writer.rs`.
+**Stage 13, the charts and images** (`rule:core-classes/spreadsheet-output-is-inert`, `rule:core-classes/spreadsheet-sheet-end-parts`). Files: `extensions/spreadsheet/src/chart.rs`, `extensions/spreadsheet/src/drawing.rs`, the sheet writer that sees each row's height and values, `extensions/spreadsheet/tests/excel.rs`, `extensions/spreadsheet/tests/chart.rs`. The rxw clone is gone. Fetch the fixtures again with a sparse clone of `rust_xlsxwriter`'s `tests/input`.
 
-- [ ] **Verify this session's work.** Run `looper verify`, and fix what it names. Then run `looper check --name spreadsheet-a-column-reads-as-text` and `looper check --name spreadsheet-the-number-format-renderer`. Run `cargo test --test spreadsheet_read` too, because the reader's styles changed type (`extensions/spreadsheet/src/read/mod.rs:441`).
-- [ ] **Auto width measures through the renderer** (`rule:core-classes/spreadsheet-styles-and-defaults`). Today `extensions/spreadsheet/src/width.rs:1`'s "Not done yet" measures the stored text. Measure through `crate::format::render` with the column's format code, and remove the "Not shipped" sentence in that fragment.
-- [ ] **Set Stage 8 to `done`** in the front matter (`docs/goals/spreadsheet.md:52`) once both Stage 8 checks pass.
+- [ ] **Anchors as Excel writes them.** `extensions/spreadsheet/src/drawing.rs:248` writes `twoCellAnchor editAs="oneCell"` with a `to` cell and offset, from the column widths and the open sheet's custom row heights kept as runs (the rule's memory line). Rewrite the module docs of `drawing.rs` and `chart.rs:19`, which say one cell.
+- [ ] **Categories and the axis format.** `extensions/spreadsheet/src/chart.rs:416` writes `numRef` when the categories are a column of the chart's own sheet whose every value is a number or a date, from one flag per column. The catAx `numFmt` is written only when there are categories (`:459`).
+
+- [ ] **The plain chart fixes**, which need no decision. Excel quotes a sheet name only when the name needs it (`extensions/spreadsheet/src/chart.rs:168`). It omits `varyColors` on axis charts (`:353`), and it omits `delete`, `majorTickMark`, `minorTickMark` and `noMultiLvlLbl` on axes (`:458`, `:483`). Its legend has no `overlay` (`:316`), and a pie or doughnut legend has a `txPr`. `dispBlanksAs` appears only when set (`:320`). A line series has `<c:marker><c:symbol val="none"/></c:marker>`, and no line or scatter series has `smooth` (`:434`).
+- [ ] **The fixtures**: `chart_column01`, `chart_bar01`, `chart_line01`, `chart_area01`, `chart_pie01`, `chart_doughnut01`, `chart_scatter01`, `chart_combined02` and `image53`. Upstream's only chart normalisation is the `000000000000\d+` digits in `xl/charts/chart*`. Add each to the table in `extensions/spreadsheet/tests/fixtures/excel/README.md:1`.
+- [ ] Write the two tests after the four in `extensions/spreadsheet/tests/excel.rs:1`, reusing its harness. The harness removes `numCache` and `strCache` from Excel's chart parts in one named place, and renumbers `axId` and `crossAx` in both files by order of appearance. Run `cargo test --manifest-path extensions/spreadsheet/Cargo.toml --test excel`, then `looper check --name spreadsheet-what-opens-in-excel`.
+
+Not compared, because the writer lacks the feature: font family, centre across, fill patterns, quote prefix, automatic colours, diagonals, stacked text, a table with no header or style `none`, stop-if-true, and custom icon thresholds. Our writer writes one `<conditionalFormatting>` per rule, and Excel groups rules over one range (`cond_format03`, `07`). That is a design difference and is not compared.
 
 ### Backlog
 
+- A table's totals formula `[@x]` is written in the long form `[[#This Row],[x]]` in the table part. No fixture has one, and opening it in Excel is not checked. `extensions/spreadsheet/src/table.rs:410`
+- A shared formula (`<f t="shared">`) in a repeated row is copied as it is, so its copies share one `si`. Its `x14` conditional formats under `extLst` are not shifted either. `extensions/spreadsheet/src/template/mod.rs:@write_cell`, `docs/rules/core-classes/spreadsheet-template-fill.md`
 - Built-in id 14 renders as `m/d/yyyy` and id 22 as `m/d/yyyy h:mm`, which is what Excel shows in en-US. SSF uses `m/d/yy`. `extensions/spreadsheet/src/format/mod.rs:@builtin`
 - An ods cell's `text` uses the default format of its type, not the file's own number style. A merged fill copies no `display`. `extensions/spreadsheet/src/read/ods.rs:1`, `extensions/spreadsheet/src/read/merge.rs:166`
 - The extras from xlsb, xls and ods, which throw naming the format now. `extensions/spreadsheet/src/read/extras.rs:1`
-- Extension contagion does not reach a shape's fields (`crates/nvs-types/src/expr/quals.rs:531`'s `tainted_result`, `rule:security/extension-contagion`). This is a compiler fix, outside this goal.
-- `Cell::rich`, and the shapes of `validate`, `conditional` and `Chart`'s options (`rule:core-classes/spreadsheet-sheet-end-parts`). `extensions/spreadsheet/nvs/Workbook.nvs:537`
-- Stages 9 to 14. Stage 14's proofs owe `Row` a group. Stage 11 owes `an_xlsb_record_whose_length_lies_throws` and `an_xls_sector_chain_that_loops_is_refused` (`extensions/spreadsheet/src/read/cfb.rs`). See `docs/goals/spreadsheet.md`.
+- Extension contagion does not reach a shape's fields (`crates/nvs-types/src/expr/quals.rs:531`, `rule:security/extension-contagion`). This is a compiler fix, outside this goal.
+- `docs/rules/core-classes/spreadsheet-roster.md`'s *Not shipped* still says only the writer is on disk. Rewrite it at Stage 14. Stage 14's proofs owe `Row` a group, `Reader::rows`'s doc comment is four lines where `bun nv proofs --comments` allows two, and the ten Stage 11 attacks under `tests/hostile/novis/` are Stage 14's. `bun nv proofs` without `--nvs target/debug/nvs.exe` reads a stale roster that has no `Template`.

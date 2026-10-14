@@ -235,6 +235,23 @@ impl Styles {
         Ok(xf)
     }
 
+    /// The format code of a cell styled by these layers, holding a value whose write-table format
+    /// is `implicit`, or `None` for General. The most specific layer that sets `format` wins.
+    pub fn code(
+        &self,
+        column: Option<u64>,
+        row: Option<u64>,
+        cell: Option<u64>,
+        implicit: Implicit,
+    ) -> Result<Option<&str>, Error> {
+        for id in [cell, row, column].into_iter().flatten() {
+            if let Some(code) = self.get(id)?.format.as_deref() {
+                return Ok(Some(code));
+            }
+        }
+        Ok(implicit.code())
+    }
+
     /// Appends a rich-text run's `<rPr>` for the layer `id`.
     pub fn run_properties(&self, out: &mut String, id: u64) -> Result<(), Error> {
         let style = self.get(id)?;
@@ -307,7 +324,7 @@ impl Styles {
             };
             let border = match &style.border {
                 None => 0,
-                Some(_) => borders.id(border(style)?),
+                Some(_) => borders.id(border(style, false)?),
             };
             let _ = write!(
                 entries,
@@ -374,7 +391,7 @@ impl Styles {
                 );
             }
             if style.border.is_some() {
-                dxfs.push_str(&border(style)?);
+                dxfs.push_str(&border(style, true)?);
             }
             dxfs.push_str("</dxf>");
         }
@@ -514,7 +531,8 @@ fn font(style: &Style) -> Result<String, Error> {
     Ok(out)
 }
 
-fn border(style: &Style) -> Result<String, Error> {
+/// The `<border>` of `style`, for a `dxf` when `dxf` is set.
+fn border(style: &Style, dxf: bool) -> Result<String, Error> {
     let color = style.border_color.as_deref().map(argb).transpose()?;
     let mut out = String::from("<border>");
     let border = style.border.unwrap_or_default();
@@ -551,7 +569,13 @@ fn border(style: &Style) -> Result<String, Error> {
             }
         }
     }
-    out.push_str("<diagonal/></border>");
+    // A cell format's border ends in its diagonal. A `dxf`'s border has no diagonal, and ends in
+    // the inside lines of a range instead, as Excel writes it.
+    if dxf {
+        out.push_str("<vertical/><horizontal/></border>");
+    } else {
+        out.push_str("<diagonal/></border>");
+    }
     Ok(out)
 }
 
@@ -567,13 +591,16 @@ fn alignment(style: &Style) -> String {
         };
         let _ = write!(attrs, " horizontal=\"{name}\"");
     }
+    // Bottom is Excel's default, and Excel writes no attribute for it.
     if let Some(valign) = style.valign {
         let name = match valign {
-            Valign::Top => "top",
-            Valign::Center => "center",
-            Valign::Bottom => "bottom",
+            Valign::Top => Some("top"),
+            Valign::Center => Some("center"),
+            Valign::Bottom => None,
         };
-        let _ = write!(attrs, " vertical=\"{name}\"");
+        if let Some(name) = name {
+            let _ = write!(attrs, " vertical=\"{name}\"");
+        }
     }
     if let Some(rotate) = style.rotate
         && rotate != 0

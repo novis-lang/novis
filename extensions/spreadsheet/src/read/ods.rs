@@ -22,7 +22,7 @@ use super::format::Kind;
 use super::merge::Merge;
 use super::sheet::{RawCell, RawRow};
 use super::xml::{self, Token};
-use super::{Listed, SheetKind, Source, days_from_civil, zip};
+use super::{MOST_COLUMNS, MOST_ROWS, Listed, SheetKind, Source, days_from_civil, zip};
 use crate::{Error, Visibility};
 
 /// The read types the styles of an ods cell stand for, by index.
@@ -37,8 +37,6 @@ const DATE: u32 = 1;
 const TIME: u32 = 2;
 const CLOCK: u32 = 3;
 const DURATION: u32 = 4;
-const MOST_ROWS: u64 = 1_048_576;
-const MOST_COLUMNS: u64 = 16_384;
 
 fn broken(what: &str) -> Error {
     Error::Parse(format!("The file is not a valid ods file: {what}."))
@@ -186,7 +184,7 @@ pub fn read(source: &dyn Source, directory: &zip::Directory) -> Result<Vec<Liste
     let entry = directory
         .find("content.xml")
         .ok_or_else(|| broken("it has no content.xml"))?;
-    let content = zip::whole(source, entry)?;
+    let content = directory.whole(source, entry)?;
     let mut hidden_styles: Vec<String> = Vec::new();
     let mut style: Option<String> = None;
     let mut tables: Vec<Table> = Vec::new();

@@ -89,10 +89,11 @@
     {
       "name": "readerOpen",
       "params": [
-        {"name": "source", "type": "mixed"}
+        {"name": "source", "type": "mixed"},
+        {"name": "bound", "type": "{maxBytes: ?uint, maxRatio: ?uint}"}
       ],
       "returns": "Reading",
-      "help": "Opens the workbook in `source`, which is `bytes` or an open `Core\\IO\\File`. This reads the list of sheets and no rows."
+      "help": "Opens the workbook in `source`, which is `bytes` or an open `Core\\IO\\File`. This reads the list of sheets and no rows. A part of the file that is kept whole decompresses to at most `maxBytes` bytes, and every part to at most `maxRatio` times its compressed size. The server sets both from `[limits]`."
     },
     {
       "name": "readerSheets",
@@ -200,6 +201,53 @@
       ],
       "returns": "{rows: array<{number: uint, cells: array<{column: uint, value: ?ReadValue, formula: ?string, display: ?string}>}>, done: bool}",
       "help": "Returns the next rows of a sheet, at most `max` of them. To get the rows after these, call it again with `from` one past the last row number. `done` is `true` after the last row of the sheet."
+    },
+    {
+      "name": "templateOpen",
+      "params": [
+        {"name": "source", "type": "mixed"},
+        {"name": "bound", "type": "{maxBytes: ?uint, maxRatio: ?uint}"}
+      ],
+      "returns": "Filling",
+      "help": "Opens the template in `source`, which is `bytes` or an open `Core\\IO\\File`. A template is a workbook with placeholders such as `{{name}}` in its cells."
+    },
+    {
+      "name": "templateSet",
+      "params": [
+        {"name": "template", "type": "Filling"},
+        {"name": "address", "type": "string"},
+        {"name": "value", "type": "?CellValue"}
+      ],
+      "returns": "void",
+      "help": "Fills one cell by its address, such as `Summary!B2`. Call it before `templateFill`."
+    },
+    {
+      "name": "templateFill",
+      "params": [
+        {"name": "template", "type": "Filling"},
+        {"name": "values", "type": "array<{path: string, value: ?CellValue}>"},
+        {"name": "lists", "type": "array<string>"}
+      ],
+      "returns": "{data: bytes, lists: array<string>}",
+      "help": "Fills every placeholder that is not in a list. `lists` has the names of the lists. Returns the bytes of the file that are ready to send, and the lists the template uses, in the order of their rows."
+    },
+    {
+      "name": "templateItems",
+      "params": [
+        {"name": "template", "type": "Filling"},
+        {"name": "batch", "type": "{name: string, items: array<array<{path: string, value: ?CellValue}>>}"}
+      ],
+      "returns": "bytes",
+      "help": "Writes the rows of some items of the list `name`. The path of a value is its path inside the item, such as `qty`. Returns the bytes of the file that are ready to send."
+    },
+    {
+      "name": "templateFinish",
+      "params": [
+        {"name": "template", "type": "Filling"},
+        {"name": "source", "type": "mixed"}
+      ],
+      "returns": "{data: bytes, rows: array<{name: string, rows: uint}>, size: uint}",
+      "help": "Writes the rest of the file. Returns the last bytes of the file, the number of rows in each sheet, and the size of the whole file in bytes."
     }
   ],
   "enums": [
@@ -218,7 +266,7 @@
     {"name": "SheetKind", "cases": ["Worksheet", "Chartsheet"], "help": "Whether a sheet has cells or only a chart."},
     {"name": "CellError", "cases": ["Null", "DivZero", "Value", "Ref", "Name", "Num", "NotAvailable", "GettingData", "Spill", "Calc"], "help": "The error a cell shows: `#NULL!`, `#DIV/0!`, `#VALUE!`, `#REF!`, `#NAME?`, `#NUM!`, `#N/A`, `#GETTING_DATA`, `#SPILL!` or `#CALC!`."}
   ],
-  "resources": [{"name": "Writer"}, {"name": "Reading"}],
+  "resources": [{"name": "Writer"}, {"name": "Reading"}, {"name": "Filling"}],
   "unions": [
     {"name": "ReadValue", "cases": [
       {"name": "Text", "shape": "{text: string}"},

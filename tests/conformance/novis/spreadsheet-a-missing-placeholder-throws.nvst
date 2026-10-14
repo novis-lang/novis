@@ -1,0 +1,53 @@
+--TEST--
+A placeholder the data does not have throws a `LogicError` naming it and its cell, for a value and for an item of a list, and a list inside an item throws naming both lists: rule:core-classes/spreadsheet-template-fill
+--FILE--
+<?nvs
+// covers: Novis\Spreadsheet\Template::open
+// covers: Novis\Spreadsheet\Template::fill
+// covers: Novis\Spreadsheet\Export::bytes
+use Novis\Spreadsheet\Template;
+use Novis\Spreadsheet\Workbook;
+
+// This workbook is the template. Row 2 is the item row.
+var $design = Workbook::createInMemory();
+$design->sheet("Invoice")->addAll([
+    ["Invoice {{number}}", "{{customer.name}}"],
+    ["{{items.name}}", "{{items.qty}}"],
+]);
+bytes $template = $design->finish()->bytes ?? Core\Bytes::fill(0, 0);
+
+// The data has no `customer`, so `fill` throws an error.
+try {
+    Template::open($template)->fill(["number" => 42, "items" => []]);
+    echo "not reached\n";
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+
+// The second item has no `qty`. The items are written by `bytes`, so `bytes` throws the error.
+try {
+    Template::open($template)->fill([
+        "number" => 42,
+        "customer" => ["name" => "Shop"],
+        "items" => [["name" => "Pen", "qty" => 2], ["name" => "Ink"]],
+    ])->bytes();
+    echo "not reached\n";
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+
+// An item cannot have a list of its own.
+try {
+    Template::open($template)->fill([
+        "number" => 42,
+        "customer" => ["name" => "Shop"],
+        "items" => [["name" => "Pen", "qty" => 2, "colors" => ["red", "blue"]]],
+    ])->bytes();
+    echo "not reached\n";
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+--EXPECT--
+The template's cell `Invoice!B1` has the placeholder `{{customer.name}}`, which the data does not have.
+The template's cell `Invoice!B2` has the placeholder `{{items.qty}}`, which the data does not have.
+The list `colors` is inside the list `items`. A template cannot repeat a list inside a list.

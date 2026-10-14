@@ -5,7 +5,8 @@
 //! that many bytes. [`Cursor`] reads a sheet's part a block at a time, as `super::sheet::Cursor`
 //! does, and gives each row as the [`RawRow`] the xlsx cursor gives, so `super::Reader::value`
 //! reads both. A row ends where the next row's header starts or the sheet's data ends, so the
-//! cursor holds the row being read until then.
+//! cursor holds the row being read until then. A row header past row 1,048,576 throws naming the
+//! row, and a cell past column `XFD` naming the cell, with the errors the xlsx cursor throws.
 //!
 //! A cell's text is the kind `text`, which `super::Reader::value` reads as it is, because an
 //! xlsb string has no XML escapes. A number is written into the raw cell as the shortest text
@@ -16,9 +17,9 @@ use std::sync::Arc;
 
 use super::format::Style;
 use super::merge::Merge;
-use super::sheet::{RawCell, RawRow};
+use super::sheet::{self, RawCell, RawRow};
 use super::zip::{Entry, Part};
-use super::{Source, Strings};
+use super::{MOST_COLUMNS, MOST_ROWS, Source, Strings};
 use crate::{Error, Visibility};
 
 const ROW_HEADER: u16 = 0;
@@ -452,6 +453,9 @@ impl Cursor {
                     if number <= self.last {
                         return Err(broken("a worksheet's rows are out of order"));
                     }
+                    if number > MOST_ROWS {
+                        return Err(sheet::past_row(number));
+                    }
                     self.last = number;
                     let hidden = body.get(11).is_some_and(|flags| flags & 0x10 != 0);
                     done = self.row.replace(RawRow {
@@ -462,11 +466,14 @@ impl Cursor {
                 }
                 CELL_BLANK..=FORMULA_ERROR | CELL_RICH if self.in_data => {
                     let cell = cell_of(kind, body)?;
-                    self.row
+                    let row = self
+                        .row
                         .as_mut()
-                        .ok_or_else(|| broken("a cell comes before its row"))?
-                        .cells
-                        .push(cell);
+                        .ok_or_else(|| broken("a cell comes before its row"))?;
+                    if cell.column > MOST_COLUMNS {
+                        return Err(sheet::past_cell(cell.column, row.number));
+                    }
+                    row.cells.push(cell);
                 }
                 _ => {}
             }
