@@ -30,7 +30,7 @@ stages:
         shapes: []
   - id: 4
     title: "a CLI command's example is a command and its checked output"
-    status: open
+    status: done
     context: [docs/examples/README.md, tools/nv/proofs/collect.ts, website/src/lib/feature.ts, website/src/components/FeatureExamples.astro]
     extra:
       context:
@@ -48,7 +48,7 @@ checks:
   - id: diff-examples
     stage: 1
     name: "`Novis\\Image\\Diff::constructor` owes nothing, with no examples skip"
-    run: [bun, nv, proofs, --gate, --only, "Novis\\Image\\Diff::constructor"]
+    run: [bun, nv, proofs, --gate, --no-skip, examples, --only, "Novis\\Image\\Diff::constructor"]
   - id: engine-call-does-not-compile
     stage: 2
     name: "a program that calls `Novis\\Image\\Codec::info` does not compile, and the error names `Novis\\Image\\Image`"
@@ -69,11 +69,11 @@ checks:
   - id: cli-examples
     stage: 4
     name: "`nvs info` and `nvs agent init` owe nothing, with no examples skip"
-    run: [bun, nv, proofs, --gate, --only, "tools:cli/nvs-info", "tools:agents/nvs-agent-init"]
+    run: [bun, nv, proofs, --gate, --no-skip, examples, --only, "tools:cli/nvs-info", "tools:agents/nvs-agent-init"]
   - id: postgres-example
     stage: 5
     name: "`Core\\Db\\Row::instant` owes nothing, with no examples skip"
-    run: [bun, nv, proofs, --gate, --only, "Core\\Db\\Row::instant"]
+    run: [bun, nv, proofs, --gate, --no-skip, examples, --only, "Core\\Db\\Row::instant"]
 ---
 
 # Everything a program can call has examples, and nothing internal is on the website
@@ -112,6 +112,16 @@ a new fragment under `docs/rules/packaging/`, beside
 `NN-title.cmd` holding one `nvs …` command line, with `NN-title.out` beside it. The runner runs it
 in a scratch directory and compares standard output byte for byte, the way it does a program. The
 website shows it as a shell block. Home: `docs/examples/README.md`.
+
+**A `...` line elides what differs per machine.** The user decided it for `nvs info`, whose report
+names the commit, the profile, the path and the CPU count. In a `.cmd` example's `.out`, a line that
+is exactly `...` matches any number of lines, and every other line matches byte for byte. A
+recording run agrees when it matches the `.out`. The examples are re-blessed each release, because
+the version line changes. Home: `docs/examples/README.md`.
+
+**A check that promises no skip runs the gate with `--no-skip examples`.** `bun nv proofs --gate`
+counts a policy skip as nothing owed, so `--no-skip PROOF` makes a skip of that proof owed.
+`diff-examples`, `cli-examples` and `postgres-example` pass it.
 
 **`// requires: postgres`.** It works as `// requires: samba-ad` does: before the first such
 program in a run, the runner brings up the `postgres` service of `tests/db/compose.yaml`, once.
@@ -154,9 +164,11 @@ entry or Reference page names one.
 
 - [x] The `NN-title.cmd` kind and how it is run (`docs/examples/README.md:199`, `tools/nv/proofs/run.ts:205`)
 - [x] The website shows one as a shell block (`website/src/lib/feature.ts:156`, `website/src/components/FeatureExamples.astro:28`)
-- [ ] The two commands' examples, and their skips deleted (`data/proofs/policy.json:75`)
+- [x] The two commands' examples, and their skips deleted (`data/proofs/policy.json:75`)
   - [x] `nvs agent init`'s three examples, and its skip deleted (`docs/examples/tools/agents/nvs-agent-init/01-set-up-a-project-for-codex.cmd:1`)
-  - [ ] `nvs info`'s examples, once the user decides how a per-machine output is checked (`data/proofs/policy.json:78`)
+  - [x] The `...` line in a `.cmd`'s `.out`, with its test (`tools/nv/proofs/run.ts:386`, `tools/nv/test/proof-command.test.ts:21`)
+  - [x] `nvs info`'s three examples, and its skip deleted (`docs/examples/tools/cli/nvs-info/01-print-the-build-and-the-host.cmd:1`)
+  - [x] `--gate --no-skip PROOF`, with its test, on the three checks that promise no skip (`tools/nv/cmd/proofs.ts:245`)
 
 ### 5. an example may require the Postgres service
 
@@ -175,34 +187,30 @@ public signature reaches, is `"internal": true` in `nvs meta --json`
 (`rule:packaging/a-components-engine-class-is-internal`). They are not on the roster, in the policy
 or on the website.
 
-Stage 4 is done except `nvs info`. The `.cmd` example kind is on disk. `spawnProof` runs the line
-in a scratch directory under `.agent-tmp/proof-cmd/`, and every lister of examples reads `.cmd` through
-`programsIn`. The website shows the line as an `sh` block. `nvs agent init` has three examples and
-no skip. `engine-off-roster` now runs its test with `-t`, because bun prints no test names under
-the driver's environment.
+Stage 4 is done. The `.cmd` example kind is on disk, and the website shows the line as an `sh`
+block. In a `.cmd`'s `.out`, a line that is exactly `...` matches any number of lines
+(`matchesOut`), a recording run agrees when it matches that `.out`, and `--bless` keeps an elided
+`.out` that still matches. `nvs agent init` and `nvs info` each have three examples and no
+examples skip. `data/proofs/policy.json` has no examples skip left.
+
+`bun nv proofs --gate --no-skip PROOF` makes a policy skip of that proof owed. `diff-examples`,
+`cli-examples` and `postgres-example` run with `--no-skip examples`, and all three are green.
+`website/dist` is rebuilt, and `reference-pages` is green.
 
 Stage 5 is done. The generic `// requires: <service>` marker already brought up `postgres`, so the
 stage needed no runner change. `Core\Db\Row::instant` has three examples on PostgreSQL, with an
 `nvs.toml` whose `tls_ca_file` points at `tests/db/ca.crt`, and its examples skip is deleted.
 `postgres-example` is green.
 
-**Blocked on the user:** `nvs info` prints the commit, the build profile, the executable path,
-the CPU count and one line per dependency. No `.out` matches it on two machines, so the decision's
-"byte for byte" cannot hold for it. Recommendation: in a `.cmd` example's `.out`, a line that is
-exactly `...` matches any number of lines. Then `nvs info`'s examples show the section headings and
-the `Licensing` lines, and elide the rest. Re-bless them each release, because the `Novis 0.0.1`
-line changes. The alternative is to keep its skip, with a reason that says the output differs per
-machine. Then the goal's reach condition excuses it.
+The goal is reached: every stage is done and every check is green. `bun nv verify --doc` and
+`bun nv owners --closes user-surface-examples` are clean.
 
 ### Next
 
-Stage 4's last item, once the user decides, over the runner and `nvs info`'s directory:
+Land the branch on `main` by hand, and delete this goal file as it lands.
 
-- The elision line in a `.cmd`'s `.out`, if chosen (`tools/nv/proofs/run.ts:399`,
-  `docs/examples/README.md:199`) (`rule:testing/feature-proofs`).
-- `nvs info`'s three examples, and its skip deleted (`docs/examples/tools/cli/nvs-info/about.md:1`,
-  `data/proofs/policy.json:78`).
-- Then the goal is reached: `cli-examples` is its last red check.
+- Merge `side/user-surface-examples` into `main` once its checks are green there
+  (`docs/goals/user-surface-examples.md:1`) (`rule:testing/feature-proofs`).
 
 ### Backlog
 
