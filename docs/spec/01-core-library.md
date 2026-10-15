@@ -941,9 +941,9 @@ is not.
 
 | Member | Signature | Q |
 |---|---|---|
-| `Csv::parse` | `parse(string $text, {separator?, quote?, escape?, header?: bool}): array<array<string>>` | |
-| `Csv::format` | `format(array<array<string>> $rows, {separator?, quote?, header?: array<string>}): string` | |
-| `Csv::rows` | `rows(Core\IO\File $file, {separator?, quote?, escape?, header?: bool}): Core\Csv\Rows` | |
+| `Csv::parse` | `parse(string $text, {separator?: string, quote?: string, escape?: string, header?: bool}): array<array<string>>` | |
+| `Csv::format` | `format(array<array<string>> $rows, {separator?: string, quote?: string, header?: array<string>}): string` | |
+| `Csv::rows` | `rows(Core\IO\File $file, {separator?: string, quote?: string, escape?: string, header?: bool}): Core\Csv\Rows` | |
 | `Out::capture` | `capture(callable(): mixed $fn, {through?: callable}): Sink` | |
 
 `Core\Out` has exactly this one member. A buffer is scoped to a callable and nests by call nesting. There

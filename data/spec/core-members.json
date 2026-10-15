@@ -1700,17 +1700,17 @@
       "rows": [
         [
           "`Csv::parse`",
-          "`parse(string $text, {separator?, quote?, escape?, header?: bool}): array<array<string>>`",
+          "`parse(string $text, {separator?: string, quote?: string, escape?: string, header?: bool}): array<array<string>>`",
           ""
         ],
         [
           "`Csv::format`",
-          "`format(array<array<string>> $rows, {separator?, quote?, header?: array<string>}): string`",
+          "`format(array<array<string>> $rows, {separator?: string, quote?: string, header?: array<string>}): string`",
           ""
         ],
         [
           "`Csv::rows`",
-          "`rows(Core\\IO\\File $file, {separator?, quote?, escape?, header?: bool}): Core\\Csv\\Rows`",
+          "`rows(Core\\IO\\File $file, {separator?: string, quote?: string, escape?: string, header?: bool}): Core\\Csv\\Rows`",
           ""
         ],
         [

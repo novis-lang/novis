@@ -8579,7 +8579,7 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "parse(string $text, {separator?, quote?, escape?, header?: bool}): array<array<string>>",
+          "signature": "parse(string $text, {separator?: string, quote?: string, escape?: string, header?: bool}): array<array<string>>",
           "params": [
             {
               "kind": "param",
@@ -8593,15 +8593,15 @@
           "options": [
             {
               "name": "separator",
-              "type": ""
+              "type": "string"
             },
             {
               "name": "quote",
-              "type": ""
+              "type": "string"
             },
             {
               "name": "escape",
-              "type": ""
+              "type": "string"
             },
             {
               "name": "header",
@@ -8656,7 +8656,7 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "format(array<array<string>> $rows, {separator?, quote?, header?: array<string>}): string",
+          "signature": "format(array<array<string>> $rows, {separator?: string, quote?: string, header?: array<string>}): string",
           "params": [
             {
               "kind": "param",
@@ -8670,11 +8670,11 @@
           "options": [
             {
               "name": "separator",
-              "type": ""
+              "type": "string"
             },
             {
               "name": "quote",
-              "type": ""
+              "type": "string"
             },
             {
               "name": "header",
@@ -8725,7 +8725,7 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "rows(Core\\IO\\File $file, {separator?, quote?, escape?, header?: bool}): Core\\Csv\\Rows",
+          "signature": "rows(Core\\IO\\File $file, {separator?: string, quote?: string, escape?: string, header?: bool}): Core\\Csv\\Rows",
           "params": [
             {
               "kind": "param",
@@ -8739,15 +8739,15 @@
           "options": [
             {
               "name": "separator",
-              "type": ""
+              "type": "string"
             },
             {
               "name": "quote",
-              "type": ""
+              "type": "string"
             },
             {
               "name": "escape",
-              "type": ""
+              "type": "string"
             },
             {
               "name": "header",
