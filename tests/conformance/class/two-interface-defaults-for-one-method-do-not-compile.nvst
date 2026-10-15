@@ -1,0 +1,37 @@
+--TEST--
+A class that gets one method from two interface defaults, or from a default and a delegate, does not compile, and the error names every source — `rule:classes/member-conflict-is-an-error`
+--FILE--
+<?nvs
+interface Greets {
+    public function hello(): string { return "hi"; }
+}
+
+interface Welcomes {
+    public function hello(): string { return "welcome"; }
+}
+
+interface Speaks {
+    public function hello(): string;
+}
+
+class Host implements Greets, Welcomes {}
+
+class Voice implements Speaks {
+    public function hello(): string { return "voice"; }
+}
+
+class Desk implements Greets, Speaks by $voice {
+    private Speaks $voice;
+    public function constructor(Speaks $voice) { $this->voice = $voice; }
+}
+echo "unreachable\n";
+// covers: lang:classes/interfaces
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0859]: `Host` gets `hello` from more than one source: the default in `Greets`, the default in `Welcomes`
+%A
+error[E0859]: `Desk` gets `hello` from more than one source: the default in `Greets`, `Speaks` through `$voice`
+%A
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -8,6 +8,9 @@ required method does not compile, and the error names the method and the interfa
 An interface may also carry work of its own: a method with a body, which every class gets for free
 and may replace, a constant, and a `static` method.
 
+Two interfaces may both give a class a method with the same name. Then the class must declare that
+method itself, or it does not compile. Inside it, `Greets::hello()` calls the body from `Greets`.
+
 **Good to know:** Novis has no `trait`. To share methods, write them in an interface. To share an
 object that already does the work, write `implements Greets by $voice` and every method of `Greets`
 is passed on to the object in that property.

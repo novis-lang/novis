@@ -3,8 +3,6 @@
 
 # Classes
 
-*1 of 46 rules below are **designed** rather than shipped, and are marked where they appear.*
-
 <a id="classes-no-free-functions-or-constants"></a>
 
 ## No `function` and no `const` may be declared outside a class body
@@ -777,22 +775,29 @@ reaches no guard, and an access inside the property's own hooks, or a write that
 
 <a id="classes-member-conflict-is-an-error"></a>
 
-## A member reachable from two default or delegated sources with no override is a compile error  *(designed — owned by goal language-rule-debts)*
+## A member reachable from two default or delegated sources with no override is a compile error
 
 `rule:classes/member-conflict-is-an-error`
 
 A method name reachable from more than one source — a default from one implemented interface, a
-default from another, or a `by`-delegated interface — is a compile error when the class does not
-itself declare that method, and the diagnostic names every contributing source.
+default from another, or a `by`-delegated interface — is a compile error (`E0859`) when the class does
+not itself declare that method, and the diagnostic names every contributing source.
 
 There is no `insteadof`. The fix is the ordinary override a reader already knows how to write, and it can still reach a
 specific source explicitly — `InterfaceName::method()` for a default, or plain property access
 `$this->field->method()` for a delegate, since a delegate is a real object.
 
-**Not on disk.** `E_INTERFACE_MEMBER_CONFLICT` has no code allocated and nothing reports it:
-`crates/nvs-types/src/conformance.rs` checks that every required member is answered, one member at a
-time, but not that two sources answer the same one. A class reaching two defaults for one name
-currently resolves to whichever the member walk finds first rather than being refused.
+What is one source and not two:
+
+- **A superclass's concrete method is never a source.** `extends` is walked before `implements`, so
+  the inherited method answers and the defaults behind it are not a conflict.
+- **One default reached through two interfaces is one source**, as in two interfaces that both extend
+  the one declaring it, and a default an interface overrides further down its own chain is replaced,
+  not a second source.
+- **Only the clauses a class writes itself are compared.** A subclass inherits its parent's answer,
+  so a conflict is reported once, at the class whose `implements` list holds it, `abstract` or not.
+
+`crates/nvs-types/src/conformance.rs`'s `check_member_conflicts` is the check.
 
 <sub>See also [`classes/no-traits`](classes.md#classes-no-traits), [`classes/interface-default-methods`](classes.md#classes-interface-default-methods), [`classes/delegation-by-field`](classes.md#classes-delegation-by-field).</sub>
 

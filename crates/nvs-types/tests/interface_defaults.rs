@@ -153,3 +153,117 @@ fn a_private_interface_method_is_not_visible_via_a_qualified_call_from_outside()
         "{diags:?}"
     );
 }
+
+// ------------------------------------------------------------------
+// `rule:classes/member-conflict-is-an-error` -- one method from two sources.
+// ------------------------------------------------------------------
+
+/// The messages of the diagnostics a program raises under `E0859`.
+fn conflicts(diags: &nvs_diagnostics::Diagnostics) -> Vec<String> {
+    diags
+        .iter()
+        .filter(|d| d.code == Some(code::E_INTERFACE_MEMBER_CONFLICT))
+        .map(|d| d.message.clone())
+        .collect()
+}
+
+#[test]
+fn two_defaults_for_one_method_are_an_error_naming_both() {
+    let diags = check_src(
+        "<?nvs\n\
+         interface Greets {\n\
+         \x20 public function hello(): string { return \"hi\"; }\n\
+         }\n\
+         interface Welcomes {\n\
+         \x20 public function hello(): string { return \"welcome\"; }\n\
+         }\n\
+         class Host implements Greets, Welcomes {}\n",
+    );
+    let found = conflicts(&diags);
+    assert_eq!(found.len(), 1, "{diags:?}");
+    assert!(
+        found[0].contains("`Greets`") && found[0].contains("`Welcomes`"),
+        "{}",
+        found[0]
+    );
+}
+
+#[test]
+fn a_default_and_a_delegate_for_one_method_are_an_error() {
+    let diags = check_src(
+        "<?nvs\n\
+         interface Greets {\n\
+         \x20 public function hello(): string { return \"hi\"; }\n\
+         }\n\
+         interface Speaks {\n\
+         \x20 public function hello(): string;\n\
+         }\n\
+         class Voice implements Speaks {\n\
+         \x20 public function hello(): string { return \"voice\"; }\n\
+         }\n\
+         class Host implements Greets, Speaks by $voice {\n\
+         \x20 private Speaks $voice;\n\
+         \x20 function constructor(Speaks $voice) { $this->voice = $voice; }\n\
+         }\n",
+    );
+    let found = conflicts(&diags);
+    assert_eq!(found.len(), 1, "{diags:?}");
+    assert!(
+        found[0].contains("`Greets`") && found[0].contains("`$voice`"),
+        "{}",
+        found[0]
+    );
+}
+
+/// The override may still reach one default through `InterfaceName::method()`.
+#[test]
+fn a_class_that_declares_the_method_resolves_the_conflict() {
+    let diags = check_src(
+        "<?nvs\n\
+         interface Greets {\n\
+         \x20 public function hello(): string { return \"hi\"; }\n\
+         }\n\
+         interface Welcomes {\n\
+         \x20 public function hello(): string { return \"welcome\"; }\n\
+         }\n\
+         class Host implements Greets, Welcomes {\n\
+         \x20 public function hello(): string { return Greets::hello() . Welcomes::hello(); }\n\
+         }\n",
+    );
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+/// A superclass's concrete method answers first, so two defaults behind it are
+/// not a conflict.
+#[test]
+fn a_superclass_method_wins_over_two_defaults() {
+    let diags = check_src(
+        "<?nvs\n\
+         interface Greets {\n\
+         \x20 public function hello(): string { return \"hi\"; }\n\
+         }\n\
+         interface Welcomes {\n\
+         \x20 public function hello(): string { return \"welcome\"; }\n\
+         }\n\
+         class Base {\n\
+         \x20 public function hello(): string { return \"base\"; }\n\
+         }\n\
+         class Host extends Base implements Greets, Welcomes {}\n",
+    );
+    assert!(conflicts(&diags).is_empty(), "{diags:?}");
+}
+
+/// A default two interfaces reach through one shared parent is one source.
+#[test]
+fn one_default_reached_through_two_interfaces_is_not_a_conflict() {
+    let diags = check_src(
+        "<?nvs\n\
+         interface Greets {\n\
+         \x20 public function hello(): string { return \"hi\"; }\n\
+         }\n\
+         interface Loud extends Greets {}\n\
+         interface Quiet extends Greets {}\n\
+         class Host implements Loud, Quiet {}\n",
+    );
+    assert!(conflicts(&diags).is_empty(), "{diags:?}");
+}

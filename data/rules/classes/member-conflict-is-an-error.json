@@ -1,11 +1,14 @@
 {
   "title": "A member reachable from two default or delegated sources with no override is a compile error",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "classes/no-traits",
     "classes/interface-default-methods",
     "classes/delegation-by-field"
   ],
-  "guardedBy": [],
-  "goal": "language-rule-debts"
+  "guardedBy": [
+    "crates/nvs-types/tests/interface_defaults.rs",
+    "tests/conformance/class/two-interface-defaults-for-one-method-do-not-compile.nvst",
+    "tests/conformance/class/a-class-resolves-two-interface-defaults-by-declaring-the-method.nvst"
+  ]
 }

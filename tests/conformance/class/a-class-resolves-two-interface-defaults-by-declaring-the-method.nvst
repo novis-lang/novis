@@ -1,0 +1,26 @@
+--TEST--
+A class that gets one method from two interface defaults declares it, and its body reaches each default with `InterfaceName::method()` — `rule:classes/member-conflict-is-an-error`
+--FILE--
+<?nvs
+interface Greets {
+    public function hello(): string { return "hi " . $this->who(); }
+    public function who(): string;
+}
+
+interface Welcomes {
+    public function hello(): string { return "welcome"; }
+}
+
+class Host implements Greets, Welcomes {
+    public function who(): string { return "ada"; }
+
+    public function hello(): string {
+        return Greets::hello() . ", " . Welcomes::hello();
+    }
+}
+
+var $h = new Host();
+echo $h->hello(), "\n";
+// covers: lang:classes/interfaces
+--EXPECT--
+hi ada, welcome

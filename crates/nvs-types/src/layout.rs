@@ -1051,7 +1051,9 @@ fn flatten_methods<'a>(
         return;
     };
     // `extends` before `implements`: a superclass's concrete method beats an
-    // interface default of the same name (`rule:classes/interface-default-methods`'s conflict rule).
+    // interface default of the same name, and is not a conflict
+    // (`rule:classes/member-conflict-is-an-error`). Two interfaces that both
+    // supply the method are `E0859`, so a program that lowers reaches one.
     for parent in links.extends.iter().chain(links.implements.iter()) {
         flatten_methods(parent, graph, own, methods, seen);
     }

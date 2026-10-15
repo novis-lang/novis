@@ -660,8 +660,7 @@ pub mod code {
     /// `rule:classes/no-traits`. One code for the whole shape: there is no
     /// trait `use { ... }` adaptation grammar to diagnose more finely, since
     /// traits do not exist at all. The default-method/delegation conflict is
-    /// `E_INTERFACE_MEMBER_CONFLICT` (also `rule:classes/no-traits`), which is
-    /// `nvs-hir`'s resolution work rather than this diagnostic's.
+    /// [`E_INTERFACE_MEMBER_CONFLICT`].
     pub const E_TRAIT_NOT_SUPPORTED: Code = Code::new("E0227").card(
         "Traits do not exist in Novis. For shared methods, give an interface a default method. \
          For shared state, write `implements Interface by $field;` in the class.",
@@ -5554,6 +5553,15 @@ pub mod code {
         "`clone` does not work with a generator. A generator is paused inside its function, \
          and a copy cannot continue from that point. Call the generator function again to get \
          a new generator that starts from the beginning.",
+    );
+    /// A method a class does not declare, which two of its `implements`
+    /// clauses each supply — two interface defaults, or a default and a `by`
+    /// delegate, or two delegates. See `rule:classes/member-conflict-is-an-error`.
+    /// A superclass's concrete method is not a source: `extends` answers first.
+    pub const E_INTERFACE_MEMBER_CONFLICT: Code = Code::new("E0859").card(
+        "This class gets a method from two of its interfaces, and it does not declare the method \
+         itself. Declare the method in the class. Its body can call one interface's default with \
+         `InterfaceName::method()`, or a delegate with `$this->field->method()`.",
     );
 
     // --- E09xx internal ----------------------------------------------------

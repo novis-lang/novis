@@ -402,6 +402,7 @@ pub(crate) fn check_stmts(
                 check_class_init(decl, &qname, env);
                 check_class_lateinit_reads(decl, &qname, env);
                 crate::conformance::check_class_conformance(decl, &qname, env);
+                crate::conformance::check_member_conflicts(decl, &qname, env);
                 crate::conformance::check_constant_redeclarations(&decl.members, &qname, env);
                 crate::conformance::check_class_finality(decl, &qname, env);
                 crate::conformance::check_abstract_members(decl, &qname, env);

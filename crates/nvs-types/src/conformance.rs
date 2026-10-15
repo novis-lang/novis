@@ -182,6 +182,146 @@ pub(crate) fn check_class_conformance(decl: &ClassDecl, qname: &QName, env: &mut
     }
 }
 
+/// One `E0859` per method `decl` does not declare that two of its own
+/// `implements` clauses each supply — `rule:classes/member-conflict-is-an-error`.
+///
+/// A clause supplies a method in one of two ways: its interface answers it
+/// with a default body, or the clause is `by $field` and the interface leaves
+/// it bodiless, so the forward answers it. Each clause is asked through
+/// [`resolve_method`], so an interface that overrides a default it inherits
+/// supplies its own and not both, and a default two clauses reach through one
+/// shared ancestor is one source. A default whose interface another source's
+/// interface extends is dropped for the same reason.
+///
+/// The superclass chain is asked first and is never a source: a concrete
+/// method it answers wins over every interface, which is the order
+/// [`crate::layout`]'s method walk dispatches in. Only the clauses `decl`
+/// writes itself are compared, so a subclass inherits its parent's answer and
+/// is not reported a second time. An `abstract` class is checked too, because
+/// the conflict is in the clauses it wrote.
+pub(crate) fn check_member_conflicts(decl: &ClassDecl, qname: &QName, env: &mut Env<'_>) {
+    let Some(links) = env.graph.get(qname) else {
+        return;
+    };
+    // The graph drops a clause that resolved to nothing, and that error is
+    // already reported — see `resolve_delegations`.
+    if links.implements.len() < 2 || links.implements.len() != decl.implements.len() {
+        return;
+    }
+    let interfaces = links.implements.clone();
+    let superclasses = links.extends.clone();
+
+    let mut names: Vec<String> = Vec::new();
+    let mut seen = FxHashSet::default();
+    for interface in &interfaces {
+        reachable_method_names(interface, env, &mut seen, &mut names);
+    }
+    names.sort();
+    names.dedup();
+
+    let declared = env.signatures.get(qname);
+    for method in names {
+        if declared.is_some_and(|sig| sig.methods.contains_key(&method))
+            || superclasses.iter().any(|parent| {
+                resolve_method(parent, &method, env.signatures, env.graph)
+                    .is_some_and(|(_, sig)| sig.has_body)
+            })
+        {
+            continue;
+        }
+        // `(interface the body is declared on, the delegate field)`.
+        let mut sources: Vec<(QName, Option<String>)> = Vec::new();
+        for (clause, interface) in decl.implements.iter().zip(&interfaces) {
+            let Some((declaring, sig)) =
+                resolve_method(interface, &method, env.signatures, env.graph)
+            else {
+                continue;
+            };
+            if sig.interface_private {
+                continue;
+            }
+            let source = if sig.has_body {
+                (declaring, None)
+            } else if let Some(field_span) = clause.by_field {
+                let field = strip_sigil(span_text(env.src, field_span)).to_owned();
+                (interface.clone(), Some(field))
+            } else {
+                continue;
+            };
+            if !sources.contains(&source) {
+                sources.push(source);
+            }
+        }
+        let defaults: Vec<QName> = sources
+            .iter()
+            .filter(|(_, field)| field.is_none())
+            .map(|(interface, _)| interface.clone())
+            .collect();
+        sources.retain(|(interface, field)| {
+            field.is_some()
+                || !defaults.iter().any(|other| {
+                    other != interface && implements_interface(other, interface, env.graph)
+                })
+        });
+        if sources.len() < 2 {
+            continue;
+        }
+        let named: Vec<String> = sources
+            .iter()
+            .map(|(interface, field)| match field {
+                None => format!("the default in `{interface}`"),
+                Some(field) => format!("`{interface}` through `${field}`"),
+            })
+            .collect();
+        let calls: Vec<String> = sources
+            .iter()
+            .map(|(interface, field)| match field {
+                None => format!("`{interface}::{method}()`"),
+                Some(field) => format!("`$this->{field}->{method}()`"),
+            })
+            .collect();
+        env.diags.report(
+            Diagnostic::error(
+                code::E_INTERFACE_MEMBER_CONFLICT,
+                format!(
+                    "`{qname}` gets `{method}` from more than one source: {}",
+                    named.join(", ")
+                ),
+            )
+            .with_primary(
+                decl.name.span,
+                format!("`{qname}` does not declare `{method}`"),
+            )
+            .with_help(format!(
+                "declare `{method}` in `{qname}`; its body can call {} \
+                 (`rule:classes/member-conflict-is-an-error`)",
+                calls.join(" or ")
+            )),
+        );
+    }
+}
+
+/// Every method name `qname` and its ancestors declare, appended to `out`.
+fn reachable_method_names(
+    qname: &QName,
+    env: &Env<'_>,
+    seen: &mut FxHashSet<QName>,
+    out: &mut Vec<String>,
+) {
+    if !seen.insert(qname.clone()) {
+        return;
+    }
+    if let Some(sig) = env.signatures.get(qname) {
+        out.extend(sig.methods.keys().cloned());
+    }
+    let Some(links) = env.graph.get(qname) else {
+        return;
+    };
+    for parent in links.extends.iter().chain(links.implements.iter()) {
+        reachable_method_names(parent, env, seen, out);
+    }
+}
+
 /// `E0404` for an answer that drops the `static` its declaration promised.
 ///
 /// A member declared `: static` promises the *called* class, and that promise
