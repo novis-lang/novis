@@ -14,7 +14,7 @@ stages:
         shapes: ["A `.nvst` test case", A diagnostic]
   - id: 2
     title: "`let` and `is` name nothing"
-    status: open
+    status: done
     context: [crates/nvs-syntax/src/parser/decl.rs, crates/nvs-syntax/src/parser/mod.rs]
     extra:
       context:
@@ -199,9 +199,9 @@ user reads*.
 
 **Does:** `let` and `is` are refused as the name of every declaration, a method and a parameter included.
 
-- [ ] `parse_decl_name` refuses both with `E0247`. `crates/nvs-syntax/src/parser/decl.rs:366`
-- [ ] A parameter named `$let` or `$is` is refused too, if the parser admits one today. `crates/nvs-syntax/src/parser/mod.rs:781`
-- [ ] The `is()` methods in the mutual-recursion case renamed. `tests/conformance/lang/mutual-recursion-across-two-classes.nvst:6`
+- [x] `parse_decl_name` refuses both with `E0247`. `crates/nvs-syntax/src/parser/decl.rs:366`
+- [x] A parameter named `$let` or `$is` is refused too, if the parser admits one today. `crates/nvs-syntax/src/parser/mod.rs:781`
+- [x] The `is()` methods in the mutual-recursion case renamed. `tests/conformance/lang/mutual-recursion-across-two-classes.nvst:6`
 
 ### 3. the renderings match the rule
 
@@ -243,27 +243,27 @@ user reads*.
 
 ### State
 
-Stage 1 is shipped: `E0011` refuses `ESC` in every string literal, raw or escaped, and the rule
-is `shipped`. There is no `bytes` literal, so `"\x1b" as bytes` is refused too; a program builds
-`ESC` with `Core\Str::fromCodePoint(27)`, which is what the 42 migrated corpus files now do. One
-attack, `tests/hostile/core/Html/toSource/01-huge-markup-and-empty-reasons.nvs` step 3, needs a
-written reason, so it now carries a bell character, not `ESC`.
+Stages 1 and 2 are shipped. `E0011` refuses `ESC` in every string literal. `E0247` now refuses
+`let` and `is` as every declared name (`crates/nvs-syntax/src/parser/decl.rs:366`, with
+`at_type_alias` widened so `type is = int;` reaches it) and as a parameter
+(`crates/nvs-syntax/src/parser/expr.rs:2048`); the rule is `shipped`. The mutual-recursion case's
+methods are `check()`; no other corpus file declared either word.
 
-The nightly CI failures were all on `cb7021a`, the last pushed `main`. Local `main` already fixed
-every one but a `dropping_references` warning on non-Linux targets
-(`crates/nvs-cli/src/service.rs:1362`), fixed this session. The nightly stays red until `main` is
-pushed, and only the user pushes.
+The nightly CI run named by the sweep (38534014409) is on `cb7021a`, the last pushed `main`, 589
+commits behind local `main`, which fixes its failures. It stays red until the user pushes.
 
 ### Next
 
-**Stage 2: `let` and `is` name nothing**, one file set: `crates/nvs-syntax/src/parser/decl.rs`, `crates/nvs-syntax/src/parser/mod.rs`.
+**Stage 3: the renderings match the rule**, one file set: `crates/nvs-render/src/plain.rs`, `crates/nvs-runtime/src/ctx/output.rs`, `crates/nvs-stdlib/src/cli.rs`.
 
-- [ ] `parse_decl_name` refuses `let` and `is` with `E0247` (`rule:statements/let-and-is-are-reserved`). `crates/nvs-syntax/src/parser/decl.rs:366`
-- [ ] A parameter named `$let` or `$is` is refused too, if the parser admits one (`rule:statements/let-and-is-are-reserved`). `crates/nvs-syntax/src/parser/mod.rs:781`
-- [ ] Rename the `is()` methods; the expected output does not change (`rule:statements/let-and-is-are-reserved`). `tests/conformance/lang/mutual-recursion-across-two-classes.nvst:6`
+- [ ] Colour the plaintext rendering exactly when the resolved profile has colour, and rewrite the "No colour yet" section (`rule:errors/renderings`, `rule:tooling/the-terminal-profile-resolves-once`). `crates/nvs-render/src/plain.rs:15`
+- [ ] Read the profile from `Core\Cli`'s one resolution, never a second one (`rule:tooling/the-terminal-profile-resolves-once`). `crates/nvs-stdlib/src/cli.rs:1`
+- [ ] The `[debug] inline` block carries its style once per response under the request's CSP nonce (`rule:errors/renderings`). `crates/nvs-runtime/src/ctx/output.rs:602`
+- [ ] The `Core\Debug::dump` and `Core\Debug::render` proofs updated (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/debug.rs:114`
 
 ### Backlog
 
-- Stages 3 to 7 — this file's § *Stages*.
+- Stages 4 to 7 — this file's § *Stages*.
+- No response draws a CSP nonce yet, so Stage 3's inline style may need one drawn first; the slotted scripts use a hash (`crates/nvs-server/src/slotted/mod.rs:70`).
 - A diagnostic that echoes a source line prints a raw `ESC` byte to the terminal, as the `E0011` raw-byte case shows; the renderer should substitute it (`rule:tooling/terminal-output-is-a-sink`). Where the snippet is drawn: not checked.
 - The `Core\Cli\escape` benches' `// bench: allocations 1` budget was not re-measured after the migration (`benches/members/core/Cli/escape.nvs`).
