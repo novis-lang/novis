@@ -31,7 +31,8 @@ echo 'step 3 read ', Core\Str::length($joined->text()), " characters\n";
 
 // 4. Text full of terminal commands, read back and made into terminal text
 //    again. The second reading must give the same string as the first.
-var $loud = Core\Cli\Text::styled("\u{1B}[2J\u{1B}]0;whoami\u{7}", $red);
+string $esc = Core\Str::fromCodePoint(27);
+var $loud = Core\Cli\Text::styled("{$esc}[2J{$esc}]0;whoami\u{7}", $red);
 string $once = $loud->text();
 string $twice = Core\Cli\Text::plain($once)->text();
 if ($once == $twice) {

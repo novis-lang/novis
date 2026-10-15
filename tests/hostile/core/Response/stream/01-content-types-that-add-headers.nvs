@@ -11,7 +11,7 @@ try {
 }
 
 // 2. Content types with a NUL byte, an escape code, a tab, a character that is not ASCII, and nothing.
-array<string> $bad = ["text/\x00plain", "text/\x1b[31mred", "text/pl\tain", 'text/plänn', ''];
+array<string> $bad = ["text/\x00plain", 'text/' . Core\Str::fromCodePoint(27) . '[31mred', "text/pl\tain", 'text/plänn', ''];
 foreach ($bad as string $type) {
     try {
         Core\Response::stream($type);

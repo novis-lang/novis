@@ -46,7 +46,7 @@ echo 'step 3 chose ', $picked, "\n";
 
 // 4. A question made of control characters. They must not reach the terminal as
 //    commands, and the default must come back unchanged.
-string $sneaky = "\u{1B}]0;rm -rf /\u{7}what should happen?";
+string $sneaky = Core\Str::fromCodePoint(27) . "]0;rm -rf /\u{7}what should happen?";
 echo 'step 4 chose ', Core\Cli::select($sneaky, $choices, { default: 'archive' }), "\n";
 
 // 5. Two hundred thousand choices, each one a text of its own. The program must

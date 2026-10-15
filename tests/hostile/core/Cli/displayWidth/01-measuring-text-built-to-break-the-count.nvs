@@ -15,7 +15,8 @@ echo 'step 2 ', Core\Cli::displayWidth($stacked), "\n";
 
 // 3. Escape sequences that would clear the screen and rename the window if a
 //    terminal ran them. They are text here and only text.
-string $paint = "\u{1B}[2J\u{1B}]0;rm -rf /\u{7}";
+string $esc = Core\Str::fromCodePoint(27);
+string $paint = "{$esc}[2J{$esc}]0;rm -rf /\u{7}";
 echo 'step 3 ', Core\Cli::displayWidth($paint), "\n";
 
 // 4. A million tabs. Each one moves to the next stop, and the count must not

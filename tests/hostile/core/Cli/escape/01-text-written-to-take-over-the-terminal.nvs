@@ -6,12 +6,13 @@
 
 // 1. A command that renames the window and a command that clears the screen.
 //    Both must come back as visible characters.
-string $paint = "\u{1B}]0;rm -rf /\u{7}\u{1B}[2J";
+string $esc = Core\Str::fromCodePoint(27);
+string $paint = "{$esc}]0;rm -rf /\u{7}{$esc}[2J";
 echo 'step 1 ', Core\Cli::escape($paint), "\n";
 
 // 2. Two million escape characters. Each one is replaced by a wider character,
 //    so the result is larger than the text, and the program must keep going.
-string $many = Core\Str::repeat("\u{1B}", 2000000);
+string $many = Core\Str::repeat($esc, 2000000);
 echo 'step 2 ', Core\Str::length(Core\Cli::escape($many)), "\n";
 
 // 3. A file name that a terminal would show backwards. The character that
@@ -31,10 +32,11 @@ echo 'step 4 ', $again, "\n";
 
 // 5. A hundred thousand escapes in a row, so that anything an escape kept
 //    behind would grow.
+string $order = "order{$esc}[31m";
 uint $i = 0;
 uint $characters = 0;
 while ($i < 100000) {
-    $characters = $characters + Core\Str::length(Core\Cli::escape("order\u{1B}[31m"));
+    $characters = $characters + Core\Str::length(Core\Cli::escape($order));
     $i = $i + 1;
 }
 echo 'step 5 characters ', $characters, "\n";

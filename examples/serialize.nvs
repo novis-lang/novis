@@ -54,9 +54,9 @@ try {
     echo 'refused: not our format', "\n";
 }
 
-// These bytes are an older `Slot` with a second property, `$extra`. The class
-// has changed, so `decode` throws a `ParseError`, and this prints `refused: shape changed`.
-var $stale = "NVS\x1b\x01\x09\x04Slot\x02\x01n\x05extra\x02\x07\x00\x00\x00\x00\x00\x00\x00\x02\x00\x00\x00\x00\x00\x00\x00\x00" as bytes;
+// These bytes start with `NVS` and the escape character. They are an older `Slot` with a
+// second property, `$extra`, so `decode` throws a `ParseError` and this prints `refused: shape changed`.
+var $stale = ('NVS' . Core\Str::fromCodePoint(27) . "\x01\x09\x04Slot\x02\x01n\x05extra\x02\x07\x00\x00\x00\x00\x00\x00\x00\x02\x00\x00\x00\x00\x00\x00\x00\x00") as bytes;
 try {
     Core\Serialize::decode($stale);
     echo 'a changed shape was accepted', "\n";

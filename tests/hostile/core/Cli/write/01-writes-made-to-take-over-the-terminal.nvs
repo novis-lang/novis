@@ -6,7 +6,8 @@
 
 // 1. Commands that rename the window and clear the screen. Both must come out
 //    as visible characters.
-string $paint = "\u{1B}]0;rm -rf /\u{7}\u{1B}[2J";
+string $esc = Core\Str::fromCodePoint(27);
+string $paint = "{$esc}]0;rm -rf /\u{7}{$esc}[2J";
 Core\Cli::write('step 1 ');
 Core\Cli::write($paint, { newline: true });
 
@@ -25,7 +26,7 @@ try {
 
 // 4. Half a million escape characters in one call. Each one is replaced by a
 //    wider character, so the text grows while it is written.
-string $many = Core\Str::repeat("\u{1B}", 500000);
+string $many = Core\Str::repeat($esc, 500000);
 Core\Cli::write($many, { stream: Core\Cli::Stream::Err, newline: true });
 echo "step 4 written\n";
 

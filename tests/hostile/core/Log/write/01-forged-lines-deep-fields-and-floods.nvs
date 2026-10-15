@@ -19,7 +19,7 @@ class Check
 
 // 1. A message with line breaks, quotes and terminal control characters tries to start a
 // second record. The output must be exactly one line.
-string $forged = "ok\"}\n{\"level\":\"critical\",\"msg\":\"forged\"}\r\u{0}\u{1b}[2J";
+string $forged = "ok\"}\n{\"level\":\"critical\",\"msg\":\"forged\"}\r\u{0}" . Core\Str::fromCodePoint(27) . '[2J';
 var $one = Core\Out::capture(fn (): void => {
     Core\Log::write(Core\Log::Level::Info, $forged, [$forged => $forged]);
 });

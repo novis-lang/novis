@@ -23,7 +23,7 @@ if (Core\Cli::confirm('delete everything?', { default: false })) {
 
 // 3. A question made of control characters. They must not reach the terminal as
 //    commands, and the default must come back unchanged.
-string $sneaky = "\u{1B}]0;rm -rf /\u{7}delete everything?";
+string $sneaky = Core\Str::fromCodePoint(27) . "]0;rm -rf /\u{7}delete everything?";
 if (Core\Cli::confirm($sneaky, { default: true })) {
     echo "step 3 said yes\n";
 } else {

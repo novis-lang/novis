@@ -108,7 +108,7 @@ echo Core\Password::needsRehash($stored) ? "rehash" : "keep", " ";
 echo Core\Password::needsRehash(Core\Password::hash("secret")) ? "rehash" : "keep", "\n";
 
 // A control byte written to the terminal is replaced by a visible glyph.
-echo "\x1b[31mred\x07\n";
+echo Core\Str::fromCodePoint(27), "[31mred\x07\n";
 --FILE partial.nvs--
 <?nvs
 echo "partial\n";

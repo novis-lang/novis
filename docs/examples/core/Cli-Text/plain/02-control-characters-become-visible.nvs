@@ -3,9 +3,10 @@
 // from outside your program may contain them, and after `plain` they are
 // symbols on the screen instead of commands the terminal runs.
 
-// `\u{1B}` is the escape character. In a terminal, `\u{1B}[2J` clears the
-// screen and `\u{1B}[31m` turns the text red.
-string $fromOutside = "report\u{1B}[2J\u{1B}[31m.csv";
+// `Core\Str::fromCodePoint(27)` returns the escape character. In a terminal,
+// `[2J` after it clears the screen, and `[31m` after it turns the text red.
+string $esc = Core\Str::fromCodePoint(27);
+string $fromOutside = "report{$esc}[2J{$esc}[31m.csv";
 
 // This prints "report␛[2J␛[31m.csv". The screen is not cleared and the text
 // does not turn red.

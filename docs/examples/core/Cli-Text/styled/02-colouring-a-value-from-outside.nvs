@@ -5,9 +5,9 @@
 
 var $chosen = Core\Cli\Style::of({color: Core\Cli\Color::MAGENTA});
 
-// A file name a user typed. `\u{1B}` is the escape character. In a terminal it
-// begins a command that clears the screen.
-string $file = "may\u{1B}[2J.csv";
+// A file name a user typed. `Core\Str::fromCodePoint(27)` returns the escape
+// character. In a terminal it begins a command that clears the screen.
+string $file = "may" . Core\Str::fromCodePoint(27) . "[2J.csv";
 
 var $line = Core\Cli\Text::plain("reading ") + Core\Cli\Text::styled($file, $chosen);
 

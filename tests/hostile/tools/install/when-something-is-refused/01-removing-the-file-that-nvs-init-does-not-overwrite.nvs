@@ -104,7 +104,7 @@ array<string> $names = [
     'a` is owned by an administrator',
     "a`\n  help: run `chmod 777 config",
     "a`\r\n  help: give every account the right to write here",
-    "a\x1b[2K\rnote: every folder passed the check",
+    'a' . Core\Str::fromCodePoint(27) . "[2K\rnote: every folder passed the check",
     "a\0` was written",
 ];
 foreach ($names as string $name) {

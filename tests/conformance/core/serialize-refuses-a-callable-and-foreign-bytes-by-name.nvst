@@ -28,7 +28,7 @@ try {
 // bound is asserted from both sides — the line above shares no bytes with the
 // format at all, and this one shares all but the version.
 try {
-    Core\Serialize::decode("NVS\x1b\x63\x00" as bytes);
+    Core\Serialize::decode(("NVS" . Core\Str::fromCodePoint(27) . "\x63\x00") as bytes);
     echo "decoded another build's format\n";
 } catch (ParseError $version) {
     echo $version->message, "\n";

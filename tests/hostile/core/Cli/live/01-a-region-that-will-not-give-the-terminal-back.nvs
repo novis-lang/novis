@@ -45,9 +45,10 @@ echo 'step 3 stopped at once: ', $refused ? 'yes' : 'no', "\n";
 // 4. A row of a million characters, and a row of control characters. Neither may
 //    reach the terminal as a command.
 Core\Cli::live(fn(Core\Cli\Live $screen): uint => {
+    string $esc = Core\Str::fromCodePoint(27);
     $screen->set([
         Core\Cli\Text::plain(Core\Str::repeat('w', 1000000)),
-        Core\Cli\Text::plain("\u{1B}[2J\u{1B}]0;whoami\u{7}\u{0}"),
+        Core\Cli\Text::plain("{$esc}[2J{$esc}]0;whoami\u{7}\u{0}"),
     ]);
     return 0;
 });

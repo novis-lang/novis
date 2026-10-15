@@ -26,7 +26,7 @@ while ($i < 1000000) {
 echo Core\Str::length(Core\Cli::ask('Long?')), "\n";
 
 // Step 4: answers with a zero byte, a new line, a terminal escape code and a lone `\r`.
-Core\Test::scriptAnswers(["a\0b", "one\ntwo", "\x1b[2J\x1b[H", "\r"]);
+Core\Test::scriptAnswers(["a\0b", "one\ntwo", Core\Str::fromCodePoint(27) . '[2J' . Core\Str::fromCodePoint(27) . '[H', "\r"]);
 $i = 0;
 while ($i < 4) {
     echo Core\Str::length(Core\Cli::ask('Text?')), "\n";

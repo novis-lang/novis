@@ -34,7 +34,7 @@ Attack::attempt(2, '</c:f><c:f>Shops!B2:B3', '<x/>!A2:A3');
 
 // 3. A name of 10,000 characters and a name with a newline and control characters.
 Attack::attempt(3, Core\Str::repeat('S', 10000) . '!B2:B3', null);
-Attack::attempt(3, "'Sh\nops\u{0}'!B2:B3", "'\u{1B}'!A2:A3");
+Attack::attempt(3, "'Sh\nops\u{0}'!B2:B3", "'" . Core\Str::fromCodePoint(27) . "'!A2:A3");
 
 // 4. Many marks in one range.
 Attack::attempt(4, 'Shops!Shops!B2:B3', 'a!b!c!A2:A3');

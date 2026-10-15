@@ -22,7 +22,7 @@ string $nested = Core\Html::toSource(Core\Html::escape($deep), 'measuring the es
 echo 'step 3: ', Core\Str::length($nested), "\n";
 
 // 4. A NUL character, a terminal color code and a closing control with no opening one.
-string $mixed = "a\u{0000}b\u{001B}[31mred\u{202C}<&>";
+string $mixed = "a\u{0000}b" . Core\Str::fromCodePoint(27) . "[31mred\u{202C}<&>";
 echo 'step 4: ', Core\Str::length(Core\Html::toSource(Core\Html::escape($mixed), 'measuring the escaped text')), "\n";
 
 // 5. Escaped texts are kept in a list and never freed. This step ends the program at its memory limit.

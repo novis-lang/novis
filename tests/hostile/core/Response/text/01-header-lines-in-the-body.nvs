@@ -12,7 +12,8 @@ Core\Response::text("a\r\nSet-Cookie: sid=admin\r\n\r\nHTTP/1.1 200 OK\r\n\r\n")
 Core\Response::text(Core\Request::query('q') ?? '');
 
 // 3. A NUL byte and an escape code that tries to change the colour of a terminal.
-Core\Response::text("a\x00b\x1b[31mred\x1b[0m");
+string $esc = Core\Str::fromCodePoint(27);
+Core\Response::text("a\x00b{$esc}[31mred{$esc}[0m");
 
 // 4. An empty body.
 Core\Response::text('');

@@ -68,7 +68,8 @@ echo 'step 5 counted ', $huge, " steps of the largest size\n";
 //    Neither may reach the terminal as a command.
 Core\Cli::progress(2, fn(Core\Cli\Progress $bar): uint => {
     $bar->advance({ label: Core\Str::repeat('w', 1000000) });
-    $bar->advance({ label: "\u{1B}[2J\u{1B}]0;whoami\u{7}\u{0}" });
+    string $esc = Core\Str::fromCodePoint(27);
+    $bar->advance({ label: "{$esc}[2J{$esc}]0;whoami\u{7}\u{0}" });
     return 2;
 });
 echo "step 6 painted\n";

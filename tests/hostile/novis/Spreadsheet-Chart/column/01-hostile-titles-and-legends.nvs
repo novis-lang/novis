@@ -28,7 +28,7 @@ Attack::attempt(1, { xTitle: ']]><!ENTITY x SYSTEM "file:///etc/passwd">', yTitl
 
 // 2. Titles of 100,000 characters, of control characters, and of text that is not valid UTF-16.
 Attack::attempt(2, { title: Core\Str::repeat('t', 100000) });
-Attack::attempt(2, { title: "\u{0}\u{1}\u{1B}[31m\u{FFFE}" });
+Attack::attempt(2, { title: "\u{0}\u{1}" . Core\Str::fromCodePoint(27) . "[31m\u{FFFE}" });
 
 // 3. Legend values that are close to the allowed ones.
 Attack::attempt(3, { legend: 'RIGHT' });

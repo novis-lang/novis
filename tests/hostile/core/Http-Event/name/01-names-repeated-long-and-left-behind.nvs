@@ -34,7 +34,7 @@ echo 'step 2: ', $count, "\n";
 
 // 3. Names that are empty, or have a colon, a leading space, a NUL byte or a terminal
 //    escape code. `name()` must return each one exactly as it is in the list.
-array<string> $sent = ['', 'a:b', ' two', "nul\0byte", "\x1b[2Jclear"];
+array<string> $sent = ['', 'a:b', ' two', "nul\0byte", Core\Str::fromCodePoint(27) . '[2Jclear'];
 string $body = '';
 foreach ($sent as string $name) {
     $body = $body . 'event: ' . $name . "\ndata: x\n\n";

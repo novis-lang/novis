@@ -48,7 +48,7 @@ try {
 
 // 4. A question made of control characters. They must not reach the terminal as
 //    commands.
-string $sneaky = "\u{1B}]0;rm -rf /\u{7}what should happen?";
+string $sneaky = Core\Str::fromCodePoint(27) . "]0;rm -rf /\u{7}what should happen?";
 try {
     Core\Cli::multiSelect($sneaky, $choices);
     echo "step 4 was answered\n";

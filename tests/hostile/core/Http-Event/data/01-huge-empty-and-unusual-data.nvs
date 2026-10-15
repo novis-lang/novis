@@ -23,7 +23,7 @@ echo 'step 1: done', "\n";
 
 // 2. Data with a NUL byte, a tab, a terminal escape code and 30000 accented letters.
 //    `data()` must return each one unchanged.
-array<string> $odd = ["a\0b", "tab\there", "\x1b[31mred", Core\Str::repeat('é', 30000)];
+array<string> $odd = ["a\0b", "tab\there", Core\Str::fromCodePoint(27) . '[31mred', Core\Str::repeat('é', 30000)];
 string $body = '';
 foreach ($odd as string $value) {
     $body = $body . 'data: ' . $value . "\n\n";

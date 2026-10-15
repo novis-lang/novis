@@ -8,8 +8,9 @@
 // 1. Captions made of control characters. They clear the screen, rename the
 //    window and end the line early. All of it must arrive as text.
 Core\Cli::progress(3, fn(Core\Cli\Progress $bar): uint => {
-    $bar->advance({ label: "\u{1B}[2J\u{1B}[H" });
-    $bar->advance({ label: "\u{1B}]0;whoami\u{7}" });
+    string $esc = Core\Str::fromCodePoint(27);
+    $bar->advance({ label: "{$esc}[2J{$esc}[H" });
+    $bar->advance({ label: "{$esc}]0;whoami\u{7}" });
     $bar->advance({ label: "a caption\rand another\u{0}\u{8}\u{8}" });
     return 3;
 });

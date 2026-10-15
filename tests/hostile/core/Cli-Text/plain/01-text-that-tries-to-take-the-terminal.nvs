@@ -6,12 +6,13 @@
 
 // 1. A million escape characters in one string. Every one of them must arrive
 //    on screen as a symbol.
-var $loud = Core\Cli\Text::plain(Core\Str::repeat("\u{1B}", 1000000));
+string $esc = Core\Str::fromCodePoint(27);
+var $loud = Core\Cli\Text::plain(Core\Str::repeat($esc, 1000000));
 echo 'step 1 made ', Core\Str::length($loud->text()), " characters\n";
 
 // 2. The commands a terminal really runs: clear the screen, rename the window,
 //    move the cursor, and end the line early.
-echo Core\Cli\Text::plain("\u{1B}[2J\u{1B}[H\u{1B}]0;whoami\u{7}\r\u{0}\u{8}"), "\n";
+echo Core\Cli\Text::plain("{$esc}[2J{$esc}[H{$esc}]0;whoami\u{7}\r\u{0}\u{8}"), "\n";
 echo "step 2 printed\n";
 
 // 3. Characters that make text read backwards. A line that is never closed

@@ -7,9 +7,10 @@
 // 1. A row of control characters. It clears the screen, renames the window and
 //    ends the line early. All of it must arrive as text.
 Core\Cli::live(fn(Core\Cli\Live $screen): uint => {
+    string $esc = Core\Str::fromCodePoint(27);
     $screen->set([
-        Core\Cli\Text::plain("\u{1B}[2J\u{1B}[H"),
-        Core\Cli\Text::plain("\u{1B}]0;whoami\u{7}"),
+        Core\Cli\Text::plain("{$esc}[2J{$esc}[H"),
+        Core\Cli\Text::plain("{$esc}]0;whoami\u{7}"),
         Core\Cli\Text::plain("a row\rand another\u{0}\u{8}\u{8}"),
     ]);
     return 0;

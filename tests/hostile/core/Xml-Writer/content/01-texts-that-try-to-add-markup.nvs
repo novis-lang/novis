@@ -34,7 +34,7 @@ Try::call(fn(): void => { $out->content('<!-- --><?php ?><!DOCTYPE x>'); });
 
 // 3. Texts with characters XML cannot write. Each prints LogicError.
 Try::call(fn(): void => { $out->content("a\x00b"); });
-Try::call(fn(): void => { $out->content("a\x1Bb"); });
+Try::call(fn(): void => { $out->content('a' . Core\Str::fromCodePoint(27) . 'b'); });
 Try::call(fn(): void => { $out->content("\u{FFFE}"); });
 Try::call(fn(): void => { $out->content("\u{FFFF}"); });
 

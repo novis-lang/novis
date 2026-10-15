@@ -15,7 +15,7 @@ try {
 
 // 2. A question made of control characters. They must not reach the terminal as
 //    commands, and the default must come back unchanged.
-string $sneaky = "\u{1B}]0;rm -rf /\u{7}your password?";
+string $sneaky = Core\Str::fromCodePoint(27) . "]0;rm -rf /\u{7}your password?";
 echo 'step 2 ', Core\Cli::ask($sneaky, { default: 'kept' }), "\n";
 
 // 3. A question of nearly ten million characters. The program must keep going.

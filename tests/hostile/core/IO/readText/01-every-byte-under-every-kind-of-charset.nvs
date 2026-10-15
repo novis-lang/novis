@@ -50,7 +50,8 @@ foreach ($broken as array<bytes> $content) {
 echo 'step 2: done', "\n";
 
 // 3. One million escape codes that switch ISO-2022-JP between its modes, with no text between them.
-string $switch = "\x1b" . '$B' . "\x1b" . '(B';
+string $esc = Core\Str::fromCodePoint(27);
+string $switch = $esc . '$B' . $esc . '(B';
 Core\IO::write($path, Core\Str::repeat($switch, 1000000));
 try {
     Core\IO::readText($path, { charset: Core\Charset::Iso2022Jp });

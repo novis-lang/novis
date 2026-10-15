@@ -4,9 +4,10 @@
 // gives you that safe text as a value, so your program can hold it and measure
 // it.
 
-// There is no terminal here, so the answer is the default. The default ends with
+// There is no terminal here, so `ask` returns the default. The default ends with
 // a control sequence that clears the screen.
-tainted string $typed = Core\Cli::ask("Who is the order for?", {default: "ada\u{1B}[2J"});
+string $clear = Core\Str::fromCodePoint(27) . "[2J";
+tainted string $typed = Core\Cli::ask("Who is the order for?", {default: "ada" . $clear});
 
 // The result is a plain `string`, not a tainted one, and nothing in it can
 // control a terminal.

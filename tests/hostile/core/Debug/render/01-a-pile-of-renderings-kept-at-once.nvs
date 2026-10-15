@@ -7,7 +7,7 @@
 
 // Step 1: a million control bytes. Each one is made visible, so the text is
 // several times longer than the value it describes.
-string $control = Core\Str::repeat("\x00\x01\t\x1b", 250000);
+string $control = Core\Str::repeat("\x00\x01\t" . Core\Str::fromCodePoint(27), 250000);
 var $escaped = Core\Debug::render($control);
 echo 'step 1: ', Core\Str::length($control), " control bytes rendered\n";
 

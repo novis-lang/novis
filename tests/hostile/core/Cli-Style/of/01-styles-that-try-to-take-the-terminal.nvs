@@ -35,9 +35,10 @@ echo 'step 2 kept ', Core\Arr::count($kept), " styles\n";
 // 3. Text made of control characters wearing a style. It clears the screen,
 //    renames the window and writes an escape sequence of its own.
 var $loud = Core\Cli\Style::of({ color: Core\Cli\Color::BRIGHT_RED, underline: true });
-echo Core\Cli\Text::styled("\u{1B}[2J\u{1B}[H", $loud);
-echo Core\Cli\Text::styled("\u{1B}]0;whoami\u{7}", $loud);
-echo Core\Cli\Text::styled("<red>\u{1B}[31m</red>\u{0}\u{8}", $loud), "\n";
+string $esc = Core\Str::fromCodePoint(27);
+echo Core\Cli\Text::styled("{$esc}[2J{$esc}[H", $loud);
+echo Core\Cli\Text::styled("{$esc}]0;whoami\u{7}", $loud);
+echo Core\Cli\Text::styled("<red>{$esc}[31m</red>\u{0}\u{8}", $loud), "\n";
 echo "step 3 printed\n";
 
 // 4. A styled text of a million characters. The style is written once around

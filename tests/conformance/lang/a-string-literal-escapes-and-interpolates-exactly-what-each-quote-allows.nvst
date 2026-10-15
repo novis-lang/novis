@@ -33,7 +33,6 @@ array<bool> $same = [
     "\r" == "\u{D}",
     "\v" == "\u{B}",
     "\f" == "\u{C}",
-    "\e" == "\u{1B}",
     "\0" == "\u{0}",
     "\303\251" == "é",
     "\xC3\xA9" == "é",
@@ -76,7 +75,7 @@ echo "|\n";
 --EXPECT--
 both[\]['] and \t \n $who|
 112
-10/10
+9/9
 dollar[$a] quote["] back[\] unknown[\q] 2
 bare[ann] key[ann] onelevel[ann[j]]
 prop[div] call[DIV] expr[7] key[ann]

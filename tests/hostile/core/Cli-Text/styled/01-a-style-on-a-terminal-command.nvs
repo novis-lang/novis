@@ -5,15 +5,16 @@
 // hostile: timeout-ms 60000
 
 var $red = Core\Cli\Style::of({ color: Core\Cli\Color::RED });
+string $esc = Core\Str::fromCodePoint(27);
 
 // 1. A million escape characters wearing a style. Every one of them must
 //    arrive on screen as a symbol.
-var $loud = Core\Cli\Text::styled(Core\Str::repeat("\u{1B}", 1000000), $red);
+var $loud = Core\Cli\Text::styled(Core\Str::repeat($esc, 1000000), $red);
 echo 'step 1 made ', Core\Str::length($loud->text()), " characters\n";
 
 // 2. The commands a terminal really runs, wearing a style: clear the screen,
 //    rename the window, move the cursor, and end the line early.
-echo Core\Cli\Text::styled("\u{1B}[2J\u{1B}[H\u{1B}]0;whoami\u{7}\r\u{0}\u{8}", $red), "\n";
+echo Core\Cli\Text::styled("{$esc}[2J{$esc}[H{$esc}]0;whoami\u{7}\r\u{0}\u{8}", $red), "\n";
 echo "step 2 printed\n";
 
 // 3. One style used by three hundred thousand pieces of text, one at a time.

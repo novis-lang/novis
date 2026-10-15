@@ -35,7 +35,8 @@ try {
 
 // 2. A name made of the commands a terminal runs: clear the screen, rename the
 //    window, move the cursor. None of them may reach the screen.
-string $sneaky = "\u{1B}[2J\u{1B}]0;whoami\u{7}\u{0}deploy";
+string $esc = Core\Str::fromCodePoint(27);
+string $sneaky = "{$esc}[2J{$esc}]0;whoami\u{7}\u{0}deploy";
 try {
     Core\Command::help($sneaky);
     echo "step 2 found a command\n";

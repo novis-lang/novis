@@ -8,7 +8,7 @@
 
 class Bench {
     public static function run(uint $rounds): uint {
-        array<string> $labels = ["order", "order\u{1B}[31m", "Café"];
+        array<string> $labels = ["order", "order" . Core\Str::fromCodePoint(27) . "[31m", "Café"];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
