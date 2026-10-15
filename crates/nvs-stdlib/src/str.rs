@@ -4382,6 +4382,39 @@ mod tests {
         );
     }
 
+    /// `parts` answers text and holes taking turns, text first and last, with
+    /// each doubled brace written once in the text and a hole's name as
+    /// written. Text with no hole is one piece.
+    // covers: Core\Str::parts
+    #[test]
+    fn parts_alternates_text_and_holes_and_writes_a_doubled_brace_once() {
+        let pieces = |subject: &str| -> Vec<String> {
+            let result = run(super::nvs_core_str_parts, &[s(subject)])
+                .expect("a valid string with holes never fails");
+            #[expect(
+                unsafe_code,
+                reason = "the helper returned one fresh reference, which the \
+                          handle takes over and releases on drop"
+            )]
+            let array =
+                unsafe { NvsArray::from_raw(result.array_ptr().expect("parts returns an array")) };
+            (0..array.count())
+                .map(|at| {
+                    let piece = array.value_at(at).expect("every position holds a value");
+                    String::from_utf8(piece.as_str_bytes().expect("a string").to_vec())
+                        .expect("every piece is UTF-8")
+                })
+                .collect()
+        };
+        assert_eq!(
+            pieces("{total} > 1 AND {customer.name} = '{{x}}'"),
+            ["", "total", " > 1 AND ", "customer.name", " = '{x}'"]
+        );
+        assert_eq!(pieces("{a}{b}"), ["", "a", "", "b", ""]);
+        assert_eq!(pieces("no holes"), ["no holes"]);
+        assert_eq!(pieces(""), [""]);
+    }
+
     /// The pieces `split` produces, read back in order.
     fn split_at(subject: &str, separator: &str, limit: i64) -> Vec<String> {
         let result = run(

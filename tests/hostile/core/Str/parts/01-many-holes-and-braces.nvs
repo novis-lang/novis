@@ -1,0 +1,76 @@
+<?nvs
+// Attack: `Core\Str::parts` gets texts with very many holes, very many doubled braces, and texts
+// that are not valid. Each call should finish quickly, and no bad text should reach `parts`. The
+// last call needs more memory than the limit allows, and the program should stop there with an error.
+// hostile: timeout-ms 20000
+// hostile: ends-early 6 FATAL
+
+class Order
+{
+    public int $a = 0;
+}
+
+class Attack
+{
+    public static function count(string<property<Order>> $text): uint
+    {
+        return Core\Arr::count(Core\Str::parts($text));
+    }
+
+    /// 1. Gives one million doubled braces. They are all text, so the result is one piece.
+    public static function manyDoubledBraces(): uint
+    {
+        return self::count(Core\Str::repeat('{{', 1000000) as string<property<Order>>);
+    }
+
+    /// 2. Gives 200000 holes. The result has 400001 pieces.
+    public static function manyHoles(): uint
+    {
+        return self::count(Core\Str::repeat('{a}', 200000) as string<property<Order>>);
+    }
+
+    /// 3. Gives 4 MiB of text with no hole. The result is one piece.
+    public static function noHole(): uint
+    {
+        return self::count(Core\Str::repeat('x', 4194304) as string<property<Order>>);
+    }
+
+    /// 4. Tries texts that are not valid. Each conversion gives `null`, so `parts` never sees them.
+    public static function badTexts(): uint
+    {
+        uint $refused = 0;
+        array<string> $texts = ['{', '}', '{}', '{ a}', '{b}', '{a', Core\Str::repeat('{', 1000001)];
+        foreach ($texts as string $text) {
+            if (($text . '') as ?string<property<Order>> == null) {
+                $refused = $refused + 1;
+            }
+        }
+        return $refused;
+    }
+
+    /// 5. Calls it one million times on a short text and keeps none of the results.
+    public static function manySmallCalls(uint $rounds): uint
+    {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + self::count('{a} = 1');
+            $i = $i + 1;
+        }
+        return $total;
+    }
+
+    /// 6. Gives 64 MiB of holes. The pieces need far more memory than the limit allows.
+    public static function morePiecesThanTheLimit(): uint
+    {
+        echo "step 6\n";
+        return self::count(Core\Str::repeat('{a}', 22369621) as string<property<Order>>);
+    }
+}
+
+echo Attack::manyDoubledBraces(), "\n";
+echo Attack::manyHoles(), "\n";
+echo Attack::noHole(), "\n";
+echo Attack::badTexts(), "\n";
+echo Attack::manySmallCalls(1000000), "\n";
+echo Attack::morePiecesThanTheLimit(), "\n";
