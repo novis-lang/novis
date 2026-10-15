@@ -11792,7 +11792,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Writes each value in a readable form, for debugging. It never writes to standard output. Outside a web request, it writes to standard error. Inside a web request, it writes a log record at the <code>Debug</code> level. In production, that record is not kept unless <code>[log] level</code> is <code>&quot;Debug&quot;</code>. With <code>[debug] inline</code>, the dump is also added to an HTML response.",
+            "shortHtml": "Writes each value in a readable form, for debugging. It never writes to standard output. Outside a web request, it writes to standard error, in colour when standard error is a terminal that shows colour. Inside a web request, it writes a log record at the <code>Debug</code> level. In production, that record is not kept unless <code>[log] level</code> is <code>&quot;Debug&quot;</code>. With <code>[debug] inline</code>, the dump is also added to an HTML response.",
             "params": [
               {
                 "name": "values",
@@ -11837,7 +11837,7 @@
                 "descHtml": "The value to render, walked as <code>dump</code> walks one."
               }
             ],
-            "returnHtml": "The plaintext rendering as a <code>Core\\Cli\\Text</code> under every sink, without the trailing newline <code>dump</code> writes."
+            "returnHtml": "The plaintext rendering as a <code>Core\\Cli\\Text</code> under every sink. It has no colour and no trailing newline."
           },
           "slug": "render",
           "url": "/reference/core/debug/render/",
