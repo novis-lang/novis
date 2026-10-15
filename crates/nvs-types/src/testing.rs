@@ -354,6 +354,12 @@ pub(crate) fn check_class_tests(decl: &ClassDecl, class: &QName, ctx: &Ctx<'_>, 
         let test = attribute_named(&m.attributes, crate::derive::TEST, ctx, env);
         let fixture = attribute_named(&m.attributes, crate::derive::FIXTURE, ctx, env);
         let rows = rows_attached(&m.attributes, ctx, env);
+        if crate::test_hooks::is_hook(m, ctx, env) {
+            // `crate::test_hooks` checks a hook, and refuses one that is also a
+            // test or a fixture, so it is in neither roster here.
+            report_stray_rows(&rows, "is a hook rather than a `#[Test]`", env);
+            continue;
+        }
         if test.is_none() && fixture.is_none() {
             // `rule:testing/data-rows` attaches a row to a `#[Test]`, and to nothing else: what a
             // row is matched against is that method's parameter list, and a

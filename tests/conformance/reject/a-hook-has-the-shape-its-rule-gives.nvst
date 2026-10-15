@@ -1,0 +1,138 @@
+--TEST--
+`#[BeforeClass]` and `#[AfterClass]` are `public static` methods returning `void`, `#[AfterEachTest]` is a `public` instance method returning `void`, each takes at most the one parameter its rule names, and a hook is not also a test, a fixture or a second hook, `rule:testing/class-hooks`, `rule:testing/after-each-test`
+--FILE--
+<?nvs
+use Core\Test;
+use Core\Test\AfterClass;
+use Core\Test\AfterEachTest;
+use Core\Test\BeforeClass;
+use Core\Test\Fixture;
+
+final class Schema {}
+
+// Each hook in the shape its rule gives compiles.
+final class AcceptedTest {
+    #[BeforeClass]
+    public static function createDatabase(): void {
+    }
+
+    #[AfterClass]
+    public static function dropDatabase(): void {
+    }
+
+    #[AfterEachTest]
+    public function removeFiles(): void {
+    }
+
+    #[Test]
+    public function itRuns(): void {
+        Test::assertSame(1, 1);
+    }
+}
+
+final class ClassHooksTest {
+    // Refused: a class hook runs before any test object exists.
+    #[BeforeClass]
+    public function notStatic(): void {
+    }
+
+    // Refused: the runner calls a hook from outside its class.
+    #[AfterClass]
+    private static function notPublic(): void {
+    }
+
+    // Refused: a hook runs on the test's own object, so it is not static.
+    #[AfterEachTest]
+    public static function staticPerTest(): void {
+    }
+}
+
+final class ReturnsAndParametersTest {
+    // Refused: nothing reads what a hook returns.
+    #[BeforeClass]
+    public static function returnsAValue(): int {
+        return 1;
+    }
+
+    // Refused: `#[AfterClass]` may take a `Core\Test\Summary` and nothing else.
+    #[AfterClass]
+    public static function takesAnInt(int $count): void {
+    }
+
+    // Refused: `#[AfterEachTest]` may take one parameter.
+    #[AfterEachTest]
+    public function takesTwo(int $a, int $b): void {
+    }
+}
+
+final class BeforeClassParameterTest {
+    // Refused: `#[BeforeClass]` runs before anything exists to pass it.
+    #[BeforeClass]
+    public static function takesOne(int $count): void {
+    }
+
+    // Refused: a hook takes no options.
+    #[AfterClass(name: "drop")]
+    public static function withAnOption(): void {
+    }
+}
+
+final class TwoThingsTest {
+    // Refused: a method is a hook or a test.
+    #[Test]
+    #[AfterEachTest]
+    public function alsoATest(): void {
+    }
+
+    // Refused: a method is a hook or a fixture.
+    #[Fixture]
+    #[BeforeClass]
+    public static function alsoAFixture(): Schema {
+        return new Schema();
+    }
+
+    // Refused: a method is one hook.
+    #[AfterClass]
+    #[BeforeClass]
+    public static function bothClassHooks(): void {
+    }
+}
+--EXPECTF-ERROR--
+error[E0862]: the `#[BeforeClass]` method `notStatic` is not `static`
+   --> case.nvs:33:21
+%A
+error[E0862]: the `#[AfterClass]` method `notPublic` is not `public`
+   --> case.nvs:38:29
+%A
+error[E0862]: the `#[AfterEachTest]` method `staticPerTest` is `static`
+   --> case.nvs:43:28
+%A
+error[E0862]: the `#[BeforeClass]` method `returnsAValue` returns `int`
+   --> case.nvs:50:28
+%A
+error[E0862]: the `#[AfterClass]` method `takesAnInt` declares a parameter that is not a `Core\Test\Summary`
+   --> case.nvs:56:39
+%A
+error[E0862]: the `#[AfterEachTest]` method `takesTwo` declares a parameter that is not a `Core\Test\Outcome`
+   --> case.nvs:61:30
+%A
+error[E0862]: the `#[AfterEachTest]` method `takesTwo` declares more than one parameter
+   --> case.nvs:61:38
+%A
+error[E0862]: the `#[BeforeClass]` method `takesOne` declares a parameter
+   --> case.nvs:68:37
+%A
+error[E0454]: `name` is not an option of `#[AfterClass]`
+   --> case.nvs:72:18
+%A
+error[E0862]: the `#[AfterEachTest]` method `alsoATest` is also a `#[Test]`
+   --> case.nvs:81:21
+%A
+error[E0862]: the `#[BeforeClass]` method `alsoAFixture` is also a `#[Fixture]`
+   --> case.nvs:87:28
+%A
+error[E0862]: the `#[BeforeClass]` method `bothClassHooks` is also `#[AfterClass]`
+   --> case.nvs:94:28
+%A
+error: aborting due to 12 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -239,8 +239,9 @@ There is no `#[BeforeEachTest]`: the constructor is that hook ([`testing/constru
 A test runs with the program's own grants (`crates/nvs-cli/src/runner.rs:384`), so the hook can remove
 whatever the test was allowed to create.
 
-**Not on disk.** `#[AfterEachTest]` is not a recognised attribute (`crates/nvs-types/src/derive.rs:71`),
-and `Core\Test\Outcome` does not exist.
+**Not on disk.** `#[AfterEachTest]` compiles and is checked (`crates/nvs-types/src/test_hooks.rs:114`),
+but the runner does not call it (`crates/nvs-cli/src/runner.rs:785`), and `Core\Test\Outcome` does not
+exist.
 
 - **Memory:** one `Outcome` per attempt, a few strings and one list of failure messages, released when
   the hook returns. A class without the hook pays nothing.
@@ -325,8 +326,9 @@ A hook that writes a static property in its own body is refused where it is writ
 in its own isolate and reads the static's declared initial value, so the write would look like setup
 and set up nothing.
 
-**Not on disk.** Neither attribute is recognised (`crates/nvs-types/src/derive.rs:71`), and
-`Core\Test\Summary` does not exist.
+**Not on disk.** Both attributes compile and are checked (`crates/nvs-types/src/test_hooks.rs:114`),
+but the runner calls neither (`crates/nvs-cli/src/runner.rs:785`), and `Core\Test\Summary` does not
+exist.
 
 - **Memory:** one `Summary` per class, four integers and the names of its failed tests, held in the
   parent from the class's first test to the return of `#[AfterClass]`. A class without the hooks pays
@@ -373,9 +375,10 @@ running a test written in `DatabaseTest` reports `ShopTest::itConnects`. One con
 in a base class then runs against every implementation. A base class that is not abstract is a test
 class of its own as well, and runs its tests once for itself.
 
-**Not on disk.** None of the three hooks exists yet ([`testing/class-hooks`](testing.md#testing-class-hooks),
-[`testing/after-each-test`](testing.md#testing-after-each-test)), and test collection reads a class's own members alone, so neither an
-inherited `#[Test]` nor an inherited `#[Fixture]` is collected (`crates/nvs-types/src/testing.rs:350`).
+**Not on disk.** One hook of each kind is checked per class, but the runner calls none of them
+([`testing/class-hooks`](testing.md#testing-class-hooks), [`testing/after-each-test`](testing.md#testing-after-each-test)). Test collection reads a class's own
+members alone, so neither an inherited `#[Test]` nor an inherited `#[Fixture]` is collected
+(`crates/nvs-types/src/testing.rs:350`).
 
 **Declined:**
 - **Several hooks of one kind, run in declaration order.** The order would be a rule every reader must

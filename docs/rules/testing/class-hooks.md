@@ -33,8 +33,9 @@ A hook that writes a static property in its own body is refused where it is writ
 in its own isolate and reads the static's declared initial value, so the write would look like setup
 and set up nothing.
 
-**Not on disk.** Neither attribute is recognised (`crates/nvs-types/src/derive.rs:71`), and
-`Core\Test\Summary` does not exist.
+**Not on disk.** Both attributes compile and are checked (`crates/nvs-types/src/test_hooks.rs:114`),
+but the runner calls neither (`crates/nvs-cli/src/runner.rs:785`), and `Core\Test\Summary` does not
+exist.
 
 - **Memory:** one `Summary` per class, four integers and the names of its failed tests, held in the
   parent from the class's first test to the return of `#[AfterClass]`. A class without the hooks pays

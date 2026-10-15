@@ -5578,6 +5578,34 @@ pub mod code {
         "In a `string<K>`, each `{name}` is a hole. A hole cannot be empty, and every `{` needs \
          a `}`. Write `{{` for a `{` and `}}` for a `}` that are only text.",
     );
+    /// A `#[BeforeClass]`, `#[AfterClass]` or `#[AfterEachTest]` method the
+    /// runner could not call as its rule says — `rule:testing/class-hooks`
+    /// and `rule:testing/after-each-test`.
+    ///
+    /// The two class hooks are `public static` and the per-test one is a
+    /// `public` instance method, and all three return `void` and have a body.
+    /// `#[BeforeClass]` takes no parameter, `#[AfterClass]` at most one
+    /// `Core\Test\Summary` and `#[AfterEachTest]` at most one
+    /// `Core\Test\Outcome`. A method carrying two hook attributes, or a hook
+    /// attribute beside `#[Test]` or `#[Fixture]`, is one method claiming to be
+    /// two things. One code for all three, because the help each refusal
+    /// gives names the hook it is about. A second hook of one kind is
+    /// [`E_DUPLICATE_DECLARATION`].
+    pub const E_TEST_HOOK_SHAPE: Code = Code::new("E0862").card(
+        "A `#[BeforeClass]` or `#[AfterClass]` method must be `public static`. An \
+         `#[AfterEachTest]` method must be `public` and not `static`. All three return `void`. \
+         `#[AfterClass]` may take one `Core\\Test\\Summary` and `#[AfterEachTest]` one \
+         `Core\\Test\\Outcome`.",
+    );
+    /// A `#[BeforeClass]` or `#[AfterClass]` method whose own body writes a
+    /// static property — `rule:testing/class-hooks`. Every test runs in its
+    /// own isolate and reads the static's declared initial value, so the write
+    /// would look like setup and set up nothing.
+    pub const E_CLASS_HOOK_WRITES_STATIC: Code = Code::new("E0863").card(
+        "A `#[BeforeClass]` or `#[AfterClass]` method cannot write a static property. Each test \
+         runs on its own and reads the value the property is declared with. Return the value \
+         from a `#[Fixture]` method instead.",
+    );
 
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.

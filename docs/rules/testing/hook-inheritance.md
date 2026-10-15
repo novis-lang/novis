@@ -24,9 +24,10 @@ running a test written in `DatabaseTest` reports `ShopTest::itConnects`. One con
 in a base class then runs against every implementation. A base class that is not abstract is a test
 class of its own as well, and runs its tests once for itself.
 
-**Not on disk.** None of the three hooks exists yet (`rule:testing/class-hooks`,
-`rule:testing/after-each-test`), and test collection reads a class's own members alone, so neither an
-inherited `#[Test]` nor an inherited `#[Fixture]` is collected (`crates/nvs-types/src/testing.rs:350`).
+**Not on disk.** One hook of each kind is checked per class, but the runner calls none of them
+(`rule:testing/class-hooks`, `rule:testing/after-each-test`). Test collection reads a class's own
+members alone, so neither an inherited `#[Test]` nor an inherited `#[Fixture]` is collected
+(`crates/nvs-types/src/testing.rs:350`).
 
 **Declined:**
 - **Several hooks of one kind, run in declaration order.** The order would be a rule every reader must

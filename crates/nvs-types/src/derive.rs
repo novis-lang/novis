@@ -64,13 +64,31 @@ use crate::{Ctx, Env, span_text, strip_sigil};
 ///
 /// A name on this roster names no shape, so [`crate::attributes`]'s `rule:attributes/attach-sites-and-forms` rule does not apply to it and what its payload may hold is the
 /// recognizing pass's own question: `#[Json\Derive]`/`#[Json\Field]` are this
-/// module's, `#[Test]` is [`crate::testing`]'s, `#[Command]`/`#[Option]` are
+/// module's, `#[Test]` is [`crate::testing`]'s, `#[BeforeClass]`,
+/// `#[AfterClass]` and `#[AfterEachTest]` are [`crate::test_hooks`]',
+/// `#[Command]`/`#[Option]` are
 /// [`crate::commands`]', `#[Route]`/`#[Query]`/`#[Access]` are
 /// [`crate::routes`]', `#[Core\Path]` is [`crate::paths`]' and
 /// `#[Core\Deprecated]` is [`crate::deprecated`]'s.
 pub const ATTRIBUTES: &[&str] = [
-    DERIVE, FIELD, DB_DERIVE, DB_FIELD, TEST, FIXTURE, TEST_WITH, COMMAND, OPTION, ROUTE, QUERY,
-    ACCESS, API, PATH, DEPRECATED,
+    DERIVE,
+    FIELD,
+    DB_DERIVE,
+    DB_FIELD,
+    TEST,
+    FIXTURE,
+    TEST_WITH,
+    BEFORE_CLASS,
+    AFTER_CLASS,
+    AFTER_EACH_TEST,
+    COMMAND,
+    OPTION,
+    ROUTE,
+    QUERY,
+    ACCESS,
+    API,
+    PATH,
+    DEPRECATED,
 ]
 .as_slice();
 
@@ -275,6 +293,28 @@ pub const ATTRIBUTE_DOCS: &[AttributeDoc] = &[
         short: "Gives one row of arguments to the test method below it. The fields are the \
                 method's own parameters, and the method runs once per row.",
         site: "a test method",
+    },
+    AttributeDoc {
+        name: BEFORE_CLASS,
+        fields: &[],
+        short: "Says that this static method runs once, before the first test of its class. Use \
+                it to create something the tests use, such as a database.",
+        site: "a static method",
+    },
+    AttributeDoc {
+        name: AFTER_CLASS,
+        fields: &[],
+        short: "Says that this static method runs once, after the last test of its class. It \
+                also runs when a test fails. Use it to delete what `#[BeforeClass]` created.",
+        site: "a static method",
+    },
+    AttributeDoc {
+        name: AFTER_EACH_TEST,
+        fields: &[],
+        short: "Says that this method runs after each test of its class, on the same object, \
+                whether the test passed or failed. Use it to delete files or rows the test \
+                created.",
+        site: "a method",
     },
     AttributeDoc {
         name: COMMAND,
@@ -484,6 +524,21 @@ pub const FIXTURE: &str = r"Core\Test\Fixture";
 /// [`crate::testing::check_class_tests`] holds. That module owns what a row
 /// may carry.
 pub const TEST_WITH: &str = r"Core\Test\TestWith";
+
+/// `#[BeforeClass]` — `rule:testing/class-hooks`' setup, on a `public static`
+/// method that runs once before a class's tests. It sits in the `Core\Test`
+/// namespace beside [`FIXTURE`] and for that entry's reason, and
+/// [`crate::test_hooks`] owns what it and its two siblings may be written on.
+pub const BEFORE_CLASS: &str = r"Core\Test\BeforeClass";
+
+/// `#[AfterClass]` — `rule:testing/class-hooks`' cleanup, the pair of
+/// [`BEFORE_CLASS`], run once after a class's last test.
+pub const AFTER_CLASS: &str = r"Core\Test\AfterClass";
+
+/// `#[AfterEachTest]` — `rule:testing/after-each-test`'s cleanup, on a
+/// `public` instance method run after every attempt of every test, on the
+/// object the test ran on.
+pub const AFTER_EACH_TEST: &str = r"Core\Test\AfterEachTest";
 
 /// `#[Command(name: string, about?: string)]` — `rule:tooling/commands-are-compiled`'s marker, on a
 /// `static` method. It is the same class the entry point `Core\Command::run`
@@ -2440,6 +2495,6 @@ fn attribute_fields<'a>(
 
 /// `rule:core-classes/derive-attribute`'s nominal match: `text`, resolved against the active namespace
 /// and imports, is exactly `want`.
-fn resolves_to(text: &str, want: &str, ctx: &Ctx<'_>) -> bool {
+pub(crate) fn resolves_to(text: &str, want: &str, ctx: &Ctx<'_>) -> bool {
     nvs_hir::resolve_ref(text, ctx.namespace, ctx.imports) == QName::parse(want)
 }

@@ -6824,6 +6824,9 @@ class Home {
 - `#[Core\Test]`
 - `#[Core\Test\Fixture]`
 - `#[Core\Test\TestWith]`
+- `#[Core\Test\BeforeClass]`
+- `#[Core\Test\AfterClass]`
+- `#[Core\Test\AfterEachTest]`
 - `#[Core\Command]`
 - `#[Core\Option]`
 - `#[Core\Route]`

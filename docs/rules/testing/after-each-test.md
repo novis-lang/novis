@@ -30,8 +30,9 @@ There is no `#[BeforeEachTest]`: the constructor is that hook (`rule:testing/con
 A test runs with the program's own grants (`crates/nvs-cli/src/runner.rs:384`), so the hook can remove
 whatever the test was allowed to create.
 
-**Not on disk.** `#[AfterEachTest]` is not a recognised attribute (`crates/nvs-types/src/derive.rs:71`),
-and `Core\Test\Outcome` does not exist.
+**Not on disk.** `#[AfterEachTest]` compiles and is checked (`crates/nvs-types/src/test_hooks.rs:114`),
+but the runner does not call it (`crates/nvs-cli/src/runner.rs:785`), and `Core\Test\Outcome` does not
+exist.
 
 - **Memory:** one `Outcome` per attempt, a few strings and one list of failure messages, released when
   the hook returns. A class without the hook pays nothing.
