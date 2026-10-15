@@ -8,5 +8,5 @@ is where that bites.
 `decimal` from the position it is written in instead (`rule:types/numeric-literal-placement`), and a
 literal too wide for `int` is legal only where a `uint` is expected.
 
-The escape grammar inside a string literal is unrelated to this, and includes `\v`, `\f`, `\e` and
+The escape grammar inside a string literal is unrelated to this, and includes `\v`, `\f` and
 the octal `\0`–`\777`.

@@ -11,7 +11,7 @@ The chain holds 1 goal(s). `language-rule-debts` is live.
 
 | # | Goal | Reached when | Stages |
 |---|---|---|---|
-| 1 | [`language-rule-debts`](language-rule-debts.md) **live** | Every rule this goal owns is `shipped` with a guard test, and `bun nv owners --closes language-rule-debts` passes. | **1 an `ESC` in source text is a compile error** · 2 `let` and `is` name nothing · 3 the renderings match the rule · 4 a generator does not `clone` · 5 `?T $x = null` decodes an absent key · 6 `nvs check` warns on a nullable condition · 7 a member reached from two sources is a compile error |
+| 1 | [`language-rule-debts`](language-rule-debts.md) **live** | Every rule this goal owns is `shipped` with a guard test, and `bun nv owners --closes language-rule-debts` passes. | 1 ✓ an `ESC` in source text is a compile error · **2 `let` and `is` name nothing** · 3 the renderings match the rule · 4 a generator does not `clone` · 5 `?T $x = null` decodes an absent key · 6 `nvs check` warns on a nullable condition · 7 a member reached from two sources is a compile error |
 
 The floor holds 0 check(s) carried from reached goals; every goal keeps them green.
 The format is `docs/goal-format.md`.

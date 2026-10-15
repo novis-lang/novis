@@ -14,8 +14,10 @@
 //! the escapes and reports the two ways cooking can still fail — an
 //! out-of-range/surrogate `\u{...}` codepoint, or a `\xHH`/octal byte escape
 //! sequence that does not decode as valid UTF-8 (`rule:types/bytes`'s "`string` is
-//! guaranteed-valid UTF-8" invariant) — before `nvs-ir` ever lowers the
-//! literal.
+//! guaranteed-valid UTF-8" invariant) — and the one value cooking may not
+//! produce, an `ESC` byte
+//! (`rule:tooling/an-escape-in-source-text-is-a-compile-error`), before
+//! `nvs-ir` ever lowers the literal.
 //!
 //! **One escape grammar, and it lives at the bottom.** Three crates above this
 //! one have to agree byte for byte about what a written literal denotes:
@@ -62,14 +64,25 @@
 
 use nvs_diagnostics::{SourceFile, Span};
 
-/// One way [`cook_double_quoted_text`] failed to fully cook its input.
+/// The `ESC` control byte that starts a terminal escape sequence. A literal
+/// that decodes to it is [`CookIssue::EscapeCharacter`].
+pub const ESC: u8 = 0x1B;
+
+/// One way [`cook_double_quoted_text`] failed to fully cook its input, or
+/// cooked it into text the source may not write.
 /// Cooking still returns a best-effort `String` alongside these (lossy UTF-8
 /// substitution for [`CookIssue::InvalidUtf8`], the escape dropped entirely
-/// for [`CookIssue::InvalidUnicodeEscape`]) so a caller that reports and
-/// keeps going — every checker diagnostic in this crate does — has something
-/// to keep checking against.
+/// for [`CookIssue::InvalidUnicodeEscape`], the `ESC` byte kept for
+/// [`CookIssue::EscapeCharacter`]) so a caller that reports and keeps going —
+/// every checker diagnostic in this crate does — has something to keep
+/// checking against.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CookIssue {
+    /// One character or escape decoded to an `ESC` byte (`0x1B`): a raw `ESC`
+    /// written in the literal, `\e`, `\x1b`, an octal escape such as `\033`,
+    /// or `\u{1b}` (`rule:tooling/an-escape-in-source-text-is-a-compile-error`).
+    /// The span covers just that one character or escape.
+    EscapeCharacter(Span),
     /// A `\u{...}` escape named a value outside Unicode's valid scalar range
     /// (`> 0x10FFFF`) or inside the UTF-16 surrogate range
     /// (`0xD800..=0xDFFF`) — neither has a UTF-8 encoding. The span covers
@@ -339,11 +352,15 @@ fn cook_heredoc_literal(src: &SourceFile, span: Span, raw: &str) -> String {
 
 /// `positions`, when a caller asks for one, is filled with `text`'s own
 /// offsets — one entry per decoded byte, plus the past-the-end sentinel — and
-/// the caller rebases them onto the file. It is padded at the *top* of each
-/// iteration from the offset the previous one consumed, rather than beside
-/// every append below: the escape table pushes bytes at more than a dozen
-/// sites and takes three different `continue`s out of the loop, so a mapping
-/// written per-append is one a later escape row silently forgets.
+/// the caller rebases them onto the file.
+///
+/// Two things are settled at the *top* of each iteration, for the bytes the
+/// previous one appended, rather than beside every append below: the
+/// `positions` padding, and the [`CookIssue::EscapeCharacter`] check for an
+/// `ESC` byte among those bytes. The escape table pushes bytes at more than a
+/// dozen sites and takes three different `continue`s out of the loop, so a
+/// mapping or a check written per-append is one a later escape row silently
+/// forgets. The last iteration's bytes are settled once more after the loop.
 fn cook_double_quoted_chars(
     text: &str,
     whole_span_for_utf8_issue: Span,
@@ -359,9 +376,18 @@ fn cook_double_quoted_chars(
 
     // The offset every byte appended but not yet mapped was written at.
     let mut mark = 0usize;
+    // Where the previous iteration's bytes start in `bytes`, and the offset in
+    // `text` of the character or escape that appended them.
+    let mut checked = 0usize;
+    let mut from = 0usize;
     let mut i = 0usize;
     while i < n {
         let (at, c) = chars[i];
+        if bytes[checked..].contains(&ESC) {
+            issues.push(CookIssue::EscapeCharacter(escape_span(from, at)));
+        }
+        checked = bytes.len();
+        from = at;
         if let Some(map) = positions.as_deref_mut() {
             map.resize(bytes.len(), off_as_u32(mark));
             mark = at;
@@ -406,7 +432,7 @@ fn cook_double_quoted_chars(
                 i += 2;
             }
             'e' => {
-                bytes.push(0x1B);
+                bytes.push(ESC);
                 i += 2;
             }
             '0'..='7' => {
@@ -489,6 +515,9 @@ fn cook_double_quoted_chars(
                 i += 2;
             }
         }
+    }
+    if bytes[checked..].contains(&ESC) {
+        issues.push(CookIssue::EscapeCharacter(escape_span(from, text.len())));
     }
 
     if let Some(map) = positions.as_deref_mut() {
@@ -741,8 +770,62 @@ mod tests {
     #[test]
     fn named_escapes_cook_to_their_control_characters() {
         let (s, issues) = cook(r#"a\nb\tc\rd\ve\ff\eg\\h\$i\"j"#);
-        assert!(issues.is_empty());
+        assert_eq!(escape_characters(&issues), [(16, 18)]);
+        assert_eq!(issues.len(), 1);
         assert_eq!(s, "a\nb\tc\rd\x0Be\x0Cf\x1Bg\\h$i\"j");
+    }
+
+    /// The `start..end` offsets of every [`CookIssue::EscapeCharacter`] in
+    /// `issues`, in order.
+    fn escape_characters(issues: &[CookIssue]) -> Vec<(u32, u32)> {
+        issues
+            .iter()
+            .filter_map(|issue| match issue {
+                CookIssue::EscapeCharacter(span) => Some((span.start, span.end)),
+                _ => None,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn every_escape_that_writes_esc_is_one_issue_at_its_own_span() {
+        // Each form, with the span of exactly its own characters.
+        for (written, start, end) in [
+            (r"a\eb", 1, 3),
+            (r"a\x1bb", 1, 5),
+            (r"a\x1Bb", 1, 5),
+            (r"a\033b", 1, 5),
+            (r"a\33b", 1, 4),
+            (r"a\u{1b}b", 1, 7),
+            ("a\x1bb", 1, 2),
+            (r"\e", 0, 2),
+            ("\x1b", 0, 1),
+        ] {
+            let (_, issues) = cook(written);
+            assert_eq!(issues.len(), 1, "{written:?}: {issues:?}");
+            assert_eq!(escape_characters(&issues), [(start, end)], "{written:?}");
+        }
+    }
+
+    #[test]
+    fn each_esc_in_one_literal_is_its_own_issue() {
+        let (_, issues) = cook("\\e[31mred\x1b[0m");
+        assert_eq!(issues.len(), 2, "{issues:?}");
+        assert_eq!(escape_characters(&issues), [(0, 2), (9, 10)]);
+    }
+
+    #[test]
+    fn text_without_esc_has_no_escape_character_issue() {
+        for written in [
+            r"\x1c\x1a\034\u{1c}[31m",
+            r"\\e",
+            "e[0m",
+            r"\x1",
+            r"\u{1b0}",
+        ] {
+            let (_, issues) = cook(written);
+            assert!(issues.is_empty(), "{written:?}: {issues:?}");
+        }
     }
 
     #[test]

@@ -202,6 +202,16 @@ pub mod code {
          Write `<?= … ?>` to put the value of one expression into the template.",
     );
 
+    /// A string literal whose text contains the `ESC` control byte, written raw
+    /// or as an escape (`\e`, `\x1b`, `\033`, `\u{1b}`), per
+    /// `rule:tooling/an-escape-in-source-text-is-a-compile-error`. Reported by
+    /// `nvs_types`'s checker, at the one character or escape that writes it.
+    pub const E_ESCAPE_CHARACTER_IN_STRING: Code = Code::new("E0011").card(
+        "This string contains the `ESC` character, which starts a terminal escape sequence. \
+         A program cannot write terminal escape sequences in its source code. \
+         To add colour or style to terminal output, use `Core\\Cli\\Text`.",
+    );
+
     // --- E01xx parser ------------------------------------------------------
     /// A specific token was required here.
     pub const E_EXPECTED_TOKEN: Code = Code::new("E0101").card(

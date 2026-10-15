@@ -492,12 +492,13 @@ pub(crate) fn infer_float_literal(
 /// `ExprKind::Str` arm.
 ///
 /// A single-quoted literal's own two escapes (`\\`/`\'`) can never produce
-/// invalid UTF-8, so it gets no cooking-diagnostic pass at all. A
-/// double-quoted literal runs the richer escape grammar
-/// [`check_double_quoted_text_issues`] cooks. A heredoc/nowdoc-sourced `Str`
-/// (whose span opens with `<`, not a quote) runs [`crate::string_lit`]'s
-/// flexible-indentation check first, then the same escape grammar too — unless
-/// it is a nowdoc, which (like PHP's) applies no escapes at all.
+/// invalid UTF-8, so its only check is for a raw `ESC` byte
+/// ([`check_raw_escape_characters`]). A double-quoted literal runs the richer
+/// escape grammar [`check_double_quoted_text_issues`] cooks. A
+/// heredoc/nowdoc-sourced `Str` (whose span opens with `<`, not a quote) runs
+/// [`crate::string_lit`]'s flexible-indentation check first, then the same
+/// escape grammar too — unless it is a nowdoc, which (like PHP's) applies no
+/// escapes at all and gets the single-quoted literal's raw `ESC` check.
 pub(crate) fn infer_str_literal(span: Span, expected: Option<TypeId>, env: &mut Env<'_>) -> TypeId {
     let raw = span_text(env.src, span);
     if raw.starts_with('"') {
@@ -507,6 +508,11 @@ pub(crate) fn infer_str_literal(span: Span, expected: Option<TypeId>, env: &mut 
         report_heredoc_indent_issues(indent_issues, env);
         let run_escapes = !crate::string_lit::heredoc_is_nowdoc(raw);
         check_heredoc_run_issues(&shape.indent, shape.body, true, true, run_escapes, env);
+        if !run_escapes {
+            check_raw_escape_characters(shape.body, env);
+        }
+    } else if raw.starts_with('\'') {
+        check_raw_escape_characters(inner_quoted_span(span), env);
     }
     // `rule:types/single-value-types`, after the escape grammar has had its say: a literal that
     // does not survive its own text has no singleton to be, and reporting the
@@ -881,7 +887,41 @@ pub(crate) fn report_cook_issues(issues: Vec<crate::string_lit::CookIssue>, env:
                     .with_primary(span, "not valid UTF-8"),
                 );
             }
+            crate::string_lit::CookIssue::EscapeCharacter(span) => {
+                report_escape_character(span, env);
+            }
         }
+    }
+}
+
+/// `rule:tooling/an-escape-in-source-text-is-a-compile-error`: the one `ESC`
+/// character or escape at `span`.
+fn report_escape_character(span: Span, env: &mut Env<'_>) {
+    env.diags.report(
+        Diagnostic::error(
+            code::E_ESCAPE_CHARACTER_IN_STRING,
+            "this string contains the `ESC` character. To style terminal output, use \
+             `Core\\Cli\\Text`",
+        )
+        .with_primary(span, "writes the `ESC` character"),
+    );
+}
+
+/// Reports each raw `ESC` byte in `span`'s own text, for the two spellings
+/// that apply no double-quoted escapes and so never reach
+/// [`report_cook_issues`] with one: a single-quoted literal and a nowdoc body.
+/// Neither has an escape that writes `ESC`, so a raw byte is the only form.
+fn check_raw_escape_characters(span: Span, env: &mut Env<'_>) {
+    let text = span_text(env.src, span);
+    let found: Vec<u32> = text
+        .bytes()
+        .enumerate()
+        .filter(|&(_, b)| b == crate::string_lit::ESC)
+        .map(|(at, _)| u32::try_from(at).expect("an offset within one source file fits u32"))
+        .collect();
+    for at in found {
+        let start = span.start + at;
+        report_escape_character(Span::new(span.file, start, start + 1), env);
     }
 }
 

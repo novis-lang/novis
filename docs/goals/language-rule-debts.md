@@ -6,7 +6,7 @@ context: []
 stages:
   - id: 1
     title: "an `ESC` in source text is a compile error"
-    status: open
+    status: done
     context: [crates/nvs-syntax/src/string_lit.rs, crates/nvs-render/src/text.rs]
     extra:
       context:
@@ -191,9 +191,9 @@ user reads*.
 
 **Does:** a string literal that holds `ESC` does not compile, and the error names `Core\Cli\Text`.
 
-- [ ] The check where a literal is cooked, for every literal form. `crates/nvs-syntax/src/string_lit.rs:103`
-- [ ] The new `E` code and its card. `crates/nvs-diagnostics/src/lib.rs:154`
-- [ ] The conformance cases. `tests/conformance/lang/an-esc-byte-in-a-string-literal-does-not-compile.nvst:1`
+- [x] The check where a literal is cooked, for every literal form. `crates/nvs-syntax/src/string_lit.rs:103`
+- [x] The new `E` code and its card. `crates/nvs-diagnostics/src/lib.rs:154`
+- [x] The conformance cases. `tests/conformance/lang/an-esc-byte-in-a-string-literal-does-not-compile.nvst:1`
 
 ### 2. `let` and `is` name nothing
 
@@ -243,19 +243,27 @@ user reads*.
 
 ### State
 
-The goal is written; nothing of it is built. The user placed these seven rules here when every
-`designed` rule was given an owner. § *Standing decisions* holds the calls, the writer's marked as
-such. The anchors were read when the goal was written.
+Stage 1 is shipped: `E0011` refuses `ESC` in every string literal, raw or escaped, and the rule
+is `shipped`. There is no `bytes` literal, so `"\x1b" as bytes` is refused too; a program builds
+`ESC` with `Core\Str::fromCodePoint(27)`, which is what the 42 migrated corpus files now do. One
+attack, `tests/hostile/core/Html/toSource/01-huge-markup-and-empty-reasons.nvs` step 3, needs a
+written reason, so it now carries a bell character, not `ESC`.
+
+The nightly CI failures were all on `cb7021a`, the last pushed `main`. Local `main` already fixed
+every one but a `dropping_references` warning on non-Linux targets
+(`crates/nvs-cli/src/service.rs:1362`), fixed this session. The nightly stays red until `main` is
+pushed, and only the user pushes.
 
 ### Next
 
-**Stages 1 and 2: the literal and the reserved words**, one file set: `crates/nvs-syntax/src/string_lit.rs`, `crates/nvs-syntax/src/parser/decl.rs`, `crates/nvs-diagnostics/src/lib.rs`.
+**Stage 2: `let` and `is` name nothing**, one file set: `crates/nvs-syntax/src/parser/decl.rs`, `crates/nvs-syntax/src/parser/mod.rs`.
 
-- [ ] `ESC` in a string literal does not compile (`rule:tooling/an-escape-in-source-text-is-a-compile-error`). `crates/nvs-syntax/src/string_lit.rs:103`
-- [ ] Its `E` code and card (`rule:tooling/an-escape-in-source-text-is-a-compile-error`). `crates/nvs-diagnostics/src/lib.rs:154`
-- [ ] `parse_decl_name` refuses `let` and `is` (`rule:statements/let-and-is-are-reserved`). `crates/nvs-syntax/src/parser/decl.rs:366`
-- [ ] Rename the `is()` methods (`rule:statements/let-and-is-are-reserved`). `tests/conformance/lang/mutual-recursion-across-two-classes.nvst:6`
+- [ ] `parse_decl_name` refuses `let` and `is` with `E0247` (`rule:statements/let-and-is-are-reserved`). `crates/nvs-syntax/src/parser/decl.rs:366`
+- [ ] A parameter named `$let` or `$is` is refused too, if the parser admits one (`rule:statements/let-and-is-are-reserved`). `crates/nvs-syntax/src/parser/mod.rs:781`
+- [ ] Rename the `is()` methods; the expected output does not change (`rule:statements/let-and-is-are-reserved`). `tests/conformance/lang/mutual-recursion-across-two-classes.nvst:6`
 
 ### Backlog
 
 - Stages 3 to 7 — this file's § *Stages*.
+- A diagnostic that echoes a source line prints a raw `ESC` byte to the terminal, as the `E0011` raw-byte case shows; the renderer should substitute it (`rule:tooling/terminal-output-is-a-sink`). Where the snippet is drawn: not checked.
+- The `Core\Cli\escape` benches' `// bench: allocations 1` budget was not re-measured after the migration (`benches/members/core/Cli/escape.nvs`).

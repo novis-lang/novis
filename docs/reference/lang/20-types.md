@@ -424,8 +424,10 @@ leading-zero form `017` is decimal seventeen, not octal. `true`, `false`, `null`
 token is a variable: `{$o->p}`, `{$a["k"]["j"]}`, `{$o->m()}`, `{$a + $b}` — the braces take
 the whole expression grammar, not only a chain of members. A `{` not followed by `$` is plain
 text, and there is no `${name}` form. Its escapes are
-`\\ \" \$ \n \t \r \v \f \e`, an octal `\0` through `\777`, `\xHH` and
-`\u{HHHH}`; an unrecognized one such as `\q` keeps its backslash. An interpolated value takes the
+`\\ \" \$ \n \t \r \v \f`, an octal `\0` through `\777`, `\xHH` and
+`\u{HHHH}`; an unrecognized one such as `\q` keeps its backslash. A literal whose text contains
+`ESC` does not compile (`E0011`), whether the byte is written raw or by `\e`, `\x1b`, `\033` or
+`\u{1b}`; terminal styling is `Core\Cli\Text`. An interpolated value takes the
 same rule as `echo`: scalars and `null` render, `bytes`, arrays, enum cases and objects without
 `Stringable` are refused.
 
