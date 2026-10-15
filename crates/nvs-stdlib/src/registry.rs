@@ -1882,6 +1882,11 @@ pub const CLASSES: &[CoreClass] = &[
     // what a test asserts on is a `Core`-owned instance, and this one is
     // readonly because the call it describes has already been made.
     crate::test::SENT_REQUEST,
+    // `rule:testing/after-each-test` and `rule:testing/class-hooks`: what the
+    // runner passes to a test hook, beside `Core\Test` for the reason the
+    // response above is.
+    crate::test::hooks::OUTCOME,
+    crate::test::hooks::SUMMARY,
     // `rule:concurrency/all-answers-a-typed-shape`'s `Core\Task`, and no spec § of its own either: structured
     // concurrency is a language surface over the `nvs-host` scheduler. The
     // signature is here and the body is a placeholder — [`crate::task`] owns

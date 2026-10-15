@@ -27,7 +27,7 @@ the terminal reads end of input, so no test stops the run to wait for a person.
   failed tests waiting for an earlier one, and never the output of a test that passed.
 
 **Not on disk.** The runner makes and finishes the isolates one at a time
-(`crates/nvs-cli/src/runner.rs:781`), `--jobs` spreads only `.nvst` cases
+(`crates/nvs-cli/src/runner.rs:799`), `--jobs` spreads only `.nvst` cases
 (`crates/nvs-cli/src/main.rs:583`), a test's output goes to the terminal as it is printed
 (`crates/nvs-cli/src/runner.rs:16`), and the coverage counts of a test are the growth of one shared
 table while it runs (`crates/nvs-cli/src/runner.rs:378`).

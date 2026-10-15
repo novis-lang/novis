@@ -1,0 +1,100 @@
+--TEST--
+`#[AfterEachTest]` runs on the test's own object after every attempt, passed or failed, receives a `Core\Test\Outcome`, does not run for a skipped test or a constructor that threw, and a hook that throws fails the attempt, `rule:testing/after-each-test`
+--RUN--
+test
+--FILE--
+<?nvs
+use Core\Test;
+use Core\Test\AfterEachTest;
+use Core\Test\Outcome;
+use Core\Test\TestWith;
+
+final class UploadTest {
+    public string $file = "";
+    public static int $runs = 0;
+
+    #[Test]
+    public function itWritesAFile(): void {
+        $this->file = "upload-1.txt";
+        Test::assertTrue(true);
+    }
+
+    #[Test(retries: 1, because: "the second attempt passes")]
+    public function itPassesOnItsSecondAttempt(): void {
+        UploadTest::$runs = UploadTest::$runs + 1;
+        $this->file = "upload-retry-" . UploadTest::$runs . ".txt";
+        Test::assertSame(UploadTest::$runs, 2);
+    }
+
+    #[Test]
+    #[TestWith(size: 1)]
+    #[TestWith(size: 2)]
+    public function itFailsForEveryRow(int $size): void {
+        $this->file = "upload-row-" . $size . ".txt";
+        Test::assertSame($size, 0);
+    }
+
+    #[Test(skip: "not ready")]
+    public function itIsSkipped(): void {}
+
+    #[AfterEachTest]
+    public function removeFile(Outcome $outcome): void {
+        echo "remove ", $this->file, ": ", $outcome->class(), "::", $outcome->name(),
+            " attempt ", $outcome->attempt(), ", passed ", $outcome->passed() ? "yes" : "no",
+            ", failures ", Core\Arr::count($outcome->failures()), "\n";
+    }
+}
+
+final class BrokenSetupTest {
+    public function constructor() {
+        throw new RuntimeError("no upload directory");
+    }
+
+    #[Test]
+    public function itNeverRuns(): void {
+        Test::assertTrue(true);
+    }
+
+    #[AfterEachTest]
+    public function removeFile(): void {
+        echo "this line is never printed\n";
+    }
+}
+
+final class BrokenCleanupTest {
+    #[Test]
+    public function itPasses(): void {
+        Test::assertTrue(true);
+    }
+
+    #[AfterEachTest]
+    public function removeFile(): void {
+        throw new RuntimeError("the file is locked");
+    }
+}
+--EXPECTF--
+  BrokenCleanupTest
+    ✗ itPasses                         %f ms
+      the `#[AfterEachTest]` method `removeFile` failed: the file is locked
+  BrokenSetupTest
+    ✗ itNeverRuns                      %f ms
+      no upload directory
+  UploadTest
+remove upload-1.txt: UploadTest::itWritesAFile attempt 1, passed yes, failures 0
+    ✓ itWritesAFile                    %f ms
+remove upload-retry-1.txt: UploadTest::itPassesOnItsSecondAttempt attempt 1, passed no, failures 1
+remove upload-retry-2.txt: UploadTest::itPassesOnItsSecondAttempt attempt 2, passed yes, failures 0
+    ! itPassesOnItsSecondAttempt       %f ms
+      flaky: it passed on attempt 2, having failed with:
+      Core\Test::assertSame failed: `$actual` is 1, `$expected` is 2
+remove upload-row-1.txt: UploadTest::itFailsForEveryRow#0 attempt 1, passed no, failures 1
+    ✗ itFailsForEveryRow#0             %f ms
+      Core\Test::assertSame failed: `$actual` is 1, `$expected` is 0
+remove upload-row-2.txt: UploadTest::itFailsForEveryRow#1 attempt 1, passed no, failures 1
+    ✗ itFailsForEveryRow#1             %f ms
+      Core\Test::assertSame failed: `$actual` is 2, `$expected` is 0
+    - itIsSkipped                      %f ms
+      skipped: not ready
+
+  4 failed, 1 passed, 1 skipped, 1 flaky in %d ms
+--EXPECTF-ERROR--

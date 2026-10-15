@@ -313,8 +313,8 @@ pub use ctx::{
 };
 pub use decimal::{Decimal, NotDecimal};
 pub use dispatch::{
-    CrossedFixtures, Fixtures, RowValues, call_compare_to, call_erased_method,
-    call_erased_method_from, call_method, call_render, call_static, call_static_bound,
+    AfterTest, CrossedFixtures, Fixtures, RowValues, call_compare_to, call_erased_method,
+    call_erased_method_from, call_hook, call_method, call_render, call_static, call_static_bound,
     call_static_on, construct_and_call, construct_erased_from, method_address,
 };
 pub use drain::{Drain, DrainWake};

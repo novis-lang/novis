@@ -214,19 +214,20 @@ Everything else needs no teardown: the isolate dies and takes everything inside 
 
 The hook knows which test ran because it runs on that test's own `$this`: whatever the constructor and
 the test stored there is what it cleans up. It may also declare one parameter of type
-`Core\Test\Outcome`, filled by type the way a fixture fills a test's parameter:
+`Core\Test\Outcome`, filled by type the way a fixture fills a test's parameter. It is a `Core` instance,
+so it is read through methods:
 
-| Field | Value |
+| Method | Returns |
 |---|---|
-| `class` | the test class's name |
-| `name` | the method's name, with `#N` for a `#[TestWith]` row ([`testing/data-rows`](testing.md#testing-data-rows)) |
-| `attempt` | `1` for the first run, one more for each retry ([`testing/runner-is-strict`](testing.md#testing-runner-is-strict)) |
-| `passed` | whether this attempt passed |
-| `failures` | the messages the report prints for this attempt, empty when it passed |
+| `class()` | the test class's name |
+| `name()` | the method's name, with `#N` for a `#[TestWith]` row ([`testing/data-rows`](testing.md#testing-data-rows)) |
+| `attempt()` | `1` for the first run, one more for each retry ([`testing/runner-is-strict`](testing.md#testing-runner-is-strict)) |
+| `passed()` | whether this attempt passed |
+| `failures()` | the messages the report prints for this attempt, empty when it passed |
 
 `Outcome` is for deciding what to keep and what to report — the evidence of a failed test kept under
 its own name, the rest deleted. Cleanup that only one test needs belongs in that test's own `finally`,
-not in a hook that branches on `$outcome->name`. Any other parameter, or a second one, is refused where
+not in a hook that branches on `$outcome->name()`. Any other parameter, or a second one, is refused where
 it is written.
 
 A retry is a fresh instance in the same isolate, so each attempt gets its own call on its own object.
@@ -239,9 +240,8 @@ There is no `#[BeforeEachTest]`: the constructor is that hook ([`testing/constru
 A test runs with the program's own grants (`crates/nvs-cli/src/runner.rs:384`), so the hook can remove
 whatever the test was allowed to create.
 
-**Not on disk.** `#[AfterEachTest]` compiles and is checked (`crates/nvs-types/src/test_hooks.rs:114`),
-but the runner does not call it (`crates/nvs-cli/src/runner.rs:785`), and `Core\Test\Outcome` does not
-exist.
+A test that calls `exit()` is not followed by the hook, because nothing after an `exit()` runs
+([`errors/escalation-ladder`](errors.md#errors-escalation-ladder)).
 
 - **Memory:** one `Outcome` per attempt, a few strings and one list of failure messages, released when
   the hook returns. A class without the hook pays nothing.
@@ -299,7 +299,7 @@ its rows seeded once for the class, then dropped after its last test.
 The order for one class is `#[BeforeClass]`, then the fixtures its selected tests need
 ([`testing/fixtures`](testing.md#testing-fixtures)), then the tests, then `#[AfterClass]`. A fixture therefore reads what the setup
 wrote. Neither hook runs for a class none of whose tests is selected, for the reason a fixture is not
-built for one (`crates/nvs-cli/src/runner.rs:787`).
+built for one (`crates/nvs-cli/src/runner.rs:805`).
 
 | What happens | Result |
 |---|---|
@@ -309,9 +309,10 @@ built for one (`crates/nvs-cli/src/runner.rs:787`).
 | a test calls `exit()` or the process is killed | nothing after it runs ([`errors/escalation-ladder`](errors.md#errors-escalation-ladder)) |
 
 `#[BeforeClass]` takes no parameter. `#[AfterClass]` may declare one of type `Core\Test\Summary`, filled
-by type: `class`, the counts `passed`, `failed`, `flaky` and `skipped`, and `failedTests`, the names of
-the failed tests as the report prints them. A hook that keeps the database when `failed` is above zero
-and drops it otherwise is the case it exists for.
+by type. It is a `Core` instance, so it is read through methods: `class()`, the counts `passed()`,
+`failed()`, `flaky()` and `skipped()`, and `failedTests()`, the names of the failed tests as the report
+prints them. A hook that keeps the database when `failed()` is above zero and drops it otherwise is the
+case it exists for.
 
 This order is the whole of what the runner guarantees. Classes run at the same time
 ([`testing/tests-run-across-every-core`](testing.md#testing-tests-run-across-every-core)), so two classes whose setups touch one database keep
@@ -326,9 +327,9 @@ A hook that writes a static property in its own body is refused where it is writ
 in its own isolate and reads the static's declared initial value, so the write would look like setup
 and set up nothing.
 
-**Not on disk.** Both attributes compile and are checked (`crates/nvs-types/src/test_hooks.rs:114`),
-but the runner calls neither (`crates/nvs-cli/src/runner.rs:785`), and `Core\Test\Summary` does not
-exist.
+The fixtures are released before `#[AfterClass]` runs, so the hook can remove what a fixture held open.
+A failed `#[AfterClass]` is printed under its class; a machine format writes it to stderr, and the run
+exits with a failure either way.
 
 - **Memory:** one `Summary` per class, four integers and the names of its failed tests, held in the
   parent from the class's first test to the return of `#[AfterClass]`. A class without the hooks pays
@@ -424,7 +425,7 @@ the terminal reads end of input, so no test stops the run to wait for a person.
   failed tests waiting for an earlier one, and never the output of a test that passed.
 
 **Not on disk.** The runner makes and finishes the isolates one at a time
-(`crates/nvs-cli/src/runner.rs:781`), `--jobs` spreads only `.nvst` cases
+(`crates/nvs-cli/src/runner.rs:799`), `--jobs` spreads only `.nvst` cases
 (`crates/nvs-cli/src/main.rs:583`), a test's output goes to the terminal as it is printed
 (`crates/nvs-cli/src/runner.rs:16`), and the coverage counts of a test are the growth of one shared
 table while it runs (`crates/nvs-cli/src/runner.rs:378`).

@@ -303,6 +303,9 @@ pub use compress::decompression_ceiling;
 pub use http::{ExtensionReply, extension_send};
 pub use io::{extension_file_range, extension_file_size};
 pub use log::extension_line;
+/// The values the test hooks receive, which `nvs_cli`'s test runner is the one builder of.
+/// Re-exported rather than made public with its module, for [`publish_text`]'s reason.
+pub use test::hooks::{Counts as TestCounts, outcome as test_outcome, summary as test_summary};
 
 use registry::CoreClass;
 
@@ -443,6 +446,7 @@ fn address_of(symbol: &'static str) -> *const u8 {
         .or_else(|| taint::address(symbol))
         .or_else(|| task::address(symbol))
         .or_else(|| test::address(symbol))
+        .or_else(|| test::hooks::address(symbol))
         .or_else(|| time::address(symbol))
         .or_else(|| topic::address(symbol))
         .or_else(|| totp::address(symbol))

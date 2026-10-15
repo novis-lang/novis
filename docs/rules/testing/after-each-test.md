@@ -5,19 +5,20 @@ Everything else needs no teardown: the isolate dies and takes everything inside 
 
 The hook knows which test ran because it runs on that test's own `$this`: whatever the constructor and
 the test stored there is what it cleans up. It may also declare one parameter of type
-`Core\Test\Outcome`, filled by type the way a fixture fills a test's parameter:
+`Core\Test\Outcome`, filled by type the way a fixture fills a test's parameter. It is a `Core` instance,
+so it is read through methods:
 
-| Field | Value |
+| Method | Returns |
 |---|---|
-| `class` | the test class's name |
-| `name` | the method's name, with `#N` for a `#[TestWith]` row (`rule:testing/data-rows`) |
-| `attempt` | `1` for the first run, one more for each retry (`rule:testing/runner-is-strict`) |
-| `passed` | whether this attempt passed |
-| `failures` | the messages the report prints for this attempt, empty when it passed |
+| `class()` | the test class's name |
+| `name()` | the method's name, with `#N` for a `#[TestWith]` row (`rule:testing/data-rows`) |
+| `attempt()` | `1` for the first run, one more for each retry (`rule:testing/runner-is-strict`) |
+| `passed()` | whether this attempt passed |
+| `failures()` | the messages the report prints for this attempt, empty when it passed |
 
 `Outcome` is for deciding what to keep and what to report — the evidence of a failed test kept under
 its own name, the rest deleted. Cleanup that only one test needs belongs in that test's own `finally`,
-not in a hook that branches on `$outcome->name`. Any other parameter, or a second one, is refused where
+not in a hook that branches on `$outcome->name()`. Any other parameter, or a second one, is refused where
 it is written.
 
 A retry is a fresh instance in the same isolate, so each attempt gets its own call on its own object.
@@ -30,9 +31,8 @@ There is no `#[BeforeEachTest]`: the constructor is that hook (`rule:testing/con
 A test runs with the program's own grants (`crates/nvs-cli/src/runner.rs:384`), so the hook can remove
 whatever the test was allowed to create.
 
-**Not on disk.** `#[AfterEachTest]` compiles and is checked (`crates/nvs-types/src/test_hooks.rs:114`),
-but the runner does not call it (`crates/nvs-cli/src/runner.rs:785`), and `Core\Test\Outcome` does not
-exist.
+A test that calls `exit()` is not followed by the hook, because nothing after an `exit()` runs
+(`rule:errors/escalation-ladder`).
 
 - **Memory:** one `Outcome` per attempt, a few strings and one list of failure messages, released when
   the hook returns. A class without the hook pays nothing.

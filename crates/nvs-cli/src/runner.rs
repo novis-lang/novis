@@ -416,6 +416,7 @@ pub(crate) fn run(
         cases,
         counts,
         exited,
+        class_failures,
     } = suite;
     // Flushed before the summary: a test's own `echo` is buffered on the
     // context, and printing the counts over the top of it would report a run
@@ -474,7 +475,7 @@ pub(crate) fn run(
         // suite is over whatever the counts say.
         return ExitCode::from(u8::try_from(code & 0xFF).unwrap_or(0));
     }
-    if counts.failed == 0 {
+    if counts.failed == 0 && class_failures.is_empty() {
         ExitCode::SUCCESS
     } else {
         ExitCode::FAILURE
@@ -755,6 +756,22 @@ struct Suite {
     counts: Counts,
     /// The code an `exit(n)` in a test or a fixture ended the run with.
     exited: Option<i64>,
+    /// Each `#[AfterClass]` that threw, as its class and the message. One
+    /// fails the run, and is reported against the class rather than a test
+    /// (`rule:testing/class-hooks`).
+    class_failures: Vec<(String, String)>,
+}
+
+/// One test as each of its attempts runs it, owned so that it can move into
+/// the isolate's program.
+#[derive(Clone)]
+struct Attempted {
+    class: String,
+    method: String,
+    /// The name the report prints, with `#N` for a data row.
+    label: String,
+    /// `rule:testing/after-each-test`'s hook, called after every attempt.
+    after_each: Option<nvs_types::test_hooks::HookMethod>,
 }
 
 /// Runs every `#[Test]` `checked` declares that `filter` selects, in `rule:testing/runner-is-strict`'s
@@ -770,6 +787,7 @@ fn run_suite(
     let (mut passed, mut failed, mut skipped, mut flaky) = (0_usize, 0_usize, 0_usize, 0_usize);
     let mut exited = None;
     let mut cases = Vec::new();
+    let mut class_failures = Vec::new();
     // `rule:routing/matched-once-before-the-handler`'s table, crossed once for the whole suite rather than per
     // test: it is a product of the compile every isolate already shares, and
     // [`TestServer`] is the only thing that reads it — a run whose tests declare
@@ -801,16 +819,42 @@ fn run_suite(
         if format == Format::Human {
             println!("  {class}");
         }
+        // `rule:testing/class-hooks`'s order: `#[BeforeClass]`, the fixtures,
+        // the tests, then `#[AfterClass]`, all in the parent. A setup that
+        // threw runs no test and builds no fixture, and `#[AfterClass]` still
+        // runs, because the setup may have left something to remove.
+        let hooks = checked.exprs.test_hooks(class);
+        let setup = hooks
+            .and_then(|hooks| hooks.before_class.as_ref())
+            .and_then(|hook| run_class_hook(unit, ctx, class, hook, "#[BeforeClass]", None));
+        if let Some(FixtureFailure::Exited(code)) = setup {
+            exited = Some(code);
+            break;
+        }
         // `rule:testing/fixtures`'s "built once, in the parent" is this call: one set per class,
         // built before its first test and dropped after its last, so a fixture
         // is not rebuilt per test and not kept past the class that declared it.
         let mut fixtures = nvs_runtime::Fixtures::new();
-        let unbuilt = build_fixtures(unit, ctx, class, checked, tests, &mut fixtures);
+        let unbuilt = match setup {
+            Some(_) => None,
+            None => build_fixtures(unit, ctx, class, checked, tests, &mut fixtures),
+        };
+        let mut ran = nvs_stdlib::TestCounts::default();
+        let mut failed_tests = Vec::new();
         for call in calls {
             let (case, label, row) = (call.case, call.label, call.row);
             let began = Instant::now();
             let before = hits.as_ref().map(|hits| hits.counts());
-            let (outcome, snapshots) = match &unbuilt {
+            let test = Attempted {
+                class: class.to_owned(),
+                method: case.method.clone(),
+                label: label.clone(),
+                after_each: hooks.and_then(|hooks| hooks.after_each_test.clone()),
+            };
+            let (outcome, snapshots) = match setup.as_ref().or(unbuilt.as_ref()) {
+                Some(FixtureFailure::Threw(message)) if setup.is_some() => {
+                    (Outcome::Failed(vec![message.clone()]), Vec::new())
+                }
                 // A fixture that would not build is reported against every
                 // test that asked for one, rather than against the class: a
                 // test is what a report has a line for, and a suite that lost
@@ -819,7 +863,7 @@ fn run_suite(
                 Some(FixtureFailure::Threw(message)) if !fixtures_needed(case).is_empty() => {
                     (Outcome::Failed(vec![message.clone()]), Vec::new())
                 }
-                _ => run_in_isolate(unit, ctx, class, case, row, &fixtures, &routes),
+                _ => run_in_isolate(unit, ctx, &test, case, row, &fixtures, &routes),
             };
             let elapsed = began.elapsed();
             let reached = hits
@@ -827,10 +871,13 @@ fn run_suite(
                 .zip(before)
                 .map(|(hits, before)| crate::coverage::grew(&before, &hits.counts()));
             match &outcome {
-                Outcome::Passed => passed += 1,
-                Outcome::Skipped(_) => skipped += 1,
-                Outcome::Flaky { .. } => flaky += 1,
-                Outcome::Failed(_) | Outcome::Exited(_) => failed += 1,
+                Outcome::Passed => ran.passed += 1,
+                Outcome::Skipped(_) => ran.skipped += 1,
+                Outcome::Flaky { .. } => ran.flaky += 1,
+                Outcome::Failed(_) | Outcome::Exited(_) => {
+                    ran.failed += 1;
+                    failed_tests.push(label.clone());
+                }
             }
             if format == Format::Human {
                 report(&label, &outcome, elapsed);
@@ -851,8 +898,37 @@ fn run_suite(
                 break;
             }
         }
+        passed += ran.passed;
+        failed += ran.failed;
+        skipped += ran.skipped;
+        flaky += ran.flaky;
         if exited.is_some() {
             break;
+        }
+        // Released before `#[AfterClass]`, which may remove what a fixture
+        // still has open.
+        drop(fixtures);
+        let Some(hook) = hooks.and_then(|hooks| hooks.after_class.as_ref()) else {
+            continue;
+        };
+        let summary = hook
+            .takes_value
+            .then(|| nvs_stdlib::test_summary(class, ran, &failed_tests));
+        match run_class_hook(unit, ctx, class, hook, "#[AfterClass]", summary) {
+            None => {}
+            Some(FixtureFailure::Exited(code)) => {
+                exited = Some(code);
+                break;
+            }
+            Some(FixtureFailure::Threw(message)) => {
+                if format == Format::Human {
+                    println!("    ✗ {}", hook.method);
+                    println!("      {message}");
+                } else {
+                    eprintln!("error: {class}: {message}");
+                }
+                class_failures.push((class.to_owned(), message));
+            }
         }
     }
     Suite {
@@ -864,7 +940,43 @@ fn run_suite(
             flaky,
         },
         exited,
+        class_failures,
     }
+}
+
+/// Calls one of `rule:testing/class-hooks`'s two hooks of `class`, in the
+/// parent, with `argument` as its one parameter where it declares one.
+///
+/// The failure is a [`FixtureFailure`] because it is reported the way a
+/// fixture's is: a throw names the hook, and an `exit(n)` ends the run.
+fn run_class_hook(
+    unit: &nvs_codegen::Unit,
+    ctx: &mut nvs_runtime::Ctx,
+    class: &str,
+    hook: &nvs_types::test_hooks::HookMethod,
+    kind: &str,
+    argument: Option<nvs_runtime::Value>,
+) -> Option<FixtureFailure> {
+    let args: Vec<nvs_runtime::Value> = argument.into_iter().collect();
+    let failure = match unit.call_static(ctx, class, &hook.method, &args) {
+        Some(Ok(_)) => None,
+        Some(Err(status)) if status == nvs_runtime::EXITED => {
+            Some(FixtureFailure::Exited(ctx.exit_code()))
+        }
+        Some(Err(_)) => Some(FixtureFailure::Threw(format!(
+            "the `{kind}` method `{}` threw: {}",
+            hook.method,
+            ctx.take_thrown().message()
+        ))),
+        None => Some(FixtureFailure::Threw(format!(
+            "internal error: the compiled unit declares no `{class}::{}`",
+            hook.method
+        ))),
+    };
+    // A hook's assertions belong to no test, and the next test's ledger is
+    // its own isolate's, so what the hook recorded is dropped here.
+    drop(ctx.take_assertions());
+    failure
 }
 
 /// One `#[Test]` method, run as many times as `rule:testing/runner-is-strict`'s `retries:` allows.
@@ -897,17 +1009,16 @@ fn run_suite(
 fn run_with_retries(
     unit: &Rc<nvs_codegen::Unit>,
     ctx: &mut nvs_runtime::Ctx,
-    class: &str,
-    method: &str,
+    test: &Attempted,
     args: &[nvs_runtime::Value],
     allowance: usize,
 ) -> Outcome {
-    let mut failures = match run_case(unit, ctx, class, method, args) {
+    let mut failures = match run_case(unit, ctx, test, args, 1) {
         Outcome::Failed(failures) => failures,
         settled => return settled,
     };
     for retry in 0..allowance {
-        match run_case(unit, ctx, class, method, args) {
+        match run_case(unit, ctx, test, args, retry + 2) {
             Outcome::Passed => {
                 return Outcome::Flaky {
                     attempts: retry + 2,
@@ -922,7 +1033,7 @@ fn run_with_retries(
 }
 
 /// Why a class's fixtures could not be built — reported against the tests
-/// that asked for one.
+/// that asked for one — or why one of its class hooks failed.
 enum FixtureFailure {
     /// The fixture body threw, carrying its message.
     Threw(String),
@@ -1090,7 +1201,7 @@ fn random_seed(case: &nvs_types::testing::TestCase) -> Option<u64> {
 fn run_in_isolate(
     unit: &Rc<nvs_codegen::Unit>,
     ctx: &mut nvs_runtime::Ctx,
-    class: &str,
+    test: &Attempted,
     case: &nvs_types::testing::TestCase,
     row: Option<&[Option<ConstArg>]>,
     fixtures: &nvs_runtime::Fixtures,
@@ -1105,7 +1216,7 @@ fn run_in_isolate(
     // hands back an empty list without saying so.
     let snapshots: Rc<RefCell<Vec<nvs_runtime::SnapshotMismatch>>> =
         Rc::new(RefCell::new(Vec::new()));
-    let outcome = run_the_test(unit, ctx, class, case, row, fixtures, routes, &snapshots);
+    let outcome = run_the_test(unit, ctx, test, case, row, fixtures, routes, &snapshots);
     let taken = std::mem::take(&mut *snapshots.borrow_mut());
     (outcome, taken)
 }
@@ -1119,13 +1230,14 @@ fn run_in_isolate(
 fn run_the_test(
     unit: &Rc<nvs_codegen::Unit>,
     ctx: &mut nvs_runtime::Ctx,
-    class: &str,
+    test: &Attempted,
     case: &nvs_types::testing::TestCase,
     row: Option<&[Option<ConstArg>]>,
     fixtures: &nvs_runtime::Fixtures,
     routes: &std::sync::Arc<nvs_runtime::routes::Routes>,
     snapshots: &Rc<RefCell<Vec<nvs_runtime::SnapshotMismatch>>>,
 ) -> Outcome {
+    let class = test.class.as_str();
     if let Some(reason) = skip_reason(case) {
         return Outcome::Skipped(reason);
     }
@@ -1244,6 +1356,7 @@ fn run_the_test(
     let child_unit = Rc::clone(unit);
     let class_name = class.to_owned();
     let method = case.method.clone();
+    let attempted = test.clone();
     let program: nvs_runtime::script::Program = Box::new(move |child, argument| {
         // `rule:statements/an-isolate-has-its-own-statics`'s fresh statics base, armed with *this* unit's tables:
         // the isolate's context deliberately arrives with none, so this call
@@ -1279,7 +1392,7 @@ fn run_the_test(
         // their values has returned.
         let (_crossed, _materialized) = (crossed, materialized);
         let outcome = match transacted.as_deref() {
-            None => run_with_retries(&child_unit, child, &class_name, &method, &args, allowance),
+            None => run_with_retries(&child_unit, child, &attempted, &args, allowance),
             // `rule:testing/db-transaction`, around the whole allowance rather than around one attempt:
             // `retries:` exists for a test that is flaky against something
             // outside the database, and a retry that started from a pristine
@@ -1293,14 +1406,8 @@ fn run_the_test(
                      could be opened on it: {refused}"
                 )]),
                 Ok(key) => {
-                    let outcome = run_with_retries(
-                        &child_unit,
-                        child,
-                        &class_name,
-                        &method,
-                        &args,
-                        allowance,
-                    );
+                    let outcome =
+                        run_with_retries(&child_unit, child, &attempted, &args, allowance);
                     match nvs_stdlib::db::roll_back_test_transaction(child, key) {
                         Ok(()) => outcome,
                         // Reported and never swallowed: a rollback that did not
@@ -1711,8 +1818,10 @@ fn answer_on_the_wire(
     )
 }
 
-/// One attempt at one test: a fresh instance of `class`, its `method` called
-/// on that instance with `args`, and `rule:testing/failure-ledger`'s verdict read off the ledger.
+/// One attempt at one test: a fresh instance of the test's class, its method
+/// called on that instance with `args`, `rule:testing/failure-ledger`'s verdict
+/// read off the ledger, and then `rule:testing/after-each-test`'s hook on the
+/// same instance. `attempt` is `1` for the first.
 ///
 /// **Every line of it runs on the isolate's own stack** — the instance, the
 /// ledger and the pending exception are all the child's, and reading any of
@@ -1721,15 +1830,74 @@ fn answer_on_the_wire(
 fn run_case(
     unit: &Rc<nvs_codegen::Unit>,
     ctx: &mut nvs_runtime::Ctx,
-    class: &str,
-    method: &str,
+    test: &Attempted,
     args: &[nvs_runtime::Value],
+    attempt: usize,
 ) -> Outcome {
-    let Some(outcome) = unit.call_on_new_instance(ctx, class, method, args) else {
+    let mut verdict = None;
+    let mut after = |ctx: &mut nvs_runtime::Ctx, receiver, status| {
+        let outcome = judge(ctx, status);
+        verdict = Some(match &test.after_each {
+            Some(hook) => after_each_test(ctx, receiver, test, hook, attempt, outcome),
+            None => outcome,
+        });
+    };
+    let Some(status) = unit.call_on_new_instance(ctx, &test.class, &test.method, args, &mut after)
+    else {
         return Outcome::Failed(vec![format!(
-            "internal error: the compiled unit declares no class `{class}`"
+            "internal error: the compiled unit declares no class `{}`",
+            test.class
         )]);
     };
+    // No verdict means the method was never called: the constructor threw,
+    // so there is no object for the hook to run on.
+    verdict.unwrap_or_else(|| judge(ctx, status))
+}
+
+/// `rule:testing/after-each-test`'s call: `hook` on the instance the attempt
+/// ran on, with a `Core\Test\Outcome` where it declares one. What the hook
+/// threw or failed is added to the attempt's own failures. A test that called
+/// `exit()` is not followed by the hook, since nothing after an `exit()` runs.
+fn after_each_test(
+    ctx: &mut nvs_runtime::Ctx,
+    receiver: nvs_runtime::Value,
+    test: &Attempted,
+    hook: &nvs_types::test_hooks::HookMethod,
+    attempt: usize,
+    outcome: Outcome,
+) -> Outcome {
+    let failures: &[String] = match &outcome {
+        Outcome::Failed(failures) => failures,
+        Outcome::Passed => &[],
+        _ => return outcome,
+    };
+    let argument = hook
+        .takes_value
+        .then(|| nvs_stdlib::test_outcome(&test.class, &test.label, attempt, failures));
+    let thrown = match nvs_runtime::call_hook(ctx, receiver, &hook.method, argument) {
+        Ok(()) => None,
+        Err(status) if status == nvs_runtime::EXITED => return Outcome::Exited(ctx.exit_code()),
+        Err(_) => Some(ctx.take_thrown().message().to_owned()),
+    };
+    let mut reasons: Vec<String> = ctx
+        .take_assertions()
+        .iter()
+        .filter_map(|entry| entry.failure.clone())
+        .collect();
+    if reasons.is_empty() {
+        reasons.extend(thrown);
+    }
+    reasons.into_iter().fold(outcome, |outcome, reason| {
+        outcome.and_failed(format!(
+            "the `#[AfterEachTest]` method `{}` failed: {reason}",
+            hook.method
+        ))
+    })
+}
+
+/// The verdict of one call to a test method, read off its status and the
+/// ledger, both of which it takes.
+fn judge(ctx: &mut nvs_runtime::Ctx, outcome: Result<(), i32>) -> Outcome {
     let thrown = match outcome {
         Ok(()) => None,
         // `exit` is not a verdict about the test at all, and the pending state

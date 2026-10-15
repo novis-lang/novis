@@ -1,0 +1,79 @@
+--TEST--
+`#[BeforeClass]` runs once before the fixtures, `#[AfterClass]` runs once after the last test even when one failed, and it receives a `Core\Test\Summary` of the class, `rule:testing/class-hooks`
+--RUN--
+test
+--FILE--
+<?nvs
+use Core\Test;
+use Core\Test\AfterClass;
+use Core\Test\BeforeClass;
+use Core\Test\Fixture;
+use Core\Test\Summary;
+
+final class Catalog {
+    public function constructor(public string $name) {}
+}
+
+final class CatalogTest {
+    #[BeforeClass]
+    public static function createDatabase(): void {
+        echo "before class\n";
+    }
+
+    #[Fixture]
+    public static function catalog(): Catalog {
+        echo "fixture\n";
+        return new Catalog("shop");
+    }
+
+    #[Test]
+    public function itReadsTheName(Catalog $catalog): void {
+        echo "test 1\n";
+        Test::assertSame($catalog->name, "shop");
+    }
+
+    #[Test]
+    public function itFails(Catalog $catalog): void {
+        echo "test 2\n";
+        Test::assertSame($catalog->name, "blog");
+    }
+
+    #[Test(skip: "not ready")]
+    public function itIsSkipped(): void {}
+
+    #[AfterClass]
+    public static function dropDatabase(Summary $summary): void {
+        echo "after class: ", $summary->class(), "\n";
+        echo "passed ", $summary->passed(), ", failed ", $summary->failed(),
+            ", flaky ", $summary->flaky(), ", skipped ", $summary->skipped(), "\n";
+        foreach ($summary->failedTests() as string $name) {
+            echo "failed test: ", $name, "\n";
+        }
+    }
+}
+
+final class NoHooksTest {
+    #[Test]
+    public function itRunsWithoutHooks(): void {
+        Test::assertTrue(true);
+    }
+}
+--EXPECTF--
+  CatalogTest
+before class
+fixture
+test 1
+    ✓ itReadsTheName                   %f ms
+test 2
+    ✗ itFails                          %f ms
+      Core\Test::assertSame failed: `$actual` is "shop", `$expected` is "blog"
+    - itIsSkipped                      %f ms
+      skipped: not ready
+after class: CatalogTest
+passed 1, failed 1, flaky 0, skipped 1
+failed test: itFails
+  NoHooksTest
+    ✓ itRunsWithoutHooks               %f ms
+
+  1 failed, 2 passed, 1 skipped, 0 flaky in %d ms
+--EXPECTF-ERROR--

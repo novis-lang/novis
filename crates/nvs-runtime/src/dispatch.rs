@@ -935,10 +935,20 @@ impl Drop for CrossedFixtures {
     }
 }
 
+/// What [`construct_and_call`] calls once the test method has returned: the
+/// context, the instance (borrowed) and the method's status.
+pub type AfterTest<'a> = dyn FnMut(&mut Ctx, Value, Result<(), i32>) + 'a;
+
 /// `rule:testing/runner-is-strict`'s
 /// one test: a fresh instance of `class`, its `method` called on that instance
-/// with `args` — § 8's fixtures, in the order the checker resolved them — and
-/// the instance released.
+/// with `args` — § 8's fixtures, in the order the checker resolved them — then
+/// `after`, and the instance released.
+///
+/// `after` is `rule:testing/after-each-test`'s seam: it receives the instance,
+/// borrowed, and the method's status, with any message still on `ctx`, and
+/// runs before the instance is released, so an `#[AfterEachTest]` hook runs on
+/// the object its test ran on ([`call_hook`]). It runs only when the method was
+/// called: a constructor that threw left no object to clean up after.
 ///
 /// **One instance per call** is the whole of what a runner buys from this
 /// entry point — § 2's isolation begins at "no test observes another's
@@ -982,6 +992,7 @@ pub unsafe fn construct_and_call(
     class: *const ClassDesc,
     method: &str,
     args: &[Value],
+    after: &mut AfterTest<'_>,
 ) -> Result<(), i32> {
     #[expect(unsafe_code, reason = "the caller guarantees the descriptor is live")]
     let desc = unsafe { &*class };
@@ -1035,6 +1046,11 @@ pub unsafe fn construct_and_call(
     };
 
     let outcome = call_method(ctx, receiver, method, args, "the test runner");
+    let called = !matches!(outcome, Ok(None));
+    let status = test_status(ctx, desc, method, outcome);
+    if called {
+        after(ctx, receiver, status);
+    }
     #[expect(
         unsafe_code,
         reason = "this frame holds the one reference construction handed it; \
@@ -1043,6 +1059,16 @@ pub unsafe fn construct_and_call(
     unsafe {
         receiver.release();
     }
+    status
+}
+
+/// The status of a test method's call, its returned value released.
+fn test_status(
+    ctx: &mut Ctx,
+    desc: &ClassDesc,
+    method: &str,
+    outcome: Result<Option<Value>, Fault>,
+) -> Result<(), i32> {
     match outcome {
         // A `#[Test]` method returns `void` (`code::E_TEST_METHOD_SHAPE`), so
         // the value is `null` — released anyway rather than trusting that
@@ -1063,6 +1089,59 @@ pub unsafe fn construct_and_call(
             Fault::fatal(format!(
                 "internal error: `{}` declares no `{method}()` for the test runner to call",
                 desc.name()
+            )),
+        )),
+        Err(fault) => Err(crate::abi::record_fault(ctx, fault)),
+    }
+}
+
+/// Calls the hook `method` on `receiver` with `argument`, if any —
+/// `rule:testing/after-each-test`'s call, made from inside
+/// [`construct_and_call`]'s `after`.
+///
+/// `receiver` is borrowed and `argument` is owned: this releases it, and the
+/// value the hook returned, so a caller with no `unsafe` of its own can make
+/// the call.
+///
+/// # Errors
+///
+/// The hook's status, with its message left on `ctx`, and [`crate::FATAL`]
+/// when the class declares no such method.
+pub fn call_hook(
+    ctx: &mut Ctx,
+    receiver: Value,
+    method: &str,
+    argument: Option<Value>,
+) -> Result<(), i32> {
+    let args: Vec<Value> = argument.into_iter().collect();
+    let outcome = call_method(ctx, receiver, method, &args, "the test runner");
+    #[expect(
+        unsafe_code,
+        reason = "the argument was handed to this frame with its reference, and \
+                  `call_at` retained its own for the callee, so this one is \
+                  released here and nowhere else"
+    )]
+    unsafe {
+        for arg in &args {
+            arg.release();
+        }
+    }
+    match outcome {
+        Ok(Some(value)) => {
+            #[expect(
+                unsafe_code,
+                reason = "a returned value is a fresh reference this frame owns \
+                          and nothing else will read"
+            )]
+            unsafe {
+                value.release();
+            }
+            Ok(())
+        }
+        Ok(None) => Err(crate::abi::record_fault(
+            ctx,
+            Fault::fatal(format!(
+                "internal error: the test hook `{method}()` is not declared on its class"
             )),
         )),
         Err(fault) => Err(crate::abi::record_fault(ctx, fault)),

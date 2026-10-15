@@ -47,6 +47,12 @@
 //!
 //! **What it spends:** one syntax tree of the hook's body, built while
 //! compiling and dropped at once, and only for a method carrying a class hook.
+//!
+//! # What the runner reads
+//!
+//! [`TestHooks`] is one class's hooks, recorded into [`crate::ExprTypeTable`]
+//! beside its tests and read back by `nvs_cli`'s runner. A class that declares
+//! no hook records nothing.
 
 use nvs_diagnostics::{Diagnostic, SourceFile, Span, code};
 use nvs_hir::QName;
@@ -56,6 +62,28 @@ use nvs_syntax::walk::Node;
 use crate::testing::attribute_named;
 use crate::ty::Ty;
 use crate::{Ctx, Env, span_text};
+
+/// One hook method: its name, and whether it declares the one parameter its
+/// kind allows.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct HookMethod {
+    /// The method's own name, exactly as declared.
+    pub method: String,
+    /// Whether the method declares a parameter, which the runner fills with a
+    /// `Core\Test\Summary` or a `Core\Test\Outcome`.
+    pub takes_value: bool,
+}
+
+/// The hooks one test class declares, at most one of each kind.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct TestHooks {
+    /// The `#[BeforeClass]` method, which never takes a value.
+    pub before_class: Option<HookMethod>,
+    /// The `#[AfterClass]` method.
+    pub after_class: Option<HookMethod>,
+    /// The `#[AfterEachTest]` method.
+    pub after_each_test: Option<HookMethod>,
+}
 
 /// One of the three hook kinds.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -110,9 +138,10 @@ pub(crate) fn is_hook(m: &MethodMember, ctx: &Ctx<'_>, env: &Env<'_>) -> bool {
 }
 
 /// Every hook `decl` declares, checked: its payload, its shape, one of each
-/// kind, and no static write in a class hook's body.
+/// kind, and no static write in a class hook's body. The hooks are then
+/// recorded as one [`TestHooks`] for the runner.
 pub(crate) fn check_class_hooks(decl: &ClassDecl, class: &QName, ctx: &Ctx<'_>, env: &mut Env<'_>) {
-    let mut seen: Vec<(Hook, String)> = Vec::new();
+    let mut seen: Vec<(Hook, String, bool)> = Vec::new();
     for member in &decl.members {
         let ClassMemberKind::Method(m) = &member.kind else {
             continue;
@@ -182,7 +211,7 @@ pub(crate) fn check_class_hooks(decl: &ClassDecl, class: &QName, ctx: &Ctx<'_>, 
                 );
             }
         }
-        if let Some((_, prior)) = seen.iter().find(|(kind, _)| *kind == hook) {
+        if let Some((_, prior, _)) = seen.iter().find(|(kind, _, _)| *kind == hook) {
             let prior = prior.clone();
             env.diags.report(
                 Diagnostic::error(
@@ -200,8 +229,25 @@ pub(crate) fn check_class_hooks(decl: &ClassDecl, class: &QName, ctx: &Ctx<'_>, 
             );
             continue;
         }
-        seen.push((hook, method));
+        let takes_value = !m.params.is_empty();
+        seen.push((hook, method, takes_value));
     }
+    if seen.is_empty() {
+        return;
+    }
+    let mut hooks = TestHooks::default();
+    for (hook, method, takes_value) in seen {
+        let row = Some(HookMethod {
+            method,
+            takes_value,
+        });
+        match hook {
+            Hook::BeforeClass => hooks.before_class = row,
+            Hook::AfterClass => hooks.after_class = row,
+            Hook::AfterEachTest => hooks.after_each_test = row,
+        }
+    }
+    env.exprs.record_test_hooks(class.to_string(), hooks);
 }
 
 /// A hook attribute carries no payload, so every field written on one is

@@ -1431,6 +1431,7 @@ pub struct ExprTypeTable {
     shape_codecs: FxHashMap<Span, crate::derive::DerivedCodec>,
     tests: FxHashMap<String, Vec<crate::testing::TestCase>>,
     fixtures: FxHashMap<String, Vec<crate::testing::Fixture>>,
+    test_hooks: FxHashMap<String, crate::test_hooks::TestHooks>,
     inline_snapshots: Vec<crate::testing::InlineSnapshot>,
     property_defaults: FxHashMap<String, Vec<(String, crate::defaults::ConstArg)>>,
     property_default_types: FxHashMap<Span, TypeId>,
@@ -1977,6 +1978,20 @@ impl ExprTypeTable {
     #[must_use]
     pub fn fixtures(&self, label: &str) -> Option<&[crate::testing::Fixture]> {
         self.fixtures.get(label).map(Vec::as_slice)
+    }
+
+    /// Records the test hooks of the class labelled `label` —
+    /// [`crate::test_hooks::check_class_hooks`] read them off that class's
+    /// members. A class that declares no hook has no entry.
+    pub(crate) fn record_test_hooks(&mut self, label: String, hooks: crate::test_hooks::TestHooks) {
+        self.test_hooks.insert(label, hooks);
+    }
+
+    /// The test hooks of the class labelled `label`, or `None` when it
+    /// declares none. Keyed by a class label for [`Self::tests`]' reason.
+    #[must_use]
+    pub fn test_hooks(&self, label: &str) -> Option<&crate::test_hooks::TestHooks> {
+        self.test_hooks.get(label)
     }
 
     /// Records `rule:routing/table-is-opt-in`'s finished route table — every `#[Route]` in the

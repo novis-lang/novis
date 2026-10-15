@@ -1,0 +1,64 @@
+--TEST--
+a test that throws gives its hook an `Outcome` whose failure is the error's message, and a class with a flaky test and no failure gives `#[AfterClass]` a `Summary` that counts it and lists no failed test, `rule:testing/after-each-test`, `rule:testing/class-hooks`
+--RUN--
+test
+--FILE--
+<?nvs
+use Core\Test;
+use Core\Test\AfterClass;
+use Core\Test\AfterEachTest;
+use Core\Test\Outcome;
+use Core\Test\Summary;
+
+final class ThrowingTest {
+    #[Test]
+    public function itThrows(): void {
+        throw new RuntimeError("the queue is empty");
+    }
+
+    #[AfterEachTest]
+    public function report(Outcome $outcome): void {
+        echo $outcome->class(), "::", $outcome->name(), " attempt ", $outcome->attempt(),
+            " passed ", $outcome->passed() ? "yes" : "no", "\n";
+        foreach ($outcome->failures() as string $failure) {
+            echo "failure: ", $failure, "\n";
+        }
+    }
+}
+
+final class FlakyTest {
+    public static int $runs = 0;
+
+    #[Test(retries: 2, because: "the third attempt passes")]
+    public function itPassesOnItsThirdAttempt(): void {
+        FlakyTest::$runs = FlakyTest::$runs + 1;
+        Test::assertSame(FlakyTest::$runs, 3);
+    }
+
+    #[Test]
+    public function itPasses(): void {
+        Test::assertTrue(true);
+    }
+
+    #[AfterClass]
+    public static function report(Summary $summary): void {
+        echo $summary->class(), " passed ", $summary->passed(), ", failed ", $summary->failed(),
+            ", flaky ", $summary->flaky(), ", skipped ", $summary->skipped(),
+            ", failed tests ", Core\Arr::count($summary->failedTests()), "\n";
+    }
+}
+--EXPECTF--
+  FlakyTest
+    ! itPassesOnItsThirdAttempt        %f ms
+      flaky: it passed on attempt 3, having failed with:
+      Core\Test::assertSame failed: `$actual` is 2, `$expected` is 3
+    ✓ itPasses                         %f ms
+FlakyTest passed 1, failed 0, flaky 1, skipped 0, failed tests 0
+  ThrowingTest
+ThrowingTest::itThrows attempt 1 passed no
+failure: the queue is empty
+    ✗ itThrows                         %f ms
+      the queue is empty
+
+  1 failed, 1 passed, 0 skipped, 1 flaky in %d ms
+--EXPECTF-ERROR--

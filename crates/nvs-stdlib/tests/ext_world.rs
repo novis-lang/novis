@@ -103,6 +103,14 @@ const REFUSED: &[(&str, &str)] = &[
     ("Core\\Test\\Response", REQUEST),
     ("Core\\Test\\SentRequest", REQUEST),
     (
+        "Core\\Test\\Outcome",
+        "It reports a test run to that test's own hook, and a guest runs no tests.",
+    ),
+    (
+        "Core\\Test\\Summary",
+        "It reports a test class to that class's own hook, and a guest runs no tests.",
+    ),
+    (
         "Core\\Task\\Channel",
         "It is shared between the host's tasks, and a guest has no tasks.",
     ),

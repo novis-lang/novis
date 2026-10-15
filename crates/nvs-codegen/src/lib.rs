@@ -626,7 +626,7 @@ impl Unit {
     }
 
     /// Constructs the class labelled `class` and calls its `method` on the
-    /// fresh instance — `rule:testing/runner-is-strict`'s one test, run from outside compiled code.
+    /// fresh instance, then `after` on it — `rule:testing/runner-is-strict`'s one test, run from outside compiled code.
     ///
     /// `None` when this unit declares no such class, which is an internal
     /// inconsistency for a runner whose roster (`nvs_types::ExprTypeTable::tests`)
@@ -649,6 +649,7 @@ impl Unit {
         class: &str,
         method: &str,
         args: &[nvs_runtime::Value],
+        after: &mut nvs_runtime::AfterTest<'_>,
     ) -> Option<Result<(), i32>> {
         let desc = self.classes.desc(self.classes.id_of(class)?);
         #[expect(
@@ -658,7 +659,7 @@ impl Unit {
                       call, `ctx` holding a shared handle on the same table \
                       through `install_in`"
         )]
-        Some(unsafe { nvs_runtime::construct_and_call(ctx, desc, method, args) })
+        Some(unsafe { nvs_runtime::construct_and_call(ctx, desc, method, args, after) })
     }
 
     /// Calls the `static` method `Class::method` from outside compiled code,

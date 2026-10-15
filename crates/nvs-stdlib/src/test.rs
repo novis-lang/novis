@@ -288,6 +288,8 @@
 
 use nvs_runtime::{Ctx, Fault, Tag, ThrownClass, Value, identity};
 
+pub(crate) mod hooks;
+
 use crate::registry::{
     ClassDoc, Const, CoreClass, CoreField, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc,
     ParamDoc, Qual, ShapeKeyDoc,

@@ -1,0 +1,90 @@
+--TEST--
+a `#[BeforeClass]` that throws runs no test and builds no fixture, each selected test is reported failed with its error, `#[AfterClass]` still runs, and an `#[AfterClass]` that throws fails the run against its class, `rule:testing/class-hooks`
+--RUN--
+test
+--FILE--
+<?nvs
+use Core\Test;
+use Core\Test\AfterClass;
+use Core\Test\AfterEachTest;
+use Core\Test\BeforeClass;
+use Core\Test\Fixture;
+use Core\Test\Outcome;
+use Core\Test\Summary;
+
+final class Schema {
+    public function constructor(public int $tables) {}
+}
+
+final class SetupFailsTest {
+    #[BeforeClass]
+    public static function createDatabase(): void {
+        echo "before class\n";
+        throw new RuntimeError("the database server is not running");
+    }
+
+    #[Fixture]
+    public static function schema(): Schema {
+        echo "fixture\n";
+        return new Schema(3);
+    }
+
+    #[Test]
+    public function itReadsTheSchema(Schema $schema): void {
+        echo "test 1\n";
+        Test::assertSame($schema->tables, 3);
+    }
+
+    #[Test]
+    public function itNeedsNoFixture(): void {
+        echo "test 2\n";
+        Test::assertTrue(true);
+    }
+
+    #[AfterClass]
+    public static function dropDatabase(Summary $summary): void {
+        echo "after class: ", $summary->class(), " passed ", $summary->passed(),
+            ", failed ", $summary->failed(), ", flaky ", $summary->flaky(),
+            ", skipped ", $summary->skipped(), "\n";
+        foreach ($summary->failedTests() as string $name) {
+            echo "failed test: ", $name, "\n";
+        }
+    }
+}
+
+final class CleanupFailsTest {
+    #[Test]
+    public function itPasses(): void {
+        Test::assertTrue(true);
+    }
+
+    #[AfterEachTest]
+    public function removeRows(Outcome $outcome): void {
+        echo "after ", $outcome->class(), "::", $outcome->name(), " attempt ",
+            $outcome->attempt(), ", passed ", $outcome->passed() ? "yes" : "no",
+            ", failures ", Core\Arr::count($outcome->failures()), "\n";
+    }
+
+    #[AfterClass]
+    public static function dropDatabase(): void {
+        throw new RuntimeError("the database is still in use");
+    }
+}
+--EXPECTF--
+  CleanupFailsTest
+after CleanupFailsTest::itPasses attempt 1, passed yes, failures 0
+    ✓ itPasses                         %f ms
+    ✗ dropDatabase
+      the `#[AfterClass]` method `dropDatabase` threw: the database is still in use
+  SetupFailsTest
+before class
+    ✗ itReadsTheSchema                 %f ms
+      the `#[BeforeClass]` method `createDatabase` threw: the database server is not running
+    ✗ itNeedsNoFixture                 %f ms
+      the `#[BeforeClass]` method `createDatabase` threw: the database server is not running
+after class: SetupFailsTest passed 0, failed 2, flaky 0, skipped 0
+failed test: itReadsTheSchema
+failed test: itNeedsNoFixture
+
+  2 failed, 1 passed, 0 skipped, 0 flaky in %d ms
+--EXPECTF-ERROR--

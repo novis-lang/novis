@@ -101,6 +101,8 @@ Conventions the whole file uses:
 | [`Core\Test`](#core-core-test) | the typed assertions a `#[Test]` method calls, built into the language |
 | [`Core\Test\Response`](#core-core-test-response) | what `Core\Test::request` answers — the status, the headers, the cookies and the body one in-process request produced |
 | [`Core\Test\SentRequest`](#core-core-test-sentrequest) |  |
+| [`Core\Test\Outcome`](#core-core-test-outcome) |  |
+| [`Core\Test\Summary`](#core-core-test-summary) |  |
 | [`Core\Task`](#core-core-task) | structured concurrency — run a fixed set or a whole array of callables as child tasks and get every result back before the call returns |
 | [`Core\Task\Channel<T>`](#core-core-task-channel) | a bounded queue between two tasks whose `send` waits at the bound — backpressure instead of a growing buffer |
 | [`Core\Script\Handle`](#core-core-script-handle) | what `spawn script` answers — a handle on a running child script that `await` collects exactly once |
@@ -17904,6 +17906,154 @@ $sentRequest->body(): bytes
 Returns the body of this request, such as the JSON document or the form the program sent.
 
 **Returns** `bytes` — The body as `bytes`. If the request has no body, the result is empty `bytes`. Use `as string` to read it as text.
+
+<a id="core-core-test-outcome"></a>
+### `Core\Test\Outcome`
+
+Keywords: class, name, attempt, passed, failures
+
+| Member | Signature |
+|---|---|
+| [`Core\Test\Outcome->class`](#core-core-test-outcome-class) | `class(): string` |
+| [`Core\Test\Outcome->name`](#core-core-test-outcome-name) | `name(): string` |
+| [`Core\Test\Outcome->attempt`](#core-core-test-outcome-attempt) | `attempt(): int` |
+| [`Core\Test\Outcome->passed`](#core-core-test-outcome-passed) | `passed(): bool` |
+| [`Core\Test\Outcome->failures`](#core-core-test-outcome-failures) | `failures(): array<string>` |
+
+<a id="core-core-test-outcome-class"></a>
+#### `Core\Test\Outcome->class`
+
+```nvs skip
+$outcome->class(): string
+```
+
+Returns the name of the test class.
+
+**Returns** `string` — The class name, with its namespace.
+
+<a id="core-core-test-outcome-name"></a>
+#### `Core\Test\Outcome->name`
+
+```nvs skip
+$outcome->name(): string
+```
+
+Returns the name of the test method that ran.
+
+**Returns** `string` — The method name. A test with `#[TestWith]` rows has `#0`, `#1` and so on after the name, as the report prints it.
+
+<a id="core-core-test-outcome-attempt"></a>
+#### `Core\Test\Outcome->attempt`
+
+```nvs skip
+$outcome->attempt(): int
+```
+
+Returns which run of the test this was.
+
+**Returns** `int` — `1` for the first run. Each retry from `retries:` adds one.
+
+<a id="core-core-test-outcome-passed"></a>
+#### `Core\Test\Outcome->passed`
+
+```nvs skip
+$outcome->passed(): bool
+```
+
+Checks whether this run of the test passed.
+
+**Returns** `bool` — `true` when the run passed, and `false` when it failed.
+
+<a id="core-core-test-outcome-failures"></a>
+#### `Core\Test\Outcome->failures`
+
+```nvs skip
+$outcome->failures(): array<string>
+```
+
+Returns the failure messages of this run.
+
+**Returns** `array<string>` — One message per failure, as the report prints it. The list is empty when the run passed.
+
+<a id="core-core-test-summary"></a>
+### `Core\Test\Summary`
+
+Keywords: class, passed, failed, flaky, skipped, failedTests
+
+| Member | Signature |
+|---|---|
+| [`Core\Test\Summary->class`](#core-core-test-summary-class) | `class(): string` |
+| [`Core\Test\Summary->passed`](#core-core-test-summary-passed) | `passed(): int` |
+| [`Core\Test\Summary->failed`](#core-core-test-summary-failed) | `failed(): int` |
+| [`Core\Test\Summary->flaky`](#core-core-test-summary-flaky) | `flaky(): int` |
+| [`Core\Test\Summary->skipped`](#core-core-test-summary-skipped) | `skipped(): int` |
+| [`Core\Test\Summary->failedTests`](#core-core-test-summary-failedtests) | `failedTests(): array<string>` |
+
+<a id="core-core-test-summary-class"></a>
+#### `Core\Test\Summary->class`
+
+```nvs skip
+$summary->class(): string
+```
+
+Returns the name of the test class.
+
+**Returns** `string` — The class name, with its namespace.
+
+<a id="core-core-test-summary-passed"></a>
+#### `Core\Test\Summary->passed`
+
+```nvs skip
+$summary->passed(): int
+```
+
+Returns how many tests of the class passed.
+
+**Returns** `int` — The number of passed tests. A flaky test is not counted here.
+
+<a id="core-core-test-summary-failed"></a>
+#### `Core\Test\Summary->failed`
+
+```nvs skip
+$summary->failed(): int
+```
+
+Returns how many tests of the class failed.
+
+**Returns** `int` — The number of failed tests.
+
+<a id="core-core-test-summary-flaky"></a>
+#### `Core\Test\Summary->flaky`
+
+```nvs skip
+$summary->flaky(): int
+```
+
+Returns how many tests of the class failed first and then passed on a retry.
+
+**Returns** `int` — The number of flaky tests.
+
+<a id="core-core-test-summary-skipped"></a>
+#### `Core\Test\Summary->skipped`
+
+```nvs skip
+$summary->skipped(): int
+```
+
+Returns how many tests of the class were skipped.
+
+**Returns** `int` — The number of skipped tests.
+
+<a id="core-core-test-summary-failedtests"></a>
+#### `Core\Test\Summary->failedTests`
+
+```nvs skip
+$summary->failedTests(): array<string>
+```
+
+Returns the names of the tests that failed.
+
+**Returns** `array<string>` — One name per failed test, as the report prints it. The list is empty when no test failed.
 
 <a id="core-core-task"></a>
 ### `Core\Task`
