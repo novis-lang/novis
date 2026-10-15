@@ -25,6 +25,9 @@ run = [["bun", "nv", "verify"]]
 
 [checks]
 timeout = 1800            # the acceptance runner's own
+# Bun 1.3 prints only failing tests when `CLAUDECODE` is set, and a check's `tests` list is matched against
+# the `(pass)` lines, so every check runs with it empty.
+env = { CLAUDECODE = "" }
 
 # `tools/nv/cmd/sweep.ts`: it pays owed and red atoms for its DEBT_BUDGET_MS, sweeps the disk and reads the
 # nightly CI run back. No atom starts once the budget is spent, so the timeout covers the budget, one atom
