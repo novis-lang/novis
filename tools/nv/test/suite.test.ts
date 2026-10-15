@@ -45,6 +45,18 @@ describe("bun nv suite", () => {
     expect(got.lines).toEqual([`RED suite: case ${CASES[1]} was skipped, so nothing ran it`]);
   });
 
+  test("nv suite fails on a named case its tree does not run, such as an .lspt case under nvs test", async () => {
+    const got = await suiteOver([TREE, "--case", `${TREE}/three.lspt`], { onDisk: () => true });
+    expect(got.code).toBe(1);
+    expect(got.lines).toEqual([`RED suite: case ${TREE}/three.lspt is not a case this suite runs, so nothing ran it`]);
+  });
+
+  test("nv suite lsp-test builds the check nvs lsp-test runs", () => {
+    expect(suiteCheck(["lsp-test", TREE, "--case", `${TREE}/three.lspt`])).toMatchObject({
+      check: { kind: "nvs-suite", name: `nvs lsp-test ${TREE}`, args: ["lsp-test", TREE], cases: [`${TREE}/three.lspt`] },
+    });
+  });
+
   test("nv suite fails when fewer cases pass than --min-passing", async () => {
     const got = await suiteOver([TREE, "--min-passing", "3"], {});
     expect(got.code).toBe(1);

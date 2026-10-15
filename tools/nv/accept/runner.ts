@@ -120,6 +120,7 @@ export function suiteVerdict(c: Check, cases: string[], label: string, f: SuiteF
   for (const kase of c.cases ?? []) {
     const want = kase.replaceAll("\\", "/");
     if (!f.onDisk(kase)) return none(`${label}: case ${want} is not written yet`);
+    if (!cases.includes(want)) return none(`${label}: case ${want} is not a case this suite runs, so nothing ran it`);
     if (f.skipped(want)) return none(`${label}: case ${want} was skipped, so nothing ran it`);
   }
   const passing = cases.filter((p) => f.skipped(p) !== true).length;
