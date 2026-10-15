@@ -1587,7 +1587,11 @@ fn multipart(parts: &[SpecPart], boundary: &str) -> Vec<u8> {
 ///
 /// **What it spends:** one boxed Rust closure and one 16-byte value per upgrade, plus
 /// the argument graph the copy behind it holds — accounted where that copy is
-/// made, which is `nvs_stdlib::socket`'s "copied twice per upgrade".
+/// made, which is `nvs_stdlib::socket`'s "copied twice per upgrade". The
+/// [`crate::host::Narrowing`] beside them is one empty `Vec` and a `None` for an
+/// upgrade that wrote neither `limits:` nor `grants:` and inherits no grant
+/// list, and one short `Vec` of names and of written values otherwise —
+/// released when the connection's context is built.
 pub struct Upgrade {
     /// What the connection's isolate runs: the resolver's program for a path
     /// entry, or the Rust closure `nvs_stdlib::socket` built over an already-crossed
@@ -1598,6 +1602,12 @@ pub struct Upgrade {
     /// made so that `rule:classes/graph-copy`'s refusal could still be a throw the program
     /// catches.
     args: Value,
+    /// What the connection's isolate is held to below the server's own
+    /// ceilings and grants — `rule:concurrency/an-upgrades-options-are-spawn-scripts`'s
+    /// `limits:` and `grants:`, with the grant list already intersected with
+    /// what the upgrading request holds, because the connection's context is
+    /// the server's and could not ask the request afterwards.
+    narrowing: crate::host::Narrowing,
 }
 
 impl std::fmt::Debug for Upgrade {
@@ -1607,23 +1617,37 @@ impl std::fmt::Debug for Upgrade {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Upgrade")
             .field("args", &self.args)
+            .field("narrowing", &self.narrowing)
             .finish_non_exhaustive()
     }
 }
 
 impl Upgrade {
-    /// Prepares one. **Consumes one reference to `args`** — the type's own doc
-    /// owns what that obligates.
+    /// Prepares one that narrows nothing. **Consumes one reference to `args`**
+    /// — the type's own doc owns what that obligates.
     #[must_use]
     pub fn new(program: crate::script::Program, args: Value) -> Self {
-        Self { program, args }
+        Self {
+            program,
+            args,
+            narrowing: crate::host::Narrowing::default(),
+        }
     }
-    /// Hands both halves over, which is the one thing anybody does with one:
-    /// they are `nvs_host::Isolate::new`'s first two arguments and are never
-    /// read apart.
+    /// Holds the connection to `narrowing`, which every door starting it
+    /// hands to `nvs_host::Isolate::narrowed_by`.
     #[must_use]
-    pub fn into_parts(self) -> (crate::script::Program, Value) {
-        (self.program, self.args)
+    pub fn narrowed_by(mut self, narrowing: crate::host::Narrowing) -> Self {
+        self.narrowing = narrowing;
+        self
+    }
+    /// Hands all three parts over, which is the one thing anybody does with
+    /// one: the program and the argument are `nvs_host::Isolate::new`'s first
+    /// two arguments and the narrowing is its `narrowed_by`. They come out
+    /// together so that no door can start the connection and leave the
+    /// narrowing behind.
+    #[must_use]
+    pub fn into_parts(self) -> (crate::script::Program, Value, crate::host::Narrowing) {
+        (self.program, self.args, self.narrowing)
     }
     /// Gives back what a dropped one would leak — the reference to `args` this
     /// type's own doc says it consumed — and drops the program unrun.
@@ -2132,7 +2156,7 @@ mod tests {
         // what it left, which is § 1's ordering as the code expresses it.
         drop(inbound);
         assert!(connection.is_filled());
-        let (program, args) = connection
+        let (program, args, _) = connection
             .take()
             .expect("the request filled it")
             .into_parts();
@@ -2159,13 +2183,13 @@ mod tests {
             .expect_err("one request upgrades once");
 
         let mut ctx = Ctx::new(OutputSink::Sink);
-        let (first, _) = slot.take().expect("the first fill stands").into_parts();
+        let (first, _, _) = slot.take().expect("the first fill stands").into_parts();
         first(&mut ctx, Value::null());
         assert_eq!(marker.get(), 1);
 
         // And the refused one is intact rather than half-consumed: the caller
         // is what releases its argument, so it has to arrive whole.
-        let (second, _) = refused.into_parts();
+        let (second, _, _) = refused.into_parts();
         second(&mut ctx, Value::null());
         assert_eq!(marker.get(), 2);
     }
@@ -2194,7 +2218,7 @@ mod tests {
         // this isolate writes into — reads what it left.
         drop(inbound);
         assert!(connection.is_filled());
-        let (program, args) = connection
+        let (program, args, _) = connection
             .take()
             .expect("the request filled it")
             .into_parts();
@@ -2226,12 +2250,12 @@ mod tests {
             .expect_err("one request opens one event stream");
 
         let mut ctx = Ctx::new(OutputSink::Sink);
-        let (first, _) = events.take().expect("the first fill stands").into_parts();
+        let (first, _, _) = events.take().expect("the first fill stands").into_parts();
         first(&mut ctx, Value::null());
         assert_eq!(marker.get(), 1);
 
         // And the refused one is intact, for [`UpgradeSlot::fill`]'s reason.
-        let (third, _) = refused.into_parts();
+        let (third, _, _) = refused.into_parts();
         third(&mut ctx, Value::null());
         assert_eq!(marker.get(), 3);
     }

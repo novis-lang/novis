@@ -712,7 +712,11 @@ fn narrowing_of(limits: &Value, grants: &Value) -> Result<Narrowing, Fault> {
 /// (`nvs_config::Request::set`). A count is rendered rather than parsed here for
 /// the same reason: the number the child is held to is read by one parser, not
 /// by this one and then again by that one.
-fn limits_of(value: &Value) -> Result<Vec<(String, String)>, Fault> {
+///
+/// `crate::socket`'s upgrades read their own `limits:` through this one too,
+/// because the option is this one with the same spelling
+/// (`rule:concurrency/an-upgrades-options-are-spawn-scripts`).
+pub(crate) fn limits_of(value: &Value) -> Result<Vec<(String, String)>, Fault> {
     if matches!(value.tag(), Some(Tag::Null)) {
         return Ok(Vec::new());
     }
@@ -777,7 +781,10 @@ fn limits_of(value: &Value) -> Result<Vec<(String, String)>, Fault> {
 /// all is the parent's own set unchanged. The names are not checked against
 /// [`Cap::parse`] here — a name no capability has grants nothing, and dropping
 /// it from a list that only ever narrows fails closed.
-fn grants_of(value: &Value) -> Result<Option<Vec<String>>, Fault> {
+///
+/// `crate::socket`'s upgrades read their own `grants:` through this one too,
+/// for [`limits_of`]'s reason.
+pub(crate) fn grants_of(value: &Value) -> Result<Option<Vec<String>>, Fault> {
     if matches!(value.tag(), Some(Tag::Null)) {
         return Ok(None);
     }

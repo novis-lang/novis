@@ -159,10 +159,11 @@ pub(crate) fn start(
 /// as a client that left ends it. The stream prints as it is written, and what
 /// the connection `echo`es follows it, for `crate::peer::connect`'s reason.
 pub(crate) fn connect(ctx: &mut nvs_runtime::Ctx, upgrade: nvs_runtime::Upgrade, feed: Feed) {
-    let (program, args) = upgrade.into_parts();
+    let (program, args, narrowing) = upgrade.into_parts();
     let (emit, drain) = open();
     let inbox = Rc::new(nvs_runtime::Inbox::default());
     let started = nvs_host::Isolate::new(program, args, nvs_host::Output::Inherit)
+        .narrowed_by(narrowing)
         .over_event_stream(emit)
         .delivering_into(Rc::clone(&inbox))
         .start(ctx);

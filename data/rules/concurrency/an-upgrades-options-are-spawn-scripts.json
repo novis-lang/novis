@@ -1,11 +1,13 @@
 {
   "title": "An upgrade's `args`, `limits`, `grants` and `on` are a spawned script's options as ordinary named arguments",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "concurrency/an-upgrade-is-spawn-shaped",
     "concurrency/a-connection-is-a-root-isolate",
     "security/isolate-shares-nothing"
   ],
-  "guardedBy": [],
-  "goal": "server-rule-debts"
+  "guardedBy": [
+    "tests/conformance/core/socket-an-upgrade-narrows-its-grants.nvst",
+    "tests/conformance/core/socket-an-upgrade-takes-its-own-limits.nvst"
+  ]
 }

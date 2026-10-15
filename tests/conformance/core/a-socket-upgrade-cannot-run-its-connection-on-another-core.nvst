@@ -1,0 +1,29 @@
+--TEST--
+`Core\Socket::upgrade`'s `on:` takes `spawn script`'s spelling, and `"worker"` does not compile, because a connection runs on the core that accepted its client: the placement is refused where it is written, never accepted and dropped — `rule:concurrency/an-upgrades-options-are-spawn-scripts`, `rule:concurrency/an-upgrade-is-spawn-shaped`
+--FILE--
+<?nvs
+// A misspelled sub-cap is refused as `spawn script` refuses it.
+Core\Socket::upgrade("chat.nvs", limits: {memmory: "1M"});
+// `"here"` is what an upgrade does, so it compiles.
+Core\Socket::upgrade("chat.nvs", on: "here");
+Core\Socket::upgrade("chat.nvs", on: "worker");
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0454]: `memmory` is not a limit a spawn site can narrow
+  --> case.nvs:3:42
+  |
+3 | Core\Socket::upgrade("chat.nvs", limits: {memmory: "1M"});
+  |                                          ^^^^^^^^^^^^^^^ no sub-cap of this name
+  = help: the sub-caps are: `cpu_time`, `max_output`, `memory`, `wall_time`, `max_tasks`
+
+error[E0818]: `Core\Socket::upgrade` cannot run its connection on another core
+  --> case.nvs:6:38
+  |
+6 | Core\Socket::upgrade("chat.nvs", on: "worker");
+  |                                      ^^^^^^^^ a connection runs on the core that accepted it
+  = help: the client's connection belongs to this core, so the script runs here. Remove `on:`, or write `on: "here"`
+
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

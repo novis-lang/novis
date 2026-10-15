@@ -2207,13 +2207,14 @@ where
             (None, stream) => stream,
         };
         if let Some(upgrade) = opened {
-            let (program, args) = upgrade.into_parts();
+            let (program, args, narrowing) = upgrade.into_parts();
             // The body before the isolate that writes it, because the two halves
             // are one call: the writing half goes into the isolate and the
             // reading half is what this connection answers with, so neither can
             // be handed anywhere before both exist.
             let (events, body) = Answer::stream(&bounds);
             match Isolate::new(program, args, Output::Capture)
+                .narrowed_by(narrowing)
                 .over_event_stream(events)
                 .start(&mut ctx.borrow_mut())
             {
@@ -2376,7 +2377,7 @@ where
         // `crate::admit`'s rule about refusing before allocating applied to the
         // longer-lived thing.
         if peer.admitted() {
-            let (program, args) = upgrade.into_parts();
+            let (program, args, narrowing) = upgrade.into_parts();
             // The *argument* had no meaning on the other side, which is the one
             // refusal left at this point and the one place it cannot be
             // reported: the request that asked is over, there is no `catch` to
@@ -2384,6 +2385,7 @@ where
             // status. The socket closes with `peer` instead, which is the only
             // honest answer left.
             if let Ok(running) = Isolate::new(program, args, Output::Capture)
+                .narrowed_by(narrowing)
                 .over_socket(Box::new(peer))
                 .start(&mut ctx.borrow_mut())
             {

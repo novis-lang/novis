@@ -171,28 +171,35 @@
 //! [`crate::response`] is a class of `void` members writing the response the
 //! request already has, and this is one more of them.
 //!
-//! # Why `limits:`, `grants:` and `on:` are not parameters
+//! # `limits:`, `grants:` and `on:` are `spawn script`'s
 //!
-//! § 2 lists four options and calls them `spawn script`'s, spelled as ordinary
-//! named arguments. Three of the four narrow the child — the budget it may spend,
-//! the authorities it inherits, the core it starts on — and this member
-//! forwards none of them: an upgrade opens the connection isolate itself, and
-//! nothing in the body carries a sub-cap or a grant to it. A row declaring
-//! them would accept a narrowing and drop it, which is the one reading of
-//! `grants:` that hands the connection the authority its request meant to give
-//! up, so they are simply not declared and a program writing `grants: {}` gets
-//! the unknown-argument refusal rather than a silent widening. They arrive
-//! here when the body forwards them; `rule:concurrency/an-upgrades-options-are-spawn-scripts`
-//! is that rule's one home and this module does not restate it.
+//! `rule:concurrency/an-upgrades-options-are-spawn-scripts` is the rule's one
+//! home. Here is where each option goes. [`upgrade_narrowing`] decodes
+//! `limits:` and `grants:` into the [`nvs_runtime::host::Narrowing`] the
+//! prepared [`Upgrade`] carries, and every door that starts the connection
+//! hands it to `nvs_host::Isolate::narrowed_by`. `limits:` stays text, read
+//! by `spawn script`'s own [`crate::script::limits_of`], and the connection's
+//! configuration overlay applies it. **`grants:` is intersected here**, against
+//! the upgrading request's own context, because the connection's context is
+//! the server's: asked there, a capability the request gave up would still be
+//! held. With no `grants:` the request's own narrowing is carried instead, so
+//! an upgrade never holds more than the request that made it.
+//!
+//! `on:` takes `"here"` and nothing else, and the type checker refuses
+//! `"worker"` where it is written (`nvs_types::expr::isolate`). The socket and
+//! the event stream belong to the core that accepted them, so the connection
+//! runs there. The helper reads the option only to guard that the checker
+//! agreed.
 //!
 //! `output:` is the fifth and does not apply: an isolate's `output:` chooses
 //! between its own buffer and the parent's stream
 //! (`rule:tooling/echo-always-has-a-sink`
 //! ), and a connection's output is the socket.
 
+use nvs_runtime::host::Narrowing;
 use nvs_runtime::script::{Program, ResolveError};
 use nvs_runtime::{
-    Closing, Ctx, Delivery, Fault, NvsStr, PeerFrame, ThrownClass, Upgrade, Value, copy_graph,
+    Closing, Ctx, Delivery, Fault, NvsStr, PeerFrame, Tag, ThrownClass, Upgrade, Value, copy_graph,
 };
 
 use crate::registry::{
@@ -236,7 +243,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     methods: &[
         CoreMethod {
             name: "upgrade",
-            names: &["entry", "args"],
+            names: &["entry", "args", "limits", "grants", "on"],
             // [`CoreTy::Entry`] is § 2's `spawn script` operand, as the one mark that
             // carries `rule:security/isolate-shares-nothing`'s whole operand rule to a call site: a path or a static
             // method written `Chat::run(...)`, and never a `callable` in a
@@ -249,8 +256,25 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             // all, for the reason the sibling site takes none: `rule:classes/graph-copy`'s walk
             // decides what may cross, and that is a run-time question for
             // everything a declared type does not already settle.
-            params: &[CoreTy::Entry, CoreTy::Mixed],
-            defaults: &[Const::Null],
+            //
+            // The last three are `rule:concurrency/an-upgrades-options-are-spawn-scripts`'s
+            // narrowings, each `null` when not written. `limits` is
+            // [`CoreTy::Mixed`] because no registry type spells `spawn script`'s
+            // sub-cap shape: a [`CoreTy::Shape`] flattens into camelCase named
+            // arguments, and the option's keys are the snake_case `[limits]`
+            // ones. `nvs_types::expr::isolate`'s `check_core_isolate_call` checks
+            // it against that shape instead, and `on` against the one placement
+            // a connection has. `grants` is a [`Qual::Sink`] for
+            // `Core\Queue::push`'s `grants` reason: the names choose what the
+            // connection may reach, so a request's own input may not choose them.
+            params: &[
+                CoreTy::Entry,
+                CoreTy::Mixed,
+                CoreTy::Mixed,
+                CoreTy::Nullable(&CoreTy::Array(&CoreTy::Text(Qual::Sink))),
+                CoreTy::Nullable(&CoreTy::Text(Qual::Neutral)),
+            ],
+            defaults: &[Const::Null, Const::Null, Const::Null, Const::Null],
             return_ty: CoreTy::Void,
             symbol: UPGRADE_SYMBOL,
             doc: Some(&UPGRADE_DOC),
@@ -341,6 +365,28 @@ const UPGRADE_DOC: MethodDoc = MethodDoc {
             desc: "The values the connection starts with. They are copied into the connection. \
                    For a method, each value goes to the parameter with the same name. A \
                    `tainted` value is still `tainted` in the connection.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "limits",
+            desc: "Lower limits for the connection, written as `spawn script` writes them: \
+                   `{memory: \"8M\", cpu_time: \"2s\"}`. The keys are `memory`, `cpu_time`, \
+                   `wall_time`, `max_output` and `max_tasks`. A limit higher than the \
+                   server's own has no effect. The connection stops when it reaches one.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "grants",
+            desc: "The capabilities the connection may use, such as `[\"fs.read\"]`. It gets \
+                   only the names in this list that the request itself holds. An empty list \
+                   gives it none. Without this option, it gets what the request holds.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "on",
+            desc: "Where the connection runs. Only `\"here\"` is allowed, because the \
+                   connection runs on the core that accepted the client. `\"worker\"` does \
+                   not compile.",
             shape: &[],
         },
     ],
@@ -829,8 +875,63 @@ pub(crate) fn release_crossed(value: Value) {
     unsafe { value.release() };
 }
 
+/// An upgrade's `limits:`, `grants:` and `on:`, as the narrowing its connection
+/// is started under — the module doc's § *`limits:`, `grants:` and `on:` are
+/// `spawn script`'s*, shared with [`crate::sse`]'s `upgrade`.
+///
+/// `grants:` keeps the written names that are a capability and that `ctx` —
+/// the upgrading request — is granted, unscoped, and drops the rest, which is
+/// `spawn script`'s intersection asked a step early. With none written, the
+/// request's own grant list is carried, and `None` where it has none.
+///
+/// # Errors
+///
+/// A fatal for a value the type checker already refused, which is what makes
+/// the readers total.
+pub(crate) fn upgrade_narrowing(
+    ctx: &Ctx,
+    limits: &Value,
+    grants: &Value,
+    on: &Value,
+    form: &str,
+) -> Result<Narrowing, Fault> {
+    // Unreachable from source: `nvs_types::expr::isolate`'s
+    // `check_core_isolate_call` refuses every `on:` but the literal `"here"`
+    // where it is written.
+    if !matches!(on.tag(), Some(Tag::Null)) && on.as_text() != Some("here") {
+        return Err(Fault::fatal(format!(
+            "{form}'s `on:` is `'here'`, got tag {}",
+            on.tag_byte()
+        )));
+    }
+    let grants = match crate::script::grants_of(grants)? {
+        Some(written) => Some(
+            written
+                .into_iter()
+                .filter(|name| {
+                    nvs_config::capability::Cap::parse(name).is_some_and(|cap| {
+                        nvs_runtime::capability::granted(
+                            ctx,
+                            cap,
+                            nvs_config::capability::Scope::Unscoped,
+                        )
+                    })
+                })
+                .collect(),
+        ),
+        None => ctx
+            .grant_filter()
+            .map(|kept| kept.iter().map(|cap| cap.name().to_owned()).collect()),
+    };
+    Ok(Narrowing {
+        limits: crate::script::limits_of(limits)?,
+        grants,
+    })
+}
+
 nvs_runtime::nvs_helper! {
-    /// `Core\Socket::upgrade(string $entry, mixed $args = null): void` —
+    /// `Core\Socket::upgrade(string $entry, mixed $args = null, mixed $limits =
+    /// null, ?array<string> $grants = null, ?string $on = null): void` —
     /// `rule:concurrency/an-upgrade-is-spawn-shaped`'s upgrade, prepared here
     /// and started by the connection.
     ///
@@ -849,7 +950,7 @@ nvs_runtime::nvs_helper! {
     /// back precisely so the refusal lands where there is still a context to
     /// release the argument with, and asking twice would put the rule in two
     /// places to save a program that is already wrong one resolve.
-    fn nvs_core_socket_upgrade(ctx, args: [2]) {
+    fn nvs_core_socket_upgrade(ctx, args: [5]) {
         // Cloned rather than borrowed, because `entry_program` below takes the
         // context: both halves of the cell are shared handles by construction,
         // so a clone is one refcount and no borrow held across a call.
@@ -865,6 +966,8 @@ nvs_runtime::nvs_helper! {
                 )
             })?;
         let program = entry_program(ctx, args[0], args[1], "Core\\Socket::upgrade")?;
+        let narrowing =
+            upgrade_narrowing(ctx, &args[2], &args[3], &args[4], "`Core\\Socket::upgrade`")?;
         // No case can reach this: it stands after the slot, and a `.nvst` case
         // runs a script no connection offered one to.
         // `an_args_value_that_cannot_cross_is_refused_before_the_slot_is_filled`
@@ -875,8 +978,8 @@ nvs_runtime::nvs_helper! {
                 format!("`Core\\Socket::upgrade`'s `args:` cannot cross into a connection: {refused}"),
             )
         })?;
-        if let Err(returned) = slot.fill(Upgrade::new(program, crossed)) {
-            let (_program, crossed) = returned.into_parts();
+        if let Err(returned) = slot.fill(Upgrade::new(program, crossed).narrowed_by(narrowing)) {
+            let (_program, crossed, _narrowing) = returned.into_parts();
             release_crossed(crossed);
             // No case can reach this: a second upgrade needs a first, and a
             // first needs a slot no `.nvst` case is offered.
@@ -1154,6 +1257,14 @@ mod tests {
         nvs_core_socket_receive, nvs_core_socket_send, nvs_core_socket_send_bytes,
         nvs_core_socket_upgrade, release_crossed,
     };
+
+    /// An upgrade's five arguments for a test that writes only the first two:
+    /// the three narrowings are `null`, as the lowering passes them for a call
+    /// that wrote none. `crate::sse`'s tests keep a copy, because this module
+    /// is private to its file.
+    fn upgrading(entry: Value, args: Value) -> [Value; 5] {
+        [entry, args, Value::null(), Value::null(), Value::null()]
+    }
 
     /// A peer whose answers are scripted and whose sends are recorded.
     ///
@@ -1713,10 +1824,10 @@ mod tests {
 
         let path = Value::str(NvsStr::new(b"/sockets/chat.nvs"));
         let mine = a_room();
-        nvs_runtime::call(nvs_core_socket_upgrade, &mut ctx, &[path, mine])
+        nvs_runtime::call(nvs_core_socket_upgrade, &mut ctx, &upgrading(path, mine))
             .expect("an offered slot takes the upgrade");
 
-        let (program, crossed) = slot
+        let (program, crossed, _) = slot
             .take()
             .expect("the member filled the slot the connection left")
             .into_parts();
@@ -1755,8 +1866,12 @@ mod tests {
         ctx.set_inbound(Inbound::new("GET", "/live/chat", ""));
 
         let path = Value::str(NvsStr::new(b"/sockets/chat.nvs"));
-        nvs_runtime::call(nvs_core_socket_upgrade, &mut ctx, &[path, Value::null()])
-            .expect_err("a request with no slot cannot upgrade");
+        nvs_runtime::call(
+            nvs_core_socket_upgrade,
+            &mut ctx,
+            &upgrading(path, Value::null()),
+        )
+        .expect_err("a request with no slot cannot upgrade");
         let reported = ctx
             .pending()
             .expect("the throw is on the context")
@@ -1788,8 +1903,12 @@ mod tests {
             let slot = UpgradeSlot::new();
             upgradable(&mut ctx, &slot);
 
-            nvs_runtime::call(nvs_core_socket_upgrade, &mut ctx, &[path, Value::null()])
-                .expect_err("a path nothing can resolve does not open a connection");
+            nvs_runtime::call(
+                nvs_core_socket_upgrade,
+                &mut ctx,
+                &upgrading(path, Value::null()),
+            )
+            .expect_err("a path nothing can resolve does not open a connection");
             let reported = ctx
                 .pending()
                 .expect("the failure is on the context")
@@ -1820,8 +1939,12 @@ mod tests {
         upgradable(&mut ctx, &slot);
 
         let path = Value::str(NvsStr::new(b"sockets/chat.nvs"));
-        nvs_runtime::call(nvs_core_socket_upgrade, &mut ctx, &[path, Value::null()])
-            .expect_err("a relative entry does not open a connection");
+        nvs_runtime::call(
+            nvs_core_socket_upgrade,
+            &mut ctx,
+            &upgrading(path, Value::null()),
+        )
+        .expect_err("a relative entry does not open a connection");
         let reported = ctx
             .pending()
             .expect("the failure is on the context")
@@ -1858,8 +1981,12 @@ mod tests {
         upgradable(&mut ctx, &slot);
 
         let path = Value::str(NvsStr::new(b"/sockets/chat.nvs"));
-        nvs_runtime::call(nvs_core_socket_upgrade, &mut ctx, &[path, Value::unset()])
-            .expect_err("a value with no meaning on the other side does not cross");
+        nvs_runtime::call(
+            nvs_core_socket_upgrade,
+            &mut ctx,
+            &upgrading(path, Value::unset()),
+        )
+        .expect_err("a value with no meaning on the other side does not cross");
         let reported = ctx
             .pending()
             .expect("the throw is on the context")
@@ -1902,8 +2029,12 @@ mod tests {
         upgradable(&mut by_path, &path_slot);
         let path = Value::str(NvsStr::new(b"/sockets/chat.nvs"));
         let path_args = a_room();
-        nvs_runtime::call(nvs_core_socket_upgrade, &mut by_path, &[path, path_args])
-            .expect("a path entry fills the slot");
+        nvs_runtime::call(
+            nvs_core_socket_upgrade,
+            &mut by_path,
+            &upgrading(path, path_args),
+        )
+        .expect("a path entry fills the slot");
 
         let mut by_method = granting();
         let method_slot = UpgradeSlot::new();
@@ -1913,7 +2044,7 @@ mod tests {
         nvs_runtime::call(
             nvs_core_socket_upgrade,
             &mut by_method,
-            &[entry, method_args],
+            &upgrading(entry, method_args),
         )
         .expect("a static method entry fills the same slot");
 
@@ -1924,7 +2055,7 @@ mod tests {
             ("a path", &path_slot, path_args, 17),
             ("a static method", &method_slot, method_args, 7),
         ] {
-            let (program, crossed) = slot
+            let (program, crossed, _) = slot
                 .take()
                 .unwrap_or_else(|| panic!("{form} left the connection nothing to start"))
                 .into_parts();
@@ -1967,7 +2098,7 @@ mod tests {
         upgradable(&mut ctx, &slot);
         let entry = a_callable("room", echoes_room);
         let mine = a_room();
-        nvs_runtime::call(nvs_core_socket_upgrade, &mut ctx, &[entry, mine])
+        nvs_runtime::call(nvs_core_socket_upgrade, &mut ctx, &upgrading(entry, mine))
             .expect("a static method entry fills the slot");
         let object = entry.obj_ptr().expect("the entry is an object");
         #[expect(
@@ -1984,7 +2115,7 @@ mod tests {
         // The request's frame ends, and its reference goes with it.
         release_crossed(entry);
         release_crossed(mine);
-        let (program, crossed) = slot.take().expect("the slot was filled").into_parts();
+        let (program, crossed, _) = slot.take().expect("the slot was filled").into_parts();
         let mut connection = Ctx::buffered();
         assert_eq!(
             program(&mut connection, crossed).as_int(),
@@ -2013,7 +2144,7 @@ mod tests {
         // parameter with no entry and an entry naming no parameter.
         let entry = a_callable("userId", echoes_room);
         let mine = a_room();
-        nvs_runtime::call(nvs_core_socket_upgrade, &mut ctx, &[entry, mine])
+        nvs_runtime::call(nvs_core_socket_upgrade, &mut ctx, &upgrading(entry, mine))
             .expect_err("`args:` that does not name the entry's parameters is refused");
         let reported = ctx
             .pending()
@@ -2045,10 +2176,18 @@ mod tests {
 
         let first = Value::str(NvsStr::new(b"/sockets/chat.nvs"));
         let second = Value::str(NvsStr::new(b"/sockets/other-and-longer.nvs"));
-        nvs_runtime::call(nvs_core_socket_upgrade, &mut ctx, &[first, Value::null()])
-            .expect("the first upgrade fills the slot");
-        nvs_runtime::call(nvs_core_socket_upgrade, &mut ctx, &[second, Value::null()])
-            .expect_err("one request opens at most one connection");
+        nvs_runtime::call(
+            nvs_core_socket_upgrade,
+            &mut ctx,
+            &upgrading(first, Value::null()),
+        )
+        .expect("the first upgrade fills the slot");
+        nvs_runtime::call(
+            nvs_core_socket_upgrade,
+            &mut ctx,
+            &upgrading(second, Value::null()),
+        )
+        .expect_err("one request opens at most one connection");
         let reported = ctx
             .pending()
             .expect("the throw is on the context")
@@ -2058,7 +2197,7 @@ mod tests {
             "the refusal did not name the second call: {reported}"
         );
 
-        let (program, crossed) = slot
+        let (program, crossed, _) = slot
             .take()
             .expect("the first upgrade is still there")
             .into_parts();
@@ -2070,5 +2209,39 @@ mod tests {
         );
         release_crossed(first);
         release_crossed(second);
+    }
+
+    /// `grants:` is asked against the upgrading request, so a name that request
+    /// does not hold is dropped and grants the connection nothing — and an
+    /// upgrade that wrote no option narrows nothing.
+    #[test]
+    fn an_upgrades_grants_keep_only_what_the_request_holds() {
+        // A context with no configuration holds no capability at all.
+        let ctx = Ctx::buffered();
+        let mut names = NvsArray::new();
+        names.append(Value::str(NvsStr::new(b"fs.read")));
+        names.append(Value::str(NvsStr::new(b"no.such")));
+        let grants = Value::array(names);
+        let narrowing = super::upgrade_narrowing(
+            &ctx,
+            &Value::null(),
+            &grants,
+            &Value::null(),
+            "`Core\\Socket::upgrade`",
+        )
+        .expect("a written list decodes");
+        assert_eq!(narrowing.grants, Some(Vec::new()));
+        assert!(narrowing.limits.is_empty());
+        release_crossed(grants);
+
+        let none = super::upgrade_narrowing(
+            &ctx,
+            &Value::null(),
+            &Value::null(),
+            &Value::null(),
+            "`Core\\Socket::upgrade`",
+        )
+        .expect("no option decodes");
+        assert_eq!(none, nvs_runtime::host::Narrowing::default());
     }
 }

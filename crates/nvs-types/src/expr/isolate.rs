@@ -314,6 +314,15 @@ fn entry_operand(path: &Expr, ty: TypeId, form: &str, env: &mut Env<'_>) {
 /// The mapping is the call's own [`ArgSlot`]s rather than a position, because a
 /// `name:` argument fills the entry as surely as a positional one and a `...`
 /// spread fills no single parameter at all.
+///
+/// **The narrowings are `spawn script`'s, read by the parameter's name.**
+/// `rule:concurrency/an-upgrades-options-are-spawn-scripts` gives an upgrade
+/// `limits`, `grants` and `on` with `spawn script`'s meaning, so the argument
+/// filling `limits` is checked against [`sub_caps`] and
+/// [`reject_unknown_sub_cap`], and the one filling `on` by
+/// [`check_upgrade_placement`]. `grants` is typed by its row. None of the
+/// three crosses into the child as a value, so none takes the crossing
+/// refusal.
 pub(crate) fn check_core_isolate_call(
     qname: &QName,
     member: &str,
@@ -329,16 +338,64 @@ pub(crate) fn check_core_isolate_call(
     let CallArgs::List(list) = args else {
         return;
     };
+    let names = nvs_stdlib::registry::class(&owner)
+        .and_then(|class| class.members().find(|row| row.name == member))
+        .map_or(&[][..], |row| row.names);
     let form = format!("`{owner}::{member}`");
     let carrier =
         format!("{form} copies it into a root isolate whose arena this request cannot reach into");
     for ((arg, &ty), &slot) in list.iter().zip(arg_types).zip(slots) {
+        let name = match slot {
+            ArgSlot::Param(at) => names.get(at).copied(),
+            _ => None,
+        };
         if slot == ArgSlot::Param(index) {
             entry_operand(&arg.value, ty, &form, env);
             continue;
         }
-        reject_secret_crossing(&arg.value, ty, &carrier, None, env);
+        match name {
+            Some("limits") => {
+                let expected = sub_caps(env);
+                if !is_assignable(ty, expected, env.interner, env.graph, env.signatures) {
+                    report_mismatch(arg.value.span, expected, ty, env);
+                }
+                reject_unknown_sub_cap(ty, arg.value.span, env);
+            }
+            Some("on") => check_upgrade_placement(&arg.value, &form, env),
+            Some("grants") => {}
+            _ => reject_secret_crossing(&arg.value, ty, &carrier, None, env),
+        }
     }
+}
+
+/// An upgrade's `on:`: [`check_placement`]'s rule, with one of its two words.
+///
+/// A connection's socket or event stream belongs to the core that accepted it,
+/// so the connection runs there and `"here"` is the only placement it has.
+/// `"worker"` is refused where it is written, never accepted and dropped: a
+/// program that wrote it would read a placement it did not get.
+fn check_upgrade_placement(value: &Expr, form: &str, env: &mut Env<'_>) {
+    if let ExprKind::Str(span) = value.kind {
+        let written = crate::string_lit::cook_string_literal(env.src, span);
+        if written == "here" {
+            return;
+        }
+        if written == "worker" {
+            env.diags.report(
+                Diagnostic::error(
+                    code::E_SPAWN_PLACEMENT_UNKNOWN,
+                    format!("{form} cannot run its connection on another core"),
+                )
+                .with_primary(value.span, "a connection runs on the core that accepted it")
+                .with_help(
+                    "the client's connection belongs to this core, so the script runs here. \
+                     Remove `on:`, or write `on: \"here\"`",
+                ),
+            );
+            return;
+        }
+    }
+    check_placement(value, env);
 }
 
 /// Whether the operand is `Class::method(...)` — the reference the ADR accepts,

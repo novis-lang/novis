@@ -40243,7 +40243,7 @@
               },
               {
                 "error": "RuntimeError",
-                "descHtml": "The body is larger than <code>[limits] request_body</code> (8M). The bytes past that limit are never stored."
+                "descHtml": "The body is larger than <code>[limits] request_body</code>. The bytes past that limit are never stored."
               },
               {
                 "error": "IOError",
@@ -40284,7 +40284,7 @@
               },
               {
                 "error": "RuntimeError",
-                "descHtml": "The body is larger than <code>[limits] request_body</code> (8M). The bytes past that limit are never stored."
+                "descHtml": "The body is larger than <code>[limits] request_body</code>. The bytes past that limit are never stored."
               },
               {
                 "error": "IOError",
@@ -40336,7 +40336,7 @@
               },
               {
                 "error": "RuntimeError",
-                "descHtml": "The body is larger than <code>[limits] request_body</code> (8M). The bytes past that limit are never stored."
+                "descHtml": "The body is larger than <code>[limits] request_body</code>. The bytes past that limit are never stored."
               },
               {
                 "error": "IOError",
@@ -40392,7 +40392,7 @@
               },
               {
                 "error": "RuntimeError",
-                "descHtml": "The body is larger than <code>[limits] request_body</code> (8M). The bytes past that limit are never stored."
+                "descHtml": "The body is larger than <code>[limits] request_body</code>. The bytes past that limit are never stored."
               },
               {
                 "error": "IOError",
@@ -41030,7 +41030,7 @@
             "params": [
               {
                 "name": "max",
-                "descHtml": "How many bytes this call is willing to hold. Omitted, the bound is <code>[limits] request_body</code> (8M); named, it is this number, and a number larger than the request's own <code>[limits] memory</code> is refused rather than clamped."
+                "descHtml": "How many bytes this call is willing to hold. Omitted, the bound is <code>[limits] request_body</code>; named, it is this number, and a number larger than the request's own <code>[limits] memory</code> is refused rather than clamped."
               }
             ],
             "returnHtml": "Every byte of this part, in order, <code>tainted</code> and decoded by nothing. Empty for a part that carried none, which is a part the peer sent and not an absent one.",
@@ -43854,7 +43854,7 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "upgrade(string $entry, mixed $args = null): void",
+          "signature": "upgrade(string $entry, mixed $args = null, mixed $limits = null, ?array<string> $grants = null, ?string $on = null): void",
           "params": [
             {
               "kind": "param",
@@ -43868,6 +43868,30 @@
               "kind": "param",
               "name": "args",
               "type": "mixed",
+              "default": "null",
+              "optional": true,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "limits",
+              "type": "mixed",
+              "default": "null",
+              "optional": true,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "grants",
+              "type": "?array<string>",
+              "default": "null",
+              "optional": true,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "on",
+              "type": "?string",
               "default": "null",
               "optional": true,
               "variadic": false
@@ -43890,6 +43914,18 @@
               {
                 "name": "args",
                 "descHtml": "The values the connection starts with. They are copied into the connection. For a method, each value goes to the parameter with the same name. A <code>tainted</code> value is still <code>tainted</code> in the connection."
+              },
+              {
+                "name": "limits",
+                "descHtml": "Lower limits for the connection, written as <code>spawn script</code> writes them: <code>{memory: &quot;8M&quot;, cpu_time: &quot;2s&quot;}</code>. The keys are <code>memory</code>, <code>cpu_time</code>, <code>wall_time</code>, <code>max_output</code> and <code>max_tasks</code>. A limit higher than the server's own has no effect. The connection stops when it reaches one."
+              },
+              {
+                "name": "grants",
+                "descHtml": "The capabilities the connection may use, such as <code>[&quot;fs.read&quot;]</code>. It gets only the names in this list that the request itself holds. An empty list gives it none. Without this option, it gets what the request holds."
+              },
+              {
+                "name": "on",
+                "descHtml": "Where the connection runs. Only <code>&quot;here&quot;</code> is allowed, because the connection runs on the core that accepted the client. <code>&quot;worker&quot;</code> does not compile."
               }
             ],
             "returnHtml": "Nothing. The call prepares the connection, and it starts when the request ends.",
@@ -44189,7 +44225,7 @@
       "name": "Core\\Sse",
       "section": "16. Network, data and crypto",
       "summary": "",
-      "surface": "server-sent events, as two doors onto one type (`rule:concurrency/two-doors-one-isolate`). On the class: `upgrade(entry, args)` opens the connection isolate that outlives the request, `stream()` writes an event stream that ends with it, and `current()` answers whichever handle is open. On the handle: `send(mixed $data, ?string $event, ?string $id)` — a `string` goes out raw and anything else is JSON-encoded — `retry(Duration $after)`, and `receive(): ?Core\\Sse\\Message`, which waits on this stream's own subscriptions and throws a `LogicError` on the request-scoped door, there being no isolate for a wait to park in. `$data` accepts `tainted`; `$event` and `$id` are **sinks**, and a `\\n`, `\\r` or NUL in either is refused, as is an empty `$data` and a `setStatus` on a path that opens a stream. `Message` is `topic(): string` and `value(): mixed`. There is no replay buffer: resumption is the client's `Last-Event-ID`, read off the request by the handler and passed through `args`",
+      "surface": "server-sent events, as two doors onto one type (`rule:concurrency/two-doors-one-isolate`). On the class: `upgrade(entry, args, limits, grants, on)` opens the connection isolate that outlives the request, narrowed by `spawn script`'s three options (`rule:concurrency/an-upgrades-options-are-spawn-scripts`), `stream()` writes an event stream that ends with it, and `current()` answers whichever handle is open. On the handle: `send(mixed $data, ?string $event, ?string $id)` — a `string` goes out raw and anything else is JSON-encoded — `retry(Duration $after)`, and `receive(): ?Core\\Sse\\Message`, which waits on this stream's own subscriptions and throws a `LogicError` on the request-scoped door, there being no isolate for a wait to park in. `$data` accepts `tainted`; `$event` and `$id` are **sinks**, and a `\\n`, `\\r` or NUL in either is refused, as is an empty `$data` and a `setStatus` on a path that opens a stream. `Message` is `topic(): string` and `value(): mixed`. There is no replay buffer: resumption is the client's `Last-Event-ID`, read off the request by the handler and passed through `args`",
       "enums": [],
       "types": [],
       "constants": [],
@@ -44200,7 +44236,7 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "upgrade(string $entry, mixed $args = null): void",
+          "signature": "upgrade(string $entry, mixed $args = null, mixed $limits = null, ?array<string> $grants = null, ?string $on = null): void",
           "params": [
             {
               "kind": "param",
@@ -44214,6 +44250,30 @@
               "kind": "param",
               "name": "args",
               "type": "mixed",
+              "default": "null",
+              "optional": true,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "limits",
+              "type": "mixed",
+              "default": "null",
+              "optional": true,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "grants",
+              "type": "?array<string>",
+              "default": "null",
+              "optional": true,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "on",
+              "type": "?string",
               "default": "null",
               "optional": true,
               "variadic": false
@@ -44236,6 +44296,18 @@
               {
                 "name": "args",
                 "descHtml": "The values the stream starts with, bound to the entry's parameters by name. They cross by the graph copy an isolate boundary already uses, so what arrives is a value and never a shared reference; a <code>secret</code> may not cross and a <code>tainted</code> value stays <code>tainted</code> on the other side."
+              },
+              {
+                "name": "limits",
+                "descHtml": "Lower limits for the stream, written as <code>spawn script</code> writes them: <code>{memory: &quot;8M&quot;, cpu_time: &quot;2s&quot;}</code>. The keys are <code>memory</code>, <code>cpu_time</code>, <code>wall_time</code>, <code>max_output</code> and <code>max_tasks</code>. A limit higher than the server's own has no effect. The stream stops when it reaches one."
+              },
+              {
+                "name": "grants",
+                "descHtml": "The capabilities the stream may use, such as <code>[&quot;fs.read&quot;]</code>. It gets only the names in this list that the request itself holds. An empty list gives it none. Without this option, it gets what the request holds."
+              },
+              {
+                "name": "on",
+                "descHtml": "Where the stream runs. Only <code>&quot;here&quot;</code> is allowed, because the stream runs on the core that accepted the client. <code>&quot;worker&quot;</code> does not compile."
               }
             ],
             "returnHtml": "Nothing. Calling it opens the stream — this is not a response value a handler hands back, because nothing interprets a handler's return.",
@@ -44459,14 +44531,14 @@
       "slug": "sse",
       "url": "/reference/core/sse/",
       "summaryHtml": "",
-      "surfaceHtml": "server-sent events, as two doors onto one type (<code>rule:concurrency/two-doors-one-isolate</code>). On the class: <code>upgrade(entry, args)</code> opens the connection isolate that outlives the request, <code>stream()</code> writes an event stream that ends with it, and <code>current()</code> answers whichever handle is open. On the handle: <code>send(mixed $data, ?string $event, ?string $id)</code> — a <code>string</code> goes out raw and anything else is JSON-encoded — <code>retry(Duration $after)</code>, and <code>receive(): ?Core\\Sse\\Message</code>, which waits on this stream's own subscriptions and throws a <code>LogicError</code> on the request-scoped door, there being no isolate for a wait to park in. <code>$data</code> accepts <code>tainted</code>; <code>$event</code> and <code>$id</code> are <strong>sinks</strong>, and a <code>\\n</code>, <code>\\r</code> or NUL in either is refused, as is an empty <code>$data</code> and a <code>setStatus</code> on a path that opens a stream. <code>Message</code> is <code>topic(): string</code> and <code>value(): mixed</code>. There is no replay buffer: resumption is the client's <code>Last-Event-ID</code>, read off the request by the handler and passed through <code>args</code>"
+      "surfaceHtml": "server-sent events, as two doors onto one type (<code>rule:concurrency/two-doors-one-isolate</code>). On the class: <code>upgrade(entry, args, limits, grants, on)</code> opens the connection isolate that outlives the request, narrowed by <code>spawn script</code>'s three options (<code>rule:concurrency/an-upgrades-options-are-spawn-scripts</code>), <code>stream()</code> writes an event stream that ends with it, and <code>current()</code> answers whichever handle is open. On the handle: <code>send(mixed $data, ?string $event, ?string $id)</code> — a <code>string</code> goes out raw and anything else is JSON-encoded — <code>retry(Duration $after)</code>, and <code>receive(): ?Core\\Sse\\Message</code>, which waits on this stream's own subscriptions and throws a <code>LogicError</code> on the request-scoped door, there being no isolate for a wait to park in. <code>$data</code> accepts <code>tainted</code>; <code>$event</code> and <code>$id</code> are <strong>sinks</strong>, and a <code>\\n</code>, <code>\\r</code> or NUL in either is refused, as is an empty <code>$data</code> and a <code>setStatus</code> on a path that opens a stream. <code>Message</code> is <code>topic(): string</code> and <code>value(): mixed</code>. There is no replay buffer: resumption is the client's <code>Last-Event-ID</code>, read off the request by the handler and passed through <code>args</code>"
     },
     {
       "id": "Sse.Message",
       "name": "Core\\Sse\\Message",
       "section": "16. Network, data and crypto",
       "summary": "",
-      "surface": "server-sent events, as two doors onto one type (`rule:concurrency/two-doors-one-isolate`). On the class: `upgrade(entry, args)` opens the connection isolate that outlives the request, `stream()` writes an event stream that ends with it, and `current()` answers whichever handle is open. On the handle: `send(mixed $data, ?string $event, ?string $id)` — a `string` goes out raw and anything else is JSON-encoded — `retry(Duration $after)`, and `receive(): ?Core\\Sse\\Message`, which waits on this stream's own subscriptions and throws a `LogicError` on the request-scoped door, there being no isolate for a wait to park in. `$data` accepts `tainted`; `$event` and `$id` are **sinks**, and a `\\n`, `\\r` or NUL in either is refused, as is an empty `$data` and a `setStatus` on a path that opens a stream. `Message` is `topic(): string` and `value(): mixed`. There is no replay buffer: resumption is the client's `Last-Event-ID`, read off the request by the handler and passed through `args`",
+      "surface": "server-sent events, as two doors onto one type (`rule:concurrency/two-doors-one-isolate`). On the class: `upgrade(entry, args, limits, grants, on)` opens the connection isolate that outlives the request, narrowed by `spawn script`'s three options (`rule:concurrency/an-upgrades-options-are-spawn-scripts`), `stream()` writes an event stream that ends with it, and `current()` answers whichever handle is open. On the handle: `send(mixed $data, ?string $event, ?string $id)` — a `string` goes out raw and anything else is JSON-encoded — `retry(Duration $after)`, and `receive(): ?Core\\Sse\\Message`, which waits on this stream's own subscriptions and throws a `LogicError` on the request-scoped door, there being no isolate for a wait to park in. `$data` accepts `tainted`; `$event` and `$id` are **sinks**, and a `\\n`, `\\r` or NUL in either is refused, as is an empty `$data` and a `setStatus` on a path that opens a stream. `Message` is `topic(): string` and `value(): mixed`. There is no replay buffer: resumption is the client's `Last-Event-ID`, read off the request by the handler and passed through `args`",
       "enums": [],
       "types": [],
       "constants": [],
@@ -44523,7 +44595,7 @@
       "slug": "sse-message",
       "url": "/reference/core/sse-message/",
       "summaryHtml": "",
-      "surfaceHtml": "server-sent events, as two doors onto one type (<code>rule:concurrency/two-doors-one-isolate</code>). On the class: <code>upgrade(entry, args)</code> opens the connection isolate that outlives the request, <code>stream()</code> writes an event stream that ends with it, and <code>current()</code> answers whichever handle is open. On the handle: <code>send(mixed $data, ?string $event, ?string $id)</code> — a <code>string</code> goes out raw and anything else is JSON-encoded — <code>retry(Duration $after)</code>, and <code>receive(): ?Core\\Sse\\Message</code>, which waits on this stream's own subscriptions and throws a <code>LogicError</code> on the request-scoped door, there being no isolate for a wait to park in. <code>$data</code> accepts <code>tainted</code>; <code>$event</code> and <code>$id</code> are <strong>sinks</strong>, and a <code>\\n</code>, <code>\\r</code> or NUL in either is refused, as is an empty <code>$data</code> and a <code>setStatus</code> on a path that opens a stream. <code>Message</code> is <code>topic(): string</code> and <code>value(): mixed</code>. There is no replay buffer: resumption is the client's <code>Last-Event-ID</code>, read off the request by the handler and passed through <code>args</code>"
+      "surfaceHtml": "server-sent events, as two doors onto one type (<code>rule:concurrency/two-doors-one-isolate</code>). On the class: <code>upgrade(entry, args, limits, grants, on)</code> opens the connection isolate that outlives the request, narrowed by <code>spawn script</code>'s three options (<code>rule:concurrency/an-upgrades-options-are-spawn-scripts</code>), <code>stream()</code> writes an event stream that ends with it, and <code>current()</code> answers whichever handle is open. On the handle: <code>send(mixed $data, ?string $event, ?string $id)</code> — a <code>string</code> goes out raw and anything else is JSON-encoded — <code>retry(Duration $after)</code>, and <code>receive(): ?Core\\Sse\\Message</code>, which waits on this stream's own subscriptions and throws a <code>LogicError</code> on the request-scoped door, there being no isolate for a wait to park in. <code>$data</code> accepts <code>tainted</code>; <code>$event</code> and <code>$id</code> are <strong>sinks</strong>, and a <code>\\n</code>, <code>\\r</code> or NUL in either is refused, as is an empty <code>$data</code> and a <code>setStatus</code> on a path that opens a stream. <code>Message</code> is <code>topic(): string</code> and <code>value(): mixed</code>. There is no replay buffer: resumption is the client's <code>Last-Event-ID</code>, read off the request by the handler and passed through <code>args</code>"
     },
     {
       "id": "Storage",

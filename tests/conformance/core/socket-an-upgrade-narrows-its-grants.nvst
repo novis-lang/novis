@@ -1,0 +1,42 @@
+--TEST--
+`Core\Socket::upgrade`'s `grants:` narrows the connection the way `spawn script`'s narrows a child: the connection holds a named capability the request holds, and loses one the request holds but the list does not name —`rule:concurrency/an-upgrades-options-are-spawn-scripts`, `rule:security/isolate-shares-nothing` and `rule:security/denial-is-a-runtime-error`
+--HEADERS--
+Upgrade: websocket
+Connection: Upgrade
+--FILE nvs.toml--
+# The server holds both. Every refusal below is a `grants:` list taking one away.
+[capabilities.script]
+spawn = true
+
+[capabilities.fs]
+read = ["."]
+--FILE note.txt--
+note
+--FILE note.nvs--
+<?nvs
+echo "unreachable\n";
+--FILE chat.nvs--
+<?nvs
+// Named in `grants:` and held by the request, so the read answers.
+echo "connection read ", Core\IO::read('./note.txt');
+
+// Held by the request but not named, so the connection is refused at the door
+// the request passed.
+try {
+    spawn script "note.nvs";
+    echo "unreachable\n";
+} catch (RuntimeError $denied) {
+    echo "connection: ", $denied->message, "\n";
+}
+--FILE--
+<?nvs
+// The request keeps everything it narrowed for its connection. With no
+// `--peer`, the connection's client closes at once and the script still runs.
+Core\Socket::upgrade("chat.nvs", grants: ["fs.read"]);
+echo "request read ", Core\IO::read('./note.txt');
+--EXPECTF--
+request read note
+closed: 1000 closing
+connection read note
+connection: `spawn script` needs the capability `script.spawn` for %s%enote.nvs, which is not granted
+help: grant it in nvs.toml under `[capabilities.script]`

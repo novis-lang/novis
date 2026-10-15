@@ -20405,7 +20405,7 @@ Keywords: upgrade, current, receive, send, sendBytes
 
 | Member | Signature |
 |---|---|
-| [`Core\Socket::upgrade`](#core-core-socket-upgrade) | `upgrade(string $entry, mixed $args = null): void` |
+| [`Core\Socket::upgrade`](#core-core-socket-upgrade) | `upgrade(string $entry, mixed $args = null, mixed $limits = null, ?array<string> $grants = null, ?string $on = null): void` |
 | [`Core\Socket::current`](#core-core-socket-current) | `current(): Core\Socket` |
 | [`Core\Socket->receive`](#core-core-socket-receive) | `receive(): ?Core\Socket\Message` |
 | [`Core\Socket->send`](#core-core-socket-send) | `send(string $frame): void` |
@@ -20415,7 +20415,7 @@ Keywords: upgrade, current, receive, send, sendBytes
 #### `Core\Socket::upgrade`
 
 ```nvs skip
-Core\Socket::upgrade(string $entry, mixed $args = null): void
+Core\Socket::upgrade(string $entry, mixed $args = null, mixed $limits = null, ?array<string> $grants = null, ?string $on = null): void
 ```
 
 Turns this request into a WebSocket connection that runs `$entry`. The connection starts when the request ends. It runs in its own isolate, which shares no memory with the request.
@@ -20424,6 +20424,9 @@ Turns this request into a WebSocket connection that runs `$entry`. The connectio
 |---|---|---|
 | `$entry` | `string` (sink) | What the connection runs: the path of a file, the same as `spawn script` takes, or a static method written `Chat::run(...)`. An anonymous function is not allowed, because the connection shares no values with the request. |
 | `$args` | `mixed` (default `null`) | The values the connection starts with. They are copied into the connection. For a method, each value goes to the parameter with the same name. A `tainted` value is still `tainted` in the connection. |
+| `$limits` | `mixed` (default `null`) | Lower limits for the connection, written as `spawn script` writes them: `{memory: "8M", cpu_time: "2s"}`. The keys are `memory`, `cpu_time`, `wall_time`, `max_output` and `max_tasks`. A limit higher than the server's own has no effect. The connection stops when it reaches one. |
+| `$grants` | `?array<string>` (default `null`) | The capabilities the connection may use, such as `["fs.read"]`. It gets only the names in this list that the request itself holds. An empty list gives it none. Without this option, it gets what the request holds. |
+| `$on` | `?string` (default `null`, neutral) | Where the connection runs. Only `"here"` is allowed, because the connection runs on the core that accepted the client. `"worker"` does not compile. |
 
 **Returns** `void` — Nothing. The call prepares the connection, and it starts when the request ends.
 
@@ -20615,7 +20618,7 @@ Keywords: upgrade, stream, current, receive, send, retry
 
 | Member | Signature |
 |---|---|
-| [`Core\Sse::upgrade`](#core-core-sse-upgrade) | `upgrade(string $entry, mixed $args = null): void` |
+| [`Core\Sse::upgrade`](#core-core-sse-upgrade) | `upgrade(string $entry, mixed $args = null, mixed $limits = null, ?array<string> $grants = null, ?string $on = null): void` |
 | [`Core\Sse::stream`](#core-core-sse-stream) | `stream(): Core\Sse` |
 | [`Core\Sse::current`](#core-core-sse-current) | `current(): Core\Sse` |
 | [`Core\Sse->receive`](#core-core-sse-receive) | `receive(): ?Core\Sse\Message` |
@@ -20626,7 +20629,7 @@ Keywords: upgrade, stream, current, receive, send, retry
 #### `Core\Sse::upgrade`
 
 ```nvs skip
-Core\Sse::upgrade(string $entry, mixed $args = null): void
+Core\Sse::upgrade(string $entry, mixed $args = null, mixed $limits = null, ?array<string> $grants = null, ?string $on = null): void
 ```
 
 Answers this request with an event stream running `$entry` as a root isolate — its own arena, its own budget and its own grants, sharing nothing with the request that opened it but the values `$args` copied in.
@@ -20635,6 +20638,9 @@ Answers this request with an event stream running `$entry` as a root isolate —
 |---|---|---|
 | `$entry` | `string` (sink) | What the stream runs: a file path, resolved and root-checked exactly as `spawn script`'s operand is, or a static method written `Feed::run(...)`. It cannot be an anonymous function, because an anonymous function can capture variables, and an isolate shares nothing but compiled code. |
 | `$args` | `mixed` (default `null`) | The values the stream starts with, bound to the entry's parameters by name. They cross by the graph copy an isolate boundary already uses, so what arrives is a value and never a shared reference; a `secret` may not cross and a `tainted` value stays `tainted` on the other side. |
+| `$limits` | `mixed` (default `null`) | Lower limits for the stream, written as `spawn script` writes them: `{memory: "8M", cpu_time: "2s"}`. The keys are `memory`, `cpu_time`, `wall_time`, `max_output` and `max_tasks`. A limit higher than the server's own has no effect. The stream stops when it reaches one. |
+| `$grants` | `?array<string>` (default `null`) | The capabilities the stream may use, such as `["fs.read"]`. It gets only the names in this list that the request itself holds. An empty list gives it none. Without this option, it gets what the request holds. |
+| `$on` | `?string` (default `null`, neutral) | Where the stream runs. Only `"here"` is allowed, because the stream runs on the core that accepted the client. `"worker"` does not compile. |
 
 **Returns** `void` — Nothing. Calling it opens the stream — this is not a response value a handler hands back, because nothing interprets a handler's return.
 

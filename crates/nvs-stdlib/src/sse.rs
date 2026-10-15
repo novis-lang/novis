@@ -8,7 +8,7 @@
 //! everything behind the door is [`crate::socket`]'s, shared outright and
 //! documented there once: why the member *prepares* an isolate the connection
 //! starts, why all three refusals belong to the request, why it answers `void`,
-//! and why `limits:`, `grants:` and `on:` are not parameters.
+//! and where `limits:`, `grants:` and `on:` go.
 //!
 //! # What is different is the door, and it is the whole module
 //!
@@ -111,7 +111,7 @@ use nvs_runtime::{
 use crate::registry::{
     ClassDoc, Const, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
 };
-use crate::socket::{entry_program, release_crossed, retained};
+use crate::socket::{entry_program, release_crossed, retained, upgrade_narrowing};
 
 /// `Core\Sse`'s fully-qualified name, written once, so the class's own row, the
 /// [`CoreTy::Instance`] its two doors answer with and every message quoting it
@@ -143,17 +143,24 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     methods: &[
         CoreMethod {
             name: "upgrade",
-            names: &["entry", "args"],
-            // The same two marks the sibling row carries, and for the same
+            names: &["entry", "args", "limits", "grants", "on"],
+            // The same five marks the sibling row carries, and for the same
             // reasons: [`CoreTy::Entry`] is `rule:concurrency/an-upgrade-is-spawn-shaped`'s operand rule — a path or a static
             // method written `Feed::run(...)`, never a `callable` in a variable
-            // — and `args` takes no expected type because `rule:classes/graph-copy`'s walk decides
-            // what may cross at run time. `crate::socket`'s row is where those
-            // two are argued; § 5 gives this member "the identical clause", so a
-            // difference between the two signatures would be one this ADR does
-            // not license.
-            params: &[CoreTy::Entry, CoreTy::Mixed],
-            defaults: &[Const::Null],
+            // — `args` takes no expected type because `rule:classes/graph-copy`'s walk decides
+            // what may cross at run time, and the last three are
+            // `rule:concurrency/an-upgrades-options-are-spawn-scripts`'s
+            // narrowings. `crate::socket`'s row is where they are argued; § 5
+            // gives this member "the identical clause", so a difference between
+            // the two signatures would be one the rule does not license.
+            params: &[
+                CoreTy::Entry,
+                CoreTy::Mixed,
+                CoreTy::Mixed,
+                CoreTy::Nullable(&CoreTy::Array(&CoreTy::Text(Qual::Sink))),
+                CoreTy::Nullable(&CoreTy::Text(Qual::Neutral)),
+            ],
+            defaults: &[Const::Null, Const::Null, Const::Null, Const::Null],
             return_ty: CoreTy::Void,
             symbol: UPGRADE_SYMBOL,
             doc: Some(&UPGRADE_DOC),
@@ -280,6 +287,27 @@ const UPGRADE_DOC: MethodDoc = MethodDoc {
                    They cross by the graph copy an isolate boundary already uses, so what arrives \
                    is a value and never a shared reference; a `secret` may not cross and a \
                    `tainted` value stays `tainted` on the other side.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "limits",
+            desc: "Lower limits for the stream, written as `spawn script` writes them: \
+                   `{memory: \"8M\", cpu_time: \"2s\"}`. The keys are `memory`, `cpu_time`, \
+                   `wall_time`, `max_output` and `max_tasks`. A limit higher than the \
+                   server's own has no effect. The stream stops when it reaches one.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "grants",
+            desc: "The capabilities the stream may use, such as `[\"fs.read\"]`. It gets only \
+                   the names in this list that the request itself holds. An empty list gives \
+                   it none. Without this option, it gets what the request holds.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "on",
+            desc: "Where the stream runs. Only `\"here\"` is allowed, because the stream runs \
+                   on the core that accepted the client. `\"worker\"` does not compile.",
             shape: &[],
         },
     ],
@@ -524,7 +552,8 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Sse::upgrade(string $entry, mixed $args = null): void` — `rule:concurrency/two-doors-one-isolate`
+    /// `Core\Sse::upgrade(string $entry, mixed $args = null, mixed $limits = null,
+    /// ?array<string> $grants = null, ?string $on = null): void` — `rule:concurrency/two-doors-one-isolate`
     /// 's event stream, prepared here and started by the connection.
     ///
     /// The sibling body, with one line different, and that line is the module
@@ -532,7 +561,7 @@ nvs_runtime::nvs_helper! {
     /// The three refusals are [`crate::socket`]'s — no cell, the entry, then
     /// the argument — in the order they cost the least, and each is a fact
     /// about a different thing.
-    fn nvs_core_sse_upgrade(ctx, args: [2]) {
+    fn nvs_core_sse_upgrade(ctx, args: [5]) {
         // Cloned rather than borrowed, for the sibling's reason: `entry_program`
         // takes the context, and both halves of the cell are shared handles by
         // construction, so a clone is one refcount and no borrow held across a
@@ -550,6 +579,8 @@ nvs_runtime::nvs_helper! {
                 )
             })?;
         let program = entry_program(ctx, args[0], args[1], "Core\\Sse::upgrade")?;
+        let narrowing =
+            upgrade_narrowing(ctx, &args[2], &args[3], &args[4], "`Core\\Sse::upgrade`")?;
         // No case can reach this, for the sibling's reason: it stands after the
         // cell, and a `.nvst` case runs a script no server is answering. The
         // crossing itself is `crate::socket`'s, and
@@ -561,8 +592,8 @@ nvs_runtime::nvs_helper! {
                 format!("`Core\\Sse::upgrade`'s `args:` cannot cross into a connection: {refused}"),
             )
         })?;
-        if let Err(returned) = cell.fill(Upgrade::new(program, crossed)) {
-            let (_program, crossed) = returned.into_parts();
+        if let Err(returned) = cell.fill(Upgrade::new(program, crossed).narrowed_by(narrowing)) {
+            let (_program, crossed, _narrowing) = returned.into_parts();
             release_crossed(crossed);
             // No case can reach this: a second stream needs a first, and a first
             // needs a cell no `.nvst` case is offered.
@@ -950,6 +981,13 @@ mod tests {
     use super::nvs_core_sse_upgrade;
     use crate::socket::release_crossed;
 
+    /// An upgrade's five arguments for a test that writes only the first two,
+    /// the three narrowings `null` — `crate::socket`'s test helper of the
+    /// same name.
+    fn upgrading(entry: Value, args: Value) -> [Value; 5] {
+        [entry, args, Value::null(), Value::null(), Value::null()]
+    }
+
     /// A resolver answering with the length of the path it was asked for —
     /// `crate::socket`'s test fixture, and its doc is the home of why a length
     /// is what proves a program's identity on this side of the seam.
@@ -1023,10 +1061,10 @@ mod tests {
 
         let path = Value::str(NvsStr::new(b"/streams/feed.nvs"));
         let mine = a_room();
-        nvs_runtime::call(nvs_core_sse_upgrade, &mut ctx, &[path, mine])
+        nvs_runtime::call(nvs_core_sse_upgrade, &mut ctx, &upgrading(path, mine))
             .expect("an offered cell takes the stream");
 
-        let (program, crossed) = cell
+        let (program, crossed, _) = cell
             .take()
             .expect("the member filled the cell the server left")
             .into_parts();
@@ -1061,16 +1099,24 @@ mod tests {
         served(&mut ctx, &cell);
 
         let first = Value::str(NvsStr::new(b"/streams/feed.nvs"));
-        nvs_runtime::call(nvs_core_sse_upgrade, &mut ctx, &[first, Value::null()])
-            .expect("an offered cell takes the first stream");
+        nvs_runtime::call(
+            nvs_core_sse_upgrade,
+            &mut ctx,
+            &upgrading(first, Value::null()),
+        )
+        .expect("an offered cell takes the first stream");
 
         let second = Value::str(NvsStr::new(b"/streams/other-feed.nvs"));
-        nvs_runtime::call(nvs_core_sse_upgrade, &mut ctx, &[second, Value::null()])
-            .expect_err("one request opens at most one event stream");
+        nvs_runtime::call(
+            nvs_core_sse_upgrade,
+            &mut ctx,
+            &upgrading(second, Value::null()),
+        )
+        .expect_err("one request opens at most one event stream");
 
         // The first one is intact rather than displaced, which is the half a
         // refusal that overwrote would still pass without.
-        let (program, crossed) = cell.take().expect("the first fill stands").into_parts();
+        let (program, crossed, _) = cell.take().expect("the first fill stands").into_parts();
         let mut connection = Ctx::buffered();
         assert_eq!(
             program(&mut connection, crossed).as_int(),

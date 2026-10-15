@@ -171,8 +171,9 @@ pub(crate) fn upgradable(inbound: &nvs_runtime::Inbound) -> bool {
 /// failure is printed on standard error. The run's exit status stays the
 /// request's, because the request is what `nvs run` was asked to answer.
 pub(crate) fn connect(ctx: &mut nvs_runtime::Ctx, upgrade: nvs_runtime::Upgrade, socket: Scripted) {
-    let (program, args) = upgrade.into_parts();
+    let (program, args, narrowing) = upgrade.into_parts();
     match nvs_host::Isolate::new(program, args, nvs_host::Output::Inherit)
+        .narrowed_by(narrowing)
         .over_socket(Box::new(socket))
         .run(ctx)
     {

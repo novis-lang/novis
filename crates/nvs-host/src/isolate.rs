@@ -141,9 +141,9 @@ pub struct Isolate {
     /// CPU ceiling — [`Isolate::watched_by`], and `None` for every isolate
     /// nobody handed a registration to.
     watch: Option<Rc<Registration>>,
-    /// What the spawn site wrote to hold this child to less than its parent
-    /// holds — [`Isolate::narrowed_by`], and the default for every isolate
-    /// spawned without `limits:` or `grants:`.
+    /// What the spawn site or the upgrade wrote to hold this child to less
+    /// than its parent holds — [`Isolate::narrowed_by`], and the default for
+    /// every isolate started without `limits:` or `grants:`.
     narrowing: Narrowing,
 }
 
@@ -220,9 +220,11 @@ impl Isolate {
     /// `rule:security/isolate-budget-is-the-trees`' sub-cap and
     /// `rule:security/isolate-shares-nothing`'s grant list.
     ///
-    /// A builder for [`Self::watched_by`]'s reason: `spawn script` is the one
-    /// caller that has a narrowing to hand over, and every other isolate in this
-    /// tree — a test's program, a connection, the engine's own handler — would
+    /// A builder for [`Self::watched_by`]'s reason: `spawn script` and a
+    /// connection's door — the narrowing `nvs_runtime::Upgrade::into_parts`
+    /// hands over (`rule:concurrency/an-upgrades-options-are-spawn-scripts`) —
+    /// are the callers that have one, and every other isolate in this tree — a
+    /// test's program, a served request, the engine's own handler — would
     /// otherwise pass a default to say it has none.
     ///
     /// It is applied in [`Self::start`], to the child's own context and before

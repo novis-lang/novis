@@ -1,0 +1,36 @@
+--TEST--
+`Core\Socket::upgrade`'s `limits:` is the connection's own ceiling, as `spawn script`'s is a child's: the connection is stopped where its own limit is, and the same allocation succeeds in the request under the server's wider one — `rule:concurrency/an-upgrades-options-are-spawn-scripts`, `rule:concurrency/a-connection-is-a-root-isolate` and `rule:errors/on-limit`
+--HEADERS--
+Upgrade: websocket
+Connection: Upgrade
+--FILE nvs.toml--
+[capabilities.script]
+spawn = true
+
+# Wide enough that what stops the connection is its own `limits:` alone.
+[limits]
+memory = "256M"
+--FILE greedy.nvs--
+<?nvs
+echo "connection started\n";
+array<int> $rows = [];
+for (var $i = 0; $i < 400000; $i = $i + 1) {
+    $rows[] = $i;
+}
+echo "unreachable\n";
+--FILE--
+<?nvs
+// The connection starts when the request ends. Its client sees `1011`, and its
+// last line never prints.
+Core\Socket::upgrade("greedy.nvs", limits: {memory: "1M"});
+
+// The request is held to the server's limit, not the connection's.
+array<int> $rows = [];
+for (var $i = 0; $i < 400000; $i = $i + 1) {
+    $rows[] = $i;
+}
+echo "request held ", Core\Arr::count($rows), "\n";
+--EXPECT--
+request held 400000
+closed: 1011 this connection's isolate ended in a failure
+connection started
