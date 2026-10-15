@@ -22,7 +22,7 @@ stages:
         shapes: ["A `.nvst` test case", A diagnostic]
   - id: 3
     title: a literal at a key parameter is checked where it is written
-    status: open
+    status: done
     context: [crates/nvs-types/src/expr/operators.rs, crates/nvs-types/src/expr/members.rs, crates/nvs-lsp/src/completion.rs, crates/nvs-lsp/src/arguments.rs]
     extra:
       context:
@@ -58,7 +58,7 @@ stages:
     extra:
       context:
         rules: [core-classes/str-parts-and-reflect-steps, core-classes/reflect]
-        shapes: [A `Core` member, "A `.nvst` test case"]
+        shapes: ["A `Core` member", "A `.nvst` test case"]
   - id: 8
     title: the feature proofs
     status: open
@@ -99,7 +99,7 @@ checks:
     tests: [tests/conformance/lang/a-property-path-steps-through-objects-nullable-objects-and-arrays.nvst, tests/conformance/lang/a-misspelled-property-path-does-not-compile.nvst, tests/conformance/lang/a-property-path-converted-at-run-time-throws-for-a-bad-segment.nvst]
   - id: property-path-editor
     stage: 5
-    name: the editor completes, hovers, defines and underlines a path one segment at a time
+    name: "the editor completes, hovers, defines and underlines a path one segment at a time"
     run: [bun, nv, suite, tests/lsp/, --case, tests/lsp/completion/a-property-path-completes-one-segment-at-a-time.lspt, --case, tests/lsp/hover/a-property-path-segment-shows-its-property.lspt, --case, tests/lsp/definition/a-property-path-segment-jumps-to-its-property.lspt, --case, tests/lsp/diagnostics/a-misspelled-property-path-is-underlined-at-its-segment.lspt]
     tests: [tests/lsp/completion/a-property-path-completes-one-segment-at-a-time.lspt, tests/lsp/hover/a-property-path-segment-shows-its-property.lspt, tests/lsp/definition/a-property-path-segment-jumps-to-its-property.lspt, tests/lsp/diagnostics/a-misspelled-property-path-is-underlined-at-its-segment.lspt]
   - id: string-holes
@@ -231,7 +231,8 @@ of it reads the roster the checker records, never a second walk
 `rule:types/property-key`, `rule:statements/static-is-a-member-modifier` and both completion rules.
 Each later stage flips what it builds to `shipped` with its guard tests. Three more designed rules
 carry the changes to shipped ones, because a shipped rule cannot hold a designed row:
-`types/a-literal-at-a-key-parameter-is-checked-where-it-is-written`,
+`types/a-literal-at-a-key-parameter-is-checked-where-it-is-written` (folded into
+`rule:types/property-key` by stage 3),
 `statements/static-in-a-parameter-type-is-the-class-the-call-names` and
 `ide/a-field-path-completes-one-segment-at-a-time`. Each shipped rule names the one that changes it,
 and the stage that ships the change folds it into the shipped rule. A `lang:` feature id is the
@@ -292,8 +293,8 @@ are checked and completed where they were plain strings. Simplicity: one new typ
 
 **Does:** a string literal at a `property<T>` parameter is converted while compiling, and the editor offers the names there.
 
-- [ ] Convert and check the literal at the argument. `crates/nvs-types/src/expr/members.rs:719`
-- [ ] Offer the names at a `property<T>`-only parameter. `crates/nvs-lsp/src/arguments.rs:309`
+- [x] Convert and check the literal at the argument. `crates/nvs-types/src/expr/members.rs:719`
+- [x] Offer the names at a `property<T>`-only parameter. `crates/nvs-lsp/src/arguments.rs:309`
 
 ### 4. `propertyPath<T>` is a type
 
@@ -348,30 +349,32 @@ are checked and completed where they were plain strings. Simplicity: one new typ
 
 ### State
 
-Stages 1 and 2 are done. A call binds `static` in a parameter and in a return type to the class it
-names, through `MethodSig::bound_to` (`crates/nvs-types/src/signatures.rs`), and `E0741` holds an
-`array<static>` or `?static` body to the called class. The body took the fallback: a
-`property<static>` is a `string` there. The designed `static` rule is folded into
-`rule:statements/static-is-a-member-modifier` and deleted, and both `static-binds` cases pass.
-`property<T>`'s contravariance (`rule:types/property-key-variance`) was missing from `is_assignable`
-and is now there (`crates/nvs-types/src/expr/assign.rs:287`). Novis has no `T[]` syntax, so the goal
-and the rules write `array<T>`.
+Stages 1 to 3 are done. A string literal at a parameter typed `property<T>` or `?property<T>` alone
+is checked while compiling and has the key type, with no `as` (`crates/nvs-types/src/expr/args.rs`,
+`key_parameter_class` in `crates/nvs-types/src/expr/members.rs:758`). A wrong name is `E0405` at the
+literal, from the same `report_unwritten_property_key` the written-out `as` uses
+(`crates/nvs-types/src/expr/operators.rs:331`). The editor offers the names there, and a quote opens
+them, because `key_classes` (`crates/nvs-lsp/src/arguments.rs:293`) now admits a key-only type. The
+designed literal rule is folded into `rule:types/property-key` and deleted. `rule:types/property-path`
+and `rule:types/string-holes` point at that rule for their own literal position.
 
-Five designed rules are left, owned by this goal: `types/property-path`, `types/string-holes`,
-`core-classes/str-parts-and-reflect-steps`, `types/a-literal-at-a-key-parameter-is-checked-where-it-is-written`
-and `ide/a-field-path-completes-one-segment-at-a-time`. The nightly CI failures are on `origin/main`
-at `cb7021a2`, which is far behind local `main` and was checked in the previous session.
+Four designed rules are left, owned by this goal: `types/property-path`, `types/string-holes`,
+`core-classes/str-parts-and-reflect-steps` and `ide/a-field-path-completes-one-segment-at-a-time`.
+The nightly CI failures are still on `origin/main` at `cb7021a24`, which is far behind local `main`.
+The loop never pushes, so nothing on HEAD was run there.
 
 ### Next
 
-**Stage 3: a literal at a key parameter is checked where it is written**, one file set: `crates/nvs-types/src/expr/members.rs`, `crates/nvs-types/src/expr/args.rs`, `crates/nvs-lsp/src/arguments.rs`.
+**Stage 4: `propertyPath<T>` is a type**, one file set: `crates/nvs-syntax/src/parser/ty.rs`, `crates/nvs-types/src/ty.rs`, `crates/nvs-types/src/lower.rs`, `crates/nvs-types/src/expr/operators.rs`, `crates/nvs-ir/src/lower/convert.rs`.
 
-- [ ] Convert a string literal at a parameter typed `property<T>` alone while compiling, by `rule:types/a-literal-at-a-key-parameter-is-checked-where-it-is-written`. `crates/nvs-types/src/expr/members.rs:719`
-- [ ] Offer `T`'s names inside a literal at a `property<T>`-only parameter, by `rule:ide/completion-offers-only-what-the-compiler-derived`. `crates/nvs-lsp/src/arguments.rs:309`
-- [ ] Write the `literal-at-key-parameter` case and the `.lspt` case, fold the designed rule into `rule:types/property-key`, and delete it. `docs/rules/types/property-key.md:28`
+- [ ] Parse `propertyPath<` beside `property<`, and add `Ty::PropertyPath` with its lowering and `E0799`, by `rule:types/property-path`. `crates/nvs-syntax/src/parser/ty.rs:90` `crates/nvs-types/src/ty.rs:102` `crates/nvs-types/src/lower.rs:295`
+- [ ] Check a written-out path segment by segment, one `E0405` at the bad segment, at `as` and at a `propertyPath<T>`-only parameter (`key_parameter_class`), by `rule:types/property-path`. `crates/nvs-types/src/expr/operators.rs:281` `crates/nvs-types/src/expr/members.rs:758`
+- [ ] The run-time conversion, one lookup per segment, and `as string`, by `rule:types/property-path`. `crates/nvs-ir/src/lower/convert.rs:1558`
+- [ ] Write the three `property-path` cases, the `# Property paths` heading in `docs/reference/lang/20-types.md`, and `propertyPath<static>` as text in a body (`static_key_as_text`). `crates/nvs-types/src/signatures.rs:1`
 
 ### Backlog
 
 - Reading and writing through a path, `$obj->{$path}`: declined for now in `types/property-path`.
 - Splitting a `string<K>` literal while compiling, if the stage 8 bench asks for it (`core-classes/str-parts-and-reflect-steps`).
-- Nightly CI on `cb7021a2` failed `a_spawned_process_ends_when_nvs_is_killed_and_what_it_started_does_not` (`crates/nvs-cli/tests/run_command.rs:688`) and the four-core throughput guard (`crates/nvs-cli/src/serve.rs`). Both are Linux-only, and neither was run on HEAD. Check them once `main` is pushed.
+- A literal at a `property<A>|property<B>` parameter is not converted and gets nothing offered (`rule:types/property-key`). Decide it if a program needs it.
+- Nightly CI on `cb7021a24` failed `a_spawned_process_ends_when_nvs_is_killed_and_what_it_started_does_not` (`crates/nvs-cli/tests/run_command.rs:688`) and the four-core throughput guard (`crates/nvs-cli/src/serve.rs`). Both are Linux-only. Check them once `main` is pushed.
