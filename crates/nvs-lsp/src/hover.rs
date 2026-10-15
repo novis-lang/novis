@@ -144,6 +144,7 @@ pub fn at(
         .collect();
     let (value, node) = autoload_prefix(analysed, offset)
         .or_else(|| written_class_name(analysed, offset))
+        .or_else(|| property_segment(analysed, offset))
         .or_else(|| path_argument(analysed, offset))
         .or_else(|| file_value(analysed, files, offset))
         .or_else(|| name(analysed, type_member_at(analysed, offset)?, offset))
@@ -445,6 +446,26 @@ fn is_name_byte(byte: u8) -> bool {
 fn written_class_name(analysed: &Analysed, offset: BytePos) -> Option<(String, Span)> {
     let (target, span) = written_class_name_at(analysed, offset)?;
     Some((run(analysed, &target)?, span))
+}
+
+/// The property one segment of a key or path literal names, for a cursor on
+/// that segment, and the segment's span: the property as its class declares
+/// it, then its `///` run. The segment is
+/// [`crate::definition::property_segment_at`]'s.
+fn property_segment(analysed: &Analysed, offset: BytePos) -> Option<(String, Span)> {
+    let found = crate::definition::property_segment_at(analysed, offset)?;
+    let Target::Property { class, name } = &found.target else {
+        return None;
+    };
+    let ty = format!(
+        "```nvs\nclass {class} {{ public {} ${name} }}\n```",
+        analysed.interner.describe(found.ty)
+    );
+    let value = match run(analysed, &found.target) {
+        Some(doc) => format!("{ty}\n\n{doc}"),
+        None => ty,
+    };
+    Some((value, found.span))
 }
 
 /// The absolute path an argument at a path parameter names, and whether a

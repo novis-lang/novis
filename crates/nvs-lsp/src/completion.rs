@@ -672,7 +672,8 @@ enum Files {
 /// is the parse the index was built from. The operand of `as class<T>` and an
 /// argument at a class-name parameter are
 /// [`crate::definition::written_class_name`]'s, the operand of `as
-/// property<T>` is [`crate::definition::written_property_key`]'s, and an
+/// property<T>` and of `as propertyPath<T>` is
+/// [`crate::definition::written_property_key`]'s, and an
 /// argument at a path parameter is [`crate::arguments::at`]'s. In every case
 /// the cursor has to be between the quotes.
 fn literal_at(
@@ -696,10 +697,15 @@ fn literal_at(
     if let Some(literal) = written_class_name(analysed, offset) {
         return Some(Literal::Class(literal.span.start + 1, literal.bound));
     }
-    if let Some((literal, class)) = crate::definition::written_property_key(analysed, offset) {
-        let keys = property_keys(analysed, &class.to_string());
+    if let Some(written) = crate::definition::written_property_key(analysed, offset) {
+        let class = written.class.to_string();
+        let keys = if written.path {
+            path_steps(analysed, written.span, &class, offset)
+        } else {
+            property_keys(analysed, &class)
+        };
         return Some(Literal::Values(
-            literal,
+            written.span,
             keys.into_iter().map(Arc::new).collect(),
         ));
     }
@@ -765,14 +771,66 @@ fn named_values(
             values.push(Arc::new(completion_files::Value::member(member)));
         }
     }
-    for class in &named.key_classes {
-        for key in property_keys(analysed, class) {
-            if !values.iter().any(|value| value.value == key.value) {
-                values.push(Arc::new(key));
-            }
+    let keys = named
+        .key_classes
+        .iter()
+        .flat_map(|class| property_keys(analysed, class));
+    let steps = named
+        .path_classes
+        .iter()
+        .flat_map(|class| path_steps(analysed, named.span, class, offset));
+    for key in keys.chain(steps) {
+        if !values.iter().any(|value| value.value == key.value) {
+            values.push(Arc::new(key));
         }
     }
     (!values.is_empty()).then_some((named.span, values))
+}
+
+/// The names offered inside the `propertyPath<T>` literal at `literal` for a
+/// cursor at `offset`, `T` being the class labelled `class`
+/// (`rule:ide/a-field-path-completes-one-segment-at-a-time`).
+///
+/// The text up to the last `.` before the cursor is stepped over the rosters
+/// the checker recorded, with [`nvs_types::path_step_class`], and the names of
+/// the class it reaches are offered. Each value is that text and one name,
+/// split on `.`, so [`file_values`] replaces only the segment being written
+/// and a `.` asks for the next list. Nothing where a segment before the cursor
+/// names nothing, or names a property the path cannot step past.
+fn path_steps(
+    analysed: &Analysed,
+    literal: Span,
+    class: &str,
+    offset: BytePos,
+) -> Vec<completion_files::Value> {
+    let file = analysed.map.file(analysed.entry);
+    let Some(typed) = file.text().get(literal.start as usize + 1..offset as usize) else {
+        return Vec::new();
+    };
+    let cut = typed.rfind('.').map_or(0, |found| found + 1);
+    let mut reached = class.to_owned();
+    if cut > 0 {
+        for segment in typed[..cut - 1].split('.') {
+            let Some(next) = analysed
+                .exprs
+                .property_keys(&reached)
+                .iter()
+                .find(|(name, _)| name == segment)
+                .and_then(|(_, ty)| nvs_types::path_step_class(*ty, &analysed.interner))
+            else {
+                return Vec::new();
+            };
+            reached = next.to_string();
+        }
+    }
+    property_keys(analysed, &reached)
+        .into_iter()
+        .map(|mut key| {
+            key.value = format!("{}{}", &typed[..cut], key.value);
+            key.separator = Some('.');
+            key
+        })
+        .collect()
 }
 
 /// The names a `property<T>` over the class labelled `class` may hold, each

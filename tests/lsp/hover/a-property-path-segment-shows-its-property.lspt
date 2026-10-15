@@ -1,0 +1,27 @@
+--TEST--
+hovering one segment of a `propertyPath<T>` literal shows the property that segment names, on the class the path reached there, and its `///` run — `rule:ide/a-field-path-completes-one-segment-at-a-time`
+--FILE--
+<?nvs
+class Customer {
+    /// The name printed on the invoice.
+    public string $name = "Ada";
+}
+class Order {
+    public string $id = "o1";
+    public ?Customer $customer = null;
+}
+class Grid {
+    public static function sortBy(propertyPath<Order> $column): string {
+        return $column as string;
+    }
+}
+
+echo Grid::sortBy("customer.na<|>me");
+--REQUEST--
+hover
+--EXPECT--
+```nvs
+class Customer { public string $name }
+```
+
+The name printed on the invoice.

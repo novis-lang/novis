@@ -2294,10 +2294,11 @@ impl ExprTypeTable {
     /// public declared properties and its ancestors', sorted by name, each
     /// with its declared type.
     ///
-    /// Recorded only for a class a written `property<T>` names, at an `as
-    /// property<T>` conversion and at a string literal argument for a
-    /// parameter whose type has a `property<T>` member. `nvs_lsp::completion`
-    /// offers these names inside those two literals, and reads them here
+    /// Recorded only for a class a written `property<T>` names, and for every
+    /// class a written `propertyPath<T>` can reach from `T`, at an `as`
+    /// conversion and at a string literal argument for a parameter whose type
+    /// has such a member. `nvs_lsp::completion` offers these names inside
+    /// those literals, one path segment at a time, and reads them here
     /// because the walk that makes the set needs the signature table, which
     /// the editor does not keep. Empty for every other class.
     #[must_use]

@@ -792,8 +792,9 @@ pub(crate) fn key_parameter_class(
 /// The class the next segment of a `rule:types/property-path` path is looked
 /// up on, where `ty` is the declared type of the property a segment names: a
 /// class `C`, a `?C` or an `array<C>`. `None` for every other type, which a
-/// path cannot step past.
-pub(crate) fn path_step_class(ty: TypeId, interner: &TypeInterner) -> Option<QName> {
+/// path cannot step past. `nvs_lsp` steps a path over the recorded rosters
+/// with this, so the editor and the checker step the same way.
+pub fn path_step_class(ty: TypeId, interner: &TypeInterner) -> Option<QName> {
     let class_of = |id: TypeId| match interner.get(id) {
         Ty::Class(qname, _) => Some(qname.clone()),
         _ => None,
@@ -846,6 +847,29 @@ pub(crate) fn property_path_graph(root: &QName, env: &Env<'_>) -> Vec<crate::exp
         at += 1;
     }
     nodes
+}
+
+/// Records [`record_property_keys`] for every class a `rule:types/property-path`
+/// path can reach from `root`, `root` first, so the editor offers the names of
+/// the class each `.` reaches. Each class is listed once, so a path that loops
+/// back to a class adds nothing.
+pub(crate) fn record_path_property_keys(root: &QName, env: &mut Env<'_>) {
+    let mut order = vec![root.clone()];
+    let mut seen = FxHashSet::default();
+    seen.insert(root.clone());
+    let mut at = 0;
+    while at < order.len() {
+        let class = order[at].clone();
+        record_property_keys(&class, env);
+        for name in public_property_names(&class, env) {
+            if let Some(next) = path_step_after(&class, &name, env)
+                && seen.insert(next.clone())
+            {
+                order.push(next);
+            }
+        }
+        at += 1;
+    }
 }
 
 /// Checks a written-out `rule:types/property-path` path at `text`, a string
@@ -931,13 +955,15 @@ pub(crate) fn record_parameter_property_keys(ty: TypeId, env: &mut Env<'_>) {
         _ => vec![ty],
     };
     for member in members {
-        let argument = property_key_argument(member, env.interner)
-            .or_else(|| property_path_argument(member, env.interner));
-        let Some(argument) = argument else {
-            continue;
-        };
-        if let Ty::Class(qname, _) = env.interner.get(argument).clone() {
+        if let Some(argument) = property_key_argument(member, env.interner)
+            && let Ty::Class(qname, _) = env.interner.get(argument).clone()
+        {
             record_property_keys(&qname, env);
+        }
+        if let Some(argument) = property_path_argument(member, env.interner)
+            && let Ty::Class(qname, _) = env.interner.get(argument).clone()
+        {
+            record_path_property_keys(&qname, env);
         }
     }
 }

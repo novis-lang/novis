@@ -685,6 +685,7 @@ pub(crate) fn named_at(analysed: &Analysed, offset: BytePos) -> Option<(Target<'
     type_member_at(analysed, offset)
         .or_else(|| type_name_at(analysed, offset))
         .or_else(|| written_class_name_at(analysed, offset))
+        .or_else(|| property_segment_at(analysed, offset).map(|found| (found.target, found.span)))
         .or_else(|| resolved_in(analysed, &nodes))
         .or_else(|| resolved_in(analysed, &payload_path(analysed, offset)))
         .or_else(|| clause_at(analysed, offset))
@@ -1100,14 +1101,115 @@ pub(crate) fn written_class_name(analysed: &Analysed, offset: BytePos) -> Option
     })
 }
 
-/// The operand of `as property<T>` or `as ?property<T>` the cursor at `offset`
-/// is inside, quotes included, and the class `T` names.
+/// A string literal whose text is a `property<T>` key or a `propertyPath<T>`
+/// path.
+pub(crate) struct WrittenKey {
+    /// The literal, quotes included.
+    pub span: Span,
+    /// The class `T` names, where the key or the path starts.
+    pub class: QName,
+    /// Whether the text is a dotted path rather than one name.
+    pub path: bool,
+}
+
+/// The key or path literal the cursor at `offset` is inside: the operand of
+/// an `as` conversion ([`written_property_key`]), or an argument at a
+/// parameter where the literal compiles as one
+/// (`crate::arguments::Named::key_classes`). An argument whose parameter
+/// takes more than one key type is read as the first one.
+pub(crate) fn written_key(analysed: &Analysed, offset: BytePos) -> Option<WrittenKey> {
+    if let Some(written) = written_property_key(analysed, offset) {
+        return Some(written);
+    }
+    let named = crate::arguments::named_at(analysed, offset)?;
+    let (class, path) = match (named.path_classes.first(), named.key_classes.first()) {
+        (Some(class), _) => (class, true),
+        (None, Some(class)) => (class, false),
+        (None, None) => return None,
+    };
+    Some(WrittenKey {
+        span: named.span,
+        class: QName::parse(class),
+        path,
+    })
+}
+
+/// One segment of a key or path literal: the property it names, the span it
+/// is written at, and the property's declared type.
+pub(crate) struct PathSegment<'a> {
+    /// The property, on the class the path reached at this segment.
+    pub target: Target<'a>,
+    /// The segment's own text in the literal.
+    pub span: Span,
+    /// The property's declared type.
+    pub ty: TypeId,
+}
+
+/// The segment of a key or path literal the cursor at `offset` is on, stepped
+/// to over the rosters the checker recorded (`rule:types/property-path`).
+///
+/// Each segment before it is looked up on the class the path has reached, and
+/// [`nvs_types::path_step_class`] gives the next class, the step the checker
+/// takes. `None` where a segment before the cursor names nothing, and for a
+/// literal with an escape in it, whose text does not map to its source byte for
+/// byte. The property is named on the class the path reached, so one inherited
+/// from a parent has no declaration to jump to.
+pub(crate) fn property_segment_at(analysed: &Analysed, offset: BytePos) -> Option<PathSegment<'_>> {
+    let written = written_key(analysed, offset)?;
+    let file = analysed.map.file(analysed.entry);
+    let raw = text_of(file, written.span);
+    let quote = raw.chars().next()?;
+    let text = raw.get(1..)?;
+    let text = text.strip_suffix(quote).unwrap_or(text);
+    if text.contains('\\') {
+        return None;
+    }
+    let at = usize::try_from(offset - written.span.start - 1).ok()?;
+    let mut class = analysed.module.symbols.get(&written.class)?.qname.clone();
+    let mut start = 0;
+    let segments: Vec<&str> = if written.path {
+        text.split('.').collect()
+    } else {
+        vec![text]
+    };
+    for segment in segments {
+        let end = start + segment.len();
+        let (name, ty) = analysed
+            .exprs
+            .property_keys(&class.to_string())
+            .iter()
+            .find(|(name, _)| name == segment)?;
+        if at <= end {
+            let symbol = analysed.module.symbols.get(&class)?;
+            let begin = written.span.start + 1 + BytePos::try_from(start).ok()?;
+            return Some(PathSegment {
+                target: Target::Property {
+                    class: &symbol.qname,
+                    name,
+                },
+                span: Span {
+                    file: written.span.file,
+                    start: begin,
+                    end: begin + BytePos::try_from(segment.len()).ok()?,
+                },
+                ty: *ty,
+            });
+        }
+        class = nvs_types::path_step_class(*ty, &analysed.interner)?;
+        start = end + 1;
+    }
+    None
+}
+
+/// The operand of an `as` conversion to `property<T>` or `propertyPath<T>`,
+/// either nullable, the cursor at `offset` is inside, quotes included, and the
+/// class `T` names.
 ///
 /// `rule:types/property-key`'s conversion, found the way
 /// [`written_class_name`] finds `as class<T>`'s: the type the conversion wrote
 /// ends where the conversion ends, and its `T` is read off the type the
 /// checker recorded for it. The cursor has to be between the quotes.
-pub(crate) fn written_property_key(analysed: &Analysed, offset: BytePos) -> Option<(Span, QName)> {
+pub(crate) fn written_property_key(analysed: &Analysed, offset: BytePos) -> Option<WrittenKey> {
     let path = analysed.index.at(offset);
     let [string, conversion, ..] = path.nodes() else {
         return None;
@@ -1136,11 +1238,17 @@ pub(crate) fn written_property_key(analysed: &Analysed, offset: BytePos) -> Opti
     let [key] = keys.as_slice() else {
         return None;
     };
-    let Ty::PropertyKey(argument) = interner.get(*key) else {
-        return None;
+    let (argument, path) = match interner.get(*key) {
+        Ty::PropertyKey(argument) => (argument, false),
+        Ty::PropertyPath(argument) => (argument, true),
+        _ => return None,
     };
     match interner.get(*argument) {
-        Ty::Class(qname, _) => Some((string.span, qname.clone())),
+        Ty::Class(qname, _) => Some(WrittenKey {
+            span: string.span,
+            class: qname.clone(),
+            path,
+        }),
         _ => None,
     }
 }

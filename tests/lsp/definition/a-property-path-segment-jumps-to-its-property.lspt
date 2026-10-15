@@ -1,0 +1,16 @@
+--TEST--
+go-to-definition on one segment of a `propertyPath<T>` literal answers the declaration of the property that segment names, on the class the path reached there — `rule:ide/a-field-path-completes-one-segment-at-a-time`
+--FILE--
+<?nvs
+class Customer {
+    public string $name = "Ada";
+}
+class Order {
+    public ?Customer $customer = null;
+}
+
+echo "customer.na<|>me" as propertyPath<Order>;
+--REQUEST--
+definition
+--EXPECT--
+case.nvs:3:19

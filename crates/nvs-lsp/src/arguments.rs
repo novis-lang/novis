@@ -102,10 +102,12 @@ pub(crate) struct Named {
     /// `string` or for a union with any other member.
     pub members: Vec<String>,
     /// The class of each `property<T>` in the parameter's declared type, as
-    /// its whole name, where that type also takes a `string`: `["User"]` for
-    /// `property<User>|string`, and nothing for `property<User>` alone, which
-    /// a string literal does not satisfy.
+    /// its whole name, where a string literal compiles there: `["User"]` for
+    /// `property<User>|string` and for `property<User>` alone.
     pub key_classes: Vec<String>,
+    /// [`Self::key_classes`] for each `propertyPath<T>` in the parameter's
+    /// declared type.
+    pub path_classes: Vec<String>,
 }
 
 /// A node that holds the literal, with the spans and kinds of its own
@@ -285,42 +287,53 @@ fn name(analysed: &Analysed, literal: Span, holders: &[Holder]) -> Option<Named>
         key_classes: call
             .param_tys
             .get(index)
-            .map(|ty| key_classes(analysed, *ty))
+            .map(|ty| key_classes(analysed, *ty, false))
+            .unwrap_or_default(),
+        path_classes: call
+            .param_tys
+            .get(index)
+            .map(|ty| key_classes(analysed, *ty, true))
             .unwrap_or_default(),
     })
 }
 
-/// The class of each `property<T>` member of `ty`, where a string literal
-/// written at a parameter of that type compiles: `ty` also has a `string` or
-/// `tainted string` member, or `ty` is one `property<T>`, `null` aside, which
-/// the checker converts the literal to. Empty for any other type.
-fn key_classes(analysed: &Analysed, ty: TypeId) -> Vec<String> {
+/// The class of each `property<T>` member of `ty`, or of each
+/// `propertyPath<T>` member where `path` is set, where a string literal written
+/// at a parameter of that type compiles: `ty` also has a `string` or `tainted
+/// string` member, or `ty` is one `property<T>` or `propertyPath<T>`, `null`
+/// aside, which the checker converts the literal to. Empty for any other type.
+fn key_classes(analysed: &Analysed, ty: TypeId, path: bool) -> Vec<String> {
     let interner = &analysed.interner;
     let members = match interner.get(ty) {
         Ty::Union(members) => members.as_slice(),
         _ => std::slice::from_ref(&ty),
     };
+    let is_key = |member: &TypeId| {
+        matches!(
+            interner.get(*member),
+            Ty::PropertyKey(_) | Ty::PropertyPath(_)
+        )
+    };
     let takes_text = members
         .iter()
         .any(|member| matches!(interner.get(*member), Ty::String | Ty::TaintedString));
-    let keys = members
-        .iter()
-        .filter(|member| matches!(interner.get(**member), Ty::PropertyKey(_)))
-        .count();
+    let keys = members.iter().filter(|member| is_key(member)).count();
     let others = members
         .iter()
-        .filter(|member| !matches!(interner.get(**member), Ty::PropertyKey(_) | Ty::Null))
+        .filter(|member| !is_key(member) && !matches!(interner.get(**member), Ty::Null))
         .count();
     if !takes_text && (keys != 1 || others != 0) {
         return Vec::new();
     }
     members
         .iter()
-        .filter_map(|member| match interner.get(*member) {
-            Ty::PropertyKey(argument) => match interner.get(*argument) {
-                Ty::Class(qname, _) => Some(qname.to_string()),
-                _ => None,
-            },
+        .filter_map(|member| match (interner.get(*member), path) {
+            (Ty::PropertyKey(argument), false) | (Ty::PropertyPath(argument), true) => {
+                match interner.get(*argument) {
+                    Ty::Class(qname, _) => Some(qname.to_string()),
+                    _ => None,
+                }
+            }
             _ => None,
         })
         .collect()

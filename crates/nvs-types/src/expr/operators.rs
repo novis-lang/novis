@@ -339,7 +339,7 @@ fn check_property_path_conversion(inner: &Expr, ty: &Type, argument: TypeId, env
     if roster.is_empty() {
         reject_empty_property_key_set(&qname, ty.span, env);
     }
-    super::members::record_property_keys(&qname, env);
+    super::members::record_path_property_keys(&qname, env);
     let ExprKind::Str(text) = &inner.kind else {
         let nodes = super::members::property_path_graph(&qname, env);
         env.exprs.record(

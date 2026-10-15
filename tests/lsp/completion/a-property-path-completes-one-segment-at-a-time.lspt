@@ -1,0 +1,27 @@
+--TEST--
+inside a string literal at a `propertyPath<T>` parameter, each `.` after a valid prefix offers the public properties of the class that prefix reaches, read off the rosters the checker recorded — `rule:ide/a-field-path-completes-one-segment-at-a-time`
+--FILE--
+<?nvs
+class Address {
+    public string $city = "Bern";
+    private string $code = "3000";
+}
+class Customer {
+    public string $name = "Ada";
+    public ?Address $address = null;
+}
+class Order {
+    public string $id = "o1";
+    public ?Customer $customer = null;
+}
+class Grid {
+    public static function sortBy(propertyPath<Order> $column): string {
+        return $column as string;
+    }
+}
+
+echo Grid::sortBy("customer.address.<|>");
+--REQUEST--
+completion
+--EXPECT--
+city    property  string
