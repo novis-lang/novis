@@ -38,7 +38,7 @@ stages:
         shapes: ["A `.nvst` test case", A diagnostic]
   - id: 5
     title: the editor completes a path one segment at a time
-    status: open
+    status: done
     context: [crates/nvs-lsp/src/completion.rs, crates/nvs-lsp/src/arguments.rs, crates/nvs-lsp/src/hover.rs, crates/nvs-lsp/src/definition.rs]
     extra:
       context:
@@ -90,7 +90,7 @@ checks:
   - id: literal-at-key-parameter-editor
     stage: 3
     name: "the editor offers the names at a `property<T>` parameter"
-    run: [bun, nv, suite, tests/lsp/, --case, tests/lsp/completion/a-string-at-a-property-key-only-parameter-offers-the-property-names.lspt]
+    run: [bun, nv, suite, lsp-test, tests/lsp/, --case, tests/lsp/completion/a-string-at-a-property-key-only-parameter-offers-the-property-names.lspt]
     tests: [tests/lsp/completion/a-string-at-a-property-key-only-parameter-offers-the-property-names.lspt]
   - id: property-path
     stage: 4
@@ -100,7 +100,7 @@ checks:
   - id: property-path-editor
     stage: 5
     name: "the editor completes, hovers, defines and underlines a path one segment at a time"
-    run: [bun, nv, suite, tests/lsp/, --case, tests/lsp/completion/a-property-path-completes-one-segment-at-a-time.lspt, --case, tests/lsp/hover/a-property-path-segment-shows-its-property.lspt, --case, tests/lsp/definition/a-property-path-segment-jumps-to-its-property.lspt, --case, tests/lsp/diagnostics/a-misspelled-property-path-is-underlined-at-its-segment.lspt]
+    run: [bun, nv, suite, lsp-test, tests/lsp/, --case, tests/lsp/completion/a-property-path-completes-one-segment-at-a-time.lspt, --case, tests/lsp/hover/a-property-path-segment-shows-its-property.lspt, --case, tests/lsp/definition/a-property-path-segment-jumps-to-its-property.lspt, --case, tests/lsp/diagnostics/a-misspelled-property-path-is-underlined-at-its-segment.lspt]
     tests: [tests/lsp/completion/a-property-path-completes-one-segment-at-a-time.lspt, tests/lsp/hover/a-property-path-segment-shows-its-property.lspt, tests/lsp/definition/a-property-path-segment-jumps-to-its-property.lspt, tests/lsp/diagnostics/a-misspelled-property-path-is-underlined-at-its-segment.lspt]
   - id: string-holes
     stage: 6
@@ -110,7 +110,7 @@ checks:
   - id: string-holes-editor
     stage: 6
     name: "a `{` in a `string<K>` literal opens the list of its holes"
-    run: [bun, nv, suite, tests/lsp/, --case, tests/lsp/completion/a-brace-in-a-string-with-holes-opens-the-list-of-its-holes.lspt]
+    run: [bun, nv, suite, lsp-test, tests/lsp/, --case, tests/lsp/completion/a-brace-in-a-string-with-holes-opens-the-list-of-its-holes.lspt]
     tests: [tests/lsp/completion/a-brace-in-a-string-with-holes-opens-the-list-of-its-holes.lspt]
   - id: parts-and-steps
     stage: 7
@@ -309,9 +309,9 @@ are checked and completed where they were plain strings. Simplicity: one new typ
 
 **Does:** completion, hover, go-to-definition and the underline work per segment of a path.
 
-- [ ] Completion per segment, from the checker's roster. `crates/nvs-lsp/src/completion.rs:781`
-- [ ] Hover and go-to-definition on a segment. `crates/nvs-lsp/src/hover.rs:1`
-- [ ] The underline on the bad segment alone. `crates/nvs-lsp/src/diagnostics.rs:1`
+- [x] Completion per segment, from the checker's roster. `crates/nvs-lsp/src/completion.rs:781`
+- [x] Hover and go-to-definition on a segment. `crates/nvs-lsp/src/hover.rs:1`
+- [x] The underline on the bad segment alone. `crates/nvs-lsp/src/diagnostics.rs:1`
 
 ### 6. `string<K>` checks the holes in a string
 
@@ -349,28 +349,31 @@ are checked and completed where they were plain strings. Simplicity: one new typ
 
 ### State
 
-Stages 1 to 4 are done. `propertyPath<T>` parses (`crates/nvs-syntax/src/parser/ty.rs`), lowers to
-`Ty::PropertyPath` with `E0799` shared with `property<T>` (`crates/nvs-types/src/lower.rs`), and is
-contravariant, its own equality domain and its own conversion kind. A written-out path, at `as` and as
-a literal at a `propertyPath<T>`-only parameter, is checked one segment at a time by
-`report_unwritten_property_path` (`crates/nvs-types/src/expr/members.rs:859`), with `E0405` under the
-bad segment alone. A run-time operand records `ExprInfo::PropertyPath`, every class the path reaches
-(`property_path_graph`, `crates/nvs-types/src/expr/members.rs:824`). `nvs-ir` encodes it as one
-static string (`crates/nvs-ir/src/lower/convert.rs:1659`), and two runtime helpers walk it,
-`nvs_property_path_valid` and `nvs_property_path_mismatch` (`crates/nvs-runtime/src/helpers.rs`).
-`rule:types/property-path` is shipped, and `# Property paths` is in `docs/reference/lang/20-types.md`.
+Stages 1 to 5 are done. The editor completes, hovers, defines and underlines a `propertyPath<T>`
+literal one segment at a time, at a `propertyPath<T>` parameter and in `"…" as propertyPath<T>`. The
+checker records a roster for every class a path reaches (`record_path_property_keys`,
+`crates/nvs-types/src/expr/members.rs:856`), and the editor steps a prefix over those rosters with
+`nvs_types::path_step_class` (`path_steps`, `crates/nvs-lsp/src/completion.rs:800`;
+`property_segment_at`, `crates/nvs-lsp/src/definition.rs:1157`). The four `.lspt` cases pass.
 
-Three designed rules are left: `types/string-holes`, `core-classes/str-parts-and-reflect-steps` and
-`ide/a-field-path-completes-one-segment-at-a-time`. The nightly CI failures are on `origin/main` at
-`cb7021a24`, far behind local `main`. The loop never pushes, so nothing on HEAD ran there.
+`rule:ide/a-field-path-completes-one-segment-at-a-time` stays `designed`, because its `{` trigger in
+a `string<K>` literal is stage 6. Stage 6 flips it to shipped, with the four stage 5 cases and the stage
+6 brace case as its guards, and folds it into `rule:ide/completion-offers-only-what-the-compiler-derived`
+and `rule:ide/completion-is-asked-where-a-spelling-ends`.
+
+The three editor checks now run `bun nv suite lsp-test tests/lsp/`. Before, `nv suite tests/lsp/`
+credited `.lspt` cases without running them (playbook, Tooling). The nightly CI failures are on
+`origin/main` at `cb7021a24`, far behind local `main`. The loop never pushes, so nothing on HEAD ran
+there.
 
 ### Next
 
-**Stage 5: the editor completes a path one segment at a time**, one file set: `crates/nvs-lsp/src/completion.rs`, `crates/nvs-lsp/src/arguments.rs`, `crates/nvs-lsp/src/definition.rs`, `crates/nvs-lsp/src/hover.rs`.
+**Stage 6: `string<K>` checks the holes in a string**, one file set: `crates/nvs-syntax/src/parser/ty.rs`, `crates/nvs-types/src/lower.rs`, `crates/nvs-types/src/expr/operators.rs`, `crates/nvs-types/src/expr/members.rs`.
 
-- [ ] Completion inside a literal at a `propertyPath<T>` parameter and in `"…" as propertyPath<T>`: the prefix up to the last `.` is walked over the recorded rosters (`property_keys`, which `record_property_keys` fills per class; record each class a path reaches, not only `T`), and the class reached is offered, by `rule:ide/a-field-path-completes-one-segment-at-a-time`. `crates/nvs-lsp/src/completion.rs:699` `crates/nvs-lsp/src/arguments.rs:297` `crates/nvs-types/src/expr/members.rs:824`
-- [ ] `written_property_key` learns `Ty::PropertyPath` and the segment under the cursor, for hover and go-to-definition on one segment. `crates/nvs-lsp/src/definition.rs:1110` `crates/nvs-lsp/src/hover.rs:1`
-- [ ] The four `.lspt` cases the `property-path-editor` check names; the underline on one segment already comes from the checker's span. `crates/nvs-types/src/expr/members.rs:859`
+- [ ] Parse `string<K>` where `<` follows `string`, the way `property<` is parsed, and lower it to a new `Ty` with `K` one of `property<T>`, `propertyPath<T>` or a set of string values, by `rule:types/string-holes`. `crates/nvs-syntax/src/parser/ty.rs:91` `crates/nvs-syntax/src/parser/ty.rs:368`
+- [ ] The hole scanner over a literal: `{` + one `K` value + `}`, `{{` and `}}` one brace, an empty hole, an unclosed `{` and a lone `}` errors; each hole checked with `report_unwritten_property_path` or the key check, at `as string<K>` and at a `string<K>`-only parameter. `crates/nvs-types/src/expr/operators.rs:281` `crates/nvs-types/src/expr/members.rs:777`
+- [ ] Taint: `as string<K>` keeps `tainted` on the text, by `rule:types/string-holes`; the three `.nvst` cases the `string-holes` check names. `crates/nvs-types/src/expr/operators.rs:281`
+- [ ] Then the editor half in its own group: `{` as a trigger answered only in a `string<K>` literal, and the rule flip above. `crates/nvs-lsp/src/capabilities.rs:229` `crates/nvs-lsp/src/completion.rs:800`
 
 ### Backlog
 
@@ -378,4 +381,5 @@ Three designed rules are left: `types/string-holes`, `core-classes/str-parts-and
 - Splitting a `string<K>` literal while compiling, if the stage 8 bench asks for it (`core-classes/str-parts-and-reflect-steps`).
 - A literal at a `property<A>|property<B>` parameter is not converted and gets nothing offered (`rule:types/property-key`). Decide it if a program needs it.
 - `propertyPath<T>` over a class with no public property reports with the `property<T>` wording (`reject_empty_property_key_set`, `crates/nvs-types/src/expr/operators.rs:414`). Give it the path's word in stage 8.
+- Go-to-definition on a path segment that names an inherited property answers nothing, because the roster records no declaring class (`property_segment_at`, `crates/nvs-lsp/src/definition.rs:1157`). Hover still shows the type.
 - Nightly CI on `cb7021a24` failed `a_spawned_process_ends_when_nvs_is_killed_and_what_it_started_does_not` (`crates/nvs-cli/tests/run_command.rs:688`) and the four-core throughput guard (`crates/nvs-cli/src/serve.rs`). Both are Linux-only. Check them once `main` is pushed.
