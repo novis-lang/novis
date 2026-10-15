@@ -26,7 +26,6 @@
     "types/property-key",
     "types/property-key-variance",
     "types/property-key-access",
-    "types/a-literal-at-a-key-parameter-is-checked-where-it-is-written",
     "types/property-path",
     "types/string-holes",
     "types/unions-and-mixed",

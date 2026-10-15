@@ -13,7 +13,8 @@ contravariant (`rule:types/property-key-variance`); and its own equality domain,
 their text is equal, with ordering refused. `propertyPath` is a keyword only in type position, as
 `property` is.
 
-**`as` is its source, and a literal at a key parameter is the other** (`rule:types/a-literal-at-a-key-parameter-is-checked-where-it-is-written`).
+**`as` is its source, and a literal at a key parameter is the other** (`rule:types/property-key`): a string literal at a parameter typed `propertyPath<T>` alone is
+converted while compiling.
 A `string` converts with `as propertyPath<T>`, which throws at the first bad segment and names it, and
 `as ?propertyPath<T>` yields `null` there. A written-out operand is decided where it is written: a
 wrong segment is the unknown-member diagnostic an ordinary `$order->custmer` gets, placed on that

@@ -9,8 +9,8 @@ roster the receiver certainly has storage for, and an interface names a contract
 satisfy with properties it does not itself declare. The set is the same roster reflection walks; the
 visibility question has one shared implementation and this is not a second one.
 
-**`as` is its only source.** A string literal is a `string` and stays one, so no program acquires a key
-by accident. Three rows sit in the one conversion grid (`rule:types/conversion`): a `string` must name
+**`as` is its source, and a literal at a key parameter is the other.** A string literal is a `string`
+and stays one everywhere but that one position, so no program acquires a key by accident. Three rows sit in the one conversion grid (`rule:types/conversion`): a `string` must name
 a public declared property of `T`, or it throws; a `property<U>` narrows at run time; and
 `property<T> → string` is total. A name that names nothing and a name that names a `private` property
 are the same failure and throw the same way — visibility is decided at the conversion, once. A
@@ -26,10 +26,17 @@ A parameter typed **`property<T>|string`** takes a key and any string. A string 
 stays a `string`, and the body converts the value with `as ?property<T>` to find out whether it names one
 of `T`'s properties. The editor offers `T`'s names inside such a literal
 (`rule:ide/completion-offers-only-what-the-compiler-derived`), so a call site that may pass any string is
-still shown the names. A parameter typed `property<T>` alone takes a key and nothing else.
-`rule:types/a-literal-at-a-key-parameter-is-checked-where-it-is-written`, designed, changes this for
-one position: a string literal at a parameter typed `property<T>` alone will be checked where it is
-written and accepted with no `as`.
+still shown the names.
+
+A parameter typed **`property<T>` alone**, or `?property<T>`, takes a key, and a **string literal**
+written there is converted while compiling. A right one is accepted with no `as`, and a wrong one is
+the unknown-member diagnostic at the literal: the check `"email" as property<User>` makes where it is
+written, and not a second one. A string built at run time still needs `as`, so no program acquires a
+key from a value the compiler has not seen. In a variable, a return and an array a literal stays a
+`string`. This is the position where a name is wanted and the literal is the whole of what the call
+site says: making the caller write `as property<User>` there repeats the class the signature already
+names, and the editor offers the names there too. `rule:types/property-path` and
+`rule:types/string-holes` apply the same position to `propertyPath<T>` and `string<K>`.
 
 It is its own **equality domain**: two keys are equal when they name the same property, nothing else is
 ever equal to one, and ordering one is refused (`rule:types/ordering`). `property` is a keyword only
@@ -67,6 +74,11 @@ is one the erased access performs anyway.
   unchecked. A type is the only shape that reaches the access site.
 - **A bare `string` accepted at `$obj->$name` when the class is written out.** The check moves from the
   source to every use, so an unchecked string flows through the program.
+- **Converting a literal wherever a key is expected, in a variable or a return too.** A literal in a
+  variable has no single expected type until it is used, so the rule would depend on inference order.
+  The argument position has its type written in the signature.
+- **Checking a literal at a `property<T>|string` parameter as well.** That parameter says any string is
+  fine, and a warning there would be noise at every call that passes free text.
 - **A key that may name a `private` property, with visibility checked at the access.** The conversion
   would succeed on a name the caller may not use, and the throw would land at a site that looks
   correct. Visibility belongs to the set, so it is checked where the set is entered.

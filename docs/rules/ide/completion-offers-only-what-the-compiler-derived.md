@@ -54,11 +54,11 @@ A property name is an item of kind `property` with its declared type at the righ
 the set for each class a `property<T>` names at an `as` conversion, and at a string literal argument for
 a parameter whose type has a `property<T>` member, because the walk that makes the set needs the signature
 table and the editor does not keep one. A parameter typed `property<T>|string` takes any string, so a
-literal outside the set gets no warning there. A parameter typed `property<T>` alone is offered nothing,
-because a string literal does not satisfy it and an offered item would write a call that does not compile.
-`rule:ide/a-field-path-completes-one-segment-at-a-time`, designed, changes this: once a literal there
-compiles, the names are offered, and a `propertyPath<T>` parameter and a `string<K>` hole are offered
-them one segment at a time.
+literal outside the set gets no warning there. A parameter typed `property<T>` alone, or `?property<T>`,
+is offered the same names, because the checker converts a string literal there while compiling
+(`rule:types/property-key`), and a wrong one is its own diagnostic.
+`rule:ide/a-field-path-completes-one-segment-at-a-time`, designed, offers a `propertyPath<T>` parameter
+and a `string<K>` hole the names one segment at a time.
 
 - **Memory:** one list of names and types per class a `property<T>` names, kept with the checker's
   table for the length of the analysis. Nothing at run time.

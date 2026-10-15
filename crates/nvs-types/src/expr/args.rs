@@ -127,14 +127,36 @@ fn check_arg_list(
             // parameter — the question this rule does not ask.
             ArgSlot::Spread(_) | ArgSlot::Unresolved => Admitted::NONE,
         };
-        let actual = match expected {
-            Some(want) if admitted.any() => {
-                check_arg_admitting_quals(&arg.value, want, admitted, live, scope, ctx, env)
+        // `rule:types/property-key`: a string literal at a parameter typed
+        // `property<T>` alone is converted here, while compiling, so it needs
+        // no `as` and a wrong name is reported at the literal.
+        let written_key = match (&arg.value.kind, expected) {
+            (ExprKind::Str(text), Some(want)) => {
+                super::members::key_parameter_class(want, env).map(|key| (*text, key))
             }
-            Some(want) if carrier_help(want, env).is_some() => {
-                check_carrier_arg(&arg.value, want, live, scope, ctx, env)
+            _ => None,
+        };
+        let actual = if let Some((text, (key, qname))) = written_key {
+            let roster = super::members::public_property_names(&qname, env);
+            super::operators::report_unwritten_property_key(
+                &qname,
+                &roster,
+                text,
+                arg.value.span,
+                "this name is checked here",
+                env,
+            );
+            key
+        } else {
+            match expected {
+                Some(want) if admitted.any() => {
+                    check_arg_admitting_quals(&arg.value, want, admitted, live, scope, ctx, env)
+                }
+                Some(want) if carrier_help(want, env).is_some() => {
+                    check_carrier_arg(&arg.value, want, live, scope, ctx, env)
+                }
+                _ => check_arg(&arg.value, expected, live, scope, ctx, env),
             }
-            _ => check_arg(&arg.value, expected, live, scope, ctx, env),
         };
         // Only a whole argument can be written back: a `...` hands over a
         // subject's entries rather than the subject, so there is no one

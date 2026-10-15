@@ -1437,11 +1437,11 @@ A property name is an item of kind `property` with its declared type at the righ
 the set for each class a `property<T>` names at an `as` conversion, and at a string literal argument for
 a parameter whose type has a `property<T>` member, because the walk that makes the set needs the signature
 table and the editor does not keep one. A parameter typed `property<T>|string` takes any string, so a
-literal outside the set gets no warning there. A parameter typed `property<T>` alone is offered nothing,
-because a string literal does not satisfy it and an offered item would write a call that does not compile.
-[`ide/a-field-path-completes-one-segment-at-a-time`](ide.md#ide-a-field-path-completes-one-segment-at-a-time), designed, changes this: once a literal there
-compiles, the names are offered, and a `propertyPath<T>` parameter and a `string<K>` hole are offered
-them one segment at a time.
+literal outside the set gets no warning there. A parameter typed `property<T>` alone, or `?property<T>`,
+is offered the same names, because the checker converts a string literal there while compiling
+([`types/property-key`](types.md#types-property-key)), and a wrong one is its own diagnostic.
+[`ide/a-field-path-completes-one-segment-at-a-time`](ide.md#ide-a-field-path-completes-one-segment-at-a-time), designed, offers a `propertyPath<T>` parameter
+and a `string<K>` hole the names one segment at a time.
 
 - **Memory:** one list of names and types per class a `property<T>` names, kept with the checker's
   table for the length of the analysis. Nothing at run time.
@@ -1696,13 +1696,13 @@ as a path or a name, and a request one of them raised is answered only where the
 `require` or `autoload` path string, an `autoload` prefix, the string converted with `as class<T>` or `as
 property<T>`, or a string argument at a path or class-name parameter. A quote opens one and a `/` starts a
 path's next segment. A quote also opens a string argument at a parameter whose type lists string values
-([`types/single-value-types`](types.md#types-single-value-types)) or takes a `property<T>` beside a `string` ([`types/property-key`](types.md#types-property-key)),
+([`types/single-value-types`](types.md#types-single-value-types)) or takes a `property<T>`, alone or beside a `string`
+([`types/property-key`](types.md#types-property-key)),
 and one at a parameter a completion file names
 ([`ide/completion-files-offer-values-at-named-parameters`](ide.md#ide-completion-files-offer-values-at-named-parameters)). Inside such an argument `.`, `/` and `:`
-start the next segment only where a value that applies at the call is split on that separator. A quote
-at a parameter typed `property<T>` alone opens nothing, because a string literal there does not compile;
-[`ide/a-field-path-completes-one-segment-at-a-time`](ide.md#ide-a-field-path-completes-one-segment-at-a-time), designed, makes it open the names and adds `{`
-as a trigger answered only inside a `string<K>` literal. A client offers
+start the next segment only where a value that applies at the call is split on that separator.
+[`ide/a-field-path-completes-one-segment-at-a-time`](ide.md#ide-a-field-path-completes-one-segment-at-a-time), designed, opens a `propertyPath<T>` parameter's
+names and adds `{` as a trigger answered only inside a `string<K>` literal. A client offers
 nothing inside a string unless asked. Everywhere else a quote opens a string, `/` divides and `.`
 concatenates. A request the developer raised by hand, or by typing a name, is not held to this.
 
@@ -1740,18 +1740,18 @@ other processing instruction stay markup's own.
 
 `rule:ide/a-field-path-completes-one-segment-at-a-time`
 
-Inside a string literal at a parameter typed `property<T>` or `propertyPath<T>`, and inside a hole of a
+Inside a string literal at a parameter typed `propertyPath<T>`, and inside a hole of a
 `string<K>` literal, the completion list offers `T`'s public declared properties with their types, and
 each `.` after a valid prefix offers the properties of the class that prefix reaches. Depth is
 unlimited, and a path that loops back to a class it already passed costs nothing extra, because one
 class's roster is listed per request.
 
 This changes two shipped rules. [`ide/completion-offers-only-what-the-compiler-derived`](ide.md#ide-completion-offers-only-what-the-compiler-derived) offers a
-parameter typed `property<T>` alone nothing, because a literal there does not compile today; once
-[`types/a-literal-at-a-key-parameter-is-checked-where-it-is-written`](types.md#types-a-literal-at-a-key-parameter-is-checked-where-it-is-written) ships, a literal there does
-compile, so the names are offered. [`ide/completion-is-asked-where-a-spelling-ends`](ide.md#ide-completion-is-asked-where-a-spelling-ends) gains `{` as a
+parameter typed `property<T>` alone its names already, because a literal there compiles
+([`types/property-key`](types.md#types-property-key)), and this extends that list to a path's segments.
+[`ide/completion-is-asked-where-a-spelling-ends`](ide.md#ide-completion-is-asked-where-a-spelling-ends) gains `{` as a
 trigger character (`crates/nvs-lsp/src/capabilities.rs`), answered only inside a `string<K>` literal,
-where it opens a hole; a quote at a `property<T>` or `propertyPath<T>` parameter opens the list, and
+where it opens a hole; a quote at a `propertyPath<T>` parameter opens the list, and
 `.` inside such a literal starts the next segment.
 
 Hover on a segment shows its property, with its class and declared type. Go-to-definition on a segment

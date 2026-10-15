@@ -1,0 +1,46 @@
+--TEST--
+A string literal at a parameter typed `property<T>` alone that names no public property of `T` is the unknown-member error at the literal, and a string variable there still needs `as` — `rule:types/property-key`
+--FILE--
+<?nvs
+// A name that is not a public property of `Order` does not compile.
+class Order {
+    public string $id = "o1";
+    private int $secret = 1;
+}
+
+class Report {
+    public static function column(property<Order> $field): string {
+        return "column " . ($field as string);
+    }
+}
+
+// `idd` is misspelled.
+echo Report::column("idd"), "\n";
+// `secret` is private.
+echo Report::column("secret"), "\n";
+// A variable is not a literal, so it needs `as property<Order>`.
+string $name = "id";
+echo Report::column($name), "\n";
+--EXPECTF-ERROR--
+error[E0405]: `Order` has no public property `$idd`
+   --> %s:15:21
+   |
+15 | echo Report::column("idd"), "\n";
+   |                     ^^^^^ this name is checked here
+   = help: `rule:types/property-key` decides a written-out operand where it is written, and a key's values are `Order`'s public declared properties: `$id`
+
+error[E0405]: `Order` has no public property `$secret`
+   --> %s:17:21
+   |
+17 | echo Report::column("secret"), "\n";
+   |                     ^^^^^^^^ this name is checked here
+   = help: `rule:types/property-key` decides a written-out operand where it is written, and a key's values are `Order`'s public declared properties: `$id`
+
+error[E0401]: expected `property<Order>`, found `string`
+   --> %s:20:21
+   |
+20 | echo Report::column($name), "\n";
+   |                     ^^^^^ this is `string`
+
+error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

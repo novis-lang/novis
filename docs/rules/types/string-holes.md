@@ -8,8 +8,8 @@ A hole is `{`, one value of `K`, and `}`, with no spaces inside. `{{` is a liter
 `}`. An empty hole, an unclosed `{` and a lone `}` are errors, at the brace. Holes work in both quote
 styles, because a brace with no `$` after it is already plain text in a string
 (`tests/conformance/lang/a-string-literal-escapes-and-interpolates-exactly-what-each-quote-allows.nvst:61`).
-A literal at a parameter typed `string<K>` is checked where it is written
-(`rule:types/a-literal-at-a-key-parameter-is-checked-where-it-is-written`): a wrong hole is the
+A literal at a parameter typed `string<K>` alone is checked where it is written, as a literal at a
+`property<T>` parameter is (`rule:types/property-key`): a wrong hole is the
 unknown-member diagnostic for its segment, placed on that segment. A double-quoted string that
 interpolates `{$…}` is not a literal, so it needs `as string<K>`, which checks every hole at run time
 and throws at the first bad one. `as ?string<K>` yields `null` there. `string<K> → string` is total and

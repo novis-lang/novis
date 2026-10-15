@@ -290,17 +290,28 @@ fn name(analysed: &Analysed, literal: Span, holders: &[Holder]) -> Option<Named>
     })
 }
 
-/// The class of each `property<T>` member of `ty`, where `ty` also has a
-/// `string` or `tainted string` member. Empty for any other type.
+/// The class of each `property<T>` member of `ty`, where a string literal
+/// written at a parameter of that type compiles: `ty` also has a `string` or
+/// `tainted string` member, or `ty` is one `property<T>`, `null` aside, which
+/// the checker converts the literal to. Empty for any other type.
 fn key_classes(analysed: &Analysed, ty: TypeId) -> Vec<String> {
     let interner = &analysed.interner;
-    let Ty::Union(members) = interner.get(ty) else {
-        return Vec::new();
+    let members = match interner.get(ty) {
+        Ty::Union(members) => members.as_slice(),
+        _ => std::slice::from_ref(&ty),
     };
-    if !members
+    let takes_text = members
         .iter()
-        .any(|member| matches!(interner.get(*member), Ty::String | Ty::TaintedString))
-    {
+        .any(|member| matches!(interner.get(*member), Ty::String | Ty::TaintedString));
+    let keys = members
+        .iter()
+        .filter(|member| matches!(interner.get(**member), Ty::PropertyKey(_)))
+        .count();
+    let others = members
+        .iter()
+        .filter(|member| !matches!(interner.get(**member), Ty::PropertyKey(_) | Ty::Null))
+        .count();
+    if !takes_text && (keys != 1 || others != 0) {
         return Vec::new();
     }
     members

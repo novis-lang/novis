@@ -1,0 +1,21 @@
+--TEST--
+a string argument at a parameter typed `property<T>` alone is offered the public properties of `T`, because the checker converts that literal to a key while compiling — `rule:ide/completion-offers-only-what-the-compiler-derived`
+--FILE--
+<?nvs
+class Order {
+    public string $id = "o1";
+    public int $total = 3;
+    private string $note = "x";
+}
+class Grid {
+    public static function sortBy(property<Order> $column): string {
+        return $column as string;
+    }
+}
+
+echo Grid::sortBy("<|>");
+--REQUEST--
+completion
+--EXPECT--
+id      property  string
+total   property  int

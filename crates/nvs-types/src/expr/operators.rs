@@ -320,7 +320,23 @@ fn check_property_key_conversion(
         // no spelling could have got right reads as two problems.
         return;
     }
-    let name = crate::string_lit::cook_string_literal(env.src, *text);
+    report_unwritten_property_key(&qname, &roster, *text, span, "converted here", env);
+}
+
+/// The unknown-member diagnostic for a written-out name that is not on
+/// `qname`'s `roster`, underlined at `span` with `label`. It is the one check
+/// both written-out positions make: the operand of `"email" as property<User>`
+/// and a string literal at a parameter typed `property<User>` alone
+/// (`rule:types/property-key`).
+pub(crate) fn report_unwritten_property_key(
+    qname: &QName,
+    roster: &[String],
+    text: Span,
+    span: Span,
+    label: &str,
+    env: &mut Env<'_>,
+) {
+    let name = crate::string_lit::cook_string_literal(env.src, text);
     if roster.contains(&name) {
         return;
     }
@@ -338,7 +354,7 @@ fn check_property_key_conversion(
             code::E_UNKNOWN_MEMBER,
             format!("`{qname}` has no public property `${name}`"),
         )
-        .with_primary(span, "converted here")
+        .with_primary(span, label)
         .with_help(help),
     );
 }

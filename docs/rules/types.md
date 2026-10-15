@@ -3,7 +3,7 @@
 
 # Types
 
-*3 of 56 rules below are **designed** rather than shipped, and are marked where they appear.*
+*2 of 55 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="types-declaration"></a>
 
@@ -1077,8 +1077,8 @@ roster the receiver certainly has storage for, and an interface names a contract
 satisfy with properties it does not itself declare. The set is the same roster reflection walks; the
 visibility question has one shared implementation and this is not a second one.
 
-**`as` is its only source.** A string literal is a `string` and stays one, so no program acquires a key
-by accident. Three rows sit in the one conversion grid ([`types/conversion`](types.md#types-conversion)): a `string` must name
+**`as` is its source, and a literal at a key parameter is the other.** A string literal is a `string`
+and stays one everywhere but that one position, so no program acquires a key by accident. Three rows sit in the one conversion grid ([`types/conversion`](types.md#types-conversion)): a `string` must name
 a public declared property of `T`, or it throws; a `property<U>` narrows at run time; and
 `property<T> → string` is total. A name that names nothing and a name that names a `private` property
 are the same failure and throw the same way — visibility is decided at the conversion, once. A
@@ -1094,10 +1094,17 @@ A parameter typed **`property<T>|string`** takes a key and any string. A string 
 stays a `string`, and the body converts the value with `as ?property<T>` to find out whether it names one
 of `T`'s properties. The editor offers `T`'s names inside such a literal
 ([`ide/completion-offers-only-what-the-compiler-derived`](ide.md#ide-completion-offers-only-what-the-compiler-derived)), so a call site that may pass any string is
-still shown the names. A parameter typed `property<T>` alone takes a key and nothing else.
-[`types/a-literal-at-a-key-parameter-is-checked-where-it-is-written`](types.md#types-a-literal-at-a-key-parameter-is-checked-where-it-is-written), designed, changes this for
-one position: a string literal at a parameter typed `property<T>` alone will be checked where it is
-written and accepted with no `as`.
+still shown the names.
+
+A parameter typed **`property<T>` alone**, or `?property<T>`, takes a key, and a **string literal**
+written there is converted while compiling. A right one is accepted with no `as`, and a wrong one is
+the unknown-member diagnostic at the literal: the check `"email" as property<User>` makes where it is
+written, and not a second one. A string built at run time still needs `as`, so no program acquires a
+key from a value the compiler has not seen. In a variable, a return and an array a literal stays a
+`string`. This is the position where a name is wanted and the literal is the whole of what the call
+site says: making the caller write `as property<User>` there repeats the class the signature already
+names, and the editor offers the names there too. [`types/property-path`](types.md#types-property-path) and
+[`types/string-holes`](types.md#types-string-holes) apply the same position to `propertyPath<T>` and `string<K>`.
 
 It is its own **equality domain**: two keys are equal when they name the same property, nothing else is
 ever equal to one, and ordering one is refused ([`types/ordering`](types.md#types-ordering)). `property` is a keyword only
@@ -1135,6 +1142,11 @@ is one the erased access performs anyway.
   unchecked. A type is the only shape that reaches the access site.
 - **A bare `string` accepted at `$obj->$name` when the class is written out.** The check moves from the
   source to every use, so an unchecked string flows through the program.
+- **Converting a literal wherever a key is expected, in a variable or a return too.** A literal in a
+  variable has no single expected type until it is used, so the rule would depend on inference order.
+  The argument position has its type written in the signature.
+- **Checking a literal at a `property<T>|string` parameter as well.** That parameter says any string is
+  fine, and a warning there would be noise at every call that passes free text.
 - **A key that may name a `private` property, with visibility checked at the access.** The conversion
   would succeed on a name the caller may not use, and the throw would land at a site that looks
   correct. Visibility belongs to the set, so it is checked where the set is entered.
@@ -1230,42 +1242,6 @@ pays nothing.
 
 <sub>See also [`types/property-key`](types.md#types-property-key), [`types/erased-member-access`](types.md#types-erased-member-access), [`types/property-key-variance`](types.md#types-property-key-variance).</sub>
 
-<a id="types-a-literal-at-a-key-parameter-is-checked-where-it-is-written"></a>
-
-## A string literal at a parameter typed `property<T>`, `propertyPath<T>` or `string<K>` alone is checked where it is written  *(designed — owned by goal property-paths)*
-
-`rule:types/a-literal-at-a-key-parameter-is-checked-where-it-is-written`
-
-At a parameter typed `property<T>`, `propertyPath<T>` or `string<K>` — alone, not in a union with
-plain `string` — a string literal argument is converted while compiling. A right one is accepted with
-no `as`, and a wrong one is the unknown-member diagnostic at the literal, on the segment or hole that
-names nothing. A string built at run time still needs `as`, so no program acquires a key from a value
-the compiler has not seen.
-
-This changes one sentence of [`types/property-key`](types.md#types-property-key), "a string literal is a `string` and stays one",
-for this one position. Everywhere else a literal stays a `string`: in a variable, in a return, in an
-array, and at a parameter typed `…|string`, which keeps its meaning — any string is accepted, the names
-are offered, and nothing is checked. A literal at a key parameter is decided exactly as `"email" as
-property<User>` is decided where it is written, so the check is the one that conversion already makes
-and is not a second implementation.
-
-The position is the one where a name is wanted and the literal is the whole of what the call site
-says. Making the caller write `"email" as property<User>` there repeats the class the signature already
-names, and the editor can offer the names only where a literal will compile
-([`ide/a-field-path-completes-one-segment-at-a-time`](ide.md#ide-a-field-path-completes-one-segment-at-a-time)).
-
-- **Memory:** nothing at run time. The checker keeps the roster it already records per class a key
-  names.
-
-**Declined:**
-- **Converting a literal wherever a key is expected, in a variable or a return too.** A literal in a
-  variable has no single expected type until it is used, so the rule would depend on inference order.
-  The argument position has its type written in the signature.
-- **Checking a literal at a `property<T>|string` parameter as well.** That parameter says any string is
-  fine, and a warning there would be noise at every call that passes free text.
-
-<sub>See also [`types/property-key`](types.md#types-property-key), [`types/property-path`](types.md#types-property-path), [`types/string-holes`](types.md#types-string-holes), [`ide/a-field-path-completes-one-segment-at-a-time`](ide.md#ide-a-field-path-completes-one-segment-at-a-time).</sub>
-
 <a id="types-property-path"></a>
 
 ## `propertyPath<T>` is a type whose values are dotted chains of public property names starting at `T`, checked one segment at a time  *(designed — owned by goal property-paths)*
@@ -1287,7 +1263,8 @@ contravariant ([`types/property-key-variance`](types.md#types-property-key-varia
 their text is equal, with ordering refused. `propertyPath` is a keyword only in type position, as
 `property` is.
 
-**`as` is its source, and a literal at a key parameter is the other** ([`types/a-literal-at-a-key-parameter-is-checked-where-it-is-written`](types.md#types-a-literal-at-a-key-parameter-is-checked-where-it-is-written)).
+**`as` is its source, and a literal at a key parameter is the other** ([`types/property-key`](types.md#types-property-key)): a string literal at a parameter typed `propertyPath<T>` alone is
+converted while compiling.
 A `string` converts with `as propertyPath<T>`, which throws at the first bad segment and names it, and
 `as ?propertyPath<T>` yields `null` there. A written-out operand is decided where it is written: a
 wrong segment is the unknown-member diagnostic an ordinary `$order->custmer` gets, placed on that
@@ -1321,7 +1298,7 @@ no second walk.
 - **A depth limit.** The cost is already linear in the text the caller sent, and the request's own
   limits bound that text. A limit would be a second number to configure with nothing it protects.
 
-<sub>See also [`types/property-key`](types.md#types-property-key), [`types/property-key-variance`](types.md#types-property-key-variance), [`types/string-holes`](types.md#types-string-holes), [`types/a-literal-at-a-key-parameter-is-checked-where-it-is-written`](types.md#types-a-literal-at-a-key-parameter-is-checked-where-it-is-written), [`core-classes/str-parts-and-reflect-steps`](core-classes.md#core-classes-str-parts-and-reflect-steps).</sub>
+<sub>See also [`types/property-key`](types.md#types-property-key), [`types/property-key-variance`](types.md#types-property-key-variance), [`types/string-holes`](types.md#types-string-holes), [`core-classes/str-parts-and-reflect-steps`](core-classes.md#core-classes-str-parts-and-reflect-steps).</sub>
 
 <a id="types-string-holes"></a>
 
@@ -1339,8 +1316,8 @@ A hole is `{`, one value of `K`, and `}`, with no spaces inside. `{{` is a liter
 `}`. An empty hole, an unclosed `{` and a lone `}` are errors, at the brace. Holes work in both quote
 styles, because a brace with no `$` after it is already plain text in a string
 (`tests/conformance/lang/a-string-literal-escapes-and-interpolates-exactly-what-each-quote-allows.nvst:61`).
-A literal at a parameter typed `string<K>` is checked where it is written
-([`types/a-literal-at-a-key-parameter-is-checked-where-it-is-written`](types.md#types-a-literal-at-a-key-parameter-is-checked-where-it-is-written)): a wrong hole is the
+A literal at a parameter typed `string<K>` alone is checked where it is written, as a literal at a
+`property<T>` parameter is ([`types/property-key`](types.md#types-property-key)): a wrong hole is the
 unknown-member diagnostic for its segment, placed on that segment. A double-quoted string that
 interpolates `{$…}` is not a literal, so it needs `as string<K>`, which checks every hole at run time
 and throws at the first bad one. `as ?string<K>` yields `null` there. `string<K> → string` is total and
@@ -1374,7 +1351,7 @@ them is the library's own language.
 - **Spaces inside a hole, `{ name }`.** It is a second spelling of the same hole and makes `{ ` in plain
   text ambiguous.
 
-<sub>See also [`types/property-path`](types.md#types-property-path), [`types/property-key`](types.md#types-property-key), [`types/single-value-types`](types.md#types-single-value-types), [`types/a-literal-at-a-key-parameter-is-checked-where-it-is-written`](types.md#types-a-literal-at-a-key-parameter-is-checked-where-it-is-written), [`core-classes/str-parts-and-reflect-steps`](core-classes.md#core-classes-str-parts-and-reflect-steps), [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api).</sub>
+<sub>See also [`types/property-path`](types.md#types-property-path), [`types/property-key`](types.md#types-property-key), [`types/single-value-types`](types.md#types-single-value-types), [`core-classes/str-parts-and-reflect-steps`](core-classes.md#core-classes-str-parts-and-reflect-steps), [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api).</sub>
 
 <a id="types-unions-and-mixed"></a>
 

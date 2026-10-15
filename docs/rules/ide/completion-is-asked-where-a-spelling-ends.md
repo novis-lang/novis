@@ -8,13 +8,13 @@ as a path or a name, and a request one of them raised is answered only where the
 `require` or `autoload` path string, an `autoload` prefix, the string converted with `as class<T>` or `as
 property<T>`, or a string argument at a path or class-name parameter. A quote opens one and a `/` starts a
 path's next segment. A quote also opens a string argument at a parameter whose type lists string values
-(`rule:types/single-value-types`) or takes a `property<T>` beside a `string` (`rule:types/property-key`),
+(`rule:types/single-value-types`) or takes a `property<T>`, alone or beside a `string`
+(`rule:types/property-key`),
 and one at a parameter a completion file names
 (`rule:ide/completion-files-offer-values-at-named-parameters`). Inside such an argument `.`, `/` and `:`
-start the next segment only where a value that applies at the call is split on that separator. A quote
-at a parameter typed `property<T>` alone opens nothing, because a string literal there does not compile;
-`rule:ide/a-field-path-completes-one-segment-at-a-time`, designed, makes it open the names and adds `{`
-as a trigger answered only inside a `string<K>` literal. A client offers
+start the next segment only where a value that applies at the call is split on that separator.
+`rule:ide/a-field-path-completes-one-segment-at-a-time`, designed, opens a `propertyPath<T>` parameter's
+names and adds `{` as a trigger answered only inside a `string<K>` literal. A client offers
 nothing inside a string unless asked. Everywhere else a quote opens a string, `/` divides and `.`
 concatenates. A request the developer raised by hand, or by typing a name, is not held to this.
 

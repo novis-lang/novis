@@ -751,6 +751,19 @@ pub(crate) fn record_property_keys(qname: &QName, env: &mut Env<'_>) {
     env.exprs.record_property_keys(label, keys);
 }
 
+/// The key type and its class where `ty`, a parameter's declared type, is
+/// `property<T>` or `?property<T>` over a class `T`. `None` for every other
+/// type, a union with `string` included, since such a parameter takes any
+/// string (`rule:types/property-key`).
+pub(crate) fn key_parameter_class(ty: TypeId, env: &mut Env<'_>) -> Option<(TypeId, QName)> {
+    let key = env.interner.without_null(ty);
+    let argument = property_key_argument(key, env.interner)?;
+    match env.interner.get(argument) {
+        Ty::Class(qname, _) => Some((key, qname.clone())),
+        _ => None,
+    }
+}
+
 /// Records [`record_property_keys`] for each class a `property<T>` member of
 /// `ty` names, where `ty` is the parameter type a string literal argument is
 /// checked against.

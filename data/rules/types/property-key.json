@@ -13,6 +13,8 @@
     "tests/conformance/reject/a-private-property-is-not-a-property-key.nvst",
     "tests/conformance/class/a-property-key-or-string-parameter-takes-any-string.nvst",
     "tests/conformance/class/a-written-name-converts-to-a-nullable-key-where-it-is-written.nvst",
-    "tests/conformance/reject/a-written-name-outside-the-set-is-refused-under-the-nullable-key-conversion.nvst"
+    "tests/conformance/reject/a-written-name-outside-the-set-is-refused-under-the-nullable-key-conversion.nvst",
+    "tests/conformance/lang/a-string-literal-at-a-property-key-parameter-is-checked-where-it-is-written.nvst",
+    "tests/conformance/lang/a-misspelled-string-literal-at-a-property-key-parameter-does-not-compile.nvst"
   ]
 }

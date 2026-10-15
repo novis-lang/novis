@@ -5,7 +5,6 @@
     "types/property-key",
     "types/property-key-variance",
     "types/string-holes",
-    "types/a-literal-at-a-key-parameter-is-checked-where-it-is-written",
     "core-classes/str-parts-and-reflect-steps"
   ],
   "guardedBy": [],

@@ -752,7 +752,7 @@ fn literal_at(
 /// the values offered at it: those of the completion-file attachments that
 /// apply at its call, then each string in the parameter's set of allowed values
 /// that no file lists, then each name of a `property<T>` the parameter's type
-/// takes beside a `string`. `None` where no value applies.
+/// takes, alone or beside a `string`. `None` where no value applies.
 fn named_values(
     analysed: &Analysed,
     files: &CompletionFiles,

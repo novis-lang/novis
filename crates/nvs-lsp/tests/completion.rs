@@ -423,9 +423,9 @@ fn a_path_character_outside_a_written_path_is_not_answered() {
     }
 }
 
-/// A quote opens the property names inside the operand of `as property<T>`
-/// and at a parameter typed `property<T>|string`, and not at a parameter typed
-/// `property<T>` alone, where a string literal does not compile.
+/// A quote opens the property names inside the operand of `as property<T>`,
+/// at a parameter typed `property<T>|string`, and at a parameter typed
+/// `property<T>` alone, where the checker converts the literal while compiling.
 #[test]
 fn a_quote_at_a_property_key_string_opens_the_property_names() {
     let declared = "class Grid {\n\
@@ -436,7 +436,7 @@ fn a_quote_at_a_property_key_string_opens_the_property_names() {
         ("property<User> $k = '", "' as property<User>;", true),
         ("?property<User> $k = \"", "\" as ?property<User>;", true),
         ("Grid::loose('", "');", true),
-        ("Grid::strict('", "');", false),
+        ("Grid::strict('", "');", true),
     ] {
         let source = format!("{TRIGGER_DOC}{declared}{construct}{tail}\n");
         let (_documents, analysis) = analysed(&source);
