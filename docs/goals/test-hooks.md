@@ -35,7 +35,7 @@ stages:
       context:
         rules: [testing/tests-run-across-every-core, testing/class-hooks, testing/runner-is-strict, concurrency/on-worker-runs-the-child-on-another-core]
   - id: 5
-    title: a subclass inherits hooks and fixtures
+    title: a subclass inherits hooks, fixtures and tests
     status: open
     context: [crates/nvs-types/src/testing.rs, crates/nvs-cli/src/runner.rs]
     extra:
@@ -75,10 +75,10 @@ checks:
     stage: 4
     name: tests run at once across cores, the class hooks keep their order, and the report and coverage match a run on one core
     run: [cargo, test, --bin, nvs, "runner::tests::parallel"]
-    tests: [parallel_tests_overlap_on_more_than_one_core, parallel_class_hooks_wrap_every_test_of_their_class, parallel_report_is_in_declaration_order, parallel_coverage_is_each_tests_own]
+    tests: [parallel_tests_overlap_on_more_than_one_core, parallel_class_hooks_wrap_every_test_of_their_class, parallel_report_is_in_declaration_order, parallel_coverage_is_each_tests_own, a_failed_tests_output_is_printed_under_its_failure, a_passed_tests_output_is_discarded]
   - id: hooks-inherit
     stage: 5
-    name: a subclass runs an inherited hook and fixture, and an override without its attribute does not compile
+    name: a subclass runs an inherited hook, fixture and test under its own name, and an override without its attribute does not compile
     run: [bun, nv, suite, tests/conformance/, --case, tests/conformance/lang/a-subclass-inherits-hooks-and-fixtures.nvst, --case, tests/conformance/reject/an-override-of-a-hook-repeats-its-attribute.nvst]
     tests: [tests/conformance/lang/a-subclass-inherits-hooks-and-fixtures.nvst, tests/conformance/reject/an-override-of-a-hook-repeats-its-attribute.nvst]
   - id: owners-closes
@@ -108,7 +108,11 @@ The four rules are the home of every decision, agreed with the user: `rule:testi
 
 **The parallel runner is built here, not in M10.** The user wants the hooks and the runner they are
 ordered by finished together, so the gap that tracked it is gone and the rule owns what is not built.
-Two points the rules leave to the build:
+
+**Nothing is left to ask the user.** Every design question was answered with the user before this goal
+started, and the rules hold the answers: the output of a test running beside others, inherited tests
+running per subclass, the hook order under parallel runs. A question that comes up while building is
+answered from the rules and the priority ordering, and the answer goes into the rule it belongs to.
 
 **The names are the user's.** `#[BeforeClass]`, `#[AfterClass]` and `#[AfterEachTest]`. `#[After]` was
 renamed before it existed, so no program uses the old name.
@@ -126,7 +130,7 @@ returns. The language gains three attributes, and the rejection of a class-level
 
 ### 1. the rules
 
-**Does:** the three rules exist as `designed`, owned by this goal, and `rule:testing/constructor-is-setup` points at them.
+**Does:** the four rules exist as `designed`, owned by this goal, and `rule:testing/constructor-is-setup` points at them.
 
 - [x] `rule:testing/class-hooks`, `rule:testing/after-each-test`, `rule:testing/hook-inheritance`. `docs/rules/testing/class-hooks.md:1`
 - [x] `#[After]` and its rule are gone, and the M10 plan no longer names it. `docs/plan/m10.md:56`
@@ -148,18 +152,20 @@ returns. The language gains three attributes, and the rejection of a class-level
 
 ### 4. tests run across every core
 
-**Does:** `nvs test` runs test isolates at once across every core with a program's own placement, keeps the order `rule:testing/class-hooks` gives, and reports and counts coverage as a run on one core does.
+**Does:** `nvs test` runs test isolates at once across every core with a program's own placement under `--jobs`, keeps the order `rule:testing/class-hooks` gives, captures each test's output, and reports and counts coverage as a run on one core does.
 
-- [ ] Decide with the user what a test that prints or reads the terminal does while others run, before building. `crates/nvs-cli/src/runner.rs:16`
+- [ ] `--jobs` reaches a `#[Test]` run, and its help no longer says the methods are not spread. `crates/nvs-cli/src/main.rs:583`
+- [ ] Each test's output captured, printed under a failure, discarded on a pass, `--show-output` to stream it, and end of input for a read; the module comment at the anchor rewritten. `crates/nvs-cli/src/runner.rs:16`
 - [ ] Place each test isolate with `on: "worker"`'s placement, the class hooks around each class's tests. `crates/nvs-cli/src/runner.rs:804`
 - [ ] Coverage counted into one table per test and added to the run's when it finishes. `crates/nvs-cli/src/runner.rs:378`
 - [ ] Each `#[Test(server: true)]` listener runs beside others. `crates/nvs-cli/src/runner.rs:1505`
 
-### 5. a subclass inherits hooks and fixtures
+### 5. a subclass inherits hooks, fixtures and tests
 
-**Does:** test collection reads inherited methods, so an inherited hook or fixture runs for the subclass, and an override without its attribute does not compile.
+**Does:** test collection reads inherited methods, so an inherited hook, fixture or test runs for each subclass under the subclass's name, and an override without its attribute does not compile.
 
-- [ ] Find whether inherited `#[Test]` methods are collected today. `check_class_tests` reads one `ClassDecl`. `crates/nvs-types/src/testing.rs:345`
+- [ ] Collect a class's inherited members as well as its own; today only `decl.members` is read. `crates/nvs-types/src/testing.rs:350`
+- [ ] The runner reports an inherited test under the subclass. `crates/nvs-cli/src/runner.rs:785`
 
 ### 6. the hooks remove a real file and a real database
 
@@ -191,4 +197,4 @@ attributes is on the roster at `crates/nvs-types/src/derive.rs:71`.
 
 ### Backlog
 
-- Whether a `Summary` should list each test's `Outcome` instead of counts, if a real case needs it (`rule:testing/class-hooks`).
+- Nothing outside the stages.

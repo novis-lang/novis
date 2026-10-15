@@ -230,7 +230,7 @@ not in a hook that branches on `$outcome->name`. Any other parameter, or a secon
 it is written.
 
 A retry is a fresh instance in the same isolate, so each attempt gets its own call on its own object.
-A constructor that throws leaves no object, so the hook does not run and the test fails with the
+A skipped test is never constructed, so the hook does not run for it. A constructor that throws leaves no object, so the hook does not run and the test fails with the
 constructor's error. A hook that throws fails that attempt, and its failure is reported with the
 test's own.
 
@@ -343,13 +343,14 @@ and set up nothing.
 
 <a id="testing-hook-inheritance"></a>
 
-## A test class has at most one hook of each kind, and a subclass inherits hooks and fixtures like any method  *(designed — owned by goal test-hooks)*
+## A test class has at most one hook of each kind, and a subclass inherits hooks, fixtures and tests like any method  *(designed — owned by goal test-hooks)*
 
 `rule:testing/hook-inheritance`
 
 A test class has at most one `#[BeforeClass]`, one `#[AfterClass]` and one `#[AfterEachTest]`, and a
-subclass inherits each of them, and each `#[Fixture]`, the way it inherits any method. A base class's
-hook is therefore a default: a subclass that declares nothing runs it, around its own tests.
+subclass inherits each of them, each `#[Fixture]` and each `#[Test]` the way it inherits any method. A
+base class's hook is therefore a default: a subclass that declares nothing runs it, around its own
+tests.
 
 | The subclass | Result |
 |---|---|
@@ -364,30 +365,38 @@ around its tests. "Once per class" means once per test class: two subclasses of 
 inherited `#[BeforeClass]` once, around their own tests, and an abstract base with no tests runs
 nothing.
 
-Fixtures follow the same table. A subclass's test receives an inherited fixture by its type, an
-override by name replaces it, and a second fixture of the same type under another name is the duplicate
-[`testing/fixtures`](testing.md#testing-fixtures) already refuses.
+Fixtures and tests follow the same table. A subclass's test receives an inherited fixture by its type,
+an override by name replaces it, and a second fixture of the same type under another name is the
+duplicate [`testing/fixtures`](testing.md#testing-fixtures) already refuses. Each subclass runs every `#[Test]` it inherits,
+around its own hooks and with its own fixtures, and reports it under its own name, so `ShopTest`
+running a test written in `DatabaseTest` reports `ShopTest::itConnects`. One contract test written once
+in a base class then runs against every implementation. A base class that is not abstract is a test
+class of its own as well, and runs its tests once for itself.
 
 **Not on disk.** None of the three hooks exists yet ([`testing/class-hooks`](testing.md#testing-class-hooks),
-[`testing/after-each-test`](testing.md#testing-after-each-test)), and whether test collection reads inherited methods is not checked.
+[`testing/after-each-test`](testing.md#testing-after-each-test)), and test collection reads a class's own members alone, so neither an
+inherited `#[Test]` nor an inherited `#[Fixture]` is collected (`crates/nvs-types/src/testing.rs:350`).
 
 **Declined:**
 - **Several hooks of one kind, run in declaration order.** The order would be a rule every reader must
   know and no line of the code shows. A failure in the second of two setups would also need each setup
   paired with its own cleanup. Several steps go in the one method, in the order they are written.
+- **Only the tests a class declares itself.** A base class could then share setup but not the tests
+  that check it, and one contract test would have to be copied into every implementation's class.
 
 <sub>See also [`testing/class-hooks`](testing.md#testing-class-hooks), [`testing/after-each-test`](testing.md#testing-after-each-test), [`testing/fixtures`](testing.md#testing-fixtures).</sub>
 
 <a id="testing-tests-run-across-every-core"></a>
 
-## `nvs test` runs tests in parallel across every core, and guarantees the hooks' order but not data consistency  *(designed — owned by goal test-hooks)*
+## `nvs test` runs tests in parallel across every core, captures each test's output, and guarantees the hooks' order but not data consistency  *(designed — owned by goal test-hooks)*
 
 `rule:testing/tests-run-across-every-core`
 
-`nvs test` runs test isolates in parallel across every core, as many at once as the runner chooses,
-with no setting. Every test already runs in an isolate of its own ([`testing/isolate-per-test`](testing.md#testing-isolate-per-test)), so
-running them at once is a scheduling question and not an isolation one. The runner places each test
-isolate with the placement a program uses ([`concurrency/on-worker-runs-the-child-on-another-core`](concurrency.md#concurrency-on-worker-runs-the-child-on-another-core)).
+`nvs test` runs test isolates in parallel across every core, as many at once as `--jobs` allows, and
+`--jobs` defaults to the machine's hardware threads as it already does for `.nvst` cases. Every test
+already runs in an isolate of its own ([`testing/isolate-per-test`](testing.md#testing-isolate-per-test)), so running them at once is a
+scheduling question and not an isolation one. The runner places each test isolate with the placement a
+program uses ([`concurrency/on-worker-runs-the-child-on-another-core`](concurrency.md#concurrency-on-worker-runs-the-child-on-another-core)).
 
 The runner guarantees order and nothing about data. The order it guarantees is the one
 [`testing/class-hooks`](testing.md#testing-class-hooks) gives: `#[BeforeClass]` returns before the class's first test starts,
@@ -400,19 +409,30 @@ so a parallel run and a run on one core report the same thing. Coverage counts e
 of its own and adds it to the run's when the test finishes, so the lines a test reached are still that
 test's.
 
-- **Memory:** each test in flight holds its isolate, its fixture copies and its own coverage table when
-  coverage is on, all released when it finishes. That is O(cores), the most tests running at once, and
-  never O(tests in the suite).
+**A test's output is captured.** What a test, its hooks and its fixtures print while it runs is held for
+that test. A test that passes discards it, and a test that fails prints it under its failure, in the
+report's place for that test. `--show-output` turns capture off: output then goes to the terminal as it
+is printed and is not attributed, so two tests running at once may mix their lines. A test that reads
+the terminal reads end of input, so no test stops the run to wait for a person.
+
+- **Memory:** each test in flight holds its isolate, its fixture copies, its captured output and its own
+  coverage table when coverage is on, all released when it finishes. A failed test's output is held
+  until its report line is printed. That is O(cores), the most tests running at once, plus the output of
+  failed tests waiting for an earlier one, and never the output of a test that passed.
 
 **Not on disk.** The runner makes and finishes the isolates one at a time
-(`crates/nvs-cli/src/runner.rs:781`), and the coverage counts of a test are the growth of one shared
+(`crates/nvs-cli/src/runner.rs:781`), `--jobs` spreads only `.nvst` cases
+(`crates/nvs-cli/src/main.rs:583`), a test's output goes to the terminal as it is printed
+(`crates/nvs-cli/src/runner.rs:16`), and the coverage counts of a test are the growth of one shared
 table while it runs (`crates/nvs-cli/src/runner.rs:378`).
 
 **Declined:**
-- **A setting for the number of tests at once.** The runner fills the cores it has. A program that
-  needs two tests apart keeps them apart in what they share.
+- **A second setting for the number of tests at once.** `--jobs` already says how many `.nvst` cases run
+  at once, and a `#[Test]` run reads the same flag.
 - **A runner that keeps two classes' data apart.** It would have to know what a test touches outside
   its isolate, and it cannot.
+- **Output streamed by default.** Two tests running at once mix their lines, and a passing test's
+  output is noise in every run.
 
 <sub>See also [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/class-hooks`](testing.md#testing-class-hooks), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict), [`concurrency/on-worker-runs-the-child-on-another-core`](concurrency.md#concurrency-on-worker-runs-the-child-on-another-core).</sub>
 

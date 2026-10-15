@@ -1,5 +1,5 @@
 {
-  "title": "A test class has at most one hook of each kind, and a subclass inherits hooks and fixtures like any method",
+  "title": "A test class has at most one hook of each kind, and a subclass inherits hooks, fixtures and tests like any method",
   "status": "designed",
   "seeAlso": [
     "testing/class-hooks",

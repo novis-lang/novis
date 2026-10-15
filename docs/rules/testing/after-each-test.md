@@ -21,7 +21,7 @@ not in a hook that branches on `$outcome->name`. Any other parameter, or a secon
 it is written.
 
 A retry is a fresh instance in the same isolate, so each attempt gets its own call on its own object.
-A constructor that throws leaves no object, so the hook does not run and the test fails with the
+A skipped test is never constructed, so the hook does not run for it. A constructor that throws leaves no object, so the hook does not run and the test fails with the
 constructor's error. A hook that throws fails that attempt, and its failure is reported with the
 test's own.
 

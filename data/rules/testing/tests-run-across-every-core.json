@@ -1,5 +1,5 @@
 {
-  "title": "`nvs test` runs tests in parallel across every core, and guarantees the hooks' order but not data consistency",
+  "title": "`nvs test` runs tests in parallel across every core, captures each test's output, and guarantees the hooks' order but not data consistency",
   "status": "designed",
   "seeAlso": [
     "testing/isolate-per-test",
