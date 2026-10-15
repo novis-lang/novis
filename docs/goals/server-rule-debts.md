@@ -62,7 +62,7 @@ stages:
         shapes: ["A `.nvst` test case"]
   - id: 8
     title: "`receive()` is the one wait"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/socket.rs, crates/nvs-stdlib/src/topic.rs]
     extra:
       context:
@@ -274,8 +274,8 @@ backend read one standard header. It is written on every response, sampled or no
 
 **Does:** a parked `receive()` wakes for a peer frame or a topic delivery, whichever comes first.
 
-- [ ] The park waits on both sources. `crates/nvs-stdlib/src/socket.rs:1035`
-- [ ] `Ctx::deliver` wakes a running park, and its gap goes. `crates/nvs-stdlib/src/socket.rs:1017`
+- [x] The park waits on both sources. `crates/nvs-stdlib/src/socket.rs:1035`
+- [x] `Ctx::deliver` wakes a running park, and its gap goes. `crates/nvs-stdlib/src/socket.rs:1017`
 
 ### 9. the trace id is on the response
 
@@ -288,27 +288,28 @@ backend read one standard header. It is written on every response, sampled or no
 
 ### State
 
-Stages 1 to 7 are done. A `Core\Queue::push` made with no transaction open on the queue's connection
-and one open on another connection writes `non_transactional = 1` on its row
-(`crate::db::foreign_level_open`), and `Core\Queue\Stats::nonTransactional` counts those rows of the
-jobs table. `rule:concurrency/foreign-connection-enqueue-is-counted` is `shipped`, and every
-hand-written `create table nvs_jobs` in examples, benches and tests carries the column.
+Stages 1 to 8 are done. `Core\Socket::receive` parks over both sources: a connection that
+subscribed leaves one `PeerSocket::interrupt` on its `Inbox` and one with `crate::bus`
+(`park_on_hand_off`), and either ends the read through the stream's cut flag
+(`nvs_host::NvsStream::cut_once`, shared with the drain's cut). A hand-off wakes one parked socket
+wait per core, which drains the mailbox for the whole core.
+`rule:concurrency/receive-is-the-one-wait` is `shipped`.
 
 The nightly reds ran on `origin/main`, far behind local `main`, and nothing here pushes.
 
 ### Next
 
-**Stage 8, `receive()` is the one wait**: `crates/nvs-stdlib/src/socket.rs`,
-`crates/nvs-runtime/src/ctx/isolate.rs` (`rule:` the socket receive rule the stage names; the
-standing decision keeps the overflow check before the wait).
+**Stage 9, the trace id is on the response**: `crates/nvs-server/src/trace.rs`,
+`crates/nvs-server/src/serve.rs` (`rule:observability/a-trace-id-exists-for-every-request`; the
+standing decision names the `traceresponse` header, on every response, sampled or not).
 
-- [ ] The park waits on the peer read and the delivery queue at once. `crates/nvs-stdlib/src/socket.rs:1138`
-- [ ] `Ctx::deliver` wakes a park that is already running, and its gap goes. `crates/nvs-runtime/src/ctx/isolate.rs:172`
-- [ ] The two `socket::` tests of `receive-one-wait`, and the feature proofs of `Core\Socket::receive`. `crates/nvs-stdlib/src/socket.rs:1033`
+- [ ] The header on every response, sampled or not, with the two `trace::` tests of `trace-id-on-the-response`. `crates/nvs-server/src/serve.rs:2612`
+- [ ] An inbound `X-Request-ID` appears nowhere. `crates/nvs-server/src/trace.rs:120`
+- [ ] The feature proofs of `Core\Server::traceId`, then `bun nv owners --closes server-rule-debts`. `crates/nvs-stdlib/src/server.rs:136`
 
 ### Backlog
 
-- Stage 9: this file's § *Stages*.
+- An event stream's wait still looks for cross-core deliveries each `CROSS_CORE_TICK`; it could register with the bus as a socket's wait does: `crates/nvs-stdlib/src/sse.rs`.
 - `on: "worker"` for a connection, if the rule should promise it: `crates/nvs-types/src/expr/isolate.rs`.
 - A reload keeps the boot's canonical roots, so a symlink swapped to a new release is not followed until restart, if the rule should promise otherwise: `crates/nvs-cli/src/config.rs`.
 - A program's `Core\Config::set` of `[log] access` does not reach the access line, if the rule should promise it: `crates/nvs-server/src/trace.rs`.
