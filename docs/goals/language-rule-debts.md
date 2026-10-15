@@ -30,7 +30,7 @@ stages:
         shapes: [A rule fragment]
   - id: 4
     title: "a generator does not `clone`"
-    status: open
+    status: done
     context: [crates/nvs-types/src/expr/mod.rs, crates/nvs-types/src/expr/members.rs, crates/nvs-runtime/src/object.rs, crates/nvs-runtime/src/graph.rs]
     extra:
       context:
@@ -214,8 +214,8 @@ user reads*.
 
 **Does:** `clone` of a generator is a compile error, and a throw when it is reached through `mixed`.
 
-- [ ] The compile error beside the clone operand rule. `crates/nvs-types/src/expr/mod.rs:837`
-- [ ] The run-time refusal in the clone helper. `crates/nvs-runtime/src/object.rs:4009`
+- [x] The compile error beside the clone operand rule. `crates/nvs-types/src/expr/mod.rs:837`
+- [x] The run-time refusal in the clone helper. `crates/nvs-runtime/src/object.rs:4009`
 
 ### 5. `?T $x = null` decodes an absent key
 
@@ -243,28 +243,27 @@ user reads*.
 
 ### State
 
-Stages 1 to 3 are shipped. `rule:errors/renderings` is `shipped`: `nvs_render::plain::Colour` is
-the plaintext rendering's colour input, and `Core\Debug::dump` reads it from standard error's depth
-via `crate::cli::depth_of` (`crates/nvs-stdlib/src/debug.rs`, `diagnostic_colour`); `render` stays
-uncoloured. `Ctx::flush_inline_debug` writes `nvs_render::html::STYLE` once under a fresh nonce,
-the nonce rides `Completion::style_nonce`, and `crates/nvs-server/src/debug_style.rs` adds it to the
-CSP through the directive logic now shared with the slotted scripts in `crates/nvs-server/src/csp.rs`.
+Stages 1 to 4 are shipped. `rule:iteration/generator-stays-in-one-isolate` is `shipped`, and its
+fragment says how. The checker refuses `clone` of a call whose declaration yields with `E0858`
+(`MethodSig::generator`, read by `reject_generator_clone` in `crates/nvs-types/src/expr/members.rs`).
+A generator types as `Iterator<T>`, so every other `clone` passes `Helper::CloneGuard`
+(`nvs_clone_guard` in `crates/nvs-runtime/src/object.rs`), which throws `LogicError` with
+`crate::graph::GENERATOR_REFUSAL`. The guard is emitted in front of every `clone`.
 
-The `Core\Debug` perf records are stale (`debug.rs` changed) and were not re-recorded: the machine
-was too loaded for `--record-perf` to calibrate. The nightly CI run the sweep names (38534014409) is
-on an old pushed `main` and stays red until the user pushes.
+The `Core\Debug` perf records are stale and were not re-recorded. The nightly CI run the sweep
+names (38534014409) is on an old pushed `main` and stays red until the user pushes.
 
 ### Next
 
-**Stage 4: a generator does not `clone`**, one file set: `crates/nvs-types/src/expr/mod.rs`, `crates/nvs-runtime/src/object.rs`, `crates/nvs-runtime/src/graph.rs`.
+**Stage 5: `?T $x = null` decodes an absent key**, one file set: `crates/nvs-ir/src/lower/mod.rs`, `crates/nvs-runtime/src/object.rs`, `crates/nvs-stdlib/src/json.rs`.
 
-- [ ] `clone` of a generator-typed operand is a compile error beside `reject_non_object_clone` (`rule:classes/clone-is-shallow`, `rule:iteration/generator-stays-in-one-isolate`). `crates/nvs-types/src/expr/mod.rs:837`
-- [ ] `nvs_object_clone` throws for a generator reached through `mixed`, with the copy walk's message. `crates/nvs-runtime/src/object.rs:4009`, `crates/nvs-runtime/src/graph.rs:394`
-- [ ] The two `.nvst` cases the `generator-clone` check names, and the `lang:iteration/generators` proofs (`rule:testing/feature-proofs`). `crates/nvs-runtime/src/graph.rs:394`
+- [ ] A `FieldDefault::Null` variant, and `field_default` maps `ConstArg::Null` to it (`rule:core-api/required-optional-and-nullable`). `crates/nvs-runtime/src/object.rs:808`, `crates/nvs-ir/src/lower/mod.rs:350`
+- [ ] The decoder fills an absent key from it, and every other reader of `FieldDefault` handles the arm. `crates/nvs-stdlib/src/json.rs:3132`
+- [ ] The case `tests/conformance/core/json-decode-fills-an-absent-key-defaulted-to-null.nvst`, the `Core\Json::decode` proofs, and the fragment's stale "the checker still refuses" sentence goes (`rule:testing/feature-proofs`). `crates/nvs-types/src/defaults.rs:52`
 
 ### Backlog
 
-- Stages 5 to 7 — this file's § *Stages*.
+- Stages 6 and 7 — this file's § *Stages*.
 - Re-record the `Core\Debug` perf on an idle machine: `bun nv proofs --record-perf --group 'Core\Debug'` (`docs/perf/members.ndjson`).
 - A diagnostic that echoes a source line prints a raw `ESC` byte to the terminal, as the `E0011` raw-byte case shows; the renderer should substitute it (`rule:tooling/terminal-output-is-a-sink`). Where the snippet is drawn: not checked.
 - The `Core\Cli\escape` benches' `// bench: allocations 1` budget was not re-measured after the migration (`benches/members/core/Cli/escape.nvs`).
