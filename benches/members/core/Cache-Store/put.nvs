@@ -1,5 +1,5 @@
 <?nvs
-// Measures writing one value into this core's cache. That is what a request
+// Measures writing one value into the memory cache. That is what a request
 // does after it builds a value it wants to keep.
 // bench: iterations 256
 // bench: calls 0
@@ -7,7 +7,7 @@
 
 class Bench {
     public static function run(uint $rounds): uint {
-        var $store = Core\Cache::local();
+        var $store = Core\Cache::memory();
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

@@ -1,6 +1,6 @@
 <?nvs
-// Measures getting the store this server shares and using it once. That is the
-// write and the read a request makes around a cached answer.
+// Measures getting the memory cache and using it once. That is the write and
+// the read a request makes around a cached answer.
 // bench: iterations 256
 // bench: calls 0
 // bench: complexity linear
@@ -10,7 +10,7 @@ class Bench {
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            var $store = Core\Cache::process();
+            var $store = Core\Cache::memory();
             // The value written in one round is the one the round before it
             // read, so no round can be left out.
             $store->put("round", $total + 1);

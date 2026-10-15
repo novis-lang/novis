@@ -31,7 +31,7 @@ while ($i < 20) {
 var $rows = $db->query("select code, price from products order by price", []);
 
 // Each product code is checked, rendered as one list item, and kept for the JSON part of the page.
-var $cache = Core\Cache::local();
+var $cache = Core\Cache::memory();
 array<Core\Html\Markup> $items = [];
 array<mixed> $products = [];
 foreach ($rows as var $row) {

@@ -39,7 +39,7 @@ array<string> $names = [
     'opcache.file_cache',
     'opcache',
     'cache.dir',
-    'cache.local.dir',
+    'cache.memory.dir',
     'cache.file_cache_dir',
     'file_cache_dir',
     'app.opcache.file_cache_dir',

@@ -34,7 +34,7 @@ string $huge = Core\Str::repeat('k', 16777216);
 echo Attempt::run($huge, 5, 1m, 5, 1), "\n";
 echo Attempt::run($huge, 5, 1m, 5, 1), "\n";
 
-// 6. 200000 new keys, one call each. Every key is stored on this core.
+// 6. 200000 new keys, one call each. The keys count toward `[cache.memory] max_size`.
 uint $allowed = 0;
 uint $i = 0;
 while ($i < 200000) {

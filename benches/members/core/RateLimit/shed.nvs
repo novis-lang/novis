@@ -1,5 +1,5 @@
 <?nvs
-// Checks one key against a per-core limit, as a server does before it runs a slow page.
+// Checks one key against a limit kept in this server process, as a server does before it runs a slow page.
 // bench: iterations 256
 // bench: complexity constant
 

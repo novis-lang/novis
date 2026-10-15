@@ -1,5 +1,5 @@
 <?nvs
-// Measures removing a value from this core's cache. Each round writes a value
+// Measures removing a value from the memory cache. Each round writes a value
 // first, so that there is one to remove.
 // bench: iterations 1024
 // bench: calls 0
@@ -7,7 +7,7 @@
 
 class Bench {
     public static function run(uint $rounds): uint {
-        var $store = Core\Cache::local();
+        var $store = Core\Cache::memory();
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

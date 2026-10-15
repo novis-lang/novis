@@ -1,5 +1,5 @@
 <?nvs
-// Measures writing one text value into this core's cache and removing it, at growing text lengths.
+// Measures writing one text value into the memory cache and removing it, at growing text lengths.
 // bench: start 256
 // bench: max 4096
 
@@ -7,7 +7,7 @@ class Bench
 {
     public static function run(uint $size): uint
     {
-        var $store = Core\Cache::local();
+        var $store = Core\Cache::memory();
         string $value = Core\Str::repeat('a', $size);
         uint $total = 0;
         uint $i = 0;

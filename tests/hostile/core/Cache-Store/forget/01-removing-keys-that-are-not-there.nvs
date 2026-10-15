@@ -4,7 +4,7 @@
 // the program must keep running.
 // hostile: timeout-ms 60000
 
-var $cache = Core\Cache::local();
+var $cache = Core\Cache::memory();
 
 // 1. A key of one million characters that nothing wrote. There is nothing to
 //    remove, so the call must do nothing and cost nothing that is kept.

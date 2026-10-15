@@ -10,7 +10,7 @@ class Node
     public ?Node $next = null;
 }
 
-var $cache = Core\Cache::local();
+var $cache = Core\Cache::memory();
 
 // 1. A key of one million characters. The store may keep the entry or forget
 //    it as too large, and must answer for the key either way.

@@ -1,10 +1,10 @@
 <?nvs
-// Attack: a request tries to push every other request's values out of the store
-// the whole server shares, and to fill the machine while doing it. The store has
-// a size limit, so it should forget old values and keep working.
+// Attack: a request fills the memory cache to push out the values of other requests.
+// It also tries to use up the memory of the machine. The cache has a size limit,
+// so it should forget old values and keep working.
 // hostile: timeout-ms 60000
 
-var $cache = Core\Cache::process();
+var $cache = Core\Cache::memory();
 string $value = Core\Str::repeat('x', 200);
 
 // A value written before the attack. The store may forget it, and the attack is

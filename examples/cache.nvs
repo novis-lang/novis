@@ -1,29 +1,29 @@
 <?nvs
-// This program uses the two caches, `Core\Cache::local()` and `Core\Cache::shared()`, and a rate limit.
-// The local cache may lose any entry at any time. The shared cache does not.
+// This program uses the two caches, `Core\Cache::memory()` and `Core\Cache::shared()`, and a rate limit.
+// The memory cache may lose any entry at any time. The shared cache does not.
 // `put` copies the value into the cache, and `get` returns a copy.
 // `Core\RateLimit::consume` takes the limit as arguments and needs no configuration.
 
-var $local = Core\Cache::local();
+var $memory = Core\Cache::memory();
 
-// Cold, on this core, in this process. Nothing has written it yet.
-var $before = $local->get('greeting');
+// Nothing in this process has written this key yet, so the result is `null`.
+var $before = $memory->get('greeting');
 if ($before == null) {
-    echo 'local miss', "\n";
+    echo 'memory miss', "\n";
 } else {
-    echo 'local hit before any write', "\n";
+    echo 'memory hit before any write', "\n";
 }
 
-// Right after a `put`, the local cache returns the value. This prints `local hit`.
-$local->put('greeting', 'hello');
-var $after = $local->get('greeting');
+// Right after a `put`, the memory cache returns the value. This prints `memory hit`.
+$memory->put('greeting', 'hello');
+var $after = $memory->get('greeting');
 if ($after == null) {
-    echo 'local miss after a write', "\n";
+    echo 'memory miss after a write', "\n";
 } else {
-    echo 'local hit', "\n";
+    echo 'memory hit', "\n";
 }
 
-// The other tier, over the network, and coherent.
+// The shared cache is a store on the network. Every server process reads the same values.
 var $shared = Core\Cache::shared();
 $shared->put('greeting', 'hello');
 var $seen = $shared->get('greeting');

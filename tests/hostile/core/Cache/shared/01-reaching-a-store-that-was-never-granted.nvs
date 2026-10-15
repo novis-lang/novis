@@ -28,9 +28,8 @@ try {
     echo "step 2 was refused as well\n";
 }
 
-// 3. The refusal must not damage anything else. The two caches in memory are
-//    still there and still answer.
-var $local = Core\Cache::local();
-$local->put('after', 'still working');
-var $after = $local->get('after') ?? 'absent';
+// 3. The error must not damage anything else. The cache in memory still works.
+var $memory = Core\Cache::memory();
+$memory->put('after', 'still working');
+var $after = $memory->get('after') ?? 'absent';
 echo 'step 3 read ', $after as string, "\n";

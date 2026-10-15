@@ -1,5 +1,5 @@
 <?nvs
-// Measures getting the store this server shares, writing one text value and reading it back, at growing text lengths.
+// Measures getting the memory cache, writing one text value and reading it back, at growing text lengths.
 // bench: start 256
 // bench: max 4096
 
@@ -11,7 +11,7 @@ class Bench
         uint $total = 0;
         uint $i = 0;
         while ($i < 64) {
-            var $store = Core\Cache::process();
+            var $store = Core\Cache::memory();
             $store->put("round", $value);
             $total = $total + Core\Str::length($store->get("round") as string);
             $i = $i + 1;

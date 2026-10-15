@@ -1,10 +1,10 @@
 <?nvs
-// Attack: a request tries to store more than `[cache.process] max_size` allows, and to make
+// Attack: a request tries to store more than `[cache.memory] max_size` allows, and to make
 // `getSecret` wait forever. The cache should stay under its limit, and no call should hang.
 // Two steps write large amounts of data, so this test needs more time than usual.
 // hostile: timeout-ms 40000
 
-var $store = Core\Cache::process();
+var $store = Core\Cache::memory();
 
 // 1. Store 1 GB in 1 MB entries, with keys that differ from the first character.
 string $megabyte = Core\Str::repeat('z', 1048576);
@@ -29,19 +29,19 @@ secret bytes $material = Core\Crypto::generateKey();
 array<secret bytes> $ring = [$material];
 
 var $itself = fn (): Core\Cache\SecretEntry => {
-    var $inner = Core\Cache::process();
+    var $inner = Core\Cache::memory();
     var $seen = $inner->getSecret('self', $ring) ?? 'none';
     return Core\Cache\SecretEntry::of('self:' . $seen, 1h);
 };
 $store->getSecret('self', $ring, { fill: $itself });
 
 var $second = fn (): Core\Cache\SecretEntry => {
-    var $inner = Core\Cache::process();
+    var $inner = Core\Cache::memory();
     var $seen = $inner->getSecret('first', $ring) ?? 'none';
     return Core\Cache\SecretEntry::of('second:' . $seen, 1h);
 };
 var $first = fn (): Core\Cache\SecretEntry => {
-    var $inner = Core\Cache::process();
+    var $inner = Core\Cache::memory();
     var $seen = $inner->getSecret('second', $ring, { fill: $second }) ?? 'none';
     return Core\Cache\SecretEntry::of('first:' . $seen, 1h);
 };
@@ -62,12 +62,12 @@ $store->getSecret('token', $ring, { fill: $answers });
 // 6. Change both settings of the block, to larger values and to `0` and `false`.
 array<string> $values = ['1G', '1024G', '0', 'false', '-1', '', '9999h'];
 foreach ($values as string $value) {
-    Core\Config::set('cache.process.max_size', $value);
-    Core\Config::set('cache.process.fill_wait', $value);
-    Core\Config::set('cache.process', $value);
+    Core\Config::set('cache.memory.max_size', $value);
+    Core\Config::set('cache.memory.fill_wait', $value);
+    Core\Config::set('cache.memory', $value);
 }
-Core\Config::restore('cache.process.fill_wait');
+Core\Config::restore('cache.memory.fill_wait');
 
 // Both settings should still have the values they started with.
-echo 'cap:  ', Core\Config::get('cache.process.max_size') ?? '(no value)', "\n";
-echo 'wait: ', Core\Config::get('cache.process.fill_wait') ?? '(no value)', "\n";
+echo 'cap:  ', Core\Config::get('cache.memory.max_size') ?? '(no value)', "\n";
+echo 'wait: ', Core\Config::get('cache.memory.fill_wait') ?? '(no value)', "\n";
