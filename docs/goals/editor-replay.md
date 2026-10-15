@@ -17,7 +17,7 @@ stages:
     context: [tools/nv/lib/lsp.ts]
   - id: 3
     title: the replay plays like the editor
-    status: open
+    status: done
     context: [tools/nv/test/html-later-polyfill.test.ts]
   - id: 4
     title: the first replay is on the editor page
@@ -142,8 +142,8 @@ fails `--check` when the server's answers change, which is the point of recordin
 
 **Does:** `<Replay>` plays a recording like the VS Code extension, with the controls, the label and the playing rules above.
 
-- [ ] The component, its frame, list, squiggle and controls. `website/src/components/Replay.astro:1`
-- [ ] The browser tests, on the cached Chromium the polyfill test uses. `tools/nv/test/replay-browser.test.ts:1`
+- [x] The component, its frame, list, squiggle and controls. `website/src/components/Replay.astro:1`
+- [x] The browser tests, on the cached Chromium the polyfill test uses. `tools/nv/test/replay-browser.test.ts:1`
 
 ### 4. the first replay is on the editor page
 
@@ -157,32 +157,31 @@ fails `--check` when the server's answers change, which is the point of recordin
 
 ### State
 
-Stages 1 and 2 are done, and `replay-recording` is green. A `.replay` beside a snippet is played
-against `nvs lsp` by `tools/nv/lib/replay.ts`: `parseReplay`, `replaySession` (the one stream) and
-`replayRecording` (the `.replay.out` text). The stream is written before the server answers, so
-`recordReplay` guesses the trigger characters and each accepted insert text, and plays again until
-the guess holds. Most replays take two sessions. `bun nv site --bless` writes `.replay.out`, and
-`--check snippets` names a stale, missing or orphaned one and steps that end on other text
-(`replayProblems`, `tools/nv/cmd/site.ts:1094`). A completion row records the label, the kind, the
-row's right text, the text after the label and the insert text, the way a `tests/lsp/` case reads
-the item. The format paragraph in § *A snippet* says so. The narrowing that `accept LABEL` is checked
-against is `website/config/replay-narrow.mjs`, and `Replay.astro` must import the same module. No
-snippet has a `.replay` yet.
+Stages 1 to 3 are done, and `replay-recording` and `replay-browser` are green. `<Replay src>`
+(`website/src/components/Replay.astro`) reads a snippet's `.replay` and `.replay.out` at build time.
+`website/config/replay-frames.mjs` turns them into one frame per keystroke and writes the HTML:
+caption, `inert` frame with tab title and "Recording" badge, buttons, the collapsed steps text and
+the frames as JSON. It is also the one `.replay` parser, which `tools/nv/lib/replay.ts` imports.
+`website/config/replay-player.mjs` plays the frames and narrows lists through `replay-narrow.mjs`.
+`tools/nv/test/replay-browser.test.ts` tests the player in Chromium on a fixture, through the shared
+CDP driver `tools/nv/test/chromium.ts`, and CI's `browser` job runs it. The Astro build has not
+rendered `Replay.astro` yet, because no page uses it. The code in a replay is not coloured yet:
+`<Snippet>` colours through Expressive Code, and the player draws plain text.
 
 ### Next
 
-**Stage 3: the replay plays like the editor**, one file set: `website/src/components/Replay.astro`,
-`website/config/replay-narrow.mjs`, `tools/nv/test/replay-browser.test.ts`.
+**Stage 4: the first replay is on the editor page**, one file set: `website/snippets/install/`,
+`website/src/content/docs/install/editor.mdx`, `website/src/components/Replay.astro`.
 
-- [ ] `<Replay src>` reads the `.replay` and `.replay.out` at build time and draws the frame, list, squiggle and controls (`rule:testing/a-replay-plays-what-the-language-server-returned`). `website/src/components/Replay.astro:1`
-- [ ] The list narrows through `narrow` and highlights `matched`. `website/config/replay-narrow.mjs:44`
-- [ ] The five browser tests the `replay-browser` check names, on the cached Chromium. `tools/nv/test/replay-browser.test.ts:1`
+- [ ] The snippet, its `.replay` and its blessed `.replay.out` (`rule:testing/a-replay-plays-what-the-language-server-returned`). `website/snippets/install/property-key-completion.nvs:1`
+- [ ] The page uses `<Replay>` beside `<Snippet>`, `bun nv site --build` renders it, and the page is re-stamped. `website/src/content/docs/install/editor.mdx:7`
+- [ ] Colour the replay's code the way `<Snippet>` does, through the grammar in `website/config/novis.tmLanguage.json`, with the site's light and dark colours. `website/config/replay-frames.mjs:204`
+- [ ] The rule flipped to `shipped` with its guard tests. `docs/rules/testing/a-replay-plays-what-the-language-server-returned.md:1`
 
 ### Backlog
 
 - Hover cards and quick fixes as replay steps, when a page needs them (this file's § *Standing decisions*).
 - The run before this session reported 2047 owed floor atoms, red on `docs/examples/config/*` proofs.
-  This session did not look at them (`bun nv proofs`).
-- The nightly CI ran `origin/main`, 612 commits behind local `main`. Its perf-stale proofs gate, the
-  throughput guard and `a_spawned_process_ends_when_nvs_is_killed_and_what_it_started_does_not` were
-  not reproduced here; recheck them on the next pushed run (`.github/workflows/`).
+  No session has looked at them yet (`bun nv proofs`).
+- The nightly CI ran `origin/main`, which is far behind local `main`, and every job of that run was red.
+  Nothing here can be fixed until `main` is pushed; recheck on the next pushed run (`.github/workflows/`).
