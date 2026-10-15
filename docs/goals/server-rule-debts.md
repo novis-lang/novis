@@ -38,7 +38,7 @@ stages:
         shapes: []
   - id: 5
     title: "an upgrade takes `limits`, `grants` and `on`"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/socket.rs]
     extra:
       context:
@@ -178,7 +178,9 @@ rule's example shows, and the declined reason of a data-folder write joins them
 
 **An upgrade's options** are `args`, `limits`, `grants` and `on`, with `spawn script`'s meaning. The
 refusal by name (`crates/nvs-stdlib/src/socket.rs:174-186`) is replaced by the parameters, never by
-accepting and dropping them. `grants` narrows against the upgrading request's own overlay.
+accepting and dropping them. `grants` narrows against the upgrading request's own overlay. The
+session's call on `on`: a connection's socket is core-local, so `on: "here"` is accepted and
+`on: "worker"` does not compile (`E0818`). The rule's fragment is the home.
 
 **Deferred work** gets a compile error for a `Core\Response` write inside an `afterResponse` callable
 where the checker sees it, and a throw at run time otherwise. `onUncaughtThrow` already does not fire
@@ -250,9 +252,9 @@ backend read one standard header. It is written on every response, sampled or no
 
 **Does:** `Core\Socket::upgrade` takes the three narrowing options with `spawn script`'s meaning.
 
-- [ ] The three parameters, forwarded to the connection isolate. `crates/nvs-stdlib/src/socket.rs:174`
-- [ ] The same options on `Core\Sse::upgrade` if it opens a connection isolate too. `crates/nvs-stdlib/src/sse.rs:145`
-- [ ] The conformance cases and the feature proofs of `Core\Socket::upgrade`. `docs/examples/core/Socket/upgrade/about.md:1`
+- [x] The three parameters, forwarded to the connection isolate. `crates/nvs-stdlib/src/socket.rs:174`
+- [x] The same options on `Core\Sse::upgrade` if it opens a connection isolate too. `crates/nvs-stdlib/src/sse.rs:145`
+- [x] The conformance cases and the feature proofs of `Core\Socket::upgrade`. `docs/examples/core/Socket/upgrade/about.md:1`
 
 ### 6. deferred work cannot write the response
 
@@ -286,32 +288,34 @@ backend read one standard header. It is written on every response, sampled or no
 
 ### State
 
-Stages 1 to 4 are done. `crate::config::resolved_in` canonicalizes the roots (`trust::canonical`)
-before it resolves, and keeps them in a `Root` with how each was named, the files reached and a
-declined data-folder write. `boot_set` returns it beside the set, `nvs serve` prints `Root::lines`
-on standard error before it binds, and `reload::Process` holds `Root::stored()` and resolves it
-through `config::stored_set`, never asking the working directory or the data folder again. A data
-folder write that finds the file already there now reads it. `nvs run` prints none of these lines.
-`rule:config/the-resolved-root-is-announced-and-stored` is `shipped`.
+Stages 1 to 5 are done. `Core\Socket::upgrade` and `Core\Sse::upgrade` take `limits:`, `grants:`
+and `on:`. `crate::socket::upgrade_narrowing` keeps the written grants the request holds, and
+`nvs_runtime::Upgrade` carries the `Narrowing` to every door that starts a connection, through
+`Isolate::narrowed_by`. `on: "worker"` does not compile (`E0818`), because a connection's socket
+is core-local. `rule:concurrency/an-upgrades-options-are-spawn-scripts` is `shipped`, and the
+perf records of both classes are measured again.
 
-The nightly reds ran on `origin/main`, 568 commits behind local `main`, and nothing here pushes.
+A grant the request gave up is not observable in a `.nvst` case, because a request cannot narrow
+its own grants. `an_upgrades_grants_keep_only_what_the_request_holds` in
+`crates/nvs-stdlib/src/socket.rs` covers that half.
+
+The nightly reds ran on `origin/main`, far behind local `main`, and nothing here pushes.
 
 ### Next
 
-**Stage 5, an upgrade takes `limits`, `grants` and `on`**: `crates/nvs-stdlib/src/socket.rs`,
-`crates/nvs-stdlib/src/sse.rs`, `tests/conformance/core/`
-(`rule:concurrency/an-upgrades-options-are-spawn-scripts`).
+**Stage 6, deferred work cannot write the response**: `crates/nvs-runtime/src/later.rs`,
+`crates/nvs-runtime/src/deferred.rs`, `tests/conformance/core/`
+(`rule:concurrency/deferred-work-cannot-write-the-response`).
 
-- [ ] The three parameters, forwarded to the connection isolate; the module doc's "not parameters" section goes. `crates/nvs-stdlib/src/socket.rs:174`
-- [ ] `grants` narrows against the upgrading request's own overlay, as `spawn script` does. `crates/nvs-stdlib/src/socket.rs:174`
-- [ ] The same options on `Core\Sse::upgrade` if it opens a connection isolate too. `crates/nvs-stdlib/src/sse.rs:1287`
-- [ ] The two `.nvst` cases the `upgrade-options` check names, and `Core\Socket::upgrade`'s feature proofs. `docs/examples/core/Socket/upgrade/about.md:1`
+- [ ] The run-time throw for a `Core\Response` write in after-response work, in `make_slotted`'s shape. `crates/nvs-runtime/src/later.rs:222`
+- [ ] The compile error where the checker sees the write inside an `afterResponse` callable, with its diagnostic. `crates/nvs-runtime/src/deferred.rs:216`
+- [ ] The two `.nvst` cases the `deferred-response-write` check names. `crates/nvs-runtime/src/deferred.rs:205`
 
 ### Backlog
 
-- Stages 6 to 9: this file's § *Stages*.
+- Stages 7 to 9: this file's § *Stages*.
+- `on: "worker"` for a connection, if the rule should promise it: `crates/nvs-types/src/expr/isolate.rs`.
 - A reload keeps the boot's canonical roots, so a symlink swapped to a new release is not followed until restart, if the rule should promise otherwise: `crates/nvs-cli/src/config.rs`.
 - A program's `Core\Config::set` of `[log] access` does not reach the access line, if the rule should promise it: `crates/nvs-server/src/trace.rs`.
-- A command that prints every limit in force with its default, if the rule should promise one: `crates/nvs-cli/src/config.rs`.
 - The nightly reds, the macOS warm-start budget among them, checked against local `main` once `origin/main` is pushed: `.github/workflows/`, `tools/nv/cmd/bench.ts`.
 - Every socket leg's OS error 95 on Windows: `crates/nvs-db/src/matrix.rs`.
