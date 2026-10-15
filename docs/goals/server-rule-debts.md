@@ -22,7 +22,7 @@ stages:
         shapes: []
   - id: 3
     title: "a Unix spelling with no `AF_UNIX` transport refuses at boot"
-    status: open
+    status: done
     context: [crates/nvs-config/src/resolve.rs, crates/nvs-config/src/store.rs, crates/nvs-db/src/conn.rs]
     extra:
       context:
@@ -235,8 +235,8 @@ backend read one standard header. It is written on every response, sampled or no
 
 **Does:** a `[db]` Unix spelling on a build with no Unix transport is refused at boot.
 
-- [ ] The `[db]` check beside the store's. `crates/nvs-config/src/resolve.rs:532`
-- [ ] The connect-time refusal's comment says it is the last line. `crates/nvs-db/src/conn.rs:135`
+- [x] The `[db]` check beside the store's. `crates/nvs-config/src/resolve.rs:532`
+- [x] The connect-time refusal's comment says it is the last line. `crates/nvs-db/src/conn.rs:135`
 
 ### 4. the resolved root is announced and stored
 
@@ -286,29 +286,29 @@ backend read one standard header. It is written on every response, sampled or no
 
 ### State
 
-Stages 1 and 2 are done. `[log] access` was a mode-table row with no key behind it, so writing it
-failed at boot: it is now a `Log` field, a `ByMode` default and a `default.toml` line in `[log]` and
-`[app.log]`. The door writes the access line in `serve_connection`'s `counted` closure, beside the
-request metric, through `nvs_server::trace::access`. `access` is read off the snapshot the request
-ran under (`trace::access_on`), never off the request's overlay, so a program's
-`Core\Config::set("log.access", …)` changes nothing; the fragment says so.
-`rule:http-server/the-access-log-is-a-mode-default` is `shipped`.
+Stages 1 to 3 are done. A `[db]` block has no url key, so its one Unix spelling is a `host` that
+begins with a path separator. `nvs_config::db::unix_transport` refuses it with `E0635`. It runs
+inside `db::validate`, which `resolve` already calls at boot, rather than as a second call beside
+`store::validate`. The connect-time refusal in `nvs_db::conn::socket_endpoint` stays, and its doc
+calls it the last line of defence. `rule:config/a-unix-spelling-with-no-af-unix-transport-refuses-at-boot`
+is `shipped`.
 
 The nightly reds ran on `origin/main`, far behind local `main`, and nothing here pushes.
 
 ### Next
 
-**Stage 3, a Unix spelling refused at boot**: `crates/nvs-config/src/resolve.rs`,
-`crates/nvs-config/src/store.rs`, `crates/nvs-db/src/conn.rs`
-(`rule:config/a-unix-spelling-with-no-af-unix-transport-refuses-at-boot`).
+**Stage 4, the resolved root is announced and stored**: `crates/nvs-cli/src/config.rs`,
+`crates/nvs-cli/src/reload.rs`, `crates/nvs-cli/tests/live_config.rs`
+(`rule:config/the-resolved-root-is-announced-and-stored`).
 
-- [ ] A `[db]` connection's `unix:` url or bare path is refused in `resolve` with `E0635`, beside the store's check. `crates/nvs-config/src/resolve.rs:535`
-- [ ] The `cargo test --test db` case the `unix-spelling-at-boot` check names, beside the refusal helper. `crates/nvs-config/tests/db.rs:44`
-- [ ] The connect-time refusal stays, and its comment says it is the last line of defence; the rule shipped. `crates/nvs-db/src/conn.rs:59`
+- [ ] Canonicalize the roots once at boot, store them, and print the root and every file the tree reached. `crates/nvs-cli/src/config.rs:517`
+- [ ] A reload reads the stored absolute roots, not `--config` as written. `crates/nvs-cli/src/reload.rs:137`
+- [ ] A data-folder write's `Declined` reason joins the boot lines. `crates/nvs-cli/src/config.rs:536`
+- [ ] The three `cargo test --test live_config` cases the `resolved-root` check names; the rule shipped. `crates/nvs-cli/tests/live_config.rs:2827`
 
 ### Backlog
 
-- Stages 4 to 9: this file's § *Stages*.
+- Stages 5 to 9: this file's § *Stages*.
 - A program's `Core\Config::set` of `[log] access` does not reach the access line, if the rule should promise it: `crates/nvs-server/src/trace.rs`.
 - A command that prints every limit in force with its default, if the rule should promise one: `crates/nvs-cli/src/config.rs`.
 - The macOS warm-start budget in the nightly cost guards, once `origin/main` is pushed: `tools/nv/cmd/bench.ts`.
