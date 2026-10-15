@@ -1,0 +1,2 @@
+JOIN customer
+LEFT JOIN lines

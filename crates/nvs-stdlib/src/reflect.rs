@@ -6193,4 +6193,81 @@ mod tests {
             info.release();
         }
     }
+
+    /// `steps` walks the encoded graph `nvs_ir` passes beside the path and
+    /// answers one row per segment, each read from the class that segment is
+    /// looked up on: `customer` from `Order`, `name` from `Customer`. The same
+    /// path with the empty graph, which is what a call through a callable value
+    /// passes, throws a `LogicError` and builds nothing.
+    // covers: Core\Reflect::steps
+    #[test]
+    fn steps_reads_each_segment_from_the_class_the_walk_reached() {
+        let mut classes = ClassTable::new();
+        let order = classes.define("Order", &["customer", "total"], &[]);
+        classes.set_public_fields(order, vec![true, true]);
+        classes.set_field_types(order, vec!["?Customer".to_owned(), "int".to_owned()]);
+        let customer = classes.define("Customer", &["name", "secret"], &[]);
+        classes.set_public_fields(customer, vec![true, false]);
+        classes.set_field_types(customer, vec!["string".to_owned(), "string".to_owned()]);
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        ctx.set_runtime_error_class(ErrorClass::new(std::sync::Arc::new(classes), order));
+
+        // `Customer`'s node starts at byte 0x21, after `Order`'s three lines and
+        // the empty line that ends it. The private `secret` is not a step.
+        let graph = "Order\ncustomer\t00000021\ntotal\t-\n\nCustomer\nname\t-\n\n";
+        let path = Value::str(NvsStr::new(b"customer.name"));
+        let answer = call(
+            super::nvs_core_reflect_steps,
+            &mut ctx,
+            &[path, Value::str(NvsStr::new(graph.as_bytes()))],
+        )
+        .expect("a path the graph accepts has a row per segment");
+        #[expect(
+            unsafe_code,
+            reason = "`steps` answered an array this frame owns one reference to, and the \
+                      `ManuallyDrop` borrows it without taking that reference over"
+        )]
+        let rows = std::mem::ManuallyDrop::new(unsafe {
+            NvsArray::from_raw(answer.array_ptr().expect("`steps` answers an array"))
+        });
+        let mut read = Vec::new();
+        for at in 0..rows.count() {
+            let row = rows.value_at(at).expect("every position holds a row");
+            read.push((
+                attribute_text(&mut ctx, super::nvs_core_reflect_property_info_name, row),
+                attribute_text(&mut ctx, super::nvs_core_reflect_property_info_type, row),
+            ));
+        }
+        let owned = |name: &str, ty: &str| (name.to_owned(), ty.to_owned());
+        assert_eq!(
+            read,
+            vec![owned("customer", "?Customer"), owned("name", "string")],
+            "one row per segment, each with the type its own class declares"
+        );
+
+        assert_eq!(
+            call(
+                super::nvs_core_reflect_steps,
+                &mut ctx,
+                &[path, Value::str(NvsStr::new(b""))],
+            )
+            .err(),
+            Some(nvs_runtime::THROWN),
+            "no graph means no class to start at"
+        );
+        assert!(
+            ctx.take_pending()
+                .is_some_and(|said| said.contains("called through a callable value")),
+            "the throw names why the class is not known"
+        );
+
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns the path and the one reference `steps` handed back"
+        )]
+        unsafe {
+            answer.release();
+            path.release();
+        }
+    }
 }

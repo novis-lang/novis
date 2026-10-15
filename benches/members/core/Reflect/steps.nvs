@@ -1,0 +1,30 @@
+<?nvs
+// Reads the property of each part of a short path, as a query builder does to add its joins.
+// bench: iterations 256
+// bench: calls 0
+// bench: complexity linear
+
+class Customer {
+    public string $name = "";
+}
+
+class Order {
+    public int $total = 0;
+    public ?Customer $customer = null;
+}
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<propertyPath<Order>> $paths = ["total" as propertyPath<Order>, "customer.name" as propertyPath<Order>];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Which path is read comes from last round's total, so no round can be reused.
+            $total = $total + Core\Arr::count(Core\Reflect::steps($paths[($total % 2) as int]));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

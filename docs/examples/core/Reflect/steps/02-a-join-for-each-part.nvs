@@ -1,0 +1,43 @@
+<?nvs
+// Shows how a small query builder adds a database join for each part of a path.
+
+class Customer {
+    public string $email = "";
+}
+
+class Line {
+    public int $quantity = 0;
+}
+
+class Order {
+    public Customer $customer;
+    public array<Line> $lines = [];
+
+    public function constructor() {
+        $this->customer = new Customer();
+    }
+}
+
+class Query {
+    public static function joins(propertyPath<Order> $path): void {
+        array<Core\Reflect\PropertyInfo> $steps = Core\Reflect::steps($path);
+        uint $i = 0;
+        // Every part but the last one leads to another table.
+        while ($i + 1 < Core\Arr::count($steps)) {
+            string $type = $steps[$i as int]->type() ?? "";
+            // An object that can be `null`, or an array of objects, needs a LEFT JOIN.
+            // A LEFT JOIN keeps the order when no row matches.
+            if (Core\Str::startsWith($type, "?") || Core\Str::startsWith($type, "array<")) {
+                echo "LEFT JOIN ", $steps[$i as int]->name(), "\n";
+            } else {
+                echo "JOIN ", $steps[$i as int]->name(), "\n";
+            }
+            $i = $i + 1;
+        }
+    }
+}
+
+// This prints `JOIN customer`, because every order has a customer.
+Query::joins("customer.email");
+// This prints `LEFT JOIN lines`, because an order can have no lines.
+Query::joins("lines.quantity");
