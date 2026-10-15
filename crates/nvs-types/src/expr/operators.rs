@@ -919,6 +919,29 @@ pub(crate) fn reject_void_condition(ty: TypeId, span: Span, env: &mut Env<'_>) {
     );
 }
 
+/// `rule:expressions/nullable-condition-lint`'s warning: a condition whose type
+/// is a union with `null` in it, `?bool` included.
+///
+/// `null` is false, and so is a falsy value of the other half (`0`, `""`,
+/// `false`), so the test cannot tell an absent value from a present one. A
+/// warning and never a refusal, because `rule:expressions/truthy-positions`
+/// accepts every type as a condition. A bare `null` is not warned about: it has
+/// no other half to confuse it with, and `mixed` is not a union with `null`.
+pub(crate) fn warn_nullable_condition(ty: TypeId, span: Span, env: &mut Env<'_>) {
+    if !matches!(env.interner.get(ty), Ty::Union(_)) || !env.interner.is_nullable(ty) {
+        return;
+    }
+    let desc = env.interner.describe(ty);
+    env.diags.report(
+        Diagnostic::warning(
+            code::W_NULLABLE_CONDITION,
+            format!("this condition is `{desc}`, so it is false for `null` and for a false value"),
+        )
+        .with_primary(span, format!("this is `{desc}`"))
+        .with_help("compare with `null` to test whether there is a value: `!= null`"),
+    );
+}
+
 /// The one diagnostic both operand positions report — the binary operators
 /// through [`reject_void_operand`] and the three arithmetic prefixes through
 /// [`reject_unary_arith_operand`], so that they agree on their wording as well

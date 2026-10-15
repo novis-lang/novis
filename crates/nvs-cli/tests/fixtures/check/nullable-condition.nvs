@@ -1,0 +1,10 @@
+<?nvs
+// A `?int` tested directly, which is false for `null` and for `0` alike, and
+// the same value compared with `null`, which is false for `null` alone.
+string $s = "0";
+if ($s as ?int) {
+    echo "converted\n";
+}
+if (($s as ?int) != null) {
+    echo "converted\n";
+}

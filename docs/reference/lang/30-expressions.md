@@ -264,7 +264,7 @@ echo ($a == $b) as string, "|", ($a == $same) as string, "|", ($a < $b) as strin
 
 # Logical operators and truth
 
-`&&` and `||` short-circuit and answer a `bool`; `!` negates. Their operands are read as conditions: `0`, `0.0`, `""`, `"0"`, `[]`, `null` and `false` are false and everything else is true — the one place a value is tested without `as bool`. `and`, `or` and `xor` do not parse. `&&` narrows its right operand as the `if` block of its left would, and `||` as the `else` block, so `$u != null && $u->active` compiles over a `?User` local; nothing proven holds after the expression. The block of `if (A && B)` sees what both tests prove, and so does the code after `if (A || B) { return; }`.
+`&&` and `||` short-circuit and answer a `bool`; `!` negates. Their operands are read as conditions: `0`, `0.0`, `""`, `"0"`, `[]`, `null` and `false` are false and everything else is true — the one place a value is tested without `as bool`. `and`, `or` and `xor` do not parse. `&&` narrows its right operand as the `if` block of its left would, and `||` as the `else` block, so `$u != null && $u->active` compiles over a `?User` local; nothing proven holds after the expression. The block of `if (A && B)` sees what both tests prove, and so does the code after `if (A || B) { return; }`. A condition whose type can be `null`, such as an `?int`, gives warning `W1023`: `null` and `0` are both false, so write `!= null` to test whether there is a value.
 
 ```nvs
 <?nvs

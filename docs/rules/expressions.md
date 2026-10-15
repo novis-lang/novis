@@ -3,8 +3,6 @@
 
 # Expressions
 
-*1 of 33 rules below are **designed** rather than shipped, and are marked where they appear.*
-
 <a id="expressions-truthy-positions"></a>
 
 ## Six syntax positions test truthiness; every other `bool` position stays checked
@@ -119,11 +117,14 @@ way PHP lets it be written.
 
 <a id="expressions-nullable-condition-lint"></a>
 
-## A `?T` used directly as a condition is warned about, not refused  *(designed — owned by goal language-rule-debts)*
+## A `?T` used directly as a condition is warned about, not refused
 
 `rule:expressions/nullable-condition-lint`
 
-`nvs check` warns when a `?T` is used directly as a condition, naming `!= null` as the fix.
+`nvs check` warns with `W1023` when a condition's type is a union with `null` in it, naming `!= null`
+as the fix. `?bool` warns too, since `null` and `false` are both false. A bare `null` and `mixed` do
+not warn. Every position `check_condition` (`crates/nvs-types/src/expr/mod.rs`) covers raises it:
+`if`, `while`, `do`/`while`, a `for` header's middle clause and a ternary's condition.
 
 Both `null` and `0` are falsy, so `if ($s as ?int)` is false for an invalid value *and* for a valid
 zero — reconstructing precisely the `(int)$x > 0` defect that nullable conversion exists to remove.
@@ -133,12 +134,12 @@ operator**: any `?int` in an `if` has always had it. Refusing it would narrow
 [`expressions/truthy-positions`](expressions.md#expressions-truthy-positions) for every nullable value in the language, which is a larger change
 than this one.
 
-**Not on disk.** No warning code is allocated, and `check_condition`
-(`crates/nvs-types/src/expr/mod.rs:199`) reports nothing for a `?T` condition.
-
 **Declined:**
 - **Refusing a `?T` condition outright.** It is the strongest guard against the trap, but it changes
   [`expressions/truthy-positions`](expressions.md#expressions-truthy-positions) for every nullable value rather than for conversions.
+- **Warning only where the non-`null` half has a falsy value.** A `?User` cannot be confused with a
+  falsy object, but one rule for every `?T` is simpler to learn, and `!= null` reads the same for
+  each.
 
 <sub>See also [`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion), [`expressions/truthy-table`](expressions.md#expressions-truthy-table), [`expressions/bare-throwable-arm-warns`](expressions.md#expressions-bare-throwable-arm-warns).</sub>
 

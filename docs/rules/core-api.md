@@ -3,7 +3,7 @@
 
 # The Core API
 
-*2 of 56 rules below are **designed** rather than shipped, and are marked where they appear.*
+*1 of 56 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="core-api-core-means-always-present"></a>
 
@@ -935,7 +935,7 @@ query-parameter pair rather than one member doing both.
 
 <a id="core-api-required-optional-and-nullable"></a>
 
-## Required, optional and nullable are three separate questions: nullability belongs to the type and optionality to the default  *(designed — owned by goal language-rule-debts)*
+## Required, optional and nullable are three separate questions: nullability belongs to the type and optionality to the default
 
 `rule:core-api/required-optional-and-nullable`
 
@@ -953,14 +953,11 @@ Nullability is a property of the **type** and optionality is a property of the c
 **default**; neither borrows the other's meaning. Encoding is the plain inverse: every field is always
 emitted, including a `null` one.
 
-**One row is not on disk.** The checker accepts a written `= null`
-(`crates/nvs-types/src/defaults.rs:52`), but a codec field has no constant for it: `ConstArg::Null`
-gives no `FieldDefault` (`crates/nvs-ir/src/lower/mod.rs:358`), so a decoder refuses an absent key
-for `?T $x = null` as a missing optional field (`crates/nvs-stdlib/src/json.rs:2797`). The other
-three are answered at every door that reads a derived codec, a row's columns included: the default is
-evaluated while compiling into a constant that rides on the field itself
+Every row is answered at every door that reads a derived codec, a row's columns included: the default
+is evaluated while compiling into a constant that rides on the field itself
 (`nvs_runtime::CodecField::default`), so a decoder fills an absent optional key without being the call
-site that would otherwise emit one. A constructor position **no field names** — a property
+site that would otherwise emit one. A written `= null` is that constant too
+(`nvs_runtime::FieldDefault::Null`), so `?T $x = null` fills an absent key with `null`. A constructor position **no field names** — a property
 `skip: true` removed from the contract, which [`core-classes/derive-field-list`](core-classes.md#core-classes-derive-field-list) sanctions — has no
 field to carry a constant and is filled by nothing, so the call that asks for an instance out of a
 document is refused while compiling rather than answered with a guess: `E0820` at a document door and

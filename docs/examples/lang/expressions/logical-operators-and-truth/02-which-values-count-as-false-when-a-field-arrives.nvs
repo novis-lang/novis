@@ -20,6 +20,12 @@ if ($quantity != "") {
     echo "the field was filled in\n";
 }
 
+// `as ?int` gives `null` when the text is not a number. Compare the result
+// with `null`, because `0` is false too. This prints "the quantity is a number".
+if (($quantity as ?int) != null) {
+    echo "the quantity is a number\n";
+}
+
 // An empty array is false, and an array with anything in it is true, even
 // when that is a zero. This prints "no tags" and then "has sizes".
 array<string> $tags = [];

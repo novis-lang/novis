@@ -12,5 +12,9 @@ is not zero.
 **Good to know:** `and`, `or` and `xor` are not part of the language. No logical operator returns
 one of its operands.
 
+A value that can be `null`, such as an `?int`, is false for `null` and also for `0`. The compiler
+gives warning `W1023` when you test such a value directly. Write `!= null` to check whether there is
+a value.
+
 **The examples below** show a check that reads a value only when the value exists, the values of a
 form field that count as empty, and the checks a request must pass.

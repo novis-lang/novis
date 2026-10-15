@@ -205,6 +205,7 @@ pub(crate) fn check_condition(
 ) -> TypeId {
     let ty = check_expr(cond, None, live, scope, ctx, env);
     reject_void_condition(ty, cond.span, env);
+    operators::warn_nullable_condition(ty, cond.span, env);
     ty
 }
 

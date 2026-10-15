@@ -5785,6 +5785,18 @@ pub mod code {
          `\"n=\" . $ok ? \"x\" : \"y\"` tests `\"n=\" . $ok`, so the result is always `\"x\"`. \
          Add parentheses to show the order you mean.",
     );
+    /// A condition whose type may be `null`
+    /// (`rule:expressions/nullable-condition-lint`): `null` and a falsy value
+    /// of the other half are both false, so `if ($s as ?int)` is false for a
+    /// value that did not convert and for a valid `0`. A warning rather than a
+    /// refusal because every type is a condition
+    /// (`rule:expressions/truthy-positions`), and the hazard is a habit and
+    /// not a type error. `nvs_types::expr::operators` raises it.
+    pub const W_NULLABLE_CONDITION: Code = Code::new("W1023").card(
+        "This condition can be `null`. `null` is false, and so are `0`, `\"\"` and `false`. \
+         So `if ($s as ?int)` is false when `$s` is not a number, and also when it is `\"0\"`. \
+         Write `!= null` to test whether there is a value: `if (($s as ?int) != null)`.",
+    );
 }
 }
 

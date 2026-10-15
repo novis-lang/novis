@@ -226,6 +226,54 @@ fn check_json_carries_the_code_span_severity_help_and_suggestions() {
     );
 }
 
+/// `rule:expressions/nullable-condition-lint`: a `?T` tested directly is a
+/// warning that names `!= null`, and the file still checks clean of errors.
+#[test]
+fn a_nullable_condition_warns_naming_not_null() {
+    let (_, rendered, ok) = run_check(&[], &fixture("nullable-condition.nvs"));
+    assert!(ok, "a warning does not fail the check: {rendered}");
+    let warnings: Vec<_> = text_heads(&rendered)
+        .into_iter()
+        .filter(|(severity, _, _)| severity == "warning")
+        .collect();
+    assert_eq!(
+        warnings.len(),
+        1,
+        "the direct test warns and the compared one does not: {rendered}"
+    );
+    assert_eq!(warnings[0].1, "W1023", "{rendered}");
+    assert!(
+        rendered.contains("`!= null`"),
+        "the help names the comparison: {rendered}"
+    );
+}
+
+/// The compared spelling is the fix the warning names, so it is silent.
+#[test]
+fn a_nullable_compared_with_null_does_not_warn() {
+    let doc = document("nullable-condition.nvs");
+    let source =
+        std::fs::read_to_string(fixture("nullable-condition.nvs")).expect("the fixture is read");
+    let warned: Vec<&str> = doc["diagnostics"]
+        .as_array()
+        .expect("`diagnostics` is an array")
+        .iter()
+        .filter(|d| d["code"] == "W1023")
+        .map(|d| {
+            let offset = |at: usize| {
+                let offset = d["labels"][0]["span"][at].as_u64().expect("a byte offset");
+                usize::try_from(offset).expect("a source file is shorter than a pointer")
+            };
+            &source[offset(0)..offset(1)]
+        })
+        .collect();
+    assert_eq!(
+        warned,
+        ["$s as ?int"],
+        "only the direct test warns, and `!= null` beside it does not: {doc:#}"
+    );
+}
+
 /// The flag adds a rendering and changes nothing about the one that was there.
 #[test]
 fn the_default_rendering_is_still_text() {

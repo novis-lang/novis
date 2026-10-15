@@ -1,11 +1,12 @@
 {
   "title": "A `?T` used directly as a condition is warned about, not refused",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "expressions/nullable-conversion",
     "expressions/truthy-table",
     "expressions/bare-throwable-arm-warns"
   ],
-  "guardedBy": [],
-  "goal": "language-rule-debts"
+  "guardedBy": [
+    "crates/nvs-cli/tests/check.rs"
+  ]
 }
