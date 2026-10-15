@@ -268,13 +268,13 @@ no policy. Each becomes one deliberate line of configuration, and that is the tr
 
 **`[server] workers` bounds the count, and the default is what the machine answers.** With the key left out the fan-out is [`std::thread::available_parallelism`](https://doc.rust-lang.org/std/thread/fn.available_parallelism.html), so a deployment moved onto a bigger box scales without a directive being edited, and a host that answers nothing at all is one core. A written count is the bound in **both** directions: it is neither raised to the machine's parallelism nor clamped down to it, because a core count a heuristic chose is one the file cannot state, and an operator who sized a container against its CPU quota has already answered the question. `0` is refused under `E0636` — every listener is accepted on by a worker, so a count of zero binds the addresses the tree names and then answers nobody on any of them, which is [`http-server/the-server-block-is-boot-class`](http-server.md#http-server-the-server-block-is-boot-class)'s empty `listen` array reached from the other end. There is no `auto` spelling: leaving the key out is what asks for the machine's own answer.
 
-**What the cores share is compiled program text and the process cache tier, and nothing else.** Every mounted entry is compiled before the first socket is bound, published once behind an `Arc` that every core reads, so the compile count is one per distinct source rather than one per core — [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing)'s "shares immutable compiled code", and the same single publisher an edit revalidates through ([`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart)). Beside it stands the one mutable thing: the map behind `Core\Cache::process()`, created before the first core accepts, read and written by every one of them, sharded behind locks and bounded by `[cache.process] max_size` ([`concurrency/the-process-tier-is-one-store-per-process`](concurrency.md#concurrency-the-process-tier-is-one-store-per-process)). Everything else a core holds is its own: its scheduler, its run queue, its accept loop and the backoff that loop applies ([`http-server/the-accept-loop-backs-off`](http-server.md#http-server-the-accept-loop-backs-off)), which is what [`http-server/admission-is-arithmetic-not-a-number`](http-server.md#http-server-admission-is-arithmetic-not-a-number)'s relaxed in-flight counter and [`http-server/a-wedged-core-is-detected-by-its-deadline`](http-server.md#http-server-a-wedged-core-is-detected-by-its-deadline)'s per-worker watchdog are already written against.
+**What the cores share is compiled program text and the memory cache tier, and nothing else.** Every mounted entry is compiled before the first socket is bound, published once behind an `Arc` that every core reads, so the compile count is one per distinct source rather than one per core — [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing)'s "shares immutable compiled code", and the same single publisher an edit revalidates through ([`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart)). Beside it stands the one mutable thing: the map behind `Core\Cache::memory()`, created before the first core accepts, read and written by every one of them, sharded behind locks and bounded by `[cache.memory] max_size` ([`concurrency/the-memory-tier-is-one-store-per-process`](concurrency.md#concurrency-the-memory-tier-is-one-store-per-process)). Everything else a core holds is its own: its scheduler, its run queue, its accept loop and the backoff that loop applies ([`http-server/the-accept-loop-backs-off`](http-server.md#http-server-the-accept-loop-backs-off)), which is what [`http-server/admission-is-arithmetic-not-a-number`](http-server.md#http-server-admission-is-arithmetic-not-a-number)'s relaxed in-flight counter and [`http-server/a-wedged-core-is-detected-by-its-deadline`](http-server.md#http-server-a-wedged-core-is-detected-by-its-deadline)'s per-worker watchdog are already written against.
 
 **A listener the server cannot bind is refused once, before any core starts.** The classification of a `listen` entry belongs to the configuration and not to a core ([`http-server/a-unix-socket-listener`](http-server.md#http-server-a-unix-socket-listener)), so one deployment mistake is one refusal — a fan-out that bound as it started would report the same wrong entry once per core and would leave a process half-listening while it did.
 
 **Each core accepts on its own handle, so no connection passes through a thread every other connection also passes through.** The kernel picks which blocked acceptor a connection wakes: there is no handoff, no shared queue and no accepting core to become the bottleneck the fan-out exists to remove. A request stays on the core that accepted it.
 
-- **Memory:** one scheduler, one accept loop and one listener handle per listener per core, all paid at process start and O(cores) rather than O(requests served). The shared compiled unit holds strictly less than per-core caches would, so the fleet's compiled-code footprint does not grow with the core count.
+- **Memory:** one scheduler, one accept loop and one listener handle per listener per core, all paid at process start and O(cores) rather than O(requests served). The shared compiled unit holds strictly less than a compiled unit per core would, so the fleet's compiled-code footprint does not grow with the core count.
 
 **Declined:**
 - **One acceptor handing connections to N request workers.** The acceptor is one thread paying a syscall and a handoff per connection, which moves the bottleneck rather than removing it.
@@ -821,13 +821,13 @@ talks to the store ([`core-api/session-roster`](core-api.md#core-api-session-ros
   stay valid until its own expiry, and the record's size limit would be a cookie header's.
   `Core\SignedCookie` remains for an application that wants exactly this.
 
-<sub>See also [`core-api/session-roster`](core-api.md#core-api-session-roster), [`core-classes/session-is-started-explicitly`](core-classes.md#core-classes-session-is-started-explicitly), [`http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`](http-server.md#http-server-session-backend-is-shared-or-db-and-local-is-refused-at-boot), [`http-server/session-expiry-belongs-to-the-store`](http-server.md#http-server-session-expiry-belongs-to-the-store), [`concurrency/a-cached-value-is-copied-across-the-boundary`](concurrency.md#concurrency-a-cached-value-is-copied-across-the-boundary).</sub>
+<sub>See also [`core-api/session-roster`](core-api.md#core-api-session-roster), [`core-classes/session-is-started-explicitly`](core-classes.md#core-classes-session-is-started-explicitly), [`http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot`](http-server.md#http-server-session-backend-is-shared-or-db-and-memory-is-refused-at-boot), [`http-server/session-expiry-belongs-to-the-store`](http-server.md#http-server-session-expiry-belongs-to-the-store), [`concurrency/a-cached-value-is-copied-across-the-boundary`](concurrency.md#concurrency-a-cached-value-is-copied-across-the-boundary).</sub>
 
-<a id="http-server-session-backend-is-shared-or-db-and-local-is-refused-at-boot"></a>
+<a id="http-server-session-backend-is-shared-or-db-and-memory-is-refused-at-boot"></a>
 
-## `[session] backend` admits `shared` and `db`, and writing `local` is a boot refusal naming the file it was written in
+## `[session] backend` admits `shared` and `db`, and writing `memory` is a boot refusal naming the file it was written in
 
-`rule:http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`
+`rule:http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot`
 
 ```toml
 [session]
@@ -838,25 +838,27 @@ cookie  = "nvsid"       # the name the identifier rides under
 
 `shared` is the coherent tier reached at `[cache.shared] url`
 ([`config/cache-shared-is-the-grant-over-the-configured-store`](config.md#config-cache-shared-is-the-grant-over-the-configured-store)); `db` is a table in a
-`[db.<name>]`. `backend = "local"` is `E0626`, and its note names
-[`concurrency/the-local-tier-cannot-hold-what-must-be-coherent`](concurrency.md#concurrency-the-local-tier-cannot-hold-what-must-be-coherent) and the file the key was
-written in. That is what "enforced rather than documented" means: the value is refused where it
-is written, not where it is used, so a deployment cannot be running on a per-core session store
-while believing otherwise. A generic unknown-value refusal would not do it — an operator who wrote
-`local` because APCu was where their sessions lived needs the sentence explaining why the fast
-answer is the wrong one.
+`[db.<name>]`. `backend = "memory"` is `E0626`, and its note says what that store loses — a request
+another server process handles finds no session, and a restart deletes every one — and names the file
+the key was written in. That is what "enforced rather than documented" means: the value is refused
+where it is written, not where it is used, so a deployment cannot be running on a session store held in
+one process while believing otherwise. A generic unknown-value refusal would not do it: an operator who
+wrote `memory` because `Core\Cache::memory()` is the fast store needs the sentence explaining why the
+fast answer is the wrong one. Any other word gets the same code with a note naming the two that are
+admitted. The note's text is `REFUSED_NOTE` in `crates/nvs-config/src/session.rs`.
 
-The roster is a type with no local variant, and every store operation is written against the
-shared tier's connection rather than the tier enum, so the per-core map is absent rather than
-merely unselected. The key is `System` class ([`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it)), because where a fleet's sessions live is a
-deployment decision. It reloads: a request reads the block from the snapshot it cloned, so a
-changed backend reaches the next request, and no record moves from the old store to the new one,
-which signs every user out. An absent block is
-not a default backend ([`http-server/no-session-block-means-no-store`](http-server.md#http-server-no-session-block-means-no-store)).
+The roster is a type with no memory variant, and every store operation is written against the shared
+tier's connection rather than the tier enum, so the process's map is absent rather than merely
+unselected. The key is `System` class ([`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it)), because
+where a fleet's sessions live is a deployment decision. It reloads: a request reads the block from the
+snapshot it cloned, so a changed backend reaches the next request, and no record moves from the old
+store to the new one, which signs every user out. An absent block is not a default backend
+([`http-server/no-session-block-means-no-store`](http-server.md#http-server-no-session-block-means-no-store)).
 
 Both backends cost a session one round trip on a read and two on a write. That is latency spent to
-buy security and request isolation: the local tier would cost none, and it is refused because a
-session there is not coherent across cores.
+buy security and request isolation: the memory tier would cost none, and it is refused because a
+session there is not coherent across processes and does not survive a restart
+([`concurrency/the-memory-tier-cannot-hold-what-must-be-coherent`](concurrency.md#concurrency-the-memory-tier-cannot-hold-what-must-be-coherent)).
 
 **Declined:**
 - **A file backend.** It is per-machine, so a fleet either shares a filesystem or loses sessions on
@@ -864,7 +866,7 @@ session there is not coherent across cores.
   [`http-server/session-expiry-belongs-to-the-store`](http-server.md#http-server-session-expiry-belongs-to-the-store) declines. A single-machine deployment loses
   nothing it cannot get from the shared tier on loopback or a socket.
 
-<sub>See also [`concurrency/the-local-tier-cannot-hold-what-must-be-coherent`](concurrency.md#concurrency-the-local-tier-cannot-hold-what-must-be-coherent), [`http-server/no-session-block-means-no-store`](http-server.md#http-server-no-session-block-means-no-store), [`config/cache-shared-is-the-grant-over-the-configured-store`](config.md#config-cache-shared-is-the-grant-over-the-configured-store), [`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it), [`core-api/two-cache-tiers`](core-api.md#core-api-two-cache-tiers).</sub>
+<sub>See also [`concurrency/the-memory-tier-cannot-hold-what-must-be-coherent`](concurrency.md#concurrency-the-memory-tier-cannot-hold-what-must-be-coherent), [`http-server/no-session-block-means-no-store`](http-server.md#http-server-no-session-block-means-no-store), [`config/cache-shared-is-the-grant-over-the-configured-store`](config.md#config-cache-shared-is-the-grant-over-the-configured-store), [`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it), [`core-api/two-cache-tiers`](core-api.md#core-api-two-cache-tiers).</sub>
 
 <a id="http-server-no-session-block-means-no-store"></a>
 
@@ -883,7 +885,7 @@ A block that names `shared` but a tree with no `[cache.shared]` is the same shap
 `start` reaches the one store that block names, and says which block is missing when there is
 none, rather than opening a store of its own.
 
-<sub>See also [`http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`](http-server.md#http-server-session-backend-is-shared-or-db-and-local-is-refused-at-boot), [`http-server/an-unsafe-or-unbounded-default-is-a-defect`](http-server.md#http-server-an-unsafe-or-unbounded-default-is-a-defect), [`core-classes/session-is-started-explicitly`](core-classes.md#core-classes-session-is-started-explicitly).</sub>
+<sub>See also [`http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot`](http-server.md#http-server-session-backend-is-shared-or-db-and-memory-is-refused-at-boot), [`http-server/an-unsafe-or-unbounded-default-is-a-defect`](http-server.md#http-server-an-unsafe-or-unbounded-default-is-a-defect), [`core-classes/session-is-started-explicitly`](core-classes.md#core-classes-session-is-started-explicitly).</sub>
 
 <a id="http-server-a-session-is-loaded-once-and-written-whole"></a>
 
@@ -938,7 +940,7 @@ An expired record is absent, so `load` already answers it and `start` already is
 `ttl` bounds how long an *untouched* record survives. Expiry needs no code path of its own, which
 is the point of choosing backends that expire.
 
-<sub>See also [`http-server/a-session-store-answers-four-operations`](http-server.md#http-server-a-session-store-answers-four-operations), [`http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`](http-server.md#http-server-session-backend-is-shared-or-db-and-local-is-refused-at-boot), [`concurrency/who-runs-a-job-is-configuration`](concurrency.md#concurrency-who-runs-a-job-is-configuration).</sub>
+<sub>See also [`http-server/a-session-store-answers-four-operations`](http-server.md#http-server-a-session-store-answers-four-operations), [`http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot`](http-server.md#http-server-session-backend-is-shared-or-db-and-memory-is-refused-at-boot), [`concurrency/who-runs-a-job-is-configuration`](concurrency.md#concurrency-who-runs-a-job-is-configuration).</sub>
 
 <a id="http-server-a-session-holds-a-secret-only-sealed"></a>
 

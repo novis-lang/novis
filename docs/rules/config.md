@@ -183,7 +183,7 @@ that adds the block, so a reader of `nvs.toml` has one place to start:
 | `[image]` | [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline) |
 | `[io]` | [`core-classes/temporary-dir-sweep`](core-classes.md#core-classes-temporary-dir-sweep) |
 | `[mail.<name>]`, `[storage.<name>]` | [`programs/framework-core-half`](programs.md#programs-framework-core-half) |
-| `[session]` | [`http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`](http-server.md#http-server-session-backend-is-shared-or-db-and-local-is-refused-at-boot) |
+| `[session]` | [`http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot`](http-server.md#http-server-session-backend-is-shared-or-db-and-memory-is-refused-at-boot) |
 | `[app.log]` | [`errors/handler-script`](errors.md#errors-handler-script) |
 
 `[[schedule]]`, like `[[extension]]`, is an array of tables because it is a repeated record with
@@ -1854,7 +1854,7 @@ both narrow, POSIX's own rule holds and the entry fires on either.
 
 Every `[[schedule]]` entry writes `scope`, and there is no default. `"host"` fires the entry on every
 host running `nvs serve`, each on its own clock, with no coordination and no lock — right for anything
-whose effect is local: warming the per-core cache tier, rotating a local file, sampling host state.
+whose effect is local: warming `Core\Cache::memory()`, rotating a local file, sampling host state.
 `"fleet"` fires it once per interval across the whole deployment
 ([`config/a-fleet-entry-fires-at-most-once-under-a-lease`](config.md#config-a-fleet-entry-fires-at-most-once-under-a-lease)). An entry with neither, or with a third
 word, refuses the boot naming both options with one sentence each.
@@ -2163,8 +2163,9 @@ A bare path in `url` is refused rather than read: a non-URL in a key called `url
 re-litigate rather than a thing to read.
 
 On a single-machine deployment a socket makes the shared tier's round trip a local one, for sessions
-and rate limits as much as for the cache. The per-core local tier still may not hold a session: a
-socket is coherent across cores and a per-core map is not.
+and rate limits as much as for the cache. The memory tier still may not hold a session: the store
+behind a socket is coherent across processes and survives a restart, and one process's map does
+neither.
 
 <sub>See also [`config/a-unix-socket-is-admitted-only-where-an-operator-wrote-it`](config.md#config-a-unix-socket-is-admitted-only-where-an-operator-wrote-it), [`core-classes/db-unix-socket-path`](core-classes.md#core-classes-db-unix-socket-path), [`config/a-unix-spelling-with-no-af-unix-transport-refuses-at-boot`](config.md#config-a-unix-spelling-with-no-af-unix-transport-refuses-at-boot).</sub>
 

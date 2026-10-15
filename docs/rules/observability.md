@@ -237,8 +237,7 @@ to constrain — and it passes that rule's own test rather than being an excepti
 - **No request-derived value crosses**, because [`security/metric-label-refuses-tainted`](security.md#security-metric-label-refuses-tainted) forbids
   exactly that. What accumulates is a fixed set of series with bounded label sets.
 - **Memory is charged to the core and capped** — O(cores × series), bounded by
-  [`observability/past-max-series-a-new-series-is-refused`](observability.md#observability-past-max-series-a-new-series-is-refused), never O(requests served) — the same
-  accounting [`concurrency/cache-memory-is-charged-to-the-core`](concurrency.md#concurrency-cache-memory-is-charged-to-the-core) records.
+  [`observability/past-max-series-a-new-series-is-refused`](observability.md#observability-past-max-series-a-new-series-is-refused), never O(requests served).
 
 **Declined:**
 - **A shared, coherent metrics store.** It is the cross-request coordination
@@ -247,7 +246,7 @@ to constrain — and it passes that rule's own test rather than being an excepti
 - **A read path on `Core\Metrics`.** A program that reads a metric to decide something is using the
   wrong tier, and the first bullet above would stop being true.
 
-<sub>See also [`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit), [`concurrency/cache-memory-is-charged-to-the-core`](concurrency.md#concurrency-cache-memory-is-charged-to-the-core), [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`observability/past-max-series-a-new-series-is-refused`](observability.md#observability-past-max-series-a-new-series-is-refused), [`security/metric-label-refuses-tainted`](security.md#security-metric-label-refuses-tainted).</sub>
+<sub>See also [`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit), [`concurrency/a-cross-request-stores-bytes-are-its-own-balance`](concurrency.md#concurrency-a-cross-request-stores-bytes-are-its-own-balance), [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`observability/past-max-series-a-new-series-is-refused`](observability.md#observability-past-max-series-a-new-series-is-refused), [`security/metric-label-refuses-tainted`](security.md#security-metric-label-refuses-tainted).</sub>
 
 <a id="observability-past-max-series-a-new-series-is-refused"></a>
 
@@ -267,16 +266,15 @@ eviction is that every value is unchanged across the boundary. The ten of
 [`observability/default-series`](observability.md#observability-default-series) are seeded ahead of the bound.
 
 - **Memory:** O(cores × series), bounded by `max_series` per core, a counter costing its key and
-  eight bytes and a histogram its bucket array. Charged to the core, not to a request, exactly as
-  [`concurrency/cache-memory-is-charged-to-the-core`](concurrency.md#concurrency-cache-memory-is-charged-to-the-core) charges the cache, and never O(requests
-  served). Zero series until something registers one.
+  eight bytes and a histogram its bucket array. Charged to the core, not to a request, and never
+  O(requests served). Zero series until something registers one.
 
 **Declined:**
 - **Evicting the least-recently-used series past the cap.** A recreated counter appears to reset,
   which every backend reads as a process restart and which silently corrupts every `rate()` and
   `increase()` over it. A wrong number on a dashboard is worse than a missing one.
 
-<sub>See also [`observability/a-registry-is-per-core-and-nothing-reads-it`](observability.md#observability-a-registry-is-per-core-and-nothing-reads-it), [`observability/default-series`](observability.md#observability-default-series), [`concurrency/cache-memory-is-charged-to-the-core`](concurrency.md#concurrency-cache-memory-is-charged-to-the-core), [`programs/memory-priority`](programs.md#programs-memory-priority).</sub>
+<sub>See also [`observability/a-registry-is-per-core-and-nothing-reads-it`](observability.md#observability-a-registry-is-per-core-and-nothing-reads-it), [`observability/default-series`](observability.md#observability-default-series), [`concurrency/a-cross-request-stores-bytes-are-its-own-balance`](concurrency.md#concurrency-a-cross-request-stores-bytes-are-its-own-balance), [`programs/memory-priority`](programs.md#programs-memory-priority).</sub>
 
 <a id="observability-metrics-and-trace-blocks-are-system"></a>
 

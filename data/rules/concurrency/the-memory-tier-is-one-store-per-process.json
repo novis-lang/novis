@@ -1,0 +1,19 @@
+{
+  "title": "`Core\\Cache::memory()` is one store per serving process, coherent across its cores, capped in `nvs.toml` and gone when the process ends",
+  "status": "shipped",
+  "seeAlso": [
+    "core-api/two-cache-tiers",
+    "concurrency/cross-request-state-is-explicit",
+    "concurrency/the-memory-tier-cannot-hold-what-must-be-coherent",
+    "concurrency/a-cross-request-stores-bytes-are-its-own-balance",
+    "http-server/the-accept-fan-out-is-one-worker-per-core",
+    "programs/memory-priority"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/cache-memory-tier-is-read-by-a-later-request.nvst",
+    "tests/conformance/core/cache-memory-tier-evicts-past-its-cap-and-never-fails-a-put.nvst",
+    "tests/conformance/core/cache-memory-forgets-an-entry-rather-than-failing-the-write.nvst",
+    "crates/nvs-stdlib/src/cache.rs",
+    "crates/nvs-config/tests/directives.rs"
+  ]
+}

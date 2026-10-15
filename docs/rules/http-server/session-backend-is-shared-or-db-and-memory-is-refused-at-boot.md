@@ -1,0 +1,36 @@
+```toml
+[session]
+backend = "shared"      # or "db"; there is no third value and no default that reaches a store
+ttl     = "2h"          # how long an untouched record survives; the store enforces it
+cookie  = "nvsid"       # the name the identifier rides under
+```
+
+`shared` is the coherent tier reached at `[cache.shared] url`
+(`rule:config/cache-shared-is-the-grant-over-the-configured-store`); `db` is a table in a
+`[db.<name>]`. `backend = "memory"` is `E0626`, and its note says what that store loses — a request
+another server process handles finds no session, and a restart deletes every one — and names the file
+the key was written in. That is what "enforced rather than documented" means: the value is refused
+where it is written, not where it is used, so a deployment cannot be running on a session store held in
+one process while believing otherwise. A generic unknown-value refusal would not do it: an operator who
+wrote `memory` because `Core\Cache::memory()` is the fast store needs the sentence explaining why the
+fast answer is the wrong one. Any other word gets the same code with a note naming the two that are
+admitted. The note's text is `REFUSED_NOTE` in `crates/nvs-config/src/session.rs`.
+
+The roster is a type with no memory variant, and every store operation is written against the shared
+tier's connection rather than the tier enum, so the process's map is absent rather than merely
+unselected. The key is `System` class (`rule:config/system-means-a-request-may-not-set-it`), because
+where a fleet's sessions live is a deployment decision. It reloads: a request reads the block from the
+snapshot it cloned, so a changed backend reaches the next request, and no record moves from the old
+store to the new one, which signs every user out. An absent block is not a default backend
+(`rule:http-server/no-session-block-means-no-store`).
+
+Both backends cost a session one round trip on a read and two on a write. That is latency spent to
+buy security and request isolation: the memory tier would cost none, and it is refused because a
+session there is not coherent across processes and does not survive a restart
+(`rule:concurrency/the-memory-tier-cannot-hold-what-must-be-coherent`).
+
+**Declined:**
+- **A file backend.** It is per-machine, so a fleet either shares a filesystem or loses sessions on
+  every deploy, and a file cannot expire itself, which brings back the sweeper
+  `rule:http-server/session-expiry-belongs-to-the-store` declines. A single-machine deployment loses
+  nothing it cannot get from the shared tier on loopback or a socket.

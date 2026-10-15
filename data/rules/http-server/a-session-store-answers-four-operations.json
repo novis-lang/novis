@@ -4,7 +4,7 @@
   "seeAlso": [
     "core-api/session-roster",
     "core-classes/session-is-started-explicitly",
-    "http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot",
+    "http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot",
     "http-server/session-expiry-belongs-to-the-store",
     "concurrency/a-cached-value-is-copied-across-the-boundary"
   ],

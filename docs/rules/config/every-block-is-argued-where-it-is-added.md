@@ -23,7 +23,7 @@ that adds the block, so a reader of `nvs.toml` has one place to start:
 | `[image]` | `rule:core-classes/image-pipeline` |
 | `[io]` | `rule:core-classes/temporary-dir-sweep` |
 | `[mail.<name>]`, `[storage.<name>]` | `rule:programs/framework-core-half` |
-| `[session]` | `rule:http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot` |
+| `[session]` | `rule:http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot` |
 | `[app.log]` | `rule:errors/handler-script` |
 
 `[[schedule]]`, like `[[extension]]`, is an array of tables because it is a repeated record with

@@ -1,6 +1,6 @@
 On a miss, `getSecret`'s `fill` runs in **exactly one caller per process**, in that caller's own request and
 under its own capabilities, while every other caller on every core waits for it — each for at most its
-`wait`, which inherits `[cache.process] fill_wait`, and past which it throws `TimeoutError`. `fill` answers
+`wait`, which inherits `[cache.memory] fill_wait`, and past which it throws `TimeoutError`. `fill` answers
 a `Core\Cache\SecretEntry`, which carries the value and the lifetime the fetch learned, a token endpoint
 being the authority on its own.
 
@@ -18,7 +18,7 @@ four fifths of every lifetime untouched and gives a fetch room to fail once and 
 caller before anybody waits. Refresh-ahead is `getSecret`-with-a-`fill` and nothing else: a plain `get`
 past its lifetime is simply absent.
 
-**`[cache.process] fill_wait` ships at `5s`,** `System`-class and applied on reload. The filler may spend
+**`[cache.memory] fill_wait` ships at `5s`,** `System`-class and applied on reload. The filler may spend
 its whole `[http.client] deadline`, which ships at `30s`, but a waiter is a request held on the latency
 path, and a slow provider that held every in-flight request on the box for half a minute is the outage
 this tier exists to prevent. Five seconds is generous for a token endpoint and short enough that a caller

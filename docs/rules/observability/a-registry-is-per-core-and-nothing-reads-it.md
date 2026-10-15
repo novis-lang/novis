@@ -11,8 +11,7 @@ to constrain — and it passes that rule's own test rather than being an excepti
 - **No request-derived value crosses**, because `rule:security/metric-label-refuses-tainted` forbids
   exactly that. What accumulates is a fixed set of series with bounded label sets.
 - **Memory is charged to the core and capped** — O(cores × series), bounded by
-  `rule:observability/past-max-series-a-new-series-is-refused`, never O(requests served) — the same
-  accounting `rule:concurrency/cache-memory-is-charged-to-the-core` records.
+  `rule:observability/past-max-series-a-new-series-is-refused`, never O(requests served).
 
 **Declined:**
 - **A shared, coherent metrics store.** It is the cross-request coordination

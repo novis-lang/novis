@@ -37,7 +37,7 @@
     "http-server/cookies-are-secure-httponly-and-lax",
     "http-server/policy-headers-are-runtime-class-and-setheader-wins",
     "http-server/a-session-store-answers-four-operations",
-    "http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot",
+    "http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot",
     "http-server/no-session-block-means-no-store",
     "http-server/a-session-is-loaded-once-and-written-whole",
     "http-server/session-expiry-belongs-to-the-store",

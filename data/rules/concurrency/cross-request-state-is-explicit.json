@@ -8,7 +8,7 @@
     "statements/storage-that-outlives-a-call"
   ],
   "guardedBy": [
-    "tests/conformance/core/cache-local-and-shared-are-two-members-with-two-contracts.nvst",
-    "tests/conformance/core/cache-local-twice-is-one-store-and-not-two.nvst"
+    "tests/conformance/core/cache-memory-and-shared-are-two-members-with-two-contracts.nvst",
+    "tests/conformance/core/cache-memory-twice-is-one-store-and-not-two.nvst"
   ]
 }

@@ -2633,8 +2633,8 @@ for a superglobal. A member called before `start` throws naming itself, and the 
 at the root like any other.
 
 The shape is fixed here: a class, an explicit start, no ambient array. The mechanics are a feature of
-their own — the store is the shared cache tier or the database, the local tier is refused at boot
-because a session in per-core memory is not a session, there is no lock, and expiry is the store's
+their own — the store is the shared cache tier or the database, the memory tier is refused at boot
+because a session held by one process is not a session, there is no lock, and expiry is the store's
 own rather than a sweeper's.
 
 What this costs is one line per request that uses sessions. What it buys is that a request that does
@@ -2655,10 +2655,16 @@ not use them pays nothing, which the ambient version could never promise.
 `Core\RateLimit::consume` and `::shed` are two jobs with two verbs, and the verb says which one you
 are doing. `consume` enforces a policy the application promised somebody — a plan quota, a login
 limit — over the shared store, coherently, because a policy only approximately enforced is not
-enforced. `shed` drops load to keep a host up, per core, and an approximate answer is entirely
-adequate for that because the goal is "less than the amount that hurts", not a number. `shed`'s
-contract states its arithmetic out loud: its count is per core, so a limit of 100 across eight cores
-admits up to 800.
+enforced. `shed` drops load to keep a host up, from the serving process's own memory, and an
+approximate answer is entirely adequate for that because the goal is "less than the amount that
+hurts", not a number. `shed`'s contract states its arithmetic out loud: its count is per server
+process, so a limit of 100 on each of four processes admits up to 400 across the deployment, and an
+arrival the cache's cap forgets admits a burst again.
+
+`shed` keeps its count in the memory tier ([`concurrency/the-memory-tier-is-one-store-per-process`](concurrency.md#concurrency-the-memory-tier-is-one-store-per-process)),
+scoped by app and configuration generation like any key there and bounded by the same
+`[cache.memory] max_size`. The read and the write of one arrival are one step under the shard's write
+lock, so every core of a process charges the same count and two cores never both admit the last unit.
 
 They are not two tiers of one operation, and a flag on one member could not carry the difference.
 
@@ -2666,9 +2672,9 @@ The class exists for the limits only the application can key: five failed logins
 quota per tenant plan, ten exports per user per hour. Per-account login throttling is what stops
 credential stuffing, which per-IP throttling does not, because the attacker has many addresses and
 the victim has one account — and no proxy knows which account a request authenticates as. Left
-without a class, an application writes one of two wrong limiters: a counter in the per-core tier,
-which silently admits `cores ×` the limit, or an insert-and-count against the database, which puts
-a write on the hot path of the endpoint it protects. The price of `consume`'s coherence is a network
+without a class, an application writes one of two wrong limiters: a counter kept with `get` and `put`
+in the memory tier, which two cores race and every process counts on its own, or an insert-and-count
+against the database, which puts a write on the hot path of the endpoint it protects. The price of `consume`'s coherence is a network
 round trip on that path, the same floor the shared cache tier accepts, and it is why `shed` exists
 for the cases that do not need it.
 
@@ -2686,9 +2692,7 @@ more machinery with no named use case yet.
 - **One member with a `coherent: true` option.** The default is chosen once and copied, and the wrong
   choice fails silently — the reason `Core\Cache` has two members
   ([`core-api/two-cache-tiers`](core-api.md#core-api-two-cache-tiers)).
-- **Naming them `local` and `shared`** to mirror `Core\Cache`. That presents them as two tiers of one
-  operation: a per-core policy limiter is not a weaker coherent one, it is a different thing used for
-  a different reason.
+
 - **A middleware or attribute that applies a limit to a route.** It needs a dispatch pipeline Novis
   does not have ([`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered)), and what to do about a limit is
   application logic.
@@ -2720,9 +2724,9 @@ and `null` exactly when `allowed` is true — absence is `?T`, not a sentinel ze
 qualifier-neutral. The key **accepts `tainted`**, since a tenant or account id is user-derived by
 nature and the store's protocol is length-prefixed, so a key cannot reshape a command; it
 **refuses `secret`**, because using a signing key as a rate-limit key writes it into a store with a
-TTL. A program that needs to limit on a secret keys on a hash of it (`Core\Hash::of`). The
-in-process tier is an existing crate; the shared tier is a small script of our own, an algorithm
-over our own state.
+TTL. A program that needs to limit on a secret keys on a hash of it (`Core\Hash::of`). `shed`'s
+half is one step over a timestamp in the memory tier; `consume`'s is a small script of our own in
+the shared store, an algorithm over our own state.
 
 **Declined:**
 - **A sliding-window counter or log.** The counter cannot give an exact `retryAfter`, and the log

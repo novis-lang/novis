@@ -11,7 +11,7 @@ explicit arguments.
 
 This does not close operator configuration, which is governed, per-request, and cannot widen an
 operator's ceiling. The rule is about **userland calls whose effect outlives or escapes the caller's
-own request**. The replacement is a per-core or real shared cache, where the sharing is explicit,
+own request**. The replacement is `Core\Cache`'s memory or shared tier, where the sharing is explicit,
 bounded, and visible in the grants.
 
 **Declined:**

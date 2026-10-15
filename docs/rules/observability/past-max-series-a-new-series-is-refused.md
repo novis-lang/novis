@@ -10,9 +10,8 @@ eviction is that every value is unchanged across the boundary. The ten of
 `rule:observability/default-series` are seeded ahead of the bound.
 
 - **Memory:** O(cores × series), bounded by `max_series` per core, a counter costing its key and
-  eight bytes and a histogram its bucket array. Charged to the core, not to a request, exactly as
-  `rule:concurrency/cache-memory-is-charged-to-the-core` charges the cache, and never O(requests
-  served). Zero series until something registers one.
+  eight bytes and a histogram its bucket array. Charged to the core, not to a request, and never
+  O(requests served). Zero series until something registers one.
 
 **Declined:**
 - **Evicting the least-recently-used series past the cap.** A recreated counter appears to reset,

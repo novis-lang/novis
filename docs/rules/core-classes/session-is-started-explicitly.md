@@ -5,8 +5,8 @@ for a superglobal. A member called before `start` throws naming itself, and the 
 at the root like any other.
 
 The shape is fixed here: a class, an explicit start, no ambient array. The mechanics are a feature of
-their own — the store is the shared cache tier or the database, the local tier is refused at boot
-because a session in per-core memory is not a session, there is no lock, and expiry is the store's
+their own — the store is the shared cache tier or the database, the memory tier is refused at boot
+because a session held by one process is not a session, there is no lock, and expiry is the store's
 own rather than a sweeper's.
 
 What this costs is one line per request that uses sessions. What it buys is that a request that does

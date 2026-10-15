@@ -7,7 +7,7 @@
     "core-classes/topic"
   ],
   "guardedBy": [
-    "tests/conformance/core/ratelimit-shed-is-per-core-and-reaches-no-store.nvst",
+    "tests/conformance/core/ratelimit-shed-is-per-process-and-reaches-no-store.nvst",
     "tests/conformance/core/ratelimit-shed-keys-its-own-memory.nvst",
     "tests/conformance/core/ratelimit-weighs-a-call-with-one-trailing-shape.nvst"
   ]

@@ -3,7 +3,7 @@
   "status": "shipped",
   "seeAlso": [
     "http-server/a-session-store-answers-four-operations",
-    "http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot",
+    "http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot",
     "concurrency/who-runs-a-job-is-configuration"
   ],
   "guardedBy": [

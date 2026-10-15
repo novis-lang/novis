@@ -4,7 +4,7 @@ test rather than by convenience:
 | Member | Placed by | Notes |
 |---|---|---|
 | `Core\Router::match` / `::url` | privilege | the compile-time route table |
-| `Core\Session` | privilege, sink | state keyed across requests, and the cookie is a sink; a session may not be backed by a lossy local tier |
+| `Core\Session` | privilege, sink | state keyed across requests, and the cookie is a sink; a session may not be backed by the memory cache, which one process holds and a restart empties |
 | `Core\Validate` | sink | **the launderer** — every rule converting `tainted` input into a checked value lives here, and this is the one entry that could not be a package under any circumstances |
 | `Core\Password` | privilege, sink | Argon2id hash and constant-time verify over a `secret`, a crypto primitive rather than an application-security protocol |
 | `Core\Queue` | privilege | enqueue, claim, retry, dead-letter |

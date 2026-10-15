@@ -1,5 +1,5 @@
 {
-  "title": "Anything a program relies on the value of goes to the shared tier, and a weaker tier is not offered for it",
+  "title": "Anything a program relies on the value of goes to the shared tier, and the memory tier is not offered for it",
   "status": "shipped",
   "seeAlso": [
     "core-api/session-roster",
@@ -8,8 +8,8 @@
     "security/no-cross-request-state"
   ],
   "guardedBy": [
-    "tests/conformance/core/a-session-survives-a-request-on-another-core.nvst",
+    "tests/conformance/core/a-session-survives-a-request-on-another-process.nvst",
     "tests/conformance/core/session-start-reaches-the-configured-shared-store-and-never-one-of-its-own.nvst",
-    "tests/conformance/core/cache-a-local-entry-may-be-absent-at-any-time.nvst"
+    "tests/conformance/core/cache-a-memory-entry-may-be-absent-at-any-time.nvst"
   ]
 }

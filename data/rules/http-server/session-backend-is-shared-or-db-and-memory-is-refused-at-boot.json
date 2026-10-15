@@ -1,8 +1,8 @@
 {
-  "title": "`[session] backend` admits `shared` and `db`, and writing `local` is a boot refusal naming the file it was written in",
+  "title": "`[session] backend` admits `shared` and `db`, and writing `memory` is a boot refusal naming the file it was written in",
   "status": "shipped",
   "seeAlso": [
-    "concurrency/the-local-tier-cannot-hold-what-must-be-coherent",
+    "concurrency/the-memory-tier-cannot-hold-what-must-be-coherent",
     "http-server/no-session-block-means-no-store",
     "config/cache-shared-is-the-grant-over-the-configured-store",
     "config/system-means-a-request-may-not-set-it",
@@ -11,7 +11,7 @@
   "guardedBy": [
     "crates/nvs-config/src/session.rs",
     "crates/nvs-stdlib/src/session.rs",
-    "tests/conformance/core/a-session-survives-a-request-on-another-core.nvst",
+    "tests/conformance/core/a-session-survives-a-request-on-another-process.nvst",
     "tests/conformance/core/session-start-reaches-the-configured-shared-store-and-never-one-of-its-own.nvst"
   ]
 }

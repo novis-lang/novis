@@ -1,6 +1,6 @@
 Every `[[schedule]]` entry writes `scope`, and there is no default. `"host"` fires the entry on every
 host running `nvs serve`, each on its own clock, with no coordination and no lock — right for anything
-whose effect is local: warming the per-core cache tier, rotating a local file, sampling host state.
+whose effect is local: warming `Core\Cache::memory()`, rotating a local file, sampling host state.
 `"fleet"` fires it once per interval across the whole deployment
 (`rule:config/a-fleet-entry-fires-at-most-once-under-a-lease`). An entry with neither, or with a third
 word, refuses the boot naming both options with one sentence each.

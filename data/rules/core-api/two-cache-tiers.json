@@ -7,8 +7,8 @@
     "core-api/one-paradigm-per-operation"
   ],
   "guardedBy": [
-    "tests/conformance/core/cache-local-and-shared-are-two-members-with-two-contracts.nvst",
-    "tests/conformance/core/cache-a-local-entry-may-be-absent-at-any-time.nvst",
-    "tests/conformance/core/cache-local-forgets-an-entry-rather-than-failing-the-write.nvst"
+    "tests/conformance/core/cache-memory-and-shared-are-two-members-with-two-contracts.nvst",
+    "tests/conformance/core/cache-a-memory-entry-may-be-absent-at-any-time.nvst",
+    "tests/conformance/core/cache-memory-forgets-an-entry-rather-than-failing-the-write.nvst"
   ]
 }

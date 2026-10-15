@@ -3,7 +3,7 @@
   "status": "shipped",
   "seeAlso": [
     "concurrency/cross-request-state-is-explicit",
-    "concurrency/cache-memory-is-charged-to-the-core",
+    "concurrency/a-cross-request-stores-bytes-are-its-own-balance",
     "core-classes/ratelimit-two-members",
     "observability/past-max-series-a-new-series-is-refused",
     "security/metric-label-refuses-tainted"

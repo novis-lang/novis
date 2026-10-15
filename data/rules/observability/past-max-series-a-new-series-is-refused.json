@@ -4,7 +4,7 @@
   "seeAlso": [
     "observability/a-registry-is-per-core-and-nothing-reads-it",
     "observability/default-series",
-    "concurrency/cache-memory-is-charged-to-the-core",
+    "concurrency/a-cross-request-stores-bytes-are-its-own-balance",
     "programs/memory-priority"
   ],
   "guardedBy": [
