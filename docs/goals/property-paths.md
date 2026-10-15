@@ -14,7 +14,7 @@ stages:
         shapes: [A rule fragment]
   - id: 2
     title: "`static` is the calling class in a parameter and in an array return"
-    status: open
+    status: done
     context: [crates/nvs-types/src/signatures.rs, crates/nvs-types/src/expr/calls.rs, crates/nvs-types/src/lower.rs]
     extra:
       context:
@@ -79,7 +79,7 @@ checks:
     run: [bun, nv, rules, --check]
   - id: static-binds
     stage: 2
-    name: "`static` in a parameter type and in a `static[]` or `?static` return is the class the call names"
+    name: "`static` in a parameter type and in an `array<static>` or `?static` return is the class the call names"
     run: [bun, nv, suite, tests/conformance/, --case, tests/conformance/lang/a-static-parameter-type-is-the-class-the-call-names.nvst, --case, tests/conformance/lang/a-static-array-return-is-the-class-the-call-names.nvst]
     tests: [tests/conformance/lang/a-static-parameter-type-is-the-class-the-call-names.nvst, tests/conformance/lang/a-static-array-return-is-the-class-the-call-names.nvst]
   - id: literal-at-key-parameter
@@ -153,7 +153,7 @@ takes the fallback named, and records it in the rule.
 
 **`propertyPath<T>`** is a type atom beside `property<T>`, in the same rule family. Its values are
 dotted chains of public property names, starting at `T`. Every segment but the last names a property
-whose type is a class `C`, a `?C`, or an array of `C` (`C[]`, `array<C>`), and the next segment is
+whose type is a class `C`, a `?C`, or an array of `C` (`array<C>`), and the next segment is
 looked up on `C`. The last segment is any public property. `T` follows `property<T>`'s rules exactly:
 a class, `E0799` otherwise, visibility decided at the conversion, contravariant
 (`rule:types/property-key-variance`), its own equality domain. `as string` is total and gives the
@@ -175,12 +175,13 @@ keeps today's meaning: any string, names offered, nothing checked.
 `$category->find(...)`, a `static` inside a parameter type (`propertyPath<static>`,
 `string<propertyPath<static>>`) is the receiver's class, the way an exact `static` return already is
 (`MethodSig::returns_static`, `crates/nvs-types/src/expr/calls.rs:240`,
-`crates/nvs-types/src/expr/calls.rs:652`). A `static[]` and a `?static` return are bound the same way,
-which `writes_static_return` leaves out today (`crates/nvs-types/src/signatures.rs:1698`). Inside the
-method body a `property<static>` or `propertyPath<static>` value may be applied only to a receiver
-whose type is `static`, converted with `as string`, or passed on. Fallback: if the checker cannot keep
-`static` apart from the declaring class inside the body, the body may only convert it with `as string`
-or pass it to `Core\Str::parts` or `Core\Reflect::steps`; the rule says so.
+`crates/nvs-types/src/expr/calls.rs:652`). An `array<static>` and a `?static` return are bound the
+same way. Stage 2 took the fallback, because the checker types `static` as the declaring class inside
+the body: there a `property<static>` is a `string`, the property's name, and
+`rule:statements/static-is-a-member-modifier` says so. Stage 4 does the same for
+`propertyPath<static>` (`crates/nvs-types/src/signatures.rs:static_key_as_text`), and stage 7 decides
+how such a body reaches `Core\Str::parts` and `Core\Reflect::steps`, either by accepting that text or
+by converting it with `as propertyPath<self>`.
 
 **`string<K>`** is a string with holes. The name is the user's call: it adds no new word, so it clashes
 with nothing, and it says what the value is. `format` was declined because `Core\Str::format` is the
@@ -281,11 +282,11 @@ are checked and completed where they were plain strings. Simplicity: one new typ
 
 ### 2. `static` is the calling class in a parameter and in an array return
 
-**Does:** a `static` in a parameter type and in a `static[]` or `?static` return is the class the call names.
+**Does:** a `static` in a parameter type and in an `array<static>` or `?static` return is the class the call names.
 
-- [ ] Bind `static` in a parameter type at the call. `crates/nvs-types/src/expr/calls.rs:244`
-- [ ] Bind a `static[]` and a `?static` return. `crates/nvs-types/src/signatures.rs:1720`
-- [ ] Keep `static` apart from the declaring class inside the body, or take the fallback. `crates/nvs-types/src/lower.rs:798`
+- [x] Bind `static` in a parameter type at the call. `crates/nvs-types/src/expr/calls.rs:244`
+- [x] Bind an `array<static>` and a `?static` return. `crates/nvs-types/src/signatures.rs:1720`
+- [x] Keep `static` apart from the declaring class inside the body, or take the fallback. `crates/nvs-types/src/lower.rs:798`
 
 ### 3. a literal at a key parameter is checked where it is written
 
@@ -347,25 +348,27 @@ are checked and completed where they were plain strings. Simplicity: one new typ
 
 ### State
 
-Stage 1 is done: six rules are `designed` and owned by this goal, and `bun nv rules --check` is
-clean. The three new features' rules are `types/property-path`, `types/string-holes` and
-`core-classes/str-parts-and-reflect-steps`. The changes to shipped rules are three more designed
-rules, each named from the rule it changes (§ *Standing decisions*, *The rules*). No code is built.
-`property<T>`'s roster is recorded per class (`crates/nvs-types/src/expr/members.rs:704`).
+Stages 1 and 2 are done. A call binds `static` in a parameter and in a return type to the class it
+names, through `MethodSig::bound_to` (`crates/nvs-types/src/signatures.rs`), and `E0741` holds an
+`array<static>` or `?static` body to the called class. The body took the fallback: a
+`property<static>` is a `string` there. The designed `static` rule is folded into
+`rule:statements/static-is-a-member-modifier` and deleted, and both `static-binds` cases pass.
+`property<T>`'s contravariance (`rule:types/property-key-variance`) was missing from `is_assignable`
+and is now there (`crates/nvs-types/src/expr/assign.rs:287`). Novis has no `T[]` syntax, so the goal
+and the rules write `array<T>`.
 
-The nightly CI failures the sweep reported were all on `origin/main` at `cb7021a2`, which is 647
-commits behind local `main`. Locally the `docs` job's step exists (`475096d13`), the LDAP cases skip
-(`bad78dd04`), the `nvs-cli` doc link is plain code, `render --website --check` is current and
-`Core\Str`'s perf is current. Two Linux-only tests were not checked on HEAD; see the backlog.
+Five designed rules are left, owned by this goal: `types/property-path`, `types/string-holes`,
+`core-classes/str-parts-and-reflect-steps`, `types/a-literal-at-a-key-parameter-is-checked-where-it-is-written`
+and `ide/a-field-path-completes-one-segment-at-a-time`. The nightly CI failures are on `origin/main`
+at `cb7021a2`, which is far behind local `main` and was checked in the previous session.
 
 ### Next
 
-**Stage 2: `static` is the calling class**, one file set: `crates/nvs-types/src/signatures.rs`, `crates/nvs-types/src/expr/calls.rs`, `crates/nvs-types/src/lower.rs`.
+**Stage 3: a literal at a key parameter is checked where it is written**, one file set: `crates/nvs-types/src/expr/members.rs`, `crates/nvs-types/src/expr/args.rs`, `crates/nvs-lsp/src/arguments.rs`.
 
-- [ ] Bind `static` in a parameter type at the call, by `rule:statements/static-in-a-parameter-type-is-the-class-the-call-names`. `crates/nvs-types/src/expr/calls.rs:244`
-- [ ] Bind a `static[]` and a `?static` return. `crates/nvs-types/src/signatures.rs:1720`
-- [ ] Keep `static` apart from the declaring class in the body, or take the fallback the rule names. `crates/nvs-types/src/lower.rs:798`
-- [ ] Write the two `static-binds` cases, fold the designed rule into `rule:statements/static-is-a-member-modifier`, and delete it. `docs/rules/statements/static-in-a-parameter-type-is-the-class-the-call-names.md:1`
+- [ ] Convert a string literal at a parameter typed `property<T>` alone while compiling, by `rule:types/a-literal-at-a-key-parameter-is-checked-where-it-is-written`. `crates/nvs-types/src/expr/members.rs:719`
+- [ ] Offer `T`'s names inside a literal at a `property<T>`-only parameter, by `rule:ide/completion-offers-only-what-the-compiler-derived`. `crates/nvs-lsp/src/arguments.rs:309`
+- [ ] Write the `literal-at-key-parameter` case and the `.lspt` case, fold the designed rule into `rule:types/property-key`, and delete it. `docs/rules/types/property-key.md:28`
 
 ### Backlog
 
