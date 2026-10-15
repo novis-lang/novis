@@ -5,7 +5,8 @@
     "testing/fixtures",
     "testing/after-each-test",
     "testing/db-transaction",
-    "testing/isolate-per-test"
+    "testing/isolate-per-test",
+    "testing/tests-run-across-every-core"
   ],
   "guardedBy": [],
   "goal": "test-hooks"

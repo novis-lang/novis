@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-cli/src/runner.rs",
-  "title": "`rule:testing/isolate-per-test`'s parallelism is not built: the isolates are made and joined one at a time.",
-  "text": "`rule:testing/isolate-per-test` makes an isolate per test *and* the suite parallel. Only the second half is open, and it is a scheduling question rather than an isolation one: every test already runs in an isolate of its own. The design is decided: the runner places test isolates across every core with `rule:concurrency/on-worker-runs-the-child-on-another-core`'s placement, chooses how many run at once itself with no setting, and guarantees only the order `rule:testing/class-hooks` gives, never data consistency between classes. Two things it must answer when it lands: per-test coverage counts assume one test at a time (`crates/nvs-cli/src/runner.rs:781`), and a case that reads the terminal.",
-  "milestone": "M10"
-}

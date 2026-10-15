@@ -3,7 +3,7 @@
 
 # Testing
 
-*15 of 60 rules below are **designed** rather than shipped, and are marked where they appear.*
+*16 of 61 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="testing-test-attribute"></a>
 
@@ -312,11 +312,9 @@ by type: `class`, the counts `passed`, `failed`, `flaky` and `skipped`, and `fai
 the failed tests as the report prints them. A hook that keeps the database when `failed` is above zero
 and drops it otherwise is the case it exists for.
 
-The runner guarantees the order and nothing about data. Tests and classes run in parallel across every
-core, as many at once as the runner chooses, so the one promise is that `#[BeforeClass]` returns before
-the class's first test starts and `#[AfterClass]` starts after its last test has finished. Two classes
-whose setups touch the same database run at the same time, and keeping them apart, for instance by
-naming the database after the class, is the program's job.
+This order is the whole of what the runner guarantees. Classes run at the same time
+([`testing/tests-run-across-every-core`](testing.md#testing-tests-run-across-every-core)), so two classes whose setups touch one database keep
+apart themselves, for instance by naming the database after the class.
 
 Tests of one class share what the setup wrote, so a test that writes to it runs under
 `#[Test(db:)]` ([`testing/db-transaction`](testing.md#testing-db-transaction)). Without that, one test's rows reach the next and the
@@ -341,7 +339,7 @@ and set up nothing.
 - **`#[BeforeAllTests]` and `#[AfterAllTests]`.** In a run of many classes, "all tests" reads as the
   whole run. `Class` names the scope.
 
-<sub>See also [`testing/fixtures`](testing.md#testing-fixtures), [`testing/after-each-test`](testing.md#testing-after-each-test), [`testing/db-transaction`](testing.md#testing-db-transaction), [`testing/isolate-per-test`](testing.md#testing-isolate-per-test).</sub>
+<sub>See also [`testing/fixtures`](testing.md#testing-fixtures), [`testing/after-each-test`](testing.md#testing-after-each-test), [`testing/db-transaction`](testing.md#testing-db-transaction), [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/tests-run-across-every-core`](testing.md#testing-tests-run-across-every-core).</sub>
 
 <a id="testing-hook-inheritance"></a>
 
@@ -379,6 +377,44 @@ override by name replaces it, and a second fixture of the same type under anothe
   paired with its own cleanup. Several steps go in the one method, in the order they are written.
 
 <sub>See also [`testing/class-hooks`](testing.md#testing-class-hooks), [`testing/after-each-test`](testing.md#testing-after-each-test), [`testing/fixtures`](testing.md#testing-fixtures).</sub>
+
+<a id="testing-tests-run-across-every-core"></a>
+
+## `nvs test` runs tests in parallel across every core, and guarantees the hooks' order but not data consistency  *(designed — owned by goal test-hooks)*
+
+`rule:testing/tests-run-across-every-core`
+
+`nvs test` runs test isolates in parallel across every core, as many at once as the runner chooses,
+with no setting. Every test already runs in an isolate of its own ([`testing/isolate-per-test`](testing.md#testing-isolate-per-test)), so
+running them at once is a scheduling question and not an isolation one. The runner places each test
+isolate with the placement a program uses ([`concurrency/on-worker-runs-the-child-on-another-core`](concurrency.md#concurrency-on-worker-runs-the-child-on-another-core)).
+
+The runner guarantees order and nothing about data. The order it guarantees is the one
+[`testing/class-hooks`](testing.md#testing-class-hooks) gives: `#[BeforeClass]` returns before the class's first test starts,
+the class's fixtures are built before its first test, and `#[AfterClass]` starts after its last test has
+finished. Tests of one class, and tests of different classes, run at the same time. What two of them
+share outside their isolates, a database or a file, is the program's to keep apart.
+
+The report is in declaration order, whatever order the tests finish in ([`testing/runner-is-strict`](testing.md#testing-runner-is-strict)),
+so a parallel run and a run on one core report the same thing. Coverage counts each test into a table
+of its own and adds it to the run's when the test finishes, so the lines a test reached are still that
+test's.
+
+- **Memory:** each test in flight holds its isolate, its fixture copies and its own coverage table when
+  coverage is on, all released when it finishes. That is O(cores), the most tests running at once, and
+  never O(tests in the suite).
+
+**Not on disk.** The runner makes and finishes the isolates one at a time
+(`crates/nvs-cli/src/runner.rs:781`), and the coverage counts of a test are the growth of one shared
+table while it runs (`crates/nvs-cli/src/runner.rs:378`).
+
+**Declined:**
+- **A setting for the number of tests at once.** The runner fills the cores it has. A program that
+  needs two tests apart keeps them apart in what they share.
+- **A runner that keeps two classes' data apart.** It would have to know what a test touches outside
+  its isolate, and it cannot.
+
+<sub>See also [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/class-hooks`](testing.md#testing-class-hooks), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict), [`concurrency/on-worker-runs-the-child-on-another-core`](concurrency.md#concurrency-on-worker-runs-the-child-on-another-core).</sub>
 
 <a id="testing-data-rows"></a>
 

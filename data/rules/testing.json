@@ -13,6 +13,7 @@
     "testing/fixtures",
     "testing/class-hooks",
     "testing/hook-inheritance",
+    "testing/tests-run-across-every-core",
     "testing/data-rows",
     "testing/doubles",
     "testing/interaction-after-the-fact",

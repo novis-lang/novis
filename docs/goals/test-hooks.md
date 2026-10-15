@@ -1,7 +1,7 @@
 ---
 looper: 1
 title: A test class prepares and cleans up around its tests
-summary: "`#[BeforeClass]`, `#[AfterClass]` and `#[AfterEachTest]` run as their rules say, a subclass inherits them, the fixture examples show a real cost, and `bun nv owners --closes test-hooks` passes."
+summary: "`#[BeforeClass]`, `#[AfterClass]` and `#[AfterEachTest]` run as their rules say, tests run across every core, a subclass inherits the hooks, the fixture examples show a real cost, and `bun nv owners --closes test-hooks` passes."
 context: [crates/nvs-types/src/testing.rs, crates/nvs-cli/src/runner.rs, crates/nvs-types/src/derive.rs]
 stages:
   - id: 1
@@ -28,6 +28,13 @@ stages:
         rules: [testing/class-hooks, testing/after-each-test, testing/runner-is-strict, testing/fixtures]
         shapes: ["A `.nvst` test case", "A `Core` member"]
   - id: 4
+    title: tests run across every core
+    status: open
+    context: [crates/nvs-cli/src/runner.rs, crates/nvs-host/src/placed.rs]
+    extra:
+      context:
+        rules: [testing/tests-run-across-every-core, testing/class-hooks, testing/runner-is-strict, concurrency/on-worker-runs-the-child-on-another-core]
+  - id: 5
     title: a subclass inherits hooks and fixtures
     status: open
     context: [crates/nvs-types/src/testing.rs, crates/nvs-cli/src/runner.rs]
@@ -35,14 +42,14 @@ stages:
       context:
         rules: [testing/hook-inheritance, testing/fixtures]
         shapes: ["A `.nvst` test case"]
-  - id: 5
+  - id: 6
     title: the hooks remove a real file and a real database
     status: open
     context: [crates/nvs-cli/src/runner.rs]
     extra:
       context:
         rules: [testing/after-each-test, testing/class-hooks, testing/db-transaction]
-  - id: 6
+  - id: 7
     title: the feature proofs, and fixture examples with a real cost
     status: open
     context: [docs/examples/lang/testing/core-test-fixture-built-once-injected-by-type/about.md, website/src/content/docs/syntax/testing/fixtures-and-assertions.mdx]
@@ -64,13 +71,18 @@ checks:
     name: the hooks run in order, after a failure, after every attempt, and receive `Outcome` and `Summary`
     run: [bun, nv, suite, tests/conformance/, --case, tests/conformance/lang/class-hooks-run-once-around-a-class.nvst, --case, tests/conformance/lang/after-class-runs-when-before-class-throws.nvst, --case, tests/conformance/lang/after-each-test-runs-after-every-attempt.nvst]
     tests: [tests/conformance/lang/class-hooks-run-once-around-a-class.nvst, tests/conformance/lang/after-class-runs-when-before-class-throws.nvst, tests/conformance/lang/after-each-test-runs-after-every-attempt.nvst]
-  - id: hooks-inherit
+  - id: tests-parallel
     stage: 4
+    name: tests run at once across cores, the class hooks keep their order, and the report and coverage match a run on one core
+    run: [cargo, test, --bin, nvs, "runner::tests::parallel"]
+    tests: [parallel_tests_overlap_on_more_than_one_core, parallel_class_hooks_wrap_every_test_of_their_class, parallel_report_is_in_declaration_order, parallel_coverage_is_each_tests_own]
+  - id: hooks-inherit
+    stage: 5
     name: a subclass runs an inherited hook and fixture, and an override without its attribute does not compile
     run: [bun, nv, suite, tests/conformance/, --case, tests/conformance/lang/a-subclass-inherits-hooks-and-fixtures.nvst, --case, tests/conformance/reject/an-override-of-a-hook-repeats-its-attribute.nvst]
     tests: [tests/conformance/lang/a-subclass-inherits-hooks-and-fixtures.nvst, tests/conformance/reject/an-override-of-a-hook-repeats-its-attribute.nvst]
   - id: owners-closes
-    stage: 6
+    stage: 7
     name: no designed rule or gap names this goal
     run: [bun, nv, owners, --closes, test-hooks]
     reach: true
@@ -90,8 +102,12 @@ a per-test cleanup that knows which test ran.
 
 ## Standing decisions
 
-The three rules are the home of every decision, agreed with the user: `rule:testing/class-hooks`,
-`rule:testing/after-each-test` and `rule:testing/hook-inheritance`. This goal restates none of them.
+The four rules are the home of every decision, agreed with the user: `rule:testing/class-hooks`,
+`rule:testing/after-each-test`, `rule:testing/hook-inheritance` and
+`rule:testing/tests-run-across-every-core`. This goal restates none of them.
+
+**The parallel runner is built here, not in M10.** The user wants the hooks and the runner they are
+ordered by finished together, so the gap that tracked it is gone and the rule owns what is not built.
 Two points the rules leave to the build:
 
 **The names are the user's.** `#[BeforeClass]`, `#[AfterClass]` and `#[AfterEachTest]`. `#[After]` was
@@ -130,19 +146,28 @@ returns. The language gains three attributes, and the rejection of a class-level
 - [ ] `#[AfterEachTest]` inside each attempt. `crates/nvs-cli/src/runner.rs:897`
 - [ ] `Core\Test\Outcome` and `Core\Test\Summary`. `crates/nvs-stdlib/src/test.rs:1`
 
-### 4. a subclass inherits hooks and fixtures
+### 4. tests run across every core
+
+**Does:** `nvs test` runs test isolates at once across every core with a program's own placement, keeps the order `rule:testing/class-hooks` gives, and reports and counts coverage as a run on one core does.
+
+- [ ] Decide with the user what a test that prints or reads the terminal does while others run, before building. `crates/nvs-cli/src/runner.rs:16`
+- [ ] Place each test isolate with `on: "worker"`'s placement, the class hooks around each class's tests. `crates/nvs-cli/src/runner.rs:804`
+- [ ] Coverage counted into one table per test and added to the run's when it finishes. `crates/nvs-cli/src/runner.rs:378`
+- [ ] Each `#[Test(server: true)]` listener runs beside others. `crates/nvs-cli/src/runner.rs:1505`
+
+### 5. a subclass inherits hooks and fixtures
 
 **Does:** test collection reads inherited methods, so an inherited hook or fixture runs for the subclass, and an override without its attribute does not compile.
 
 - [ ] Find whether inherited `#[Test]` methods are collected today. `check_class_tests` reads one `ClassDecl`. `crates/nvs-types/src/testing.rs:345`
 
-### 5. the hooks remove a real file and a real database
+### 6. the hooks remove a real file and a real database
 
 **Does:** a runner test shows a file removed by `#[AfterEachTest]` and a database seeded by `#[BeforeClass]` and dropped by `#[AfterClass]`, under the grants the program already gives a test.
 
 - [ ] The database case over the compose PostgreSQL the `db:` runner tests already open. `crates/nvs-cli/src/runner.rs:2759`
 
-### 6. the feature proofs, and fixture examples with a real cost
+### 7. the feature proofs, and fixture examples with a real cost
 
 **Does:** the hooks have their feature proofs, and the fixture page shows why a fixture exists.
 
