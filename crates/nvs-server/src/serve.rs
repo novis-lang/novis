@@ -741,14 +741,33 @@ impl Reply {
     /// same fact, and the fact is what a proxy takes an instance out of rotation
     /// on: the two answers have to change over at the instant the accept loop
     /// stops, which is [`Draining`]'s whole job.
+    ///
+    /// The response carries [`Probe`], which is how the door knows to write no
+    /// access line for it.
     #[must_use]
     pub fn health(draining: &Draining) -> Self {
-        if draining.is_draining() {
+        let mut reply = if draining.is_draining() {
             Self::draining()
         } else {
             Self::healthy()
+        };
+        if let Self::Done(response) = &mut reply {
+            response.extensions_mut().insert(Probe);
         }
+        reply
     }
+}
+
+/// The mark [`Reply::health`] leaves on its response: the health probe writes
+/// no access line (`rule:http-server/the-access-log-is-a-mode-default`),
+/// whatever its status, because a proxy asks it every few seconds and its
+/// `503` during a drain is the answer and not a failure.
+#[derive(Clone, Copy)]
+struct Probe;
+
+/// Whether `response` is the health probe's — [`Reply::health`] marked it.
+pub(crate) fn is_probe(response: &Response<Answer>) -> bool {
+    response.extensions().get::<Probe>().is_some()
 }
 
 /// Whether this server has stopped accepting — `rule:http-server/the-server-block-is-boot-class`'s drain, as the one
@@ -1594,6 +1613,15 @@ where
         // less than the branch that would ask.
         let verb = request.method().clone();
         let began = Instant::now();
+        // The request target, for the access line below. A clone of `hyper`'s
+        // `Uri` shares the bytes it was framed from rather than copying them.
+        let target = request.uri().clone();
+        // The trace the door decided, read off the carrier beside the label
+        // below, and the snapshot the program ran under: the access line names
+        // the one and reads `[log] access` off the other. Both stay empty for
+        // an answer the door wrote for itself.
+        let mut traced: Option<nvs_runtime::TraceContext> = None;
+        let mut ran_under: Option<Arc<nvs_config::Snapshot>> = None;
         // `rule:observability/route-label-is-the-declared-name`'s label, filled
         // by the one arm below that can have it and empty for every answer the
         // door writes for itself. Owned rather than borrowed because the match
@@ -1606,12 +1634,35 @@ where
         // the one the handler ran. All four are responses this server wrote, so
         // all four are requests a scrape is owed — a `503` that went uncounted
         // would hide exactly the overload the series exists to show.
-        let counted = |response: &Response<Answer>, route: Option<&str>| {
-            crate::metrics::count_request(
-                verb.as_str(),
-                response.status().as_u16(),
-                route,
-                began.elapsed(),
+        //
+        // `rule:http-server/the-access-log-is-a-mode-default`'s line is written
+        // at the same place for the same reason, except for the health probe.
+        let counted = |response: &Response<Answer>,
+                       route: Option<&str>,
+                       client: Option<std::net::IpAddr>,
+                       trace: Option<nvs_runtime::TraceContext>,
+                       under: &Arc<nvs_config::Snapshot>| {
+            let took = began.elapsed();
+            let status = response.status().as_u16();
+            crate::metrics::count_request(verb.as_str(), status, route, took);
+            let probe = is_probe(response);
+            // Read only where it decides something: the probe writes nothing,
+            // and a `5xx` is written whatever it says.
+            let on = !probe && status < 500 && crate::trace::access_on(under);
+            crate::trace::access(
+                &mut ctx.borrow_mut(),
+                on,
+                &crate::trace::Access {
+                    probe,
+                    method: verb.as_str(),
+                    path: target.path(),
+                    status,
+                    took,
+                    bytes: response.body().size_hint().exact(),
+                    client_ip: client,
+                    route,
+                    trace,
+                },
             );
         };
         // `rule:config/the-config-is-an-immutable-snapshot`'s one clone, taken
@@ -1647,7 +1698,7 @@ where
                 phase.set(Phase::Write);
                 let mut refused = unusable_forward();
                 policy.secure.fill(refused.headers_mut(), Scheme::Http);
-                counted(&refused, None);
+                counted(&refused, None, None, None, &snapshot);
                 return Ok::<_, Infallible>(refused);
             }
         };
@@ -1676,7 +1727,7 @@ where
             phase.set(Phase::Write);
             let mut refused = crate::admit::over_capacity();
             policy.secure.fill(refused.headers_mut(), scheme);
-            counted(&refused, None);
+            counted(&refused, None, origin.client(), None, &snapshot);
             return Ok::<_, Infallible>(refused);
         };
         // `rule:http-server/cors-is-closed-until-origins-are-named`, asked here for the reason the valve above it is: a
@@ -1694,7 +1745,7 @@ where
             *permitted.status_mut() = preflight.status();
             policy.secure.fill(permitted.headers_mut(), scheme);
             preflight.fill(permitted.headers_mut());
-            counted(&permitted, None);
+            counted(&permitted, None, origin.client(), None, &snapshot);
             return Ok::<_, Infallible>(permitted);
         }
         // § 2's other half, decided here because the handler below takes the
@@ -1828,6 +1879,10 @@ where
                             .answering_request()
                             .and_then(crate::route::label)
                             .map(Box::from);
+                        traced = isolate
+                            .answering_request()
+                            .and_then(nvs_runtime::Inbound::trace_context);
+                        ran_under.clone_from(&chosen);
                     }
                     // The status the door refused this request with, where it runs
                     // the program in `rule:routing/a-gate-answers-around-every-handler`'s
@@ -2215,7 +2270,13 @@ where
         // one the `101` or an event stream replaced the request's own with. A
         // streamed body's later bytes are not in the duration: what is measured
         // is the request, and a peer that reads slowly is not one.
-        counted(&answered, labelled.as_deref());
+        counted(
+            &answered,
+            labelled.as_deref(),
+            origin.client(),
+            traced,
+            ran_under.as_ref().unwrap_or(&snapshot),
+        );
         Ok(answered)
     });
     // **Driven through a borrow rather than moved in**, which is the whole of

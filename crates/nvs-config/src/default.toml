@@ -275,6 +275,9 @@
 #format = "json"                      # default: "json" in production, "text" in development
 # The minimum level written. The mode picks this.
 #level = "Info"                       # default: "Info" in production, "Debug" in development
+# With `true`, the server writes one line for each request it answers. The health probe writes none.
+# A `5xx` answer is always written, at level `Error`, even when this is `false`. The mode picks this.
+#access = false                       # default: false in production, true in development
 
 
 # ----------------------------------------------------------------------------------------------
@@ -1111,6 +1114,7 @@
 #keep = 5                             # default
 #format = "json"                      # default: "json" in production, "text" in development
 #level = "Info"                       # default: "Info" in production, "Debug" in development
+#access = false                       # default: false in production, true in development
 
 
 # ----------------------------------------------------------------------------------------------

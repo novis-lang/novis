@@ -3008,26 +3008,27 @@ fn both_halves_of_the_decompression_bound_answer_the_same_way_in_two_different_q
 
 /// The block the escalation ladder is configured in, and the one row of this group a request may
 /// write. What is asserted is where the line between the two halves falls rather than the class of
-/// any single key: `rule:config/a-mode-is-five-defaults`'s mode table holds two of these keys and no row in that table is
-/// `System`, so a program that wants its own run traced turns its own level down — while a program
-/// able to send the record of its own failure somewhere nobody reads is what every other key here
-/// is `System` to prevent.
+/// any single key: `rule:config/a-mode-is-five-defaults`'s mode table holds three of these keys —
+/// `format`, `level` and `access` — and no row in that table is `System`, so a program that wants
+/// its own run traced turns its own level down — while a program able to send the record of its
+/// own failure somewhere nobody reads is what every other key here is `System` to prevent.
 ///
 /// Counted rather than read off a line, because a blanket row is exactly where a registry answers
 /// plausibly key by key and wrongly overall: a carve-out nobody wrote inherits `Runtime` from the
 /// block and looks like an ordinary row from every angle but this one.
 // covers: directive:log
 #[test]
-fn the_log_blanket_is_a_requests_and_exactly_the_mode_tables_two_rows_stay_that_way() {
+fn the_log_blanket_is_a_requests_and_exactly_the_mode_tables_rows_stay_that_way() {
     let block = governing("log");
     assert_eq!(
         (block.key, block.class, block.apply),
         ("log", Class::Runtime, Apply::Reload),
-        "`[log]` resolves through `{}`: the block's own row is what answers for `format` and \
-         `level`, which are `rule:config/a-mode-is-five-defaults`'s rows and so are nobody's to make `System`",
+        "`[log]` resolves through `{}`: the block's own row is what answers for `format`, `level` \
+         and `access`, which are `rule:config/a-mode-is-five-defaults`'s rows and so are nobody's \
+         to make `System`",
         block.key,
     );
-    for written in ["log.format", "log.level"] {
+    for written in ["log.format", "log.level", "log.access"] {
         assert_eq!(
             governing(written).key,
             "log",
@@ -3048,15 +3049,19 @@ fn the_log_blanket_is_a_requests_and_exactly_the_mode_tables_two_rows_stay_that_
     movable.sort();
     assert_eq!(
         movable,
-        vec!["format".to_string(), "level".to_string()],
-        "the blanket answers for a key that is not one of the mode table's two, so a rung of the \
+        vec![
+            "access".to_string(),
+            "format".to_string(),
+            "level".to_string()
+        ],
+        "the blanket answers for a key that is not one of the mode table's three, so a rung of the \
          ladder is a request's to move: every other key in this block names the script run when a \
          request fails, what is held back for that script, or where the record itself goes",
     );
 
     assert!(
-        lookup("format").is_none() && lookup("level").is_none(),
-        "a bare `format` or `level` resolves to a row, so this block has a second spelling with no \
+        lookup("format").is_none() && lookup("level").is_none() && lookup("access").is_none(),
+        "a bare `format`, `level` or `access` resolves to a row, so this block has a second spelling with no \
          block in it — a bare name is a limit's name, which `nvs_config::request`'s module doc owns, \
          and nothing outside `[limits]` gets one",
     );

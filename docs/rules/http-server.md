@@ -3,8 +3,6 @@
 
 # The HTTP server
 
-*1 of 80 rules below are **designed** rather than shipped, and are marked where they appear.*
-
 <a id="http-server-two-deployments-and-nothing-a-proxy-owns"></a>
 
 ## The server is a development server or a proxied production origin, and nothing a proxy does earlier is in it
@@ -610,18 +608,17 @@ It performs **no dependency checks** — a health endpoint that pings the databa
 
 <a id="http-server-the-access-log-is-a-mode-default"></a>
 
-## `[log] access` is a mode default — on in development, off in production — and a `5xx` is logged whatever it says  *(designed — owned by goal server-rule-debts)*
+## `[log] access` is a mode default — on in development, off in production — and a `5xx` is logged whatever it says
 
 `rule:http-server/the-access-log-is-a-mode-default`
 
 `[log] access` is one of the five `Runtime` defaults a mode selects ([`config/a-mode-is-five-defaults`](config.md#config-a-mode-is-five-defaults)): `true` in development, `false` in production. In production an access line is a third copy of a fact the proxy's log and the root span already hold, written with request-path I/O; in development there is no proxy and traces are sampled, so it is the most useful thing the server prints.
 
-It renders through the one diagnostic record — text in development, JSON in production ([`errors/renderings`](errors.md#errors-renderings)) — and there is deliberately **no Common or Combined Log Format**, which would be a second renderer. The fields are method, path, status, duration, response bytes, `clientIp`, the route name when the application matched one, and the trace id ([`errors/log-fields`](errors.md#errors-log-fields)). The health probe is skipped.
+It renders through the one diagnostic record — text in development, JSON in production ([`errors/renderings`](errors.md#errors-renderings)) — and there is deliberately **no Common or Combined Log Format**, which would be a second renderer. The fields are `method`, `path` (never the query string), `status`, `durationMs`, `bytes` where the body's length is known when the head goes out, `clientIp`, `route` when the application matched one, and the trace id as the envelope's `request_id` ([`errors/log-fields`](errors.md#errors-log-fields)). An access line is `Info`. The health probe writes no line, whatever its status.
 
-**An error is logged unconditionally**, whatever `access` says: a `5xx` is a diagnostic rather than access telemetry, and losing one because access logging was off would be the wrong failure.
+**An error is logged unconditionally**, whatever `access` says: a `5xx` is a diagnostic rather than access telemetry, and losing one because access logging was off would be the wrong failure. It is written at `Error`, so the production default level keeps it.
 
-**Not on disk.** The mode table has the `log.access` row (`crates/nvs-config/src/mode.rs:85`), and
-nothing reads it: no access line is written, for a `5xx` or for any other response.
+The door writes the line where it counts the request for the request series, so every answer it writes has one — a refusal at the valve and a mount table's `404` included. `access` is read off the snapshot the request ran under, so an `[[app]]` block's own value and a reload reach the next request; a program's `Core\Config::set` of it changes nothing, because the line is written after the request's own view has gone. An answer the door wrote before a request carrier existed has no trace id on its line.
 
 <sub>See also [`observability/a-trace-id-exists-for-every-request`](observability.md#observability-a-trace-id-exists-for-every-request), [`http-server/health-path-is-off-and-checks-nothing`](http-server.md#http-server-health-path-is-off-and-checks-nothing), [`config/a-mode-is-five-defaults`](config.md#config-a-mode-is-five-defaults), [`errors/log-fields`](errors.md#errors-log-fields), [`errors/renderings`](errors.md#errors-renderings), [`observability/the-runtime-exports-what-it-already-measures`](observability.md#observability-the-runtime-exports-what-it-already-measures).</sub>
 

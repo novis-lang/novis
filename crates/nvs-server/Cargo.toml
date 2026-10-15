@@ -54,6 +54,11 @@ tungstenite.workspace = true
 # `rule:packaging/a-c-dependency-answers-two-questions` — `nvs-runtime`,
 # `nvs-stdlib` and `nvs-cli` all already draw from it.
 rand.workspace = true
+# `rule:http-server/the-access-log-is-a-mode-default`'s access line is a diagnostic record, and
+# `src/trace.rs` builds one: a `nvs_render::Record` at a `nvs_render::Level`, with its fields as
+# nodes. Not a new crate in the graph: `nvs-runtime`, `nvs-host` and `nvs-config` all already
+# rest on it.
+nvs-render.workspace = true
 
 # `rule:observability/the-exporter-is-a-feature-and-core-metrics-is-not`'s split,
 # declared in the crate the encoder lives in. `exporter` gates `src/prometheus.rs`
@@ -80,13 +85,6 @@ toml.workspace = true
 # refused with. Nothing in this crate's own code names a diagnostic. Not a new crate in the graph:
 # `nvs-config`, `nvs-runtime` and `nvs-host` all already rest on it.
 nvs-diagnostics.workspace = true
-# Test-only, and for one seam: `rule:observability/a-log-record-carries-trace-ids-when-a-trace-is-active` has a log record carry the trace id this crate's
-# `src/trace.rs` decided at the door, and a record is a `nvs_render::Record` at a
-# `nvs_render::Level`. Nothing in this crate's own code names either — the door writes a
-# `TraceContext` and the stamping is `nvs_runtime::Ctx::stamp_envelope`'s — so the vocabulary is
-# needed only to *read the record back* in the case that pins the two halves together. Not a new
-# crate in the graph: `nvs-runtime`, `nvs-host` and `nvs-config` all already rest on it.
-nvs-render.workspace = true
 # Test-only: `src/slotted/`'s case recomputes the script hashes the policy names from the two
 # files, so a script edited without its hash fails a test. Not new crates in the graph:
 # `nvs-host` already rests on both.

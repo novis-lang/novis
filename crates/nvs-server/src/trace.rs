@@ -282,6 +282,118 @@ pub fn record(request: &str, trace: &TraceContext, events: &[TraceEvent]) {
     let _ = (request, trace, events);
 }
 
+/// `[log] access` as `snapshot` has it: what the file wrote, or the mode's
+/// default (`rule:config/a-mode-is-five-defaults`).
+///
+/// Read per request off the snapshot the request ran under, so an `[[app]]`
+/// block that writes its own value and a reload both reach the next request.
+/// What it costs is one key lookup in the snapshot's table, and only for a
+/// response that is not a `5xx`.
+#[must_use]
+pub fn access_on(snapshot: &std::sync::Arc<nvs_config::Snapshot>) -> bool {
+    nvs_config::Request::new(std::sync::Arc::clone(snapshot))
+        .get("log.access")
+        .is_some_and(|written| written == "true")
+}
+
+/// What `rule:http-server/the-access-log-is-a-mode-default` puts on one access
+/// line: the facts the door holds once a response exists.
+///
+/// `path` is the path alone, never the query string, for the reason a span's
+/// name carries none (`rule:observability/trace-events-carry-a-kind`). `bytes`
+/// is `None` for a body whose length is not known when the head goes out — a
+/// stream — and `trace` is `None` for an answer the door wrote before any
+/// carrier existed, such as a mount table's `404` or a refusal at the valve.
+#[derive(Clone, Copy, Debug)]
+pub struct Access<'a> {
+    /// Whether the response is the health probe's
+    /// ([`crate::serve::is_probe`]), which writes no line at all.
+    pub probe: bool,
+    /// The verb, as the request line spelled it.
+    pub method: &'a str,
+    /// The request target's path.
+    pub path: &'a str,
+    /// The status this connection wrote.
+    pub status: u16,
+    /// From the door first having the request to the response existing.
+    pub took: std::time::Duration,
+    /// The response body's length, where it is known.
+    pub bytes: Option<u64>,
+    /// `Core\Request::clientIp()`'s answer.
+    pub client_ip: Option<std::net::IpAddr>,
+    /// `rule:observability/route-label-is-the-declared-name`'s label, where a
+    /// route matched.
+    pub route: Option<&'a str>,
+    /// The trace the door decided for this request.
+    pub trace: Option<TraceContext>,
+}
+
+/// Writes `line` as one diagnostic record where `[log] target` says, when
+/// `on` — `[log] access` for the snapshot the request ran under — or when the
+/// status is a `5xx`, whatever `on` says.
+///
+/// **The same record a `Core\Log::write` produces**, rendered by the same
+/// [`Ctx::write_log_record`](nvs_runtime::Ctx::write_log_record) in whichever
+/// `[log] format` is configured, so there is no access-log format of its own.
+/// An access line is `Info`; a `5xx` is `Error`, because it is a diagnostic
+/// that has to survive the production default level.
+///
+/// The envelope's ids are filled here rather than by
+/// `nvs_runtime::Ctx::stamp_envelope`: `ctx` is the connection's context, and
+/// the request's carrier — which that stamp reads — went down with the
+/// request. The ids are the same ones, read off the trace the door decided.
+///
+/// The health probe writes no line at all, whatever its status.
+pub fn access(ctx: &mut nvs_runtime::Ctx, on: bool, line: &Access<'_>) {
+    use nvs_render::{Level, Node, Scalar};
+    use nvs_runtime::floor;
+
+    let failed = line.status >= 500;
+    if line.probe || (!on && !failed) {
+        return;
+    }
+    let level = if failed { Level::Error } else { Level::Info };
+    if !ctx.log_writes(level) {
+        return;
+    }
+    let mut record = floor::note(
+        level,
+        &format!("{} {} {}", line.method, line.path, line.status),
+    );
+    let envelope = &mut record.envelope;
+    envelope.ts = Some(jiff::Timestamp::now().to_string());
+    if let Some(trace) = &line.trace {
+        envelope.request_id = Some(trace.trace_id_hex());
+        if trace.sampled() {
+            envelope.trace_id = Some(trace.trace_id_hex());
+            envelope.span_id = Some(trace.span_id_hex());
+        }
+    }
+    let fields = &mut envelope.fields;
+    fields.push(("method".into(), floor::text(line.method)));
+    fields.push(("path".into(), floor::text(line.path)));
+    fields.push((
+        "status".into(),
+        Node::Scalar(Scalar::Uint(u64::from(line.status))),
+    ));
+    fields.push((
+        "durationMs".into(),
+        Node::Scalar(Scalar::Float(line.took.as_secs_f64() * 1000.0)),
+    ));
+    if let Some(bytes) = line.bytes {
+        fields.push(("bytes".into(), Node::Scalar(Scalar::Uint(bytes))));
+    }
+    let client = line.client_ip.map_or(Node::Scalar(Scalar::Null), |ip| {
+        floor::text(&ip.to_string())
+    });
+    fields.push(("clientIp".into(), client));
+    if let Some(route) = line.route {
+        fields.push(("route".into(), floor::text(route)));
+    }
+    // A sink that has gone is ignored, for `floor::report`'s reason.
+    let _ = ctx.write_log_record(&record, nvs_runtime::LogChannel::Diagnostic);
+}
+
 /// A span id for a derived span, drawn like the root's: all-zero is the value
 /// the W3C format reserves for "absent", so one bit is forced rather than
 /// redrawn.
@@ -744,5 +856,133 @@ mod tests {
             2,
             "the root and the `query` are the spans; a `call` became one, or the `query` did not"
         );
+    }
+
+    /// The snapshot of `written`, both halves filled, as the door holds one.
+    fn tree_of(written: &str) -> std::sync::Arc<nvs_config::Snapshot> {
+        std::sync::Arc::new(nvs_config::Snapshot {
+            config: toml::from_str(written).expect("the tree deserializes"),
+            table: written.parse().expect("the tree is TOML"),
+            ..Default::default()
+        })
+    }
+
+    /// One access line for `status`, as the door writes it, read back off a
+    /// buffered diagnostic channel. Empty where nothing was written.
+    fn logged(on: bool, probe: bool, status: u16, trace: Option<TraceContext>) -> String {
+        let mut ctx = Ctx::buffered();
+        ctx.set_diagnostic_sink(OutputSink::Buffer(Vec::new()));
+        super::access(
+            &mut ctx,
+            on,
+            &super::Access {
+                probe,
+                method: "GET",
+                path: "/orders/17",
+                status,
+                took: std::time::Duration::from_millis(12),
+                bytes: Some(42),
+                client_ip: Some(std::net::IpAddr::from([192, 0, 2, 7])),
+                route: Some("orders.show"),
+                trace,
+            },
+        );
+        String::from_utf8(
+            ctx.take_buffered_diagnostic()
+                .expect("a buffered channel hands its bytes back"),
+        )
+        .expect("a JSON Lines line is text")
+    }
+
+    /// `rule:http-server/the-access-log-is-a-mode-default`: one line per
+    /// request, through the diagnostic record, with every field the rule names
+    /// and the trace id the door decided. `[log] access` is the mode's default
+    /// where the file writes none: on in development and off in production.
+    #[test]
+    fn an_access_line_carries_method_path_status_duration_bytes_and_trace_id() {
+        let trace = decided(&[("traceparent", INBOUND)]);
+        let line = logged(true, false, 200, Some(trace));
+        assert_eq!(line.lines().count(), 1, "one request is one line: {line}");
+        for field in [
+            "\"method\":\"GET\"",
+            "\"path\":\"/orders/17\"",
+            "\"status\":200",
+            "\"durationMs\":12",
+            "\"bytes\":42",
+            "\"clientIp\":\"192.0.2.7\"",
+            "\"route\":\"orders.show\"",
+            "\"request_id\":\"4bf92f3577b34da6a3ce929d0e0e4736\"",
+            "\"trace_id\":\"4bf92f3577b34da6a3ce929d0e0e4736\"",
+        ] {
+            assert!(line.contains(field), "the line has no {field}: {line}");
+        }
+        assert!(
+            line.contains("\"level\":\"info\"") || line.contains("\"level\":\"Info\""),
+            "an access line is `Info`: {line}"
+        );
+
+        assert!(
+            super::access_on(&tree_of("[mode]\ndefault = \"development\"\n")),
+            "development writes access lines by default"
+        );
+        assert!(
+            !super::access_on(&tree_of("")),
+            "production writes none by default"
+        );
+        assert!(
+            super::access_on(&tree_of("[log]\naccess = true\n")),
+            "a written `access = true` is read"
+        );
+    }
+
+    /// The health probe writes no line, while it is accepting and while it
+    /// drains with a `503`, and with `access` on. The response
+    /// [`crate::Reply::health`] builds is the one asked, so a probe that lost
+    /// its mark fails here.
+    #[test]
+    fn the_health_probe_writes_no_access_line() {
+        let draining = crate::serve::Draining::detached();
+        let crate::Reply::Done(response) = crate::Reply::health(&draining) else {
+            panic!("the probe is answered by the door")
+        };
+        assert!(crate::serve::is_probe(&response), "the probe is not marked");
+        let status = response.status().as_u16();
+        assert_eq!(logged(true, true, status, None), "", "the probe was logged");
+        assert_eq!(
+            logged(true, true, 503, None),
+            "",
+            "a draining probe's `503` was logged"
+        );
+
+        // The control: the same response without the mark is a line.
+        assert_ne!(logged(true, false, status, None), "");
+        let crate::Reply::Done(other) = crate::Reply::healthy() else {
+            panic!("a status reply is the door's")
+        };
+        assert!(!crate::serve::is_probe(&other), "an ordinary 200 is marked");
+    }
+
+    /// A `5xx` is a diagnostic, so it is written with `access` off, at
+    /// `Error`. Every other status writes nothing with `access` off.
+    #[test]
+    fn a_5xx_is_logged_with_access_off() {
+        let trace = decided(&[]);
+        let line = logged(false, false, 502, Some(trace));
+        assert!(line.contains("\"status\":502"), "the 5xx was lost: {line}");
+        assert!(
+            line.contains(&format!("\"request_id\":\"{}\"", trace.trace_id_hex())),
+            "the 5xx names no request: {line}"
+        );
+        assert!(
+            line.to_lowercase().contains("\"level\":\"error\""),
+            "a 5xx is `Error`: {line}"
+        );
+        for status in [200, 304, 404, 499] {
+            assert_eq!(
+                logged(false, false, status, Some(trace)),
+                "",
+                "`access` is off and a {status} was logged"
+            );
+        }
     }
 }

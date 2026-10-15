@@ -1,6 +1,6 @@
 {
   "title": "`[log] access` is a mode default — on in development, off in production — and a `5xx` is logged whatever it says",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "observability/a-trace-id-exists-for-every-request",
     "http-server/health-path-is-off-and-checks-nothing",
@@ -9,6 +9,7 @@
     "errors/renderings",
     "observability/the-runtime-exports-what-it-already-measures"
   ],
-  "guardedBy": [],
-  "goal": "server-rule-debts"
+  "guardedBy": [
+    "crates/nvs-server/src/trace.rs"
+  ]
 }

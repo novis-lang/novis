@@ -597,6 +597,10 @@ pub struct Log {
     pub format: Option<String>,
     /// The minimum level written; its per-mode default is `rule:config/a-mode-is-five-defaults`'s.
     pub level: Option<String>,
+    /// Whether the server writes one access line per request —
+    /// `rule:http-server/the-access-log-is-a-mode-default`; its per-mode default is
+    /// `rule:config/a-mode-is-five-defaults`'s. `nvs_server::trace::access_on` is the reader.
+    pub access: Option<bool>,
 }
 
 /// The `[http.*]` blocks: one refusal policy (`rule:errors/compile-failure`) and `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`'s defaults blocks.

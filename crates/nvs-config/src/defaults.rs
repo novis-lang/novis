@@ -394,6 +394,7 @@ pub const DEFAULTS: &[Builtin] = &[
     row!("log.keep", Value::Count(LOG_KEEP as u64)),
     row!("log.format", Value::ByMode),
     row!("log.level", Value::ByMode),
+    row!("log.access", Value::ByMode),
     row!("errors.deprecated", Value::Text(ERRORS_DEPRECATED)),
     row!("io.temp_root", Value::DataFolder(Folder::tmp)),
     row!("image.max_pixels", Value::Size(IMAGE_MAX_PIXELS)),
