@@ -30,7 +30,7 @@ stages:
         shapes: [A diagnostic]
   - id: 4
     title: the resolved root is announced and stored
-    status: open
+    status: done
     context: [crates/nvs-cli/src/config.rs, crates/nvs-cli/src/reload.rs]
     extra:
       context:
@@ -242,9 +242,9 @@ backend read one standard header. It is written on every response, sampled or no
 
 **Does:** boot prints the resolved root and every file it reached, and a reload reads the stored path.
 
-- [ ] Canonicalize and store the root at boot, and print the lines. `crates/nvs-cli/src/config.rs:537`
-- [ ] A reload reads the stored path. `crates/nvs-cli/src/reload.rs:137`
-- [ ] The declined reason joins the boot lines. `crates/nvs-cli/src/config.rs:1334`
+- [x] Canonicalize and store the root at boot, and print the lines. `crates/nvs-cli/src/config.rs:537`
+- [x] A reload reads the stored path. `crates/nvs-cli/src/reload.rs:137`
+- [x] The declined reason joins the boot lines. `crates/nvs-cli/src/config.rs:1334`
 
 ### 5. an upgrade takes `limits`, `grants` and `on`
 
@@ -286,31 +286,32 @@ backend read one standard header. It is written on every response, sampled or no
 
 ### State
 
-Stages 1 to 3 are done. A `[db]` block has no url key, so its one Unix spelling is a `host` that
-begins with a path separator. `nvs_config::db::unix_transport` refuses it with `E0635`. It runs
-inside `db::validate`, which `resolve` already calls at boot, rather than as a second call beside
-`store::validate`. The connect-time refusal in `nvs_db::conn::socket_endpoint` stays, and its doc
-calls it the last line of defence. `rule:config/a-unix-spelling-with-no-af-unix-transport-refuses-at-boot`
-is `shipped`.
+Stages 1 to 4 are done. `crate::config::resolved_in` canonicalizes the roots (`trust::canonical`)
+before it resolves, and keeps them in a `Root` with how each was named, the files reached and a
+declined data-folder write. `boot_set` returns it beside the set, `nvs serve` prints `Root::lines`
+on standard error before it binds, and `reload::Process` holds `Root::stored()` and resolves it
+through `config::stored_set`, never asking the working directory or the data folder again. A data
+folder write that finds the file already there now reads it. `nvs run` prints none of these lines.
+`rule:config/the-resolved-root-is-announced-and-stored` is `shipped`.
 
-The nightly reds ran on `origin/main`, far behind local `main`, and nothing here pushes.
+The nightly reds ran on `origin/main`, 568 commits behind local `main`, and nothing here pushes.
 
 ### Next
 
-**Stage 4, the resolved root is announced and stored**: `crates/nvs-cli/src/config.rs`,
-`crates/nvs-cli/src/reload.rs`, `crates/nvs-cli/tests/live_config.rs`
-(`rule:config/the-resolved-root-is-announced-and-stored`).
+**Stage 5, an upgrade takes `limits`, `grants` and `on`**: `crates/nvs-stdlib/src/socket.rs`,
+`crates/nvs-stdlib/src/sse.rs`, `tests/conformance/core/`
+(`rule:concurrency/an-upgrades-options-are-spawn-scripts`).
 
-- [ ] Canonicalize the roots once at boot, store them, and print the root and every file the tree reached. `crates/nvs-cli/src/config.rs:517`
-- [ ] A reload reads the stored absolute roots, not `--config` as written. `crates/nvs-cli/src/reload.rs:137`
-- [ ] A data-folder write's `Declined` reason joins the boot lines. `crates/nvs-cli/src/config.rs:536`
-- [ ] The three `cargo test --test live_config` cases the `resolved-root` check names; the rule shipped. `crates/nvs-cli/tests/live_config.rs:2827`
+- [ ] The three parameters, forwarded to the connection isolate; the module doc's "not parameters" section goes. `crates/nvs-stdlib/src/socket.rs:174`
+- [ ] `grants` narrows against the upgrading request's own overlay, as `spawn script` does. `crates/nvs-stdlib/src/socket.rs:174`
+- [ ] The same options on `Core\Sse::upgrade` if it opens a connection isolate too. `crates/nvs-stdlib/src/sse.rs:1287`
+- [ ] The two `.nvst` cases the `upgrade-options` check names, and `Core\Socket::upgrade`'s feature proofs. `docs/examples/core/Socket/upgrade/about.md:1`
 
 ### Backlog
 
-- Stages 5 to 9: this file's § *Stages*.
+- Stages 6 to 9: this file's § *Stages*.
+- A reload keeps the boot's canonical roots, so a symlink swapped to a new release is not followed until restart, if the rule should promise otherwise: `crates/nvs-cli/src/config.rs`.
 - A program's `Core\Config::set` of `[log] access` does not reach the access line, if the rule should promise it: `crates/nvs-server/src/trace.rs`.
 - A command that prints every limit in force with its default, if the rule should promise one: `crates/nvs-cli/src/config.rs`.
-- The macOS warm-start budget in the nightly cost guards, once `origin/main` is pushed: `tools/nv/cmd/bench.ts`.
-- The nightly conformance and proofs reds, checked against local `main` once `origin/main` is pushed: `.github/workflows/`.
+- The nightly reds, the macOS warm-start budget among them, checked against local `main` once `origin/main` is pushed: `.github/workflows/`, `tools/nv/cmd/bench.ts`.
 - Every socket leg's OS error 95 on Windows: `crates/nvs-db/src/matrix.rs`.
