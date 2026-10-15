@@ -1,5 +1,5 @@
 {
-  "summary": "three cache tiers with three promises — `local` is one core's own memory and the next request may not see it, `process` is one map for the whole `nvs serve` (or `nvs run`) process, `shared` is an external store such as Redis that every process and machine sees",
+  "summary": "two caches with two promises — `memory` is one store in the memory of the `nvs serve` (or `nvs run`) process, and an entry may be missing at any time; `shared` is an external store such as Redis that every process and machine reads",
   "keywords": [
     "apcu_store",
     "apcu_fetch",
@@ -9,7 +9,6 @@
     "sysvshm",
     "cache",
     "memoize",
-    "per-core",
     "per-process",
     "redis",
     "ttl",
