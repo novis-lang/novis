@@ -34,6 +34,7 @@
     "testing/one-slice-is-one-feature",
     "testing/examples-live-in-the-repository",
     "testing/website-pages-are-stamped",
+    "testing/a-replay-plays-what-the-language-server-returned",
     "testing/hostile-case-contract",
     "testing/feature-proofs",
     "testing/roster-is-derived",

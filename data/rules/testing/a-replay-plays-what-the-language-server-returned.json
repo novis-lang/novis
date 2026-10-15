@@ -1,0 +1,13 @@
+{
+  "title": "A website replay plays what `nvs lsp` returned for its steps, and `bun nv site --check` fails when the server now returns something else",
+  "status": "designed",
+  "seeAlso": [
+    "testing/website-pages-are-stamped",
+    "ide/completion-is-asked-where-a-spelling-ends",
+    "ide/a-completion-row-reads-as-a-declaration"
+  ],
+  "guardedBy": [
+    "tools/nv/cmd/site.ts"
+  ],
+  "goal": "editor-replay"
+}
