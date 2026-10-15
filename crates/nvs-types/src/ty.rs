@@ -100,6 +100,11 @@ pub enum Ty {
     /// on an `Animal` — the widening therefore runs `property<Animal>` to
     /// `property<Dog>`, and never back.
     PropertyKey(TypeId),
+    /// `propertyPath<T>` — `rule:types/property-path`'s dotted chain of public
+    /// property names starting at `T`, a class id. Its argument follows
+    /// [`Self::PropertyKey`]'s in every way: the same guard where it is
+    /// written, the same contravariance and an equality domain of its own.
+    PropertyPath(TypeId),
     /// `object`
     Object,
     /// `mixed` — the one unchecked position.
@@ -625,6 +630,7 @@ impl TypeInterner {
             Ty::Array(elem) => format!("array<{}>", self.describe(*elem)),
             Ty::ClassRef(inner) => format!("class<{}>", self.describe(*inner)),
             Ty::PropertyKey(inner) => format!("property<{}>", self.describe(*inner)),
+            Ty::PropertyPath(inner) => format!("propertyPath<{}>", self.describe(*inner)),
             Ty::Object => "object".to_owned(),
             Ty::Mixed => "mixed".to_owned(),
             Ty::Void => "void".to_owned(),
@@ -924,6 +930,13 @@ impl TypeInterner {
     #[must_use]
     pub fn property_key(&mut self, inner: TypeId) -> TypeId {
         self.intern(Ty::PropertyKey(inner))
+    }
+
+    /// Interns `propertyPath<inner>`, where `inner` is a class id — see
+    /// [`Ty::PropertyPath`].
+    #[must_use]
+    pub fn property_path(&mut self, inner: TypeId) -> TypeId {
+        self.intern(Ty::PropertyPath(inner))
     }
 
     /// Interns a resolved class/interface name with no type arguments —

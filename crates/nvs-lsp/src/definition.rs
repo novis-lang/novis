@@ -1650,7 +1650,10 @@ pub(crate) fn type_names(ty: &Type, found: &mut Vec<Span>) {
             }
         }
         TypeKind::Atom(atom) => match atom {
-            TypeAtom::Array(Some(arg)) | TypeAtom::ClassRef(arg) | TypeAtom::PropertyKey(arg) => {
+            TypeAtom::Array(Some(arg))
+            | TypeAtom::ClassRef(arg)
+            | TypeAtom::PropertyKey(arg)
+            | TypeAtom::PropertyPath(arg) => {
                 type_names(arg, found);
             }
             TypeAtom::Shape(fields) => {
@@ -1697,9 +1700,10 @@ fn type_in(ty: &Type, offset: BytePos) -> Option<&Type> {
 /// arguments, and `None` for an atom that writes none.
 fn atom_type(atom: &TypeAtom, offset: BytePos) -> Option<&Type> {
     match atom {
-        TypeAtom::Array(Some(arg)) | TypeAtom::ClassRef(arg) | TypeAtom::PropertyKey(arg) => {
-            type_in(arg, offset)
-        }
+        TypeAtom::Array(Some(arg))
+        | TypeAtom::ClassRef(arg)
+        | TypeAtom::PropertyKey(arg)
+        | TypeAtom::PropertyPath(arg) => type_in(arg, offset),
         TypeAtom::Shape(fields) => fields.iter().find_map(|field| type_in(&field.ty, offset)),
         TypeAtom::CallableSig { params, ret } => params
             .iter()

@@ -742,7 +742,22 @@ impl<'a> Lowering<'a> {
                         v,
                         from,
                         Ty::Str,
-                        &accepted,
+                        Membership::Set(&accepted),
+                        inner,
+                        ty.span,
+                        env,
+                        cur,
+                    );
+                }
+                // `rule:types/property-path`'s run-time row under the same
+                // sugar: the walk the checked form below makes, with a miss
+                // answering `null`.
+                if let Some(graph) = self.property_path_graph(ty) {
+                    return self.lower_nullable_membership(
+                        v,
+                        from,
+                        Ty::Str,
+                        Membership::Path(&graph),
                         inner,
                         ty.span,
                         env,
@@ -785,7 +800,16 @@ impl<'a> Lowering<'a> {
                 let Some(accepted) = self.closed_set_of_atoms(&atoms, None, from) else {
                     return self.convert_or_null(v, from, to, inner, env, *cur);
                 };
-                self.lower_nullable_membership(v, from, to, &accepted, inner, ty.span, env, cur)
+                self.lower_nullable_membership(
+                    v,
+                    from,
+                    to,
+                    Membership::Set(&accepted),
+                    inner,
+                    ty.span,
+                    env,
+                    cur,
+                )
             }
             None => {
                 let to = lower_decl_type(ty, self.exprs, self.checked_types);
@@ -846,6 +870,21 @@ impl<'a> Lowering<'a> {
                 if let Some(accepted) = self.property_key_set(ty) {
                     self.lower_single_value_membership(v, from, &accepted, ty.span, env, cur, None);
                     if Ty::Str.is_refcounted() && self.aliasing_read(inner) {
+                        self.emit_retain(*cur, v);
+                    }
+                    return (v, Ty::Str);
+                }
+                // `rule:types/property-path`'s `string` and `propertyPath<U>` rows:
+                // the key's arm above with a walk in place of the set. A
+                // tagged operand is tested as it is, since a value that is not
+                // a string is not a path, and then converted the way `as
+                // string` converts it.
+                if let Some(graph) = self.property_path_graph(ty) {
+                    self.lower_property_path_check(v, &graph, ty.span, env, cur, None);
+                    if from != Ty::Str {
+                        return self.convert(v, from, Ty::Str, inner, env, *cur);
+                    }
+                    if self.aliasing_read(inner) {
                         self.emit_retain(*cur, v);
                     }
                     return (v, Ty::Str);
@@ -1604,9 +1643,87 @@ impl<'a> Lowering<'a> {
         self.nullable_target_atoms(ty).is_some_and(|atoms| {
             matches!(
                 atoms.as_slice(),
-                [atom] if matches!(self.checked_types.get(*atom), CheckedTy::PropertyKey(_))
+                [atom] if matches!(
+                    self.checked_types.get(*atom),
+                    CheckedTy::PropertyKey(_) | CheckedTy::PropertyPath(_)
+                )
             )
         })
+    }
+
+    /// The classes a checked `as propertyPath<T>` walks, read off
+    /// [`ExprInfo::PropertyPath`] for [`Self::property_key_set`]'s reason, and
+    /// encoded the way `nvs_runtime`'s `nvs_property_path_valid` reads them.
+    /// `None` for every other annotation, and for a written-out operand, which
+    /// the checker decided where it is written.
+    fn property_path_graph(&self, ty: &Type) -> Option<String> {
+        let ExprInfo::PropertyPath { nodes, .. } = self.exprs.lookup(ty.span)? else {
+            return None;
+        };
+        Some(encode_path_graph(nodes))
+    }
+
+    /// `rule:types/property-path`'s run-time walk over `value`, a string or a
+    /// tagged value: one [`Helper::PropertyPathValid`] call, which reads one
+    /// class's roster per segment. `miss` is
+    /// [`Self::lower_single_value_membership`]'s: `None` throws through
+    /// [`Helper::PropertyPathMismatch`], and `Some(block)` jumps there instead.
+    /// `*cur` ends at the block where the path was valid.
+    fn lower_property_path_check(
+        &mut self,
+        value: ValueId,
+        graph: &str,
+        span: Span,
+        env: &mut Env,
+        cur: &mut BlockId,
+        miss: Option<BlockId>,
+    ) {
+        let (encoded, _) = self.emit(*cur, Ty::Str, InstKind::ConstStr(graph.to_owned()));
+        let (valid, _) = self.emit_fallible(
+            *cur,
+            Ty::Bool,
+            InstKind::HelperCall {
+                helper: Helper::PropertyPathValid,
+                args: vec![value, encoded],
+            },
+            env,
+        );
+        let hit = self.new_block();
+        let fail = self.new_block();
+        let hit_edge = self.ids.next_edge(span);
+        let miss_edge = self.ids.next_edge(span);
+        self.seal(
+            *cur,
+            Terminator::Branch {
+                cond: valid,
+                then_block: hit,
+                then_edge: hit_edge,
+                else_block: fail,
+                else_edge: miss_edge,
+            },
+        );
+        self.emit_release(hit, encoded);
+        if let Some(block) = miss {
+            self.emit_release(fail, encoded);
+            self.seal(fail, Terminator::Jump(block));
+        } else {
+            let landing = self.landing_block(env);
+            self.block_insts[fail.index() as usize].push(Inst {
+                result: None,
+                ty: None,
+                kind: InstKind::HelperCall {
+                    helper: Helper::PropertyPathMismatch,
+                    args: vec![value, encoded],
+                },
+                on_error: Some(landing),
+                raise_site: None,
+            });
+            // `Helper::PropertyPathMismatch` owns `encoded` and never returns,
+            // so this jump is unreachable and only gives the block its
+            // terminator.
+            self.seal(fail, Terminator::Jump(hit));
+        }
+        *cur = hit;
     }
 
     /// [`Self::closed_single_value_set`] over an atom list the caller already
@@ -1834,7 +1951,7 @@ impl<'a> Lowering<'a> {
         v: ValueId,
         from: Ty,
         to: Ty,
-        accepted: &AcceptedSet,
+        test: Membership<'_>,
         inner: &Expr,
         span: Span,
         env: &mut Env,
@@ -1870,7 +1987,20 @@ impl<'a> Lowering<'a> {
                 (converted, converted_ty, answer)
             }
         };
-        self.lower_single_value_membership(probe, probe_ty, accepted, span, env, cur, Some(miss));
+        match test {
+            Membership::Set(accepted) => self.lower_single_value_membership(
+                probe,
+                probe_ty,
+                accepted,
+                span,
+                env,
+                cur,
+                Some(miss),
+            ),
+            Membership::Path(graph) => {
+                self.lower_property_path_check(probe, graph, span, env, cur, Some(miss));
+            }
+        }
         let hit = *cur;
         self.seal(hit, Terminator::Jump(join));
         self.emit_release(miss, answer);
@@ -2041,6 +2171,48 @@ pub(crate) fn whole_enum_set(info: &nvs_types::EnumInfo, name: &str) -> Accepted
             .collect::<Vec<_>>()
             .join(", "),
     }
+}
+
+/// What [`Lowering::lower_nullable_membership`] tests its operand against.
+pub(crate) enum Membership<'a> {
+    /// A closed set of values, compared one at a time.
+    Set(&'a AcceptedSet),
+    /// `rule:types/property-path`'s encoded classes, walked by one helper call.
+    Path(&'a str),
+}
+
+/// [`nvs_types::expr_table::PathNode`]s as the text `nvs_runtime`'s
+/// `nvs_property_path_valid` reads: each node is its class on one line, then
+/// one `name\tnext` line per property, then an empty line. `next` is the byte
+/// offset of the node the path steps to, in eight hexadecimal digits, or `-`
+/// where it cannot step. The offsets let the walk jump to a node, so it reads
+/// one roster per segment.
+fn encode_path_graph(nodes: &[nvs_types::expr_table::PathNode]) -> String {
+    let mut offsets = Vec::with_capacity(nodes.len());
+    let mut at = 0;
+    for node in nodes {
+        offsets.push(at);
+        at += node.class.len() + 2;
+        for (name, next) in &node.steps {
+            at += name.len() + 2 + if next.is_some() { 8 } else { 1 };
+        }
+    }
+    let mut out = String::with_capacity(at);
+    for node in nodes {
+        out.push_str(&node.class);
+        out.push('\n');
+        for (name, next) in &node.steps {
+            out.push_str(name);
+            out.push('\t');
+            match next {
+                Some(index) => out.push_str(&format!("{:08x}", offsets[*index])),
+                None => out.push('-'),
+            }
+            out.push('\n');
+        }
+        out.push('\n');
+    }
+    out
 }
 
 /// One enum declaration's cases, as `(name, constant)` in a total order.

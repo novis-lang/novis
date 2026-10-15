@@ -3064,6 +3064,143 @@ crate::nvs_helper! {
     }
 }
 
+/// Where a `rule:types/property-path` path stops being one, as
+/// [`property_path_miss`] finds it.
+struct PathMiss<'a> {
+    /// The segment that failed.
+    segment: &'a [u8],
+    /// The class it was looked up on.
+    class: &'a [u8],
+    /// Whether the segment names a property the path could not step past,
+    /// rather than naming nothing.
+    found: bool,
+}
+
+/// What one segment names on the node at `at` of an encoded graph: the
+/// node's class, and `None` when the segment names no property, `Some(None)`
+/// for a property the path cannot step past, and `Some(Some(next))` for one it
+/// steps to the node at `next` through.
+///
+/// The encoding is `nvs_ir`'s `Lowering::lower_property_path_check`'s: each
+/// node is its class on one line, then one `name\tnext` line per public
+/// property, then an empty line. `next` is the byte offset of the node the
+/// path steps to, in hexadecimal, or `-` where it cannot step.
+fn path_node_step<'a>(
+    graph: &'a [u8],
+    at: usize,
+    segment: &[u8],
+) -> (&'a [u8], Option<Option<usize>>) {
+    let mut lines = graph.get(at..).unwrap_or_default().split(|&b| b == b'\n');
+    let class = lines.next().unwrap_or_default();
+    for line in lines {
+        if line.is_empty() {
+            break;
+        }
+        let Some(tab) = line.iter().position(|&b| b == b'\t') else {
+            break;
+        };
+        if &line[..tab] == segment {
+            let next = str::from_utf8(&line[tab + 1..])
+                .ok()
+                .and_then(|text| usize::from_str_radix(text, 16).ok());
+            return (class, Some(next));
+        }
+    }
+    (class, None)
+}
+
+/// The first segment of `path` that is not a step of the encoded `graph`, or
+/// `None` when the whole path is valid. One node's roster is read per segment,
+/// so the cost is linear in the path the caller sent.
+fn property_path_miss<'a>(path: &'a [u8], graph: &'a [u8]) -> Option<PathMiss<'a>> {
+    let mut node = 0;
+    let mut segments = path.split(|&b| b == b'.').peekable();
+    while let Some(segment) = segments.next() {
+        let (class, step) = path_node_step(graph, node, segment);
+        match step {
+            None => {
+                return Some(PathMiss {
+                    segment,
+                    class,
+                    found: false,
+                });
+            }
+            Some(None) if segments.peek().is_some() => {
+                return Some(PathMiss {
+                    segment,
+                    class,
+                    found: true,
+                });
+            }
+            Some(None) => {}
+            Some(Some(next)) => node = next,
+        }
+    }
+    None
+}
+
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::PropertyPathValid` — whether `args[0]` is a
+    /// `rule:types/property-path` path over the encoded classes in `args[1]`.
+    /// An operand that is not a string is not a path. Borrows both.
+    fn nvs_property_path_valid(_ctx, args: [2]) {
+        let graph = args[1]
+            .as_str_bytes()
+            .ok_or_else(|| wrong_tag("nvs_property_path_valid", Tag::Str, args[1]))?;
+        let valid = args[0]
+            .as_str_bytes()
+            .is_some_and(|path| property_path_miss(path, graph).is_none());
+        Ok(Value::bool(valid))
+    }
+}
+
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::PropertyPathMismatch` — the throw for an operand
+    /// [`nvs_property_path_valid`] refused, naming its first bad segment.
+    ///
+    /// **Never returns `Ok`, and releases `args[1]`**, for
+    /// [`nvs_single_value_mismatch`]'s reason.
+    fn nvs_property_path_mismatch(_ctx, args: [2]) {
+        let graph = args[1]
+            .as_str_bytes()
+            .ok_or_else(|| wrong_tag("nvs_property_path_mismatch", Tag::Str, args[1]))?;
+        let root = graph.split(|&b| b == b'\n').next().unwrap_or_default();
+        let root = String::from_utf8_lossy(root);
+        let operand = rendered_operand(args[0]);
+        let message = match args[0].as_str_bytes().and_then(|path| property_path_miss(path, graph)) {
+            Some(miss) => {
+                let class = String::from_utf8_lossy(miss.class);
+                let segment = String::from_utf8_lossy(miss.segment);
+                if segment.is_empty() {
+                    format!("{operand} is not a property path of `{root}`: it has an empty part")
+                } else if miss.found {
+                    format!(
+                        "{operand} is not a property path of `{root}`: `{class}`'s property \
+                         `${segment}` is not an object, so the path cannot continue after it"
+                    )
+                } else {
+                    format!(
+                        "{operand} is not a property path of `{root}`: `{class}` has no public \
+                         property `${segment}`"
+                    )
+                }
+            }
+            None => format!("{operand} is not a property path of `{root}`"),
+        };
+        #[expect(
+            unsafe_code,
+            reason = "the encoded classes are a fresh `ConstStr` this call is \
+                      the last reader of, and its one reference is dropped here \
+                      because no reachable instruction follows a helper that \
+                      never returns"
+        )]
+        unsafe {
+            args[1].release();
+        }
+        Err(Fault::thrown(message))
+    }
+}
+
 /// `rule:expressions/truthy-positions`'s truthy
 /// table, applied to a value whose type is known only at runtime.
 ///
@@ -3237,6 +3374,11 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         (
             "nvs_single_value_mismatch",
             address(nvs_single_value_mismatch),
+        ),
+        ("nvs_property_path_valid", address(nvs_property_path_valid)),
+        (
+            "nvs_property_path_mismatch",
+            address(nvs_property_path_mismatch),
         ),
         (
             "nvs_str_new",

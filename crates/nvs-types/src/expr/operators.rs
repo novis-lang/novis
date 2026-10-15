@@ -286,6 +286,10 @@ fn check_property_key_conversion(
     env: &mut Env<'_>,
 ) {
     let to = nullable_inner_target(to, env).unwrap_or(to);
+    if let Some(argument) = super::members::property_path_argument(to, env.interner) {
+        check_property_path_conversion(inner, ty, argument, env);
+        return;
+    }
     let Some(argument) = super::members::property_key_argument(to, env.interner) else {
         return;
     };
@@ -321,6 +325,36 @@ fn check_property_key_conversion(
         return;
     }
     report_unwritten_property_key(&qname, &roster, *text, span, "converted here", env);
+}
+
+/// `rule:types/property-path`'s `as propertyPath<T>`, which follows
+/// [`check_property_key_conversion`]: a written-out operand is checked here,
+/// one segment at a time, and every other operand records the classes the
+/// run-time walk reads ([`ExprInfo::PropertyPath`]).
+fn check_property_path_conversion(inner: &Expr, ty: &Type, argument: TypeId, env: &mut Env<'_>) {
+    let Ty::Class(qname, _) = env.interner.get(argument).clone() else {
+        return;
+    };
+    let roster = super::members::public_property_names(&qname, env);
+    if roster.is_empty() {
+        reject_empty_property_key_set(&qname, ty.span, env);
+    }
+    super::members::record_property_keys(&qname, env);
+    let ExprKind::Str(text) = &inner.kind else {
+        let nodes = super::members::property_path_graph(&qname, env);
+        env.exprs.record(
+            ty.span,
+            ExprInfo::PropertyPath {
+                class: qname.to_string(),
+                nodes,
+            },
+        );
+        return;
+    };
+    if roster.is_empty() {
+        return;
+    }
+    super::members::report_unwritten_property_path(&qname, *text, inner.span, env);
 }
 
 /// The unknown-member diagnostic for a written-out name that is not on
@@ -688,6 +722,9 @@ enum EqDomain<'a> {
     /// the argument, because § 3's contravariance means two keys at different
     /// arguments can hold the same name.
     PropertyKey,
+    /// `propertyPath<T>` — `rule:types/property-path`'s own domain, for
+    /// [`Self::PropertyKey`]'s reason: two paths are equal when their text is.
+    PropertyPath,
 }
 
 fn equality_domain(ty: &Ty) -> Option<EqDomain<'_>> {
@@ -713,6 +750,7 @@ fn equality_domain(ty: &Ty) -> Option<EqDomain<'_>> {
         Ty::Array(_) => EqDomain::Array,
         Ty::ClassRef(_) => EqDomain::ClassRef,
         Ty::PropertyKey(_) => EqDomain::PropertyKey,
+        Ty::PropertyPath(_) => EqDomain::PropertyPath,
         Ty::Object | Ty::Class(..) | Ty::Shape(_) => EqDomain::Object,
         // A written signature is a fact about how a callable may be *called*,
         // never about which callables a position holds, so it shares the bare
@@ -1019,7 +1057,8 @@ fn reject_unordered_operand(
             | EqDomain::Callable
             | EqDomain::Null
             | EqDomain::ClassRef
-            | EqDomain::PropertyKey => Unordered::Other,
+            | EqDomain::PropertyKey
+            | EqDomain::PropertyPath => Unordered::Other,
         };
         Some((ty, domain))
     })?;
@@ -2343,6 +2382,9 @@ enum ConvKind {
     /// [`check_property_key_conversion`] instead, which is § 2's second
     /// sentence and the reason a hand-written key costs nothing at run time.
     PropertyKey,
+    /// `propertyPath<T>` — `rule:types/property-path`, [`Self::PropertyKey`]'s
+    /// story one type over.
+    PropertyPath,
     /// More than one runtime shape — `mixed`, a `?T`, a heterogeneous union,
     /// or a type this table does not model. **Never refused, on either side**:
     /// the row is chosen from the value's tag at run time.
@@ -2369,6 +2411,7 @@ fn conversion_kind(id: TypeId, interner: &TypeInterner) -> ConvKind {
         Ty::Array(_) => ConvKind::Array,
         Ty::ClassRef(_) => ConvKind::ClassRef,
         Ty::PropertyKey(_) => ConvKind::PropertyKey,
+        Ty::PropertyPath(_) => ConvKind::PropertyPath,
         Ty::Enum(_, backing) | Ty::EnumCase(_, backing, _) => ConvKind::Enum(*backing),
         Ty::Class(..) | Ty::Object | Ty::Shape(_) | Ty::Callable | Ty::CallableSig { .. } => {
             ConvKind::Object
@@ -2419,8 +2462,8 @@ fn array_source_kind(from: TypeId, interner: &TypeInterner) -> ConvKind {
 /// a judgement of its own.
 fn conversion_row_exists(from: ConvKind, to: ConvKind) -> bool {
     use ConvKind::{
-        Array, Bool, Bytes, ClassRef, Decimal, Enum, Float, Int, Null, Object, PropertyKey, Str,
-        Uint, Void, Wide,
+        Array, Bool, Bytes, ClassRef, Decimal, Enum, Float, Int, Null, Object, PropertyKey,
+        PropertyPath, Str, Uint, Void, Wide,
     };
     match (from, to) {
         // A `void` call has no value, so it is neither an operand a row can
@@ -2469,6 +2512,12 @@ fn conversion_row_exists(from: ConvKind, to: ConvKind) -> bool {
         // to the "anything → `string`" arm below, where it would read as one of
         // the scalars.
         (PropertyKey, Str) => true,
+        // `rule:types/property-path`'s three rows, the key's above one type
+        // over: a `string` checked one segment at a time, a narrowing from
+        // another path, and the total way back to the dotted text.
+        (Str | PropertyPath, PropertyPath) => true,
+        (_, PropertyPath) => false,
+        (PropertyPath, Str) => true,
         // `rule:types/class-reference`'s own third row, the sibling of the one above and total
         // for the same reason: a class reference *is* a descriptor, and a
         // descriptor carries the class's fully qualified name. So this closes
@@ -2540,8 +2589,19 @@ fn enum_backing_kind(backing: crate::enums::EnumBacking) -> ConvKind {
 /// Ordered operand-first where the operand is the whole reason there is no row,
 /// target-first otherwise.
 fn conversion_help(from: ConvKind, to: ConvKind) -> &'static str {
-    use ConvKind::{Array, Bool, Bytes, ClassRef, Enum, Null, Object, PropertyKey, Str, Void};
+    use ConvKind::{
+        Array, Bool, Bytes, ClassRef, Enum, Null, Object, PropertyKey, PropertyPath, Str, Void,
+    };
     match (from, to) {
+        (_, PropertyPath) => {
+            "`propertyPath<T>` has two sources: a `string` whose dotted parts name public \
+             properties, starting at `T`, and another property path. Make the text first and \
+             convert that"
+        }
+        (PropertyPath, _) => {
+            "a property path converts to the `string` it contains and to nothing else. Convert \
+             it to `string` first"
+        }
         (_, PropertyKey) => {
             "`rule:types/property-key` gives `property<T>` exactly two sources: a `string` naming a public \
              declared property of `T`, and a narrowing from another key — so make the name first \

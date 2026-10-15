@@ -1832,7 +1832,9 @@ pub(crate) fn static_use(ty: Option<&Type>, declaring: &QName, src: &SourceFile)
                 TypeAtom::Array(Some(t)) | TypeAtom::ClassRef(t) => {
                     visit(t, in_param, in_key, short, src, out);
                 }
-                TypeAtom::PropertyKey(t) => visit(t, in_param, true, short, src, out),
+                TypeAtom::PropertyKey(t) | TypeAtom::PropertyPath(t) => {
+                    visit(t, in_param, true, short, src, out);
+                }
                 TypeAtom::Shape(fields) => {
                     for f in fields {
                         visit(&f.ty, in_param, in_key, short, src, out);
@@ -1886,6 +1888,10 @@ pub(crate) fn bind_static(
             let inner = bind_static(inner, declaring, to, interner);
             interner.property_key(inner)
         }
+        Ty::PropertyPath(inner) => {
+            let inner = bind_static(inner, declaring, to, interner);
+            interner.property_path(inner)
+        }
         Ty::Union(members) => {
             let members: Vec<TypeId> = members
                 .iter()
@@ -1920,18 +1926,20 @@ pub(crate) fn bind_static(
 }
 
 /// `id` as a method body sees a parameter whose `static` is written inside a
-/// `property<…>`: each `property<C>` of the declaring class is a `string`.
+/// `property<…>` or a `propertyPath<…>`: each `property<C>` and
+/// `propertyPath<C>` of the declaring class is a `string`.
 ///
-/// The caller may pass a key of a subclass, and the body does not know which
-/// one, so the value is the property's name as text. Converting it back with
-/// `as property<…>` is checked at run time.
+/// The caller may pass a key or a path of a subclass, and the body does not
+/// know which one, so the value is the name or the dotted path as text.
+/// Converting it back with `as property<…>` or `as propertyPath<…>` is checked
+/// at run time.
 pub(crate) fn static_key_as_text(
     id: TypeId,
     declaring: &QName,
     interner: &mut crate::ty::TypeInterner,
 ) -> TypeId {
     match interner.get(id).clone() {
-        Ty::PropertyKey(inner) if matches!(interner.get(inner), Ty::Class(q, args) if q == declaring && args.is_empty()) => {
+        Ty::PropertyKey(inner) | Ty::PropertyPath(inner) if matches!(interner.get(inner), Ty::Class(q, args) if q == declaring && args.is_empty()) => {
             interner.string()
         }
         Ty::Array(elem) => {

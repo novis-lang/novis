@@ -751,29 +751,189 @@ pub(crate) fn record_property_keys(qname: &QName, env: &mut Env<'_>) {
     env.exprs.record_property_keys(label, keys);
 }
 
-/// The key type and its class where `ty`, a parameter's declared type, is
-/// `property<T>` or `?property<T>` over a class `T`. `None` for every other
-/// type, a union with `string` included, since such a parameter takes any
-/// string (`rule:types/property-key`).
-pub(crate) fn key_parameter_class(ty: TypeId, env: &mut Env<'_>) -> Option<(TypeId, QName)> {
-    let key = env.interner.without_null(ty);
-    let argument = property_key_argument(key, env.interner)?;
-    match env.interner.get(argument) {
-        Ty::Class(qname, _) => Some((key, qname.clone())),
+/// The class a `propertyPath<T>` value starts at, or `None` for every other
+/// type — [`property_key_argument`]'s question asked of
+/// `rule:types/property-path`'s path.
+pub(crate) fn property_path_argument(ty: TypeId, interner: &TypeInterner) -> Option<TypeId> {
+    match interner.get(ty) {
+        Ty::PropertyPath(inner) => Some(*inner),
         _ => None,
     }
 }
 
-/// Records [`record_property_keys`] for each class a `property<T>` member of
-/// `ty` names, where `ty` is the parameter type a string literal argument is
-/// checked against.
+/// What a key parameter takes: `property<T>` or `propertyPath<T>`.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum KeyKind {
+    /// `property<T>`, one name.
+    Name,
+    /// `propertyPath<T>`, a dotted chain of names.
+    Path,
+}
+
+/// The key type, its class and its kind where `ty`, a parameter's declared
+/// type, is `property<T>`, `propertyPath<T>` or either of them nullable, over a
+/// class `T`. `None` for every other type, a union with `string` included,
+/// since such a parameter takes any string (`rule:types/property-key`).
+pub(crate) fn key_parameter_class(
+    ty: TypeId,
+    env: &mut Env<'_>,
+) -> Option<(TypeId, QName, KeyKind)> {
+    let key = env.interner.without_null(ty);
+    let (argument, kind) = match property_key_argument(key, env.interner) {
+        Some(argument) => (argument, KeyKind::Name),
+        None => (property_path_argument(key, env.interner)?, KeyKind::Path),
+    };
+    match env.interner.get(argument) {
+        Ty::Class(qname, _) => Some((key, qname.clone(), kind)),
+        _ => None,
+    }
+}
+
+/// The class the next segment of a `rule:types/property-path` path is looked
+/// up on, where `ty` is the declared type of the property a segment names: a
+/// class `C`, a `?C` or an `array<C>`. `None` for every other type, which a
+/// path cannot step past.
+pub(crate) fn path_step_class(ty: TypeId, interner: &TypeInterner) -> Option<QName> {
+    let class_of = |id: TypeId| match interner.get(id) {
+        Ty::Class(qname, _) => Some(qname.clone()),
+        _ => None,
+    };
+    match interner.get(ty) {
+        Ty::Class(qname, _) => Some(qname.clone()),
+        Ty::Array(elem) => class_of(*elem),
+        Ty::Union(members) => match members.as_slice() {
+            [a, b] if matches!(interner.get(*a), Ty::Null) => class_of(*b),
+            [a, b] if matches!(interner.get(*b), Ty::Null) => class_of(*a),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+/// The class a path steps to after `name` on `qname`, under
+/// [`path_step_class`].
+fn path_step_after(qname: &QName, name: &str, env: &Env<'_>) -> Option<QName> {
+    let (_, ty) =
+        crate::signatures::resolve_property_owned(qname, name, env.signatures, env.graph)?;
+    path_step_class(ty, env.interner)
+}
+
+/// Every class a `rule:types/property-path` path can reach from `root`, the
+/// first being `root`, each with its public properties and where they lead.
+/// One roster per class, so a path that loops back to a class adds nothing.
+pub(crate) fn property_path_graph(root: &QName, env: &Env<'_>) -> Vec<crate::expr_table::PathNode> {
+    let mut order = vec![root.clone()];
+    let mut index: rustc_hash::FxHashMap<QName, usize> = rustc_hash::FxHashMap::default();
+    index.insert(root.clone(), 0);
+    let mut nodes = Vec::new();
+    let mut at = 0;
+    while at < order.len() {
+        let class = order[at].clone();
+        let mut steps = Vec::new();
+        for name in public_property_names(&class, env) {
+            let next = path_step_after(&class, &name, env).map(|next| {
+                *index.entry(next.clone()).or_insert_with(|| {
+                    order.push(next);
+                    order.len() - 1
+                })
+            });
+            steps.push((name, next));
+        }
+        nodes.push(crate::expr_table::PathNode {
+            class: class.to_string(),
+            steps,
+        });
+        at += 1;
+    }
+    nodes
+}
+
+/// Checks a written-out `rule:types/property-path` path at `text`, a string
+/// literal, one segment at a time from `root`. The first bad segment is the
+/// unknown-member diagnostic, underlined at that segment alone, and the walk
+/// stops there. `span` is underlined instead when the literal's text does not
+/// map back to its source byte for byte.
+pub(crate) fn report_unwritten_property_path(
+    root: &QName,
+    text: Span,
+    span: Span,
+    env: &mut Env<'_>,
+) {
+    let (cooked, positions) = crate::string_lit::cook_string_literal_positions(env.src, text);
+    let segments: Vec<&str> = cooked.split('.').collect();
+    let mut class = root.clone();
+    let mut at = 0;
+    for (i, segment) in segments.iter().enumerate() {
+        let underline = crate::string_lit::decoded_range_span(text, &positions, at, segment.len())
+            .filter(|s| s.end > s.start)
+            .unwrap_or(span);
+        if segment.is_empty() {
+            env.diags.report(
+                Diagnostic::error(code::E_UNKNOWN_MEMBER, "a property path has an empty part")
+                    .with_primary(underline, "this path is checked here")
+                    .with_help(
+                        "a property path is property names joined with one dot, such as \
+                         `customer.name`",
+                    ),
+            );
+            return;
+        }
+        let roster = public_property_names(&class, env);
+        if !roster.iter().any(|name| name == segment) {
+            let listed = roster
+                .iter()
+                .map(|property| format!("`${property}`"))
+                .collect::<Vec<_>>()
+                .join(", ");
+            env.diags.report(
+                Diagnostic::error(
+                    code::E_UNKNOWN_MEMBER,
+                    format!("`{class}` has no public property `${segment}`"),
+                )
+                .with_primary(underline, "this part of the path is checked here")
+                .with_help(format!(
+                    "each part of a property path names a public property of the class \
+                     the path has reached: `{class}` has {listed}"
+                )),
+            );
+            return;
+        }
+        if i + 1 < segments.len() {
+            let Some(next) = path_step_after(&class, segment, env) else {
+                env.diags.report(
+                    Diagnostic::error(
+                        code::E_UNKNOWN_MEMBER,
+                        format!(
+                            "`{class}`'s property `${segment}` is not an object, so the path \
+                             cannot continue after it"
+                        ),
+                    )
+                    .with_primary(underline, "the path continues after this property")
+                    .with_help(
+                        "every part of a property path but the last names a property whose \
+                         type is a class, a nullable class or an array of a class",
+                    ),
+                );
+                return;
+            };
+            class = next;
+        }
+        at += segment.len() + 1;
+    }
+}
+
+/// Records [`record_property_keys`] for each class a `property<T>` or
+/// `propertyPath<T>` member of `ty` names, where `ty` is the parameter type a
+/// string literal argument is checked against.
 pub(crate) fn record_parameter_property_keys(ty: TypeId, env: &mut Env<'_>) {
     let members = match env.interner.get(ty) {
         Ty::Union(members) => members.clone(),
         _ => vec![ty],
     };
     for member in members {
-        let Some(argument) = property_key_argument(member, env.interner) else {
+        let argument = property_key_argument(member, env.interner)
+            .or_else(|| property_path_argument(member, env.interner));
+        let Some(argument) = argument else {
             continue;
         };
         if let Ty::Class(qname, _) = env.interner.get(argument).clone() {

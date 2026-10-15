@@ -1,0 +1,52 @@
+--TEST--
+A string converted with `as propertyPath<T>` while the program runs is checked one part at a time, and a part that names nothing, names a private property, continues after a property that is not an object, or is empty throws an error that names it; a path that loops back to a class is valid at any length — `rule:types/property-path`
+--FILE--
+<?nvs
+// A path from a string is checked when it is converted.
+// A bad part throws an error that names the part.
+class Category {
+    public string $name = "Books";
+    public ?Category $parent = null;
+    private string $secret = "s";
+}
+
+class Product {
+    public Category $category;
+    public int $price = 5;
+
+    public function constructor() {
+        $this->category = new Category();
+    }
+}
+
+class Check {
+    public static function path(string $text): void {
+        try {
+            propertyPath<Product> $path = $text as propertyPath<Product>;
+            echo "valid: ", $path as string, "\n";
+        } catch (Throwable $e) {
+            echo $e->message, "\n";
+        }
+    }
+}
+
+Check::path("category.name");
+Check::path("category.nmae");
+Check::path("category.secret");
+Check::path("price.amount");
+Check::path("category..name");
+
+// `parent` is a `?Category`, so a path can repeat it many times.
+string $long = "category";
+for (int $i = 0; $i < 200; $i++) {
+    $long = $long . ".parent";
+}
+propertyPath<Product> $deep = ($long . ".name") as propertyPath<Product>;
+echo Core\Str::length($deep as string), "\n";
+--EXPECT--
+valid: category.name
+`"category.nmae"` is not a property path of `Product`: `Category` has no public property `$nmae`
+`"category.secret"` is not a property path of `Product`: `Category` has no public property `$secret`
+`"price.amount"` is not a property path of `Product`: `Product`'s property `$price` is not an object, so the path cannot continue after it
+`"category..name"` is not a property path of `Product`: it has an empty part
+1413

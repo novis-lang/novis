@@ -38,7 +38,7 @@ Conventions the whole file uses:
 ### Part A — The language
 
 - A.1 [Programs, files and names](#lang-programs) — what a `.nvs` file is, how it runs, how names are spelled and resolved, and how one file reaches another *(<?nvs, <?=, ?>, inline HTML, shebang, nvs run, echo, print, comments, doc comment, ///, docblock, @see, @example, exit, namespace, use, require, autoload, discover, class name, casing, constructor, visibility, top-level statements, main)*
-- A.2 [Types, declarations and conversions](#lang-types) — every type, how a binding declares one, every value written in the code, the `as` conversion and its table, implicit widening, narrowing, truthiness, and the `tainted`/`secret` qualifiers *(bool, int, uint, float, decimal, string, bytes, array<T>, callable, class<T>, class reference, property<T>, property key, property name, dynamic property, mixed, object, nullable, ?T, union, single-value type, enum, shape, anonymous object, type alias, void, never, self, static, iterable, intersection, var, declaration, inout, variadic, default parameter, constant, string literal, numeric literal, heredoc, nowdoc, interpolation, duration, html, markup, template, html template, page, escape, xss, as, conversion, cast, convert to int, convert to string, type check, type of a value, widening, narrowing, is, truthy, falsy, tainted, secret)*
+- A.2 [Types, declarations and conversions](#lang-types) — every type, how a binding declares one, every value written in the code, the `as` conversion and its table, implicit widening, narrowing, truthiness, and the `tainted`/`secret` qualifiers *(bool, int, uint, float, decimal, string, bytes, array<T>, callable, class<T>, class reference, property<T>, property key, property name, propertyPath<T>, property path, field path, dynamic property, mixed, object, nullable, ?T, union, single-value type, enum, shape, anonymous object, type alias, void, never, self, static, iterable, intersection, var, declaration, inout, variadic, default parameter, constant, string literal, numeric literal, heredoc, nowdoc, interpolation, duration, html, markup, template, html template, page, escape, xss, as, conversion, cast, convert to int, convert to string, type check, type of a value, widening, narrowing, is, truthy, falsy, tainted, secret)*
 - A.3 [Expressions and operators](#lang-expressions) — every operator with its precedence and what it accepts, calls, anonymous functions and method references, `match`, arrays and anonymous objects in expression position, and the operators and forms that do not parse *(operators, precedence, associativity, arithmetic, +, -, *, /, %, **, pow, concatenation, ., .=, ==, !=, ===, !==, <>, <=>, spaceship, comparison, <, <=, >, >=, &&, ||, !, and, or, xor, ??, ??=, ??+=, ??-=, ??.=, defaulting assignment, ?:, elvis, ternary, ?->, nullsafe, match, is, new, clone, throw expression, print, isset, empty, unset, anonymous function, fn, function, use, callable, method reference, named arguments, spread, ..., variadic, inout, array literal, subscript, append, [], destructuring, anonymous object, shape, ++, --, increment, bitwise, &, |, ^, ~, <<, >>, shift, overflow, ArithmeticError, division by zero, @, backticks, eval, reference, |>, pipeline, pipe, $_, hole, substitution)*
 - A.4 [Statements and control flow](#lang-statements) — expression statements, blocks and local declarations, `if`, the four loops, `switch`, `break`/`continue` with levels, `return`, `try`/`catch`/`finally`, `throw`, `echo`, `unset`, and the statement forms that do not parse *(statement, block, scope, definite assignment, if, elseif, else if, else, endif, alternative syntax, while, endwhile, do while, for, foreach, endforeach, as, key, value, inout, by reference, Iterator, Iterable, switch, case, default, fallthrough, break, continue, break 2, continue 2, levels, return, try, catch, finally, multi-catch, throw, echo, print, unset, exit, yield, goto, label, declare, global, static variable)*
 - A.5 [Classes, interfaces and objects](#lang-classes) — declaring a class, its properties, methods and constants; inheritance; interfaces, default methods and `by` delegation; hooks, `LateInit`, guards, observers, `Stringable`, `Comparable`; what an object is and what `clone` copies *(class, constructor, __construct, new, public, protected, private, static, self, parent, $this, abstract, final, extends, implements, interface, trait, delegation, by, readonly, lateinit, isinit, LateInit, initProperty, property hooks, get, set, PropertyGuard, beforePropertySet, beforePropertyUnset, PropertyObserver, Stringable, __toString, Comparable, compareTo, clone, __clone, is, object, ?->, nullsafe, __get, __set, __call, __callStatic, __invoke, __destruct, anonymous class, const, ::class, class<T>, class reference, new $cls, late static binding)*
@@ -633,7 +633,7 @@ stopping
 <a id="lang-types"></a>
 ## A.2 Types, declarations and conversions
 
-Keywords: bool, int, uint, float, decimal, string, bytes, array<T>, callable, class<T>, class reference, property<T>, property key, property name, dynamic property, mixed, object, nullable, ?T, union, single-value type, enum, shape, anonymous object, type alias, void, never, self, static, iterable, intersection, var, declaration, inout, variadic, default parameter, constant, string literal, numeric literal, heredoc, nowdoc, interpolation, duration, html, markup, template, html template, page, escape, xss, as, conversion, cast, convert to int, convert to string, type check, type of a value, widening, narrowing, is, truthy, falsy, tainted, secret
+Keywords: bool, int, uint, float, decimal, string, bytes, array<T>, callable, class<T>, class reference, property<T>, property key, property name, propertyPath<T>, property path, field path, dynamic property, mixed, object, nullable, ?T, union, single-value type, enum, shape, anonymous object, type alias, void, never, self, static, iterable, intersection, var, declaration, inout, variadic, default parameter, constant, string literal, numeric literal, heredoc, nowdoc, interpolation, duration, html, markup, template, html template, page, escape, xss, as, conversion, cast, convert to int, convert to string, type check, type of a value, widening, narrowing, is, truthy, falsy, tainted, secret
 
 ### Every binding has a type
 
@@ -1428,6 +1428,9 @@ The conversion table. A pair not listed is a compile error naming both types.
 | `string` | `property<T>` | the name of a public property of `T`, or it throws; a name written directly in the code is checked while compiling |
 | `property<U>` | `property<T>` | the name must also be a public property of `T`, or it throws |
 | `property<T>` | `string` | total: the property's name |
+| `string` | `propertyPath<T>` | each part must name a public property, starting at `T`, or it throws; a path written directly in the code is checked while compiling |
+| `propertyPath<U>` | `propertyPath<T>` | the path must also be a path of `T`, or it throws |
+| `propertyPath<T>` | `string` | total: the path's text |
 | any | a set of allowed values or an enum-case union | a `mixed` must equal a member; a typed operand converts first, then is tested |
 | any | `mixed` | free |
 
@@ -1438,8 +1441,10 @@ the public properties `T` inherits. A value of this type is called a property ke
 writes a property whose name is known only while the program runs, such as a sort column from a
 request or a field in a form.
 
-- `as` is the only way to make a key. A name written directly in the code is checked while
-  compiling: `"emial" as property<User>` does not compile (`E0405`).
+- `as` makes a key. A name written directly in the code is checked while compiling:
+  `"emial" as property<User>` does not compile (`E0405`).
+- A string literal at a parameter typed `property<T>` is also a key. It needs no `as`, and it is
+  checked while compiling.
 - Any other string is checked by `as` while the program runs. If it is not the name of a public
   property of `T`, `as` throws a `RuntimeError`. `as` also throws for the name of a `private` or
   `protected` property.
@@ -1549,6 +1554,67 @@ $order->$key = "paid";
 ```
 ```output
 `Order::$id` is `readonly`, so only `Order`'s constructor writes it
+```
+
+### Property paths
+
+`propertyPath<T>` is a type. Its values are public property names joined with dots, such as
+`customer.address.city`. The first name is a property of the class `T`. Each name after it is a
+property of the class that the name before it reaches. A path names a field across related objects,
+such as a sort column `customer.name` from a request.
+
+- Every name but the last must be a property whose type is a class `C`, a `?C` or an `array<C>`. The
+  next name is a property of `C`. The last name can be any public property.
+- A path written directly in the code is checked while compiling, one name at a time. A wrong name
+  does not compile (`E0405`), and the error points at that name.
+- A string literal at a parameter typed `propertyPath<T>` is also a path. It needs no `as`.
+- Any other string is checked by `as` while the program runs. If a name is wrong, `as` throws a
+  `RuntimeError` that names it. `as ?propertyPath<T>` gives `null` instead.
+- A path has no length limit. A path that comes back to the same class, such as
+  `category.parent.parent.name`, is valid.
+- `$path as string` gives the text. Two paths are equal when their text is equal.
+
+```nvs
+<?nvs
+class Address {
+    public string $city = "Graz";
+}
+
+class Customer {
+    public string $name = "Ada";
+    public ?Address $address = null;
+}
+
+class Order {
+    public Customer $customer;
+    public int $total = 40;
+
+    public function constructor() {
+        $this->customer = new Customer();
+    }
+}
+
+class Report {
+    public static function sortBy(propertyPath<Order> $path): string {
+        return "sorted by " . ($path as string);
+    }
+}
+
+echo Report::sortBy("customer.address.city"), "\n";
+
+string $field = "customer.age";
+?propertyPath<Order> $none = $field as ?propertyPath<Order>;
+echo $none == null ? "null" : "a path", "\n";
+try {
+    propertyPath<Order> $bad = $field as propertyPath<Order>;
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+}
+```
+```output
+sorted by customer.address.city
+null
+`"customer.age"` is not a property path of `Order`: `Customer` has no public property `$age`
 ```
 
 ### Narrowing

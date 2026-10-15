@@ -1,0 +1,84 @@
+--TEST--
+A `propertyPath<T>` names a chain of public properties that steps through an object, a nullable object and an array of objects, written out with `as`, as a literal at a parameter and converted at run time, and `as string` gives its text — `rule:types/property-path`
+--FILE--
+<?nvs
+// A property path is a list of property names joined with dots.
+// Each name is a property of the class that the name before it reaches.
+class Address {
+    public string $city = "Graz";
+}
+
+class Customer {
+    public string $name = "Ada";
+    public ?Address $address = null;
+}
+
+class Product {
+    public string $sku = "p-1";
+}
+
+class Line {
+    public Product $product;
+    public int $quantity = 1;
+
+    public function constructor() {
+        $this->product = new Product();
+    }
+}
+
+class Order {
+    public Customer $customer;
+    public array<Line> $lines = [];
+    public int $total = 40;
+
+    public function constructor() {
+        $this->customer = new Customer();
+    }
+
+    public static function sortBy(propertyPath<static> $path): string {
+        return "sorted by " . $path;
+    }
+}
+
+class Report {
+    public static function column(propertyPath<Order> $path): string {
+        return "column " . ($path as string);
+    }
+}
+
+// `customer` is a `Customer`, so `name` is looked up on `Customer`.
+propertyPath<Order> $name = "customer.name" as propertyPath<Order>;
+echo $name as string, "\n";
+
+// `address` is a `?Address`, and a path steps through it to `city`.
+echo "customer.address.city" as propertyPath<Order> as string, "\n";
+
+// `lines` is an `array<Line>`, and a path steps through it to each line.
+echo Report::column("lines.product.sku"), "\n";
+
+// One name is a path too.
+echo Report::column("total"), "\n";
+
+// With `static`, the path starts at the class that the call names.
+echo Order::sortBy("lines.quantity"), "\n";
+
+// A string from the program is checked when it is converted.
+string $text = "customer.address.city";
+propertyPath<Order> $checked = $text as propertyPath<Order>;
+echo $checked as string, "\n";
+
+// `as ?propertyPath<Order>` gives `null` for a string that is not a path.
+?propertyPath<Order> $bad = ("customer.age" . "") as ?propertyPath<Order>;
+echo $bad == null ? "null" : "a path", "\n";
+
+// Two paths are equal when their text is equal.
+echo $checked == "customer.address.city" as propertyPath<Order> ? "equal" : "different", "\n";
+--EXPECT--
+customer.name
+customer.address.city
+column lines.product.sku
+column total
+sorted by lines.quantity
+customer.address.city
+null
+equal

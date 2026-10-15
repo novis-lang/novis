@@ -1,12 +1,15 @@
 {
   "title": "`propertyPath<T>` is a type whose values are dotted chains of public property names starting at `T`, checked one segment at a time",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "types/property-key",
     "types/property-key-variance",
     "types/string-holes",
     "core-classes/str-parts-and-reflect-steps"
   ],
-  "guardedBy": [],
-  "goal": "property-paths"
+  "guardedBy": [
+    "tests/conformance/lang/a-property-path-steps-through-objects-nullable-objects-and-arrays.nvst",
+    "tests/conformance/lang/a-misspelled-property-path-does-not-compile.nvst",
+    "tests/conformance/lang/a-property-path-converted-at-run-time-throws-for-a-bad-segment.nvst"
+  ]
 }

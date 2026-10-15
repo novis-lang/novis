@@ -91,6 +91,13 @@ impl<'src, 'd> Parser<'src, 'd> {
         self.at_contextual("property") && matches!(self.peek_at(1).kind, TokenKind::Lt)
     }
 
+    /// `propertyPath<` — `rule:types/property-path`'s path, recognised by spelling
+    /// for [`Self::at_property_key`]'s reason: `propertyPath` is a type word in
+    /// front of a `<` and nowhere else.
+    pub(super) fn at_property_path(&mut self) -> bool {
+        self.at_contextual("propertyPath") && matches!(self.peek_at(1).kind, TokenKind::Lt)
+    }
+
     /// `-1` — `rule:types/single-value-types`'s one type atom that needs two tokens to
     /// recognise, which is why it is asked here rather than in
     /// [`Self::token_starts_type`]. A bare `-` never starts a type on its
@@ -547,6 +554,16 @@ impl<'src, 'd> Parser<'src, 'd> {
                 let close = self.expect_type_close_angle();
                 Type {
                     kind: TypeKind::Atom(TypeAtom::PropertyKey(Box::new(inner))),
+                    span: start.to(close),
+                }
+            }
+            TokenKind::Ident if self.at_property_path() => {
+                self.bump();
+                self.bump();
+                let inner = self.parse_type_union();
+                let close = self.expect_type_close_angle();
+                Type {
+                    kind: TypeKind::Atom(TypeAtom::PropertyPath(Box::new(inner))),
                     span: start.to(close),
                 }
             }

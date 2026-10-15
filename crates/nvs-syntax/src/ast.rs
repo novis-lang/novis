@@ -161,6 +161,10 @@ pub enum TypeAtom {
     /// `property` and a class named `Property` are all untouched — which is
     /// what the ADR promises when it makes this a keyword "only there".
     PropertyKey(Box<Type>),
+    /// `propertyPath<T>` — `rule:types/property-path`'s path, whose values are
+    /// dotted chains of public property names starting at `T`. Recognised by
+    /// spelling in front of a `<`, as [`Self::PropertyKey`] is.
+    PropertyPath(Box<Type>),
     /// `object`
     Object,
     /// `{name: T, ...}` — `rule:types/shape-type`: an inline structural shape type,

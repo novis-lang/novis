@@ -3,7 +3,7 @@
 
 # Types
 
-*2 of 55 rules below are **designed** rather than shipped, and are marked where they appear.*
+*1 of 55 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="types-declaration"></a>
 
@@ -1244,7 +1244,7 @@ pays nothing.
 
 <a id="types-property-path"></a>
 
-## `propertyPath<T>` is a type whose values are dotted chains of public property names starting at `T`, checked one segment at a time  *(designed — owned by goal property-paths)*
+## `propertyPath<T>` is a type whose values are dotted chains of public property names starting at `T`, checked one segment at a time
 
 `rule:types/property-path`
 

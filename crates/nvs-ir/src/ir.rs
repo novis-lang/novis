@@ -2599,6 +2599,19 @@ pub enum Helper {
     /// [`InstKind::ConstStr`] at, so `nvs_runtime`'s own helper drops it.
     /// The operand keeps the ordinary convention and is the caller's.
     SingleValueMismatch,
+    /// Two arguments: a `rule:types/property-path` operand, a string or a
+    /// [`crate::ty::Ty::Tagged`] value, and the classes the path can reach,
+    /// encoded by `crate::lower::Lowering::lower_property_path_check`. Returns a
+    /// `bool`: whether every segment names a public property, and every one
+    /// but the last steps to a class. It carries an error edge as every helper
+    /// call does, though it only faults on a miscompile, and it borrows both
+    /// arguments. One roster is read per segment.
+    PropertyPathValid,
+    /// The miss arm of [`Self::PropertyPathValid`], with the same two
+    /// arguments. It finds the first bad segment again and throws an error
+    /// that names it, so it **never returns normally**, and it **owns** the
+    /// encoded classes for [`Self::SingleValueMismatch`]'s reason.
+    PropertyPathMismatch,
     /// One argument: the [`crate::ty::Ty::Tagged`] operand of a `clone` whose
     /// tag turned out not to be an object, so `rule:classes/clone-is-shallow`'s
     /// "a new instance of `$x`'s class" names no class. It is the miss arm of

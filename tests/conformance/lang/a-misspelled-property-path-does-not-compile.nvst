@@ -1,0 +1,60 @@
+--TEST--
+A written-out `propertyPath<T>` with a part that names no public property, or that continues after a property that is not an object, is the unknown-member error at that part alone, with `as` and at a parameter — `rule:types/property-path`
+--FILE--
+<?nvs
+// Each part of a path is checked when the program compiles.
+class Customer {
+    public string $name = "Ada";
+    private string $secret = "s";
+}
+
+class Order {
+    public ?Customer $customer = null;
+    public int $total = 40;
+}
+
+class Report {
+    public static function column(propertyPath<Order> $path): string {
+        return "column " . ($path as string);
+    }
+}
+
+// `nmae` is misspelled.
+echo "customer.nmae" as propertyPath<Order> as string, "\n";
+// `secret` is private.
+echo Report::column("customer.secret"), "\n";
+// `total` is an `int`, so the path cannot continue after it.
+echo Report::column("total.amount"), "\n";
+// A path that ends with a dot has an empty last part.
+echo Report::column("customer."), "\n";
+--EXPECTF-ERROR--
+error[E0405]: `Customer` has no public property `$nmae`
+   --> %s:20:16
+   |
+20 | echo "customer.nmae" as propertyPath<Order> as string, "\n";
+   |                ^^^^ this part of the path is checked here
+   = help: each part of a property path names a public property of the class the path has reached: `Customer` has `$name`
+
+error[E0405]: `Customer` has no public property `$secret`
+   --> %s:22:31
+   |
+22 | echo Report::column("customer.secret"), "\n";
+   |                               ^^^^^^ this part of the path is checked here
+   = help: each part of a property path names a public property of the class the path has reached: `Customer` has `$name`
+
+error[E0405]: `Order`'s property `$total` is not an object, so the path cannot continue after it
+   --> %s:24:22
+   |
+24 | echo Report::column("total.amount"), "\n";
+   |                      ^^^^^ the path continues after this property
+   = help: every part of a property path but the last names a property whose type is a class, a nullable class or an array of a class
+
+error[E0405]: a property path has an empty part
+   --> %s:26:21
+   |
+26 | echo Report::column("customer."), "\n";
+   |                     ^^^^^^^^^^^ this path is checked here
+   = help: a property path is property names joined with one dot, such as `customer.name`
+
+error: aborting due to 4 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

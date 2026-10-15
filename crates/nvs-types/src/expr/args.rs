@@ -128,24 +128,29 @@ fn check_arg_list(
             ArgSlot::Spread(_) | ArgSlot::Unresolved => Admitted::NONE,
         };
         // `rule:types/property-key`: a string literal at a parameter typed
-        // `property<T>` alone is converted here, while compiling, so it needs
-        // no `as` and a wrong name is reported at the literal.
+        // `property<T>` or `propertyPath<T>` alone is converted here, while
+        // compiling, so it needs no `as` and a wrong name is reported at the
+        // literal.
         let written_key = match (&arg.value.kind, expected) {
             (ExprKind::Str(text), Some(want)) => {
                 super::members::key_parameter_class(want, env).map(|key| (*text, key))
             }
             _ => None,
         };
-        let actual = if let Some((text, (key, qname))) = written_key {
-            let roster = super::members::public_property_names(&qname, env);
-            super::operators::report_unwritten_property_key(
-                &qname,
-                &roster,
-                text,
-                arg.value.span,
-                "this name is checked here",
-                env,
-            );
+        let actual = if let Some((text, (key, qname, kind))) = written_key {
+            if kind == super::members::KeyKind::Path {
+                super::members::report_unwritten_property_path(&qname, text, arg.value.span, env);
+            } else {
+                let roster = super::members::public_property_names(&qname, env);
+                super::operators::report_unwritten_property_key(
+                    &qname,
+                    &roster,
+                    text,
+                    arg.value.span,
+                    "this name is checked here",
+                    env,
+                );
+            }
             key
         } else {
             match expected {

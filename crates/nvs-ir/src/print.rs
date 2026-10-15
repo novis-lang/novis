@@ -601,6 +601,8 @@ fn helper_name(h: Helper) -> &'static str {
         Helper::EchoMarkup => "echo_markup",
         Helper::Exit => "exit",
         Helper::SingleValueMismatch => "single_value_mismatch",
+        Helper::PropertyPathValid => "property_path_valid",
+        Helper::PropertyPathMismatch => "property_path_mismatch",
         Helper::CloneOperandNotAnObject => "clone_not_an_object",
         Helper::CloneGuard => "clone_guard",
         Helper::Identical => "identical",

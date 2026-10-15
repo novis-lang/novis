@@ -293,6 +293,14 @@ fn assignable(
         let (from_arg, to_arg) = (*from_arg, *to_arg);
         return assignable(to_arg, from_arg, widen, interner, graph, signatures);
     }
+    // `rule:types/property-path`: `propertyPath<T>` follows the key's
+    // contravariance, for the same reason.
+    if let (Ty::PropertyPath(from_arg), Ty::PropertyPath(to_arg)) =
+        (interner.get(from), interner.get(to))
+    {
+        let (from_arg, to_arg) = (*from_arg, *to_arg);
+        return assignable(to_arg, from_arg, widen, interner, graph, signatures);
+    }
     // **Bare `callable` is the top of `rule:types/callable-signature`'s
     // lattice**, so a written signature always satisfies it. The reverse is
     // refused by falling through: a value whose signature is unknown cannot

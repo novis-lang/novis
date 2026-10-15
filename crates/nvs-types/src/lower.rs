@@ -185,7 +185,8 @@ fn lower_atom(atom: &TypeAtom, span: Span, depth: u32, ctx: &Ctx<'_>, env: &mut 
             env.interner.array(elem)
         }
         TypeAtom::ClassRef(inner) => lower_class_ref(inner, depth, ctx, env),
-        TypeAtom::PropertyKey(inner) => lower_property_key(inner, depth, ctx, env),
+        TypeAtom::PropertyKey(inner) => lower_property_key(inner, false, depth, ctx, env),
+        TypeAtom::PropertyPath(inner) => lower_property_key(inner, true, depth, ctx, env),
         TypeAtom::Object => env.interner.object(),
         TypeAtom::Shape(fields) => {
             let mut out = Vec::with_capacity(fields.len());
@@ -292,7 +293,16 @@ fn lower_class_ref(inner: &Type, depth: u32, ctx: &Ctx<'_>, env: &mut Env<'_>) -
 /// [`crate::expr::operators::reject_empty_property_key_set`], whose doc says
 /// why this pass cannot host it: this one runs during signature collection
 /// too, where every roster is still empty.
-fn lower_property_key(inner: &Type, depth: u32, ctx: &Ctx<'_>, env: &mut Env<'_>) -> TypeId {
+///
+/// `path` is `rule:types/property-path`'s `propertyPath<T>`, whose argument
+/// follows exactly these rules.
+fn lower_property_key(
+    inner: &Type,
+    path: bool,
+    depth: u32,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> TypeId {
     let before = env.diags.error_count();
     let arg = lower_type_at_depth(inner, depth + 1, ctx, env);
     let named_class = match env.interner.get(arg) {
@@ -304,15 +314,19 @@ fn lower_property_key(inner: &Type, depth: u32, ctx: &Ctx<'_>, env: &mut Env<'_>
         }
         _ => false,
     };
+    if named_class && path {
+        return env.interner.property_path(arg);
+    }
     if named_class {
         return env.interner.property_key(arg);
     }
     if env.diags.error_count() == before {
         let described = env.interner.describe(arg);
+        let word = if path { "propertyPath" } else { "property" };
         env.diags.report(
             Diagnostic::error(
                 code::E_PROPERTY_KEY_ARGUMENT_NOT_A_CLASS,
-                format!("`property<{described}>` names something that is not a class"),
+                format!("`{word}<{described}>` names something that is not a class"),
             )
             .with_primary(inner.span, "a class name is required here")
             .with_help(

@@ -350,6 +350,19 @@ pub struct GuardCalls {
     pub unset: Option<String>,
 }
 
+/// One class a `rule:types/property-path` path can reach, as
+/// [`ExprInfo::PropertyPath`] carries it to the run-time walk.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PathNode {
+    /// The class, rendered, which the throw names.
+    pub class: String,
+    /// Each public property of the class, sorted by name, with the index of
+    /// the node the next segment is looked up on. `None` is a property the
+    /// path cannot step past, because its type is not a class, a nullable
+    /// class or an array of a class.
+    pub steps: Vec<(String, Option<usize>)>,
+}
+
 /// One piece of `rule:routing/link-name-and-params-are-checked`'s resolved link, in path order and each carrying
 /// its own leading `/`: concatenating them left to right rebuilds the route's
 /// declared path with every capture substituted.
@@ -1113,6 +1126,18 @@ pub enum ExprInfo {
         /// `T`'s public declared property names, inherited ones included, in
         /// `crate::expr::members::public_property_names`' own order.
         names: Vec<String>,
+    },
+    /// `rule:types/property-path`'s `as propertyPath<T>` over an operand that is
+    /// not written out: every class the path can reach from `T`, which is what
+    /// the run-time walk reads one segment at a time. Keyed by the annotation's
+    /// span for [`Self::PropertyKey`]'s reason, and recorded for no written-out
+    /// operand for that variant's reason too.
+    PropertyPath {
+        /// `T`, rendered, which the throw names.
+        class: String,
+        /// The classes the path can reach. The first is `T`, and a step's
+        /// index points into this list.
+        nodes: Vec<PathNode>,
     },
     /// `$obj->$key` / `$obj->{$expr}` —
     /// `rule:types/property-key-access`'s keyed access, read or write, whose member name arrives as a
