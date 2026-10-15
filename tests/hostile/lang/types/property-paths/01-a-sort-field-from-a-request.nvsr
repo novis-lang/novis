@@ -1,0 +1,8 @@
+--METHOD--
+GET
+--PATH--
+/orders
+--QUERY--
+sort[]=token&sort[]=note&sort[]=customer.password&sort[]=customer.referrer.password&sort[]=%7B%7Btotal%7D%7D&sort[]=%7Btotal%7D&sort[]=customer..name&sort[]=.total&sort[]=total.amount&sort[]=customer.%20name&sort[]=Customer.Name&sort[]=&hidden=customer.password
+--HEADERS--
+host: shop.example.com

@@ -1,0 +1,4 @@
+sorted by customer.name
+sorted by customer.address.city
+sorted by lines.sku
+sorted by total

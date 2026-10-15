@@ -73,6 +73,7 @@ echo $bad == null ? "null" : "a path", "\n";
 
 // Two paths are equal when their text is equal.
 echo $checked == "customer.address.city" as propertyPath<Order> ? "equal" : "different", "\n";
+// covers: lang:types/property-paths
 --EXPECT--
 customer.name
 customer.address.city

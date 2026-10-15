@@ -1,0 +1,37 @@
+<?nvs
+// Converts a sort field to a property path, as a table does when a visitor sorts by a field
+// of a related object.
+// bench: iterations 512
+// bench: allocations 0
+// bench: complexity linear
+
+class Address {
+    public string $city = "";
+}
+
+class Customer {
+    public string $name = "";
+    public ?Address $address = null;
+}
+
+class Order {
+    public ?Customer $customer = null;
+    public int $total = 0;
+}
+
+class Bench {
+    public static function run(int $rounds): int {
+        array<string> $fields = ["customer.name", "customer.address.city", "total"];
+        int $total = 0;
+        int $i = 0;
+        while ($i < $rounds) {
+            // Chained: the field this round converts depends on the last round's total.
+            propertyPath<Order> $path = $fields[($total + $i) % 3] as propertyPath<Order>;
+            $total = $total + (Core\Str::length($path as string) as int);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(512), "\n";

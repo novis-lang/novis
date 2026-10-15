@@ -43,6 +43,7 @@ for (int $i = 0; $i < 200; $i++) {
 }
 propertyPath<Product> $deep = ($long . ".name") as propertyPath<Product>;
 echo Core\Str::length($deep as string), "\n";
+// covers: lang:types/property-paths
 --EXPECT--
 valid: category.name
 `"category.nmae"` is not a property path of `Product`: `Category` has no public property `$nmae`
