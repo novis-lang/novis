@@ -54,7 +54,7 @@ stages:
         shapes: [A diagnostic]
   - id: 7
     title: a member reached from two sources is a compile error
-    status: open
+    status: done
     context: [crates/nvs-types/src/conformance.rs, crates/nvs-types/src/layout.rs, crates/nvs-diagnostics/src/lib.rs]
     extra:
       context:
@@ -234,34 +234,31 @@ user reads*.
 
 **Does:** a method two sources provide, and the class does not declare, is a compile error naming both.
 
-- [ ] The check over every implemented interface and delegate. `crates/nvs-types/src/conformance.rs:136`
-- [ ] The `E` code and its card. `crates/nvs-diagnostics/src/lib.rs:652`
-- [ ] The method walk keeps `extends` over `implements`. `crates/nvs-types/src/layout.rs:1053`
+- [x] The check over every implemented interface and delegate. `crates/nvs-types/src/conformance.rs:136`
+- [x] The `E` code and its card. `crates/nvs-diagnostics/src/lib.rs:652`
+- [x] The method walk keeps `extends` over `implements`. `crates/nvs-types/src/layout.rs:1053`
 
 ## Handoff
 
 ### State
 
-Stages 1 to 6 are shipped. `rule:expressions/nullable-condition-lint` is `shipped`: `W1023`
-(`code::W_NULLABLE_CONDITION`) is raised by `operators::warn_nullable_condition`, which
-`check_condition` (`crates/nvs-types/src/expr/mod.rs:199`) calls for every condition whose type is a
-union with `null` in it. `crates/nvs-cli/tests/check.rs` guards it, and the
-`lang:expressions/logical-operators-and-truth` about.md, example 02 and the reference name it.
-The whole conformance tree passes with it.
+All seven stages are shipped. `rule:classes/member-conflict-is-an-error` is `shipped`: `E0859`
+(`code::E_INTERFACE_MEMBER_CONFLICT`) is raised by `conformance::check_member_conflicts`
+(`crates/nvs-types/src/conformance.rs:202`), called beside `check_class_conformance` in
+`crates/nvs-types/src/check.rs:405`. It compares only the `implements` clauses a class writes, asks
+the superclass chain first, and counts one default reached through two interfaces once.
+`InterfaceName::method()` from an override compiles and runs
+(`tests/conformance/class/a-class-resolves-two-interface-defaults-by-declaring-the-method.nvst`).
+`crates/nvs-types/tests/interface_defaults.rs` holds the three tests the `member-conflict` check names,
+and the `lang:classes/interfaces` about.md names the rule. `bun nv owners --closes language-rule-debts`
+passes.
 
-`docs/rules/core-api.md` is rendered again: stage 5 shipped its rule without `bun nv rules --render`.
-The nightly CI run the sweep names (38701926032) is on the pushed `origin/main` (`cb7021a2`), 603
-commits behind local `main`, and stays red until the user pushes.
+The nightly CI run the sweep names (38701926032) is on the pushed `origin/main`, far behind local
+`main`, and stays red until the user pushes.
 
 ### Next
 
-**Stage 7: a member reached from two sources is a compile error**, one file set:
-`crates/nvs-types/src/conformance.rs`, `crates/nvs-types/src/layout.rs`, `crates/nvs-diagnostics/src/lib.rs`.
-
-- [ ] The check over every implemented interface default and `by` delegate, naming every source (`rule:classes/member-conflict-is-an-error`). `crates/nvs-types/src/conformance.rs:136`
-- [ ] The `E` code `E_INTERFACE_MEMBER_CONFLICT` and its card; take the number from the pack's *next free number*. `crates/nvs-diagnostics/src/lib.rs:663`
-- [ ] The method walk keeps `extends` over `implements`, and `InterfaceName::method()` reaches a default from an override (`rule:classes/interface-default-methods`). `crates/nvs-types/src/layout.rs:1053`
-- [ ] The three tests the `member-conflict` check names beside `crates/nvs-types/tests/interface_defaults.rs:139`, the `lang:classes/interfaces` proofs, then `bun nv owners --closes language-rule-debts`.
+The goal is reached. The driver retires this file, and `editor-replay` is next on the chain.
 
 ### Backlog
 
