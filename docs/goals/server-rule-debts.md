@@ -14,7 +14,7 @@ stages:
         shapes: []
   - id: 2
     title: the access log
-    status: open
+    status: done
     context: [crates/nvs-config/src/mode.rs, crates/nvs-server/src/trace.rs]
     extra:
       context:
@@ -224,8 +224,12 @@ backend read one standard header. It is written on every response, sampled or no
 
 **Does:** `[log] access` writes one access line per request, and a `5xx` is always logged.
 
-- [ ] The server reads `log.access` and writes the line through the diagnostic record. `crates/nvs-config/src/mode.rs:86`
-- [ ] The trace id and the route name on the line, and the health probe skipped. `crates/nvs-server/src/trace.rs:537`
+- [x] The server reads `log.access` and writes the line through the diagnostic record. `crates/nvs-config/src/mode.rs:86`
+  - [x] `[log] access` is a key: the tree field, the `ByMode` default row and both `default.toml` blocks.
+  - [x] `trace::access` writes the record, and the door calls it where it counts the request.
+- [x] The trace id and the route name on the line, and the health probe skipped. `crates/nvs-server/src/trace.rs:537`
+  - [x] `Reply::health` marks its response with `Probe`, and a marked response writes no line.
+  - [x] The three `trace::` cases pass, and the rule is shipped.
 
 ### 3. a Unix spelling with no `AF_UNIX` transport refuses at boot
 
@@ -282,29 +286,30 @@ backend read one standard header. It is written on every response, sampled or no
 
 ### State
 
-Stage 1 is done. Both body-cap constants are gone. The door applies the global
-`[limits] upload_total` (`nvs_config::app::upload_total`), and a reader's claim sets the
-request's own value on the wire through `RequestBody::allow_total`. Every in-memory reader reads
-`Ctx::request_body_limit`, which falls back to the shipped default and never to "no cap".
-`rule:http-server/request-body-and-upload-total-are-two-caps` is `shipped`. Its fragment says
-`nvs config dump` prints the rows. The old claim named `nvs info --config`, which takes a path, and
-no command prints a limit's default.
+Stages 1 and 2 are done. `[log] access` was a mode-table row with no key behind it, so writing it
+failed at boot: it is now a `Log` field, a `ByMode` default and a `default.toml` line in `[log]` and
+`[app.log]`. The door writes the access line in `serve_connection`'s `counted` closure, beside the
+request metric, through `nvs_server::trace::access`. `access` is read off the snapshot the request
+ran under (`trace::access_on`), never off the request's overlay, so a program's
+`Core\Config::set("log.access", …)` changes nothing; the fragment says so.
+`rule:http-server/the-access-log-is-a-mode-default` is `shipped`.
 
-The nightly reds ran on `origin/main` (`cb7021a24`, far behind local `main`), and nothing here
-pushes. The lint, advisory and rules-render reds are already fixed locally.
+The nightly reds ran on `origin/main`, far behind local `main`, and nothing here pushes.
 
 ### Next
 
-**Stage 2, the access log**: `crates/nvs-config/src/mode.rs`, `crates/nvs-server/src/trace.rs`
-(`rule:http-server/the-access-log-is-a-mode-default`).
+**Stage 3, a Unix spelling refused at boot**: `crates/nvs-config/src/resolve.rs`,
+`crates/nvs-config/src/store.rs`, `crates/nvs-db/src/conn.rs`
+(`rule:config/a-unix-spelling-with-no-af-unix-transport-refuses-at-boot`).
 
-- [ ] The server reads `[log] access` per request and writes one access line through the diagnostic record, with method, path, status, duration, bytes and the trace id. `crates/nvs-config/src/mode.rs:86`
-- [ ] The health probe writes no line, and a `5xx` is logged with `access` off. `crates/nvs-server/src/trace.rs:537`
-- [ ] The three `cargo test --lib trace::` cases the `access-log` check names, and the rule shipped with `guardedBy`. `crates/nvs-server/src/trace.rs:537`
+- [ ] A `[db]` connection's `unix:` url or bare path is refused in `resolve` with `E0635`, beside the store's check. `crates/nvs-config/src/resolve.rs:535`
+- [ ] The `cargo test --test db` case the `unix-spelling-at-boot` check names, beside the refusal helper. `crates/nvs-config/tests/db.rs:44`
+- [ ] The connect-time refusal stays, and its comment says it is the last line of defence; the rule shipped. `crates/nvs-db/src/conn.rs:59`
 
 ### Backlog
 
-- Stages 3 to 9: this file's § *Stages*.
+- Stages 4 to 9: this file's § *Stages*.
+- A program's `Core\Config::set` of `[log] access` does not reach the access line, if the rule should promise it: `crates/nvs-server/src/trace.rs`.
 - A command that prints every limit in force with its default, if the rule should promise one: `crates/nvs-cli/src/config.rs`.
 - The macOS warm-start budget in the nightly cost guards, once `origin/main` is pushed: `tools/nv/cmd/bench.ts`.
 - The nightly conformance and proofs reds, checked against local `main` once `origin/main` is pushed: `.github/workflows/`.
