@@ -7837,7 +7837,7 @@ Every function and constant in Novis is a member of a class under the reserved `
 <a id="core-core-str"></a>
 ### `Core\Str`
 
-Keywords: string, text, grapheme, unicode, length, substring, slice, search, index of, contains, starts with, ends with, count occurrences, compare, natural order, case-insensitive, split, join, replace, trim, pad, repeat, reverse, word wrap, lowercase, uppercase, capitalize, case conversion, normalize, character code, printf-style formatting, length, at, isEmpty, contains, startsWith, endsWith, slice, indexOf, lastIndexOf, countOf, compare, before, after, join, split, chunk, lines, graphemes, codePoints, replace, replaceAll, replaceRange, padStart, padEnd, trim, trimStart, trimEnd, repeat, reverse, wrap, lower, upper, upperFirst, lowerFirst, fold, normalize, fromCodePoint, fromCodePoints, format
+Keywords: string, text, grapheme, unicode, length, substring, slice, search, index of, contains, starts with, ends with, count occurrences, compare, natural order, case-insensitive, split, join, replace, trim, pad, repeat, reverse, word wrap, lowercase, uppercase, capitalize, case conversion, normalize, character code, printf-style formatting, length, at, isEmpty, contains, startsWith, endsWith, slice, indexOf, lastIndexOf, countOf, compare, before, after, join, split, parts, chunk, lines, graphemes, codePoints, replace, replaceAll, replaceRange, padStart, padEnd, trim, trimStart, trimEnd, repeat, reverse, wrap, lower, upper, upperFirst, lowerFirst, fold, normalize, fromCodePoint, fromCodePoints, format
 
 Every member of `Core\Str` is a static function over a `string` that answers a new value; none
 changes its argument. Every position, length and count is in **graphemes** — user-perceived
@@ -7889,6 +7889,7 @@ id    |003.1|ff
 | [`Core\Str::after`](#core-core-str-after) | `after(string $s, string $needle, {last?: bool}): ?string` |
 | [`Core\Str::join`](#core-core-str-join) | `join(array<string> $parts, string $separator = ""): string` |
 | [`Core\Str::split`](#core-core-str-split) | `split(string $s, string $separator, {limit?: int}): array<string>` |
+| [`Core\Str::parts`](#core-core-str-parts) | `parts(string<K> $text): array<string\|K>` |
 | [`Core\Str::chunk`](#core-core-str-chunk) | `chunk(string $s, uint $size): array<string>` |
 | [`Core\Str::lines`](#core-core-str-lines) | `lines(string $s): array<string>` |
 | [`Core\Str::graphemes`](#core-core-str-graphemes) | `graphemes(string $s): array<string>` |
@@ -8167,6 +8168,21 @@ Splits `$s` into parts at every place where `$separator` is found.
 **Returns** `array<string>` — The parts in order, without the separator. The empty string gives `[""]`. A negative limit that deletes every part gives `[]`.
 
 **Throws** `RuntimeError` — `$separator` is empty.
+
+<a id="core-core-str-parts"></a>
+#### `Core\Str::parts`
+
+```nvs skip
+Core\Str::parts(string<K> $text): array<string|K>
+```
+
+Splits a string with holes into its text and its holes.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$text` | `string<K>` | A string with holes, such as `string<propertyPath<Order>>`. Each `{name}` in it is a hole. |
+
+**Returns** `array<string|K>` — The text and the holes in order. The array starts and ends with text, and text and holes take turns. So an even index is text and an odd index is a hole. Text can be the empty string. In text, `{{` is already `{` and `}}` is already `}`. If `$text` is `tainted`, the text is `tainted` too. The holes are not.
 
 <a id="core-core-str-chunk"></a>
 #### `Core\Str::chunk`

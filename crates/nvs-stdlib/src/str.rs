@@ -86,6 +86,7 @@
 
 use std::cmp::Ordering;
 
+use nvs_runtime::holes::Piece;
 use nvs_runtime::{Fault, HelperResult, NvsArray, NvsStr, StrWriter, Tag, Value};
 use unicode_normalization::UnicodeNormalization;
 
@@ -366,6 +367,15 @@ pub const CLASS: CoreClass = CoreClass {
             return_ty: CoreTy::Array(&CoreTy::Str),
             symbol: "nvs_core_str_split",
             doc: Some(&SPLIT_DOC),
+        },
+        CoreMethod {
+            name: "parts",
+            names: &["text"],
+            params: &[CoreTy::StringHoles(&CoreTy::Var("K"), Qual::Contagious)],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Union(&[CoreTy::Str, CoreTy::Var("K")])),
+            symbol: "nvs_core_str_parts",
+            doc: Some(&PARTS_DOC),
         },
         CoreMethod {
             name: "chunk",
@@ -983,6 +993,22 @@ const SPLIT_DOC: MethodDoc = MethodDoc {
         error: "RuntimeError",
         desc: "`$separator` is empty.",
     }],
+};
+
+/// `Core\Str::parts`' reference card — `rule:core-api/reference-card`.
+const PARTS_DOC: MethodDoc = MethodDoc {
+    short: "Splits a string with holes into its text and its holes.",
+    params: &[ParamDoc {
+        name: "text",
+        desc: "A string with holes, such as `string<propertyPath<Order>>`. Each `{name}` in it \
+               is a hole.",
+        shape: &[],
+    }],
+    ret: "The text and the holes in order. The array starts and ends with text, and text and \
+          holes take turns. So an even index is text and an odd index is a hole. Text can be \
+          the empty string. In text, `{{` is already `{` and `}}` is already `}`. If `$text` \
+          is `tainted`, the text is `tainted` too. The holes are not.",
+    errors: &[],
 };
 
 /// `Core\Str::chunk`'s reference card — `rule:core-api/reference-card`.
@@ -1675,6 +1701,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_str_wrap" => (nvs_core_str_wrap as *const ()).cast(),
         "nvs_core_str_join" => (nvs_core_str_join as *const ()).cast(),
         "nvs_core_str_split" => (nvs_core_str_split as *const ()).cast(),
+        "nvs_core_str_parts" => (nvs_core_str_parts as *const ()).cast(),
         "nvs_core_str_chunk" => (nvs_core_str_chunk as *const ()).cast(),
         "nvs_core_str_lines" => (nvs_core_str_lines as *const ()).cast(),
         "nvs_core_str_graphemes" => (nvs_core_str_graphemes as *const ()).cast(),
@@ -2085,6 +2112,61 @@ nvs_runtime::nvs_helper! {
                 out.append(Value::str(NvsStr::new(piece.as_bytes())));
             }
         }
+        Ok(Value::array(out))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Str::parts(string<K> $text): array<string|K>` —
+    /// `rule:core-classes/str-parts-and-reflect-steps`, over the one scanner
+    /// `nvs_runtime::holes`.
+    ///
+    /// The answer alternates text and holes, starting and ending with text,
+    /// so a hole is always at an odd index. A hole and a text piece are both
+    /// strings at run time, and the position is what tells them apart. A text
+    /// piece has each doubled brace written once.
+    ///
+    /// A text that is not a valid string with holes is a contained `FATAL`:
+    /// the checker and `as string<K>` both ran this scanner before the value
+    /// could reach here.
+    ///
+    /// **What it spends:** one array of `2 × holes + 1` entries and one string
+    /// per entry, per call, charged to the request.
+    fn nvs_core_str_parts(_ctx, args: [1]) {
+        let subject = text(&args[0], "parts", "the text")?;
+        let bytes = subject.as_bytes();
+        let member = r"Core\Str::parts";
+        let mut out = NvsArray::new();
+        let mut piece: Vec<u8> = Vec::new();
+        for scanned in nvs_runtime::holes::holes(bytes) {
+            match scanned {
+                Ok(Piece::Text(range)) => {
+                    let mut at = range.start;
+                    while at < range.end {
+                        piece.push(bytes[at]);
+                        // `holes` keeps a doubled brace as two bytes of text.
+                        at += if matches!(bytes[at], b'{' | b'}') { 2 } else { 1 };
+                    }
+                }
+                Ok(Piece::Hole(range)) => {
+                    nvs_runtime::affordable(
+                        (out.count() + 3).checked_mul(std::mem::size_of::<Value>()),
+                        member,
+                    )?;
+                    out.append(Value::str(NvsStr::new(&piece)));
+                    out.append(Value::str(NvsStr::new(&bytes[range])));
+                    piece.clear();
+                }
+                Err(error) => {
+                    return Err(Fault::fatal(format!(
+                        "{member} was given a text with an error at byte {}: {}",
+                        error.at(),
+                        error.describe()
+                    )));
+                }
+            }
+        }
+        out.append(Value::str(NvsStr::new(&piece)));
         Ok(Value::array(out))
     }
 }

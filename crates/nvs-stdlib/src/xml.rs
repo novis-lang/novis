@@ -3843,7 +3843,8 @@ mod tests {
             CoreTy::Array(inner)
             | CoreTy::Nullable(inner)
             | CoreTy::Iterated(inner)
-            | CoreTy::Variadic(inner) => mentions(inner, class),
+            | CoreTy::Variadic(inner)
+            | CoreTy::StringHoles(inner, _) => mentions(inner, class),
             CoreTy::InstanceAt(name, args) => {
                 *name == class || args.iter().any(|arg| mentions(arg, class))
             }
@@ -3902,7 +3903,8 @@ mod tests {
             | CoreTy::SecretBytes
             | CoreTy::SecretBlob(_)
             | CoreTy::SecretStr
-            | CoreTy::SecretText(_) => false,
+            | CoreTy::SecretText(_)
+            | CoreTy::StringHoles(_, _) => false,
             CoreTy::Array(inner)
             | CoreTy::Nullable(inner)
             | CoreTy::Iterated(inner)

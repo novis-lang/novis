@@ -295,6 +295,15 @@ pub enum CoreTy {
     /// twin for [`ParamText::ClassName`]. It changes nothing a checker or the
     /// runtime does; it is there so an editor can offer class names at it.
     ClassName(Qual),
+    /// A **string with holes**, `string<K>` (`rule:types/string-holes`), as a
+    /// parameter carrying its classification — `K` in
+    /// `Core\Str::parts(string<K> $text)`, usually a [`Self::Var`] the argument
+    /// binds.
+    ///
+    /// It interns as an untainted `string<K>`. A tainted argument is admitted
+    /// by the classification exactly as at [`Self::Text`], and every walk over
+    /// a nested type reads `K` through it.
+    StringHoles(&'static CoreTy, Qual),
     /// An **isolate entry** —
     /// `rule:security/isolate-shares-nothing`'s
     /// operand, written as a parameter.
@@ -1224,7 +1233,8 @@ impl CoreTy {
             | Self::ClassName(qual)
             | Self::Blob(qual)
             | Self::SecretBlob(qual)
-            | Self::SecretText(qual) => Some(*qual),
+            | Self::SecretText(qual)
+            | Self::StringHoles(_, qual) => Some(*qual),
             // The one spelling whose classification is fixed by the variant
             // rather than written beside it: an entry's content becomes the
             // instruction "execute this file", so `rule:security/sink-predicate` makes every one
@@ -1319,6 +1329,7 @@ impl CoreTy {
             Self::Str | Self::Text(_) | Self::Path(_) | Self::ClassName(_) | Self::Entry => {
                 "string".into()
             }
+            Self::StringHoles(key, _) => format!("string<{}>", key.spelled()),
             Self::Bytes | Self::Blob(_) => "bytes".into(),
             Self::SecretBytes | Self::SecretBlob(_) => "secret bytes".into(),
             Self::SecretStr | Self::SecretText(_) => "secret string".into(),
@@ -1554,7 +1565,8 @@ fn collect_written(ty: &CoreTy, found: &mut Vec<&'static str>) {
         CoreTy::Array(inner)
         | CoreTy::Nullable(inner)
         | CoreTy::Variadic(inner)
-        | CoreTy::Iterated(inner) => {
+        | CoreTy::Iterated(inner)
+        | CoreTy::StringHoles(inner, _) => {
             collect_written(inner, found);
         }
         CoreTy::Union(members) | CoreTy::InstanceAt(_, members) => {
@@ -4577,7 +4589,8 @@ mod tests {
                 CoreTy::Array(inner)
                 | CoreTy::Nullable(inner)
                 | CoreTy::Variadic(inner)
-                | CoreTy::Iterated(inner) => {
+                | CoreTy::Iterated(inner)
+                | CoreTy::StringHoles(inner, _) => {
                     inferred(inner, found);
                 }
                 CoreTy::Union(members) | CoreTy::InstanceAt(_, members) => {
@@ -5346,7 +5359,8 @@ mod tests {
                 CoreTy::Array(elem)
                 | CoreTy::Nullable(elem)
                 | CoreTy::Variadic(elem)
-                | CoreTy::Iterated(elem) => mentions(elem, name),
+                | CoreTy::Iterated(elem)
+                | CoreTy::StringHoles(elem, _) => mentions(elem, name),
                 CoreTy::Union(members) => members.iter().any(|member| mentions(member, name)),
                 _ => false,
             }

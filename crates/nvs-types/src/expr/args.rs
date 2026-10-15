@@ -1685,8 +1685,20 @@ pub(crate) fn check_generic_args(
         if refused[index] {
             continue;
         }
-        if is_assignable(actual, declared, env.interner, env.graph, env.signatures) {
-            note_float_widening(&arg.value, actual, declared, env);
+        // A classified parameter admits a qualifier here as on the ordinary
+        // path (`check_arg_admitting_quals`): `Core\Str::parts`' `string<K>`
+        // is generic and contagious at once.
+        let mut compared = actual;
+        if let ArgSlot::Param(param) = slots[index] {
+            if admits_tainted_argument(sig.qual_at(param), sig.return_ty, env.interner) {
+                compared = untainted_entries(compared, declared, env.interner);
+            }
+            if admits_secret_argument(sig.qual_at(param)) {
+                compared = unsecret(compared, env.interner);
+            }
+        }
+        if is_assignable(compared, declared, env.interner, env.graph, env.signatures) {
+            note_float_widening(&arg.value, compared, declared, env);
         } else {
             report_mismatch(arg.value.span, declared, actual, env);
         }

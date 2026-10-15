@@ -1,0 +1,21 @@
+--TEST--
+`Core\Str::parts` of a `tainted string<K>` gives `tainted string` text and untainted holes, so the text of a condition from outside cannot reach a plain `string` through it — `rule:core-classes/str-parts-and-reflect-steps`, `rule:types/string-holes`
+--FILE--
+<?nvs
+// The text of a condition from outside stays tainted after `Core\Str::parts`.
+// The holes are checked names, so they are not tainted.
+class Order {
+    public int $total = 40;
+}
+
+tainted string $outside = "{total} > 0 OR 1 = 1";
+var $condition = $outside as string<propertyPath<Order>>;
+var $parts = Core\Str::parts($condition);
+array<tainted string|propertyPath<Order>> $kept = $parts;
+array<string|propertyPath<Order>> $plain = $parts;
+--EXPECTF-ERROR--
+error[E0401]: expected `array<string|propertyPath<Order>>`, found `array<tainted string|propertyPath<Order>>`
+   --> %s:12:44
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

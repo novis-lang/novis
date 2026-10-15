@@ -571,6 +571,13 @@ fn lower(ty: &CoreTy, interner: &mut TypeInterner) -> TypeId {
         // `nvs_stdlib::registry::ParamText` owns what reads it, and none of
         // that changes what a caller may pass.
         CoreTy::Str | CoreTy::Text(_) | CoreTy::Path(_) | CoreTy::ClassName(_) => interner.string(),
+        // Untainted, as `Text` is: the classification admits a tainted
+        // argument, and `crate::expr::quals`' `untainted` reads the argument
+        // down to this before it is compared.
+        CoreTy::StringHoles(key, _) => {
+            let key = lower(key, interner);
+            interner.string_holes(key, false)
+        }
         // `rule:security/isolate-shares-nothing`'s entry operand accepts two written shapes and is a
         // *syntactic* rule over them, so there is no declared type that states
         // it: `string` would report the accepted `Chat::run(...)` as a

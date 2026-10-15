@@ -1,6 +1,12 @@
 `Core\Str::parts(string<K> $text): array<string|K>` gives the text pieces and the holes of a
-`string<K>` (`rule:types/string-holes`) in order. A text piece has `{{` and `}}` already turned into one
+`string<K>` (`rule:types/string-holes`) in order. Text and holes take turns, starting and ending with
+text, so a hole is always at an odd index and two adjacent holes have an empty text piece between them.
+A hole and a text piece are both strings at run time, and a text piece may spell a valid hole name, so
+the position is the one thing that tells them apart; a library converts an odd entry with `as K`, which
+cannot fail. A text piece has `{{` and `}}` already turned into one
 brace, so a library that joins the pieces never handles an escape. A text piece of a `tainted string<K>` is a `tainted string`; a hole is a `K`, with no qualifier.
+`K` is bound from the argument's type, so a string literal written straight at `parts` is a type
+mismatch: it has no `K` to check its holes against.
 
 `Core\Reflect::steps(propertyPath<T> $path): array<Core\Reflect\PropertyInfo>` gives one row per
 segment of a path (`rule:types/property-path`), in order: the description `Core\Reflect` already

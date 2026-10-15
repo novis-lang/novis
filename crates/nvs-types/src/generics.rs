@@ -84,7 +84,10 @@ pub(crate) fn mentions_type_var(id: TypeId, interner: &TypeInterner) -> bool {
         // it from its own argument — so a signature carrying one needs this
         // machinery to run even where nothing else in it mentions a variable.
         Ty::TypeVar(_) | Ty::ShapeOfCallables(_) => true,
-        Ty::Array(elem) => mentions_type_var(*elem, interner),
+        Ty::Array(elem)
+        | Ty::PropertyKey(elem)
+        | Ty::PropertyPath(elem)
+        | Ty::StringHoles { key: elem, .. } => mentions_type_var(*elem, interner),
         Ty::CallableSig { params, ret } => {
             params
                 .iter()
@@ -208,8 +211,22 @@ pub(crate) fn bind(
             out.entry(name.clone()).or_insert(actual);
             Vec::new()
         }
-        (Ty::Array(declared_elem), Ty::Array(actual_elem)) => {
+        (Ty::Array(declared_elem), Ty::Array(actual_elem))
+        | (Ty::PropertyKey(declared_elem), Ty::PropertyKey(actual_elem))
+        | (Ty::PropertyPath(declared_elem), Ty::PropertyPath(actual_elem)) => {
             vec![(*declared_elem, *actual_elem)]
+        }
+        // `Core\Str::parts`' `K`: the holes bind, and whether the text is
+        // `tainted` is the parameter's classification, not a binding.
+        (
+            Ty::StringHoles {
+                key: declared_key, ..
+            },
+            Ty::StringHoles {
+                key: actual_key, ..
+            },
+        ) => {
+            vec![(*declared_key, *actual_key)]
         }
         // Two written signatures, paired field-wise — a declared
         // `callable(T, string): U` against the `callable(User, string): string`
@@ -349,6 +366,18 @@ pub(crate) fn substitute(id: TypeId, bindings: &Bindings, interner: &mut TypeInt
         Ty::Array(elem) => {
             let elem = substitute(elem, bindings, interner);
             interner.array(elem)
+        }
+        Ty::PropertyKey(inner) => {
+            let inner = substitute(inner, bindings, interner);
+            interner.property_key(inner)
+        }
+        Ty::PropertyPath(inner) => {
+            let inner = substitute(inner, bindings, interner);
+            interner.property_path(inner)
+        }
+        Ty::StringHoles { key, tainted } => {
+            let key = substitute(key, bindings, interner);
+            interner.string_holes(key, tainted)
         }
         // The one callable variant that does **not** collapse: a written
         // signature is a type rather than a binding site, so it is rewritten
