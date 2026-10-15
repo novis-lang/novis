@@ -13,7 +13,7 @@ stages:
         shapes: [A rule fragment]
   - id: 2
     title: the recording comes from the language server
-    status: open
+    status: done
     context: [tools/nv/lib/lsp.ts]
   - id: 3
     title: the replay plays like the editor
@@ -35,12 +35,12 @@ checks:
     stage: 2
     name: "a replay's recording is what `nvs lsp` returns for its steps, and `--check` names one that is stale"
     run: [bun, test, tools/nv/test/site-replay.test.ts]
-    tests: ["a completion step records the list the server returned", "a diagnostic step records the error the server published", "a stale recording is named by the check"]
+    tests: [a completion step records the list the server returned, a diagnostic step records the error the server published, a stale recording is named by the check]
   - id: replay-browser
     stage: 3
-    name: the replay plays, pauses, steps and stays out of the keyboard order in a real browser
+    name: "the replay plays, pauses, steps and stays out of the keyboard order in a real browser"
     run: [bun, test, tools/nv/test/replay-browser.test.ts]
-    tests: ["a replay starts when it scrolls into view and pauses when it leaves", "reduced motion shows the last frame and does not play", "only one replay plays at a time", "the code in a replay never takes keyboard focus", "the list narrows as letters are typed"]
+    tests: [a replay starts when it scrolls into view and pauses when it leaves, reduced motion shows the last frame and does not play, only one replay plays at a time, the code in a replay never takes keyboard focus, the list narrows as letters are typed]
   - id: site-snippets
     stage: 4
     name: every snippet and every replay on the website matches the binary
@@ -134,9 +134,9 @@ fails `--check` when the server's answers change, which is the point of recordin
 
 **Does:** `--bless` plays a `.replay`'s steps against `nvs lsp` and writes `.replay.out`, and `--check snippets` names a stale one.
 
-- [ ] Drive the steps through the session `nvs lsp` is sent for a snippet. `tools/nv/cmd/site.ts:922`
-- [ ] `--check` compares the recording and the last frame against the snippet. `tools/nv/cmd/site.ts:1056`
-- [ ] The tests. `tools/nv/test/site-replay.test.ts:1`
+- [x] Drive the steps through the session `nvs lsp` is sent for a snippet. `tools/nv/cmd/site.ts:922`
+- [x] `--check` compares the recording and the last frame against the snippet. `tools/nv/cmd/site.ts:1056`
+- [x] The tests. `tools/nv/test/site-replay.test.ts:1`
 
 ### 3. the replay plays like the editor
 
@@ -157,27 +157,32 @@ fails `--check` when the server's answers change, which is the point of recordin
 
 ### State
 
-Stage 1 is done. `rule:testing/a-replay-plays-what-the-language-server-returned` is `designed`,
-owned by this goal, and the `.replay` and `.replay.out` formats are in `tools/nv/cmd/site.ts`
-§ *A snippet* (the paragraph at `tools/nv/cmd/site.ts:70`), which is their only home. Nothing reads
-either file yet: `--bless` and `--check snippets` are unchanged. The completion the first replay shows
-is pinned by
-`tests/lsp/completion/a-written-property-key-offers-the-public-properties-of-its-class.lspt`.
+Stages 1 and 2 are done, and `replay-recording` is green. A `.replay` beside a snippet is played
+against `nvs lsp` by `tools/nv/lib/replay.ts`: `parseReplay`, `replaySession` (the one stream) and
+`replayRecording` (the `.replay.out` text). The stream is written before the server answers, so
+`recordReplay` guesses the trigger characters and each accepted insert text, and plays again until
+the guess holds. Most replays take two sessions. `bun nv site --bless` writes `.replay.out`, and
+`--check snippets` names a stale, missing or orphaned one and steps that end on other text
+(`replayProblems`, `tools/nv/cmd/site.ts:1094`). A completion row records the label, the kind, the
+row's right text, the text after the label and the insert text, the way a `tests/lsp/` case reads
+the item. The format paragraph in § *A snippet* says so. The narrowing that `accept LABEL` is checked
+against is `website/config/replay-narrow.mjs`, and `Replay.astro` must import the same module. No
+snippet has a `.replay` yet.
 
 ### Next
 
-**Stage 2: the recording comes from the language server**, one file set: `tools/nv/cmd/site.ts`,
-`tools/nv/lib/lsp.ts`, `tools/nv/test/site-replay.test.ts`.
+**Stage 3: the replay plays like the editor**, one file set: `website/src/components/Replay.astro`,
+`website/config/replay-narrow.mjs`, `tools/nv/test/replay-browser.test.ts`.
 
-- [ ] Play a `.replay`'s steps as one `nvs lsp` stream beside `taintScript` (`rule:testing/a-replay-plays-what-the-language-server-returned`). `tools/nv/cmd/site.ts:922`
-- [ ] `--bless` writes `.replay.out`, and `--check snippets` names a stale, missing or orphaned one and a wrong last frame. `tools/nv/cmd/site.ts:1056`
-- [ ] The three tests the `replay-recording` check names. `tools/nv/test/site-replay.test.ts:1`
+- [ ] `<Replay src>` reads the `.replay` and `.replay.out` at build time and draws the frame, list, squiggle and controls (`rule:testing/a-replay-plays-what-the-language-server-returned`). `website/src/components/Replay.astro:1`
+- [ ] The list narrows through `narrow` and highlights `matched`. `website/config/replay-narrow.mjs:44`
+- [ ] The five browser tests the `replay-browser` check names, on the cached Chromium. `tools/nv/test/replay-browser.test.ts:1`
 
 ### Backlog
 
 - Hover cards and quick fixes as replay steps, when a page needs them (this file's § *Standing decisions*).
-- `accept LABEL` needs the narrowing the page imitates; put it in one module the tool and `Replay.astro`
-  both import, the way `website/config/tainted-ranges.mjs` is shared (`tools/nv/cmd/site.ts:70`).
+- The run before this session reported 2047 owed floor atoms, red on `docs/examples/config/*` proofs.
+  This session did not look at them (`bun nv proofs`).
 - The nightly CI ran `origin/main`, 612 commits behind local `main`. Its perf-stale proofs gate, the
   throughput guard and `a_spawned_process_ends_when_nvs_is_killed_and_what_it_started_does_not` were
   not reproduced here; recheck them on the next pushed run (`.github/workflows/`).
