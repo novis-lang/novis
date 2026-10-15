@@ -1359,7 +1359,7 @@ mod systemd {
             }
             #[cfg(not(target_os = "linux"))]
             {
-                drop(rest);
+                let _ = rest;
                 return Err(io::Error::other(
                     "an abstract socket name is Linux's, and this platform has no namespace to \
                      look one up in",
