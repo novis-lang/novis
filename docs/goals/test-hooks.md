@@ -138,9 +138,9 @@ returns. The language gains three attributes, and the rejection of a class-level
 
 ### 5. the hooks remove a real file and a real database
 
-**Does:** a test run can hold the capabilities its hooks need, and a conformance case shows a file and a seeded database removed.
+**Does:** a runner test shows a file removed by `#[AfterEachTest]` and a database seeded by `#[BeforeClass]` and dropped by `#[AfterClass]`, under the grants the program already gives a test.
 
-- [ ] Find what `rule:testing/after-each-test`'s "a test run cannot hold a capability yet" still means, given `#[Test(db:)]` is parsed. `crates/nvs-types/src/derive.rs:242`
+- [ ] The database case over the compose PostgreSQL the `db:` runner tests already open. `crates/nvs-cli/src/runner.rs:2759`
 
 ### 6. the feature proofs, and fixture examples with a real cost
 
