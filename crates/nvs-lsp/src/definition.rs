@@ -1210,6 +1210,47 @@ pub(crate) fn property_segment_at(analysed: &Analysed, offset: BytePos) -> Optio
 /// ends where the conversion ends, and its `T` is read off the type the
 /// checker recorded for it. The cursor has to be between the quotes.
 pub(crate) fn written_property_key(analysed: &Analysed, offset: BytePos) -> Option<WrittenKey> {
+    let (span, declared) = conversion_operand(analysed, offset)?;
+    let interner = &analysed.interner;
+    let mut keys = match interner.get(declared) {
+        Ty::Union(members) => members.clone(),
+        _ => vec![declared],
+    };
+    keys.retain(|member| !matches!(interner.get(*member), Ty::Null));
+    let [key] = keys.as_slice() else {
+        return None;
+    };
+    let (argument, path) = match interner.get(*key) {
+        Ty::PropertyKey(argument) => (argument, false),
+        Ty::PropertyPath(argument) => (argument, true),
+        _ => return None,
+    };
+    match interner.get(*argument) {
+        Ty::Class(qname, _) => Some(WrittenKey {
+            span,
+            class: qname.clone(),
+            path,
+        }),
+        _ => None,
+    }
+}
+
+/// The operand of an `as string<K>` conversion, either nullable, the cursor at
+/// `offset` is inside, quotes included, and what each of its holes may hold
+/// (`rule:types/string-holes`). Found the way [`written_property_key`] finds
+/// its operand.
+pub(crate) fn written_string_holes(
+    analysed: &Analysed,
+    offset: BytePos,
+) -> Option<(Span, nvs_types::HoleKind)> {
+    let (span, declared) = conversion_operand(analysed, offset)?;
+    Some((span, crate::arguments::hole_kind(analysed, declared)?))
+}
+
+/// The string literal operand of the `as` conversion the cursor at `offset` is
+/// inside, quotes included, and the type the checker recorded for the type the
+/// conversion wrote. The cursor has to be between the quotes.
+fn conversion_operand(analysed: &Analysed, offset: BytePos) -> Option<(Span, TypeId)> {
     let path = analysed.index.at(offset);
     let [string, conversion, ..] = path.nodes() else {
         return None;
@@ -1228,29 +1269,7 @@ pub(crate) fn written_property_key(analysed: &Analysed, offset: BytePos) -> Opti
     let ty = written_types_in(&entry.stmts, end, end)
         .into_iter()
         .find(|ty| ty.span.end == end && ty.span.start >= string.span.end)?;
-    let interner = &analysed.interner;
-    let declared = analysed.exprs.declared_ty(ty.span)?;
-    let mut keys = match interner.get(declared) {
-        Ty::Union(members) => members.clone(),
-        _ => vec![declared],
-    };
-    keys.retain(|member| !matches!(interner.get(*member), Ty::Null));
-    let [key] = keys.as_slice() else {
-        return None;
-    };
-    let (argument, path) = match interner.get(*key) {
-        Ty::PropertyKey(argument) => (argument, false),
-        Ty::PropertyPath(argument) => (argument, true),
-        _ => return None,
-    };
-    match interner.get(*argument) {
-        Ty::Class(qname, _) => Some(WrittenKey {
-            span: string.span,
-            class: qname.clone(),
-            path,
-        }),
-        _ => None,
-    }
+    Some((string.span, analysed.exprs.declared_ty(ty.span)?))
 }
 
 /// The `T` of a `class<T>` or a `?class<T>`, and `None` for any other type.

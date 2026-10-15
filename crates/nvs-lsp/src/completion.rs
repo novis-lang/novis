@@ -411,7 +411,9 @@ pub fn at(
             items.extend(values_beside(&cursor, files));
             items
         }
-        Asked::Literal(Literal::Values(literal, values)) => file_values(&cursor, literal, &values),
+        Asked::Literal(Literal::Values(literal, values) | Literal::Hole(literal, values)) => {
+            file_values(&cursor, literal, &values)
+        }
         Asked::Literal(Literal::Route(text_start)) => route_names(&cursor, text_start),
         Asked::Literal(Literal::RouteKey(text_start, name)) => {
             route_keys(&cursor, text_start, &name)
@@ -436,8 +438,10 @@ pub fn at(
 /// A quote is answered inside every literal this module answers inside, and
 /// `/` inside a path or a name. Inside a string a completion file offers values
 /// in, `.`, `/` and `:` start the next segment, so each is answered only where
-/// a value that applies there is split on it. A request the developer raised
-/// by hand, or by typing a name, is not asked this.
+/// a value that applies there is split on it. `{` is answered only where it
+/// opens a hole of a `string<K>` literal, and `.` inside a hole that holds a
+/// path. A request the developer raised by hand, or by typing a name, is not
+/// asked this.
 #[must_use]
 pub fn continues_a_trigger(analysed: &Analysed, files: &CompletionFiles, offset: BytePos) -> bool {
     let Some(upto) = analysed
@@ -458,10 +462,14 @@ pub fn continues_a_trigger(analysed: &Analysed, files: &CompletionFiles, offset:
     let Some(last) = upto.chars().next_back() else {
         return false;
     };
-    if !matches!(last, '\'' | '"' | '/' | '.' | ':') {
+    if !matches!(last, '\'' | '"' | '/' | '.' | ':' | '{') {
         return false;
     }
     match literal_at(analysed, files, &analysed.index.at(offset), offset) {
+        Some(Literal::Hole(_, values)) => {
+            last == '{' || values.iter().any(|value| value.separator == Some(last))
+        }
+        _ if last == '{' => false,
         Some(Literal::Values(_, values)) => {
             matches!(last, '\'' | '"') || values.iter().any(|value| value.separator == Some(last))
         }
@@ -636,6 +644,9 @@ enum Literal {
     /// values, or the operand of `as property<T>`: the literal, quotes
     /// included, and the values that apply there.
     Values(Span, Vec<Arc<completion_files::Value>>),
+    /// The hole of a `string<K>` literal the cursor is writing: the hole from
+    /// its `{` to the end of the name in it, and the values it may hold.
+    Hole(Span, Vec<Arc<completion_files::Value>>),
     /// The route name of a `Core\Router` link, starting at this byte after
     /// its opening quote.
     Route(BytePos),
@@ -723,6 +734,14 @@ fn literal_at(
             files: Files::All,
         }));
     }
+    let holes = crate::definition::written_string_holes(analysed, offset).or_else(|| {
+        crate::arguments::named_at(analysed, offset)
+            .and_then(|named| Some((named.span, named.holes?)))
+    });
+    if let Some((literal, kind)) = holes {
+        return open_hole(analysed, literal, &kind, offset)
+            .map(|(hole, values)| Literal::Hole(hole, values));
+    }
     if let Some((literal, values)) = named_values(analysed, files, offset) {
         return Some(Literal::Values(literal, values));
     }
@@ -785,6 +804,60 @@ fn named_values(
         }
     }
     (!values.is_empty()).then_some((named.span, values))
+}
+
+/// The hole of the `string<K>` literal at `literal` that the cursor at
+/// `offset` is writing, and the values it may hold (`rule:types/string-holes`).
+///
+/// The text from the opening quote to the cursor is read the way the checker
+/// reads it: `{{` and `}}` are one brace each and open nothing, a `{` opens a
+/// hole and a `}` closes it. The cursor is in a hole where one is open and the
+/// text after its `{` is a name or a path so far. The span runs from the `{`
+/// to the end of that name after the cursor, so an edit replaces the whole
+/// name. A key offers its names, a set its values, and a path one segment at
+/// a time with [`path_steps`]. `None` outside a hole.
+fn open_hole(
+    analysed: &Analysed,
+    literal: Span,
+    kind: &nvs_types::HoleKind,
+    offset: BytePos,
+) -> Option<(Span, Vec<Arc<completion_files::Value>>)> {
+    let text = analysed.map.file(analysed.entry).text();
+    let start = literal.start as usize + 1;
+    let cursor = offset as usize;
+    let bytes = text.get(start..cursor)?.as_bytes();
+    let mut open = None;
+    let mut at = 0;
+    while at < bytes.len() {
+        match bytes[at] {
+            brace @ (b'{' | b'}') if bytes.get(at + 1) == Some(&brace) => at += 1,
+            b'{' => open = Some(start + at),
+            b'}' => open = None,
+            _ => {}
+        }
+        at += 1;
+    }
+    let open = open?;
+    let in_name = |c: char| c.is_ascii_alphanumeric() || c == '_' || c == '.';
+    if !text[open + 1..cursor].chars().all(in_name) {
+        return None;
+    }
+    let after = text.get(cursor..literal.end as usize).unwrap_or_default();
+    let end = cursor + after.find(|c: char| !in_name(c)).unwrap_or(after.len());
+    let hole = Span {
+        file: literal.file,
+        start: BytePos::try_from(open).ok()?,
+        end: BytePos::try_from(end).ok()?,
+    };
+    let values = match kind {
+        nvs_types::HoleKind::Path(root) => path_steps(analysed, hole, &root.to_string(), offset),
+        nvs_types::HoleKind::Name(class) => property_keys(analysed, &class.to_string()),
+        nvs_types::HoleKind::Values(values) => values
+            .iter()
+            .map(|value| completion_files::Value::member(value.clone()))
+            .collect(),
+    };
+    Some((hole, values.into_iter().map(Arc::new).collect()))
 }
 
 /// The names offered inside the `propertyPath<T>` literal at `literal` for a

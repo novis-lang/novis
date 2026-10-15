@@ -1,12 +1,18 @@
 {
   "title": "The editor completes, hovers, defines and underlines a field path one segment at a time, and `{` opens a hole's list",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "ide/completion-offers-only-what-the-compiler-derived",
     "ide/completion-is-asked-where-a-spelling-ends",
     "types/property-path",
     "types/string-holes"
   ],
-  "guardedBy": [],
-  "goal": "property-paths"
+  "guardedBy": [
+    "crates/nvs-lsp/tests/completion.rs",
+    "tests/lsp/completion/a-property-path-completes-one-segment-at-a-time.lspt",
+    "tests/lsp/completion/a-brace-in-a-string-with-holes-opens-the-list-of-its-holes.lspt",
+    "tests/lsp/hover/a-property-path-segment-shows-its-property.lspt",
+    "tests/lsp/definition/a-property-path-segment-jumps-to-its-property.lspt",
+    "tests/lsp/diagnostics/a-misspelled-property-path-is-underlined-at-its-segment.lspt"
+  ]
 }

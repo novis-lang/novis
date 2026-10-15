@@ -108,6 +108,10 @@ pub(crate) struct Named {
     /// [`Self::key_classes`] for each `propertyPath<T>` in the parameter's
     /// declared type.
     pub path_classes: Vec<String>,
+    /// What each hole may hold where the parameter's declared type is a
+    /// `string<K>` or a `?string<K>`, the one position where the checker
+    /// checks a literal's holes (`rule:types/string-holes`).
+    pub holes: Option<nvs_types::HoleKind>,
 }
 
 /// A node that holds the literal, with the spans and kinds of its own
@@ -294,7 +298,30 @@ fn name(analysed: &Analysed, literal: Span, holders: &[Holder]) -> Option<Named>
             .get(index)
             .map(|ty| key_classes(analysed, *ty, true))
             .unwrap_or_default(),
+        holes: call
+            .param_tys
+            .get(index)
+            .and_then(|ty| hole_kind(analysed, *ty)),
     })
+}
+
+/// What each hole of a literal may hold where `ty` is `string<K>` or
+/// `?string<K>`, and `None` for any other type, a union with `string`
+/// included.
+pub(crate) fn hole_kind(analysed: &Analysed, ty: TypeId) -> Option<nvs_types::HoleKind> {
+    let interner = &analysed.interner;
+    let ty = match interner.get(ty) {
+        Ty::Union(members) => {
+            let mut kept = members
+                .iter()
+                .filter(|member| !matches!(interner.get(**member), Ty::Null));
+            let only = *kept.next()?;
+            kept.next().is_none().then_some(only)?
+        }
+        _ => ty,
+    };
+    let (key, _) = nvs_types::string_holes_key(ty, interner)?;
+    nvs_types::hole_kind(key, interner)
 }
 
 /// The class of each `property<T>` member of `ty`, or of each

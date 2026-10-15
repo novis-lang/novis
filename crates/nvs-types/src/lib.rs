@@ -211,7 +211,7 @@ pub use core_lib::symbol_of as core_symbol_of;
 pub use defaults::ConstArg;
 pub use derive::{DerivedCodec, DerivedField};
 pub use enums::{EnumBacking, EnumInfo, EnumTable, EnumValue};
-pub use expr::members::path_step_class;
+pub use expr::members::{HoleKind, hole_kind, path_step_class, string_holes_key};
 pub use expr_table::{
     Delegation, EnumSpelling, ExprId, ExprInfo, ExprTypeTable, ForeachDrive, LocalBinding,
     ResolvedCall, UrlPiece,

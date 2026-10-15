@@ -18,6 +18,8 @@
     "tests/lsp/completion/a-written-property-key-offers-the-public-properties-of-its-class.lspt",
     "tests/lsp/completion/a-string-at-a-property-key-or-string-parameter-offers-the-property-names.lspt",
     "tests/lsp/completion/a-string-at-a-property-key-only-parameter-offers-the-property-names.lspt",
+    "tests/lsp/completion/a-property-path-completes-one-segment-at-a-time.lspt",
+    "tests/lsp/completion/a-brace-in-a-string-with-holes-opens-the-list-of-its-holes.lspt",
     "tests/lsp/completion/a-path-argument-offers-the-files-and-directories-its-text-reaches.lspt",
     "tests/lsp/completion/an-expected-error-argument-offers-only-error-classes.lspt",
     "crates/nvs-lsp/tests/completion_edits.rs"

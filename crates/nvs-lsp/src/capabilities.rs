@@ -220,12 +220,13 @@ pub fn server_capabilities(encoding: PositionEncodingKind) -> ServerCapabilities
             // half-written open tag. Each is also an operator's character, so
             // `crate::completion::continues_a_trigger` answers a triggered
             // request only where the whole spelling was written. `-` is not
-            // among them: it finishes nothing. The last four open and extend a
+            // among them: it finishes nothing. The last five open and extend a
             // literal: a quote opens a path, a name or a string a completion
-            // file offers values in, a `/` starts a path's next segment, and
+            // file offers values in, a `/` starts a path's next segment,
             // `.`, `/` and `:` start the next segment of a value split on that
-            // separator. A client offers nothing in a string unless asked, and
-            // these are answered only inside such a literal.
+            // separator, and `{` opens a hole of a `string<K>` literal. A
+            // client offers nothing in a string unless asked, and these are
+            // answered only inside such a literal.
             trigger_characters: Some(vec![
                 ">".to_owned(),
                 ":".to_owned(),
@@ -236,6 +237,7 @@ pub fn server_capabilities(encoding: PositionEncodingKind) -> ServerCapabilities
                 "\"".to_owned(),
                 "/".to_owned(),
                 ".".to_owned(),
+                "{".to_owned(),
             ]),
             all_commit_characters: None,
             work_done_progress_options: WorkDoneProgressOptions::default(),

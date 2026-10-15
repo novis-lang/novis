@@ -1,4 +1,4 @@
-The completion trigger characters are `>`, `:`, `\`, `$`, `?`, `'`, `"`, `/` and `.`. The first five are
+The completion trigger characters are `>`, `:`, `\`, `$`, `?`, `'`, `"`, `/`, `.` and `{`. The first five are
 the last character of `->`, of `::`, of a namespace separator, of a variable's `$` and of a half-written
 `<?`, and a request one of them raised is answered only where the text before the cursor ends in that
 whole spelling. Each of them is also an operator's character, and an editor asks on the keystroke:
@@ -8,15 +8,16 @@ as a path or a name, and a request one of them raised is answered only where the
 `require` or `autoload` path string, an `autoload` prefix, the string converted with `as class<T>` or `as
 property<T>`, or a string argument at a path or class-name parameter. A quote opens one and a `/` starts a
 path's next segment. A quote also opens a string argument at a parameter whose type lists string values
-(`rule:types/single-value-types`) or takes a `property<T>`, alone or beside a `string`
-(`rule:types/property-key`),
-and one at a parameter a completion file names
+(`rule:types/single-value-types`) or takes a `property<T>` or a `propertyPath<T>`, alone or beside a
+`string` (`rule:types/property-key`), and one at a parameter a completion file names
 (`rule:ide/completion-files-offer-values-at-named-parameters`). Inside such an argument `.`, `/` and `:`
-start the next segment only where a value that applies at the call is split on that separator.
-`rule:ide/a-field-path-completes-one-segment-at-a-time`, designed, opens a `propertyPath<T>` parameter's
-names and adds `{` as a trigger answered only inside a `string<K>` literal. A client offers
-nothing inside a string unless asked. Everywhere else a quote opens a string, `/` divides and `.`
-concatenates. A request the developer raised by hand, or by typing a name, is not held to this.
+start the next segment only where a value that applies at the call is split on that separator, and a
+path's segments are split on `.` (`rule:ide/a-field-path-completes-one-segment-at-a-time`). `{` is
+answered only inside a `string<K>` literal, at a `string<K>` parameter or under `as string<K>`, where it
+opens a hole: `{{` is a literal brace and opens nothing, and inside a hole that holds a path `.` starts the
+next segment. A client offers nothing inside a string unless asked. Everywhere else a quote opens a
+string, `/` divides, `.` concatenates and `{` is text. A request the developer raised by hand, or by
+typing a name, is not held to this.
 
 Three spellings narrow what is offered whoever asked. **After `$`, only variables**: the ones the innermost
 body declared, each replacing the `$` already typed, because a lone `$` is no word to a client and one left

@@ -56,12 +56,14 @@ a parameter whose type has a `property<T>` member, because the walk that makes t
 table and the editor does not keep one. A parameter typed `property<T>|string` takes any string, so a
 literal outside the set gets no warning there. A parameter typed `property<T>` alone, or `?property<T>`,
 is offered the same names, because the checker converts a string literal there while compiling
-(`rule:types/property-key`), and a wrong one is its own diagnostic.
-`rule:ide/a-field-path-completes-one-segment-at-a-time`, designed, offers a `propertyPath<T>` parameter
-and a `string<K>` hole the names one segment at a time.
+(`rule:types/property-key`), and a wrong one is its own diagnostic. A parameter typed `propertyPath<T>`,
+and a hole of a literal at a `string<K>` parameter or under `as string<K>`, is offered the names one
+segment at a time, from the sets the checker records for each class the path reaches
+(`rule:ide/a-field-path-completes-one-segment-at-a-time`). A hole of a `string<K>` whose `K` lists
+string values is offered those values.
 
-- **Memory:** one list of names and types per class a `property<T>` names, kept with the checker's
-  table for the length of the analysis. Nothing at run time.
+- **Memory:** one list of names and types per class a `property<T>` names or a path reaches, kept with
+  the checker's table for the length of the analysis. Nothing at run time.
 
 What it refuses has no subject rather than being declined: ORM columns (a codec's fields are declared
 properties, already reached as members), service-container and facade resolution (constructor injection

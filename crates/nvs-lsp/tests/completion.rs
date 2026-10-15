@@ -293,7 +293,7 @@ fn a_bare_name_offers_the_imports_in_force_and_the_declarations_in_the_index() {
 /// that directory, and `/` lists the one above it. The `.` construct is a
 /// string argument at the parameter [`TRIGGER_KEYS`] splits its values on `.`
 /// at.
-const TRIGGERED: [(&str, &str, &str); 9] = [
+const TRIGGERED: [(&str, &str, &str); 10] = [
     (">", "$b->", ""),
     (":", "User::", ""),
     ("\\", "Core\\", ""),
@@ -303,6 +303,7 @@ const TRIGGERED: [(&str, &str, &str); 9] = [
     ("\"", "require \"", "\";"),
     ("/", "require '../", "';"),
     (".", "User::label('shop.", "');"),
+    ("{", "echo 'by {", "' as string<property<User>>;"),
 ];
 
 /// A class with both halves declared, so every construct below has something
@@ -401,7 +402,9 @@ fn every_trigger_character_reaches_an_arm_that_is_not_the_position_list() {
 }
 
 /// A path character outside a written path raises no list: `/` divides, and a
-/// quote opens every other string.
+/// quote opens every other string. A `{` raises one only where it opens a hole
+/// of a `string<K>` literal, so a brace in any other string and a `{{` raise
+/// none.
 #[test]
 fn a_path_character_outside_a_written_path_is_not_answered() {
     for (construct, tail) in [
@@ -409,6 +412,8 @@ fn a_path_character_outside_a_written_path_is_not_answered() {
         ("echo '", "';"),
         ("echo \"", "\";"),
         ("echo 'lib/", "';"),
+        ("echo 'by {", "';"),
+        ("echo 'by {{", "' as string<property<User>>;"),
     ] {
         let source = format!("{TRIGGER_DOC}{construct}{tail}\n");
         let (_documents, analysis) = analysed(&source);

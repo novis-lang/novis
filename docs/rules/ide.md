@@ -3,7 +3,7 @@
 
 # The editor
 
-*17 of 81 rules below are **designed** rather than shipped, and are marked where they appear.*
+*16 of 81 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="ide-one-grammar-one-tree"></a>
 
@@ -1439,12 +1439,14 @@ a parameter whose type has a `property<T>` member, because the walk that makes t
 table and the editor does not keep one. A parameter typed `property<T>|string` takes any string, so a
 literal outside the set gets no warning there. A parameter typed `property<T>` alone, or `?property<T>`,
 is offered the same names, because the checker converts a string literal there while compiling
-([`types/property-key`](types.md#types-property-key)), and a wrong one is its own diagnostic.
-[`ide/a-field-path-completes-one-segment-at-a-time`](ide.md#ide-a-field-path-completes-one-segment-at-a-time), designed, offers a `propertyPath<T>` parameter
-and a `string<K>` hole the names one segment at a time.
+([`types/property-key`](types.md#types-property-key)), and a wrong one is its own diagnostic. A parameter typed `propertyPath<T>`,
+and a hole of a literal at a `string<K>` parameter or under `as string<K>`, is offered the names one
+segment at a time, from the sets the checker records for each class the path reaches
+([`ide/a-field-path-completes-one-segment-at-a-time`](ide.md#ide-a-field-path-completes-one-segment-at-a-time)). A hole of a `string<K>` whose `K` lists
+string values is offered those values.
 
-- **Memory:** one list of names and types per class a `property<T>` names, kept with the checker's
-  table for the length of the analysis. Nothing at run time.
+- **Memory:** one list of names and types per class a `property<T>` names or a path reaches, kept with
+  the checker's table for the length of the analysis. Nothing at run time.
 
 What it refuses has no subject rather than being declined: ORM columns (a codec's fields are declared
 properties, already reached as members), service-container and facade resolution (constructor injection
@@ -1682,11 +1684,11 @@ although the access node spans its own arguments.
 
 <a id="ide-completion-is-asked-where-a-spelling-ends"></a>
 
-## A trigger character opens a list only where it finished `->`, `::`, `\`, `$` or `<?`, or opened or extended a `require` or `autoload` path string, the string of `as class<T>` or `as property<T>`, a string argument at a path or class-name parameter, at one whose type lists string values or takes a `property<T>` beside a `string`, or at one a completion file names, and `$`, a lone `:` and `<?` each narrow what is offered
+## A trigger character opens a list only where it finished `->`, `::`, `\`, `$` or `<?`, or opened or extended a `require` or `autoload` path string, the string of `as class<T>` or `as property<T>`, a string argument at a path or class-name parameter, at one whose type lists string values or takes a `property<T>` beside a `string`, or at one a completion file names, or opened a hole of a `string<K>` literal, and `$`, a lone `:` and `<?` each narrow what is offered
 
 `rule:ide/completion-is-asked-where-a-spelling-ends`
 
-The completion trigger characters are `>`, `:`, `\`, `$`, `?`, `'`, `"`, `/` and `.`. The first five are
+The completion trigger characters are `>`, `:`, `\`, `$`, `?`, `'`, `"`, `/`, `.` and `{`. The first five are
 the last character of `->`, of `::`, of a namespace separator, of a variable's `$` and of a half-written
 `<?`, and a request one of them raised is answered only where the text before the cursor ends in that
 whole spelling. Each of them is also an operator's character, and an editor asks on the keystroke:
@@ -1696,15 +1698,16 @@ as a path or a name, and a request one of them raised is answered only where the
 `require` or `autoload` path string, an `autoload` prefix, the string converted with `as class<T>` or `as
 property<T>`, or a string argument at a path or class-name parameter. A quote opens one and a `/` starts a
 path's next segment. A quote also opens a string argument at a parameter whose type lists string values
-([`types/single-value-types`](types.md#types-single-value-types)) or takes a `property<T>`, alone or beside a `string`
-([`types/property-key`](types.md#types-property-key)),
-and one at a parameter a completion file names
+([`types/single-value-types`](types.md#types-single-value-types)) or takes a `property<T>` or a `propertyPath<T>`, alone or beside a
+`string` ([`types/property-key`](types.md#types-property-key)), and one at a parameter a completion file names
 ([`ide/completion-files-offer-values-at-named-parameters`](ide.md#ide-completion-files-offer-values-at-named-parameters)). Inside such an argument `.`, `/` and `:`
-start the next segment only where a value that applies at the call is split on that separator.
-[`ide/a-field-path-completes-one-segment-at-a-time`](ide.md#ide-a-field-path-completes-one-segment-at-a-time), designed, opens a `propertyPath<T>` parameter's
-names and adds `{` as a trigger answered only inside a `string<K>` literal. A client offers
-nothing inside a string unless asked. Everywhere else a quote opens a string, `/` divides and `.`
-concatenates. A request the developer raised by hand, or by typing a name, is not held to this.
+start the next segment only where a value that applies at the call is split on that separator, and a
+path's segments are split on `.` ([`ide/a-field-path-completes-one-segment-at-a-time`](ide.md#ide-a-field-path-completes-one-segment-at-a-time)). `{` is
+answered only inside a `string<K>` literal, at a `string<K>` parameter or under `as string<K>`, where it
+opens a hole: `{{` is a literal brace and opens nothing, and inside a hole that holds a path `.` starts the
+next segment. A client offers nothing inside a string unless asked. Everywhere else a quote opens a
+string, `/` divides, `.` concatenates and `{` is text. A request the developer raised by hand, or by
+typing a name, is not held to this.
 
 Three spellings narrow what is offered whoever asked. **After `$`, only variables**: the ones the innermost
 body declared, each replacing the `$` already typed, because a lone `$` is no word to a client and one left
@@ -1736,7 +1739,7 @@ other processing instruction stay markup's own.
 
 <a id="ide-a-field-path-completes-one-segment-at-a-time"></a>
 
-## The editor completes, hovers, defines and underlines a field path one segment at a time, and `{` opens a hole's list  *(designed — owned by goal property-paths)*
+## The editor completes, hovers, defines and underlines a field path one segment at a time, and `{` opens a hole's list
 
 `rule:ide/a-field-path-completes-one-segment-at-a-time`
 
@@ -1746,13 +1749,12 @@ each `.` after a valid prefix offers the properties of the class that prefix rea
 unlimited, and a path that loops back to a class it already passed costs nothing extra, because one
 class's roster is listed per request.
 
-This changes two shipped rules. [`ide/completion-offers-only-what-the-compiler-derived`](ide.md#ide-completion-offers-only-what-the-compiler-derived) offers a
-parameter typed `property<T>` alone its names already, because a literal there compiles
-([`types/property-key`](types.md#types-property-key)), and this extends that list to a path's segments.
-[`ide/completion-is-asked-where-a-spelling-ends`](ide.md#ide-completion-is-asked-where-a-spelling-ends) gains `{` as a
-trigger character (`crates/nvs-lsp/src/capabilities.rs`), answered only inside a `string<K>` literal,
-where it opens a hole; a quote at a `propertyPath<T>` parameter opens the list, and
-`.` inside such a literal starts the next segment.
+A hole is the text after the last `{` before the cursor that no `}` has closed, read the way the checker
+reads it: `{{` and `}}` are one brace and open nothing. A hole at a `string<property<T>>` offers `T`'s
+names, and one whose `K` lists string values offers those values. Which characters ask for these lists
+is [`ide/completion-is-asked-where-a-spelling-ends`](ide.md#ide-completion-is-asked-where-a-spelling-ends)'s, and which values may be offered at all is
+[`ide/completion-offers-only-what-the-compiler-derived`](ide.md#ide-completion-offers-only-what-the-compiler-derived)'s; this rule owns the walk one segment at a
+time, and hover, go-to-definition and the underline on a segment, which neither of those covers.
 
 Hover on a segment shows its property, with its class and declared type. Go-to-definition on a segment
 jumps to that property's declaration. A misspelled segment is underlined alone, not the whole string,

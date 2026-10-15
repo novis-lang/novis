@@ -4,13 +4,12 @@ each `.` after a valid prefix offers the properties of the class that prefix rea
 unlimited, and a path that loops back to a class it already passed costs nothing extra, because one
 class's roster is listed per request.
 
-This changes two shipped rules. `rule:ide/completion-offers-only-what-the-compiler-derived` offers a
-parameter typed `property<T>` alone its names already, because a literal there compiles
-(`rule:types/property-key`), and this extends that list to a path's segments.
-`rule:ide/completion-is-asked-where-a-spelling-ends` gains `{` as a
-trigger character (`crates/nvs-lsp/src/capabilities.rs`), answered only inside a `string<K>` literal,
-where it opens a hole; a quote at a `propertyPath<T>` parameter opens the list, and
-`.` inside such a literal starts the next segment.
+A hole is the text after the last `{` before the cursor that no `}` has closed, read the way the checker
+reads it: `{{` and `}}` are one brace and open nothing. A hole at a `string<property<T>>` offers `T`'s
+names, and one whose `K` lists string values offers those values. Which characters ask for these lists
+is `rule:ide/completion-is-asked-where-a-spelling-ends`'s, and which values may be offered at all is
+`rule:ide/completion-offers-only-what-the-compiler-derived`'s; this rule owns the walk one segment at a
+time, and hover, go-to-definition and the underline on a segment, which neither of those covers.
 
 Hover on a segment shows its property, with its class and declared type. Go-to-definition on a segment
 jumps to that property's declaration. A misspelled segment is underlined alone, not the whole string,

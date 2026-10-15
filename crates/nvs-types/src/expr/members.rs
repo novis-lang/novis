@@ -982,8 +982,8 @@ fn check_path_segments(
 
 /// What the holes of a `rule:types/string-holes` string may contain, read off
 /// its `K`.
-#[derive(Clone, Debug)]
-pub(crate) enum HoleKind {
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum HoleKind {
     /// `property<T>`: a public property name of `T`.
     Name(QName),
     /// `propertyPath<T>`: a property path starting at `T`.
@@ -994,7 +994,8 @@ pub(crate) enum HoleKind {
 
 /// The [`HoleKind`] of `key`, a `string<K>`'s `K`, or `None` where `K` is
 /// none of the three `crate::lower`'s `lower_string_holes` accepts.
-pub(crate) fn hole_kind(key: TypeId, interner: &TypeInterner) -> Option<HoleKind> {
+#[must_use]
+pub fn hole_kind(key: TypeId, interner: &TypeInterner) -> Option<HoleKind> {
     let class = |id: TypeId| match interner.get(id) {
         Ty::Class(qname, _) => Some(qname.clone()),
         _ => None,
@@ -1020,7 +1021,8 @@ pub(crate) fn hole_kind(key: TypeId, interner: &TypeInterner) -> Option<HoleKind
 }
 
 /// `K` and whether the text is `tainted`, where `ty` is a `string<K>`.
-pub(crate) fn string_holes_key(ty: TypeId, interner: &TypeInterner) -> Option<(TypeId, bool)> {
+#[must_use]
+pub fn string_holes_key(ty: TypeId, interner: &TypeInterner) -> Option<(TypeId, bool)> {
     match interner.get(ty) {
         Ty::StringHoles { key, tainted } => Some((*key, *tainted)),
         _ => None,
