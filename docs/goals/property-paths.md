@@ -67,7 +67,7 @@ stages:
         rules: [testing/feature-proofs]
   - id: 9
     title: the concept page and the walkthrough
-    status: open
+    status: done
     context: [website/src/content/docs/in-depth/concepts/tainted-input.mdx, website/src/components/Replay.astro]
     extra:
       context:
@@ -341,25 +341,23 @@ are checked and completed where they were plain strings. Simplicity: one new typ
 
 **Does:** the website explains the features together, shows the editor with replays, and links the attack.
 
-- [ ] The concept page. `website/src/content/docs/in-depth/concepts/checked-field-names.mdx:1`
-- [ ] The walkthrough and its snippets. `website/src/content/docs/guides/how-to-use/checked-field-paths.mdx:1`
-- [ ] The replays of a path being completed and of a misspelled segment. `website/snippets/guides/how-to-use/field-paths/01-complete-a-path.nvs:1`
+- [x] The concept page. `website/src/content/docs/in-depth/concepts/checked-field-names.mdx:1`
+- [x] The walkthrough and its snippets. `website/src/content/docs/guides/how-to-use/checked-field-paths.mdx:1`
+- [x] The replays of a path being completed and of a misspelled segment. `website/snippets/guides/how-to-use/field-paths/01-complete-a-path.nvs:1`
 
 ## Handoff
 
 ### State
 
-Stage 8 is done: `bun nv proofs --gate --only lang:types/property-paths lang:types/strings-with-holes 'Core\Str::parts' 'Core\Reflect::steps'` owes nothing, so the `proofs` check is green. `propertyPath<T>` and `string<K>` each have `about.md`, three examples, a bench with a `.scale.nvs` sibling and recorded perf, and `covers:` on two conformance cases. The attacks are `tests/hostile/lang/types/property-paths/01-a-sort-field-from-a-request.nvs` (private names, a relation to a private name, braces, a 200000-step loop, a million dots), `02-a-tainted-condition-tries-to-reach-a-query.nvs` (`expect-refusal`: the tainted condition is refused at `Core\Db`'s query text) and `tests/hostile/lang/types/strings-with-holes/01-holes-from-a-request.nvs` (the holes scanner).
+Every stage is done and the goal is reached. Stage 9 put the concept page at `website/src/content/docs/in-depth/concepts/checked-field-names.mdx` and the walkthrough at `website/src/content/docs/guides/how-to-use/checked-field-paths.mdx`, both in the sidebar and on their landing pages. The walkthrough's six steps are `website/snippets/guides/how-to-use/data-mapper/`, and the two replays, completing a path and a misspelled segment, are `website/snippets/guides/how-to-use/field-paths/`. `website/src/data/core.json` is rendered again, so `Core\Str::parts` and `Core\Reflect::steps` have Reference pages, and the four new pages have stamped questions.
 
-The nightly CI failures are on `origin/main`, which is far behind local `main`, and the loop never pushes.
+`bun nv site --check snippets`, `bun nv owners --closes property-paths`, `looper verify` and `bun nv verify --doc` are green. `site --check prose`, `stale`, `questions` and `structure` were already red on pages this goal does not touch (`in-depth/compare.mdx`, `/reference/types/`).
+
+The nightly CI failures are on `origin/main` (`cb7021a24`), 678 commits behind local `main`; one failed step still checks decision records, which no longer exist. The loop never pushes, so pushing `main` is the user's call.
 
 ### Next
 
-**Stage 9: the concept page, the walkthrough and the replays**, one file set: `website/src/content/docs/in-depth/concepts/`, `website/src/content/docs/guides/how-to-use/`, `website/snippets/guides/how-to-use/`. Model each page on its `tainted-input.mdx` neighbour, and follow AGENTS.md § *Text an end user reads*.
-
-- [ ] The concept page "Field names the compiler checks": the idea once, linking each feature's page and the attack. `website/src/content/docs/in-depth/concepts/checked-field-names.mdx:1`, `website/src/content/docs/in-depth/concepts/tainted-input.mdx:1`, `rule:types/property-path`, `rule:types/string-holes`
-- [ ] The walkthrough that builds a small data mapper, one runnable snippet per step: one field, a path, a condition string, `static`, holes to SQL with `parts` and `steps`, a sort field from a request. It says a column typo inside SQL text is found at run time (`rule:core-classes/db-compile-time-query-checking`). `website/src/content/docs/guides/how-to-use/checked-field-paths.mdx:1`, `website/src/content/docs/guides/how-to-use/tainted-input.mdx:1`
-- [ ] The replays of completing a path and of a misspelled segment, then `bun nv site --check snippets` and `bun nv owners --closes property-paths`. `website/snippets/guides/how-to-use/field-paths/01-complete-a-path.nvs:1`, `rule:testing/a-replay-plays-what-the-language-server-returned`
+The goal is reached: retire `docs/goals/property-paths.md` and walk on to `test-hooks`.
 
 ### Backlog
 
@@ -368,4 +366,5 @@ The nightly CI failures are on `origin/main`, which is far behind local `main`, 
 - A literal at a `property<A>|property<B>` parameter is not converted and gets nothing offered (`rule:types/property-key`).
 - `propertyPath<T>` over a class with no public property reports with the `property<T>` wording (`reject_empty_property_key_set`, `crates/nvs-types/src/expr/operators.rs:436`).
 - Go-to-definition on an inherited path segment answers nothing (`property_segment_at`, `crates/nvs-lsp/src/definition.rs:1157`), and no closing `}` is inserted after a hole (`open_hole`, `crates/nvs-lsp/src/completion.rs`).
+- A completion row for a `?Customer` property shows its type as `null|Customer` (`website/snippets/guides/how-to-use/field-paths/01-complete-a-path.replay.out`, `crates/nvs-lsp/src/completion.rs`).
 - A run-time `as ?propertyPath<T>` of one million dots takes about 3 ms in a debug build, so it reads the whole string before it finds the first empty part (`crates/nvs-ir/src/lower/convert.rs`, `rule:types/property-path`).
