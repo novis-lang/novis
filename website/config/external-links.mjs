@@ -20,7 +20,7 @@
  *   component that links out (SocialIcons) is overridden in src/components/
  *   to do the same. A JSX `<a>` written in an MDX page is a
  *   component too — the visitor sees only markdown-made elements and raw
- *   HTML — so it spreads the same helper (sponsoring.mdx does).
+ *   HTML — so it spreads the same helper (impressum.mdx does).
  *
  * "External" is any absolute `http(s)` or protocol-relative URL whose origin
  * is not SITE_URL's. `mailto:` and `tel:` are not websites and stay as they

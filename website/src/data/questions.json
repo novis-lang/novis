@@ -11,7 +11,7 @@
   },
   "/datenschutz/": {
     "feature": "datenschutz.mdx",
-    "hash": "795a38051c3f1ac1",
+    "hash": "275d6c10954ebdb9",
     "questions": [
       "Does the Novis website use cookies or tracking?",
       "What data does the Novis website collect about visitors?",
@@ -13252,7 +13252,7 @@
   },
   "/sponsoring/": {
     "feature": "sponsoring.mdx",
-    "hash": "97c8623e497cd9d6",
+    "hash": "7cc8669fbdb98460",
     "questions": [
       "How can I support Novis with money?",
       "Donate to the Novis project",

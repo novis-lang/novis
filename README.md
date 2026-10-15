@@ -90,7 +90,7 @@ by a company: a sole proprietorship (*Einzelunternehmen*) in Austria, owned and 
 of Novis. When the team is bigger and sponsoring makes it possible, we will found a *FlexCo* named
 Novis-Lang — the *Flexible Kapitalgesellschaft*, a form of company Austria introduced in 2024 for startups
 and growing companies — so that we can employ people and rent an office. You can give through GitHub
-Sponsors, Ko-fi, Liberapay, PayPal or a bank transfer. The website's sponsoring page lists the tiers, and
+Sponsors, Polar or a bank transfer. The website's sponsoring page lists the tiers, and
 publishes a report every quarter: how many gave, the total, and what we spent it on. By default, nothing
 about you is published — not your name and not your amount. We show them only if you ask us to.
 

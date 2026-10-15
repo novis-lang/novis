@@ -59,19 +59,17 @@ export const SPONSOR_CHANNELS = [
   {
     label: 'GitHub Sponsors',
     url: '',
-    text: 'Monthly or once, with your GitHub account. GitHub keeps no fee when you give from a personal account.',
+    text: 'For developers and teams. Give monthly or once, with your GitHub account. GitHub takes no fee when you give from a personal account.',
   },
-  { label: 'Ko-fi', url: '', text: 'Once or monthly, by card or PayPal. No account needed.' },
   {
-    label: 'Liberapay',
+    label: 'Polar',
     url: '',
-    text: 'Weekly, monthly or yearly. Liberapay is a nonprofit and keeps no fee.',
+    text: 'For a gift without a GitHub account. You pay by card. Polar handles the VAT and sales tax, and you get a receipt.',
   },
-  { label: 'PayPal', url: '', text: 'Once, any amount.' },
   {
     label: 'Bank transfer',
     url: '/impressum/',
-    text: 'For companies. Write to us and you get an invoice from us.',
+    text: 'For companies and custom agreements. Write to us, and you get an invoice with Austrian VAT or with the EU reverse charge.',
   },
 ]
 

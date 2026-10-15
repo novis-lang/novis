@@ -5,25 +5,25 @@
       "id": "partner",
       "name": "Partner",
       "from": 500,
-      "shows": "Your logo and link on this page, on the home page and in the README."
+      "shows": "Your large logo and link on the home page, on this page and in the README. Your issues get the highest priority, and you get a direct contact on Discord."
     },
     {
       "id": "sponsor",
       "name": "Sponsor",
       "from": 100,
-      "shows": "Your logo and link on this page."
+      "shows": "Your logo and link on this page and in the README. Your bug reports and feature requests get a high priority."
     },
     {
       "id": "backer",
       "name": "Backer",
       "from": 25,
-      "shows": "Your name in its own section on this page."
+      "shows": "Your name or your organization's name in its own section on this page."
     },
     {
       "id": "supporter",
       "name": "Supporter",
       "from": 5,
-      "shows": "Your name in the list on this page."
+      "shows": "Your name in the list on this page, and our thanks for paying for the servers."
     }
   ],
   "sponsors": [],
