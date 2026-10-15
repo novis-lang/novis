@@ -30,7 +30,7 @@
 //! script and is left alone, as is one that allows every inline script
 //! already (`'unsafe-inline'` with no nonce or hash beside it, which a hash
 //! would switch off). A `'none'` in that directive is dropped, since it
-//! cannot stand beside a source.
+//! cannot stand beside a source. [`crate::csp`] does the amending.
 //!
 //! # What it spends
 //!
@@ -38,7 +38,6 @@
 //! sends the polyfill once and the trigger's 23 bytes per fill.
 
 use hyper::HeaderMap;
-use hyper::header::{self, HeaderValue};
 use nvs_runtime::stream::Scripts;
 
 #[cfg(test)]
@@ -70,66 +69,9 @@ pub struct Slotted;
 /// Adds the two hashes to every `Content-Security-Policy` in `headers` that
 /// limits inline scripts, as the module doc says.
 pub fn allow_scripts(headers: &mut HeaderMap) {
-    let policies: Vec<HeaderValue> = headers
-        .get_all(header::CONTENT_SECURITY_POLICY)
-        .iter()
-        .cloned()
-        .collect();
-    if policies.is_empty() {
-        return;
-    }
-    headers.remove(header::CONTENT_SECURITY_POLICY);
-    for policy in policies {
-        let amended = policy
-            .to_str()
-            .ok()
-            .map(|text| {
-                text.split(',')
-                    .map(|one| amend(one).unwrap_or_else(|| one.to_owned()))
-                    .collect::<Vec<_>>()
-                    .join(",")
-            })
-            .and_then(|text| HeaderValue::from_str(&text).ok());
-        headers.append(header::CONTENT_SECURITY_POLICY, amended.unwrap_or(policy));
-    }
-}
-
-/// One policy with the two hashes added, and `None` where it needs none.
-fn amend(policy: &str) -> Option<String> {
-    let mut directives: Vec<String> = policy.split(';').map(str::to_owned).collect();
-    let index = ["script-src-elem", "script-src", "default-src"]
-        .iter()
-        .find_map(|wanted| {
-            directives.iter().position(|directive| {
-                directive
-                    .split_ascii_whitespace()
-                    .next()
-                    .is_some_and(|name| name.eq_ignore_ascii_case(wanted))
-            })
-        })?;
-    let mut words = directives[index].split_ascii_whitespace();
-    let name = words.next()?.to_owned();
-    let sources: Vec<&str> = words.collect();
-    let is = |source: &str, keyword: &str| source.eq_ignore_ascii_case(keyword);
-    let keyed = sources.iter().any(|source| {
-        let source = source.to_ascii_lowercase();
-        source.starts_with("'nonce-") || source.starts_with("'sha") || source == "'strict-dynamic'"
-    });
-    if !keyed && sources.iter().any(|source| is(source, "'unsafe-inline'")) {
-        return None;
-    }
-    let mut rewritten = format!(" {name}");
-    for source in sources.iter().filter(|source| !is(source, "'none'")) {
-        rewritten.push(' ');
-        rewritten.push_str(source);
-    }
-    for hash in [POLYFILL_HASH, TRIGGER_HASH] {
-        rewritten.push(' ');
-        rewritten.push_str(hash);
-    }
-    if index == 0 {
-        rewritten.remove(0);
-    }
-    directives[index] = rewritten;
-    Some(directives.join(";"))
+    crate::csp::add_sources(
+        headers,
+        &["script-src-elem", "script-src", "default-src"],
+        &[POLYFILL_HASH, TRIGGER_HASH],
+    );
 }

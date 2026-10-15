@@ -23,10 +23,11 @@
 //! as a [`Node::Elided`] and is rendered as the cut it is, here as everywhere.
 //!
 //! **Class names and nothing else** — no inline style, no script, no colour.
-//! The text reads without a stylesheet, and the caller that has a response
-//! supplies one: `[debug] inline`'s block carries its style under the CSP
-//! nonce (`rule:errors/renderings`), which is a property of that request
-//! rather than of the markup. An identity is numbered within its own record,
+//! The text reads without a stylesheet. [`STYLE`] is the stylesheet, and the
+//! caller that has a response writes it: `[debug] inline`'s block carries it
+//! once per response, as [`style_element`] under the request's CSP nonce
+//! (`rule:errors/renderings`), which is a property of that request rather
+//! than of the markup. An identity is numbered within its own record,
 //! so a page that embeds two records is what scopes their anchors.
 //!
 //! The carrier is `Core\Html\Markup`, which this crate cannot name: it is a
@@ -61,6 +62,31 @@ use crate::{Elision, Envelope, Node, Record, Scalar};
 /// The prefix an object's anchor and a cycle's link share, so the two are
 /// written once and cannot come to disagree.
 const ANCHOR: &str = "nvs-id-";
+
+/// The stylesheet for this rendering's class names, beside the rendering so a
+/// class added to one is added to the other.
+///
+/// Every rule is scoped under `.nvs-nodes` or `.nvs-record`, so it styles no
+/// element of the page the block is appended to.
+pub const STYLE: &str = "\
+.nvs-nodes,.nvs-record{font:12px/1.4 ui-monospace,monospace;background:#fafafa;color:#222;\
+border:1px solid #ccc;margin:4px 0;padding:4px 8px;text-align:left;white-space:pre-wrap}\
+.nvs-nodes ul,.nvs-record ul{list-style:none;margin:0;padding-left:16px}\
+.nvs-nodes summary,.nvs-record summary{cursor:pointer}\
+.nvs-key{color:#555;margin-right:.5em}\
+.nvs-int,.nvs-uint,.nvs-float,.nvs-decimal{color:#0a6a8a}\
+.nvs-string{color:#1a7f37}.nvs-bytes{color:#9a6700}\
+.nvs-null,.nvs-bool,.nvs-enum,.nvs-callable{color:#8250df}\
+.nvs-object>summary{font-weight:bold}\
+.nvs-elided,.nvs-redacted,.nvs-cycle{color:#888}\
+.nvs-envelope{color:#555}.nvs-level{font-weight:bold}";
+
+/// [`STYLE`] as one `<style>` element carrying `nonce`, which is the request's
+/// CSP nonce and is written escaped like every other attribute here.
+#[must_use]
+pub fn style_element(nonce: &str) -> String {
+    format!("<style nonce=\"{}\">{STYLE}</style>", escape(nonce))
+}
 
 /// What each of the five characters is written as.
 ///

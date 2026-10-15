@@ -2274,6 +2274,14 @@ where
         {
             crate::slotted::allow_scripts(answered.headers_mut());
         }
+        // At the same point and for the same reason: the `[debug] inline`
+        // block's `<style>` element needs its nonce in the finished policy.
+        if let Some(crate::debug_style::DebugStyle(nonce)) = answered
+            .extensions_mut()
+            .remove::<crate::debug_style::DebugStyle>(
+        ) {
+            crate::debug_style::allow_style(answered.headers_mut(), &nonce);
+        }
         // After the policy and before the answer goes back, so that what is
         // counted is the response this connection actually writes — including
         // one the `101` or an event stream replaced the request's own with. A
@@ -2484,6 +2492,14 @@ fn answer(mut done: Completion) -> Response<Answer> {
     response
         .headers_mut()
         .insert(header::CONTENT_TYPE, content_type);
+    // `rule:errors/debug-dump`'s `[debug] inline` block wrote a `<style>`
+    // element with this nonce, and the policy step adds it to the response's
+    // policy (`crate::debug_style`).
+    if let Some(nonce) = done.style_nonce {
+        response
+            .extensions_mut()
+            .insert(crate::debug_style::DebugStyle(nonce));
+    }
     // [`overrides`] owns the ordering and what it costs.
     overrides(&mut response, done.headers);
     response
@@ -3254,6 +3270,7 @@ pub(crate) mod tests {
             output: output.as_bytes().to_vec(),
             content_type: content_type.map(Into::into),
             file_body: None,
+            style_nonce: None,
             status: None,
             headers: Vec::new(),
             error: None,
@@ -6256,6 +6273,7 @@ pub(crate) mod tests {
                 output: Vec::new(),
                 content_type: None,
                 file_body: None,
+                style_nonce: None,
                 status: None,
                 headers: Vec::new(),
                 error: None,

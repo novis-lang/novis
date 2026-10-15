@@ -1298,6 +1298,9 @@ fn result_of(ctx: &nvs_runtime::Ctx, completion: Completion) -> Value {
         // `Ctx::declare_file_body` is where that fork is, and this field is what
         // the child said on its way past it.
         file_body: _,
+        // The `[debug] inline` block's style nonce, ignored for the same
+        // reason: it belongs to a response's policy.
+        style_nonce: _,
         // Spec § 15's status, ignored on the same reasoning: a `ScriptResult`
         // is not a response, so a child that set one said it to whoever is
         // answering a peer, which a `spawn script`'s collector is not.

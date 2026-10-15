@@ -1178,6 +1178,11 @@ pub struct Ctx {
     /// with the request. Nothing at all outside a mode whose `[debug] inline`
     /// ceiling is open, which a host that wrote no configuration does not have.
     inline_debug: Vec<u8>,
+    /// The CSP nonce the `[debug] inline` block's `<style>` element carries,
+    /// drawn by [`Self::flush_inline_debug`] the one time it writes that
+    /// element and taken by [`Self::take_style_nonce`] for the response's
+    /// `Content-Security-Policy`. `None` on every response that has no block.
+    style_nonce: Option<Box<str>>,
     /// The file this response's body **is** — `Core\Response::sendFile`, the one
     /// body member whose bytes never pass through this context.
     ///

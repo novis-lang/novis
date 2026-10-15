@@ -617,8 +617,14 @@ mod tests {
         html.flush_inline_debug().expect("a body sink never fails");
         let body =
             String::from_utf8(html.take_buffered_output().unwrap_or_default()).expect("markup");
+        let nonce = html
+            .take_style_nonce()
+            .expect("a block brings its style's nonce");
+        let block = body
+            .strip_prefix(&nvs_render::html::style_element(&nonce))
+            .expect("the style element comes first");
         assert!(
-            body.starts_with("<div class=\"nvs-nodes\">") && body.contains('7'),
+            block.starts_with("<div class=\"nvs-nodes\">") && block.contains('7'),
             "the body takes the collapsible block, rendered for its own carrier: {body}"
         );
 

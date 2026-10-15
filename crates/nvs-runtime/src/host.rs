@@ -457,6 +457,12 @@ pub struct Completion {
     /// cost one path here. A child that sent a file wrote nothing, so
     /// [`Self::output`] is empty beside it.
     pub file_body: Option<Box<std::path::Path>>,
+    /// The CSP nonce the `[debug] inline` block's `<style>` element carries, or
+    /// `None` where the response has no block.
+    ///
+    /// The server adds it to the response's Content-Security-Policy, so a
+    /// policy that limits styles still lets the block's style apply.
+    pub style_nonce: Option<Box<str>>,
     /// What the child declared this response *means* — spec § 15's status code,
     /// or `None` where nothing set one.
     ///
@@ -887,6 +893,7 @@ mod tests {
                 output: Vec::new(),
                 content_type: None,
                 file_body: None,
+                style_nonce: None,
                 status: None,
                 headers: Vec::new(),
                 error: None,

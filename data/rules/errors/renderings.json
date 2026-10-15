@@ -1,13 +1,15 @@
 {
   "title": "The sink in force picks the rendering, and no call site may name one",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "errors/diagnostic-record",
     "errors/debug-dump",
     "errors/no-render-hook"
   ],
   "guardedBy": [
-    "tests/conformance/core/log-format-text-selects-the-plaintext-rendering.nvst"
-  ],
-  "goal": "language-rule-debts"
+    "tests/conformance/core/log-format-text-selects-the-plaintext-rendering.nvst",
+    "crates/nvs-render/src/plain.rs",
+    "crates/nvs-runtime/src/ctx/output.rs",
+    "crates/nvs-server/src/debug_style.rs"
+  ]
 }

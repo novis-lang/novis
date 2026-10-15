@@ -186,6 +186,7 @@ impl Ctx {
             captures: Vec::new(),
             content_type: None,
             inline_debug: Vec::new(),
+            style_nonce: None,
             file_body: None,
             body_stream: None,
             stream_window: None,

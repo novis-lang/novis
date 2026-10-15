@@ -605,6 +605,19 @@ impl Ctx {
     /// fail against the other. `None` is the request that only echoed, which
     /// `rule:security/response-body-is-one-typed-member` reads as `text/html`.
     ///
+    /// **The blocks carry their style, once, under a nonce.**
+    /// `rule:errors/renderings` puts `nvs_render::html::STYLE` inline because
+    /// the secure headers block a linked asset, and a nonce because an operator
+    /// policy that limits styles must still let it apply. The nonce is drawn
+    /// here, the one time the `<style>` element is written, and
+    /// [`Self::take_style_nonce`] hands it to the server, which adds it to the
+    /// response's policy. A block in the terminal carrier is plaintext and
+    /// needs no style.
+    ///
+    /// **What it spends:** one 16-byte random draw, one nonce string and one
+    /// copy of the stylesheet, per response that has a block. Nothing for any
+    /// other response.
+    ///
     /// # Errors
     ///
     /// Whatever the sink returns. [`OutputSink::Body`] never fails, and it is
@@ -614,7 +627,19 @@ impl Ctx {
         if blocks.is_empty() || !self.body_takes_a_block() {
             return Ok(());
         }
+        if self.carrier() == CARRIER_HTML_MARKUP && self.style_nonce.is_none() {
+            let nonce = style_nonce();
+            self.write_output(nvs_render::html::style_element(&nonce).as_bytes())?;
+            self.style_nonce = Some(nonce.into());
+        }
         self.write_output(&blocks)
+    }
+
+    /// Takes the nonce [`Self::flush_inline_debug`] wrote the block's style
+    /// under, leaving none — `None` when this response has no style element.
+    #[must_use]
+    pub fn take_style_nonce(&mut self) -> Option<Box<str>> {
+        self.style_nonce.take()
     }
 
     /// Whether this response's body is the HTML one a block may be appended to.
@@ -1111,6 +1136,16 @@ fn write_to(sink: &mut OutputSink, bytes: &[u8]) -> io::Result<()> {
     }
 }
 
+/// A fresh CSP nonce: 128 bits from the thread's CSPRNG, in standard base64,
+/// which is the alphabet a policy's `'nonce-…'` source is written in.
+fn style_nonce() -> String {
+    use base64::Engine as _;
+    use rand::Rng as _;
+    let mut raw = [0u8; 16];
+    rand::rng().fill_bytes(&mut raw);
+    base64::engine::general_purpose::STANDARD.encode(raw)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1252,6 +1287,42 @@ mod tests {
             Some(&b"Hello, World!"[..])
         );
         assert_eq!(ctx.take_buffered_output().as_deref(), Some(&b""[..]));
+    }
+
+    /// `rule:errors/renderings`: two dumps in one HTML response give one
+    /// `<style>` element, ahead of both blocks, under the nonce the response's
+    /// policy is then given. A JSON body gets neither.
+    #[test]
+    fn the_inline_debug_block_carries_its_style_once_under_the_requests_nonce() {
+        let mut ctx = Ctx::new(OutputSink::Body(Vec::new()));
+        ctx.append_inline_debug("<div class=\"nvs-nodes\">one</div>");
+        ctx.append_inline_debug("<div class=\"nvs-nodes\">two</div>");
+        ctx.flush_inline_debug().unwrap();
+        let body = String::from_utf8(ctx.take_buffered_output().unwrap()).unwrap();
+        let nonce = ctx
+            .take_style_nonce()
+            .expect("a response with a block has a nonce");
+        assert_eq!(nonce.len(), 24, "128 bits in padded base64");
+        let style = nvs_render::html::style_element(&nonce);
+        assert_eq!(body.matches("<style").count(), 1, "{body}");
+        assert!(body.starts_with(&style), "{body}");
+        assert!(body.ends_with("one</div><div class=\"nvs-nodes\">two</div>"));
+
+        let mut other = Ctx::new(OutputSink::Body(Vec::new()));
+        other.append_inline_debug("<div class=\"nvs-nodes\">x</div>");
+        other.flush_inline_debug().unwrap();
+        assert_ne!(
+            other.take_style_nonce(),
+            Some(nonce),
+            "a nonce is per response"
+        );
+
+        let mut json = Ctx::new(OutputSink::Body(Vec::new()));
+        json.declare_content_type("application/json");
+        json.append_inline_debug("<div class=\"nvs-nodes\">x</div>");
+        json.flush_inline_debug().unwrap();
+        assert!(json.take_style_nonce().is_none());
+        assert_eq!(json.take_buffered_output().as_deref(), Some(&b""[..]));
     }
 
     #[test]

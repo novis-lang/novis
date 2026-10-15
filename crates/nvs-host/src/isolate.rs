@@ -1312,6 +1312,9 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
     // describing — and `Ctx::flush_inline_debug` owns the rest, including why a
     // JSON body is left alone.
     drop(isolate_ctx.flush_inline_debug());
+    // The nonce that block's `<style>` element carries, if it wrote one, taken
+    // on every path out of here beside the declaration that types the body.
+    let style_nonce = isolate_ctx.take_style_nonce();
     let output = isolate_ctx.take_buffered_output().unwrap_or_default();
     // `rule:security/response-body-is-one-typed-member`'s declaration, taken beside the bytes it describes and on
     // every path out of here — a child that threw still wrote what it wrote,
@@ -1359,6 +1362,7 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
             output,
             content_type,
             file_body,
+            style_nonce,
             status,
             headers,
             error: Some(Failure {
@@ -1382,6 +1386,7 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
         let mut completion = cancelled_completion();
         completion.output = output;
         completion.content_type = content_type;
+        completion.style_nonce = style_nonce;
         completion.status = status;
         completion.headers = headers;
         completion.trace = trace;
@@ -1401,6 +1406,7 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
             output,
             content_type,
             file_body,
+            style_nonce,
             status,
             headers,
             error: None,
@@ -1413,6 +1419,7 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
             output,
             content_type,
             file_body,
+            style_nonce,
             status,
             headers,
             error: Some(Failure {
@@ -1441,6 +1448,7 @@ pub(crate) fn refused_completion(message: &str) -> Completion {
         output: Vec::new(),
         content_type: None,
         file_body: None,
+        style_nonce: None,
         status: None,
         headers: Vec::new(),
         error: Some(Failure {
@@ -1464,6 +1472,7 @@ pub(crate) fn cancelled_completion() -> Completion {
         output: Vec::new(),
         content_type: None,
         file_body: None,
+        style_nonce: None,
         status: None,
         headers: Vec::new(),
         error: Some(Failure {

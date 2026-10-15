@@ -222,6 +222,7 @@ mod tests {
                 output: inbound.path().as_bytes().to_vec(),
                 content_type: None,
                 file_body: None,
+                style_nonce: None,
                 status: Some(self.0),
                 headers: Vec::new(),
                 error: None,

@@ -17001,7 +17001,7 @@ the dump went to stderr
 Core\Debug::dump(mixed ...$values): void
 ```
 
-Writes each value in a readable form, for debugging. It never writes to standard output. Outside a web request, it writes to standard error. Inside a web request, it writes a log record at the `Debug` level. In production, that record is not kept unless `[log] level` is `"Debug"`. With `[debug] inline`, the dump is also added to an HTML response.
+Writes each value in a readable form, for debugging. It never writes to standard output. Outside a web request, it writes to standard error, in colour when standard error is a terminal that shows colour. Inside a web request, it writes a log record at the `Debug` level. In production, that record is not kept unless `[log] level` is `"Debug"`. With `[debug] inline`, the dump is also added to an HTML response.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -17022,7 +17022,7 @@ Renders `$value` exactly as `dump` would and answers it as a `Core\Cli\Text` ins
 |---|---|---|
 | `$value` | `mixed` | The value to render, walked as `dump` walks one. |
 
-**Returns** `Core\Cli\Text` — The plaintext rendering as a `Core\Cli\Text` under every sink, without the trailing newline `dump` writes.
+**Returns** `Core\Cli\Text` — The plaintext rendering as a `Core\Cli\Text` under every sink. It has no colour and no trailing newline.
 
 <a id="core-core-test"></a>
 ### `Core\Test`
