@@ -300,8 +300,7 @@ struct TryFrame<'a> {
 /// The constant is translated here rather than in `nvs-codegen` because
 /// `nvs_types::ConstArg` is everything a *signature* can carry and
 /// `nvs_types::FieldDefault` is only what a written property declaration can
-/// reach. A written `= null` is outside that set, and [`field_default`] owns
-/// what it does.
+/// reach, which [`field_default`] maps.
 fn property_defaults(
     label: &str,
     layout: &nvs_types::ClassLayout,
@@ -341,13 +340,12 @@ fn property_defaults(
 /// One evaluated constant, as the runtime's own smaller vocabulary spells it,
 /// or `None` where that vocabulary has no member for it.
 ///
-/// `ConstArg::Null` reaches this: a property or a `static` written `= null`
-/// gives `None` and arms nothing, and its slot reads `null`
-/// (`tests/conformance/core/a-nullable-property-defaults-to-null.nvst`). What a
-/// `?T $x = null` constructor parameter's codec field still lacks is
-/// `rule:core-api/required-optional-and-nullable`'s. Every other `None` arm is
-/// a constant `nvs_types::defaults` does not accept as a written property
-/// default, which the comments on the arms below name one by one.
+/// `ConstArg::Null` gives `FieldDefault::Null`, at a property, a `static` and a
+/// codec field alike, so a `?T $x = null` constructor parameter's field fills
+/// an absent key with `null` (`rule:core-api/required-optional-and-nullable`).
+/// Every `None` arm is a constant `nvs_types::defaults` does not accept as a
+/// written property default, which the comments on the arms below name one by
+/// one.
 fn field_default(value: &nvs_types::ConstArg) -> Option<nvs_types::FieldDefault> {
     use nvs_types::{ConstArg, FieldDefault};
 
@@ -360,8 +358,8 @@ fn field_default(value: &nvs_types::ConstArg) -> Option<nvs_types::FieldDefault>
         ConstArg::Float(v) => Some(FieldDefault::Float(*v)),
         ConstArg::Str(s) => Some(FieldDefault::Str(s.clone())),
         ConstArg::EmptyArray => Some(FieldDefault::EmptyArray),
-        ConstArg::Null
-        | ConstArg::Bytes(_)
+        ConstArg::Null => Some(FieldDefault::Null),
+        ConstArg::Bytes(_)
         // `nvs_types::defaults::eval_property_default` refuses a `decimal`
         // default, since this recipe set has no member for one.
         | ConstArg::Decimal { .. }

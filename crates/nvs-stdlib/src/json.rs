@@ -3161,11 +3161,9 @@ unsafe fn decode_field<'a>(
         }
         // A class field is optional exactly when its parameter declares a
         // default, and this is reached when that default arrived as no
-        // constant: a `?T $x = null` parameter, whose `null` the field has no
-        // constant for (`rule:core-api/required-optional-and-nullable`), a
-        // position a `skip: true` left with no field to carry a constant on
-        // (the module's own gap 1), or a descriptor built by hand rather than
-        // by `nvs_types::derive`.
+        // constant: a position a `skip: true` left with no field to carry a
+        // constant on (the module's own gap 1), or a descriptor built by hand
+        // rather than by `nvs_types::derive`.
         return issue(
             "optional field missing, and its constructor parameter carries no constant \
              to fill it with"

@@ -1,6 +1,6 @@
 {
   "title": "Required, optional and nullable are three separate questions: nullability belongs to the type and optionality to the default",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "core-api/written-participation",
     "core-api/omission-is-not-a-written-null",
@@ -10,8 +10,8 @@
   "guardedBy": [
     "tests/conformance/core/json-decode-as-admits-exactly-its-declared-type.nvst",
     "tests/conformance/core/json-decode-as-fills-an-absent-optional-key-from-its-default.nvst",
+    "tests/conformance/core/json-decode-fills-an-absent-key-defaulted-to-null.nvst",
     "tests/conformance/core/json-derive-decodes-and-reports-every-field.nvst",
     "crates/nvs-stdlib/src/json.rs"
-  ],
-  "goal": "language-rule-debts"
+  ]
 }

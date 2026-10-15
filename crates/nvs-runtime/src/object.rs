@@ -827,6 +827,12 @@ pub enum FieldDefault {
     /// `[]` — a fresh empty array, which is the only array constant there is
     /// (`nvs_types::defaults::ConstArg::EmptyArray`).
     EmptyArray,
+    /// `null`, written `= null` where the declared type admits one. A slot
+    /// already starts out `null`, so on a property it only stops an
+    /// ancestor's default winning the slot; its reader is a decoder, which
+    /// fills an absent `?T $x = null` key from it
+    /// (`rule:core-api/required-optional-and-nullable`).
+    Null,
     /// **Not a default at all**: the "never written" marker
     /// `rule:classes/an-unwritten-property-read-throws` owes a slot no constructor is obliged to fill — today a `lateinit`
     /// property's (`rule:classes/lateinit`), which is the one declaration `rule:classes/definite-property-initialization`
@@ -859,6 +865,7 @@ impl FieldDefault {
             Self::Float(v) => Value::float(*v),
             Self::Str(s) => Value::str(crate::NvsStr::new(s.as_bytes())),
             Self::EmptyArray => Value::array(crate::NvsArray::new()),
+            Self::Null => Value::null(),
             Self::Unset => Value::unset(),
         }
     }
