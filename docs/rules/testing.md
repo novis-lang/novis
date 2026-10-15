@@ -3,7 +3,7 @@
 
 # Testing
 
-*13 of 58 rules below are **designed** rather than shipped, and are marked where they appear.*
+*15 of 60 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="testing-test-attribute"></a>
 
@@ -191,32 +191,68 @@ because they really ran.
 
 The constructor is the test's setup, and a stronger one than a `setUp` method can be: definite
 property initialization guarantees every property is assigned before any test body runs. There is no
-`#[Before]`, and no all-cases pair either — across isolates those would either lie or need fixtures,
-which is the honest spelling of what they were for.
+`#[BeforeEachTest]`, because the constructor is that hook. Cleanup after each test is
+[`testing/after-each-test`](testing.md#testing-after-each-test), and setup and cleanup done once around a whole class are
+[`testing/class-hooks`](testing.md#testing-class-hooks).
 
 A test class's constructor therefore declares no parameters. One that does is reported as that test
 failing rather than pretended past: the runner constructs the class with no arguments, and a test
 method's own parameters are filled by [`testing/fixtures`](testing.md#testing-fixtures) and [`testing/data-rows`](testing.md#testing-data-rows) instead.
 
-<sub>See also [`testing/after-hook`](testing.md#testing-after-hook), [`testing/fixtures`](testing.md#testing-fixtures), [`testing/isolate-per-test`](testing.md#testing-isolate-per-test).</sub>
+<sub>See also [`testing/after-each-test`](testing.md#testing-after-each-test), [`testing/class-hooks`](testing.md#testing-class-hooks), [`testing/fixtures`](testing.md#testing-fixtures), [`testing/isolate-per-test`](testing.md#testing-isolate-per-test).</sub>
 
-<a id="testing-after-hook"></a>
+<a id="testing-after-each-test"></a>
 
-## `#[After]` is for state that outlives the isolate, and nothing else needs teardown  *(designed — owned by M10)*
+## `#[AfterEachTest]` runs on each attempt's own object, and is told which test ran and how it ended  *(designed — owned by goal test-hooks)*
 
-`rule:testing/after-hook`
+`rule:testing/after-each-test`
 
-`#[After]` runs after a test and exists only for residue that outlives the isolate — a file, a row,
-a remote object. Teardown is otherwise unnecessary here: the isolate dies and takes everything
-inside it with it, which is what leaves this marker one narrow job rather than a general hook.
+`#[AfterEachTest]` marks a `public` instance method returning `void`, and the runner calls it on the
+same object the test ran on, inside that test's isolate, after every attempt, whether the attempt
+passed or failed. It exists for residue that outlives the isolate — a file, a row, a remote object.
+Everything else needs no teardown: the isolate dies and takes everything inside it with it.
 
-Every such residue is capability-bearing, so there is nothing `#[After]` can usefully do until a
-test run can hold a capability.
+The hook knows which test ran because it runs on that test's own `$this`: whatever the constructor and
+the test stored there is what it cleans up. It may also declare one parameter of type
+`Core\Test\Outcome`, filled by type the way a fixture fills a test's parameter:
 
-**Not on disk.** `#[After]` is not a recognised attribute (`crates/nvs-types/src/derive.rs:71`), and a
-test run cannot hold a capability yet.
+| Field | Value |
+|---|---|
+| `class` | the test class's name |
+| `name` | the method's name, with `#N` for a `#[TestWith]` row ([`testing/data-rows`](testing.md#testing-data-rows)) |
+| `attempt` | `1` for the first run, one more for each retry ([`testing/runner-is-strict`](testing.md#testing-runner-is-strict)) |
+| `passed` | whether this attempt passed |
+| `failures` | the messages the report prints for this attempt, empty when it passed |
 
-<sub>See also [`testing/constructor-is-setup`](testing.md#testing-constructor-is-setup), [`testing/isolate-per-test`](testing.md#testing-isolate-per-test).</sub>
+`Outcome` is for deciding what to keep and what to report — the evidence of a failed test kept under
+its own name, the rest deleted. Cleanup that only one test needs belongs in that test's own `finally`,
+not in a hook that branches on `$outcome->name`. Any other parameter, or a second one, is refused where
+it is written.
+
+A retry is a fresh instance in the same isolate, so each attempt gets its own call on its own object.
+A constructor that throws leaves no object, so the hook does not run and the test fails with the
+constructor's error. A hook that throws fails that attempt, and its failure is reported with the
+test's own.
+
+There is no `#[BeforeEachTest]`: the constructor is that hook ([`testing/constructor-is-setup`](testing.md#testing-constructor-is-setup)).
+
+**Not on disk.** `#[AfterEachTest]` is not a recognised attribute (`crates/nvs-types/src/derive.rs:71`),
+`Core\Test\Outcome` does not exist, and a test run cannot hold a capability yet, so there is no residue
+for the hook to remove until it can.
+
+- **Memory:** one `Outcome` per attempt, a few strings and one list of failure messages, released when
+  the hook returns. A class without the hook pays nothing.
+
+**Declined:**
+- **`#[After]`.** It does not say after what, beside `#[BeforeClass]` and `#[AfterClass]`
+  ([`testing/class-hooks`](testing.md#testing-class-hooks)).
+- **A static call such as `Test::current()`.** It would return a different value depending on runner
+  state the method's signature does not show. A parameter is visible, optional and checked while
+  compiling.
+- **A `Throwable` in place of `failures`.** A test can fail several assertions and throw nothing, and
+  the ledger already records each one as a message.
+
+<sub>See also [`testing/constructor-is-setup`](testing.md#testing-constructor-is-setup), [`testing/class-hooks`](testing.md#testing-class-hooks), [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict).</sub>
 
 <a id="testing-fixtures"></a>
 
@@ -245,6 +281,96 @@ descends, because a test may be written above the fixture that supplies it.
   path for immutable fixtures, measured first, never by sharing an isolate between tests.
 
 <sub>See also [`testing/data-rows`](testing.md#testing-data-rows), [`testing/constructor-is-setup`](testing.md#testing-constructor-is-setup), [`testing/isolate-per-test`](testing.md#testing-isolate-per-test).</sub>
+
+<a id="testing-class-hooks"></a>
+
+## `#[BeforeClass]` and `#[AfterClass]` run once around a class's tests, and the second runs whenever the first started  *(designed — owned by goal test-hooks)*
+
+`rule:testing/class-hooks`
+
+`#[BeforeClass]` and `#[AfterClass]` mark `public static` methods returning `void` that run once
+around a test class's tests, in the parent, and `#[AfterClass]` runs whenever `#[BeforeClass]` started.
+They are for setup whose effect lives outside every isolate — a database created, its schema built and
+its rows seeded once for the class, then dropped after its last test.
+
+The order for one class is `#[BeforeClass]`, then the fixtures its selected tests need
+([`testing/fixtures`](testing.md#testing-fixtures)), then the tests, then `#[AfterClass]`. A fixture therefore reads what the setup
+wrote. Neither hook runs for a class none of whose tests is selected, for the reason a fixture is not
+built for one (`crates/nvs-cli/src/runner.rs:787`).
+
+| What happens | Result |
+|---|---|
+| a test fails | `#[AfterClass]` still runs |
+| `#[BeforeClass]` throws | no test runs, each selected test is reported failed with that error, and `#[AfterClass]` runs, because a setup that stopped halfway left something to remove |
+| `#[AfterClass]` throws | the run fails, and the failure is reported against the class rather than a test |
+| a test calls `exit()` or the process is killed | nothing after it runs ([`errors/escalation-ladder`](errors.md#errors-escalation-ladder)) |
+
+`#[BeforeClass]` takes no parameter. `#[AfterClass]` may declare one of type `Core\Test\Summary`, filled
+by type: `class`, the counts `passed`, `failed`, `flaky` and `skipped`, and `failedTests`, the names of
+the failed tests as the report prints them. A hook that keeps the database when `failed` is above zero
+and drops it otherwise is the case it exists for.
+
+Tests of one class share what the setup wrote, so a test that writes to it runs under
+`#[Test(db:)]` ([`testing/db-transaction`](testing.md#testing-db-transaction)). Without that, one test's rows reach the next and the
+order of the tests matters again, which is what an isolate per test exists to prevent
+([`testing/isolate-per-test`](testing.md#testing-isolate-per-test)).
+
+A hook that writes a static property in its own body is refused where it is written. Every test runs
+in its own isolate and reads the static's declared initial value, so the write would look like setup
+and set up nothing.
+
+**Not on disk.** Neither attribute is recognised (`crates/nvs-types/src/derive.rs:71`), and
+`Core\Test\Summary` does not exist.
+
+- **Memory:** one `Summary` per class, four integers and the names of its failed tests, held in the
+  parent from the class's first test to the return of `#[AfterClass]`. A class without the hooks pays
+  nothing.
+
+**Declined:**
+- **A database setup written as a fixture.** A fixture is built only when a test declares its type, so
+  a setup that returns nothing would never run, and a fixture has no cleanup.
+- **A `#[BeforeClass]` that returns a value.** A value the tests receive is a fixture.
+- **`#[BeforeAllTests]` and `#[AfterAllTests]`.** In a run of many classes, "all tests" reads as the
+  whole run. `Class` names the scope.
+
+<sub>See also [`testing/fixtures`](testing.md#testing-fixtures), [`testing/after-each-test`](testing.md#testing-after-each-test), [`testing/db-transaction`](testing.md#testing-db-transaction), [`testing/isolate-per-test`](testing.md#testing-isolate-per-test).</sub>
+
+<a id="testing-hook-inheritance"></a>
+
+## A test class has at most one hook of each kind, and a subclass inherits hooks and fixtures like any method  *(designed — owned by goal test-hooks)*
+
+`rule:testing/hook-inheritance`
+
+A test class has at most one `#[BeforeClass]`, one `#[AfterClass]` and one `#[AfterEachTest]`, and a
+subclass inherits each of them, and each `#[Fixture]`, the way it inherits any method. A base class's
+hook is therefore a default: a subclass that declares nothing runs it, around its own tests.
+
+| The subclass | Result |
+|---|---|
+| declares nothing | the inherited hook runs for the subclass |
+| overrides the method by name | the override is the hook, and calls `parent::` to keep the base's steps |
+| overrides with an empty body | the hook does nothing for that subclass |
+| declares a second hook of that kind under another name | refused, naming both methods: two hooks of one kind on one class |
+| overrides without repeating the attribute | refused, naming the method it overrides |
+
+The override repeats the attribute so that a reader of the subclass alone sees that the method runs
+around its tests. "Once per class" means once per test class: two subclasses of one base each run the
+inherited `#[BeforeClass]` once, around their own tests, and an abstract base with no tests runs
+nothing.
+
+Fixtures follow the same table. A subclass's test receives an inherited fixture by its type, an
+override by name replaces it, and a second fixture of the same type under another name is the duplicate
+[`testing/fixtures`](testing.md#testing-fixtures) already refuses.
+
+**Not on disk.** None of the three hooks exists yet ([`testing/class-hooks`](testing.md#testing-class-hooks),
+[`testing/after-each-test`](testing.md#testing-after-each-test)), and whether test collection reads inherited methods is not checked.
+
+**Declined:**
+- **Several hooks of one kind, run in declaration order.** The order would be a rule every reader must
+  know and no line of the code shows. A failure in the second of two setups would also need each setup
+  paired with its own cleanup. Several steps go in the one method, in the order they are written.
+
+<sub>See also [`testing/class-hooks`](testing.md#testing-class-hooks), [`testing/after-each-test`](testing.md#testing-after-each-test), [`testing/fixtures`](testing.md#testing-fixtures).</sub>
 
 <a id="testing-data-rows"></a>
 

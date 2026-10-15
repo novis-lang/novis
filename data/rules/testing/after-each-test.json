@@ -1,0 +1,12 @@
+{
+  "title": "`#[AfterEachTest]` runs on each attempt's own object, and is told which test ran and how it ended",
+  "status": "designed",
+  "seeAlso": [
+    "testing/constructor-is-setup",
+    "testing/class-hooks",
+    "testing/isolate-per-test",
+    "testing/runner-is-strict"
+  ],
+  "guardedBy": [],
+  "goal": "test-hooks"
+}

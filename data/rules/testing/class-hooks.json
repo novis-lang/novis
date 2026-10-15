@@ -1,0 +1,12 @@
+{
+  "title": "`#[BeforeClass]` and `#[AfterClass]` run once around a class's tests, and the second runs whenever the first started",
+  "status": "designed",
+  "seeAlso": [
+    "testing/fixtures",
+    "testing/after-each-test",
+    "testing/db-transaction",
+    "testing/isolate-per-test"
+  ],
+  "guardedBy": [],
+  "goal": "test-hooks"
+}

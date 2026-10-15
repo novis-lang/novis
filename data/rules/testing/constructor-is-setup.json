@@ -2,7 +2,8 @@
   "title": "The constructor is the test's setup, and there is no second before-hook",
   "status": "shipped",
   "seeAlso": [
-    "testing/after-hook",
+    "testing/after-each-test",
+    "testing/class-hooks",
     "testing/fixtures",
     "testing/isolate-per-test"
   ],
