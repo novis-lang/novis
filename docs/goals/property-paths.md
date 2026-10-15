@@ -30,7 +30,7 @@ stages:
         shapes: ["A `.nvst` test case", A diagnostic]
   - id: 4
     title: "`propertyPath<T>` is a type"
-    status: open
+    status: done
     context: [crates/nvs-syntax/src/parser/ty.rs, crates/nvs-types/src/ty.rs, crates/nvs-types/src/lower.rs, crates/nvs-types/src/expr/operators.rs, crates/nvs-ir/src/lower/convert.rs]
     extra:
       context:
@@ -300,10 +300,10 @@ are checked and completed where they were plain strings. Simplicity: one new typ
 
 **Does:** `propertyPath<T>` parses, checks a written path, converts a run-time one, and gives its text with `as string`.
 
-- [ ] Parse the atom. `crates/nvs-syntax/src/parser/ty.rs:549`
-- [ ] The type and its lowering. `crates/nvs-types/src/ty.rs:102`
-- [ ] The written-out check, one diagnostic at the bad segment. `crates/nvs-types/src/expr/operators.rs:300`
-- [ ] The run-time conversion, one lookup per segment. `crates/nvs-ir/src/lower/convert.rs:1558`
+- [x] Parse the atom. `crates/nvs-syntax/src/parser/ty.rs:549`
+- [x] The type and its lowering. `crates/nvs-types/src/ty.rs:102`
+- [x] The written-out check, one diagnostic at the bad segment. `crates/nvs-types/src/expr/operators.rs:300`
+- [x] The run-time conversion, one lookup per segment. `crates/nvs-ir/src/lower/convert.rs:1558`
 
 ### 5. the editor completes a path one segment at a time
 
@@ -349,32 +349,33 @@ are checked and completed where they were plain strings. Simplicity: one new typ
 
 ### State
 
-Stages 1 to 3 are done. A string literal at a parameter typed `property<T>` or `?property<T>` alone
-is checked while compiling and has the key type, with no `as` (`crates/nvs-types/src/expr/args.rs`,
-`key_parameter_class` in `crates/nvs-types/src/expr/members.rs:758`). A wrong name is `E0405` at the
-literal, from the same `report_unwritten_property_key` the written-out `as` uses
-(`crates/nvs-types/src/expr/operators.rs:331`). The editor offers the names there, and a quote opens
-them, because `key_classes` (`crates/nvs-lsp/src/arguments.rs:293`) now admits a key-only type. The
-designed literal rule is folded into `rule:types/property-key` and deleted. `rule:types/property-path`
-and `rule:types/string-holes` point at that rule for their own literal position.
+Stages 1 to 4 are done. `propertyPath<T>` parses (`crates/nvs-syntax/src/parser/ty.rs`), lowers to
+`Ty::PropertyPath` with `E0799` shared with `property<T>` (`crates/nvs-types/src/lower.rs`), and is
+contravariant, its own equality domain and its own conversion kind. A written-out path, at `as` and as
+a literal at a `propertyPath<T>`-only parameter, is checked one segment at a time by
+`report_unwritten_property_path` (`crates/nvs-types/src/expr/members.rs:859`), with `E0405` under the
+bad segment alone. A run-time operand records `ExprInfo::PropertyPath`, every class the path reaches
+(`property_path_graph`, `crates/nvs-types/src/expr/members.rs:824`). `nvs-ir` encodes it as one
+static string (`crates/nvs-ir/src/lower/convert.rs:1659`), and two runtime helpers walk it,
+`nvs_property_path_valid` and `nvs_property_path_mismatch` (`crates/nvs-runtime/src/helpers.rs`).
+`rule:types/property-path` is shipped, and `# Property paths` is in `docs/reference/lang/20-types.md`.
 
-Four designed rules are left, owned by this goal: `types/property-path`, `types/string-holes`,
-`core-classes/str-parts-and-reflect-steps` and `ide/a-field-path-completes-one-segment-at-a-time`.
-The nightly CI failures are still on `origin/main` at `cb7021a24`, which is far behind local `main`.
-The loop never pushes, so nothing on HEAD was run there.
+Three designed rules are left: `types/string-holes`, `core-classes/str-parts-and-reflect-steps` and
+`ide/a-field-path-completes-one-segment-at-a-time`. The nightly CI failures are on `origin/main` at
+`cb7021a24`, far behind local `main`. The loop never pushes, so nothing on HEAD ran there.
 
 ### Next
 
-**Stage 4: `propertyPath<T>` is a type**, one file set: `crates/nvs-syntax/src/parser/ty.rs`, `crates/nvs-types/src/ty.rs`, `crates/nvs-types/src/lower.rs`, `crates/nvs-types/src/expr/operators.rs`, `crates/nvs-ir/src/lower/convert.rs`.
+**Stage 5: the editor completes a path one segment at a time**, one file set: `crates/nvs-lsp/src/completion.rs`, `crates/nvs-lsp/src/arguments.rs`, `crates/nvs-lsp/src/definition.rs`, `crates/nvs-lsp/src/hover.rs`.
 
-- [ ] Parse `propertyPath<` beside `property<`, and add `Ty::PropertyPath` with its lowering and `E0799`, by `rule:types/property-path`. `crates/nvs-syntax/src/parser/ty.rs:90` `crates/nvs-types/src/ty.rs:102` `crates/nvs-types/src/lower.rs:295`
-- [ ] Check a written-out path segment by segment, one `E0405` at the bad segment, at `as` and at a `propertyPath<T>`-only parameter (`key_parameter_class`), by `rule:types/property-path`. `crates/nvs-types/src/expr/operators.rs:281` `crates/nvs-types/src/expr/members.rs:758`
-- [ ] The run-time conversion, one lookup per segment, and `as string`, by `rule:types/property-path`. `crates/nvs-ir/src/lower/convert.rs:1558`
-- [ ] Write the three `property-path` cases, the `# Property paths` heading in `docs/reference/lang/20-types.md`, and `propertyPath<static>` as text in a body (`static_key_as_text`). `crates/nvs-types/src/signatures.rs:1`
+- [ ] Completion inside a literal at a `propertyPath<T>` parameter and in `"…" as propertyPath<T>`: the prefix up to the last `.` is walked over the recorded rosters (`property_keys`, which `record_property_keys` fills per class; record each class a path reaches, not only `T`), and the class reached is offered, by `rule:ide/a-field-path-completes-one-segment-at-a-time`. `crates/nvs-lsp/src/completion.rs:699` `crates/nvs-lsp/src/arguments.rs:297` `crates/nvs-types/src/expr/members.rs:824`
+- [ ] `written_property_key` learns `Ty::PropertyPath` and the segment under the cursor, for hover and go-to-definition on one segment. `crates/nvs-lsp/src/definition.rs:1110` `crates/nvs-lsp/src/hover.rs:1`
+- [ ] The four `.lspt` cases the `property-path-editor` check names; the underline on one segment already comes from the checker's span. `crates/nvs-types/src/expr/members.rs:859`
 
 ### Backlog
 
 - Reading and writing through a path, `$obj->{$path}`: declined for now in `types/property-path`.
 - Splitting a `string<K>` literal while compiling, if the stage 8 bench asks for it (`core-classes/str-parts-and-reflect-steps`).
 - A literal at a `property<A>|property<B>` parameter is not converted and gets nothing offered (`rule:types/property-key`). Decide it if a program needs it.
+- `propertyPath<T>` over a class with no public property reports with the `property<T>` wording (`reject_empty_property_key_set`, `crates/nvs-types/src/expr/operators.rs:414`). Give it the path's word in stage 8.
 - Nightly CI on `cb7021a24` failed `a_spawned_process_ends_when_nvs_is_killed_and_what_it_started_does_not` (`crates/nvs-cli/tests/run_command.rs:688`) and the four-core throughput guard (`crates/nvs-cli/src/serve.rs`). Both are Linux-only. Check them once `main` is pushed.
