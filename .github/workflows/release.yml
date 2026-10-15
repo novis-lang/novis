@@ -232,10 +232,6 @@ jobs:
             target: aarch64-pc-windows-msvc
             archive: zip
             optional: true
-          - name: macos-x86_64
-            os: macos-13
-            target: x86_64-apple-darwin
-            archive: tar.gz
           - name: macos-aarch64
             os: macos-latest
             target: aarch64-apple-darwin
@@ -361,7 +357,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          required="linux-x86_64 linux-aarch64 windows-x86_64 macos-x86_64 macos-aarch64"
+          required="linux-x86_64 linux-aarch64 windows-x86_64 macos-aarch64"
           missing=""
           for target in $required; do
             ls dist/nvs-*-"$target".* >/dev/null 2>&1 || missing="$missing $target"

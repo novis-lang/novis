@@ -291,7 +291,6 @@ see changes.
 **Does:** every action SHA is its latest release, no job names a retired runner, the images are on the current Debian, and the plan's Toolchain field is true.
 
 - [ ] Action SHAs move for `setup-node`, `upload-artifact`, `download-artifact`, `setup-qemu`, `setup-buildx`, `build-push` and dtolnay's nightly branch. Each `# vX` comment is rewritten with its SHA. `.github/workflows/ci.yml:1`
-- [ ] `macos-13` is retired, and the release requires the `macos-x86_64` archive (`release.yml:364`), so a release cannot finish today. Use `macos-15-intel`, the last Intel image. `.github/workflows/release.yml:236`
 - [ ] Use `cc-debian13:nonroot` and `debian:trixie-slim`. Debian 12 is out of security support. `docker/Dockerfile:20`
 - [ ] Use alpine 3.24.x for the Go bench. `benches/compare/go/Dockerfile:26`
 - [ ] Pin `cargo-geiger` to a version. `.github/workflows/ci.yml:994`

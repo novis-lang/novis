@@ -58,7 +58,6 @@ export const TARGETS: readonly Target[] = [
   { name: "linux-x86_64-musl", platform: "linux", arch: "x64", archive: "tar.gz", libc: "musl" },
   { name: "windows-x86_64", platform: "win32", arch: "x64", archive: "zip" },
   { name: "windows-aarch64", platform: "win32", arch: "arm64", archive: "zip" },
-  { name: "macos-x86_64", platform: "darwin", arch: "x64", archive: "tar.gz" },
   { name: "macos-aarch64", platform: "darwin", arch: "arm64", archive: "tar.gz" }
 ];
 
