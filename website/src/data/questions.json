@@ -41,7 +41,7 @@
   },
   "/guides/cookbook/cache-value/": {
     "feature": "guides/cookbook/cache-value.mdx",
-    "hash": "7d9a2fa7d98a6892",
+    "hash": "bb380c560c039b7e",
     "questions": [
       "How do I compute a slow value once and reuse it?",
       "Example of caching an exchange rate for one hour",
@@ -1218,11 +1218,11 @@
   },
   "/reference/config/cache/": {
     "feature": "directive:cache.shared",
-    "hash": "1c204bbaf93fce6e",
+    "hash": "d380d52e02d056de",
     "questions": [
       "How do I connect the cache to a Redis server?",
       "Share cached data across every server in a deployment",
-      "Limit how much memory the in-process cache can use",
+      "Limit how much memory the memory cache can use",
       "Read the cache password from a file in a container",
       "Stop many requests fetching the same missing cache entry at once",
       "What happens when the cache is full?"
@@ -2693,41 +2693,32 @@
   },
   "/reference/core/cache/": {
     "feature": "Core\\Cache",
-    "hash": "9509d5d6e6f422ba",
+    "hash": "8aaedcdcffa2be9f",
     "questions": [
       "How do I cache values between requests?",
       "Which cache should I use?",
-      "Keep data in memory across requests",
+      "Difference between the memory cache and the shared cache",
       "Use Redis or an in-memory cache"
     ]
   },
-  "/reference/core/cache/local/": {
-    "feature": "Core\\Cache::local",
-    "hash": "b8df0a36806ffee0",
-    "questions": [
-      "Fastest cache with no network, per CPU core",
-      "How do I cache a value in this core's memory?",
-      "Cache data that can be rebuilt at any time",
-      "In-memory cache without locks for one worker"
-    ]
-  },
-  "/reference/core/cache/process/": {
-    "feature": "Core\\Cache::process",
-    "hash": "a4bf97d3acb8e201",
+  "/reference/core/cache/memory/": {
+    "feature": "Core\\Cache::memory",
+    "hash": "1e40a6a843977a3a",
     "questions": [
       "How do I cache data for the whole server?",
-      "Share cached values between all cores of one server",
-      "In-memory cache that every request on this machine sees",
-      "Fetch a slow result once and reuse it in every request"
+      "In-memory cache that every request on this server sees",
+      "Fetch a slow result once and reuse it in every request",
+      "Cache data that can be rebuilt at any time",
+      "Fast cache with no configuration and no network"
     ]
   },
   "/reference/core/cache/shared/": {
     "feature": "Core\\Cache::shared",
-    "hash": "38ae75f1b8ef5ac6",
+    "hash": "81a5a3fa146b0e00",
     "questions": [
       "How do I use Redis as a cache?",
       "Share a cache between several server machines",
-      "Configure an external cache store",
+      "When do I need a cache that every server sees?",
       "Cache that every machine sees with the same value",
       "What happens when the cache server is down?"
     ]
@@ -2744,7 +2735,7 @@
   },
   "/reference/core/cache-secretentry/of/": {
     "feature": "Core\\Cache\\SecretEntry::of",
-    "hash": "3f9a2240751d5872",
+    "hash": "922671a7682ea1db",
     "questions": [
       "How do I create a cached secret with an expiry time?",
       "Use the token endpoint's expiry as the cache lifetime",
@@ -2764,7 +2755,7 @@
   },
   "/reference/core/cache-store/forget/": {
     "feature": "Core\\Cache\\Store::forget",
-    "hash": "76f2a2aa874d97f3",
+    "hash": "87b2d61bf3cc505d",
     "questions": [
       "How do I delete a value from the cache?",
       "Remove a cached key",
@@ -2774,7 +2765,7 @@
   },
   "/reference/core/cache-store/get/": {
     "feature": "Core\\Cache\\Store::get",
-    "hash": "f2ae7f1cfc7ac246",
+    "hash": "0d73610c66256da2",
     "questions": [
       "How do I read a value from the cache?",
       "Get a cached value by key, or null if missing",
@@ -2784,7 +2775,7 @@
   },
   "/reference/core/cache-store/getsecret/": {
     "feature": "Core\\Cache\\Store::getSecret",
-    "hash": "8bf4a9f2160eb295",
+    "hash": "d4eca93bdb30f0d1",
     "questions": [
       "How do I read an encrypted secret from the cache?",
       "Cache an access token and fetch it when missing",
@@ -2794,7 +2785,7 @@
   },
   "/reference/core/cache-store/put/": {
     "feature": "Core\\Cache\\Store::put",
-    "hash": "ce5d8ce8afd29552",
+    "hash": "7989c960fc9f2221",
     "questions": [
       "How do I store a value in the cache?",
       "Cache a value with an expiry time",
@@ -2804,7 +2795,7 @@
   },
   "/reference/core/cache-store/putsecret/": {
     "feature": "Core\\Cache\\Store::putSecret",
-    "hash": "e89e7297b7579789",
+    "hash": "2fbccf5039733c11",
     "questions": [
       "How do I store a secret in the cache safely?",
       "Encrypt a value before caching it",
@@ -8801,7 +8792,7 @@
   },
   "/reference/core/ratelimit/": {
     "feature": "Core\\RateLimit",
-    "hash": "67911cb2bbdba4dd",
+    "hash": "af19f99f2dc72ed2",
     "questions": [
       "How do I add rate limiting to my web server?",
       "Throttle requests per user or per API key",
@@ -8812,7 +8803,7 @@
   },
   "/reference/core/ratelimit/consume/": {
     "feature": "Core\\RateLimit::consume",
-    "hash": "c58f92cbe487c7b1",
+    "hash": "bd368d05b8373653",
     "questions": [
       "How do I limit login attempts to 5 per 15 minutes?",
       "Enforce an API quota across all servers",
@@ -8823,11 +8814,11 @@
   },
   "/reference/core/ratelimit/shed/": {
     "feature": "Core\\RateLimit::shed",
-    "hash": "cb0da73eed2b5aa9",
+    "hash": "e95a63659565fcef",
     "questions": [
       "Drop load quickly when a server gets too many requests",
       "Fast rate limit without a shared store",
-      "Count requests per core in memory",
+      "Count requests in the memory of one server process",
       "How do I return status 429 for a slow page?",
       "Protect a server from overload with a simple limit"
     ]

@@ -15,7 +15,8 @@ computes the value once and reads it from a cache after that.
 and writes it with `put`. `ttl` is how long the value stays. After one hour, the next call
 computes it again.
 
-`Core\Cache::local` is a cache on one CPU core of one server. For a cache that all your servers
-share, use `Core\Cache::shared`.
+`Core\Cache::memory` keeps the value in the memory of this server process. Every request on this
+server finds it. A restart empties the cache, and another server does not see it. For a value that
+all your servers must see, use `Core\Cache::shared`.
 
-Read [Core\Cache](/reference/core/cache/) for the three kinds of cache.
+Read [Core\Cache](/reference/core/cache/) for the two kinds of cache.

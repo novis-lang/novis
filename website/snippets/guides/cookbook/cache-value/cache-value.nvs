@@ -3,7 +3,7 @@
 class Rates {
     // Returns the exchange rate. Only the first call in one hour computes it.
     public static function euroToDollar(): float {
-        var $cache = Core\Cache::local();
+        var $cache = Core\Cache::memory();
         var $saved = $cache->get("eur-usd");
         if ($saved != null) {
             echo "from the cache\n";
