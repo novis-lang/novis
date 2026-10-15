@@ -3,7 +3,7 @@
 
 # Testing
 
-*17 of 62 rules below are **designed** rather than shipped, and are marked where they appear.*
+*16 of 62 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="testing-test-attribute"></a>
 
@@ -1148,7 +1148,7 @@ the context the page names.
 
 <a id="testing-a-replay-plays-what-the-language-server-returned"></a>
 
-## A website replay plays what `nvs lsp` returned for its steps, and `bun nv site --check` fails when the server now returns something else  *(designed — owned by goal editor-replay)*
+## A website replay plays what `nvs lsp` returned for its steps, and `bun nv site --check` fails when the server now returns something else
 
 `rule:testing/a-replay-plays-what-the-language-server-returned`
 

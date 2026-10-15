@@ -21,7 +21,7 @@ stages:
     context: [tools/nv/test/html-later-polyfill.test.ts]
   - id: 4
     title: the first replay is on the editor page
-    status: open
+    status: done
     context: [website/src/content/docs/install/editor.mdx]
     extra:
       context:
@@ -149,39 +149,34 @@ fails `--check` when the server's answers change, which is the point of recordin
 
 **Does:** the editor install page shows a replay of `as property<T>` completion and a misspelled name's error.
 
-- [ ] The snippet, its `.replay` and its blessed `.replay.out`. `website/snippets/install/property-key-completion.nvs:1`
-- [ ] The page uses `<Replay>` and is re-stamped. `website/src/content/docs/install/editor.mdx:1`
-- [ ] The rule flipped to `shipped` with its guard tests. `docs/rules/testing/a-replay-plays-what-the-language-server-returned.md:1`
+- [x] The snippet, its `.replay` and its blessed `.replay.out`. `website/snippets/install/property-key-completion.nvs:1`
+- [x] The page uses `<Replay>` and is re-stamped. `website/src/content/docs/install/editor.mdx:1`
+- [x] The rule flipped to `shipped` with its guard tests. `docs/rules/testing/a-replay-plays-what-the-language-server-returned.md:1`
 
 ## Handoff
 
 ### State
 
-Stages 1 to 3 are done, and `replay-recording` and `replay-browser` are green. `<Replay src>`
-(`website/src/components/Replay.astro`) reads a snippet's `.replay` and `.replay.out` at build time.
-`website/config/replay-frames.mjs` turns them into one frame per keystroke and writes the HTML:
-caption, `inert` frame with tab title and "Recording" badge, buttons, the collapsed steps text and
-the frames as JSON. It is also the one `.replay` parser, which `tools/nv/lib/replay.ts` imports.
-`website/config/replay-player.mjs` plays the frames and narrows lists through `replay-narrow.mjs`.
-`tools/nv/test/replay-browser.test.ts` tests the player in Chromium on a fixture, through the shared
-CDP driver `tools/nv/test/chromium.ts`, and CI's `browser` job runs it. The Astro build has not
-rendered `Replay.astro` yet, because no page uses it. The code in a replay is not coloured yet:
-`<Snippet>` colours through Expressive Code, and the player draws plain text.
+All four stages are done and the goal is reached. `website/src/content/docs/install/editor.mdx`
+§ *Completion and errors* shows two replays: `install/property-key-completion.nvs` (completion in an
+`as property<User>` string, accepted) and `install/property-key-typo.nvs` (a misspelled key and its
+`E0405` hover, with the `<Snippet>` of the same compiler error). Both are blessed, and `bun nv site
+--check snippets`, `rules --check`, `owners --closes editor-replay` and `verify --doc` are green.
+`website/config/replay-colours.mjs` colours each frame through the Expressive Code engine `<Code>`
+uses, so a replay has the `<Snippet>` colours in both themes. `--check snippets` counts a page's
+`<Replay src>` as showing its snippet. The rule
+`testing/a-replay-plays-what-the-language-server-returned` is `shipped`.
 
 ### Next
 
-**Stage 4: the first replay is on the editor page**, one file set: `website/snippets/install/`,
-`website/src/content/docs/install/editor.mdx`, `website/src/components/Replay.astro`.
-
-- [ ] The snippet, its `.replay` and its blessed `.replay.out` (`rule:testing/a-replay-plays-what-the-language-server-returned`). `website/snippets/install/property-key-completion.nvs:1`
-- [ ] The page uses `<Replay>` beside `<Snippet>`, `bun nv site --build` renders it, and the page is re-stamped. `website/src/content/docs/install/editor.mdx:7`
-- [ ] Colour the replay's code the way `<Snippet>` does, through the grammar in `website/config/novis.tmLanguage.json`, with the site's light and dark colours. `website/config/replay-frames.mjs:204`
-- [ ] The rule flipped to `shipped` with its guard tests. `docs/rules/testing/a-replay-plays-what-the-language-server-returned.md:1`
+Nothing in this goal. The driver retires this file, and the chain moves to `property-paths`.
 
 ### Backlog
 
-- Hover cards and quick fixes as replay steps, when a page needs them (this file's § *Standing decisions*).
-- The run before this session reported 2047 owed floor atoms, red on `docs/examples/config/*` proofs.
-  No session has looked at them yet (`bun nv proofs`).
-- The nightly CI ran `origin/main`, which is far behind local `main`, and every job of that run was red.
-  Nothing here can be fixed until `main` is pushed; recheck on the next pushed run (`.github/workflows/`).
+- Hover cards and quick fixes as replay steps, when a page needs them (`rule:testing/a-replay-plays-what-the-language-server-returned`).
+- `replay-colours.mjs` builds the engine from `astro-expressive-code`'s virtual modules, as its own
+  `<Code>` does; an upgrade that renames them fails the build (`website/config/replay-colours.mjs:21`).
+- The nightly CI ran `origin/main`, 642 commits behind local `main`, and every job was red. Nothing
+  here can be fixed until `main` is pushed (`.github/workflows/`).
+- `bun nv site --check prose` names five paragraphs in `in-depth/compare.mdx` and
+  `guides/production/run-as-a-service.mdx` over its bounds; `--check questions` owes many pages.
