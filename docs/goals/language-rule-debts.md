@@ -46,7 +46,7 @@ stages:
         shapes: ["A `.nvst` test case"]
   - id: 6
     title: "`nvs check` warns on a nullable condition"
-    status: open
+    status: done
     context: [crates/nvs-types/src/expr/mod.rs, crates/nvs-diagnostics/src/lib.rs]
     extra:
       context:
@@ -166,10 +166,9 @@ so the fragment's "the checker still refuses" is stale. What is missing is the c
 at `crates/nvs-stdlib/src/json.rs:2797`. A `FieldDefault::Null` closes it for every door that reads a
 derived codec.
 
-**The nullable-condition lint** is a warning from `nvs check`, under the next free `W1xxx` code
-(`crates/nvs-diagnostics/src/lib.rs:5491-5705`), raised in `check_condition`
-(`crates/nvs-types/src/expr/mod.rs:199`) when the condition's type is nullable and not `bool`-only.
-`?bool` warns too, since `null` and `false` are both false. It never refuses.
+**The nullable-condition lint** is `W1023` (`code::W_NULLABLE_CONDITION`), raised in
+`check_condition` (`crates/nvs-types/src/expr/mod.rs:199`) when the condition's type is a union with
+`null` in it. `?bool` warns too, since `null` and `false` are both false. It never refuses.
 
 **Member conflict.** A class that does not declare a method reached from two sources, two interface
 defaults or a default and a `by` delegate, is a compile error naming every source. A new `E` code, the
@@ -228,8 +227,8 @@ user reads*.
 
 **Does:** a `?T` used directly as a condition is a warning that names `!= null`.
 
-- [ ] The warning in `check_condition`. `crates/nvs-types/src/expr/mod.rs:199`
-- [ ] The `W` code and its card. `crates/nvs-diagnostics/src/lib.rs:5675`
+- [x] The warning in `check_condition`. `crates/nvs-types/src/expr/mod.rs:199`
+- [x] The `W` code and its card. `crates/nvs-diagnostics/src/lib.rs:5788`
 
 ### 7. a member reached from two sources is a compile error
 
@@ -243,26 +242,30 @@ user reads*.
 
 ### State
 
-Stages 1 to 5 are shipped. `rule:core-api/required-optional-and-nullable` is `shipped`:
-`FieldDefault::Null` (`crates/nvs-runtime/src/object.rs`) is what `field_default` gives for
-`ConstArg::Null`, so a property, a `static` and a codec field all carry a written `= null`, and every
-decoder door fills an absent `?T $x = null` key from it. The `Core\Json::decodeAs` about.md says so.
+Stages 1 to 6 are shipped. `rule:expressions/nullable-condition-lint` is `shipped`: `W1023`
+(`code::W_NULLABLE_CONDITION`) is raised by `operators::warn_nullable_condition`, which
+`check_condition` (`crates/nvs-types/src/expr/mod.rs:199`) calls for every condition whose type is a
+union with `null` in it. `crates/nvs-cli/tests/check.rs` guards it, and the
+`lang:expressions/logical-operators-and-truth` about.md, example 02 and the reference name it.
+The whole conformance tree passes with it.
 
-The floor-debt hostile proofs (`Core\Queue::purge`, `Core\Process\Handle::wait`) pass when run alone,
-and timed out only under a parallel sweep. The `Core\Debug` perf records are stale. The nightly CI run
-the sweep names (38534014409) is on an old pushed `main` and stays red until the user pushes.
+`docs/rules/core-api.md` is rendered again: stage 5 shipped its rule without `bun nv rules --render`.
+The nightly CI run the sweep names (38701926032) is on the pushed `origin/main` (`cb7021a2`), 603
+commits behind local `main`, and stays red until the user pushes.
 
 ### Next
 
-**Stage 6: `nvs check` warns on a nullable condition**, one file set: `crates/nvs-types/src/expr/mod.rs`, `crates/nvs-diagnostics/src/lib.rs`.
+**Stage 7: a member reached from two sources is a compile error**, one file set:
+`crates/nvs-types/src/conformance.rs`, `crates/nvs-types/src/layout.rs`, `crates/nvs-diagnostics/src/lib.rs`.
 
-- [ ] The warning in `check_condition`, when the condition's type is nullable, `?bool` included (`rule:expressions/nullable-condition-lint`). `crates/nvs-types/src/expr/mod.rs:199`
-- [ ] The next free `W` code after `W1022` and its card, naming `!= null`. `crates/nvs-diagnostics/src/lib.rs:5782`
-- [ ] The tests `a_nullable_condition_warns_naming_not_null` and `a_nullable_compared_with_null_does_not_warn` beside `crates/nvs-cli/tests/check.rs:231`, and the `lang:expressions/logical-operators-and-truth` proofs.
+- [ ] The check over every implemented interface default and `by` delegate, naming every source (`rule:classes/member-conflict-is-an-error`). `crates/nvs-types/src/conformance.rs:136`
+- [ ] The `E` code `E_INTERFACE_MEMBER_CONFLICT` and its card; take the number from the pack's *next free number*. `crates/nvs-diagnostics/src/lib.rs:663`
+- [ ] The method walk keeps `extends` over `implements`, and `InterfaceName::method()` reaches a default from an override (`rule:classes/interface-default-methods`). `crates/nvs-types/src/layout.rs:1053`
+- [ ] The three tests the `member-conflict` check names beside `crates/nvs-types/tests/interface_defaults.rs:139`, the `lang:classes/interfaces` proofs, then `bun nv owners --closes language-rule-debts`.
 
 ### Backlog
 
-- Stage 7 — this file's § *Stages*.
+- `W1023` has no quick fix. An unsafe fix writing `!= null` would fit `rule:ide/a-quick-fix-is-a-diagnostics-own-suggestion` (`crates/nvs-types/src/expr/operators.rs`).
 - Re-record the `Core\Debug` perf on an idle machine: `bun nv proofs --record-perf --group 'Core\Debug'` (`docs/perf/members.ndjson`).
 - A diagnostic that echoes a source line prints a raw `ESC` byte to the terminal, as the `E0011` raw-byte case shows; the renderer should substitute it (`rule:tooling/terminal-output-is-a-sink`). Where the snippet is drawn: not checked.
 - The `Core\Cli\escape` benches' `// bench: allocations 1` budget was not re-measured after the migration (`benches/members/core/Cli/escape.nvs`).
