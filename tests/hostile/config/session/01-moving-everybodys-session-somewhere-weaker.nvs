@@ -4,7 +4,7 @@
 // all three should still be the configured values at the end.
 // hostile: timeout-ms 20000
 
-// 1. Tries many stores, including `local` and stores from other languages. Only
+// 1. Tries many stores, including `memory` and stores from other languages. Only
 //    `shared` and `db` are valid, and a program may not set either.
 array<string> $stores = [
     'shared',
@@ -87,7 +87,7 @@ uint $changes = 0;
 string $standing = Core\Config::get('session.backend') ?? '(nothing written)';
 uint $i = 0;
 while ($i < 200000) {
-    Core\Config::set('session.backend', 'local');
+    Core\Config::set('session.backend', 'memory');
     Core\Config::set('session.ttl', '8760h');
     Core\Config::set('session.cookie', "nvs_session\r\nSet-Cookie: admin=1");
     Core\Config::restore('session.backend');

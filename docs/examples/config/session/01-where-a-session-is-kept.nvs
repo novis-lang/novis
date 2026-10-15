@@ -12,9 +12,9 @@ echo 'records live in: ', Core\Config::get('session.backend') ?? '(nothing writt
 echo 'untouched for:   ', Core\Config::get('session.ttl') ?? '(no value)', "\n";
 echo 'cookie name:     ', Core\Config::get('session.cookie') ?? '(no value)', "\n";
 
-// There are only two stores. The next request may run on another server, so
-// a local cache is not allowed and this call returns `false`.
-echo 'keep mine in a local cache: ', Core\Config::set('session.backend', 'local') ? 'accepted' : 'refused', "\n";
+// There are only two stores. The next request may run in another server process,
+// so `memory` is not allowed and this call returns `false`.
+echo 'keep mine in memory:        ', Core\Config::set('session.backend', 'memory') ? 'accepted' : 'refused', "\n";
 
 // A program cannot change how long a session is kept. A longer time makes a
 // stolen session cookie useful for longer.

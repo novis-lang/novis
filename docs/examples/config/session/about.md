@@ -1,11 +1,11 @@
 Where a session's record lives, how long an untouched one survives, and what the cookie carrying its
 identifier is called.
 
-A session must be the same session whichever core or host answers the next request, so there are
-exactly two places it may live: the coherent shared store, or a database table. The two weak cache
-tiers cannot be written here at all, and a deployment that tries is refused when it starts — a
-session kept in a per-process cache is one whose contents depend on who happened to answer, which is
-a logged-out user, a lost basket, or somebody else's data, depending on the day.
+A session must be the same session whichever server process or host answers the next request. So a
+session can be kept in only two places: the shared store, or a database table. `Core\Cache::memory()`
+is kept inside one server process, so `backend = "memory"` is not allowed. A server with that line
+in `nvs.toml` does not start. A session kept in one process is lost when another process answers or
+the server restarts. The user is logged out, or their basket is empty.
 
 **In plain words:** a session is not a cache, and this block only offers stores that can prove it.
 

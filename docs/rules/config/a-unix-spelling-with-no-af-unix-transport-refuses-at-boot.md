@@ -9,7 +9,7 @@ At boot rather than at run time, which is the opposite of the answer a session `
 the roster admits whose second half is unwritten, so refusing it at the key would claim the decision
 was wrong rather than that the build has not caught up. A Unix socket on a platform with no `AF_UNIX`
 is not waiting for this project — the deployment has to be spelled differently, and every request
-until someone notices is one a boot refusal would have prevented. So it sits with `backend = "local"`:
+until someone notices is one a boot refusal would have prevented. So it sits with `backend = "memory"`:
 refused where it is written, so a deployment cannot run believing it has a store it will never reach.
 
 **Silently reading it as loopback TCP is refused.** A configuration that reads as one transport and

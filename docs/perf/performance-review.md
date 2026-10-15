@@ -208,7 +208,7 @@ finished jobs stay until the program purges them.
 
 ## cache
 
-**Read:** the request, local and process tiers, eviction, the fill lock, sessions, and
+**Read:** the request, memory and shared tiers, eviction, the fill lock, sessions, and
 `Core\Storage::list`.
 
 **Found:** a forgotten key leaves its eviction slot, so a put, forget and put cycle grows the tier
@@ -285,8 +285,8 @@ standard library and the server.
 record; it is fixed and returns before it builds one. Refused metric names grew a map without
 bound; it is fixed and keys at most 256 names per core.
 
-**Fine:** the OTLP queue, the fill table, the per-core metric registry and the process-tier shards
-are each bounded. The rate limiter's state lives in the capped local tier.
+**Fine:** the OTLP queue, the fill table, the per-core metric registry and the memory tier's shards
+are each bounded. `shed`'s state lives in the capped memory tier.
 
 ## http-client
 
