@@ -2197,7 +2197,7 @@ fn rendered_at(runs: Value, depth: ColorDepth) -> Result<String, Fault> {
 
 /// How much colour `stream` may show in this process — [`depth_for`] over the
 /// profile `rule:tooling/the-terminal-profile-resolves-once` resolves once.
-fn depth_of(stream: Stream) -> ColorDepth {
+pub(crate) fn depth_of(stream: Stream) -> ColorDepth {
     let profile = nvs_runtime::terminal::profile();
     depth_for(
         profile.color_depth(),

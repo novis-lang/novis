@@ -512,6 +512,16 @@ impl Ctx {
         carrier_of(&self.diagnostic)
     }
 
+    /// Whether the diagnostic channel is the process's standard error.
+    ///
+    /// The terminal profile describes the process's own streams, so it says
+    /// whether these bytes can show colour only when this is `true`. A buffer,
+    /// a file or a discarded channel shows none, whatever the profile says.
+    #[must_use]
+    pub fn diagnostic_is_stderr(&self) -> bool {
+        matches!(self.diagnostic, OutputSink::Stderr)
+    }
+
     /// Opens a capture level: from here until the matching [`Self::end_capture`],
     /// everything written to this request's output is buffered instead.
     pub fn begin_capture(&mut self) {

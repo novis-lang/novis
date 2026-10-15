@@ -5,6 +5,10 @@ names the type, the length of every string and the class of every object. A cont
 as a tab is made visible, a very deep or very long structure is cut short, a value that points back
 at itself is marked, and a property declared `secret` is shown as `[redacted]`.
 
+When standard error is a terminal that shows colour, each type has its own colour. Numbers are cyan
+and strings are green, for example. When standard error is a file or a pipe, the dump has no colour.
+`NO_COLOR` and `CLICOLOR_FORCE` change this the same way they change `Core\Cli::colorDepth()`.
+
 A dump never goes to standard output, and `Core\Out::capture` never swallows one. What your program
 prints stays exactly what it printed, so a dump you forget to remove cannot change a response or
 break another program that reads your output. Inside a web request a dump becomes a log line at the

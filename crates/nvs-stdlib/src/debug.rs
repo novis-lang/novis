@@ -80,6 +80,12 @@
 //! caller can embed under either sink — and a program that wants the block in
 //! a body turns on the directive above instead.
 //!
+//! **`render` is never coloured, and `dump` to a terminal is.** A dump knows
+//! its stream, so [`diagnostic_colour`] reads standard error's depth from the
+//! one terminal profile. A rendered value has no stream yet, and the same
+//! bytes are also `rule:testing/inline-snapshots`' snapshot text, which must
+//! not change with the terminal a test runs in.
+//!
 //! # The walk is not here
 //!
 //! What turns a runtime value into `rule:errors/diagnostic-record`'s nodes is
@@ -89,6 +95,7 @@
 //! transformations the walk applies, what it still cannot see, and why one walk
 //! rather than two.
 
+use nvs_render::plain::Colour;
 use nvs_render::{Level, Node, Record, Source};
 use nvs_runtime::{Ctx, Fault, LogChannel, Tag, Value};
 
@@ -138,7 +145,8 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 /// `Core\Debug::dump`'s reference card — `rule:core-api/reference-card`.
 const DUMP_DOC: MethodDoc = MethodDoc {
     short: "Writes each value in a readable form, for debugging. It never writes to standard \
-            output. Outside a web request, it writes to standard error. \
+            output. Outside a web request, it writes to standard error, in colour when standard \
+            error is a terminal that shows colour. \
             Inside a web request, it writes a log record at the `Debug` level. In production, \
             that record is not kept unless `[log] level` is `\"Debug\"`. With `[debug] inline`, \
             the dump is also added to an HTML response.",
@@ -164,8 +172,8 @@ const RENDER_DOC: MethodDoc = MethodDoc {
         desc: "The value to render, walked as `dump` walks one.",
         shape: &[],
     }],
-    ret: "The plaintext rendering as a `Core\\Cli\\Text` under every sink, without the trailing \
-          newline `dump` writes.",
+    ret: "The plaintext rendering as a `Core\\Cli\\Text` under every sink. It has no colour \
+          and no trailing newline.",
     errors: &[],
 };
 
@@ -212,7 +220,11 @@ nvs_runtime::nvs_helper! {
             return Ok(Value::null());
         }
         if ctx.inbound().is_none() {
-            let rendered = rendered_for(ctx.diagnostic_carrier(), &record.nodes);
+            let rendered = rendered_for(
+                ctx.diagnostic_carrier(),
+                &record.nodes,
+                diagnostic_colour(ctx),
+            );
             // Unreachable from source: the only diagnostic sink that can fail
             // is `OutputSink::Stderr` — `Buffer` and `Sink` never do, which
             // `Ctx::write_diagnostic`'s `# Errors` states — and nothing in the
@@ -229,7 +241,7 @@ nvs_runtime::nvs_helper! {
         // — `rule:errors/renderings` gives the envelope's keys to the log
         // target, and the record below is where they go.
         if inline(ctx) {
-            let block = rendered_for(ctx.carrier(), &record.nodes);
+            let block = rendered_for(ctx.carrier(), &record.nodes, Colour::None);
             ctx.append_inline_debug(&block);
         }
         ctx.stamp_envelope(&mut record.envelope);
@@ -337,11 +349,30 @@ fn record_of(source: Option<Source>, tail: &Value) -> Result<Record, Fault> {
 /// to — so a second caller needs no second table. Every carrier that is not the
 /// HTML one is a terminal or a stand-in for one, so the plaintext arm is the
 /// fail-closed direction and a sink added later keeps it by saying nothing.
-fn rendered_for(carrier: &str, nodes: &[Node]) -> String {
+///
+/// `colour` reaches the plaintext arm alone: the HTML rendering is styled by
+/// classes, never by escape sequences.
+fn rendered_for(carrier: &str, nodes: &[Node], colour: Colour) -> String {
     if carrier == nvs_runtime::CARRIER_HTML_MARKUP {
         nvs_render::html::render_nodes(nodes)
     } else {
-        nvs_render::plain::render_nodes(nodes)
+        nvs_render::plain::render_nodes_in(nodes, colour)
+    }
+}
+
+/// Whether a dump written to the diagnostic channel is coloured —
+/// `rule:errors/renderings`' *"coloured iff the terminal has colour"*.
+///
+/// The answer is standard error's depth in the one profile
+/// `rule:tooling/the-terminal-profile-resolves-once` resolves, read through
+/// [`crate::cli::depth_of`] so `Core\Cli` and a dump cannot disagree about it.
+/// A channel that is not standard error shows no colour.
+fn diagnostic_colour(ctx: &Ctx) -> Colour {
+    let depth = crate::cli::depth_of(nvs_runtime::terminal::Stream::Err);
+    if ctx.diagnostic_is_stderr() && depth != nvs_runtime::terminal::ColorDepth::None {
+        Colour::Ansi
+    } else {
+        Colour::None
     }
 }
 

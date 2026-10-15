@@ -6,7 +6,9 @@ of every string and the class of every object. A control character such as a tab
 very deep or very long structure is cut short, and a property declared `secret` is shown as
 `[redacted]`.
 
-The text has no line break at the end, so you decide where the line ends. `echo` of a rendering
+The text has no colour, even on a terminal that shows colour. It is the same on every machine, so
+you can compare it with a string in a test. The text has no line break at the end, so you decide
+where the line ends. `echo` of a rendering
 prints it as it is, because those bytes are already prepared for the screen and are not changed a
 second time.
 

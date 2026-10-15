@@ -32,9 +32,11 @@ A rendering is not a grammar. A grammar is a string the program writes that some
 of four is unchanged.
 
 **Partly on disk.** The three renderings are `crates/nvs-render/src/plain.rs`, `html.rs` and
-`json.rs`, and `Core\Debug::render` is `crates/nvs-stdlib/src/debug.rs:69`. Two parts are missing:
-the plaintext rendering is never coloured (`crates/nvs-render/src/plain.rs:15`), and the
-`[debug] inline` block is appended with no style of its own (`crates/nvs-runtime/src/ctx/output.rs:602`).
+`json.rs`, and `Core\Debug::render` is `crates/nvs-stdlib/src/debug.rs`. The plaintext rendering
+takes its colour as an input (`nvs_render::plain::Colour`), and a dump to standard error reads it
+from that stream's depth in the one profile; `render` and the log target's `text` format are never
+coloured, because neither has a terminal stream. One part is missing: the `[debug] inline` block is
+appended with no style of its own (`crates/nvs-runtime/src/ctx/output.rs`, `flush_inline_debug`).
 
 **Declined:**
 - **A format argument on each producer**, such as `dump($x, "html")`. The call site is the one place

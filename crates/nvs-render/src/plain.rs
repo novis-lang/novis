@@ -12,16 +12,21 @@
 //! callable renders as a signature rather than as an object with invisible
 //! captures (PHP shows a `Closure` object).
 //!
-//! # No colour yet
+//! # Colour is an input, and the terminal profile is its only source
 //!
-//! `rule:errors/renderings` makes the plaintext rendering coloured *iff*
-//! `Cli::colorDepth() != None`, and reads that one answer from
-//! `rule:tooling/the-terminal-profile-resolves-once` rather
-//! than resolving `NO_COLOR`/`CLICOLOR_FORCE`/`TERM` again here. `Core\Cli`
-//! does not exist yet (`nvs_stdlib::cli`'s own gap 2), so this
-//! rendering is uncoloured and there is deliberately no second resolution of
-//! that question standing in for it — structure, substitution and redaction
-//! never vary with a tty, so nothing about *what* is rendered waits on it.
+//! `rule:errors/renderings` colours the plaintext rendering exactly when the
+//! stream it is written to can show colour. That answer is
+//! `rule:tooling/the-terminal-profile-resolves-once`'s, resolved once per
+//! process in `nvs_runtime::terminal`, and this crate depends on no `nvs-*`
+//! crate, so it arrives as a [`Colour`] the caller read from that profile.
+//! Nothing here reads `NO_COLOR`, `CLICOLOR_FORCE` or `TERM`.
+//!
+//! Colour is the only thing a [`Colour`] changes. [`Colour::Ansi`] wraps each
+//! typed token in one SGR sequence from the sixteen basic colours, which every
+//! depth above none can show, and closes it with a reset; removing the
+//! sequences gives back [`Colour::None`]'s bytes exactly. Structure,
+//! substitution and redaction never vary with a tty. [`render`], the log
+//! target's `text` format, is never coloured: a log target is not a terminal.
 //!
 //! # The renderings agree because the cuts are in the model
 //!
@@ -33,6 +38,49 @@ use crate::{Elision, Envelope, Node, Record, Scalar};
 
 /// One level of indentation.
 const INDENT: &str = "  ";
+
+/// Whether a rendering is coloured, as the caller read it from the terminal
+/// profile of the stream the bytes go to.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Colour {
+    /// The stream shows no colour: the bytes carry no escape sequence.
+    None,
+    /// The stream shows at least the sixteen basic colours.
+    Ansi,
+}
+
+/// The SGR parameters of each kind of token [`Colour::Ansi`] paints.
+mod ink {
+    /// `null`, a `bool`, an enum case and a callable: values that are names.
+    pub(super) const NAMED: &str = "35";
+    /// `int`, `uint`, `float` and `decimal`.
+    pub(super) const NUMBER: &str = "36";
+    /// A `string` and its kept prefix under a cut.
+    pub(super) const TEXT: &str = "32";
+    /// `bytes`.
+    pub(super) const BYTES: &str = "33";
+    /// An object's class and identity.
+    pub(super) const CLASS: &str = "1";
+    /// What the model cut, hid or met again: an elision, a redaction, a cycle.
+    pub(super) const MARKER: &str = "2";
+}
+
+impl Colour {
+    /// Pushes `text`, wrapped in `sgr` and a reset when this is
+    /// [`Colour::Ansi`].
+    fn paint(self, out: &mut String, sgr: &str, text: &str) {
+        match self {
+            Self::None => out.push_str(text),
+            Self::Ansi => {
+                out.push_str("\u{1B}[");
+                out.push_str(sgr);
+                out.push('m');
+                out.push_str(text);
+                out.push_str("\u{1B}[0m");
+            }
+        }
+    }
+}
 
 /// A whole [`Record`] — the envelope's own line, then its fields, then its
 /// nodes.
@@ -49,7 +97,7 @@ pub fn render(record: &Record) -> String {
         out.push_str(INDENT);
         out.push_str(name);
         out.push_str(" => ");
-        write_node(&mut out, node, 1);
+        write_node(&mut out, node, 1, Colour::None);
         out.push('\n');
     }
     out.push_str(&render_nodes(&record.nodes));
@@ -65,11 +113,20 @@ pub fn render(record: &Record) -> String {
 /// header above every dumped value would be noise on the one output a
 /// developer reads most often. The record still *has* an envelope — that is
 /// what the log record built from the same walk carries.
+///
+/// Uncoloured: [`render_nodes_in`] is the same rendering for a caller that
+/// knows the stream can show colour.
 #[must_use]
 pub fn render_nodes(nodes: &[Node]) -> String {
+    render_nodes_in(nodes, Colour::None)
+}
+
+/// [`render_nodes`], coloured as `colour` says.
+#[must_use]
+pub fn render_nodes_in(nodes: &[Node], colour: Colour) -> String {
     let mut out = String::new();
     for node in nodes {
-        write_node(&mut out, node, 0);
+        write_node(&mut out, node, 0, colour);
         out.push('\n');
     }
     out
@@ -114,15 +171,18 @@ fn header(envelope: &Envelope) -> String {
 
 /// Writes `node` at `depth` levels of indentation, opening its own line but
 /// not closing it — a container writes its children's newlines itself.
-fn write_node(out: &mut String, node: &Node, depth: usize) {
+fn write_node(out: &mut String, node: &Node, depth: usize, colour: Colour) {
     match node {
-        Node::Scalar(scalar) => out.push_str(&scalar_line(scalar)),
+        Node::Scalar(scalar) => {
+            let (sgr, line) = scalar_line(scalar);
+            colour.paint(out, sgr, &line);
+        }
         Node::Sequence(items) => {
             out.push_str(&format!("array({}) [\n", items.len()));
             for (index, item) in items.iter().enumerate() {
                 indent(out, depth + 1);
                 out.push_str(&format!("{index} => "));
-                write_node(out, item, depth + 1);
+                write_node(out, item, depth + 1, colour);
                 out.push('\n');
             }
             indent(out, depth);
@@ -133,7 +193,7 @@ fn write_node(out: &mut String, node: &Node, depth: usize) {
             for (key, value) in entries {
                 indent(out, depth + 1);
                 out.push_str(&format!("{:?} => ", key.as_str()));
-                write_node(out, value, depth + 1);
+                write_node(out, value, depth + 1, colour);
                 out.push('\n');
             }
             indent(out, depth);
@@ -145,24 +205,31 @@ fn write_node(out: &mut String, node: &Node, depth: usize) {
             properties,
         } => {
             let id = id.map_or_else(String::new, |id| format!("#{id}"));
-            out.push_str(&format!("{class}{id} ({}) {{\n", properties.len()));
+            colour.paint(out, ink::CLASS, &format!("{class}{id}"));
+            out.push_str(&format!(" ({}) {{\n", properties.len()));
             for (name, value) in properties {
                 indent(out, depth + 1);
                 out.push_str(&format!("${name} => "));
-                write_node(out, value, depth + 1);
+                write_node(out, value, depth + 1, colour);
                 out.push('\n');
             }
             indent(out, depth);
             out.push('}');
         }
-        Node::EnumCase { enum_name, case } => out.push_str(&format!("{enum_name}::{case}")),
+        Node::EnumCase { enum_name, case } => {
+            colour.paint(out, ink::NAMED, &format!("{enum_name}::{case}"));
+        }
         Node::Callable { parameters } => {
             let plural = if *parameters == 1 { "" } else { "s" };
-            out.push_str(&format!("callable({parameters} parameter{plural})"));
+            colour.paint(
+                out,
+                ink::NAMED,
+                &format!("callable({parameters} parameter{plural})"),
+            );
         }
-        Node::Redacted => out.push_str("[redacted]"),
-        Node::Elided(elision) => out.push_str(&elision_line(elision)),
-        Node::Cycle { id } => out.push_str(&format!("[cycle -> #{id}]")),
+        Node::Redacted => colour.paint(out, ink::MARKER, "[redacted]"),
+        Node::Elided(elision) => write_elision(out, elision, colour),
+        Node::Cycle { id } => colour.paint(out, ink::MARKER, &format!("[cycle -> #{id}]")),
         Node::Span { file, line, label } => {
             out.push_str(&format!("{file}:{line}: {}", label.as_str()));
         }
@@ -183,35 +250,45 @@ fn write_node(out: &mut String, node: &Node, depth: usize) {
     }
 }
 
-/// One scalar's whole line, tagged with the Novis type it is.
-fn scalar_line(scalar: &Scalar) -> String {
+/// One scalar's whole line, tagged with the Novis type it is, and the ink
+/// [`Colour::Ansi`] paints it in.
+fn scalar_line(scalar: &Scalar) -> (&'static str, String) {
     match scalar {
-        Scalar::Null => "null".to_owned(),
-        Scalar::Bool(value) => format!("bool({value})"),
-        Scalar::Int(value) => format!("int({value})"),
-        Scalar::Uint(value) => format!("uint({value})"),
-        Scalar::Float(value) => format!("float({value})"),
-        Scalar::Decimal(value) => format!("decimal({value})"),
-        Scalar::Str { text, bytes } => format!("string({bytes}) {:?}", text.as_str()),
-        Scalar::Bytes(bytes) => format!("bytes({}) 0x{}", bytes.len(), crate::hex(bytes)),
+        Scalar::Null => (ink::NAMED, "null".to_owned()),
+        Scalar::Bool(value) => (ink::NAMED, format!("bool({value})")),
+        Scalar::Int(value) => (ink::NUMBER, format!("int({value})")),
+        Scalar::Uint(value) => (ink::NUMBER, format!("uint({value})")),
+        Scalar::Float(value) => (ink::NUMBER, format!("float({value})")),
+        Scalar::Decimal(value) => (ink::NUMBER, format!("decimal({value})")),
+        Scalar::Str { text, bytes } => (ink::TEXT, format!("string({bytes}) {:?}", text.as_str())),
+        Scalar::Bytes(bytes) => (
+            ink::BYTES,
+            format!("bytes({}) 0x{}", bytes.len(), crate::hex(bytes)),
+        ),
     }
 }
 
 /// An [`Elision`]'s whole line — the cut named, and for a text cut the kept
 /// prefix printed beside it so the reader sees the value *and* what is
 /// missing.
-fn elision_line(elision: &Elision) -> String {
+fn write_elision(out: &mut String, elision: &Elision, colour: Colour) {
     match elision {
-        Elision::Depth => "[elided: below the depth cap]".to_owned(),
+        Elision::Depth => colour.paint(out, ink::MARKER, "[elided: below the depth cap]"),
         Elision::Entries { total, cut } => {
-            format!("[elided: {cut} of {total} entries]")
+            colour.paint(
+                out,
+                ink::MARKER,
+                &format!("[elided: {cut} of {total} entries]"),
+            );
         }
         Elision::Text { kept, cut } => {
-            format!(
-                "string({}+) {:?} [elided: {cut} bytes]",
-                kept.as_str().len(),
-                kept.as_str()
-            )
+            colour.paint(
+                out,
+                ink::TEXT,
+                &format!("string({}+) {:?}", kept.as_str().len(), kept.as_str()),
+            );
+            out.push(' ');
+            colour.paint(out, ink::MARKER, &format!("[elided: {cut} bytes]"));
         }
     }
 }
@@ -349,6 +426,70 @@ mod tests {
             render(&record).trim_end(),
             "[warn] bound publicly at app.nvs:12 in Main::main"
         );
+    }
+
+    /// A value holding every kind of token [`Colour::Ansi`] paints.
+    fn every_ink() -> Vec<Node> {
+        vec![
+            Node::Object {
+                class: "Point".to_owned(),
+                id: Some(1),
+                properties: vec![
+                    ("x".to_owned(), Node::Scalar(Scalar::Int(1))),
+                    (
+                        "name".to_owned(),
+                        Node::Scalar(Scalar::Str {
+                            text: Rendered::new("a"),
+                            bytes: 1,
+                        }),
+                    ),
+                    ("key".to_owned(), Node::Redacted),
+                    ("self".to_owned(), Node::Cycle { id: 1 }),
+                ],
+            },
+            Node::Elided(Elision::Text {
+                kept: Rendered::new("ab"),
+                cut: 30,
+            }),
+        ]
+    }
+
+    /// `rule:errors/renderings`: a profile with colour paints each typed token
+    /// in one SGR sequence, and removing the sequences gives the uncoloured
+    /// rendering back byte for byte.
+    #[test]
+    fn the_plaintext_rendering_is_coloured_when_the_profile_has_colour() {
+        let nodes = every_ink();
+        let coloured = render_nodes_in(&nodes, Colour::Ansi);
+        for painted in [
+            "\u{1B}[1mPoint#1\u{1B}[0m (4) {",
+            "$x => \u{1B}[36mint(1)\u{1B}[0m",
+            "$name => \u{1B}[32mstring(1) \"a\"\u{1B}[0m",
+            "$key => \u{1B}[2m[redacted]\u{1B}[0m",
+            "$self => \u{1B}[2m[cycle -> #1]\u{1B}[0m",
+            "\u{1B}[32mstring(2+) \"ab\"\u{1B}[0m \u{1B}[2m[elided: 30 bytes]\u{1B}[0m",
+        ] {
+            assert!(coloured.contains(painted), "{painted:?} in {coloured:?}");
+        }
+        let mut stripped = String::new();
+        let mut rest = coloured.as_str();
+        while let Some(at) = rest.find('\u{1B}') {
+            stripped.push_str(&rest[..at]);
+            let end = rest[at..].find('m').expect("every sequence ends in `m`");
+            rest = &rest[at + end + 1..];
+        }
+        stripped.push_str(rest);
+        assert_eq!(stripped, render_nodes(&nodes));
+    }
+
+    /// A profile with no colour gives bytes with no escape sequence at all,
+    /// and [`render_nodes`] is that rendering.
+    #[test]
+    fn the_plaintext_rendering_has_no_colour_when_the_profile_has_none() {
+        let nodes = every_ink();
+        let plain = render_nodes_in(&nodes, Colour::None);
+        assert!(!plain.contains('\u{1B}'), "{plain:?}");
+        assert_eq!(plain, render_nodes(&nodes));
     }
 
     /// The caps are the model's, not a rendering's — this rendering reads none
