@@ -1,14 +1,15 @@
 //! `Core\RateLimit` — `rule:core-classes/ratelimit-two-members`'s
 //! limiter for what only the application knows, as both halves of it: `consume`
-//! over the shared store, `shed` over this core's own memory, and the
+//! over the shared store, `shed` over this process's own memory, and the
 //! `Core\RateLimit\Decision` each answers with.
 //!
 //! § 1's two members are two *jobs*. `consume` enforces a policy the
 //! application promised somebody — a plan quota, a login limit — so its state
 //! is the shared store and its answer is coherent across every core and every
-//! machine. `shed` drops load to keep a host up, so its state is the core's own
-//! memory and an approximate answer is adequate. Two members rather than a flag
-//! on one, so which guarantee a program relies on is visible in review.
+//! machine. `shed` drops load to keep a host up, so its state is the serving
+//! process's own memory and an approximate answer is adequate. Two members
+//! rather than a flag on one, so which guarantee a program relies on is visible
+//! in review.
 //!
 //! # Decision: the store is `Core\Cache`'s, and this member is its own door
 //!
@@ -48,24 +49,34 @@
 //! restating § 2's arithmetic in a second place, and the five lines that
 //! genuinely differ between an in-process decision and an atomic one are all
 //! that differ. § 2's "both tiers run the identical algorithm" is that
-//! factoring, and `shed_is_the_same_gcra_over_the_cores_own_memory` is where it
-//! is checked rather than promised.
+//! factoring, and `shed_is_the_same_gcra_over_the_process_own_memory` is where
+//! it is checked rather than promised.
 //!
-//! # Decision: `shed`'s state is `Core\Cache`'s local tier, not a map of its own
+//! # Decision: `shed`'s state is `Core\Cache`'s memory tier, not a map of its own
 //!
-//! The per-core half needs somewhere to keep one timestamp per key, and the
-//! runtime already has exactly one per-core store: [`crate::cache`]'s local
-//! tier, an `rule:core-api/two-cache-tiers` `HashMap` in this thread. `shed` writes there, under
-//! [`PREFIX`], for the reason `consume` writes to the one shared store — a
-//! second map would be a second footprint to bound, bounded by nothing, and
-//! `rule:concurrency/cache-memory-is-charged-to-the-core`'s `nvs.toml` cap is written for *the* local tier rather than
-//! for `Core\Cache`'s. One store, one cap, whichever member filled it.
+//! The in-process half needs somewhere to keep one timestamp per key, and the
+//! runtime already has exactly one in-process store: [`crate::cache`]'s memory
+//! tier, the one sharded map every core of the serving process reads
+//! (`rule:concurrency/the-memory-tier-is-one-store-per-process`). `shed` writes
+//! there, under [`PREFIX`] and under the same application-and-generation
+//! scope a `Core\Cache::memory()` entry has, for the reason `consume` writes to
+//! the one shared store — a second map would be a second footprint to bound,
+//! bounded by nothing, and `[cache.memory] max_size` is written for *the*
+//! memory tier rather than for `Core\Cache`'s. One store, one cap, whichever
+//! member filled it.
 //!
-//! Two consequences, both § 1's approximation rather than defects. An entry
+//! The read and the write of one arrival are one
+//! [`crate::cache::memory_update`], under the shard's write lock, so two cores
+//! stepping the same key take turns and neither admits an arrival the other
+//! already counted. The count is therefore **per serving process**: every core
+//! of it shares one allowance, and a deployment that runs several processes or
+//! machines has one allowance in each.
+//!
+//! Three consequences, all § 1's approximation rather than defects. An entry
 //! this tier evicts is an arrival forgotten, so a shed key that loses its
-//! timestamp admits a burst — which is why `consume` may not live here, and
-//! `shed`'s contract already says its count is per core and so multiplies by
-//! the number of them. And the clock is [`crate::time::monotonic_micros`], not
+//! timestamp admits a burst — which is why `consume` may not live here. A
+//! reload starts every key over, because the scope carries the configuration
+//! generation. And the clock is [`crate::time::monotonic_micros`], not
 //! the wall clock: a limiter reading the wall clock refuses for as long as an
 //! NTP step moved it backwards, and an interval is all GCRA reads.
 //!
@@ -93,11 +104,12 @@
 //! **What it spends:** one entry per live key — one timestamp, not a window of
 //! arrivals, which is § 2's O(1)-per-key and what makes limiting per user
 //! affordable at a million users. `consume`'s entry is in the shared store and
-//! expires on its own once the key drains; `shed`'s is in this core's local
-//! tier, where it is bounded by that tier's cap and by nothing else, since the
-//! tier has no TTL. In this process, `consume` spends the request text and one
-//! three-integer reply, both released with the call, and `shed` spends the
-//! decimal timestamp it stores.
+//! expires on its own once the key drains; `shed`'s is in this process's
+//! memory tier, held once for every core and bounded by that tier's cap and by
+//! nothing else, since the entry has no TTL. In this process, `consume` spends
+//! the request text and one three-integer reply, both released with the call,
+//! and `shed` spends the scoped key it looks up, released with the call, and
+//! the decimal timestamp it stores.
 
 use nvs_runtime::{Fault, Tag, ThrownClass, Value};
 
@@ -194,8 +206,8 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 const CARD: ClassDoc = ClassDoc {
     short: "Limits how often something may happen for one key, such as one account or one API \
             key. `consume` counts in the shared store, so every server gives the same answer. \
-            `shed` counts on this core only, to drop load quickly. Both return a \
-            `Core\\RateLimit\\Decision`.",
+            `shed` counts in the memory of this server process only, to drop load quickly. Both \
+            return a `Core\\RateLimit\\Decision`.",
 };
 
 /// `Core\RateLimit::consume`'s reference card — `rule:core-api/reference-card`.
@@ -259,9 +271,10 @@ const CONSUME_DOC: MethodDoc = MethodDoc {
 
 /// `Core\RateLimit::shed`'s reference card — `rule:core-api/reference-card`.
 const SHED_DOC: MethodDoc = MethodDoc {
-    short: "Charges `$cost` units against `$key`'s allowance of `$limit` per `$per` in this core's \
-            own memory, and answers whether this arrival is inside the limit — the approximate \
-            tier, for dropping load rather than for enforcing a promise.",
+    short: "Charges `$cost` units against the allowance of `$key`, which is `$limit` per `$per`. \
+            The count is kept in the memory of this server process. The result says if this call \
+            is inside the limit. Use it to drop load. Use `consume` for a limit you promised to \
+            somebody.",
     params: &[
         ParamDoc {
             name: "key",
@@ -271,9 +284,10 @@ const SHED_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "limit",
-            desc: "How many units `$per` admits **on this core**: a limit of 100 across eight \
-                   cores admits up to 800, which is why a number somebody was promised belongs to \
-                   `consume` instead.",
+            desc: "How many units are allowed in each `$per`, **in this server process**. Every \
+                   request this process serves counts against the same limit. Two server \
+                   processes with a limit of 100 allow up to 200, so a number you promised belongs \
+                   to `consume`.",
             shape: &[],
         },
         ParamDoc {
@@ -292,10 +306,9 @@ const SHED_DOC: MethodDoc = MethodDoc {
             shape: &[],
         },
     ],
-    ret: "A `Core\\RateLimit\\Decision`, answered from this core's memory and so reaching no \
-          store: there is nothing to be unreachable, and this member does not throw for one. Its \
-          arrivals are held in `Core\\Cache`'s local tier, which may forget an entry at any time \
-          — a forgotten key admits a burst, which is the approximation the tier is chosen for.",
+    ret: "A `Core\\RateLimit\\Decision`. It uses no external store, so it does not throw an \
+          `IOError`. The count is kept in the same memory as `Core\\Cache::memory()`, which can \
+          forget an entry at any time. When a count is forgotten, the key allows a burst again.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
         desc: "`$limit`, `$per` or `$burst` at zero, a period too short to divide into \
@@ -595,16 +608,17 @@ fn step(stored: Option<i128>, now: i128, window: Window, cost: u64) -> ([i64; 3]
     ([1, 0, narrowed(left)], Some(next_tat))
 }
 
-/// This core's stored arrival time for `key`, or `None` for a key that has none.
+/// The arrival time a stored entry holds, or `None` for an entry that holds
+/// none.
 ///
-/// `None` for a value that is not one of ours, too, which is the local tier's
+/// `None` for a value that is not one of ours, too, which is the memory tier's
 /// contract rather than a defence: an entry may be absent at any time, and a
-/// program that overwrote this key through `Core\Cache::local()` has forgotten
-/// one key's arrival on one core — § 1's approximation, in the tier chosen for
-/// tolerating it.
-fn stored_tat(key: &[u8]) -> Option<i128> {
-    let held = crate::cache::store_get(key)?;
-    let Ok(text) = String::from_utf8(held) else {
+/// program that overwrote this key through `Core\Cache::memory()` has forgotten
+/// one key's arrival — § 1's approximation, in the tier chosen for tolerating
+/// it. Read as text and never as raw bytes, so no payload a program wrote can
+/// decode as anything but a number or nothing.
+fn stored_tat(held: Option<&[u8]>) -> Option<i128> {
+    let Ok(text) = std::str::from_utf8(held?) else {
         return None;
     };
     let Ok(tat) = text.parse::<i128>() else {
@@ -753,7 +767,7 @@ nvs_runtime::nvs_helper! {
         crate::cache::open_configured(
             ctx,
             &member,
-            "; a limit enforced across every core has no per-core store to fall back to",
+            "; a limit enforced across every machine has no in-process store to fall back to",
         )?;
 
         let namespaced = format!("{PREFIX}{key}");
@@ -781,10 +795,11 @@ nvs_runtime::nvs_helper! {
     /// `consume` without the door and without the round trip: the same
     /// arguments derive the same [`window`], [`step`] runs the arithmetic
     /// [`SCRIPT`] runs, and [`decoded`] reads the same three integers. What
-    /// differs is where the arrival time lives — this core's own memory, so
-    /// **the count is per core and a limit of 100 across eight cores admits up
-    /// to 800**, which is the module doc's local-tier decision and § 1's stated
-    /// arithmetic.
+    /// differs is where the arrival time lives — this process's memory tier,
+    /// read and written as one [`crate::cache::memory_update`] — so **the count
+    /// is per serving process**: every core of it shares one allowance, and two
+    /// processes with a limit of 100 admit up to 200. The module doc's
+    /// memory-tier decision is the home of why.
     ///
     /// Nothing here can fail on the world: there is no store to be unreachable
     /// and no host to be ungranted, which is why the member declares no
@@ -805,28 +820,34 @@ nvs_runtime::nvs_helper! {
         admissible(cost, burst, "shed")?;
 
         // The same namespacing as the coherent tier, for the same reason: the
-        // store this writes to is the one `Core\Cache::local()` hands out, and
+        // store this writes to is the one `Core\Cache::memory()` hands out, and
         // a program caching under `account:1` must not find a timestamp there.
+        // Scoped as that member scopes a key, so two applications on one
+        // server never share an allowance.
         let namespaced = format!("{PREFIX}{key}");
+        let scoped = crate::cache::scoped(ctx, namespaced.as_bytes());
         let now = crate::time::monotonic_micros();
-        let (reply, admitted) = step(stored_tat(namespaced.as_bytes()), now, window, cost);
-        if let Some(next_tat) = admitted {
-            // Under the same `[cache.local] max_size` every other entry on this
-            // core is under (`rule:concurrency/cache-memory-is-charged-to-the-core`), which is the whole of what the
-            // `None` row in `registry::CAPABILITIES` says bounds this member: a
-            // limiter that outgrew the cap would be the footprint a grant could
-            // not have bounded anyway.
-            crate::cache::store_put(
-                namespaced.as_bytes(),
-                next_tat.to_string().into_bytes(),
-                // The cap is what bounds a limiter's entries, not a clock: a
-                // window's own arithmetic already answers for an arrival too
-                // old to matter, and an entry the cap forgot is the same
-                // approximation `shed` is chosen for.
-                crate::cache::Lifetime::Forever,
-                crate::cache::local_cap(ctx),
-            );
-        }
+        let reply = crate::cache::memory_update(
+            &scoped,
+            // The cap is what bounds a limiter's entries, not a clock: a
+            // window's own arithmetic already answers for an arrival too old to
+            // matter, and an entry the cap forgot is the same approximation
+            // `shed` is chosen for.
+            crate::cache::Lifetime::Forever,
+            // Under the same `[cache.memory] max_size` every other entry of the
+            // tier is under, which is the whole of what the `None` row in
+            // `registry::CAPABILITIES` says bounds this member: a limiter that
+            // outgrew the cap would be the footprint a grant could not have
+            // bounded anyway.
+            crate::cache::memory_cap(ctx),
+            |held| {
+                let (reply, admitted) = step(stored_tat(held), now, window, cost);
+                (
+                    reply,
+                    admitted.map(|next_tat| next_tat.to_string().into_bytes()),
+                )
+            },
+        );
 
         decoded(&reply, limit).map_err(|why| {
             // Unreachable: `step`'s own type is three integers. The arm exists
@@ -885,7 +906,7 @@ mod tests {
     use crate::cache::redis::Connection;
     use crate::cache::{Dial, Target};
 
-    /// What the per-core case limits, once, since it is both an argument and
+    /// What the per-process case limits, once, since it is both an argument and
     /// the key an entry is looked for under.
     const SHED_KEY: &str = "account:1";
 
@@ -1118,7 +1139,7 @@ mod tests {
         );
     }
 
-    /// `rule:core-classes/ratelimit-two-members` and `rule:core-classes/ratelimit-gcra`: `shed` is the same algorithm over this core's own
+    /// `rule:core-classes/ratelimit-two-members` and `rule:core-classes/ratelimit-gcra`: `shed` is the same algorithm over this process's own
     /// memory, so what has to hold is that it is GCRA *and* that it is the same
     /// one — a second implementation that drifted from the first would make
     /// moving a call between the members a rewrite rather than a change of
@@ -1131,7 +1152,7 @@ mod tests {
     /// next unit drains, and that arrival admitted once it has.
     // covers: Core\RateLimit::shed
     #[test]
-    fn shed_is_the_same_gcra_over_the_cores_own_memory() {
+    fn shed_is_the_same_gcra_over_the_process_own_memory() {
         let [consume, shed] = CLASS.methods else {
             panic!("§ 1 is two members, and they are the whole class");
         };
@@ -1213,25 +1234,33 @@ mod tests {
         );
     }
 
-    /// `rule:core-classes/ratelimit-two-members`: `shed`'s arrivals live in this core's own memory, which is
-    /// the whole of what it trades away — the count is **per core**, and an
-    /// arrival the tier forgets is one that never happened. Neither is a
-    /// defect, and both are only useful to a caller who is told: a program that
-    /// read a `shed` limit as a number somebody was promised has picked the
-    /// wrong member, and the contract is the one place that can be said in time.
+    /// `rule:core-classes/ratelimit-two-members`: `shed`'s arrivals live in this process's memory tier,
+    /// which is the whole of what it trades away — the count is **per serving
+    /// process**, and an arrival the tier forgets is one that never happened.
+    /// Neither is a defect, and both are only useful to a caller who is told: a
+    /// program that read a `shed` limit as a number somebody was promised has
+    /// picked the wrong member, and the contract is the one place that can be
+    /// said in time.
     ///
     /// Three claims, over the member rather than over [`step`], since what is
     /// at stake here is where the timestamp goes rather than the arithmetic on
-    /// it. Two threads are two cores for a `thread_local` tier, so a limit of
-    /// one admits one *each* — § 1's multiplication measured at two rather than
-    /// restated at eight. An unrelated write that fills `rule:concurrency/cache-memory-is-charged-to-the-core`'s cap
+    /// it. Two threads are two cores of one process, so a limit of one admits
+    /// one *between them*: the second core is refused against the first core's
+    /// arrival. An unrelated write that fills the arrival's shard under
+    /// `rule:concurrency/the-memory-tier-is-one-store-per-process`'s cap
     /// forgets the arrival, and the key then admits a burst GCRA alone would
     /// have refused. And [`SHED_DOC`] states both, plus the absence of the
     /// `IOError` its coherent twin documents.
     // covers: Core\RateLimit::shed
     #[test]
-    fn shed_is_per_core_and_approximate_and_says_so() {
+    fn shed_is_per_process_and_approximate_and_says_so() {
+        let _serial = crate::cache::tests::TIER
+            .lock()
+            .expect("the memory tier's cases run one at a time");
+
         let mut ctx = Ctx::buffered();
+        let entry = crate::cache::scoped(&ctx, format!("{PREFIX}{SHED_KEY}").as_bytes());
+        crate::cache::tests::forget(&entry);
         assert!(
             arrival(&mut ctx),
             "the first arrival is inside a limit of one"
@@ -1241,43 +1270,34 @@ mod tests {
             "and the second is refused, an hour before the first drains"
         );
 
-        // Where that refusal is remembered: this core's local tier, under this
-        // module's prefix rather than under the caller's own key.
-        let entry = format!("{PREFIX}{SHED_KEY}");
+        // Where that refusal is remembered: this process's memory tier, under
+        // this module's prefix and the scope `Core\Cache::memory()` gives a key.
         assert!(
-            crate::cache::store_get(entry.as_bytes()).is_some(),
-            "an arrival is an entry in `Core\\Cache`'s local tier, and nothing else holds one"
+            crate::cache::memory_get(&entry).is_some(),
+            "an arrival is an entry in `Core\\Cache`'s memory tier, and nothing else holds one"
         );
         assert_eq!(
-            crate::cache::store_get(SHED_KEY.as_bytes()),
+            crate::cache::memory_get(&crate::cache::scoped(&ctx, SHED_KEY.as_bytes())),
             None,
             "a program's own cache entry of the same name is a different entry"
         );
 
-        // Per core. The runtime is thread-per-core and the tier is a
-        // `thread_local`, so a second thread is a second core for this
-        // question — and it has no arrival to be refused against.
+        // Per process. A second thread is a second core of the same process,
+        // and it is refused against the arrival the first core made.
         let elsewhere = std::thread::spawn(|| arrival(&mut Ctx::buffered()))
             .join()
             .expect("the second core's thread runs to completion");
         assert!(
-            elsewhere,
-            "a limit of one admits one per core, which is why a promised number is `consume`'s"
+            !elsewhere,
+            "a second core was admitted against a limit of one the first core had used up"
         );
 
-        // Approximate. `rule:concurrency/cache-memory-is-charged-to-the-core`'s cap forgets the entry written longest
-        // ago, and an arrival is an ordinary entry: a program caching anything
-        // at all can drop one, without knowing this member exists.
-        for filler in 0..8 {
-            crate::cache::store_put(
-                format!("unrelated-{filler}").as_bytes(),
-                vec![b'x'; 2048],
-                crate::cache::Lifetime::Forever,
-                Some(8 * 1024),
-            );
-        }
+        // Approximate. The cap forgets the entry written longest ago in its
+        // shard, and an arrival is an ordinary entry: a program caching
+        // anything at all can drop one, without knowing this member exists.
+        crate::cache::tests::crowd_out(&entry, 4 * 1024);
         assert_eq!(
-            crate::cache::store_get(entry.as_bytes()),
+            crate::cache::memory_get(&entry),
             None,
             "the cap forgot the arrival, which § 1 says may happen at any time for any reason"
         );
@@ -1285,18 +1305,19 @@ mod tests {
             arrival(&mut ctx),
             "a forgotten arrival admits a burst — the approximation the tier is chosen for"
         );
+        crate::cache::tests::forget(&entry);
 
         // And the card says so, in the two fields a caller reads while choosing
         // between the two members.
         let limit = SHED_DOC.params[1];
         assert_eq!(limit.name, "limit");
         assert!(
-            limit.desc.contains("on this core") && limit.desc.contains("800"),
-            "`limit`'s card has to state that the count multiplies by the number of cores"
+            limit.desc.contains("in this server process") && limit.desc.contains("200"),
+            "`limit`'s card has to state that the count multiplies by the number of processes"
         );
         assert!(
             SHED_DOC.ret.contains("forget an entry at any time")
-                && SHED_DOC.ret.contains("admits a burst"),
+                && SHED_DOC.ret.contains("allows a burst"),
             "and the return's card the eviction a caller would otherwise read as a bug"
         );
         assert!(

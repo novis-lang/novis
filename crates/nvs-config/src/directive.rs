@@ -201,18 +201,14 @@ pub const DIRECTIVES: &[Directive] = &[
     // snapshot names, and the schedule ticker opens its fleet lease again when the block moves: the
     // next fire takes its key in the new store, and a fire already running renews in the old one.
     Directive { key: "cache.shared", class: Class::System, apply: Apply::Reload },
-    // `rule:concurrency/cache-memory-is-charged-to-the-core`'s cap on the local tier is `System` by the rule `rule:config/three-changeability-classes` states — the memory it
-    // bounds is the core's, so a request raising it would spend what every other request on that
-    // core then goes without — and `Reload` rather than `Boot` because a new ceiling is read by the
-    // next write and enforced by forgetting entries, which re-creates nothing and re-dials nothing.
-    Directive { key: "cache.local", class: Class::System, apply: Apply::Reload },
-    // `rule:concurrency/the-process-tier-is-one-store-per-process`'s two keys are `System` for the row above's reason doubled: the map
-    // `max_size` bounds is held once for the whole process, so a request raising it would spend what
-    // every request on the box then goes without, and `fill_wait` is how long a request on one core
-    // may be held waiting on a fetch another core started. `Reload` because a new ceiling is read by
-    // the next write and a new wait by the next fill — neither re-creates the map, which exists
-    // before the workers do, and neither re-dials anything.
-    Directive { key: "cache.process", class: Class::System, apply: Apply::Reload },
+    // `rule:concurrency/the-memory-tier-is-one-store-per-process`'s two keys are `System` by the
+    // rule `rule:config/three-changeability-classes` states: the map `max_size` bounds is held once
+    // for the whole process, so a request raising it would spend what every request on the box then
+    // goes without, and `fill_wait` is how long a request on one core may be held waiting on a fetch
+    // another core started. `Reload` rather than `Boot` because a new ceiling is read by the next
+    // write and enforced by forgetting entries, and a new wait by the next fill — neither re-creates
+    // the map, which exists before the workers do, and neither re-dials anything.
+    Directive { key: "cache.memory", class: Class::System, apply: Apply::Reload },
     // `rule:core-classes/temporary-dir-sweep`. `System` because the root is the runtime's and not a request's — a request that
     // could move it would be choosing where every *other* request's temporaries land. `Reload`
     // because `nvs_runtime::capability::temp_dir` reads it from the snapshot its request cloned,
@@ -264,7 +260,7 @@ pub const DIRECTIVES: &[Directive] = &[
     // a request that could redirect where already-compiled native code is read from would hold a
     // code-injection primitive rather than a performance knob. `nvs_cli::cache::placed` is its reader.
     Directive { key: "opcache.file_cache_dir", class: Class::System, apply: Apply::Reload },
-    // `rule:http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`: where a fleet's sessions live is a deployment decision, so `System`. `Reload`
+    // `rule:http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot`: where a fleet's sessions live is a deployment decision, so `System`. `Reload`
     // because `Core\Session::start` reads the block out of the snapshot its request cloned, and
     // the store it reaches is this core's connection, dialled again when the published tree names
     // another. A changed backend signs every user out, because no record is carried from the old

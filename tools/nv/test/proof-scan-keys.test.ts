@@ -53,7 +53,7 @@ describe("the keys a verdict reads of `nvs meta --json`", () => {
 
   test("an enum, exception, interface or directive, and the whole roster, depend on every class and card", async () => {
     expect(await noted([entry("Core\\Str::length", "member", "Core\\Str"), entry("Core\\Arr::Order", "enum", "types:enum")], false)).toEqual(["card:*", "class:*"]);
-    expect(await noted([entry("directive:cache.local", "directive", "config:directives")], false)).toEqual(["card:*", "class:*"]);
+    expect(await noted([entry("directive:cache.memory", "directive", "config:directives")], false)).toEqual(["card:*", "class:*"]);
     expect(await noted([], true)).toEqual(["card:*", "class:*"]);
   });
 

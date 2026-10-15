@@ -470,21 +470,21 @@ fn a_named_file_does_not_change_another_mounts_configuration() {
     );
 }
 
-/// A program that writes its mount's name into the process tier when the query
+/// A program that writes its mount's name into the memory tier when the query
 /// says `put=yes`, and then prints what the tier has under the same key.
 fn caching(name: &str) -> String {
     format!(
-        "<?nvs\nvar $cache = Core\\Cache::process();\n\
+        "<?nvs\nvar $cache = Core\\Cache::memory();\n\
          if (Core\\Request::query(\"put\") == \"yes\") {{\n    $cache->put(\"shared-key\", \"{name}\");\n}}\n\
          echo ($cache->get(\"shared-key\") ?? \"absent\") as string;\n"
     )
 }
 
-/// The process tier's key carries the `[[app]]` the request runs under, so an
+/// The memory tier's key carries the `[[app]]` the request runs under, so an
 /// entry one mount writes is read back by that mount and not by the other,
 /// even under the same key.
 #[test]
-fn two_mounts_do_not_share_process_tier_cache_entries() {
+fn two_mounts_do_not_share_memory_tier_cache_entries() {
     let server = Server::start(
         "cache",
         &["one", "two"],

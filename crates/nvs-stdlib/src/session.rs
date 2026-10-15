@@ -60,20 +60,20 @@
 //! a hook is user code that may still write. A cancelled task is the one end that sends nothing,
 //! because the send parks and a task being torn down may not park.
 //!
-//! # Decision: the local tier is unreachable from here, structurally
+//! # Decision: the memory tier is unreachable from here, structurally
 //!
-//! `rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent` refuses
-//! `Core\Session` the per-core tier, and
-//! `rule:http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`'s word for the
+//! `rule:concurrency/the-memory-tier-cannot-hold-what-must-be-coherent` refuses
+//! `Core\Session` the memory tier, and
+//! `rule:http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot`'s word for the
 //! refusal is *enforced*. Two things
 //! carry that here and neither is a comment. [`nvs_config::session::Backend`] has no variant naming
-//! the local tier, so there is no value this module could match on to select it; and every
+//! the memory tier, so there is no value this module could match on to select it; and every
 //! operation below is written against [`crate::cache::redis::Connection`] rather than against
-//! [`crate::cache`]'s tier enum, so the per-core map is not merely unselected but absent from the
+//! [`crate::cache`]'s tier enum, so the process's map is not merely unselected but absent from the
 //! type this module can reach. A test asserting the ban would pass over a module that reached
-//! `store_put` on a branch nobody exercised — which is why
-//! `a_session_is_never_backed_by_the_local_cache_tier` asserts the record's *absence* from that map
-//! after a real write, and not only the roster.
+//! that map on a branch nobody exercised — which is why
+//! `a_session_is_never_backed_by_the_memory_cache_tier` asserts the record's *absence* from that
+//! map after a real write, and not only the roster.
 //!
 //! # Decision: the identifier is drawn, never derived
 //!
@@ -554,7 +554,7 @@ const GET_SECRET_DOC: MethodDoc = MethodDoc {
 /// could name a limiter key that reads a session record.
 pub(crate) const PREFIX: &str = "nvs:session:";
 
-/// `[session] backend` — `rule:http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`'s store, as `nvs_config::session::Backend` spells it.
+/// `[session] backend` — `rule:http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot`'s store, as `nvs_config::session::Backend` spells it.
 const BACKEND: &str = "session.backend";
 
 /// `[session] ttl` — how long an untouched record survives.
@@ -596,7 +596,7 @@ pub(crate) fn key_of(id: &str) -> Vec<u8> {
 /// # Errors
 ///
 /// A thrown `RuntimeError` for a tree that configured no `[session]` block, naming the block to
-/// write. `rule:http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`: an absent block is not a default backend, because the safe answer for a
+/// write. `rule:http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot`: an absent block is not a default backend, because the safe answer for a
 /// store nobody chose is no store — the same direction
 /// `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect` takes for everything it
 /// leaves unconfigured.
@@ -609,9 +609,8 @@ pub(crate) fn backend(ctx: &Ctx, member: &str) -> Result<Backend, Fault> {
     let written = configured(ctx, BACKEND);
     written.as_deref().and_then(Backend::of).ok_or_else(|| {
         Fault::thrown(format!(
-            "Session::{member}(): no session store is configured — write `[session] backend = \
-                 \"shared\"`, which is where a record has to live for a request on another core to \
-                 find it (`rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent`)"
+            "Session::{member}(): no session store is configured. Write `[session] backend = \
+                 \"shared\"`. A session has to be in a store that every server process can read."
         ))
     })
 }
@@ -792,7 +791,7 @@ nvs_runtime::nvs_helper! {
             Backend::Shared => {}
             Backend::Db => {
                 return Err(Fault::thrown(format!(
-                    "{NAME}::start(): `[session] backend = \"db\"` names a store `rule:http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot` \
+                    "{NAME}::start(): `[session] backend = \"db\"` names a store `rule:http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot` \
                      admits and this build does not serve yet — write `backend = \"shared\"`, or \
                      see `crates/nvs-stdlib/src/session.rs`'s module doc for which half is on disk"
                 )));
@@ -803,8 +802,7 @@ nvs_runtime::nvs_helper! {
         open_configured(
             ctx,
             &member,
-            ", which is where a record has to live for a request on another core to find it \
-             (`rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent`)",
+            ". A session has to be in a store that every server process can read",
         )?;
 
         // A presented identifier this store cannot have issued is absent, and is absent here
@@ -1482,7 +1480,7 @@ mod tests {
         opened_from, record, save, sealed_into, sealed_key, ttl, write_back,
     };
     use crate::cache::redis::Connection;
-    use crate::cache::{Dial, Target, store_get, store_put};
+    use crate::cache::{Dial, Target, memory_get};
 
     /// The record two cores exchange, and the id it lives under.
     const ID: &str = "PmA5tKz1QvR3sYbN";
@@ -1568,21 +1566,21 @@ mod tests {
         }
     }
 
-    /// `rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent`, as the roster and as the write.
+    /// `rule:concurrency/the-memory-tier-cannot-hold-what-must-be-coherent`, as the roster and as the write.
     ///
-    /// Three claims, because each alone passes something broken. The roster admits no local tier —
+    /// Three claims, because each alone passes something broken. The roster admits no memory tier —
     /// so no later reader can select one — and it is read from `nvs_config` rather than spelled
     /// here, so adding a variant there fails this. The word is refused by `Backend::of` rather than
     /// resolving to something. And a record actually written through [`save`] is **absent from the
-    /// per-core map** afterwards: a module that reached `crate::cache::store_put` on some branch
-    /// would satisfy the first two and fail this one, which is the failure the section is about.
+    /// process's map** afterwards: a module that wrote into the memory tier on some branch would
+    /// satisfy the first two and fail this one, which is the failure the section is about.
     #[test]
-    fn a_session_is_never_backed_by_the_local_cache_tier() {
+    fn a_session_is_never_backed_by_the_memory_cache_tier() {
         assert!(
-            BACKENDS.iter().all(|(word, _)| *word != "local"),
-            "`rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent` is enforced by the roster having no local entry: {BACKENDS:?}"
+            BACKENDS.iter().all(|(word, _)| *word != "memory"),
+            "`rule:concurrency/the-memory-tier-cannot-hold-what-must-be-coherent` is enforced by the roster having no memory entry: {BACKENDS:?}"
         );
-        assert_eq!(Backend::of("local"), None);
+        assert_eq!(Backend::of("memory"), None);
 
         let (listener, address) = listening();
         let held = Arc::new(Mutex::new(HashMap::new()));
@@ -1601,20 +1599,20 @@ mod tests {
             "the record is in the shared store"
         );
         assert_eq!(
-            store_get(&key_of(ID)),
+            memory_get(&key_of(ID)),
             None,
-            "and nowhere in the per-core tier `rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent` refuses it"
+            "and nowhere in the memory tier `rule:concurrency/the-memory-tier-cannot-hold-what-must-be-coherent` refuses it"
         );
     }
 
-    /// `rule:http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`'s whole reason, asserted as the contrast rather than as a round trip.
+    /// `rule:http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot`'s reason,
+    /// asserted as where the record is rather than as a round trip.
     ///
-    /// Two threads are two cores: `crate::cache`'s local tier and its shared connection are both
-    /// `thread_local`, so a second thread is exactly what a request landing on another core sees.
-    /// The session record crosses — saved on one, loaded on the other through a connection the
-    /// first never touched — while the same bytes put through the local tier on the first do not.
-    /// A round trip on one thread would pass for a store that is merely reachable; the local half
-    /// is what makes this a test of *where the record is*.
+    /// Two threads are two cores: `crate::cache`'s shared connection is `thread_local`, so a second
+    /// thread is exactly what a request landing on another core sees. The session record crosses —
+    /// saved on one, loaded on the other through a connection the first never touched. A round
+    /// trip on one thread would pass for a store that is merely reachable; the second connection is
+    /// what makes this a test of the store every core and every process reads.
     #[test]
     fn a_session_survives_a_request_landing_on_another_core() {
         let (listener, address) = listening();
@@ -1627,13 +1625,6 @@ mod tests {
                 Duration::from_secs(5),
             );
             save(&mut open, ID, RECORD, DEFAULT_TTL).expect("the record is written");
-            store_put(
-                &key_of(ID),
-                RECORD.to_vec(),
-                crate::cache::Lifetime::Forever,
-                None,
-            );
-            assert_eq!(store_get(&key_of(ID)), Some(RECORD.to_vec()));
         });
         wrote.join().expect("the first core");
 
@@ -1642,22 +1633,14 @@ mod tests {
                 Dial::configured(Target::Tcp(address), None, None),
                 Duration::from_secs(5),
             );
-            (
-                load(&mut open, ID).expect("the store answers"),
-                store_get(&key_of(ID)),
-            )
+            load(&mut open, ID).expect("the store answers")
         });
-        let (shared, local) = read.join().expect("the second core");
+        let shared = read.join().expect("the second core");
 
         assert_eq!(
             shared,
             Some(RECORD.to_vec()),
             "the session the first core wrote is the session the second core reads"
-        );
-        assert_eq!(
-            local, None,
-            "while the local tier's copy of the same bytes never left the core that wrote it — \
-             which is what `rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent` refuses a session for"
         );
     }
 

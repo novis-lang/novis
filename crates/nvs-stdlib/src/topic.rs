@@ -26,9 +26,8 @@
 //! # Decision: the table is per core, and it holds a weak reference
 //!
 //! One `thread_local!` map from a topic's name to the subscribers on **this**
-//! core, which is [`crate::cache`]'s local tier as a representation rather than
-//! a rule: the runtime is thread-per-core, so a table another core could reach
-//! would need a lock. § 4's "across every core" is the *publish*'s promise and
+//! core, as a representation rather than a rule: the runtime is
+//! thread-per-core, so a table another core could reach would need a lock. § 4's "across every core" is the *publish*'s promise and
 //! it is kept by a hand-off between cores rather than by one shared map — a
 //! bounded message hand-off is what that section says it is, and a shared map
 //! with a lock in front of it is the shared state it says it is not.

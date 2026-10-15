@@ -5,8 +5,8 @@
 //! § 1's tiers are a member each rather than one API with a flag, so the choice
 //! a program made is visible in review rather than in an argument list. Not one
 //! of them takes a parameter at all, which is what makes that structural: there
-//! is no spelling of `local()` that can be turned into `process()` or
-//! `shared()` by a value computed at run time.
+//! is no spelling of `memory()` that can be turned into `shared()` by a value
+//! computed at run time.
 //!
 //! # Decision: an entry is § 3's byte payload, not a live graph
 //!
@@ -26,7 +26,7 @@
 //!    [`crate::serialize`]'s `decode` does; a class the new unit no longer has
 //!    is refused by name rather than dereferenced.
 //! 2. **The shared tier needs bytes anyway.** A Redis entry is bytes over a
-//!    socket, so a live-graph local tier would be a second representation to
+//!    socket, so a live-graph memory tier would be a second representation to
 //!    keep in agreement with the first — the two-writers shape this project
 //!    treats as the bug rather than the redundancy.
 //!
@@ -35,16 +35,13 @@
 //! § 2's own decision. That is latency spent on security, which is the
 //! direction `rule:programs/memory-priority`'s ordering allows.
 //!
-//! # Decision: the local tier needs no grant, and § 1's open question is closed
+//! # Decision: the memory tier needs no grant
 //!
-//! `rule:security/capability-roster-is-closed`
-//! listed `Core\Cache::local()` as the one capability-bearing member with no
-//! grant named for it, and left the naming to `rule:concurrency/cross-request-state-is-explicit`. The answer written into
-//! that ADR's § 1 is that there is **no grant**, because
+//! `Core\Cache::memory()` asks for **no grant**, because
 //! `rule:security/capability-question-is-grant-and-scope`
 //! checks a capability at the door to an *effect* and this tier has no
 //! door: nothing leaves the process, no name is resolved and no file is opened.
-//! What is left to bound is footprint, and § 3's `nvs.toml` cap is the
+//! What is left to bound is footprint, and `[cache.memory] max_size` is the
 //! instrument for a bound — a boolean grant would not be one. The shared tier
 //! has the `cache.shared` row instead, in [`crate::registry::CAPABILITIES`]
 //! beside it, and that asymmetry is the whole of what the two rows say.
@@ -74,14 +71,15 @@
 //! since what to do instead is the caller's own contract.
 //!
 //! Which store, and how long a command may take, are `[cache.shared] url` and
-//! `[cache.shared] timeout`; what the tier behind `local()` may hold is
-//! `[cache.local] max_size`. All three are `System`-class, because neither
-//! where a fleet's coherent state lives nor how much of a core's memory it
+//! `[cache.shared] timeout`; what the tier behind `memory()` may hold is
+//! `[cache.memory] max_size`. All three are `System`-class, because neither
+//! where a fleet's coherent state lives nor how much of a process's memory it
 //! keeps is a decision one request may make for the rest of them.
 //!
-//! # Decision: the cap is bytes on this core, and forgetting is how it is kept
+//! # Decision: the cap is bytes in this process, and forgetting is how it is kept
 //!
-//! § 3 caps the local tier by an `nvs.toml` directive and says exceeding it
+//! `rule:concurrency/the-memory-tier-is-one-store-per-process` caps the memory
+//! tier by an `nvs.toml` directive and says exceeding it
 //! **evicts rather than failing an allocation**, so [`Entries::put`] never
 //! refuses: it forgets entries until the arrival fits, and an arrival too large
 //! for the whole tier is itself forgotten as it lands. Nothing about `put`'s
@@ -91,9 +89,9 @@
 //! whose whole contract is that it has none.
 //!
 //! **The victim is the key written longest ago**, not the least recently read:
-//! a read that reordered the queue would make `get` a write, taking a `&mut` on
-//! the request path and turning a `RefCell` shared with `Core\RateLimit` into
-//! something two live borrows could reach. What that costs is that a hot key
+//! a read that reordered the queue would make `get` a write, taking a shard's
+//! write lock on the request path where a read lock is enough. What that
+//! costs is that a hot key
 //! written once and read forever ages out under a cold key rewritten often;
 //! what it buys is that `get` is a lookup and `put` is O(1) amortised. An
 //! eviction policy that measured *use* would need a clock or a counter per
@@ -110,7 +108,7 @@
 //! § 1's contract unchanged, and nothing a program already wrote reads
 //! differently.
 //!
-//! **The two in-process tiers hold a deadline read from [`Instant`]**, never
+//! **The memory tier holds a deadline read from [`Instant`]**, never
 //! from the wall clock, because a lifetime is an elapsed length of time
 //! rather than a date: a clock step would otherwise lengthen or shorten every
 //! lifetime in the process at once. The shared tier holds no deadline at all
@@ -122,10 +120,9 @@
 //! `null` and stays where it is until the cap forgets it, a `put` replaces it,
 //! or a later write's sweep takes it out, because taking it out would make
 //! `get` a write:
-//! `rule:concurrency/the-process-tier-is-one-store-per-process` fixes that a
-//! lookup takes a shard's read lock and nothing more, and the local tier's
-//! `RefCell` is shared with `Core\RateLimit` for the reason § 3's eviction
-//! policy is by write age. What that spends is the bytes of an expired entry
+//! `rule:concurrency/the-memory-tier-is-one-store-per-process` fixes that a
+//! lookup takes a shard's read lock and nothing more, which is also why the
+//! eviction policy above is by write age. What that spends is the bytes of an expired entry
 //! nobody has asked for again, still counted against the cap; what it buys is
 //! that every core reading one hot key reads it at the same moment.
 //!
@@ -137,28 +134,26 @@
 //!
 //! # What it spends
 //!
-//! On the local tier, per core, one map entry and one queue
-//! slot per live key — the key's bytes, its payload's and [`ENTRY_OVERHEAD`] —
-//! held until it is overwritten or forgotten, charged to the core rather than
-//! to any request, and bounded by `[cache.local] max_size`, which ships at
-//! [`DEFAULT_MAX_SIZE`]. That is § 3's O(cores × working set) with both factors
-//! named, and it is deliberately not O(requests served): a key rewritten on
-//! every request costs what it cost the first time. On the process tier, the
-//! same entry and the same overhead, held once for the whole process instead of
-//! once per core and bounded by `[cache.process] max_size` — O(working set)
-//! where the local tier is O(cores × working set) — plus [`SHARDS`] locks and
-//! their empty queues, which is a fixed cost paid once and not a per-entry one.
+//! On the memory tier, one map entry and one queue slot per live key — the
+//! key's bytes, its payload's and [`ENTRY_OVERHEAD`] — held once for the whole
+//! process until it is overwritten or forgotten, charged to the process rather
+//! than to any request
+//! (`rule:concurrency/a-cross-request-stores-bytes-are-its-own-balance`), and
+//! bounded by `[cache.memory] max_size`, which ships at [`DEFAULT_MAX_SIZE`].
+//! That is O(working set), and it is deliberately not O(requests served): a key
+//! rewritten on every request costs what it cost the first time. Beside it,
+//! [`SHARDS`] locks and their empty queues, which is a fixed cost paid once and
+//! not a per-entry one. `Core\RateLimit::shed`'s arrivals are entries of this
+//! tier too, under the same cap.
 //! On the shared tier, one socket per core and nothing per entry: the bytes are
 //! the store's. A store spelled `rediss://` adds one `rustls` connection state
 //! to that socket, which is what `Core\Http\Client` holds per connection today,
 //! and still nothing per entry.
 
-use std::borrow::Borrow;
 use std::cell::RefCell;
 use std::collections::{HashMap, VecDeque};
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::net::SocketAddr;
-use std::rc::Rc;
 use std::sync::{Arc, LazyLock, Mutex, RwLock};
 use std::time::{Duration, Instant};
 
@@ -184,9 +179,9 @@ pub(crate) const SECRET_ENTRY_NAME: &str = r"Core\Cache\SecretEntry";
 
 /// `Core\Cache`'s class card — `rule:core-api/reference-card`.
 const CARD: ClassDoc = ClassDoc {
-    short: "Keeps values between requests. `local` is memory for one worker, `process` is shared \
-            by the whole server process, and `shared` is an external store such as Redis. Each \
-            one returns a `Core\\Cache\\Store`.",
+    short: "Keeps values between requests. `memory` keeps them in the memory of the server \
+            process. `shared` keeps them in an external store such as Redis. Each one returns a \
+            `Core\\Cache\\Store`.",
 };
 
 /// `Core\Cache\Store`'s class card — `rule:core-api/reference-card`.
@@ -208,22 +203,13 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     doc: Some(&CARD),
     methods: &[
         CoreMethod {
-            name: "local",
+            name: "memory",
             names: &[],
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Instance(STORE_NAME),
-            symbol: "nvs_core_cache_local",
-            doc: Some(&LOCAL_DOC),
-        },
-        CoreMethod {
-            name: "process",
-            names: &[],
-            params: &[],
-            defaults: &[],
-            return_ty: CoreTy::Instance(STORE_NAME),
-            symbol: "nvs_core_cache_process",
-            doc: Some(&PROCESS_DOC),
+            symbol: "nvs_core_cache_memory",
+            doc: Some(&MEMORY_DOC),
         },
         CoreMethod {
             name: "shared",
@@ -240,31 +226,16 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\Cache::local`'s reference card — `rule:core-api/reference-card`.
-const LOCAL_DOC: MethodDoc = MethodDoc {
-    short: "The per-core, in-process tier: a map in this core's own memory, with no lock, no \
-            network and no coherence between cores. A value one request writes may or may not be \
-            there when the next request asks, because the next request usually runs on another \
-            core with an empty map of its own.",
+/// `Core\Cache::memory`'s reference card — `rule:core-api/reference-card`.
+const MEMORY_DOC: MethodDoc = MethodDoc {
+    short: "Returns the cache in the memory of this server process. Every request this process \
+            serves reads the same entries. The cache is empty again when the process stops. Use \
+            it for ordinary application caching.",
     params: &[],
-    ret: "A `Core\\Cache\\Store` over this core's own entries. Any entry may be absent at any time, \
-          for any reason, and a write on one core is not visible on another. The only read this \
-          tier promises is your own write back in the same request; a value every core should find \
-          wants `process`, and a program that would be incorrect on a `null` wants `shared`.",
-    errors: &[],
-};
-
-/// `Core\Cache::process`'s reference card — `rule:core-api/reference-card`.
-const PROCESS_DOC: MethodDoc = MethodDoc {
-    short: "The per-process tier: one store every core of this serving process shares, in memory \
-            only, and gone when the process ends. A follow-up request on the same machine finds \
-            what an earlier one wrote, whichever core it lands on, which is what `local` cannot \
-            promise; this is the tier for ordinary application caching.",
-    params: &[],
-    ret: "A `Core\\Cache\\Store` over this process's own entries, which every core of it reads and \
-          writes behind a lock. Any entry may be absent at any time — for the cap, or because this \
-          is a different process than the one that wrote it — so a program that would be incorrect \
-          on a `null` wants `shared` instead.",
+    ret: "A `Core\\Cache\\Store` for the entries of this process. Every request this process \
+          serves can read them. An entry can be missing at any time. The cache deletes old \
+          entries to stay under its size limit, and another server process has its own entries. \
+          If your program is wrong when `get` returns `null`, use `shared` instead.",
     errors: &[],
 };
 
@@ -316,7 +287,7 @@ const PUT_OPTIONS: &[CoreOption] = &[CoreOption {
 ///
 /// `wait` is a `Core\Time\Duration` for [`PUT_OPTIONS`]' R12 reason, and there
 /// is no spelling here for waiting forever: an omitted one inherits
-/// `[cache.process] fill_wait` rather than removing the bound, which is
+/// `[cache.memory] fill_wait` rather than removing the bound, which is
 /// `rule:http-server/no-spelling-for-an-unbounded-wait`'s shape one class over.
 /// Both defaults are [`Const::Null`] — the absent callable that variant's own
 /// docs describe, and the absent bound the directive then supplies.
@@ -442,11 +413,8 @@ pub(crate) const STORE: CoreClass = CoreClass {
 /// [`STORE`]'s tier slot, by index — the layout its `slots` names.
 const TIER_SLOT: usize = 0;
 
-/// What [`nvs_core_cache_local`] writes into [`TIER_SLOT`].
-const LOCAL_TIER: &str = "local";
-
-/// What [`nvs_core_cache_process`] writes into [`TIER_SLOT`].
-const PROCESS_TIER: &str = "process";
+/// What [`nvs_core_cache_memory`] writes into [`TIER_SLOT`].
+const MEMORY_TIER: &str = "memory";
 
 /// What [`nvs_core_cache_shared`] writes into [`TIER_SLOT`].
 const SHARED_TIER: &str = "shared";
@@ -541,8 +509,8 @@ const PUT_DOC: MethodDoc = MethodDoc {
             shape: &[],
         },
     ],
-    ret: "Nothing. A successful `put` is still no promise that a later `get` answers — see \
-          `Core\\Cache::local`.",
+    ret: "Nothing. A later `get` can still return `null`, because an entry can be deleted at any \
+          time.",
     errors: &[
         ErrorDoc {
             error: "LogicError",
@@ -551,8 +519,8 @@ const PUT_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "IOError",
-            desc: "On the shared tier only: the store cannot be reached or refused the write. \
-                   The local tier has nothing to be unreachable.",
+            desc: "Only on a `shared` cache: the store cannot be reached, or it does not accept \
+                   the write.",
         },
     ],
 };
@@ -566,8 +534,8 @@ const GET_DOC: MethodDoc = MethodDoc {
         desc: "The name to read; `tainted` is admitted, as it is on `put`.",
         shape: &[],
     }],
-    ret: "The value as it was copied in, or `null` — an entry may be absent at any time, for any \
-          reason, and on the local tier that is the contract rather than a failure.",
+    ret: "The value as it was copied in, or `null` when there is no entry. An entry can be \
+          missing at any time, so your program has to handle `null`.",
     errors: &[
         ErrorDoc {
             error: "ParseError",
@@ -597,8 +565,8 @@ const FORGET_DOC: MethodDoc = MethodDoc {
           and for the same reason: on these tiers an entry may be absent at any time.",
     errors: &[ErrorDoc {
         error: "IOError",
-        desc: "On the shared tier only: the store cannot be reached or refused the command. The \
-               in-process tiers have nothing to be unreachable.",
+        desc: "Only on a `shared` cache: the store cannot be reached, or it does not accept the \
+               command.",
     }],
 };
 
@@ -680,7 +648,7 @@ const GET_SECRET_DOC: MethodDoc = MethodDoc {
         ParamDoc {
             name: "wait",
             desc: "How long this caller waits for another's `fill`, defaulting to \
-                   `[cache.process] fill_wait`. There is no spelling for waiting forever.",
+                   `[cache.memory] fill_wait`. There is no spelling for waiting forever.",
             shape: &[],
         },
     ],
@@ -698,7 +666,7 @@ const GET_SECRET_DOC: MethodDoc = MethodDoc {
         ErrorDoc {
             error: "TimeoutError",
             desc: "Another caller in this process was still running `fill` when this call's \
-                   `wait` was up, which defaults to `[cache.process] fill_wait`.",
+                   `wait` was up, which defaults to `[cache.memory] fill_wait`.",
         },
         ErrorDoc {
             error: "IOError",
@@ -779,8 +747,7 @@ const SECRET_ENTRY_OF_DOC: MethodDoc = MethodDoc {
 /// belongs to another domain. See [`crate::address`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
-        "nvs_core_cache_local" => (nvs_core_cache_local as *const ()).cast(),
-        "nvs_core_cache_process" => (nvs_core_cache_process as *const ()).cast(),
+        "nvs_core_cache_memory" => (nvs_core_cache_memory as *const ()).cast(),
         "nvs_core_cache_shared" => (nvs_core_cache_shared as *const ()).cast(),
         "nvs_core_cache_put" => (nvs_core_cache_put as *const ()).cast(),
         "nvs_core_cache_get" => (nvs_core_cache_get as *const ()).cast(),
@@ -792,17 +759,19 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     })
 }
 
-/// This core's entries, by key — a name of its own because the nesting is what
-/// `[cache.local] max_size` — what this core's entries may hold together.
-const MAX_SIZE: &str = "cache.local.max_size";
+/// `[cache.memory] max_size` — what this process's entries may hold together.
+const MAX_SIZE: &str = "cache.memory.max_size";
+
+/// `[cache.memory] fill_wait` — how long a caller waits for the one filler in
+/// this process before it gives up on that fill.
+const FILL_WAIT: &str = "cache.memory.fill_wait";
 
 /// The cap a deployment that configured none inherits: the 32 MiB APCu ships
-/// for the extension `rule:core-api/tier-placement` records this class as answering, read per core
-/// rather than per host. Eight cores hold up to eight of it, which is § 3's
-/// O(cores × working set) with a number in front of it.
+/// for the extension `rule:core-api/tier-placement` records this class as
+/// answering, held once per process.
 const DEFAULT_MAX_SIZE: usize = nvs_config::defaults::CACHE_MAX_SIZE;
 
-/// What one entry costs beyond its own bytes: a map bucket, an `Rc` header, a
+/// What one entry costs beyond its own bytes: a map bucket, an `Arc` header, a
 /// queue slot, the deadline held beside the payload, and the fat pointers over
 /// them, rounded to something a reader can hold in their head. Charged so the
 /// cap bounds the *allocation* — a tier full of one-byte entries under a cap
@@ -813,7 +782,7 @@ const ENTRY_OVERHEAD: usize = 64;
 /// How long an entry stays readable, as the call wrote it.
 ///
 /// The duration rather than the deadline it becomes, because the tiers keep it
-/// two ways: the in-process ones turn it into an [`Instant`] at the moment of
+/// two ways: the memory tier turns it into an [`Instant`] at the moment of
 /// the write, and the shared one is told a length of time and keeps its own
 /// clock. A deadline here would have to be turned back into a remaining length
 /// against a clock that tier does not share.
@@ -857,7 +826,7 @@ impl Lifetime {
     }
 }
 
-/// One entry of an in-process tier: the payload and when it stops being
+/// One entry of the memory tier: the payload and when it stops being
 /// readable.
 ///
 /// The deadline is beside the payload rather than in a queue of its own,
@@ -879,23 +848,20 @@ struct Entry {
 /// tier of a handful of keys is not swept on every write.
 const SWEEP_FLOOR: usize = 64;
 
-/// A tier's entries and what they cost, together, because a size is only
+/// One shard's entries and what they cost, together, because a size is only
 /// meaningful against the map it measures: a second cell holding the number
 /// beside the map would be two writers of one fact.
 ///
-/// Generic over the key handle rather than written once per tier: the local
-/// tier's keys are `Rc` because a `thread_local` belongs to one thread, the
-/// process tier's are `Arc` because every core of the process reaches the same
-/// map, and the eviction policy
-/// `rule:concurrency/the-process-tier-is-one-store-per-process` states the two
-/// tiers share — by write age, oldest first, an arrival too large for the tier
-/// forgotten as it lands — is one implementation that cannot come to disagree
-/// with itself.
-struct Entries<K> {
+/// Keys are `Arc` handles because every core of the process reaches the same
+/// map. The eviction policy
+/// `rule:concurrency/the-memory-tier-is-one-store-per-process` states — by
+/// write age, oldest first, an arrival too large for the shard forgotten as it
+/// lands — is this one implementation.
+struct Entries {
     /// The entries themselves, each a payload and the deadline it is readable
     /// until. Keys are handles so that `order` below names one without a
     /// second copy of the bytes.
-    entries: HashMap<K, Entry>,
+    entries: HashMap<Arc<[u8]>, Entry>,
     /// Every live key, in the order it was **first** written, which is the
     /// order [`Entries::forget_oldest`] gives them up in.
     ///
@@ -911,9 +877,8 @@ struct Entries<K> {
     /// [`Entries::sweep`] tell the old slot from the live one. Those stale
     /// slots are taken out by the sweep, which runs when this queue reaches
     /// `sweep_at`, so it holds at most twice the live keys plus
-    /// [`SWEEP_FLOOR`] — sixteen bytes and a key handle per slot, per core for
-    /// the local tier and per shard for the process tier.
-    order: VecDeque<(u64, K)>,
+    /// [`SWEEP_FLOOR`] — sixteen bytes and a key handle per slot, per shard.
+    order: VecDeque<(u64, Arc<[u8]>)>,
     /// The number the next new slot in `order` gets.
     next_slot: u64,
     /// The length of `order` at which the next write sweeps it.
@@ -923,10 +888,9 @@ struct Entries<K> {
     held: usize,
 }
 
-/// The empty tier, written out rather than derived: `#[derive(Default)]` would
-/// ask the key handle for a default it has no meaning for, and no tier starts
-/// with a key in it.
-impl<K> Default for Entries<K> {
+/// The empty shard, written out rather than derived because `sweep_at` starts
+/// at [`SWEEP_FLOOR`] and not at zero.
+impl Default for Entries {
     fn default() -> Self {
         Self {
             entries: HashMap::new(),
@@ -938,14 +902,14 @@ impl<K> Default for Entries<K> {
     }
 }
 
-impl<K: Borrow<[u8]> + Clone + Eq + Hash + for<'a> From<&'a [u8]>> Entries<K> {
+impl Entries {
     /// Writes `payload` under `key` for as long as `lifetime` names, forgetting
     /// whatever it has to.
     ///
     /// `cap` is `None` for the `false` an operator writes for no ceiling. The
     /// bytes are copied into an allocation of the store's own rather than taken
     /// from the caller's `Vec`, so that everything this tier holds was
-    /// allocated where [`store_put`]'s bracket will free it again.
+    /// allocated where [`memory_put`]'s bracket will free it again.
     fn put(&mut self, key: &[u8], payload: &[u8], lifetime: Lifetime, cap: Option<usize>) {
         let incoming = charged(key.len(), payload.len());
 
@@ -974,10 +938,10 @@ impl<K: Borrow<[u8]> + Clone + Eq + Hash + for<'a> From<&'a [u8]>> Entries<K> {
                 (held, previous.slot)
             }
             None => {
-                let fresh = K::from(key);
+                let fresh = Arc::<[u8]>::from(key);
                 let slot = self.next_slot;
                 self.next_slot += 1;
-                self.order.push_back((slot, fresh.clone()));
+                self.order.push_back((slot, Arc::clone(&fresh)));
                 (fresh, slot)
             }
         };
@@ -1011,9 +975,9 @@ impl<K: Borrow<[u8]> + Clone + Eq + Hash + for<'a> From<&'a [u8]>> Entries<K> {
     /// is not.
     ///
     /// An entry past its deadline is **left where it is** rather than taken
-    /// out: this is `&self` so that a lookup on the process tier holds a read
-    /// lock and nothing more, which is the property
-    /// `rule:concurrency/the-process-tier-is-one-store-per-process` fixes about
+    /// out: this is `&self` so that a lookup holds a shard's read lock and
+    /// nothing more, which is the property
+    /// `rule:concurrency/the-memory-tier-is-one-store-per-process` fixes about
     /// a `get`. Its bytes stay against the cap until the eviction order reaches
     /// it, a `put` replaces it, or the next [`Entries::sweep`] takes it out,
     /// which is footprint spent on every core reading one hot key at the same
@@ -1037,7 +1001,7 @@ impl<K: Borrow<[u8]> + Clone + Eq + Hash + for<'a> From<&'a [u8]>> Entries<K> {
     /// on the stale slot would take the newer entry out at the old one's age.
     fn forget_oldest(&mut self) -> bool {
         while let Some((slot, key)) = self.order.pop_front() {
-            let raw = bytes(&key);
+            let raw: &[u8] = &key;
             if self
                 .entries
                 .get(raw)
@@ -1071,15 +1035,11 @@ impl<K: Borrow<[u8]> + Clone + Eq + Hash + for<'a> From<&'a [u8]>> Entries<K> {
         entries.retain(|key, entry| {
             let live = entry.until.is_none_or(|until| now < until);
             if !live {
-                *held -= charged(bytes(key).len(), entry.payload.len());
+                *held -= charged(key.len(), entry.payload.len());
             }
             live
         });
-        order.retain(|(slot, key)| {
-            entries
-                .get(bytes(key))
-                .is_some_and(|entry| entry.slot == *slot)
-        });
+        order.retain(|(slot, key)| entries.get(key).is_some_and(|entry| entry.slot == *slot));
         self.sweep_at = SWEEP_FLOOR.max(2 * self.order.len());
     }
 }
@@ -1089,117 +1049,6 @@ fn charged(key: usize, payload: usize) -> usize {
     key + payload + ENTRY_OVERHEAD
 }
 
-/// A key handle's own bytes.
-///
-/// Named as a function because a handle implements `Borrow` twice — once for the
-/// bytes and once for itself, through the blanket impl every type has — so
-/// `key.borrow()` at a call site does not say which one it meant, while the
-/// return type here does.
-fn bytes<K: Borrow<[u8]>>(key: &K) -> &[u8] {
-    key.borrow()
-}
-
-thread_local! {
-    /// The local tier itself: this core's entries and nothing shared with any
-    /// other core.
-    ///
-    /// A `thread_local` rather than anything reachable from another thread is
-    /// § 1's "no coherence between cores" as a *representation* rather than as
-    /// a rule to remember — the runtime is thread-per-core, so a store another
-    /// core could reach would need a lock this tier is defined not to have.
-    static ENTRIES: RefCell<Entries<Rc<[u8]>>> = RefCell::new(Entries::default());
-}
-
-/// `[cache.local] max_size` as a byte count, or [`DEFAULT_MAX_SIZE`], and `None`
-/// for the `false` that removes the ceiling.
-///
-/// Read per write rather than once per core, because the directive is `Reload`
-/// and a cap cached at the first `put` would outlive the configuration that set
-/// it. What that costs is one small string and one parse on a path that is
-/// already an O(graph) encode, and [`nvs_config::Quantity`] is the parse every
-/// other size directive uses — a second reading of what `32M` means is exactly
-/// the divergence `rule:config/ini-set-is-core-config-set` keeps one parser to prevent.
-///
-/// A value that will not parse is the shipped cap, which is [`timeout_of`]'s
-/// reasoning: `nvs.toml` is refused where it is loaded, by the boundary that can
-/// name the file and the line.
-pub(crate) fn local_cap(ctx: &Ctx) -> Option<usize> {
-    let Some(written) = configured(ctx, MAX_SIZE) else {
-        return Some(DEFAULT_MAX_SIZE);
-    };
-    match Quantity::parse(MAX_SIZE, Unit::Bytes, &Setting::Text(written)) {
-        Ok(Quantity::Unbounded) => None,
-        Ok(Quantity::Bytes(bytes)) => Some(usize::try_from(bytes).unwrap_or(usize::MAX)),
-        _ => Some(DEFAULT_MAX_SIZE),
-    }
-}
-
-/// Writes `payload` under `key` on this core, replacing any entry there and
-/// forgetting whatever `cap` does not leave room for.
-///
-/// Crate-visible because this tier is **the** per-core store rather than this
-/// class's: [`crate::ratelimit`]'s `shed` keeps its arrival times here, under
-/// its own key prefix, for the reason `consume` reaches [`on_shared`] — one
-/// store per tier means one thing to bound and one thing to configure, and a
-/// limiter that kept a second map would be a second footprint for no second
-/// guarantee. § 3's cap bounds both by bounding this, which is why `cap` is a
-/// parameter here rather than read inside: both callers read it from the same
-/// [`local_cap`], and a store that read it for itself would be reachable from a
-/// test with no configuration at all.
-///
-/// **What the store allocates is detached from the request that wrote it.** The
-/// copy [`Entries::put`] keeps, the map and queue that name it, and the frees an
-/// eviction makes are all inside `nvs_runtime::budget::Detached`, so they move
-/// the process's balance and not the reading any request is measured by —
-/// `rule:concurrency/cache-memory-is-charged-to-the-core`'s *not attributable to
-/// a request* as arithmetic rather than as a sentence. Without it, the request
-/// that evicts an entry is credited for bytes an earlier request allocated,
-/// which is a ceiling any program widens at will: fill the tier under one
-/// request and evict it under the next.
-///
-/// `payload` is the caller's own temporary, allocated under the request and
-/// released here outside the bracket, under the same request. That symmetry is
-/// what a bracket owes — a block allocated on one balance and freed on the other
-/// corrupts both — and it is why the entry is copied rather than this `Vec`
-/// being kept. What that spends is one copy of the payload per local write, on a
-/// path that has already encoded the value it is storing.
-pub(crate) fn store_put(key: &[u8], payload: Vec<u8>, lifetime: Lifetime, cap: Option<usize>) {
-    {
-        let _bracket = budget::Detached::begin();
-        ENTRIES.with_borrow_mut(|local| local.put(key, &payload, lifetime, cap));
-    }
-    // Where it was allocated: the caller's `Vec` is the request's, and what the
-    // tier holds is the copy made above.
-    drop(payload);
-}
-
-/// This core's payload for `key`, or `None` — which is an ordinary answer and
-/// not a failure, per § 1, and also the answer for an entry the cap made room
-/// by forgetting and for one whose lifetime has run out. Crate-visible for
-/// [`store_put`]'s reason.
-pub(crate) fn store_get(key: &[u8]) -> Option<Vec<u8>> {
-    ENTRIES.with_borrow(|local| local.get(key).map(<[u8]>::to_vec))
-}
-
-/// Takes `key`'s entry out of this core's tier, whether or not there was one.
-///
-/// Under the same [`budget::Detached`] bracket [`store_put`] holds, because the
-/// release has to land on the balance the allocation did — a free credited to
-/// the request that happened to call `forget` is the asymmetry
-/// `rule:concurrency/a-cross-request-stores-bytes-are-its-own-balance` says a
-/// bracket owes against, arriving from the other direction.
-pub(crate) fn store_forget(key: &[u8]) {
-    let _bracket = budget::Detached::begin();
-    ENTRIES.with_borrow_mut(|local| local.forget(key));
-}
-
-/// `[cache.process] max_size` — what this process's entries may hold together.
-const PROCESS_MAX_SIZE: &str = "cache.process.max_size";
-
-/// `[cache.process] fill_wait` — how long a caller waits for the one filler in
-/// this process before it gives up on that fill.
-const PROCESS_FILL_WAIT: &str = "cache.process.fill_wait";
-
 /// The wait a call inherits when neither its own `wait` nor `nvs.toml` names
 /// one, which is the figure `nvs_config`'s `default.toml` states beside that
 /// key.
@@ -1207,43 +1056,43 @@ const PROCESS_FILL_WAIT: &str = "cache.process.fill_wait";
 /// Long enough for a token endpoint on the other side of the internet to answer
 /// once, and short enough that a request behind a fetch that will never answer
 /// ends as a request rather than holding a core for as long as the fetch takes.
-const DEFAULT_FILL_WAIT: Duration = nvs_config::defaults::CACHE_PROCESS_FILL_WAIT;
+const DEFAULT_FILL_WAIT: Duration = nvs_config::defaults::CACHE_MEMORY_FILL_WAIT;
 
-/// How many pieces the process map is cut into, so that two cores writing keys
-/// that hash apart do not wait on each other.
+/// How many pieces the memory tier's map is cut into, so that two cores
+/// writing keys that hash apart do not wait on each other.
 ///
 /// A fixed constant rather than a directive or a function of `[server] workers`,
-/// which `rule:concurrency/the-process-tier-is-one-store-per-process` fixes for
+/// which `rule:concurrency/the-memory-tier-is-one-store-per-process` fixes for
 /// a reason about *when* the map exists: it is created before a worker does
 /// under `nvs serve`, and there is one worker under `nvs run`, so the number
 /// cannot be read from either.
 const SHARDS: usize = 64;
 
-/// The process tier itself: the one map every core of this process reads and
+/// The memory tier itself: the one map every core of this process reads and
 /// writes, in [`SHARDS`] pieces behind a read/write lock each.
 ///
 /// A `static` and not something a core is handed, because there is exactly one
 /// of it per process and a map reachable only through whatever had a reference
 /// would be a second answer to "which store is this" — the tier *is* the
 /// process's. Creating it allocates nothing at all, since an empty [`HashMap`]
-/// and an empty [`VecDeque`] each hold no heap, so [`arm_process_tier`] costs
+/// and an empty [`VecDeque`] each hold no heap, so [`arm_memory_tier`] costs
 /// the fleet nothing and buys that no worker is the one that built the map.
-static PROCESS: LazyLock<[Shard; SHARDS]> =
+static MEMORY: LazyLock<[Shard; SHARDS]> =
     LazyLock::new(|| std::array::from_fn(|_| Shard::new(Entries::default())));
 
-/// One piece of [`PROCESS`]: a share of this process's entries under one lock.
-type Shard = RwLock<Entries<Arc<[u8]>>>;
+/// One piece of [`MEMORY`]: a share of this process's entries under one lock.
+type Shard = RwLock<Entries>;
 
-/// Creates the process tier, for a caller that is about to start the cores that
+/// Creates the memory tier, for a caller that is about to start the cores that
 /// will share it — `nvs serve` before its first worker accepts.
 ///
 /// Calling it is not a precondition for using the tier: the first operation on a
 /// process that never called it creates the map on the spot. What it buys is
 /// that the creation is not on a request path at all, which is the claim
-/// `rule:concurrency/the-process-tier-is-one-store-per-process` makes when it
+/// `rule:concurrency/the-memory-tier-is-one-store-per-process` makes when it
 /// says the map exists before the workers do.
-pub fn arm_process_tier() {
-    LazyLock::force(&PROCESS);
+pub fn arm_memory_tier() {
+    LazyLock::force(&MEMORY);
 }
 
 /// The shard `key` lives in.
@@ -1257,7 +1106,7 @@ fn shard_of(key: &[u8]) -> &'static Shard {
     key.hash(&mut hash);
     let index = usize::try_from(hash.finish() % SHARDS as u64)
         .expect("a remainder under `SHARDS` fits a `usize` on every host");
-    &PROCESS[index]
+    &MEMORY[index]
 }
 
 /// What one shard may hold: the tier's cap, divided evenly.
@@ -1269,31 +1118,149 @@ fn shard_of(key: &[u8]) -> &'static Shard {
 /// skewed key set holds less than the cap, since a shard fills while its
 /// neighbours are empty, which is the direction a footprint ceiling must err in;
 /// and the largest entry the tier holds is a share rather than the whole cap,
-/// past which an arrival is forgotten as it lands exactly as an oversized one is
-/// on the local tier.
+/// past which an arrival is forgotten as it lands.
 fn shard_cap(cap: Option<usize>) -> Option<usize> {
     cap.map(|cap| cap / SHARDS)
 }
 
-/// `[cache.process] max_size` as a byte count, or [`DEFAULT_MAX_SIZE`], and
+/// `[cache.memory] max_size` as a byte count, or [`DEFAULT_MAX_SIZE`], and
 /// `None` for the `false` that removes the ceiling.
 ///
-/// The same figure the local tier ships, read per operation for [`local_cap`]'s
-/// reason — and the same number means *less* memory here than there, because
-/// this map is held once per process where that one is held once per core.
-fn process_cap(ctx: &Ctx) -> Option<usize> {
-    let Some(written) = configured(ctx, PROCESS_MAX_SIZE) else {
+/// Read per operation rather than once per process, because the directive is
+/// `Reload` and a cap cached at the first `put` would outlive the configuration
+/// that set it. What that costs is one small string and one parse on a path
+/// that is already an O(graph) encode, and [`nvs_config::Quantity`] is the
+/// parse every other size directive uses — a second reading of what `32M`
+/// means is exactly the divergence `rule:config/ini-set-is-core-config-set`
+/// keeps one parser to prevent.
+///
+/// A value that will not parse is the shipped cap, which is [`timeout_of`]'s
+/// reasoning: `nvs.toml` is refused where it is loaded, by the boundary that can
+/// name the file and the line.
+///
+/// Crate-visible because [`crate::ratelimit`]'s `shed` keeps its arrivals in
+/// this tier under the same cap.
+pub(crate) fn memory_cap(ctx: &Ctx) -> Option<usize> {
+    let Some(written) = configured(ctx, MAX_SIZE) else {
         return Some(DEFAULT_MAX_SIZE);
     };
-    match Quantity::parse(PROCESS_MAX_SIZE, Unit::Bytes, &Setting::Text(written)) {
+    match Quantity::parse(MAX_SIZE, Unit::Bytes, &Setting::Text(written)) {
         Ok(Quantity::Unbounded) => None,
         Ok(Quantity::Bytes(bytes)) => Some(usize::try_from(bytes).unwrap_or(usize::MAX)),
         _ => Some(DEFAULT_MAX_SIZE),
     }
 }
 
+/// Writes `payload` under `key` for every core of this process, replacing any
+/// entry there and forgetting whatever `cap` does not leave room for.
+///
+/// One shard's write lock and no other, held across the map write and the
+/// evictions it makes: a core writing a key that hashes elsewhere waits on
+/// nothing, and a `get` on another shard never waits at all.
+///
+/// **What the store allocates is detached from the request that wrote it.** The
+/// copy [`Entries::put`] keeps, the map and queue that name it, and the frees an
+/// eviction makes are all inside `nvs_runtime::budget::Detached`, so they move
+/// the process's balance and not the reading any request is measured by —
+/// `rule:concurrency/a-cross-request-stores-bytes-are-its-own-balance` as
+/// arithmetic rather than as a sentence. An entry here is written by one request
+/// and forgotten by another, on another core, so a balance that moved with it
+/// would credit whichever request happened to make the room: fill the tier
+/// under one request and evict it under the next, and the ceiling is widened at
+/// will.
+///
+/// `payload` is the caller's own temporary, allocated under the request and
+/// released here outside the bracket, under the same request. That symmetry is
+/// what a bracket owes — a block allocated on one balance and freed on the other
+/// corrupts both — and it is why the entry is copied rather than this `Vec`
+/// being kept. What that spends is one copy of the payload per write, on a path
+/// that has already encoded the value it is storing.
+fn memory_put(key: &[u8], payload: Vec<u8>, lifetime: Lifetime, cap: Option<usize>) {
+    {
+        let _bracket = budget::Detached::begin();
+        let mut shard = shard_of(key)
+            .write()
+            .expect("a cache shard's lock is never poisoned");
+        shard.put(key, &payload, lifetime, shard_cap(cap));
+    }
+    // Where it was allocated: the caller's `Vec` is the request's, and what the
+    // tier holds is the copy made above.
+    drop(payload);
+}
+
+/// This process's payload for `key`, or `None` — an ordinary answer and not a
+/// failure, and also the answer for an entry the cap made room by forgetting,
+/// for one whose lifetime has run out, and for one another process wrote.
+///
+/// **A read lock and never a write one**, which is what
+/// `rule:concurrency/the-memory-tier-is-one-store-per-process` fixes about a
+/// lookup: every core reading the same hot key reads it at the same moment, and
+/// nothing on the request path takes a shard exclusively to answer a question.
+/// That is also why eviction is by write age rather than by use — a policy that
+/// reordered anything on a read would need the lock this one does not take.
+///
+/// Crate-visible for the cases of the modules that keep state here.
+pub(crate) fn memory_get(key: &[u8]) -> Option<Vec<u8>> {
+    shard_of(key)
+        .read()
+        .expect("a cache shard's lock is never poisoned")
+        .get(key)
+        .map(<[u8]>::to_vec)
+}
+
+/// Takes `key`'s entry out of this process's tier, whether or not there was one.
+///
+/// One shard's write lock and no other, exactly as [`memory_put`] takes one,
+/// and inside the same [`budget::Detached`] bracket, because the release has to
+/// land on the balance the allocation did — a free credited to the request that
+/// happened to call `forget` is the asymmetry
+/// `rule:concurrency/a-cross-request-stores-bytes-are-its-own-balance` says a
+/// bracket owes against, arriving from the other direction.
+fn memory_forget(key: &[u8]) {
+    let _bracket = budget::Detached::begin();
+    shard_of(key)
+        .write()
+        .expect("a cache shard's lock is never poisoned")
+        .forget(key);
+}
+
+/// Reads `key`'s payload and writes what `step` makes of it, as one operation
+/// no other core can come between.
+///
+/// `step` is handed the payload still readable under `key`, or `None`, and
+/// answers what the caller wants back beside the payload to store, if any. The
+/// whole of it runs under the shard's write lock, so two cores stepping the
+/// same key take turns: the second reads what the first wrote. That is what
+/// [`crate::ratelimit`]'s `shed` needs from a read followed by a write, and a
+/// separate [`memory_get`] and [`memory_put`] would let two cores read the same
+/// arrival and both be admitted against it.
+///
+/// The payload `step` answers is allocated inside the [`budget::Detached`]
+/// bracket and freed inside it too, after [`Entries::put`] has copied it, so
+/// the request is charged for none of it. The answer `T` is built under the
+/// same bracket and handed to the request, so it is meant to hold no heap of
+/// its own: `shed`'s is three integers. What the lock costs is that a step
+/// which stores nothing still takes the write lock, on one shard of
+/// [`SHARDS`].
+pub(crate) fn memory_update<T>(
+    key: &[u8],
+    lifetime: Lifetime,
+    cap: Option<usize>,
+    step: impl FnOnce(Option<&[u8]>) -> (T, Option<Vec<u8>>),
+) -> T {
+    let _bracket = budget::Detached::begin();
+    let mut shard = shard_of(key)
+        .write()
+        .expect("a cache shard's lock is never poisoned");
+    let (answer, stored) = step(shard.get(key));
+    if let Some(payload) = stored {
+        shard.put(key, &payload, lifetime, shard_cap(cap));
+    }
+    answer
+}
+
 /// The `{wait?: Duration}` written in argument slot `at`, or
-/// `[cache.process] fill_wait`, or [`DEFAULT_FILL_WAIT`].
+/// `[cache.memory] fill_wait`, or [`DEFAULT_FILL_WAIT`].
 ///
 /// An omitted option inherits the directive rather than removing the bound, and
 /// a directive naming none inherits the figure above, so a caller waits on
@@ -1322,9 +1289,8 @@ fn wait_of(ctx: &Ctx, args: &[Value], at: usize, member: &str) -> Result<Duratio
         let nanos = crate::time::nanos_of(args, at, member)?;
         return Ok(Duration::from_nanos(u64::try_from(nanos).unwrap_or(0)));
     }
-    let written = configured(ctx, PROCESS_FILL_WAIT).and_then(|text| {
-        Quantity::parse(PROCESS_FILL_WAIT, Unit::Duration, &Setting::Text(text)).ok()
-    });
+    let written = configured(ctx, FILL_WAIT)
+        .and_then(|text| Quantity::parse(FILL_WAIT, Unit::Duration, &Setting::Text(text)).ok());
     Ok(match written {
         Some(Quantity::Nanos(nanos)) if nanos > 0 => Duration::from_nanos(nanos),
         _ => DEFAULT_FILL_WAIT,
@@ -1350,7 +1316,7 @@ const FILL_TICK: Duration = Duration::from_millis(10);
 /// The fills this process is running at this moment: one entry per key being
 /// filled, holding the address of the [`Ctx`] whose call is filling it.
 ///
-/// One table for every tier, keyed as [`scoped`] keys the process tier, because
+/// One table for every tier, keyed as [`scoped`] keys the memory tier, because
 /// what `rule:concurrency/a-secret-fill-runs-once-per-process` elects is one
 /// caller per **process** per name: a second fetch of the same secret is the
 /// cost the election exists to remove, whichever store the answer is written
@@ -1386,7 +1352,7 @@ impl Drop for Filling {
         // The entry the table holds is the process's, so its release lands on
         // the balance the claim moved —
         // `rule:concurrency/a-cross-request-stores-bytes-are-its-own-balance`'s
-        // symmetry, owed here exactly as [`process_put`] owes it. This frame's
+        // symmetry, owed here exactly as [`memory_put`] owes it. This frame's
         // own copy of the key is freed after the bracket, where it was
         // allocated.
         let _bracket = budget::Detached::begin();
@@ -1491,7 +1457,7 @@ fn waited<T>(
 /// the configuration generation that was live when it was written, ahead of the
 /// key the program wrote.
 ///
-/// That scoping is `rule:concurrency/the-process-tier-is-one-store-per-process`
+/// That scoping is `rule:concurrency/the-memory-tier-is-one-store-per-process`
 /// and it answers two questions at once — two applications on one server never
 /// read each other's entries, and a reload never serves an entry written under
 /// the configuration it replaced. The application is the most specific `[[app]]`
@@ -1512,7 +1478,10 @@ fn waited<T>(
 /// contain one, so the three parts are unambiguous however a program spells its
 /// own key — a key that spells another application's prefix is still the third
 /// part and still inside the application that wrote it.
-fn scoped(ctx: &Ctx, key: &[u8]) -> Vec<u8> {
+///
+/// Crate-visible because [`crate::ratelimit`]'s `shed` keeps its arrivals in
+/// this tier, under keys scoped the same way.
+pub(crate) fn scoped(ctx: &Ctx, key: &[u8]) -> Vec<u8> {
     let snapshot = ctx.config().map(nvs_config::Request::snapshot);
     let app = application(ctx);
     let generation = snapshot.map_or(0, |snapshot| snapshot.generation);
@@ -1530,7 +1499,7 @@ fn scoped(ctx: &Ctx, key: &[u8]) -> Vec<u8> {
 /// nothing at all on a context nobody configured.
 ///
 /// The innermost configured block, which is the application in the sense both
-/// callers mean: [`scoped`] keeps one application's process-tier entries away
+/// callers mean: [`scoped`] keeps one application's memory-tier entries away
 /// from another's, and [`bound`] keeps one application's sealed entries from
 /// opening inside another. One reader so the two cannot come to disagree about
 /// which block that is.
@@ -1597,7 +1566,7 @@ pub(crate) fn sealed_key(key: &[u8]) -> Vec<u8> {
 /// module reads.
 ///
 /// The configuration's generation is deliberately absent where [`scoped`] has
-/// it: a reload renames every process-tier key on purpose, and doing the same
+/// it: a reload renames every memory-tier key on purpose, and doing the same
 /// here would make an operator's reload silently discard every secret the
 /// shared tier is holding for the whole fleet.
 ///
@@ -1749,13 +1718,12 @@ fn seal_and_store(ctx: &mut Ctx, at: &Sealing<'_>, value: &[u8], nanos: i64) -> 
     let stored = sealed_key(key);
     let lifetime = Lifetime::of(nanos);
     match tier {
-        Tier::Local => store_put(&stored, sealed, lifetime, local_cap(ctx)),
-        Tier::Process => {
-            process_put(&scoped(ctx, &stored), sealed, lifetime, process_cap(ctx));
+        Tier::Memory => {
+            memory_put(&scoped(ctx, &stored), sealed, lifetime, memory_cap(ctx));
         }
         // [`nvs_core_cache_put`]'s three commands, unchanged: the store keeps
         // its own clock, so it is told a length of time, and a lifetime already
-        // over leaves it in the state the in-process tiers are left in.
+        // over leaves it in the state the memory tier is left in.
         Tier::Shared => on_shared(STORE_NAME, member, |open| {
             if lifetime.elapsed() {
                 return open.del(&stored);
@@ -1798,8 +1766,7 @@ fn opened(ctx: &Ctx, at: &Sealing<'_>) -> Result<Option<Held<Value>>, Fault> {
     } = at;
     let stored = sealed_key(key);
     let held = match tier {
-        Tier::Local => store_get(&stored),
-        Tier::Process => process_get(&scoped(ctx, &stored)),
+        Tier::Memory => memory_get(&scoped(ctx, &stored)),
         Tier::Shared => on_shared(STORE_NAME, member, |open| open.get(&stored))?,
     };
     let Some(sealed) = held else {
@@ -1925,51 +1892,6 @@ fn secret_of<'a>(args: &'a [Value], at: usize, member: &str) -> Result<&'a str, 
     })
 }
 
-/// Writes `payload` under `key` for every core of this process, replacing any
-/// entry there and forgetting whatever `cap` does not leave room for.
-///
-/// One shard's write lock and no other, held across the map write and the
-/// evictions it makes: a core writing a key that hashes elsewhere waits on
-/// nothing, and a `get` on another shard never waits at all.
-///
-/// **The bytes are the process's rather than the writing request's**, under the
-/// same [`budget::Detached`] bracket [`store_put`] holds and for the reason that
-/// tier holds one — which this tier needs the more sharply of the two: an entry
-/// here is written by one request and forgotten by another, on another core, so
-/// a balance that moved with it would credit whichever request happened to make
-/// the room. `payload` is the caller's own temporary, copied in under the
-/// bracket and released outside it under the request that allocated it, which is
-/// the symmetry the bracket owes.
-fn process_put(key: &[u8], payload: Vec<u8>, lifetime: Lifetime, cap: Option<usize>) {
-    {
-        let _bracket = budget::Detached::begin();
-        let mut shard = shard_of(key)
-            .write()
-            .expect("a cache shard's lock is never poisoned");
-        shard.put(key, &payload, lifetime, shard_cap(cap));
-    }
-    // Where it was allocated: [`store_put`]'s own closing note, unchanged.
-    drop(payload);
-}
-
-/// This process's payload for `key`, or `None` — an ordinary answer here for
-/// every reason it is one on the local tier, and for one more: this may be a
-/// different process than the one that wrote the entry.
-///
-/// **A read lock and never a write one**, which is what
-/// `rule:concurrency/the-process-tier-is-one-store-per-process` fixes about a
-/// lookup: every core reading the same hot key reads it at the same moment, and
-/// nothing on the request path takes a shard exclusively to answer a question.
-/// That is also why eviction is by write age rather than by use — a policy that
-/// reordered anything on a read would need the lock this one does not take.
-fn process_get(key: &[u8]) -> Option<Vec<u8>> {
-    shard_of(key)
-        .read()
-        .expect("a cache shard's lock is never poisoned")
-        .get(key)
-        .map(<[u8]>::to_vec)
-}
-
 /// The `string` in argument slot `at`.
 ///
 /// # Errors
@@ -1984,18 +1906,6 @@ fn key_of<'a>(args: &'a [Value], at: usize, member: &str) -> Result<&'a str, Fau
             args[at].tag_byte()
         ))
     })
-}
-
-/// Takes `key`'s entry out of the process's tier, whether or not there was one.
-///
-/// One shard's write lock and no other, exactly as [`process_put`] takes one,
-/// and inside the same bracket [`store_forget`] holds for the same reason.
-fn process_forget(key: &[u8]) {
-    let _bracket = budget::Detached::begin();
-    shard_of(key)
-        .write()
-        .expect("a cache shard's lock is never poisoned")
-        .forget(key);
 }
 
 /// The `{ttl?: Duration}` in argument slot `at`, as the lifetime the call
@@ -2024,10 +1934,8 @@ fn lifetime_of(args: &[Value], at: usize, member: &str) -> Result<Lifetime, Faul
 /// operation on it makes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Tier {
-    /// This core's own entries, in process.
-    Local,
-    /// Every core of this process's entries, in the one map [`PROCESS`] holds.
-    Process,
+    /// Every core of this process's entries, in the one map [`MEMORY`] holds.
+    Memory,
     /// The configured store, over the connection [`nvs_core_cache_shared`]
     /// opened for this core.
     Shared,
@@ -2044,12 +1952,11 @@ fn tier_of(args: &[Value], member: &str) -> Result<Tier, Fault> {
     let receiver = crate::instance::receiver(args[0], &STORE, member)?;
     let tier = crate::instance::slot(receiver, TIER_SLOT);
     match tier.as_text() {
-        Some(LOCAL_TIER) => Ok(Tier::Local),
-        Some(PROCESS_TIER) => Ok(Tier::Process),
+        Some(MEMORY_TIER) => Ok(Tier::Memory),
         Some(SHARED_TIER) => Ok(Tier::Shared),
         _ => Err(Fault::fatal(format!(
-            "{STORE_NAME}::{member} found a `tier` slot naming none of `{LOCAL_TIER}`, \
-             `{PROCESS_TIER}` and `{SHARED_TIER}`"
+            "{STORE_NAME}::{member} found a `tier` slot naming neither `{MEMORY_TIER}` nor \
+             `{SHARED_TIER}`"
         ))),
     }
 }
@@ -2061,9 +1968,7 @@ thread_local! {
     /// Per core rather than per request for the reason a socket is expensive and
     /// a round trip is not: a request that had to hand-shake before its first
     /// `get` would pay the handshake on the request path, every request. What it
-    /// spends is one socket per core — O(cores), released when the core ends —
-    /// and it is the same shape [`ENTRIES`] above already has, so the tier
-    /// question is answered the same way on both sides.
+    /// spends is one socket per core — O(cores), released when the core ends.
     static SHARED: RefCell<Option<redis::Connection>> = const { RefCell::new(None) };
 }
 
@@ -2377,7 +2282,7 @@ fn open_shared(dial: Dial, timeout: Duration, member: &str) -> Result<(), Fault>
 ///
 /// `remedy` is the clause a caller appends to the unconfigured refusal, because
 /// what to do instead is the caller's own contract: `Core\Cache::shared()` can
-/// name the local tier, and a limiter enforced across every core cannot.
+/// name the memory tier, and a limiter enforced across every machine cannot.
 ///
 /// # Errors
 ///
@@ -2605,32 +2510,17 @@ fn namespaced(key: &str) -> String {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Cache::local(): Core\Cache\Store` — `rule:core-api/two-cache-tiers`'s per-core tier.
+    /// `Core\Cache::memory(): Core\Cache\Store` — `rule:core-api/two-cache-tiers`'s
+    /// memory tier, one store per serving process.
     ///
-    /// Nothing is allocated for the tier itself: the entries live in this
-    /// core's [`ENTRIES`] whether a program has asked for a store or not, and
-    /// what this answers is a two-word handle naming which tier it is.
-    fn nvs_core_cache_local(_ctx, _args: [0]) {
+    /// Nothing is allocated for the tier itself and no grant is asked for: the
+    /// entries are in [`MEMORY`] whether a program has asked for a store or not,
+    /// so what this answers is a two-word handle naming which tier it is, and a
+    /// tier with no door onto an effect has nothing to check at one.
+    fn nvs_core_cache_memory(_ctx, _args: [0]) {
         Ok(crate::instance::build(
             &STORE,
-            [Value::str(NvsStr::new(LOCAL_TIER.as_bytes()))],
-        ))
-    }
-}
-
-nvs_runtime::nvs_helper! {
-    /// `Core\Cache::process(): Core\Cache\Store` — `rule:core-api/two-cache-tiers`'s per-process
-    /// tier.
-    ///
-    /// Nothing is allocated for the tier itself and no grant is asked for, which
-    /// is [`nvs_core_cache_local`]'s two sentences holding here for the same two
-    /// reasons: the entries are in [`PROCESS`] whether a program has asked for a
-    /// store or not, and a tier with no door onto an effect has nothing to check
-    /// at one.
-    fn nvs_core_cache_process(_ctx, _args: [0]) {
-        Ok(crate::instance::build(
-            &STORE,
-            [Value::str(NvsStr::new(PROCESS_TIER.as_bytes()))],
+            [Value::str(NvsStr::new(MEMORY_TIER.as_bytes()))],
         ))
     }
 }
@@ -2645,9 +2535,9 @@ nvs_runtime::nvs_helper! {
     /// nothing and re-resolve nothing.
     ///
     /// A deployment that configured no store gets a refusal rather than a store
-    /// that would silently behave like the local one: the two tiers make
-    /// different promises, and a `shared` that quietly served per-core entries
-    /// would be the accident § 1 splits the members to prevent.
+    /// that would silently behave like the memory one: the two tiers make
+    /// different promises, and a `shared` that quietly served one process's
+    /// entries would be the accident § 1 splits the members to prevent.
     ///
     /// # Errors
     ///
@@ -2659,7 +2549,7 @@ nvs_runtime::nvs_helper! {
         open_configured(
             ctx,
             &member,
-            ", or use `Core\\Cache::local()` and accept its contract",
+            ", or use `Core\\Cache::memory()`, which needs no configuration",
         )?;
 
         Ok(crate::instance::build(
@@ -2687,8 +2577,8 @@ nvs_runtime::nvs_helper! {
     /// a representation of its own without deleting that structure first.
     ///
     /// The lifetime is read before the copy and carried into whichever tier
-    /// the store names, because each of the three keeps it differently and
-    /// none of them may read the option for itself — the module doc's own
+    /// the store names, because the two keep it differently and neither may
+    /// read the option for itself — the module doc's own
     /// decision on a lifetime says which keeps what.
     fn nvs_core_cache_put(ctx, args: [4]) {
         let tier = tier_of(args, "put")?;
@@ -2710,15 +2600,14 @@ nvs_runtime::nvs_helper! {
         })?;
 
         match tier {
-            Tier::Local => store_put(&key, payload, lifetime, local_cap(ctx)),
-            Tier::Process => {
-                process_put(&scoped(ctx, &key), payload, lifetime, process_cap(ctx));
+            Tier::Memory => {
+                memory_put(&scoped(ctx, &key), payload, lifetime, memory_cap(ctx));
             }
             Tier::Shared => on_shared(STORE_NAME, "put", |open| {
                 // The store keeps its own clock, so it is told a length of
                 // time rather than an instant — and a lifetime already over
                 // is not a write here either, which is the one command that
-                // leaves the same state the in-process tiers do.
+                // leaves the same state the memory tier does.
                 if lifetime.elapsed() {
                     return open.del(&key);
                 }
@@ -2753,8 +2642,7 @@ nvs_runtime::nvs_helper! {
         let key = key_of(args, 1, "get")?.as_bytes().to_vec();
 
         let held = match tier {
-            Tier::Local => store_get(&key),
-            Tier::Process => process_get(&scoped(ctx, &key)),
+            Tier::Memory => memory_get(&scoped(ctx, &key)),
             Tier::Shared => on_shared(STORE_NAME, "get", |open| open.get(&key))?,
         };
         let Some(payload) = held else {
@@ -2778,22 +2666,21 @@ nvs_runtime::nvs_helper! {
     /// cannot report the same state as news here.
     ///
     /// The tier decides where the key is and nothing else, which is
-    /// [`nvs_core_cache_get`]'s structure: the two in-process tiers take the
-    /// entry out of their own map, and the shared tier sends the one command
-    /// that leaves the store in the state the other two are left in.
+    /// [`nvs_core_cache_get`]'s structure: the memory tier takes the entry out
+    /// of its own map, and the shared tier sends the one command that leaves
+    /// the store in the state the memory tier is left in.
     ///
     /// # Errors
     ///
     /// A thrown `IOError` on the shared tier for a store that cannot be
-    /// reached or that refuses the command. The in-process tiers have no
-    /// failure to report, so neither has an error at all.
+    /// reached or that refuses the command. The memory tier has no failure to
+    /// report, so it has no error at all.
     fn nvs_core_cache_forget(ctx, args: [2]) {
         let tier = tier_of(args, "forget")?;
         let key = key_of(args, 1, "forget")?.as_bytes().to_vec();
 
         match tier {
-            Tier::Local => store_forget(&key),
-            Tier::Process => process_forget(&scoped(ctx, &key)),
+            Tier::Memory => memory_forget(&scoped(ctx, &key)),
             Tier::Shared => on_shared(STORE_NAME, "forget", |open| open.del(&key))?,
         }
         Ok(Value::null())
@@ -2978,7 +2865,7 @@ nvs_runtime::nvs_helper! {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use std::net::TcpListener;
     use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
     use std::sync::{Arc, Barrier, Mutex, mpsc};
@@ -2990,16 +2877,15 @@ mod tests {
     use crate::tests::granting;
 
     use super::{
-        CLASS, Ctx, DEFAULT_FILL_WAIT, DEFAULT_MAX_SIZE, ENTRIES, ENTRY_OVERHEAD, GET_DOC,
-        LOCAL_DOC, Lifetime, MAX_SIZE, NvsStr, PROCESS, PROCESS_DOC, PROCESS_FILL_WAIT,
-        PROCESS_MAX_SIZE, SEAL_DOMAIN, SECRET_ENTRY, SHARDS, SHARED_DOC, Value, bound, charged,
-        dial_of, elected, endpoint, local_cap, nvs_core_cache_secret_entry_of, open_configured,
-        process_cap, process_forget, process_get, process_put, scoped, sealed_key,
-        sealed_plaintext, sealed_value, shard_cap, shard_of, store_forget, store_get, store_put,
-        wait_of, waited,
+        CLASS, Ctx, DEFAULT_FILL_WAIT, DEFAULT_MAX_SIZE, ENTRY_OVERHEAD, Entries, FILL_WAIT,
+        GET_DOC, Lifetime, MAX_SIZE, MEMORY, MEMORY_DOC, NvsStr, SEAL_DOMAIN, SECRET_ENTRY, SHARDS,
+        SHARED_DOC, Value, bound, charged, dial_of, elected, endpoint, memory_cap, memory_forget,
+        memory_get, memory_put, memory_update, nvs_core_cache_secret_entry_of, open_configured,
+        scoped, sealed_key, sealed_plaintext, sealed_value, shard_cap, shard_of, wait_of, waited,
     };
 
-    /// Taken by every case that touches the process tier, first thing.
+    /// Taken by every case that touches the memory tier, first thing — here
+    /// and in the other modules that keep state in it.
     ///
     /// That tier is the *process's*, and `cargo test` runs these cases on threads
     /// of one process — so a case filling it under a cap would forget another
@@ -3007,7 +2893,41 @@ mod tests {
     /// balance would be credited for bytes it never allocated. What this
     /// serializes is the cases; the tier itself needs no such thing, which is
     /// what its shards are.
-    static TIER: Mutex<()> = Mutex::new(());
+    pub(crate) static TIER: Mutex<()> = Mutex::new(());
+
+    /// A key that lands in the same shard as `entry`, built from `stem`, for a
+    /// case that has to fill the shard an entry is in.
+    pub(crate) fn beside(entry: &[u8], stem: &str) -> Vec<u8> {
+        (0_u32..)
+            .map(|step| format!("{stem}-{step}").into_bytes())
+            .find(|key| std::ptr::eq(shard_of(key), shard_of(entry)))
+            .expect("some key of the stem hashes into every shard")
+    }
+
+    /// Writes unrelated entries into the shard `entry` lives in, under a cap of
+    /// `share` bytes a shard, until everything written there before them is
+    /// forgotten — the way any program's own caching can push an entry out.
+    ///
+    /// Each one takes half the share and its charge takes more, so the shard
+    /// holds one of them at a time and the second write already evicts
+    /// whatever was older than the first.
+    pub(crate) fn crowd_out(entry: &[u8], share: usize) {
+        for step in 0..2 {
+            let key = beside(entry, &format!("crowding-{step}"));
+            memory_put(
+                &key,
+                vec![b'x'; share / 2],
+                Lifetime::Forever,
+                Some(share * SHARDS),
+            );
+        }
+    }
+
+    /// Takes `key` out of the memory tier, for a case in another module that
+    /// leaves the tier as it found it.
+    pub(crate) fn forget(key: &[u8]) {
+        memory_forget(key);
+    }
 
     /// A snapshot a process is serving: one `[[app]]` block and one generation
     /// number, which is both halves of what [`scoped`] reads.
@@ -3057,10 +2977,12 @@ mod tests {
     /// the copy happens first and the tier only decides where the bytes go.
     #[test]
     fn a_cache_put_and_get_use_the_same_graph_copy_as_the_isolate_boundary() {
+        let _serial = TIER.lock().expect("the tier's cases run one at a time");
+
         let payload = nvs_runtime::encode(Value::int(7)).expect("an `int` crosses any boundary");
-        store_put(b"the-same-walk", payload.clone(), Lifetime::Forever, None);
+        memory_put(b"the-same-walk", payload.clone(), Lifetime::Forever, None);
         assert_eq!(
-            store_get(b"the-same-walk"),
+            memory_get(b"the-same-walk"),
             Some(payload),
             "an entry is the carrier's own bytes, byte for byte"
         );
@@ -3086,11 +3008,11 @@ mod tests {
     /// that makes that structural is that not one of them takes an argument at
     /// all, so no value computed at run time can choose the tier.
     #[test]
-    fn local_and_shared_are_separate_members_with_separate_contracts() {
+    fn memory_and_shared_are_separate_members_with_separate_contracts() {
         let names: Vec<&str> = CLASS.methods.iter().map(|method| method.name).collect();
         assert_eq!(
             names,
-            ["local", "process", "shared"],
+            ["memory", "shared"],
             "the roster is one member per tier and nothing else"
         );
 
@@ -3104,30 +3026,25 @@ mod tests {
         }
 
         // Separate *contracts*, which is the half a shared implementation would
-        // quietly lose: a store that may forget and is one core's, a store that
-        // may forget and is the whole process's, and a store that is coherent and
-        // can be unreachable.
-        let shorts = [LOCAL_DOC.short, PROCESS_DOC.short, SHARED_DOC.short];
-        for (at, short) in shorts.iter().enumerate() {
-            assert!(
-                !shorts[..at].contains(short),
-                "two tiers describe themselves the same way, which is one contract under two names"
-            );
-        }
-        assert!(
-            LOCAL_DOC.ret.contains("not visible on another"),
-            "the local card has to state § 1's per-core contract"
+        // quietly lose: a store that may forget and is the whole process's, and
+        // a store that is coherent and can be unreachable.
+        assert_ne!(
+            MEMORY_DOC.short, SHARED_DOC.short,
+            "two tiers describe themselves the same way, which is one contract under two names"
         );
         assert!(
-            PROCESS_DOC.ret.contains("every core"),
-            "the process card has to state what its tier is coherent across"
+            MEMORY_DOC.ret.contains("Every request this process serves"),
+            "the memory card has to state what its tier is coherent across"
         );
         assert!(
-            LOCAL_DOC.errors.is_empty()
-                && PROCESS_DOC.errors.is_empty()
-                && !SHARED_DOC.errors.is_empty(),
-            "an unreachable shared store throws; neither in-process tier has anything to be \
-             unreachable"
+            MEMORY_DOC
+                .ret
+                .contains("another server process has its own entries"),
+            "and where that coherence ends"
+        );
+        assert!(
+            MEMORY_DOC.errors.is_empty() && !SHARED_DOC.errors.is_empty(),
+            "an unreachable shared store throws; the memory tier has nothing to be unreachable"
         );
     }
 
@@ -3136,14 +3053,16 @@ mod tests {
     /// depends on — the card *says* so, since a contract nobody can read is one
     /// every caller will assume away.
     #[test]
-    fn a_local_entry_may_be_absent_at_any_time_and_the_contract_says_so() {
-        assert_eq!(store_get(b"absent-by-construction"), None);
+    fn an_entry_may_be_absent_at_any_time_and_the_contract_says_so() {
+        let _serial = TIER.lock().expect("the tier's cases run one at a time");
 
-        store_put(b"present", b"payload".to_vec(), Lifetime::Forever, None);
-        assert_eq!(store_get(b"present"), Some(b"payload".to_vec()));
+        assert_eq!(memory_get(b"absent-by-construction"), None);
+
+        memory_put(b"present", b"payload".to_vec(), Lifetime::Forever, None);
+        assert_eq!(memory_get(b"present"), Some(b"payload".to_vec()));
 
         assert!(
-            GET_DOC.ret.contains("null") && GET_DOC.ret.contains("absent at any time"),
+            GET_DOC.ret.contains("null") && GET_DOC.ret.contains("missing at any time"),
             "`get`'s card has to state the absence its caller must handle"
         );
         assert!(
@@ -3155,119 +3074,83 @@ mod tests {
         );
     }
 
-    /// `rule:core-api/two-cache-tiers`: a write on one core is not visible on another. The store is
-    /// a `thread_local`, and the runtime is thread-per-core, so a second thread
-    /// *is* a second core for this question.
-    // covers: Core\Cache::local
-    #[test]
-    fn a_local_write_on_one_core_is_not_visible_on_another() {
-        store_put(
-            b"one-core-only",
-            b"written here".to_vec(),
-            Lifetime::Forever,
-            None,
-        );
-        assert_eq!(store_get(b"one-core-only"), Some(b"written here".to_vec()));
-
-        let elsewhere = std::thread::spawn(|| {
-            let before = store_get(b"one-core-only");
-            // And the other direction: what the second core writes stays there.
-            store_put(
-                b"one-core-only",
-                b"written there".to_vec(),
-                Lifetime::Forever,
-                None,
-            );
-            (before, store_get(b"one-core-only"))
-        })
-        .join()
-        .expect("the second core's thread runs to completion");
-
-        assert_eq!(elsewhere, (None, Some(b"written there".to_vec())));
-        assert_eq!(store_get(b"one-core-only"), Some(b"written here".to_vec()));
-    }
-
-    /// `rule:concurrency/cache-memory-is-charged-to-the-core`: exceeding the cap **evicts** rather than failing an
-    /// allocation. The write that crosses it succeeds, and what goes is the key
-    /// written longest ago — which § 1 has already told every caller to expect,
-    /// since an entry may be absent at any time for any reason.
+    /// `rule:concurrency/the-memory-tier-is-one-store-per-process`: exceeding the
+    /// cap **evicts** rather than failing an allocation. The write that crosses
+    /// it succeeds, and what goes is the key written longest ago — which § 1 has
+    /// already told every caller to expect, since an entry may be absent at any
+    /// time for any reason. Asked of one shard on its own, which is the unit a
+    /// cap is enforced over.
     #[test]
     fn the_cap_forgets_an_older_entry_rather_than_refusing_the_write() {
         // Room for two of these three entries and no more.
         let room = Some(2 * (2 + 6 + ENTRY_OVERHEAD));
-        store_put(b"k1", b"first!".to_vec(), Lifetime::Forever, room);
-        store_put(b"k2", b"second".to_vec(), Lifetime::Forever, room);
-        assert_eq!(store_get(b"k1"), Some(b"first!".to_vec()));
+        let mut tier = Entries::default();
+        tier.put(b"k1", b"first!", Lifetime::Forever, room);
+        tier.put(b"k2", b"second", Lifetime::Forever, room);
+        assert_eq!(tier.get(b"k1"), Some(&b"first!"[..]));
 
-        store_put(b"k3", b"third!".to_vec(), Lifetime::Forever, room);
-        assert_eq!(
-            store_get(b"k1"),
-            None,
-            "the oldest key is the one that goes"
-        );
-        assert_eq!(store_get(b"k2"), Some(b"second".to_vec()));
-        assert_eq!(store_get(b"k3"), Some(b"third!".to_vec()));
+        tier.put(b"k3", b"third!", Lifetime::Forever, room);
+        assert_eq!(tier.get(b"k1"), None, "the oldest key is the one that goes");
+        assert_eq!(tier.get(b"k2"), Some(&b"second"[..]));
+        assert_eq!(tier.get(b"k3"), Some(&b"third!"[..]));
     }
 
-    /// An entry the tier could not hold even empty is forgotten as it arrives,
+    /// An entry the shard could not hold even empty is forgotten as it arrives,
     /// and takes what was under its key with it — `put` replaced that entry.
-    /// The tier is unharmed afterwards, which is the half that would break if
+    /// The shard is unharmed afterwards, which is the half that would break if
     /// the arrival's charge were left behind.
     #[test]
     fn an_entry_larger_than_the_whole_tier_is_forgotten_as_it_arrives() {
         let room = Some(64 + ENTRY_OVERHEAD);
-        store_put(b"kept", vec![0; 8], Lifetime::Forever, room);
-        store_put(b"kept", vec![0; 4096], Lifetime::Forever, room);
-        assert_eq!(store_get(b"kept"), None);
+        let mut tier = Entries::default();
+        tier.put(b"kept", &[0; 8], Lifetime::Forever, room);
+        tier.put(b"kept", &[0; 4096], Lifetime::Forever, room);
+        assert_eq!(tier.get(b"kept"), None);
 
-        store_put(b"kept", vec![7; 8], Lifetime::Forever, room);
-        assert_eq!(store_get(b"kept"), Some(vec![7; 8]));
+        tier.put(b"kept", &[7; 8], Lifetime::Forever, room);
+        assert_eq!(tier.get(b"kept"), Some(&[7; 8][..]));
     }
 
-    /// `forget` takes an entry out of the tier it was named on and out of no
-    /// other, and gives the bytes back to the balance they were taken from.
+    /// `forget` takes the entry it names out and no other, and gives the bytes
+    /// back to the cap they were charged to.
     ///
-    /// Three claims, because each alone passes something broken: a `forget`
-    /// that emptied the map would satisfy the first, one that forgot on every
-    /// tier at once would satisfy the first two, and one that removed the entry
-    /// without crediting [`Entries::held`] would leave a tier evicting against
-    /// a cap it no longer measures.
+    /// Two claims, because each alone passes something broken: a `forget` that
+    /// emptied the map would satisfy the first, and one that removed the entry
+    /// without crediting [`Entries::held`] would leave a shard evicting against
+    /// a cap it no longer measures. The member's own path is then asked once
+    /// over the process's map, where a key nothing is under is already
+    /// forgotten.
     // covers: Core\Cache\Store::forget
     #[test]
-    fn a_forget_takes_one_entry_out_of_one_tier_and_credits_the_cap() {
+    fn a_forget_takes_one_entry_out_and_credits_the_cap() {
         const KEY: &[u8] = b"forgettable";
 
-        let _held = TIER.lock().expect("the process tier, one case at a time");
-        store_put(KEY, b"local".to_vec(), Lifetime::Forever, None);
-        process_put(KEY, b"process".to_vec(), Lifetime::Forever, None);
-        store_put(b"kept-here", b"local".to_vec(), Lifetime::Forever, None);
+        let mut tier = Entries::default();
+        tier.put(KEY, b"gone", Lifetime::Forever, None);
+        tier.put(b"kept-here", b"kept", Lifetime::Forever, None);
 
-        store_forget(KEY);
+        tier.forget(KEY);
 
-        assert_eq!(store_get(KEY), None, "the entry named is gone");
+        assert_eq!(tier.get(KEY), None, "the entry named is gone");
         assert_eq!(
-            store_get(b"kept-here"),
-            Some(b"local".to_vec()),
-            "and nothing else on the tier went with it"
+            tier.get(b"kept-here"),
+            Some(&b"kept"[..]),
+            "and nothing else in the shard went with it"
         );
         assert_eq!(
-            process_get(KEY),
-            Some(b"process".to_vec()),
-            "the other in-process tier keeps its own entry of that name"
+            tier.held,
+            charged(b"kept-here".len(), b"kept".len()),
+            "the forgotten entry is still charged to the cap"
         );
-        ENTRIES.with_borrow(|local| {
-            assert_eq!(
-                local.held,
-                charged(b"kept-here".len(), b"local".len()),
-                "the forgotten entry is still charged to the cap"
-            );
-        });
 
+        let _serial = TIER.lock().expect("the tier's cases run one at a time");
+        memory_put(KEY, b"gone".to_vec(), Lifetime::Forever, None);
+        memory_forget(KEY);
+        assert_eq!(memory_get(KEY), None);
         // A key nothing is under is already forgotten, so this is the state the
         // call above reached rather than a second one.
-        store_forget(KEY);
-        process_forget(KEY);
-        assert_eq!((store_get(KEY), process_get(KEY)), (None, None));
+        memory_forget(KEY);
+        assert_eq!(memory_get(KEY), None);
     }
 
     /// The module doc's *the read judges, and never writes*: an entry past its
@@ -3276,7 +3159,7 @@ mod tests {
     ///
     /// Two claims, because the absence alone would pass a `get` that took the
     /// entry out — the shape
-    /// `rule:concurrency/the-process-tier-is-one-store-per-process` refuses
+    /// `rule:concurrency/the-memory-tier-is-one-store-per-process` refuses
     /// when it fixes a lookup as a read lock and nothing more. The bytes still
     /// standing against the cap afterwards are what that costs, and the
     /// overwrite is what ends it.
@@ -3286,41 +3169,33 @@ mod tests {
         const KEY: &[u8] = b"past-it";
         const PAYLOAD: &[u8] = b"gone";
 
-        store_put(
-            KEY,
-            PAYLOAD.to_vec(),
-            Lifetime::For(Duration::from_nanos(1)),
-            None,
-        );
+        let mut tier = Entries::default();
+        tier.put(KEY, PAYLOAD, Lifetime::For(Duration::from_nanos(1)), None);
         std::thread::sleep(Duration::from_millis(2));
 
         assert_eq!(
-            store_get(KEY),
+            tier.get(KEY),
             None,
             "an entry past its lifetime is the `null` § 1 had already promised"
         );
-        ENTRIES.with_borrow(|local| {
-            assert!(
-                local.entries.contains_key(KEY),
-                "the read took the entry out, which is what makes `get` a write"
-            );
-            assert_eq!(
-                local.held,
-                charged(KEY.len(), PAYLOAD.len()),
-                "and it is still charged, which is what leaving it there costs"
-            );
-        });
+        assert!(
+            tier.entries.contains_key(KEY),
+            "the read took the entry out, which is what makes `get` a write"
+        );
+        assert_eq!(
+            tier.held,
+            charged(KEY.len(), PAYLOAD.len()),
+            "and it is still charged, which is what leaving it there costs"
+        );
 
         // A lifetime already over is not a write at all, so the overwrite that
         // reclaims those bytes leaves nothing under the key either.
-        store_put(KEY, PAYLOAD.to_vec(), Lifetime::For(Duration::ZERO), None);
-        ENTRIES.with_borrow(|local| {
-            assert!(
-                local.entries.is_empty(),
-                "a lifetime already over wrote an entry rather than forgetting one"
-            );
-            assert_eq!(local.held, 0, "and the tier is holding bytes for nothing");
-        });
+        tier.put(KEY, PAYLOAD, Lifetime::For(Duration::ZERO), None);
+        assert!(
+            tier.entries.is_empty(),
+            "a lifetime already over wrote an entry rather than forgetting one"
+        );
+        assert_eq!(tier.held, 0, "and the shard is holding bytes for nothing");
     }
 
     /// `AGENTS.md`'s O(in-flight) rule, which is what makes the cap a bound at
@@ -3332,24 +3207,23 @@ mod tests {
     #[test]
     fn a_key_rewritten_forever_costs_what_it_cost_the_first_time() {
         let room = Some(4 * (4 + 8 + ENTRY_OVERHEAD));
+        let mut tier = Entries::default();
         for step in 0..1_000u32 {
-            store_put(
+            tier.put(
                 b"hot!",
-                step.to_string().into_bytes(),
+                step.to_string().as_bytes(),
                 Lifetime::Forever,
                 room,
             );
         }
-        assert_eq!(store_get(b"hot!"), Some(b"999".to_vec()));
+        assert_eq!(tier.get(b"hot!"), Some(&b"999"[..]));
 
-        ENTRIES.with_borrow(|local| {
-            assert_eq!(local.entries.len(), 1);
-            assert_eq!(
-                local.order.len(),
-                1,
-                "an overwrite keeps its place rather than taking a second one"
-            );
-        });
+        assert_eq!(tier.entries.len(), 1);
+        assert_eq!(
+            tier.order.len(),
+            1,
+            "an overwrite keeps its place rather than taking a second one"
+        );
     }
 
     /// The same O(in-flight) rule for a key that is forgotten between writes,
@@ -3359,7 +3233,7 @@ mod tests {
     // covers: Core\Cache\Store::forget
     #[test]
     fn a_key_forgotten_and_written_again_forever_keeps_the_queue_bounded() {
-        let mut tier = super::Entries::<std::rc::Rc<[u8]>>::default();
+        let mut tier = Entries::default();
         for step in 0..10_000u32 {
             tier.put(b"hot!", &step.to_be_bytes(), Lifetime::Forever, None);
             tier.forget(b"hot!");
@@ -3378,7 +3252,7 @@ mod tests {
     /// And a stale slot never evicts the newer entry under its key.
     #[test]
     fn an_expired_entry_nobody_reads_again_is_swept_by_a_later_write() {
-        let mut tier = super::Entries::<std::rc::Rc<[u8]>>::default();
+        let mut tier = Entries::default();
         for step in 0..1_000u32 {
             let key = format!("session:{step}");
             tier.put(
@@ -3408,7 +3282,7 @@ mod tests {
         assert_eq!(tier.held, live, "the sweep freed bytes it did not count");
 
         // A stale slot at the front of the queue names a key written again later.
-        let mut tier = super::Entries::<std::rc::Rc<[u8]>>::default();
+        let mut tier = Entries::default();
         tier.put(b"a", b"1", Lifetime::Forever, None);
         tier.put(b"b", b"2", Lifetime::Forever, None);
         tier.forget(b"a");
@@ -3422,21 +3296,21 @@ mod tests {
         assert_eq!(tier.get(b"b"), None);
     }
 
-    /// `rule:concurrency/the-process-tier-is-one-store-per-process`: one map
+    /// `rule:concurrency/the-memory-tier-is-one-store-per-process`: one map
     /// every core of this process reads, and a `get` that takes a read lock and
     /// never a write.
     ///
     /// Two claims, because either alone passes a tier that is not one. An entry
     /// crosses **cores**, in both directions: a second thread reads what this one
-    /// wrote and this one reads what that thread wrote, which a `thread_local`
-    /// like [`ENTRIES`] fails either way round. And a lookup is a *shared* borrow
+    /// wrote and this one reads what that thread wrote, which a map kept per
+    /// thread fails either way round. And a lookup is a *shared* borrow
     /// of the shard — a second core reads a key while this one is holding that
     /// shard's read guard, which a `get` taking the write lock could not answer
     /// at all. It is asked with a timeout rather than with a `join`, so a `get`
     /// that took the wrong lock fails this case instead of hanging the suite.
-    // covers: Core\Cache::process
+    // covers: Core\Cache::memory
     #[test]
-    fn process_tier_is_one_map_every_core_reads() {
+    fn memory_tier_is_one_map_every_core_reads() {
         /// Long enough that a loaded machine is not why this fails, and short
         /// enough that a wrong lock is a failure rather than a wedged run.
         const WAIT: Duration = Duration::from_secs(5);
@@ -3444,12 +3318,12 @@ mod tests {
         let _serial = TIER.lock().expect("the tier's cases run one at a time");
 
         let mine = nvs_runtime::encode(Value::int(11)).expect("an `int` crosses any boundary");
-        process_put(b"one-map-mine", mine.clone(), Lifetime::Forever, None);
+        memory_put(b"one-map-mine", mine.clone(), Lifetime::Forever, None);
         let (read_there, written_there) = std::thread::spawn(|| {
             let theirs =
                 nvs_runtime::encode(Value::int(13)).expect("an `int` crosses any boundary");
-            process_put(b"one-map-theirs", theirs.clone(), Lifetime::Forever, None);
-            (process_get(b"one-map-mine"), theirs)
+            memory_put(b"one-map-theirs", theirs.clone(), Lifetime::Forever, None);
+            (memory_get(b"one-map-mine"), theirs)
         })
         .join()
         .expect("the second core's thread runs to completion");
@@ -3459,7 +3333,7 @@ mod tests {
             "a second core read nothing this one wrote, so the map is not the process's"
         );
         assert_eq!(
-            process_get(b"one-map-theirs"),
+            memory_get(b"one-map-theirs"),
             Some(written_there),
             "this core read nothing the second wrote, and one store answers both ways"
         );
@@ -3469,7 +3343,7 @@ mod tests {
             .expect("a cache shard's lock is never poisoned");
         let (tx, rx) = mpsc::channel();
         std::thread::spawn(move || {
-            let _ = tx.send(process_get(b"one-map-mine").is_some());
+            let _ = tx.send(memory_get(b"one-map-mine").is_some());
         });
         assert_eq!(
             rx.recv_timeout(WAIT),
@@ -3479,57 +3353,56 @@ mod tests {
         drop(held);
     }
 
-    /// `rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent`: an
-    /// entry written on one core is absent on every other, asserted rather than
-    /// left to [`ENTRIES`]' `thread_local` to imply — the contract is what a
-    /// program may rely on, and a representation is not a test of one.
+    /// [`memory_update`] is one step no other core can come between: a read
+    /// and the write that follows it, under one shard's write lock.
     ///
-    /// Both directions, and a control on each core. Absence is asserted each way
-    /// round, so a tier that leaked in only one of them still fails; and each
-    /// core reads its **own** write back, without which a `put` that stored
-    /// nothing would pass here as perfect isolation. No `TIER` lock, because
-    /// this is the one tier a second case on another thread cannot reach.
-    /// [`process_tier_is_one_map_every_core_reads`] is the same pair of writes
-    /// against the tier that does have to answer.
+    /// Several threads each add one to the same counter many times. A read and
+    /// a write taken as two operations would let two threads read the same
+    /// count and both write the next one, and the total would come out short.
+    /// That is the race `Core\RateLimit::shed` would lose an arrival to.
     #[test]
-    fn a_local_tier_value_written_on_one_core_is_absent_on_another() {
-        let mine = nvs_runtime::encode(Value::int(11)).expect("an `int` crosses any boundary");
-        store_put(b"per-core-mine", mine.clone(), Lifetime::Forever, None);
-        assert_eq!(
-            store_get(b"per-core-mine"),
-            Some(mine),
-            "this core did not read its own write, so the absence below says nothing"
-        );
+    fn an_update_is_one_step_no_other_core_comes_between() {
+        /// How many threads step the counter at once.
+        const THREADS: usize = 4;
+        /// How many steps each one takes.
+        const STEPS: usize = 500;
+        const KEY: &[u8] = b"counted-by-every-core";
 
-        let (read_there, read_its_own, written_there) = std::thread::spawn(|| {
-            let theirs =
-                nvs_runtime::encode(Value::int(13)).expect("an `int` crosses any boundary");
-            store_put(b"per-core-theirs", theirs.clone(), Lifetime::Forever, None);
-            (
-                store_get(b"per-core-mine"),
-                store_get(b"per-core-theirs"),
-                theirs,
-            )
-        })
-        .join()
-        .expect("the second core's thread runs to completion");
+        let _serial = TIER.lock().expect("the tier's cases run one at a time");
+        memory_forget(KEY);
+
+        let start = Arc::new(Barrier::new(THREADS));
+        let workers: Vec<_> = (0..THREADS)
+            .map(|_| {
+                let start = Arc::clone(&start);
+                std::thread::spawn(move || {
+                    start.wait();
+                    for _ in 0..STEPS {
+                        memory_update(KEY, Lifetime::Forever, None, |held| {
+                            let count = held.map_or(0, |bytes| {
+                                u64::from_be_bytes(bytes.try_into().expect("eight bytes"))
+                            });
+                            ((), Some((count + 1).to_be_bytes().to_vec()))
+                        });
+                    }
+                })
+            })
+            .collect();
+        for worker in workers {
+            worker.join().expect("a stepping thread runs to completion");
+        }
+
+        let total = memory_get(KEY).expect("the counter was written");
+        let counted = u64::from_be_bytes(total.try_into().expect("eight bytes"));
         assert_eq!(
-            read_there, None,
-            "a second core read an entry the local tier holds for this one"
+            usize::try_from(counted).expect("a count of steps fits a `usize`"),
+            THREADS * STEPS,
+            "two cores read the same count, so an update was lost between a read and its write"
         );
-        assert_eq!(
-            read_its_own,
-            Some(written_there),
-            "the second core did not read its own write either, so it wrote nothing at all"
-        );
-        assert_eq!(
-            store_get(b"per-core-theirs"),
-            None,
-            "this core read an entry a second core wrote, so the tier is not per core"
-        );
+        memory_forget(KEY);
     }
 
-    /// `rule:concurrency/the-process-tier-is-one-store-per-process`: an entry's
+    /// `rule:concurrency/the-memory-tier-is-one-store-per-process`: an entry's
     /// real key carries the `[[app]]` it was written for and the configuration
     /// generation it was written under.
     ///
@@ -3543,7 +3416,7 @@ mod tests {
     /// of those scopes, because keys that differ prove nothing about a map that
     /// ignored them.
     #[test]
-    fn process_tier_keys_are_scoped_per_app_and_per_generation() {
+    fn memory_tier_keys_are_scoped_per_app_and_per_generation() {
         let _serial = TIER.lock().expect("the tier's cases run one at a time");
 
         let mut ctx = Ctx::buffered();
@@ -3575,25 +3448,27 @@ mod tests {
 
         let first = nvs_runtime::encode(Value::int(1)).expect("an `int` crosses any boundary");
         let second = nvs_runtime::encode(Value::int(2)).expect("an `int` crosses any boundary");
-        process_put(&one, first.clone(), Lifetime::Forever, None);
-        process_put(&two, second.clone(), Lifetime::Forever, None);
-        assert_eq!(process_get(&one), Some(first));
-        assert_eq!(process_get(&two), Some(second));
+        memory_put(&one, first.clone(), Lifetime::Forever, None);
+        memory_put(&two, second.clone(), Lifetime::Forever, None);
+        assert_eq!(memory_get(&one), Some(first));
+        assert_eq!(memory_get(&two), Some(second));
     }
 
     /// `rule:concurrency/a-cross-request-stores-bytes-are-its-own-balance`: an
     /// entry's bytes move the process's detached balance, and the request that
     /// made the write is measured as though it had not.
     ///
-    /// The local tier's own case asks this of [`store_put`]; it is asked again
-    /// because a bracket is held by the *store* and this is a second store. The
-    /// half this tier adds is the release: the key is rewritten until many times
-    /// one entry has been allocated, and the balance ends up holding one — so the
-    /// frees landed on the balance the allocations did, which is the symmetry a
-    /// bracket owes and the only way a cross-request store's credit stays
-    /// bounded.
+    /// Two halves. The write: the balance every ceiling is armed against, and
+    /// the reading a limit handler reports, both end where they started, and the
+    /// payload is built *after* those readings are taken and released by the
+    /// store — so a bracket that kept the caller's `Vec` instead of copying it
+    /// would leave the balance short by an entry and fail here. And the release:
+    /// the key is rewritten until many times one entry has been allocated, and
+    /// the balance ends up holding one — so the frees landed on the balance the
+    /// allocations did, which is the symmetry a bracket owes and the only way a
+    /// cross-request store's credit stays bounded.
     #[test]
-    fn process_tier_bytes_are_on_the_detached_balance() {
+    fn memory_tier_bytes_are_on_the_detached_balance() {
         /// The charge one entry has to show through the noise.
         const ENTRY: usize = 256 * 1024;
         /// How many times the one key is written.
@@ -3606,8 +3481,8 @@ mod tests {
         let live = budget::live_bytes();
         let held = budget::detached_bytes();
 
-        process_put(
-            b"process-charged-to-the-process",
+        memory_put(
+            b"memory-charged-to-the-process",
             vec![b'p'; ENTRY],
             Lifetime::Forever,
             None,
@@ -3630,8 +3505,8 @@ mod tests {
 
         let before = budget::detached_bytes();
         for _ in 0..REWRITES {
-            process_put(
-                b"process-rewritten",
+            memory_put(
+                b"memory-rewritten",
                 vec![b'r'; ENTRY],
                 Lifetime::Forever,
                 None,
@@ -3645,20 +3520,28 @@ mod tests {
         );
     }
 
-    /// `[cache.process] max_size` is read per write, and what bounds a shard is
+    /// `[cache.memory] max_size` is read per write, and what bounds a shard is
     /// its own even share of it.
     ///
-    /// The directive half is [`local_cap`]'s case over the other key: the shipped
-    /// cap where nothing is written, a size where one is, no ceiling for `false`,
-    /// and a `Reload` row, which is why it is read per operation rather than once
-    /// per process. The tier half is the eviction: a sweep writing many times the
-    /// cap never fails a write and leaves no shard holding more than its share,
-    /// which is `rule:concurrency/cache-memory-is-charged-to-the-core`'s "evicts
+    /// The directive half: the shipped cap where nothing is written, a size
+    /// where one is, no ceiling for `false`, and a `Reload` row, which is why it
+    /// is read per operation rather than once per process. The tier half is the
+    /// eviction: a sweep writing many times the cap never fails a write and
+    /// leaves no shard holding more than its share, which is
+    /// `rule:concurrency/the-memory-tier-is-one-store-per-process`'s "evicts
     /// rather than failing an allocation" on a map that is cut into pieces. The
     /// survivors are counted rather than named, because which shard a key lands
     /// in is a hash's business and the bound is what the cap promises.
+    ///
+    /// Then the two things the cap could stop measuring. The sweep leaves the
+    /// process's balance up by about the cap and not by what was written, so
+    /// the entries `forget_oldest` dropped gave their bytes back. And an entry
+    /// arrives in its shard with its whole charge, because what the cap compares
+    /// is [`Entries::held`] — maintained from the lengths the store was handed,
+    /// never from an allocator counter — and a write that escaped it would be
+    /// bytes the process holds and nothing bounds.
     #[test]
-    fn the_process_tiers_cap_is_a_share_per_shard_and_evicts() {
+    fn the_memory_tiers_cap_is_a_share_per_shard_and_evicts() {
         /// One sweep entry's payload.
         const CHUNK: usize = 4 * 1024;
         /// The whole tier's cap: three `CHUNK`s to a shard, which is room for two
@@ -3670,29 +3553,37 @@ mod tests {
         let _serial = TIER.lock().expect("the tier's cases run one at a time");
 
         let mut ctx = Ctx::buffered();
-        assert_eq!(process_cap(&ctx), Some(DEFAULT_MAX_SIZE));
-        ctx.set_config(granting("[cache.process]\nmax_size = \"128K\"\n"));
-        assert_eq!(process_cap(&ctx), Some(128 * 1024));
-        ctx.set_config(granting("[cache.process]\nmax_size = false\n"));
-        assert_eq!(process_cap(&ctx), None, "`false` is no ceiling at all");
+        assert_eq!(memory_cap(&ctx), Some(DEFAULT_MAX_SIZE));
+        ctx.set_config(granting("[cache.memory]\nmax_size = \"128K\"\n"));
+        assert_eq!(memory_cap(&ctx), Some(128 * 1024));
+        ctx.set_config(granting("[cache.memory]\nmax_size = false\n"));
+        assert_eq!(memory_cap(&ctx), None, "`false` is no ceiling at all");
         assert_eq!(
-            nvs_config::directive::lookup(PROCESS_MAX_SIZE).map(|row| row.apply),
+            nvs_config::directive::lookup(MAX_SIZE).map(|row| row.apply),
             Some(nvs_config::Apply::Reload),
             "a cap read once per process would outlive the snapshot that set it"
         );
         assert_eq!(shard_cap(Some(CAP)), Some(3 * CHUNK));
         assert_eq!(shard_cap(None), None, "no ceiling divides into no ceiling");
 
+        let before = budget::detached_bytes();
         for step in 0..WRITES {
-            process_put(
-                format!("process-sweep-{step:04}").as_bytes(),
+            memory_put(
+                format!("memory-sweep-{step:04}").as_bytes(),
                 vec![b's'; CHUNK],
                 Lifetime::Forever,
                 Some(CAP),
             );
         }
+        let held = budget::detached_bytes() - before;
+        assert!(
+            held < (2 * CAP).cast_signed(),
+            "the process holds {held} more bytes after writing {}, so the cap bounds the \
+             bookkeeping and not the memory",
+            WRITES * CHUNK
+        );
         let survived = (0..WRITES)
-            .filter(|step| process_get(format!("process-sweep-{step:04}").as_bytes()).is_some())
+            .filter(|step| memory_get(format!("memory-sweep-{step:04}").as_bytes()).is_some())
             .count();
         assert!(
             survived > 0 && survived <= 2 * SHARDS,
@@ -3700,7 +3591,7 @@ mod tests {
              shard's share holds two of them and the newest write is always one",
             WRITES * CHUNK / CAP
         );
-        let over = PROCESS
+        let over = MEMORY
             .iter()
             .filter(|shard| {
                 shard
@@ -3714,10 +3605,27 @@ mod tests {
             over, 0,
             "{over} shard(s) hold more than the share the cap leaves them"
         );
+
+        let key: &[u8] = b"counted-against-the-cap";
+        let held_of = || {
+            shard_of(key)
+                .read()
+                .expect("a cache shard's lock is never poisoned")
+                .held
+        };
+        memory_forget(key);
+        let empty = held_of();
+        memory_put(key, vec![b'c'; CHUNK], Lifetime::Forever, None);
+        assert_eq!(
+            held_of() - empty,
+            charged(key.len(), CHUNK),
+            "the entry arrived without its charge, so the cap is measuring something else"
+        );
+        memory_forget(key);
     }
 
     /// `rule:concurrency/a-secret-fill-runs-once-per-process`: a caller that
-    /// writes no `wait` is bounded by `[cache.process] fill_wait`, and by the
+    /// writes no `wait` is bounded by `[cache.memory] fill_wait`, and by the
     /// shipped figure where the file names none.
     ///
     /// The refusals are the boot check's — `nvs_config::store` fails a `0` and
@@ -3727,36 +3635,36 @@ mod tests {
     /// is not a measurement, leaves the bound standing rather than removing it.
     /// A reader that answered "no wait" to either would make every concurrent
     /// caller but the filler throw. The directive's class is asserted beside
-    /// them for [`process_cap`]'s reason: a bound read once per process would
+    /// them for [`memory_cap`]'s reason: a bound read once per process would
     /// outlive the snapshot that set it.
     #[test]
-    fn an_omitted_wait_inherits_the_process_directive_and_never_removes_the_bound() {
+    fn an_omitted_wait_inherits_the_memory_directive_and_never_removes_the_bound() {
         let mut ctx = Ctx::buffered();
         let waited = |ctx: &Ctx| wait_of(ctx, &[], 4, "getSecret").expect("an absent slot is null");
 
         assert_eq!(waited(&ctx), DEFAULT_FILL_WAIT, "a file naming none");
-        ctx.set_config(granting("[cache.process]\nfill_wait = \"250ms\"\n"));
+        ctx.set_config(granting("[cache.memory]\nfill_wait = \"250ms\"\n"));
         assert_eq!(waited(&ctx), Duration::from_millis(250));
-        ctx.set_config(granting("[cache.process]\nfill_wait = \"\"\n"));
+        ctx.set_config(granting("[cache.memory]\nfill_wait = \"\"\n"));
         assert_eq!(
             waited(&ctx),
             DEFAULT_FILL_WAIT,
             "a cleared key is an absent one"
         );
-        ctx.set_config(granting("[cache.process]\nfill_wait = \"soon\"\n"));
+        ctx.set_config(granting("[cache.memory]\nfill_wait = \"soon\"\n"));
         assert_eq!(
             waited(&ctx),
             DEFAULT_FILL_WAIT,
             "a word is not a measurement"
         );
-        ctx.set_config(granting("[cache.process]\nfill_wait = \"0s\"\n"));
+        ctx.set_config(granting("[cache.memory]\nfill_wait = \"0s\"\n"));
         assert_eq!(
             waited(&ctx),
             DEFAULT_FILL_WAIT,
             "a wait of nothing is not a wait, and boot refuses it"
         );
         assert_eq!(
-            nvs_config::directive::lookup(PROCESS_FILL_WAIT).map(|row| row.apply),
+            nvs_config::directive::lookup(FILL_WAIT).map(|row| row.apply),
             Some(nvs_config::Apply::Reload),
             "a wait read once per process would outlive the snapshot that set it"
         );
@@ -4004,155 +3912,6 @@ mod tests {
         drop(held);
     }
 
-    /// `rule:concurrency/cache-memory-is-charged-to-the-core`: the tier's memory is charged to the **core** that holds it
-    /// — never to a request — and bounded by an `nvs.toml` directive.
-    ///
-    /// The name's two halves are one fact, and each is checked where the other
-    /// cannot see it. The cap is the *directive's*, whose row is `Reload`, which
-    /// is why [`local_cap`] is read per write rather than once per core. The
-    /// cap then bounds what the core actually holds and not merely the
-    /// bookkeeping beside it: a sweep writing thirty-two times the cap leaves
-    /// the process's balance up by about the cap, so the entries
-    /// `forget_oldest` dropped gave their bytes back. The eviction cases above
-    /// assert what a `put` forgets; this one asserts that forgetting it was a
-    /// deallocation.
-    ///
-    /// And the charge lands on the core rather than on a request:
-    /// `nvs_runtime::budget::detached_bytes` is the process's share of *this
-    /// thread's* balance, which is where [`store_put`]'s bracket puts an entry
-    /// and what no request's ceiling is armed against — so a second core writing
-    /// the same key raises its own by the same amount, and neither core's
-    /// requests are measured by either. That is § 3's O(cores × working set)
-    /// measured rather than restated, and it is the price
-    /// `rule:security/no-cross-request-state`'s isolation is bought with.
-    #[test]
-    fn the_local_tiers_memory_is_charged_to_the_core_and_capped() {
-        /// Small enough that the sweep below writes many times over it.
-        const CAP: usize = 64 * 1024;
-        /// One sweep entry's payload.
-        const CHUNK: usize = 4 * 1024;
-        /// How many of them, so that 32 × `CAP` is written in all.
-        const WRITES: usize = 512;
-        /// The charge one entry has to be able to show through the noise.
-        const LARGE: usize = 256 * 1024;
-
-        // The ceiling is `[cache.local] max_size` under `rule:config/three-changeability-classes`'s ordinary
-        // rules: the shipped one where an operator wrote nothing, a size where
-        // they wrote one, and none at all for the `false` that removes it.
-        let mut ctx = Ctx::buffered();
-        assert_eq!(local_cap(&ctx), Some(DEFAULT_MAX_SIZE));
-        ctx.set_config(granting("[cache.local]\nmax_size = \"128K\"\n"));
-        assert_eq!(local_cap(&ctx), Some(128 * 1024));
-        ctx.set_config(granting("[cache.local]\nmax_size = false\n"));
-        assert_eq!(local_cap(&ctx), None, "`false` is no ceiling at all");
-        assert_eq!(
-            nvs_config::directive::lookup(MAX_SIZE).map(|row| row.apply),
-            Some(nvs_config::Apply::Reload),
-            "a cap read once per core would outlive the snapshot that set it"
-        );
-
-        // Thirty-two times the cap, written under it.
-        let before = budget::detached_bytes();
-        let mut over = 0;
-        for step in 0..WRITES {
-            store_put(
-                format!("sweep-{step:04}").as_bytes(),
-                vec![b'c'; CHUNK],
-                Lifetime::Forever,
-                Some(CAP),
-            );
-            over += usize::from(ENTRIES.with_borrow(|local| local.held) > CAP);
-        }
-        assert_eq!(
-            over, 0,
-            "{over} of {WRITES} writes left the tier over its cap"
-        );
-
-        let held = budget::detached_bytes() - before;
-        assert!(
-            held < (4 * CAP).cast_signed(),
-            "the core holds {held} bytes after writing {}, so the cap bounds the \
-             bookkeeping and not the memory",
-            WRITES * CHUNK
-        );
-
-        // Charged to *this* thread, which is what § 3 means by charged to the
-        // core: the balance rises with the entry and stays risen with it.
-        let alone = budget::detached_bytes();
-        store_put(
-            b"charged-per-core",
-            vec![b'x'; LARGE],
-            Lifetime::Forever,
-            None,
-        );
-        assert!(
-            budget::detached_bytes() - alone >= LARGE.cast_signed(),
-            "the entry's bytes are live on the core that wrote it"
-        );
-
-        // And a second core pays for its own copy of the same key rather than
-        // sharing this one's — § 3's multiplication, as a measurement.
-        let elsewhere = std::thread::spawn(|| {
-            let fresh = budget::detached_bytes();
-            store_put(
-                b"charged-per-core",
-                vec![b'y'; LARGE],
-                Lifetime::Forever,
-                None,
-            );
-            budget::detached_bytes() - fresh
-        })
-        .join()
-        .expect("the second core's thread runs to completion");
-        assert!(
-            elsewhere >= LARGE.cast_signed(),
-            "eight cores hold eight copies, and each one is charged for its own"
-        );
-    }
-
-    /// The entry's bytes are the process's, and the request that happened to
-    /// make the write is measured as though it had not made it.
-    ///
-    /// `rule:concurrency/cache-memory-is-charged-to-the-core`'s *not
-    /// attributable to a request*, asked of the accounting rather than of the
-    /// cap: the balance every ceiling is armed against, and the reading a limit
-    /// handler reports, both end where they started. The payload is built
-    /// *after* those readings are taken and released by the store, so a bracket
-    /// that kept the caller's `Vec` instead of copying it would leave the
-    /// balance short by an entry and fail here.
-    #[test]
-    fn a_cache_write_is_charged_to_the_process_and_not_to_the_request() {
-        /// The charge one entry has to show through the noise.
-        const ENTRY: usize = 256 * 1024;
-
-        let ctx = Ctx::buffered();
-        let used = ctx.memory_used();
-        let live = budget::live_bytes();
-        let held = budget::detached_bytes();
-
-        store_put(
-            b"charged-to-the-process",
-            vec![b'p'; ENTRY],
-            Lifetime::Forever,
-            None,
-        );
-
-        assert!(
-            budget::detached_bytes() - held >= ENTRY.cast_signed(),
-            "the entry reached no balance at all, so nothing holds its bytes to the process"
-        );
-        assert_eq!(
-            budget::live_bytes(),
-            live,
-            "the entry was charged to the balance this request's ceiling is armed against"
-        );
-        assert_eq!(
-            ctx.memory_used(),
-            used,
-            "a cache write raised the reading this request's own limit handler reports"
-        );
-    }
-
     /// The attack the cap does not stop on its own: an entry one request wrote
     /// is freed by whichever later request's write evicts it, and a release
     /// credited to *that* request is a ceiling any program widens at will.
@@ -4166,11 +3925,16 @@ mod tests {
     fn an_eviction_from_a_later_request_lowers_no_ceiling() {
         /// One entry's payload.
         const ENTRY: usize = 128 * 1024;
-        /// Room in the tier for one of them and no more.
+        /// The entry an earlier request wrote.
         const KEY: &[u8] = b"inherited-from-an-earlier-request";
 
-        let room = Some(charged(KEY.len(), ENTRY));
-        store_put(KEY, vec![b'i'; ENTRY], Lifetime::Forever, room);
+        let _serial = TIER.lock().expect("the tier's cases run one at a time");
+
+        // Room in each shard for one of them and no more, and a second key in
+        // the first one's shard, so that writing it has to evict.
+        let room = Some(SHARDS * charged(KEY.len(), ENTRY));
+        let later = beside(KEY, "written-by-this-request");
+        memory_put(KEY, vec![b'i'; ENTRY], Lifetime::Forever, room);
 
         // The request that comes next, under a ceiling of its own.
         let mut ctx = Ctx::buffered();
@@ -4182,14 +3946,9 @@ mod tests {
         );
         let headroom = ceiling - budget::live_bytes();
 
-        store_put(
-            b"written-by-this-request",
-            vec![b'w'; ENTRY],
-            Lifetime::Forever,
-            room,
-        );
+        memory_put(&later, vec![b'w'; ENTRY], Lifetime::Forever, room);
         assert_eq!(
-            store_get(KEY),
+            memory_get(KEY),
             None,
             "the write forgot nothing, so no release happened to be credited"
         );
@@ -4203,52 +3962,6 @@ mod tests {
             budget::armed_ceiling() - budget::live_bytes(),
             headroom,
             "evicting what an earlier request stored bought this request headroom"
-        );
-    }
-
-    /// The bytes moved off the request's balance; the tier's own ceiling still
-    /// measures them.
-    ///
-    /// This is the half the bracket could quietly break, because what the cap
-    /// compares is [`Local::held`] — maintained from the lengths the store was
-    /// handed, never from an allocator counter — and a write that escaped it
-    /// would now be bytes the process holds and *nothing* bounds, where before
-    /// they were at least inside some request's ceiling. Both ends: the charge
-    /// arrives with the entry, and a sweep many times the cap never leaves the
-    /// tier over it.
-    #[test]
-    fn a_cache_entry_still_counts_against_the_local_tier_max_size() {
-        /// One entry's payload, small enough that the sweep writes many.
-        const ENTRY: usize = 4 * 1024;
-        /// The ceiling those writes are made under.
-        const CAP: usize = 64 * 1024;
-        /// How many of them, so that 32 × `CAP` is written in all.
-        const WRITES: usize = 512;
-        /// The one entry the charge is read off.
-        const KEY: &[u8] = b"counted-against-the-cap";
-
-        store_put(KEY, vec![b'c'; ENTRY], Lifetime::Forever, Some(CAP));
-        ENTRIES.with_borrow(|local| {
-            assert_eq!(
-                local.held,
-                charged(KEY.len(), ENTRY),
-                "the entry arrived without its charge, so the cap is measuring something else"
-            );
-        });
-
-        let mut over = 0;
-        for step in 0..WRITES {
-            store_put(
-                format!("swept-{step:04}").as_bytes(),
-                vec![b's'; ENTRY],
-                Lifetime::Forever,
-                Some(CAP),
-            );
-            over += usize::from(ENTRIES.with_borrow(|local| local.held) > CAP);
-        }
-        assert_eq!(
-            over, 0,
-            "{over} of {WRITES} writes left the tier over its cap"
         );
     }
 
@@ -4291,7 +4004,7 @@ mod tests {
             "[capabilities]\nnet.connect = true\n\n[cache.shared]\nurl = \"{url}\"\n"
         ));
 
-        let refused = open_configured(&ctx, MEMBER, ", or use `Core\\Cache::local()`")
+        let refused = open_configured(&ctx, MEMBER, ", or use `Core\\Cache::memory()`")
             .expect_err("`net.connect` is not the grant over a configured store");
         let Fault::Thrown(class, message) = refused else {
             panic!("a denied capability is catchable");
@@ -4381,7 +4094,7 @@ mod tests {
     /// `rule:core-classes/ratelimit-two-members`' coherent half and
     /// `rule:core-api/two-cache-tiers`' coherent tier reach the same store
     /// through [`open_configured`], so they declare one grant between them and
-    /// their per-core siblings declare none.
+    /// their in-process siblings declare none.
     ///
     /// Asserted as agreement rather than as two values: a limiter that grew a
     /// grant of its own would still read plausibly on its own row, and what
@@ -4407,11 +4120,11 @@ mod tests {
             Some(nvs_config::Cap::CacheShared)
         );
         assert_eq!(
-            asked(super::NAME, "local"),
+            asked(super::NAME, "memory"),
             asked(crate::ratelimit::NAME, "shed"),
-            "and the two per-core halves ask nothing, for the reason the rows state"
+            "and the two in-process halves ask nothing, for the reason the rows state"
         );
-        assert_eq!(asked(super::NAME, "local"), None);
+        assert_eq!(asked(super::NAME, "memory"), None);
     }
 
     /// One value has one home: a credential is `[cache.shared] password` and an
@@ -4682,8 +4395,9 @@ mod tests {
         const KEY: &[u8] = b"past-its-seal";
         let plain = sealed_plaintext(1_000, 1_000, b"hunter2");
 
-        store_put(&sealed_key(KEY), plain, Lifetime::Forever, None);
-        let held = store_get(&sealed_key(KEY)).expect("the tier was given no lifetime to run out");
+        let _serial = TIER.lock().expect("the tier's cases run one at a time");
+        memory_put(&sealed_key(KEY), plain, Lifetime::Forever, None);
+        let held = memory_get(&sealed_key(KEY)).expect("the tier was given no lifetime to run out");
 
         assert_eq!(
             sealed_value(&held, 999).map(|held| held.value),
@@ -4699,7 +4413,7 @@ mod tests {
             "and past it the store still holds the entry and still answers nothing"
         );
 
-        store_forget(&sealed_key(KEY));
+        memory_forget(&sealed_key(KEY));
 
         // A buffer too short to carry the two numbers ahead of the secret is
         // the same miss, which is what keeps a truncated payload from being

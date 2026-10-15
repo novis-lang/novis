@@ -524,9 +524,11 @@ pub fn resolve(
     // `never` read as the default would leave a host believing its code is pinned when every
     // change still reaches the next request.
     crate::cache::validate(&resolved.config, &origins)?;
-    // `rule:http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`, enforcing `rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent`: which store holds a session is the one directive whose
-    // wrong value never reports itself at run time — a per-core session store forgets people rather
-    // than failing — so the merged tree is the last moment anything can say so.
+    // `rule:http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot`, enforcing
+    // `rule:concurrency/the-memory-tier-cannot-hold-what-must-be-coherent`: which store holds a
+    // session is the one directive whose wrong value never reports itself at run time — a session
+    // store one process holds forgets people rather than failing — so the merged tree is the last
+    // moment anything can say so.
     crate::session::validate(&resolved.config, &origins)?;
     // `rule:config/a-unix-spelling-with-no-af-unix-transport-refuses-at-boot`, which is the session
     // check above answered the other way round: a Unix socket on a build with no `AF_UNIX` transport

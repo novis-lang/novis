@@ -95,14 +95,11 @@ fn reloadability_is_a_field_of_its_own_and_not_the_changeability_class() {
         "trace.sample",
         // The next request dials the new store, and the next fleet fire takes its lease there.
         "cache.shared.url",
-        // This one bounds a map in the core's own memory
-        // (`rule:concurrency/cache-memory-is-charged-to-the-core`), so a new ceiling is read by the next write.
-        "cache.local.max_size",
-        // The third tier's two, which are this class for the same reason doubled: what they bound
-        // is one map for the whole process rather than one per core
-        // (`rule:concurrency/the-process-tier-is-one-store-per-process`).
-        "cache.process.max_size",
-        "cache.process.fill_wait",
+        // The memory tier's two: what they bound is one map for the whole process
+        // (`rule:concurrency/the-memory-tier-is-one-store-per-process`), so a new ceiling is read by
+        // the next write and a new wait by the next fill.
+        "cache.memory.max_size",
+        "cache.memory.fill_wait",
         // `[server]`'s block row, beside its `Boot` keys: a request reads each of these out of the
         // snapshot it cloned.
         "server.dispatch",
@@ -276,12 +273,7 @@ const APPLY_PROOFS: &[(&str, &str, &str)] = &[
         "a_changed_shared_store_takes_the_next_request_and_the_next_fleet_lease",
     ),
     (
-        "cache.local",
-        LIVE,
-        "every_request_read_directive_takes_the_reloaded_value_in_the_next_request",
-    ),
-    (
-        "cache.process",
+        "cache.memory",
         LIVE,
         "every_request_read_directive_takes_the_reloaded_value_in_the_next_request",
     ),
@@ -746,76 +738,33 @@ fn every_grant_is_the_one_tightening_row_and_the_same_grant_under_an_app_block_i
     }
 }
 
-/// `rule:concurrency/cache-memory-is-charged-to-the-core`: the per-core tier's ceiling is the
-/// operator's, and a new one costs nothing to apply.
-///
-/// `System` because the memory the key bounds belongs to the core and not to any one request, so a
-/// request that raised it would be spending what every other request on that core then goes
-/// without. `Reload` because the ceiling is read by the next write and enforced by forgetting
-/// entries, which re-dials nothing and re-creates nothing.
-// covers: directive:cache.local
-#[test]
-fn the_local_tiers_ceiling_is_one_system_key_applied_at_reload() {
-    let keys = keys_in("cache.local");
-    assert_eq!(
-        keys.iter().map(String::as_str).collect::<Vec<_>>(),
-        ["max_size"],
-        "`[cache.local]` accepts {keys:?}, and the row covers whatever the block holds: a second \
-         key joins this census in the commit that adds it",
-    );
-
-    let row = governing("cache.local.max_size");
-    assert_eq!(
-        row.key, "cache.local",
-        "`cache.local.max_size` resolves through `{}` rather than through the tier's own row",
-        row.key,
-    );
-    assert_eq!(
-        row.class,
-        Class::System,
-        "the bytes this key bounds are the core's, so a request raising it spends what every \
-         other request on that core then goes without (`rule:concurrency/cache-memory-is-charged-to-the-core`)",
-    );
-    assert!(
-        !row.class.settable_by_a_request(),
-        "`Core\\Config::set(\"cache.local.max_size\", …)` has to refuse, which is what `System` \
-         means and the whole of what it means",
-    );
-    assert_eq!(
-        row.apply,
-        Apply::Reload,
-        "a new ceiling is read by the next write and enforced by forgetting entries \
-         (`rule:config/reloadability-is-its-own-field`)",
-    );
-}
-
-/// `rule:concurrency/the-process-tier-is-one-store-per-process`: both keys of the middle tier are
+/// `rule:concurrency/the-memory-tier-is-one-store-per-process`: both keys of the memory tier are
 /// the operator's, and both are read by the next caller rather than at boot.
 ///
-/// `max_size` is the row above's argument doubled — the map it bounds is held once for the whole
-/// process, so a request raising it spends what every request on the box then goes without — and
-/// `fill_wait` is how long a request on one core may be held waiting on a fetch another core
-/// started, which is not a bound its beneficiary may choose either.
+/// `max_size` bounds a map held once for the whole process, so a request raising it spends what
+/// every request on the box then goes without, and `fill_wait` is how long a request on one core
+/// may be held waiting on a fetch another core started, which is not a bound its beneficiary may
+/// choose either.
 ///
 /// The last assertion is the one that would fail first if the block were ever stated as a single
 /// `cache` row: there is none, so a tier nobody wrote a row for is ungoverned rather than
 /// silently inheriting a class. The registry states rules, not the list of legal keys —
-/// `deny_unknown_fields` is what refuses a fourth tier.
-// covers: directive:cache.process
+/// `deny_unknown_fields` is what refuses a third tier.
+// covers: directive:cache.memory
 #[test]
-fn both_process_tier_keys_are_system_at_reload_and_no_blanket_cache_row_answers_for_them() {
-    let keys = keys_in("cache.process");
+fn both_memory_tier_keys_are_system_at_reload_and_no_blanket_cache_row_answers_for_them() {
+    let keys = keys_in("cache.memory");
     assert_eq!(
         keys.iter().map(String::as_str).collect::<Vec<_>>(),
         ["max_size", "fill_wait"],
-        "`[cache.process]` accepts {keys:?}: a key added to the block joins this census in the \
+        "`[cache.memory]` accepts {keys:?}: a key added to the block joins this census in the \
          commit that adds it, because the one row is what governs all of them",
     );
 
-    for key in ["cache.process.max_size", "cache.process.fill_wait"] {
+    for key in ["cache.memory.max_size", "cache.memory.fill_wait"] {
         let row = governing(key);
         assert_eq!(
-            row.key, "cache.process",
+            row.key, "cache.memory",
             "`{key}` resolves through `{}` rather than through the tier's own row",
             row.key,
         );
@@ -823,7 +772,7 @@ fn both_process_tier_keys_are_system_at_reload_and_no_blanket_cache_row_answers_
             row.class,
             Class::System,
             "`{key}` bounds what one process spends on behalf of every request on it, which is \
-             not a request's call (`rule:concurrency/the-process-tier-is-one-store-per-process`)",
+             not a request's call (`rule:concurrency/the-memory-tier-is-one-store-per-process`)",
         );
         assert!(
             !row.class.settable_by_a_request(),
@@ -840,10 +789,10 @@ fn both_process_tier_keys_are_system_at_reload_and_no_blanket_cache_row_answers_
     }
 
     assert_eq!(
-        governing("cache.local.max_size").key,
-        "cache.local",
-        "the two tiers are two rows: one answering for both would be a single figure for a map \
-         held once per process and a map held once per core",
+        governing("cache.shared.url").key,
+        "cache.shared",
+        "the two tiers are two rows: one answering for both would be a single class for a map \
+         this process holds and a store a fleet dials",
     );
     assert!(
         lookup("cache").is_none() && lookup("cache.nvs_no_such_tier.max_size").is_none(),

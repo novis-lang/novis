@@ -25,7 +25,7 @@
 //! That is also why the row in `registry::CAPABILITIES` is `None`. Asking what
 //! is granted performs no effect, resolves no name and opens no file, so
 //! `rule:security/capability-check-at-the-door` has no door to put a check at —
-//! `Core\Cache::local`'s row one class over is the same declaration for the
+//! `Core\Cache::memory`'s row one class over is the same declaration for the
 //! same reason.
 //!
 //! # What "at this point in the request" currently means

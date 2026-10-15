@@ -220,7 +220,7 @@ internal = ["127.0.0.1"]
 # That the store is on the loopback costs this block nothing — neither the `net.connect` the block
 # above needs for a name nor the `net.internal` it needs for an address in a range
 # `rule:security/net-address-policy` denies, because neither question is asked of an endpoint an
-# operator wrote. Nothing here mentions `Core\Cache::local()`, which needs no capability at all
+# operator wrote. Nothing here mentions `Core\Cache::memory()`, which needs no capability at all
 # (`rule:core-api/two-cache-tiers`) — the fixture's first two lines run under this
 # block having said nothing about them, and its last two are
 # `Core\RateLimit::consume` opening the same store through the same grant.
@@ -2890,18 +2890,15 @@ memory = "512M"
 handler_reserve_memory = "16M"
 handler_reserve_time = "5s"
 
-# The other two tiers' blocks, written at exactly the figures `nvs_stdlib::cache`
-# ships — 32 MiB a tier and a five-second fill wait — so this repository behaves
-# the same with them as it did without them. They are here to be *read*:
-# `docs/examples/config/cache-local/` and `docs/examples/config/cache-process/`
-# are the website's pages for these two directives, and a page whose example
-# prints `(unset)` teaches nothing about a key an operator is about to write.
-# Changing either figure changes those programs' frozen output, which is the
-# point — a value written down is a value a reader can see arriving.
-[cache.local]
-max_size = "32M"
-
-[cache.process]
+# The memory tier's block, written at exactly the figures `nvs_stdlib::cache`
+# ships — 32 MiB and a five-second fill wait — so this repository behaves the same
+# with it as it would without it. It is here to be *read*:
+# `docs/examples/config/cache-memory/` is the website's page for this directive,
+# and a page whose example prints `(unset)` teaches nothing about a key an
+# operator is about to write. Changing either figure changes that program's frozen
+# output, which is the point — a value written down is a value a reader can see
+# arriving.
+[cache.memory]
 max_size = "32M"
 fill_wait = "5s"
 

@@ -2802,24 +2802,18 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
         "shared",
         Some(nvs_config::Cap::CacheShared),
     ),
-    // And the tiers that stay in the process declare `None`, which is the
+    // And the tier that stays in the process declares `None`, which is the
     // asymmetry these rows exist to state: a tier that leaves the process has a
-    // door, and one that cannot has nothing to put a door on. `rule:core-api/two-cache-tiers` decided this before the
-    // member was written — the local tier is a `HashMap` in the calling core's
-    // own thread, so nothing leaves the process, no name is resolved and no file
-    // is opened, and `rule:security/capability-question-is-grant-and-scope` has no door to check at. What is left to bound
-    // is footprint, which `rule:concurrency/cache-memory-is-charged-to-the-core`'s `nvs.toml` cap bounds and a boolean
-    // grant would not: a grant would price caching anything as an authority
-    // question every deployment then has to answer, and still not bound a byte.
-    (crate::cache::NAME, "local", None),
-    // The process tier is the same answer one step further out: one map every
-    // core of the serving process shares
-    // (`rule:concurrency/the-process-tier-is-one-store-per-process`), which is
-    // still no door, because the bytes reach no other process and no name is
-    // resolved to put them there. What bounds it is `[cache.process] max_size`,
-    // for the reason the row above gives and with the same arithmetic — held once
-    // per process rather than once per core.
-    (crate::cache::NAME, "process", None),
+    // door, and one that cannot has nothing to put a door on. The memory tier is
+    // one map every core of the serving process shares
+    // (`rule:concurrency/the-memory-tier-is-one-store-per-process`), so nothing
+    // leaves the process, no name is resolved and no file is opened, and
+    // `rule:security/capability-question-is-grant-and-scope` has no door to check
+    // at. What is left to bound is footprint, which `[cache.memory] max_size`
+    // bounds and a boolean grant would not: a grant would price caching anything
+    // as an authority question every deployment then has to answer, and still
+    // not bound a byte.
+    (crate::cache::NAME, "memory", None),
     // `rule:core-classes/ratelimit-two-members` and `rule:core-classes/ratelimit-unreachable-store-throws` write `Core\RateLimit::consume` standing alone, so it
     // is its own door onto the same store rather than something that has to
     // follow a `Core\Cache::shared()`: it reads the same directive, asks for the
@@ -2833,11 +2827,11 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
         Some(nvs_config::Cap::CacheShared),
     ),
     // `rule:core-classes/ratelimit-two-members`'s other member, and the same asymmetry one class over:
-    // `shed`'s state is the calling core's own memory, so it is `Core\Cache`'s
-    // local tier by construction — the row above it is `cache.shared` because a
-    // coherent limiter is a store on the network, and this one is `None`
-    // because an approximate one is a map in this thread. It is bounded by the
-    // same cap for the same reason, since it is the same store.
+    // `shed`'s state is the serving process's own memory, so it is
+    // `Core\Cache`'s memory tier by construction — the row above it is
+    // `cache.shared` because a coherent limiter is a store on the network, and
+    // this one is `None` because an approximate one is a map in this process. It
+    // is bounded by the same cap for the same reason, since it is the same store.
     (crate::ratelimit::NAME, "shed", None),
     // `rule:errors/log-write`'s writer, and the third `None` here — declared rather than
     // left off because "writing a log" is exactly the kind of effect a reader
@@ -2854,7 +2848,7 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
     // subject is capabilities is the one that needs none. It reads the table a
     // door would read and answers a `bool` — no name is resolved, no file is
     // opened and nothing leaves the process, so `rule:security/capability-question-is-grant-and-scope` has no door to put
-    // a check at, exactly as `Core\Cache::local` two rows up. Requiring a grant
+    // a check at, exactly as `Core\Cache::memory` above. Requiring a grant
     // to ask about grants would also close the shape § 6 opened: a package that
     // declared `fs.write` optional would need a second capability before it
     // could find out whether it had the first.

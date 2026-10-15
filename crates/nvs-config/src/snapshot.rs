@@ -89,7 +89,7 @@ pub struct Snapshot {
     /// This snapshot's number: unique in this process, never reused, and 0 for one no boot built.
     ///
     /// A generation needs an identity that a store outliving it can hold, and its address is not
-    /// one — `nvs_stdlib::cache`'s process tier keys an entry on the generation it was written
+    /// one — `nvs_stdlib::cache`'s memory tier keys an entry on the generation it was written
     /// under, and a later snapshot allocated where a dropped one sat would read the entries the
     /// first had written. [`Snapshot::build`] takes the next number; a clone carries the same one,
     /// because a copy of a tree *is* that configuration.

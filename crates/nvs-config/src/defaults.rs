@@ -212,11 +212,10 @@ pub const MAIL_PORT: u16 = 25;
 /// `[mail.<name>] timeout`.
 pub const MAIL_TIMEOUT: Duration = Duration::from_secs(30);
 
-/// `[cache.local] max_size` and `[cache.process] max_size`. **What it spends:** up to this much per
-/// core for the local tier, and once per process for the process tier.
+/// `[cache.memory] max_size`. **What it spends:** up to this much once per serving process.
 pub const CACHE_MAX_SIZE: usize = 32 << 20;
-/// `[cache.process] fill_wait`.
-pub const CACHE_PROCESS_FILL_WAIT: Duration = Duration::from_secs(5);
+/// `[cache.memory] fill_wait`.
+pub const CACHE_MEMORY_FILL_WAIT: Duration = Duration::from_secs(5);
 /// `[cache.shared] timeout`.
 pub const CACHE_SHARED_TIMEOUT: Duration = Duration::from_secs(5);
 
@@ -468,9 +467,8 @@ pub const DEFAULTS: &[Builtin] = &[
     row!("ldap.<name>.pool.acquire", Scope::Named, Value::Time(DB_POOL_ACQUIRE)),
     row!("mail.<name>.port", Scope::Named, Value::Count(MAIL_PORT as u64)),
     row!("mail.<name>.timeout", Scope::Named, Value::Time(MAIL_TIMEOUT)),
-    row!("cache.local.max_size", Value::Size(CACHE_MAX_SIZE as u64)),
-    row!("cache.process.max_size", Value::Size(CACHE_MAX_SIZE as u64)),
-    row!("cache.process.fill_wait", Value::Time(CACHE_PROCESS_FILL_WAIT)),
+    row!("cache.memory.max_size", Value::Size(CACHE_MAX_SIZE as u64)),
+    row!("cache.memory.fill_wait", Value::Time(CACHE_MEMORY_FILL_WAIT)),
     row!("cache.shared.timeout", Scope::Written("cache.shared"), Value::Time(CACHE_SHARED_TIMEOUT)),
     row!("queue.workers", Value::Count(QUEUE_WORKERS as u64)),
     row!("queue.max_attempts", Value::Count(QUEUE_MAX_ATTEMPTS as u64)),

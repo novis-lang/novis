@@ -14,7 +14,7 @@
 //! because [`validate`] returns and [`advise`] does not — the difference `resolve`'s two call sites
 //! are written around.
 //!
-//! The third is about a tier that dials nothing and lands here for the same reason: `[cache.process]
+//! The third is about a tier that dials nothing and lands here for the same reason: `[cache.memory]
 //! fill_wait` bounds how long a caller waits for the one filler in this process
 //! (`rule:concurrency/a-secret-fill-runs-once-per-process`), and a wait of nothing or an unbounded
 //! one is [`E0642`](nvs_diagnostics::code::E_FILL_WAIT_NOT_A_WAIT). A value that is not a duration at
@@ -26,7 +26,7 @@
 //! second thing that module does. **Here rather than in [`mod@crate::cache`]**, which holds the
 //! unit-key formula and reads no `Config` at all. What this module is for is the `[cache]` block as
 //! a *boot* reads it — which store an operator named, whether anything may reach it, and what the
-//! process tier's own key says — so the next question about that block lands here too.
+//! memory tier's own key says — so the next question about that block lands here too.
 //!
 //! Cost: a few `Option` reads over the merged tree and at most one duration parse, at boot, and
 //! nothing per request.
@@ -68,12 +68,12 @@ fn configured(config: &Config) -> Option<&str> {
 ///
 /// Asked of the merged tree for [`advise`]'s reason. The address question is answered first: a tree
 /// that names a store this binary cannot open describes a deployment that would run believing it
-/// has a coherent tier, and the process tier's own key is a smaller wrong than that.
+/// has a coherent tier, and the memory tier's own key is a smaller wrong than that.
 ///
 /// # Errors
 ///
 /// `E0635` for a `[cache.shared] url` this build has no transport for, then `E0601` for a
-/// `[cache.process] fill_wait` that is not a duration and `E0642` for one that is not a wait.
+/// `[cache.memory] fill_wait` that is not a duration and `E0642` for one that is not a wait.
 pub fn validate(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(), Diagnostic> {
     unix_transport(config, origins)?;
     fill_wait(config, origins)
@@ -119,7 +119,7 @@ fn unix_transport(config: &Config, origins: &BTreeMap<String, Origin>) -> Result
     ))
 }
 
-/// The refusal a `[cache.process] fill_wait` earns by not being a wait at all.
+/// The refusal a `[cache.memory] fill_wait` earns by not being a wait at all.
 ///
 /// What is checked is the quantity and not the text, so every spelling of nothing is one refusal;
 /// reading it through [`Quantity`] is also what keeps this key's suffixes the same as every other
@@ -135,13 +135,13 @@ fn fill_wait(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(), 
     let Some(written) = config
         .cache
         .as_ref()
-        .and_then(|cache| cache.process.as_ref())
-        .and_then(|process| process.fill_wait.as_deref())
+        .and_then(|cache| cache.memory.as_ref())
+        .and_then(|memory| memory.fill_wait.as_deref())
     else {
         return Ok(());
     };
 
-    let key = "cache.process.fill_wait";
+    let key = "cache.memory.fill_wait";
     let wait = Quantity::parse(key, Unit::Duration, &Setting::Text(written.to_owned()))
         .map_err(|invalid| invalid.diagnostic(origins.get(key)))?;
     let complaint = match wait {
@@ -152,7 +152,7 @@ fn fill_wait(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(), 
 
     Err(Diagnostic::error(
         code::E_FILL_WAIT_NOT_A_WAIT,
-        format!("`[cache.process] fill_wait = \"{written}\"`, and {complaint}"),
+        format!("`[cache.memory] fill_wait = \"{written}\"`, and {complaint}"),
     )
     .with_note(format!(
         "`rule:concurrency/a-secret-fill-runs-once-per-process`: one caller in this process runs a \
@@ -231,7 +231,7 @@ mod tests {
     use nvs_diagnostics::code;
 
     use super::{advise, validate};
-    use crate::tree::{App, CacheProcess, CacheShared, CapCache, Capabilities, Config, Setting};
+    use crate::tree::{App, CacheMemory, CacheShared, CapCache, Capabilities, Config, Setting};
 
     /// A tree whose `[cache.shared]` block names `url`, granted or not.
     fn wrote(url: Option<&str>, grant: Option<Setting>) -> Config {
@@ -253,13 +253,13 @@ mod tests {
         }
     }
 
-    /// A tree whose `[cache.process]` block writes `fill_wait`, and nothing else.
+    /// A tree whose `[cache.memory]` block writes `fill_wait`, and nothing else.
     fn waits(written: &str) -> Config {
         Config {
             cache: Some(crate::tree::Cache {
-                process: Some(CacheProcess {
+                memory: Some(CacheMemory {
                     fill_wait: Some(written.to_owned()),
-                    ..CacheProcess::default()
+                    ..CacheMemory::default()
                 }),
                 ..crate::tree::Cache::default()
             }),
@@ -308,7 +308,7 @@ mod tests {
         }
         assert!(
             validate(&Config::default(), &origins).is_ok(),
-            "a tree that wrote no `[cache.process]` block takes the shipped wait"
+            "a tree that wrote no `[cache.memory]` block takes the shipped wait"
         );
     }
 

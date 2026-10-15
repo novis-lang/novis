@@ -105,7 +105,7 @@ const lineAt = (text: string, offset: number) => text.slice(0, offset).split("\n
 const TUPLE_ROW_RE = /^\s*\((?:r"([^"]+)"|"((?:[^"\\]|\\.)+)"),/gm;
 /** `pub const FINISH_MARKER: &str = "Core\\Script\\Finished";`, an exception declared beside the tree. */
 const CONST_ROW_RE = /const\s+[A-Za-z_][A-Za-z0-9_]*\s*:\s*&str\s*=\s*(?:r"([^"]+)"|"((?:[^"\\]|\\.)+)")\s*;/g;
-/** `Directive { key: "cache.local", ... }` in `nvs_config::DIRECTIVES`. */
+/** `Directive { key: "cache.memory", ... }` in `nvs_config::DIRECTIVES`. */
 const DIRECTIVE_ROW_RE = /Directive\s*\{\s*key:\s*"([^"]+)"/g;
 /** A `CoreEnum` literal, named inline or through a name const. */
 const ENUM_RE = /CoreEnum\s*\{\s*name:\s*(?:r"([^"]+)"|([A-Za-z_][A-Za-z0-9_]*))/g;

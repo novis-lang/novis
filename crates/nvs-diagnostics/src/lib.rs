@@ -2564,23 +2564,22 @@ pub mod code {
 
     /// `[session] backend` names a store a session may not live in.
     ///
-    /// `rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent` removed both weak cache tiers from the candidates and said
-    /// the removal is "enforced rather than documented"; this code is that
-    /// enforcement, and `rule:http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot` is where the roster it checks against is
-    /// written. A session read on one core and written on another must see one
-    /// value, and neither weak tier can give one — so a deployment that wrote
-    /// `local` has an authentication surface that forgets people at a rate set
-    /// by which core accepted the request, and one that wrote `process` has the
-    /// same surface at the distance that tier reaches: it holds until the
-    /// deployment runs a second process, or until this one restarts.
+    /// `rule:concurrency/the-memory-tier-cannot-hold-what-must-be-coherent` removed the memory
+    /// cache tier from the candidates and said the removal is "enforced rather than documented";
+    /// this code is that enforcement, and
+    /// `rule:http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot` is where the
+    /// roster it checks against is written. A session read by one process and written by another
+    /// must see one value, and the memory tier cannot give one — so a deployment that wrote
+    /// `memory` has an authentication surface that holds until the deployment runs a second
+    /// process, or until this one restarts.
     ///
     /// Refused where the key is written rather than where a session is started,
     /// for `E0613`'s reason applied to a worse failure: a session that vanishes
     /// looks like a user signing themselves out, so nothing in the running
     /// system ever reports it.
     pub const E_SESSION_BACKEND: Code = Code::new("E0626").card(
-        "`[session] backend` must be `\"shared\"` or `\"db\"`. `\"local\"` and `\"process\"` are not \
-         allowed, because every core and every process must see the same session.",
+        "`[session] backend` must be `\"shared\"` or `\"db\"`. `\"memory\"` is not allowed, because \
+         every server process must see the same session.",
     );
 
     /// `[metrics] exporter` or `[trace] exporter` names no exporter that block
@@ -2817,7 +2816,7 @@ pub mod code {
          contains no certificate, or the `keylog` file cannot be opened. The message names the file.",
     );
 
-    /// A `[cache.process] fill_wait` that is not a wait — `0`, or `false`.
+    /// A `[cache.memory] fill_wait` that is not a wait — `0`, or `false`.
     ///
     /// `rule:concurrency/a-secret-fill-runs-once-per-process`
     /// : on a miss exactly one caller in the process runs the fill while
@@ -2832,7 +2831,7 @@ pub mod code {
     /// that decision is visible in review; an operator who wants a longer
     /// one raises this key.
     pub const E_FILL_WAIT_NOT_A_WAIT: Code = Code::new("E0642").card(
-        "`[cache.process] fill_wait` must be a length of time above zero, such as `\"5s\"`. `0` and \
+        "`[cache.memory] fill_wait` must be a length of time above zero, such as `\"5s\"`. `0` and \
          `false` are not allowed.",
     );
 

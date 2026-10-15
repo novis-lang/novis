@@ -128,7 +128,7 @@ pub struct Config {
     pub cache: Option<Cache>,
     /// `[opcache]` — revalidation and the file cache (`rule:config/an-edit-reaches-the-next-request-without-a-restart`, `rule:config/opcache-file-cache-directives-are-system`).
     pub opcache: Option<Opcache>,
-    /// `[session]` — where `Core\Session`'s records live, and how long one survives (`rule:http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`).
+    /// `[session]` — where `Core\Session`'s records live, and how long one survives (`rule:http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot`).
     pub session: Option<Session>,
 }
 
@@ -1366,13 +1366,10 @@ pub struct Mount {
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct Cache {
-    /// `[cache.local]` — `rule:concurrency/cache-memory-is-charged-to-the-core`'s bound on the per-core tier, for the reason `shared` below
-    /// sits here: `Core\Cache` is one class, and its two tiers are looked for under its own name.
-    pub local: Option<CacheLocal>,
-    /// `[cache.process]` — `rule:concurrency/the-process-tier-is-one-store-per-process`'s tier between the other two, one map
-    /// every core of this process reads. It sits here for the reason `local` above does: `Core\Cache`
-    /// is one class, and every tier of it is looked for under that name.
-    pub process: Option<CacheProcess>,
+    /// `[cache.memory]` — `rule:concurrency/the-memory-tier-is-one-store-per-process`'s tier, one
+    /// map every core of this process reads. It sits here for the reason `shared` below does:
+    /// `Core\Cache` is one class, and both of its tiers are looked for under its own name.
+    pub memory: Option<CacheMemory>,
     /// `[cache.shared]` — `rule:core-api/two-cache-tiers`'s coherent tier, a *store* a fleet dials rather than a map
     /// in this core's memory. It sits here rather than in a block of its own because `Core\Cache` is
     /// one class and an operator looking for where its entries live looks under its own name;
@@ -1380,41 +1377,23 @@ pub struct Cache {
     pub shared: Option<CacheShared>,
 }
 
-/// `[cache.local]` — what bounds the tier `Core\Cache::local()` hands back.
-///
-/// One key, because `rule:concurrency/cache-memory-is-charged-to-the-core` leaves exactly one thing to configure about a store that is a map
-/// in the calling core's own memory: it has no address, no credential and no timeout, and § 1 gives
-/// it no coherence to tune. What it has is a footprint, charged to the core rather than to any
-/// request, which is why the key is `System`-class per `crate::directive`'s `cache.local` row.
-#[derive(Clone, Debug, Default, Deserialize, PartialEq)]
-#[serde(default, deny_unknown_fields)]
-pub struct CacheLocal {
-    /// What this core's entries may hold together — `32M`, or `false` for no ceiling at all.
-    /// Omitted, the cap `nvs_stdlib::cache` ships, which is that module's to state because it is
-    /// the one thing that enforces it. Exceeding this **forgets** entries rather than failing a
-    /// write (§ 3), so it is never a reason a `put` throws.
-    pub max_size: Option<Setting>,
-}
-
-/// `[cache.process]` — what bounds the tier `Core\Cache::process()` hands back, and how long a
+/// `[cache.memory]` — what bounds the tier `Core\Cache::memory()` hands back, and how long a
 /// caller waits on another's fill.
 ///
 /// Two keys, and both are facts about the process rather than about a request: the memory one map
 /// holds is spent by every request on the box, and the time one core's request may block on
 /// another's fetch is not a bargain a single request strikes on everyone's behalf. Both are
-/// `System`-class and `Reload`-apply per `crate::directive`'s `cache.process` row. There is no
+/// `System`-class and `Reload`-apply per `crate::directive`'s `cache.memory` row. There is no
 /// shard count here and no capability: the first is a fixed constant of the map
-/// (`rule:concurrency/the-process-tier-is-one-store-per-process`) and the second has nothing to
+/// (`rule:concurrency/the-memory-tier-is-one-store-per-process`) and the second has nothing to
 /// gate, because this tier has no door onto an effect.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
-pub struct CacheProcess {
+pub struct CacheMemory {
     /// What this process's entries may hold together — `32M`, or `false` for no ceiling at all.
     /// Omitted, the cap `nvs_stdlib::cache` ships, which is that module's to state because it is
-    /// the one thing that enforces it; it is the same figure the local tier ships, and the same
-    /// number here means *less* memory rather than more, because this map is held once per process
-    /// where that one is held once per core. Exceeding it forgets the entry written longest ago
-    /// rather than failing a write, so it is never a reason a `put` throws.
+    /// the one thing that enforces it. Exceeding it forgets the entry written longest ago rather
+    /// than failing a write, so it is never a reason a `put` throws.
     pub max_size: Option<Setting>,
     /// How long a caller waits for the one filler in this process before it throws `TimeoutError`
     /// (`rule:concurrency/a-secret-fill-runs-once-per-process`), and the default a `getSecret` that
@@ -1444,7 +1423,7 @@ pub struct CacheShared {
     /// (`rule:config/unix-scheme-in-a-url-and-a-bare-path-in-a-host`, and [`crate::store::validate`]
     /// for the platform that has no transport for one). Absent, there is no shared tier and
     /// `Core\Cache::shared()` throws saying so rather than answering a store that would behave like
-    /// the local one.
+    /// the memory one.
     pub url: Option<String>,
     /// The credential the store is behind, sent as `AUTH` ahead of any command on every connection
     /// a core opens — `nvs_stdlib::cache`'s `Dial` is where the whole of it is applied, including
@@ -1468,7 +1447,7 @@ pub struct CacheShared {
 }
 
 /// `[session]` — where a `Core\Session` record lives, what it is called on the way back, and how
-/// long an untouched one survives (`rule:http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`).
+/// long an untouched one survives (`rule:http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot`).
 ///
 /// Every key here is `System`/`Boot` per `crate::directive`'s `session` row: where a
 /// fleet's sessions live is a deployment decision, and moving it while requests are in flight would
@@ -1480,8 +1459,9 @@ pub struct CacheShared {
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct Session {
-    /// `shared` or `db`. Neither weak cache tier is spellable here and writing one is `E0626` —
-    /// `crate::session::Backend` is the roster and `rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent` is the reason.
+    /// `shared` or `db`. The memory cache tier is not spellable here and writing it is `E0626` —
+    /// `crate::session::Backend` is the roster and
+    /// `rule:concurrency/the-memory-tier-cannot-hold-what-must-be-coherent` is the reason.
     pub backend: Option<String>,
     /// How long an untouched record survives, written onto the entry so the store expires it.
     /// Omitted, the two hours `nvs_stdlib::session` ships, which is that module's to state because

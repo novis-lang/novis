@@ -276,15 +276,15 @@ pub use instance::class_has_instances;
 /// read from outside this crate.
 pub use instance::core_class_desc;
 
-/// `Core\Cache::process()`'s tier, created before the cores that will share it —
+/// `Core\Cache::memory()`'s tier, created before the cores that will share it —
 /// `nvs serve` calls this as its fleet starts. The function's own doc owns why a
 /// tier that no caller armed is still correct.
-pub use cache::arm_process_tier;
+pub use cache::arm_memory_tier;
 
 /// `rule:config/a-fleet-entry-fires-at-most-once-under-a-lease`'s lease over the
 /// shared tier, which `nvs serve` is the only caller of — its own doc owns why
 /// the ticker cannot reach this store itself. Re-exported rather than moved, for
-/// [`arm_process_tier`]'s reason: it is two commands on a connection this crate
+/// [`arm_memory_tier`]'s reason: it is two commands on a connection this crate
 /// owns, and it belongs beside that connection.
 pub use cache::Lease;
 

@@ -1,20 +1,21 @@
-//! `rule:http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`'s
+//! `rule:http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot`'s
 //! `[session] backend`: the stores a session record may live in, and the boot-time refusal of the
-//! two `rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent` removed.
+//! memory tier `rule:concurrency/the-memory-tier-cannot-hold-what-must-be-coherent` removes.
 //!
 //! **This module is what "enforced rather than documented" means.**
-//! `rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent` says
-//! `Core\Session`'s configurable backends do not include the local tier, which is a claim about a
+//! `rule:concurrency/the-memory-tier-cannot-hold-what-must-be-coherent` says
+//! `Core\Session`'s configurable backends do not include the memory tier, which is a claim about a
 //! roster — and a roster that exists only in prose excludes nothing. [`Backend`] is the roster;
 //! [`Backend::of`] is the one place a written word becomes one; [`validate`] is the refusal. A
 //! spelling admitted anywhere else would be a second roster, and the shape of that failure is a
-//! deployment whose sessions are per-core while its configuration says they are not.
+//! deployment whose sessions live in one process while its configuration says they do not.
 //!
 //! **Refused where it is written, never where it is used**, which is [`crate::log`]'s rule applied
-//! to a worse failure. A session on a per-core store does not error: it forgets people, at a rate
-//! set by which core happened to accept the request, and every symptom of it looks like a user
-//! signing themselves out. There is no moment at run time when that is reportable, so boot — where
-//! an operator is reading output and holding the file — is the only place the sentence lands.
+//! to a worse failure. A session in one process's memory does not error: it forgets people, at a
+//! rate set by which process happened to accept the request and when it last restarted, and every
+//! symptom of it looks like a user signing themselves out. There is no moment at run time when that
+//! is reportable, so boot — where an operator is reading output and holding the file — is the only
+//! place the sentence lands.
 //!
 //! Cost: one match over a short string per `[session]` block in the merged tree, at boot, and
 //! nothing at all per request.
@@ -26,15 +27,15 @@ use nvs_diagnostics::{Diagnostic, code};
 use crate::resolve::{Origin, origin_note};
 use crate::tree::Config;
 
-/// One of `rule:http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`'s stores, as written.
+/// One of `rule:http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot`'s stores, as written.
 ///
-/// The type carries a variant for neither weak tier and must not gain one: what makes
-/// `rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent` enforced is that there is no
-/// value of this type meaning the per-core or the per-process map, so no later reader can select
-/// one however carelessly it matches. A backend added here is another store that answers
+/// The type carries no variant for the memory tier and must not gain one: what makes
+/// `rule:concurrency/the-memory-tier-cannot-hold-what-must-be-coherent` enforced is that there is
+/// no value of this type meaning the process's map, so no later reader can select it however
+/// carelessly it matches. A backend added here is another store that answers
 /// `rule:http-server/a-session-store-answers-four-operations`'s
-/// operations, and neither weak tier can answer them — `load` where nothing wrote is the question
-/// they get wrong, on the core that never wrote for one and in the next process for the other.
+/// operations, and the memory tier cannot answer them — `load` where nothing wrote is the question
+/// it gets wrong, in the next process a deployment scales to and in this one after a restart.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Backend {
     /// `shared` — `rule:core-api/two-cache-tiers`'s coherent tier, reached at `[cache.shared] url`. One store per
@@ -47,17 +48,17 @@ pub enum Backend {
     Db,
 }
 
-/// Every backend `rule:http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`
+/// Every backend `rule:http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot`
 /// admits, in the order it lists them.
 ///
 /// Public because the refusal's own help text is built from it and because the roster is the thing
-/// asserted — a test that reads this constant fails when a `Local` is added, where a test that
+/// asserted — a test that reads this constant fails when a `Memory` is added, where a test that
 /// spelled the words itself would keep passing beside it.
 pub const BACKENDS: &[(&str, Backend)] = &[("shared", Backend::Shared), ("db", Backend::Db)];
 
 impl Backend {
-    /// What `written` names, or `None` for a word the roster does not spell — `local` included, which is
-    /// the whole point and is why this answers `None` rather than an error of its own.
+    /// What `written` names, or `None` for a word the roster does not spell — `memory` included,
+    /// which is the whole point and is why this answers `None` rather than an error of its own.
     #[must_use]
     pub fn of(written: &str) -> Option<Self> {
         BACKENDS
@@ -67,37 +68,27 @@ impl Backend {
     }
 }
 
-/// The words the refusal below exists for, each with how far its incoherence reaches.
-///
-/// `Core\Cache`'s own tier names, deliberately: an operator writes one here because that is what
-/// the tier is called, so the refusal has to recognise it in order to say anything better than
-/// "unknown value". Both are refused by one sentence and differ only in the clause they complete,
-/// which is `rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent`'s shape: they are
-/// one failure at two distances.
-const REFUSED: &[(&str, &str)] = &[
-    (
-        "local",
-        "per-core — a session kept there is forgotten at a rate set by which core accepted the \
-         request",
-    ),
-    (
-        "process",
-        "coherent no further than one process — a session kept there is forgotten by the second \
-         process a deployment scales to, and by this one the next time it restarts",
-    ),
-];
+/// The word the refusal below exists for: `Core\Cache`'s own name for the memory tier,
+/// deliberately. An operator writes it here because that is what the tier is called, so the refusal
+/// has to recognise it in order to say anything better than "unknown value".
+const REFUSED: &str = "memory";
 
-/// `rule:http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot` over the merged tree: every `[session] backend` names a store that rule admits.
+/// What the refusal of [`REFUSED`] says, in the words an operator reads at boot.
+const REFUSED_NOTE: &str = "The `memory` cache is kept inside one server process. A request that \
+                            another server process handles does not find the session, and a \
+                            restart deletes every session.";
+
+/// `rule:http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot` over the merged
+/// tree: every `[session] backend` names a store that rule admits.
 ///
 /// The merged tree rather than each file, for [`crate::http::validate`]'s reason — a base file
-/// naming `local` that an include replaces is not a deployment running on `local`, and refusing it
-/// per file would refuse a correction that had already been made.
+/// naming `memory` that an include replaces is not a deployment running on `memory`, and refusing
+/// it per file would refuse a correction that had already been made.
 ///
 /// # Errors
 ///
-/// `E0626` for either weak tier, naming `rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent`, how far that tier's incoherence
-/// reaches and the file the key was written in; the same code with a plainer note for a word that
-/// names nothing at all.
+/// `E0626` for the memory tier, with a note saying how far that tier reaches and the file the key
+/// was written in; the same code with a plainer note for a word that names nothing at all.
 pub fn validate(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(), Diagnostic> {
     let Some(session) = config.session.as_ref() else {
         return Ok(());
@@ -114,16 +105,10 @@ pub fn validate(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(
         .map(|(word, _)| format!("`\"{word}\"`"))
         .collect::<Vec<_>>()
         .join(" or ");
-    let note = if let Some((_, reach)) = REFUSED.iter().find(|(word, _)| *word == written) {
-        format!(
-            "`rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent`: a session read \
-             on one core and written on another must see one value, and the {written} tier is \
-             {reach}, which is an authentication bug wearing a cache's clothes"
-        )
+    let note = if written == REFUSED {
+        REFUSED_NOTE.to_owned()
     } else {
-        format!(
-            "`rule:http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot` admits {spellings}, and nothing else"
-        )
+        format!("A session store is {spellings}.")
     };
     Err(Diagnostic::error(
         code::E_SESSION_BACKEND,
@@ -142,7 +127,7 @@ mod tests {
 
     use nvs_diagnostics::code;
 
-    use super::{BACKENDS, Backend, REFUSED, validate};
+    use super::{BACKENDS, Backend, REFUSED, REFUSED_NOTE, validate};
     use crate::tree::{Config, Session};
 
     /// A tree whose `[session]` block writes `backend`, and nothing else.
@@ -156,52 +141,47 @@ mod tests {
         }
     }
 
-    /// `rule:http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`, both sides of the roster: the words it admits resolve, and the
-    /// weak tiers `rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent` removes are refused with their own reason named rather
-    /// than with a generic unknown-value message an operator learns nothing from.
+    /// `rule:http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot`, both sides
+    /// of the roster: the words it admits resolve, and the memory tier
+    /// `rule:concurrency/the-memory-tier-cannot-hold-what-must-be-coherent` removes is refused with
+    /// its own reason rather than with a generic unknown-value message an operator learns nothing
+    /// from.
     ///
-    /// Driven off the tables rather than off spellings written here, so a tier added to either one
-    /// is asserted about by existing in it — a case naming its own words passes beside a roster
-    /// that grew a third.
+    /// Driven off the roster rather than off spellings written here, so a store added to it is
+    /// asserted about by existing in it — a case naming its own words passes beside a roster that
+    /// grew a third.
     // covers: directive:session
     #[test]
-    fn neither_weak_tier_is_a_backend_and_the_two_stores_resolve() {
+    fn the_memory_tier_is_not_a_backend_and_the_two_stores_resolve() {
         for (word, backend) in BACKENDS {
             assert_eq!(Backend::of(word), Some(*backend));
             validate(&wrote(word), &BTreeMap::new()).expect("a store the roster admits");
         }
 
-        for (word, reach) in REFUSED {
-            assert_eq!(Backend::of(word), None, "`{word}` names no store");
-
-            let refused = validate(&wrote(word), &BTreeMap::new()).expect_err("a weak tier");
-            assert_eq!(refused.code, Some(code::E_SESSION_BACKEND));
-            // The *reason*, not the citation that introduces it, and this tier's own half of it:
-            // asserting on the reference alone passes for a note that cites the rule and then says
-            // nothing, and asserting on the shared clause alone passes for a tier that fell
-            // through to the generic sentence with the reason pasted on. It also pins a spelling
-            // that belongs to the docs rather than to this module, so the citation cannot be
-            // re-pointed without a red test in an unrelated crate.
-            assert!(
-                refused.notes.iter().any(|note| {
-                    note.contains(reach)
-                        && note.contains("an authentication bug wearing a cache's clothes")
-                }),
-                "`{word}` is only refused as enforcement if the note carries how far it reaches: \
-                 {:?}",
-                refused.notes
-            );
-        }
+        assert_eq!(Backend::of(REFUSED), None, "`{REFUSED}` names no store");
+        let refused = validate(&wrote(REFUSED), &BTreeMap::new()).expect_err("the memory tier");
+        assert_eq!(refused.code, Some(code::E_SESSION_BACKEND));
+        // The *reason*: a note that only said the word is not allowed would leave the operator
+        // guessing why the cache they already use for everything else is wrong here.
+        assert!(
+            refused
+                .notes
+                .iter()
+                .any(|note| note.contains(REFUSED_NOTE) && note.contains("restart deletes")),
+            "`{REFUSED}` is only refused as enforcement if the note says what it loses: {:?}",
+            refused.notes
+        );
 
         // A word that names nothing gets the same code and a different sentence: there is no
-        // coherence reasoning to give about a typo, and giving it anyway would teach that the message is
-        // boilerplate.
+        // coherence reasoning to give about a typo, and giving it anyway would teach that the
+        // message is boilerplate.
         let unknown = validate(&wrote("redis"), &BTreeMap::new()).expect_err("no such store");
+        assert_eq!(unknown.code, Some(code::E_SESSION_BACKEND));
         assert!(
             unknown
                 .notes
                 .iter()
-                .all(|note| !note.contains("an authentication bug"))
+                .all(|note| !note.contains("restart deletes"))
         );
     }
 

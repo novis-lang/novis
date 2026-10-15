@@ -29,9 +29,8 @@
 //! metric to make a decision — no Novis program can read one at all — the values
 //! are approximate aggregates whose merge across cores is arithmetic rather than
 //! coordination, § 4 forbids any request-derived value from becoming a label,
-//! and the memory is charged to the core and capped. That is the same exception
-//! `rule:concurrency/cache-memory-is-charged-to-the-core` records for `Core\Cache::local`, and it is why a core's
-//! registry is its own rather than a store every core writes into: a counter two
+//! and the memory is charged to the core and capped. A core's registry is its
+//! own rather than a store every core writes into: a counter two
 //! cores contended over would be coordination bought for a number that is
 //! defined as approximate. [`meter_this_core`] is where a core takes one,
 //! [`count_request`] is what the door reaches it through, and [`every_core`] is
