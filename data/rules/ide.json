@@ -42,6 +42,7 @@
     "ide/completion-files-offer-values-at-named-parameters",
     "ide/a-bare-name-reaches-every-type-and-imports-the-one-accepted",
     "ide/completion-is-asked-where-a-spelling-ends",
+    "ide/a-field-path-completes-one-segment-at-a-time",
     "ide/an-accepted-type-writes-what-follows-it",
     "ide/an-accepted-member-writes-its-call",
     "ide/a-completion-row-reads-as-a-declaration",

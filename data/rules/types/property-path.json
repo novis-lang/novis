@@ -1,0 +1,13 @@
+{
+  "title": "`propertyPath<T>` is a type whose values are dotted chains of public property names starting at `T`, checked one segment at a time",
+  "status": "designed",
+  "seeAlso": [
+    "types/property-key",
+    "types/property-key-variance",
+    "types/string-holes",
+    "types/a-literal-at-a-key-parameter-is-checked-where-it-is-written",
+    "core-classes/str-parts-and-reflect-steps"
+  ],
+  "guardedBy": [],
+  "goal": "property-paths"
+}

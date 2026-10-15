@@ -3,6 +3,8 @@
 
 # Statements
 
+*1 of 31 rules below are **designed** rather than shipped, and are marked where they appear.*
+
 <a id="statements-nvs-is-the-only-open-tag"></a>
 
 ## `<?nvs` is the only code-mode open tag; `<?php` is refused
@@ -369,7 +371,9 @@ its storage is fixed where the access is written, so `static::$prop` is refused 
 subclass that redeclares the property it would silently name the parent's storage, while a reader
 expects the called class's. `self::$prop` and a written class name say which storage is meant.
 `static::class` is the called class's own name,
-read at run time off the descriptor the frame already holds.
+read at run time off the descriptor the frame already holds. A `static` inside a parameter type, and a
+`static[]` or `?static` return, are not bound to the called class yet;
+[`statements/static-in-a-parameter-type-is-the-class-the-call-names`](statements.md#statements-static-in-a-parameter-type-is-the-class-the-call-names), designed, binds them.
 
 `static::NAME` is late-bound the same way, and it is the one class-constant read that is not inlined:
 the frame's called class is asked for `NAME` when the read runs, so a default method or an inherited
@@ -439,6 +443,43 @@ written with it.
   self()` returns the wrong class, and no annotation a program could add keeps the original behaviour.
 
 <sub>See also [`statements/no-function-static-and-no-global`](statements.md#statements-no-function-static-and-no-global), [`statements/an-anonymous-function-captures-this-only-where-it-uses-it`](statements.md#statements-an-anonymous-function-captures-this-only-where-it-uses-it), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call).</sub>
+
+<a id="statements-static-in-a-parameter-type-is-the-class-the-call-names"></a>
+
+## `static` in a parameter type, a `static[]` return and a `?static` return is the class the call names  *(designed — owned by goal property-paths)*
+
+`rule:statements/static-in-a-parameter-type-is-the-class-the-call-names`
+
+At `Category::find(...)` and `$category->find(...)`, a `static` inside a parameter type —
+`property<static>`, `propertyPath<static>`, `string<propertyPath<static>>` — is the receiver's class,
+the way an exact `: static` return already is (`MethodSig::returns_static` in
+`crates/nvs-types/src/signatures.rs`). A `static[]` and a `?static` return are bound the same way,
+which `writes_static_return` in the same file leaves out today, so
+`Category::all()` declared `: static[]` is a `Category[]` at the call.
+
+Inside the method body a `property<static>` or `propertyPath<static>` value may be applied only to a
+receiver whose type is `static`, converted with `as string`, or passed on. The body does not know which
+subclass called it, so a key of `static` read on `self` could name a property only the subclass has.
+
+**Fallback:** if the checker cannot keep `static` apart from the declaring class inside the body, the
+body may only convert such a value with `as string` or pass it to `Core\Str::parts` or
+`Core\Reflect::steps` ([`core-classes/str-parts-and-reflect-steps`](core-classes.md#core-classes-str-parts-and-reflect-steps)), and this rule says so when it
+ships.
+
+This extends [`statements/static-is-a-member-modifier`](statements.md#statements-static-is-a-member-modifier), under which `static` binds late to the
+called class everywhere it names a type; a parameter and an array return are the two positions that
+binding does not reach yet. A base class that offers `find(propertyPath<static> $sort)` once then
+checks each subclass's own fields at each call, with no override per subclass.
+
+- **Memory:** nothing at run time. The binding is the checker's, at each call it resolves.
+
+**Declined:**
+- **Writing the class into each subclass's override.** It is the boilerplate late binding exists to
+  remove, and a missed override checks against the base class's fields.
+- **Binding `static` in a parameter at run time.** The call site already names the class, so the check
+  belongs where the call is written.
+
+<sub>See also [`statements/static-is-a-member-modifier`](statements.md#statements-static-is-a-member-modifier), [`types/property-path`](types.md#types-property-path), [`types/property-key`](types.md#types-property-key).</sub>
 
 <a id="statements-no-function-static-and-no-global"></a>
 

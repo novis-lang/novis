@@ -5,7 +5,9 @@ its storage is fixed where the access is written, so `static::$prop` is refused 
 subclass that redeclares the property it would silently name the parent's storage, while a reader
 expects the called class's. `self::$prop` and a written class name say which storage is meant.
 `static::class` is the called class's own name,
-read at run time off the descriptor the frame already holds.
+read at run time off the descriptor the frame already holds. A `static` inside a parameter type, and a
+`static[]` or `?static` return, are not bound to the called class yet;
+`rule:statements/static-in-a-parameter-type-is-the-class-the-call-names`, designed, binds them.
 
 `static::NAME` is late-bound the same way, and it is the one class-constant read that is not inlined:
 the frame's called class is asked for `NAME` when the read runs, so a default method or an inherited

@@ -12,7 +12,9 @@ path's next segment. A quote also opens a string argument at a parameter whose t
 and one at a parameter a completion file names
 (`rule:ide/completion-files-offer-values-at-named-parameters`). Inside such an argument `.`, `/` and `:`
 start the next segment only where a value that applies at the call is split on that separator. A quote
-at a parameter typed `property<T>` alone opens nothing, because a string literal there does not compile. A client offers
+at a parameter typed `property<T>` alone opens nothing, because a string literal there does not compile;
+`rule:ide/a-field-path-completes-one-segment-at-a-time`, designed, makes it open the names and adds `{`
+as a trigger answered only inside a `string<K>` literal. A client offers
 nothing inside a string unless asked. Everywhere else a quote opens a string, `/` divides and `.`
 concatenates. A request the developer raised by hand, or by typing a name, is not held to this.
 

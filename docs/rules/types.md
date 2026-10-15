@@ -3,6 +3,8 @@
 
 # Types
 
+*3 of 56 rules below are **designed** rather than shipped, and are marked where they appear.*
+
 <a id="types-declaration"></a>
 
 ## Every binding declares its type, and no binding's type ever changes
@@ -1093,6 +1095,9 @@ stays a `string`, and the body converts the value with `as ?property<T>` to find
 of `T`'s properties. The editor offers `T`'s names inside such a literal
 ([`ide/completion-offers-only-what-the-compiler-derived`](ide.md#ide-completion-offers-only-what-the-compiler-derived)), so a call site that may pass any string is
 still shown the names. A parameter typed `property<T>` alone takes a key and nothing else.
+[`types/a-literal-at-a-key-parameter-is-checked-where-it-is-written`](types.md#types-a-literal-at-a-key-parameter-is-checked-where-it-is-written), designed, changes this for
+one position: a string literal at a parameter typed `property<T>` alone will be checked where it is
+written and accepted with no `as`.
 
 It is its own **equality domain**: two keys are equal when they name the same property, nothing else is
 ever equal to one, and ordering one is refused ([`types/ordering`](types.md#types-ordering)). `property` is a keyword only
@@ -1224,6 +1229,152 @@ pays nothing.
   statically typed read.
 
 <sub>See also [`types/property-key`](types.md#types-property-key), [`types/erased-member-access`](types.md#types-erased-member-access), [`types/property-key-variance`](types.md#types-property-key-variance).</sub>
+
+<a id="types-a-literal-at-a-key-parameter-is-checked-where-it-is-written"></a>
+
+## A string literal at a parameter typed `property<T>`, `propertyPath<T>` or `string<K>` alone is checked where it is written  *(designed — owned by goal property-paths)*
+
+`rule:types/a-literal-at-a-key-parameter-is-checked-where-it-is-written`
+
+At a parameter typed `property<T>`, `propertyPath<T>` or `string<K>` — alone, not in a union with
+plain `string` — a string literal argument is converted while compiling. A right one is accepted with
+no `as`, and a wrong one is the unknown-member diagnostic at the literal, on the segment or hole that
+names nothing. A string built at run time still needs `as`, so no program acquires a key from a value
+the compiler has not seen.
+
+This changes one sentence of [`types/property-key`](types.md#types-property-key), "a string literal is a `string` and stays one",
+for this one position. Everywhere else a literal stays a `string`: in a variable, in a return, in an
+array, and at a parameter typed `…|string`, which keeps its meaning — any string is accepted, the names
+are offered, and nothing is checked. A literal at a key parameter is decided exactly as `"email" as
+property<User>` is decided where it is written, so the check is the one that conversion already makes
+and is not a second implementation.
+
+The position is the one where a name is wanted and the literal is the whole of what the call site
+says. Making the caller write `"email" as property<User>` there repeats the class the signature already
+names, and the editor can offer the names only where a literal will compile
+([`ide/a-field-path-completes-one-segment-at-a-time`](ide.md#ide-a-field-path-completes-one-segment-at-a-time)).
+
+- **Memory:** nothing at run time. The checker keeps the roster it already records per class a key
+  names.
+
+**Declined:**
+- **Converting a literal wherever a key is expected, in a variable or a return too.** A literal in a
+  variable has no single expected type until it is used, so the rule would depend on inference order.
+  The argument position has its type written in the signature.
+- **Checking a literal at a `property<T>|string` parameter as well.** That parameter says any string is
+  fine, and a warning there would be noise at every call that passes free text.
+
+<sub>See also [`types/property-key`](types.md#types-property-key), [`types/property-path`](types.md#types-property-path), [`types/string-holes`](types.md#types-string-holes), [`ide/a-field-path-completes-one-segment-at-a-time`](ide.md#ide-a-field-path-completes-one-segment-at-a-time).</sub>
+
+<a id="types-property-path"></a>
+
+## `propertyPath<T>` is a type whose values are dotted chains of public property names starting at `T`, checked one segment at a time  *(designed — owned by goal property-paths)*
+
+`rule:types/property-path`
+
+`propertyPath<T>` is a type atom beside `property<T>`, written in every position a type is written,
+whose **values** are dotted chains of public declared property names starting at `T`: `customer`,
+`customer.address.city`, `lines.product.name`. What is carried at run time is the dotted text, a string
+in the representation but **not** in the type.
+
+Every segment but the last names a property whose declared type is a class `C`, a `?C`, or an array of
+`C` (`C[]`, `array<C>`), and the next segment is looked up on `C`. The last segment is any public
+property. A segment that names nothing, names a `private` or `protected` property, or steps through a
+property whose type is not one of those three forms is the same failure, and fails the same way at
+every segment. `T` follows [`types/property-key`](types.md#types-property-key) exactly: one class, `E0799` for anything else or
+for a class with no public property; visibility decided at the conversion, once; the argument
+contravariant ([`types/property-key-variance`](types.md#types-property-key-variance)); and its own equality domain, two paths equal when
+their text is equal, with ordering refused. `propertyPath` is a keyword only in type position, as
+`property` is.
+
+**`as` is its source, and a literal at a key parameter is the other** ([`types/a-literal-at-a-key-parameter-is-checked-where-it-is-written`](types.md#types-a-literal-at-a-key-parameter-is-checked-where-it-is-written)).
+A `string` converts with `as propertyPath<T>`, which throws at the first bad segment and names it, and
+`as ?propertyPath<T>` yields `null` there. A written-out operand is decided where it is written: a
+wrong segment is the unknown-member diagnostic an ordinary `$order->custmer` gets, placed on that
+segment. `propertyPath<T> → string` is total and gives the dotted text. The conversion strips `tainted` for
+the reason [`types/property-key`](types.md#types-property-key) strips it: its whole output range is chains of names the program
+declares `public`.
+
+The run-time conversion costs one field lookup and one visibility test per segment, the pair the key
+conversion performs once, and has **no length limit**: a path that names the same relation many times
+over is checked one segment at a time, so its cost is linear in what the caller sent and nothing is
+held per segment beyond the walk. A path that loops through a class back to itself is legal and costs
+the same, because each step reads one class's roster.
+
+The type exists because a field named across a relation — a sort column `customer.name`, a filter
+`lines.product.sku`, a form field for a nested object — is otherwise a string the compiler cannot
+check, or a chain of `property<T>` keys a library has to join by hand. The roster each step reads is
+the one `property<T>` already records per class ([`classes/no-dynamic-properties`](classes.md#classes-no-dynamic-properties)), so a path adds
+no second walk.
+
+- **Memory:** a path is one string value, its dotted text. The checker keeps one roster per class a
+  path reaches, as `property<T>` does, for the length of the analysis. Nothing is spent per request
+  beyond the string, and the run-time conversion allocates nothing past it.
+
+**Declined:**
+- **Reading or writing through a path, `$obj->{$path}`, for now.** A path through an array would read
+  an array of values, and what that read returns, and what a write through it means, is a decision of
+  its own. A library walks the path with `Core\Reflect::steps`
+  ([`core-classes/str-parts-and-reflect-steps`](core-classes.md#core-classes-str-parts-and-reflect-steps)) until that is decided.
+- **A path as an array of keys, `array<property<T>>`.** Each key would be typed against a different
+  class, which no single element type expresses, and a request carries a sort field as one string.
+- **A depth limit.** The cost is already linear in the text the caller sent, and the request's own
+  limits bound that text. A limit would be a second number to configure with nothing it protects.
+
+<sub>See also [`types/property-key`](types.md#types-property-key), [`types/property-key-variance`](types.md#types-property-key-variance), [`types/string-holes`](types.md#types-string-holes), [`types/a-literal-at-a-key-parameter-is-checked-where-it-is-written`](types.md#types-a-literal-at-a-key-parameter-is-checked-where-it-is-written), [`core-classes/str-parts-and-reflect-steps`](core-classes.md#core-classes-str-parts-and-reflect-steps).</sub>
+
+<a id="types-string-holes"></a>
+
+## `string<K>` is a string whose `{…}` holes are each a `K`, checked where it is written, and its text keeps its taint  *(designed — owned by goal property-paths)*
+
+`rule:types/string-holes`
+
+`string<K>` is a string with holes: text in which every `{…}` is one value of `K`, checked where the
+string is written. `K` is a `property<T>`, a `propertyPath<T>` ([`types/property-path`](types.md#types-property-path)), or a set
+of allowed string values ([`types/single-value-types`](types.md#types-single-value-types)). `string<K>` is not a collection, as
+`array<K>` is: it is one string, and `K` says what its holes may contain. `string` takes `<` as a type
+word only when `<` follows it, the way `property` does, so a plain `string` is untouched.
+
+A hole is `{`, one value of `K`, and `}`, with no spaces inside. `{{` is a literal `{` and `}}` a literal
+`}`. An empty hole, an unclosed `{` and a lone `}` are errors, at the brace. Holes work in both quote
+styles, because a brace with no `$` after it is already plain text in a string
+(`tests/conformance/lang/a-string-literal-escapes-and-interpolates-exactly-what-each-quote-allows.nvst:61`).
+A literal at a parameter typed `string<K>` is checked where it is written
+([`types/a-literal-at-a-key-parameter-is-checked-where-it-is-written`](types.md#types-a-literal-at-a-key-parameter-is-checked-where-it-is-written)): a wrong hole is the
+unknown-member diagnostic for its segment, placed on that segment. A double-quoted string that
+interpolates `{$…}` is not a literal, so it needs `as string<K>`, which checks every hole at run time
+and throws at the first bad one. `as ?string<K>` yields `null` there. `string<K> → string` is total and
+gives the text as written, braces and escapes included.
+
+**Taint stays on the text.** `as string<K>` does not strip `tainted`, unlike `as property<T>` and `as
+propertyPath<T>`: the text between the holes is still the caller's text. A `tainted string` converts
+to a `tainted string<K>`, and its text pieces are `tainted string` when `Core\Str::parts` splits them
+([`core-classes/str-parts-and-reflect-steps`](core-classes.md#core-classes-str-parts-and-reflect-steps)). Only the holes are stripped, because each is a
+declared name. A condition built from a request therefore never reaches `Core\Db`'s query text, which
+refuses `tainted` ([`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api)). This is the security half of the type.
+
+It is its own equality domain: two values are equal when their text is equal, and ordering one is
+refused ([`types/ordering`](types.md#types-ordering)).
+
+The type exists because a library that takes a condition, a sort order or a column list as text — a
+query builder, a filter, a report — names fields inside that text, and today the compiler sees only a
+string. The holes are the part the compiler can check, and Novis parses nothing else: the text between
+them is the library's own language.
+
+- **Memory:** a value is one string, its text as written. Checking a literal costs nothing at run time.
+  A run-time conversion walks the text once and allocates nothing past the result.
+
+**Declined:**
+- **A new word — `format`, `template`, `placeholder`, `path`, `text`.** `Core\Str::format` is the
+  `printf` member, `template` reads as an HTML template, a SQL query's `:0` and `?` are placeholders
+  ([`core-classes/db-parameters`](core-classes.md#core-classes-db-parameters)), and `path` and `text` already mean something. `string<K>` adds no
+  word and says what the value is.
+- **Stripping `tainted` with the holes.** The text between the holes is the caller's, so a request
+  could write SQL into a condition and have it reach query text as trusted.
+- **Spaces inside a hole, `{ name }`.** It is a second spelling of the same hole and makes `{ ` in plain
+  text ambiguous.
+
+<sub>See also [`types/property-path`](types.md#types-property-path), [`types/property-key`](types.md#types-property-key), [`types/single-value-types`](types.md#types-single-value-types), [`types/a-literal-at-a-key-parameter-is-checked-where-it-is-written`](types.md#types-a-literal-at-a-key-parameter-is-checked-where-it-is-written), [`core-classes/str-parts-and-reflect-steps`](core-classes.md#core-classes-str-parts-and-reflect-steps), [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api).</sub>
 
 <a id="types-unions-and-mixed"></a>
 

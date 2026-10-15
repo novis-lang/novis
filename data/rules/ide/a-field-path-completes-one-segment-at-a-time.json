@@ -1,0 +1,12 @@
+{
+  "title": "The editor completes, hovers, defines and underlines a field path one segment at a time, and `{` opens a hole's list",
+  "status": "designed",
+  "seeAlso": [
+    "ide/completion-offers-only-what-the-compiler-derived",
+    "ide/completion-is-asked-where-a-spelling-ends",
+    "types/property-path",
+    "types/string-holes"
+  ],
+  "guardedBy": [],
+  "goal": "property-paths"
+}

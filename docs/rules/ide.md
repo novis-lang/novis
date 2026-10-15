@@ -3,7 +3,7 @@
 
 # The editor
 
-*16 of 80 rules below are **designed** rather than shipped, and are marked where they appear.*
+*17 of 81 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="ide-one-grammar-one-tree"></a>
 
@@ -1439,6 +1439,9 @@ a parameter whose type has a `property<T>` member, because the walk that makes t
 table and the editor does not keep one. A parameter typed `property<T>|string` takes any string, so a
 literal outside the set gets no warning there. A parameter typed `property<T>` alone is offered nothing,
 because a string literal does not satisfy it and an offered item would write a call that does not compile.
+[`ide/a-field-path-completes-one-segment-at-a-time`](ide.md#ide-a-field-path-completes-one-segment-at-a-time), designed, changes this: once a literal there
+compiles, the names are offered, and a `propertyPath<T>` parameter and a `string<K>` hole are offered
+them one segment at a time.
 
 - **Memory:** one list of names and types per class a `property<T>` names, kept with the checker's
   table for the length of the analysis. Nothing at run time.
@@ -1697,7 +1700,9 @@ path's next segment. A quote also opens a string argument at a parameter whose t
 and one at a parameter a completion file names
 ([`ide/completion-files-offer-values-at-named-parameters`](ide.md#ide-completion-files-offer-values-at-named-parameters)). Inside such an argument `.`, `/` and `:`
 start the next segment only where a value that applies at the call is split on that separator. A quote
-at a parameter typed `property<T>` alone opens nothing, because a string literal there does not compile. A client offers
+at a parameter typed `property<T>` alone opens nothing, because a string literal there does not compile;
+[`ide/a-field-path-completes-one-segment-at-a-time`](ide.md#ide-a-field-path-completes-one-segment-at-a-time), designed, makes it open the names and adds `{`
+as a trigger answered only inside a `string<K>` literal. A client offers
 nothing inside a string unless asked. Everywhere else a quote opens a string, `/` divides and `.`
 concatenates. A request the developer raised by hand, or by typing a name, is not held to this.
 
@@ -1728,6 +1733,42 @@ other processing instruction stay markup's own.
   ([`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients)).
 
 <sub>See also [`ide/a-template-region-gets-the-editors-services-and-formatter`](ide.md#ide-a-template-region-gets-the-editors-services-and-formatter), [`statements/nvs-is-the-only-open-tag`](statements.md#statements-nvs-is-the-only-open-tag).</sub>
+
+<a id="ide-a-field-path-completes-one-segment-at-a-time"></a>
+
+## The editor completes, hovers, defines and underlines a field path one segment at a time, and `{` opens a hole's list  *(designed — owned by goal property-paths)*
+
+`rule:ide/a-field-path-completes-one-segment-at-a-time`
+
+Inside a string literal at a parameter typed `property<T>` or `propertyPath<T>`, and inside a hole of a
+`string<K>` literal, the completion list offers `T`'s public declared properties with their types, and
+each `.` after a valid prefix offers the properties of the class that prefix reaches. Depth is
+unlimited, and a path that loops back to a class it already passed costs nothing extra, because one
+class's roster is listed per request.
+
+This changes two shipped rules. [`ide/completion-offers-only-what-the-compiler-derived`](ide.md#ide-completion-offers-only-what-the-compiler-derived) offers a
+parameter typed `property<T>` alone nothing, because a literal there does not compile today; once
+[`types/a-literal-at-a-key-parameter-is-checked-where-it-is-written`](types.md#types-a-literal-at-a-key-parameter-is-checked-where-it-is-written) ships, a literal there does
+compile, so the names are offered. [`ide/completion-is-asked-where-a-spelling-ends`](ide.md#ide-completion-is-asked-where-a-spelling-ends) gains `{` as a
+trigger character (`crates/nvs-lsp/src/capabilities.rs`), answered only inside a `string<K>` literal,
+where it opens a hole; a quote at a `property<T>` or `propertyPath<T>` parameter opens the list, and
+`.` inside such a literal starts the next segment.
+
+Hover on a segment shows its property, with its class and declared type. Go-to-definition on a segment
+jumps to that property's declaration. A misspelled segment is underlined alone, not the whole string,
+with the unknown-member diagnostic the checker gives it. All of it reads the roster the checker records
+for each class a key or path names, never a second walk of the class.
+
+- **Memory:** one list of names and types per class a path reaches, the list `property<T>` already
+  keeps with the checker's table for the length of the analysis. Nothing at run time.
+
+**Declined:**
+- **`{` as a trigger answered in every string.** A brace is plain text in most strings, and a list
+  opening there would be a list nobody asked for.
+- **Offering a whole path, `customer.address.city`, as one item.** A class with a relation back to
+  itself has endless paths, and listing one class at a time is what keeps a request bounded.
+
+<sub>See also [`ide/completion-offers-only-what-the-compiler-derived`](ide.md#ide-completion-offers-only-what-the-compiler-derived), [`ide/completion-is-asked-where-a-spelling-ends`](ide.md#ide-completion-is-asked-where-a-spelling-ends), [`types/property-path`](types.md#types-property-path), [`types/string-holes`](types.md#types-string-holes).</sub>
 
 <a id="ide-an-accepted-type-writes-what-follows-it"></a>
 

@@ -27,6 +27,9 @@ stays a `string`, and the body converts the value with `as ?property<T>` to find
 of `T`'s properties. The editor offers `T`'s names inside such a literal
 (`rule:ide/completion-offers-only-what-the-compiler-derived`), so a call site that may pass any string is
 still shown the names. A parameter typed `property<T>` alone takes a key and nothing else.
+`rule:types/a-literal-at-a-key-parameter-is-checked-where-it-is-written`, designed, changes this for
+one position: a string literal at a parameter typed `property<T>` alone will be checked where it is
+written and accepted with no `as`.
 
 It is its own **equality domain**: two keys are equal when they name the same property, nothing else is
 ever equal to one, and ordering one is refused (`rule:types/ordering`). `property` is a keyword only

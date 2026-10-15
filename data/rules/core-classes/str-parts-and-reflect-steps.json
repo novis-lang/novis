@@ -1,0 +1,12 @@
+{
+  "title": "`Core\\Str::parts` splits a `string<K>` into text and holes, and `Core\\Reflect::steps` gives each segment of a path its property",
+  "status": "designed",
+  "seeAlso": [
+    "types/string-holes",
+    "types/property-path",
+    "core-classes/reflect",
+    "core-classes/db-one-api"
+  ],
+  "guardedBy": [],
+  "goal": "property-paths"
+}

@@ -28,6 +28,7 @@
     "core-classes/validate-has-no-type-predicates",
     "core-classes/secret-reveal",
     "core-classes/reflect",
+    "core-classes/str-parts-and-reflect-steps",
     "core-classes/ast-is-inert",
     "core-classes/topic",
     "core-classes/db-one-api",

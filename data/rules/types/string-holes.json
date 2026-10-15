@@ -1,0 +1,14 @@
+{
+  "title": "`string<K>` is a string whose `{…}` holes are each a `K`, checked where it is written, and its text keeps its taint",
+  "status": "designed",
+  "seeAlso": [
+    "types/property-path",
+    "types/property-key",
+    "types/single-value-types",
+    "types/a-literal-at-a-key-parameter-is-checked-where-it-is-written",
+    "core-classes/str-parts-and-reflect-steps",
+    "core-classes/db-one-api"
+  ],
+  "guardedBy": [],
+  "goal": "property-paths"
+}

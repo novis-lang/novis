@@ -1,0 +1,12 @@
+{
+  "title": "A string literal at a parameter typed `property<T>`, `propertyPath<T>` or `string<K>` alone is checked where it is written",
+  "status": "designed",
+  "seeAlso": [
+    "types/property-key",
+    "types/property-path",
+    "types/string-holes",
+    "ide/a-field-path-completes-one-segment-at-a-time"
+  ],
+  "guardedBy": [],
+  "goal": "property-paths"
+}
