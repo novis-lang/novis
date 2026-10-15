@@ -127,13 +127,13 @@ marked `~`: it is the machine, not the code.
 | `Core\Bytes::slice` | 3.00 | 0.00 | 1.00 | 48.0 |  | -0.041 | complexity linear, calls 0 | 12bd24661f00 |
 | `Core\Bytes::startsWith` | 3.00 | 0.00 | 0.00 | 0.0 |  | +0.007 | complexity linear, calls 0, allocations 0 | 12bd24661f00 |
 | `Core\Bytes::unpack` | 5.00 | 0.00 | 3.00 | 272.0 |  | +0.027 | complexity linear, calls 0 | 12bd24661f00 |
-| `Core\Cache::memory` | 5.00 | 0.00 | 16.00 | 232.0 |  | -0.015 | complexity linear, calls 0 | 3e04793fdc14 |
-| `Core\Cache\SecretEntry::of` | 5.00 | 0.00 | 2.00 | 112.0 |  | -0.015 | complexity constant, calls 0 | 3e04793fdc14 |
-| `Core\Cache\Store::forget` | 5.00 | 0.00 | 10.00 | 83.0 |  |  | complexity linear, calls 0 | 3e04793fdc14 |
-| `Core\Cache\Store::get` | 3.00 | 0.00 | 2.00 | 17.0 |  | -0.015 | complexity linear, calls 0 | 3e04793fdc14 |
-| `Core\Cache\Store::getSecret` | 5.00 | 0.00 | 8.00 | 238.0 |  | -0.015 | complexity linear, calls 0 | 3e04793fdc14 |
-| `Core\Cache\Store::put` | 4.00 | 0.00 | 8.00 | 54.0 |  | -0.015 | complexity linear, calls 0 | 3e04793fdc14 |
-| `Core\Cache\Store::putSecret` | 5.00 | 0.00 | 13.00 | 338.0 |  | -0.015 | complexity linear, calls 0 | 3e04793fdc14 |
+| `Core\Cache::memory` | 5.00 | 0.00 | 16.00 | 231.0 |  | -1.000 | complexity linear, calls 0 | 6dc575f880cf |
+| `Core\Cache\SecretEntry::of` | 5.00 | 0.00 | 2.00 | 112.0 |  |  | complexity constant, calls 0 | 6dc575f880cf |
+| `Core\Cache\Store::forget` | 5.00 | 0.00 | 14.00 | 163.0 | +4.000 | +80.000 | complexity linear, calls 0 | 6dc575f880cf |
+| `Core\Cache\Store::get` | 3.00 | 0.00 | 4.00 | 51.0 | +2.000 | +34.000 | complexity linear, calls 0 | 6dc575f880cf |
+| `Core\Cache\Store::getSecret` | 5.00 | 0.00 | 10.00 | 284.0 | +2.000 | +46.000 | complexity linear, calls 0 | 6dc575f880cf |
+| `Core\Cache\Store::put` | 4.00 | 0.00 | 10.00 | 90.0 | +2.000 | +36.000 | complexity linear, calls 0 | 6dc575f880cf |
+| `Core\Cache\Store::putSecret` | 5.00 | 0.00 | 15.00 | 382.0 | +2.000 | +44.000 | complexity linear, calls 0 | 6dc575f880cf |
 | `Core\Cap::has` | 7.00 | 0.00 | 0.00 | 0.0 |  | +0.003 | complexity constant, calls 0, allocations 0 | 12bd24661f00 |
 | `Core\Cldr::ordinalCategory` | 8.66 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0, allocations 0 | 8dd568f3f9f7 |
 | `Core\Cldr::pluralCategory` | 8.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0, allocations 0 | 8dd568f3f9f7 |
@@ -637,7 +637,7 @@ marked `~`: it is the machine, not the code.
 | `Core\Random\Seeded::sample` | 4.00 | 0.00 | 4.00 | 252.0 |  |  | complexity linear | 275d440f745b |
 | `Core\Random\Seeded::shuffle` | 4.00 | 0.00 | 5.00 | 400.0 |  |  | complexity linear | 275d440f745b |
 | `Core\Random\Seeded::token` | 5.00 | 0.00 | 1.00 | 44.0 |  |  | complexity linear, calls 0, allocations 1 | 275d440f745b |
-| `Core\RateLimit::shed` | 4.00 | 0.00 | 10.00 | 236.7 |  | -5.875 | complexity constant | 12bd24661f00 |
+| `Core\RateLimit::shed` | 4.00 | 0.00 | 11.00 | 294.0 | +1.000 | +57.313 | complexity constant | 6dc575f880cf |
 | `Core\RateLimit\Decision::allowed` | 6.00 | 0.00 | 0.00 | 0.0 |  | +0.005 | complexity constant, allocations 0 | 12bd24661f00 |
 | `Core\RateLimit\Decision::limit` | 4.00 | 0.00 | 0.00 | 0.0 |  | +0.005 | complexity constant, allocations 0 | 12bd24661f00 |
 | `Core\RateLimit\Decision::remaining` | 4.00 | 0.00 | 0.00 | 0.0 |  | +0.005 | complexity constant, allocations 0 | 12bd24661f00 |
@@ -1301,6 +1301,7 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\BigInt::toString` | Core\BigInt | recorded as known-gap: `// bench: complexity quadratic` is not one of constant, linear, nlogn, karatsuba |
 | `Core\BigInt::toUint` | Core\BigInt | 13527.9 units against a `constant` ceiling of 100 |
 | `Core\Bytes::at` | Core\Bytes | 274.7 units against a `constant` ceiling of 100 |
+| `Core\Cache\SecretEntry::of` | Core\Cache\SecretEntry | 11426.6 units against a `constant` ceiling of 100 |
 | `Core\Cldr::ordinalCategory` | Core\Cldr | 2942.3 units against a `constant` ceiling of 100 |
 | `Core\Cldr::pluralCategory` | Core\Cldr | 845.9 units against a `constant` ceiling of 100 |
 | `Core\Command::completions` | Core\Command | recorded as known-gap: declares `complexity linear` and has no benches/members/core/Command/completions.scale.nvs to ramp its input |
@@ -1513,6 +1514,7 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Random\Seeded::float` | Core\Random\Seeded | 11295.7 units against a `constant` ceiling of 100 |
 | `Core\Random\Seeded::int` | Core\Random\Seeded | 4409.0 units against a `constant` ceiling of 100 |
 | `Core\Random\Seeded::pick` | Core\Random\Seeded | 2849.8 units against a `constant` ceiling of 100 |
+| `Core\RateLimit::shed` | Core\RateLimit | 6198.8 units against a `constant` ceiling of 100 |
 | `Core\Reflect::forClass` | Core\Reflect | 834.9 units against a `constant` ceiling of 100 |
 | `Core\Reflect::forObject` | Core\Reflect | 2766.5 units against a `constant` ceiling of 100 |
 | `Core\Reflect\AttributeInfo::field` | Core\Reflect\AttributeInfo | 346.2 units against a `constant` ceiling of 100 |
@@ -1923,13 +1925,13 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Bytes::slice` | 0.0 | 2159.8 | 0.000 | -100.0% | flat, flat | 12bd24661f00 | 8d6a36b1cd6076d02ab821e1638373c4 |
 | `Core\Bytes::startsWith` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 12bd24661f00 | 8d6a36b1cd6076d02ab821e1638373c4 |
 | `Core\Bytes::unpack` | 0.0 | 675.4 | 0.000 | -100.0% | flat, flat | 12bd24661f00 | 8d6a36b1cd6076d02ab821e1638373c4 |
-| `Core\Cache::memory` | 0.0 | 8099.6 | 0.000 |  | flat, flat | 3e04793fdc14 | 0bf23f047061af29e33926de3155381d |
-| `Core\Cache\SecretEntry::of` | 0.0 | 2836.7 | 0.000 |  | flat | 3e04793fdc14 | 0bf23f047061af29e33926de3155381d |
-| `Core\Cache\Store::forget` | 392.2 | 1892.4 | 658.420 |  | flat, flat | 3e04793fdc14 | 0bf23f047061af29e33926de3155381d |
-| `Core\Cache\Store::get` | 30830.1 | 67652.3 | 51758.714 |  | flat, flat | 3e04793fdc14 | 0bf23f047061af29e33926de3155381d |
-| `Core\Cache\Store::getSecret` | 0.0 | 2845.7 | 0.000 |  | flat, flat | 3e04793fdc14 | 0bf23f047061af29e33926de3155381d |
-| `Core\Cache\Store::put` | 0.0 | 0.0 | 0.000 |  | flat, flat | 3e04793fdc14 | 0bf23f047061af29e33926de3155381d |
-| `Core\Cache\Store::putSecret` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 3e04793fdc14 | 0bf23f047061af29e33926de3155381d |
+| `Core\Cache::memory` | 8335.2 | 19635.5 | 1602.730 |  | flat, flat | 6dc575f880cf | 8ed0144d75d479dcfeafc3746e08d255 |
+| `Core\Cache\SecretEntry::of` | 59425.4 | 73326.2 | 11426.641 |  | flat | 6dc575f880cf | 8ed0144d75d479dcfeafc3746e08d255 |
+| `Core\Cache\Store::forget` | 4000.0 | 5840.6 | 769.142 | +919.9% | flat, flat | 6dc575f880cf | 8ed0144d75d479dcfeafc3746e08d255 |
+| `Core\Cache\Store::get` | 13934.4 | 15586.3 | 2679.378 | -54.8% | flat, flat | 6dc575f880cf | 8ed0144d75d479dcfeafc3746e08d255 |
+| `Core\Cache\Store::getSecret` | 10157.8 | 50376.2 | 1953.200 |  | flat, flat | 6dc575f880cf | 8ed0144d75d479dcfeafc3746e08d255 |
+| `Core\Cache\Store::put` | 6246.9 | 22492.6 | 1201.184 |  | flat, flat | 6dc575f880cf | 8ed0144d75d479dcfeafc3746e08d255 |
+| `Core\Cache\Store::putSecret` | 35038.3 | 42031.2 | 6737.354 |  | flat, flat | 6dc575f880cf | 8ed0144d75d479dcfeafc3746e08d255 |
 | `Core\Cap::has` | 0.0 | 632.6 | 0.000 | -100.0% | flat | 12bd24661f00 | 062fdd431cc4f821fafb73f7bee3d27b |
 | `Core\Cldr::ordinalCategory` | 10026.8 | 19231.7 | 2942.296 | -61.6% ~ | flat | 8dd568f3f9f7 | a7eec54d04bafe4419345a392d9d8758 |
 | `Core\Cldr::pluralCategory` | 2882.6 | 6026.8 | 845.874 | -84.9% ~ | flat | 8dd568f3f9f7 | a7eec54d04bafe4419345a392d9d8758 |
@@ -2433,7 +2435,7 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Random\Seeded::sample` | 0.0 | 74201.6 | 0.000 |  | flat, flat | 275d440f745b | caf3a7d21c17fe1ec7c0eddbcf1b90cf |
 | `Core\Random\Seeded::shuffle` | 52444.1 | 55685.5 | 8502.066 |  | flat, flat | 275d440f745b | caf3a7d21c17fe1ec7c0eddbcf1b90cf |
 | `Core\Random\Seeded::token` | 49877.0 | 77926.2 | 8085.882 |  | flat, flat | 275d440f745b | caf3a7d21c17fe1ec7c0eddbcf1b90cf |
-| `Core\RateLimit::shed` | 0.0 | 1114.8 | 0.000 | -100.0% | flat | 12bd24661f00 | bfbbaf88c5ad4f2b808282905e7ef76f |
+| `Core\RateLimit::shed` | 32237.5 | 187674.6 | 6198.804 |  | flat | 6dc575f880cf | 09cb440de720891942668c3ba23a991b |
 | `Core\RateLimit\Decision::allowed` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 12bd24661f00 | bfbbaf88c5ad4f2b808282905e7ef76f |
 | `Core\RateLimit\Decision::limit` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 12bd24661f00 | bfbbaf88c5ad4f2b808282905e7ef76f |
 | `Core\RateLimit\Decision::remaining` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 12bd24661f00 | bfbbaf88c5ad4f2b808282905e7ef76f |
