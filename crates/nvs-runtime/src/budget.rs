@@ -613,8 +613,8 @@ pub fn live_bytes() -> isize {
 /// The process's share of what the thread holds, which [`live_bytes`] and every
 /// per-request reading derived from it exclude on purpose. It is a figure to
 /// attribute bytes with rather than a ceiling to enforce: what bounds a store's
-/// entries is the store's own limit, the local cache tier's `max_size` for
-/// `Core\Cache`.
+/// entries is the store's own limit, `[cache.memory] max_size` for
+/// `Core\Cache::memory()`.
 #[must_use]
 pub fn detached_bytes() -> isize {
     DETACHED.with(Cell::get)
