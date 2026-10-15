@@ -1171,7 +1171,20 @@ pub(crate) fn nameable(name: &str) -> bool {
 /// this first, and a `Core\Html::later` slot calling one throws `LogicError`
 /// before anything is declared. The main script owns the head, and on a slotted
 /// route it is already on the wire by the time a slot runs.
+///
+/// `Core\Task::afterResponse` work calling one throws `LogicError` the same way
+/// (`rule:concurrency/deferred-work-cannot-write-the-response`), because the
+/// whole response is sent before that work runs.
 pub(crate) fn head_open(ctx: &nvs_runtime::Ctx, member: &str) -> Result<(), Fault> {
+    if ctx.in_deferred_work() {
+        return Err(Fault::thrown_as(
+            nvs_runtime::ThrownClass::Logic,
+            format!(
+                "A function passed to `Core\\Task::afterResponse` cannot call `{member}`. It runs \
+                 after the response was sent."
+            ),
+        ));
+    }
     if ctx.in_later_slot() {
         // A literal stem before the first hole, which is
         // `conformance_coverage`'s error-path gate matching a site.

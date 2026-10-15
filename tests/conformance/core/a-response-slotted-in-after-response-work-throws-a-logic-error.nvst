@@ -6,13 +6,15 @@ Core\Response::slotted();
 echo "main\n";
 
 // This work runs after the script ends, so the call throws `LogicError`.
-Core\Task::afterResponse(fn(): void => {
+// The work is in a variable, so the compiler does not see the call.
+var $work = fn(): void => {
     try {
         Core\Response::slotted();
     } catch (LogicError $e) {
         echo $e->message, "\n";
     }
-});
+};
+Core\Task::afterResponse($work);
 --EXPECT--
 main
 `Core\Response::slotted()` was called after the main script ended. Call it before the main script returns.

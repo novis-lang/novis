@@ -86,6 +86,16 @@
 //! `System`-class: nothing inside a request can move it, so there is no reload
 //! to race and no lock to take on a path a request reaches.
 //!
+//! # Deferred work cannot change the response
+//!
+//! The response is on the wire before any of this runs, so
+//! `rule:concurrency/deferred-work-cannot-write-the-response` closes it:
+//! [`run_one`] sets [`Ctx::in_deferred_work`] on the work's context,
+//! [`Ctx::child`] copies it into every task the work starts, and each `Core`
+//! member that sets a status, a header, a cookie or a body, or regenerates the
+//! session, throws `LogicError` when it reads it. `nvs_types` refuses the same
+//! calls at compile time where they are written inside the callable itself.
+//!
 //! # What it spends
 //!
 //! One `Vec` header per request — three words, and no allocation for the
@@ -196,6 +206,17 @@ pub fn run_deferred(ctx: &mut Ctx) {
     ctx.release_deferred_slot();
 }
 
+impl Ctx {
+    /// Whether this context runs `Core\Task::afterResponse` work, or a task it
+    /// started. Every `Core` member that changes the response throws
+    /// `LogicError` when this holds
+    /// (`rule:concurrency/deferred-work-cannot-write-the-response`).
+    #[must_use]
+    pub fn in_deferred_work(&self) -> bool {
+        self.in_deferred
+    }
+}
+
 /// One registration, as a group of one.
 #[expect(
     unsafe_code,
@@ -209,7 +230,12 @@ fn run_one(ctx: &mut Ctx, work: Deferred) {
         deadline: (work.deadline_nanos != 0).then(|| Duration::from_nanos(work.deadline_nanos)),
     };
     let outcome = crate::host::with_current(|host| {
-        let job: Job = Box::new(move |child: &mut Ctx| call_deferred(child, callable));
+        let job: Job = Box::new(move |child: &mut Ctx| {
+            // The response is sent, so this work and every task it starts may
+            // not change it.
+            child.in_deferred = true;
+            call_deferred(child, callable)
+        });
         host.run_group(ctx, vec![job], bounds)
     });
     match outcome {
@@ -256,7 +282,9 @@ fn run_one(ctx: &mut Ctx, work: Deferred) {
         // was registered and is owed, so it runs here rather than being
         // dropped, and the only thing it loses is the deadline.
         None => {
+            let outer = std::mem::replace(&mut ctx.in_deferred, true);
             let answer = call_deferred(ctx, callable);
+            ctx.in_deferred = outer;
             // SAFETY: `call_deferred` answers with a value it owns.
             unsafe { answer.release() };
         }

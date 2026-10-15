@@ -775,6 +775,15 @@ pub struct Ctx {
     ///
     /// **What it spends:** one byte per context.
     pub(crate) in_later: bool,
+    /// Whether this context runs `Core\Task::afterResponse` work, or a task
+    /// inside it, where the response is already sent
+    /// (`rule:concurrency/deferred-work-cannot-write-the-response`). Set by
+    /// [`mod@crate::deferred`] and copied by [`Ctx::child`]; read by every
+    /// `Core` member that changes the response, through
+    /// [`Ctx::in_deferred_work`].
+    ///
+    /// **What it spends:** one byte per context.
+    pub(crate) in_deferred: bool,
     /// Whether this request's own frame has returned, so its main script is
     /// over and `Core\Response::slotted()` throws. Set by
     /// [`crate::later::run_later`] and copied by [`Ctx::child`], so a slot and

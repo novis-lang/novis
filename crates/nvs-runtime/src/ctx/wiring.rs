@@ -156,6 +156,7 @@ impl Ctx {
             holds_deferred_slot: false,
             later: None,
             in_later: false,
+            in_deferred: false,
             main_ended: false,
             slotted: false,
             pending: None,

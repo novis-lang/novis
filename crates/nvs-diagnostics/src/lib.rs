@@ -5519,6 +5519,18 @@ pub mod code {
          it. Use the public class that the help line names. For example, call \
          `Novis\\Image\\Image::info` and not `Novis\\Image\\Codec::info`.",
     );
+    /// A call that writes the response — a status, a header, a redirect, a
+    /// cookie, a body method, `Core\Response::slotted` or
+    /// `Core\Session::regenerate` — written inside the callable passed to
+    /// `Core\Task::afterResponse`. The same call throws `LogicError` at run
+    /// time (`rule:concurrency/deferred-work-cannot-write-the-response`), and
+    /// this is its compile-time half, where the checker sees the anonymous
+    /// function written in place.
+    pub const E_DEFERRED_WRITES_THE_RESPONSE: Code = Code::new("E0857").card(
+        "The function passed to `Core\\Task::afterResponse` runs after the response was sent. \
+         It cannot change the status, the headers, the cookies, the body or the session of \
+         the response. Make this call in the main script, before `Core\\Task::afterResponse`.",
+    );
 
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.

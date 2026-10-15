@@ -438,6 +438,8 @@ impl Ctx {
         // A task a slot starts is still inside the slot, so the head stays
         // closed to it.
         child.in_later = self.in_later;
+        // A task deferred work starts runs after the response too.
+        child.in_deferred = self.in_deferred;
         // A slot and after-response work are children started once the main
         // script is over, so `Core\Response::slotted()` throws in them too.
         child.main_ended = self.main_ended;

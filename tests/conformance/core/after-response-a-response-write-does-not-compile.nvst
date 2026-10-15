@@ -1,0 +1,55 @@
+--TEST--
+An anonymous function written in a `Core\Task::afterResponse` call cannot change the response -- a status, a header, a redirect, a cookie, a body method, `slotted` or a session regeneration is a compile error there, in a nested anonymous function too, while an `echo` compiles -- `rule:concurrency/deferred-work-cannot-write-the-response`
+--FILE--
+<?nvs
+// This work runs after the response was sent. Each call below changes the
+// response, so each one is a compile error.
+Core\Task::afterResponse(fn(): void => {
+    Core\Response::setStatus(500);
+    Core\Response::setHeader("X-Shop", "1");
+    Core\Response::redirect("/shop");
+    Core\Response::addCookie("sid", "abc");
+    Core\Response::text("body");
+    Core\Response::slotted();
+    Core\Session::regenerate();
+});
+
+// An anonymous function inside the work runs after the response too.
+Core\Task::afterResponse(fn(): void => {
+    var $inner = fn(): void => { Core\Response::json(1); };
+});
+
+// The work may still write its own output.
+Core\Task::afterResponse(fn(): void => {
+    echo "receipt sent\n";
+});
+Core\Response::setHeader("X-Blog", "1");
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0857]: `Core\Response::setStatus` changes the response, and a callable passed to `Core\Task::afterResponse` runs after the response was sent
+  --> case.nvs:5:5
+%A
+error[E0857]: `Core\Response::setHeader` changes the response, and a callable passed to `Core\Task::afterResponse` runs after the response was sent
+  --> case.nvs:6:5
+%A
+error[E0857]: `Core\Response::redirect` changes the response, and a callable passed to `Core\Task::afterResponse` runs after the response was sent
+  --> case.nvs:7:5
+%A
+error[E0857]: `Core\Response::addCookie` changes the response, and a callable passed to `Core\Task::afterResponse` runs after the response was sent
+  --> case.nvs:8:5
+%A
+error[E0857]: `Core\Response::text` changes the response, and a callable passed to `Core\Task::afterResponse` runs after the response was sent
+  --> case.nvs:9:5
+%A
+error[E0857]: `Core\Response::slotted` changes the response, and a callable passed to `Core\Task::afterResponse` runs after the response was sent
+   --> case.nvs:10:5
+%A
+error[E0857]: `Core\Session::regenerate` changes the response, and a callable passed to `Core\Task::afterResponse` runs after the response was sent
+   --> case.nvs:11:5
+%A
+error[E0857]: `Core\Response::json` changes the response, and a callable passed to `Core\Task::afterResponse` runs after the response was sent
+   --> case.nvs:16:34
+%A
+error: aborting due to 8 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

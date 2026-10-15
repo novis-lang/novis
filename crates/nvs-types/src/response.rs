@@ -68,6 +68,11 @@
 //! That refusal is armed by the `later` call rather than by a `#[Route]`
 //! handler, because the runtime throws `LogicError` for it on every host, so a
 //! `.nvst` case or a CLI program meets it too. See [`is_later`].
+//!
+//! **A callable passed to `Core\Task::afterResponse` may not call any of them
+//! either** (`rule:concurrency/deferred-work-cannot-write-the-response`), with
+//! the same lexical reach and its own code, because the response is already on
+//! the wire when it runs. See [`is_after_response`].
 
 use nvs_diagnostics::{Diagnostic, Span, code};
 use nvs_hir::QName;
@@ -130,10 +135,14 @@ pub(crate) struct BodyWriters {
     /// Whether a `Core\Html::later` call's arguments are being checked — see
     /// [`is_later`].
     pub(crate) in_later: bool,
+    /// Whether a `Core\Task::afterResponse` call's arguments are being checked
+    /// — see [`is_after_response`].
+    pub(crate) in_after_response: bool,
 }
 
 /// The members that change the response head, which a callable passed to
-/// `Core\Html::later` may not call: [`BODY_MEMBERS`], plus these.
+/// `Core\Html::later` or to `Core\Task::afterResponse` may not call:
+/// [`BODY_MEMBERS`], plus these.
 ///
 /// The same list as `nvs_stdlib::response::head_open`'s callers, plus
 /// `slotted`, whose `Ctx::make_slotted` throws in a slot because the main
@@ -164,15 +173,28 @@ pub(crate) fn is_later(qname: &QName, member: &str) -> bool {
         && member == "later"
 }
 
+/// Whether `qname::member` is `Core\Task::afterResponse`, whose argument list
+/// is checked with [`BodyWriters::in_after_response`] set.
+///
+/// The reach is [`is_later`]'s: the whole argument list, lexically. A callable
+/// held in a variable, or a method it calls, is left to the run-time
+/// `LogicError`.
+pub(crate) fn is_after_response(qname: &QName, member: &str) -> bool {
+    qname.is_core()
+        && qname.segments().len() == 2
+        && qname.short_name() == "Task"
+        && member == "afterResponse"
+}
+
 /// A resolved `Core\Class::member(...)` call, refused when it changes the
-/// response head inside a callable passed to `Core\Html::later`.
-pub(crate) fn reject_head_change_in_later(
-    qname: &QName,
-    member: &str,
-    span: Span,
-    env: &mut Env<'_>,
-) {
-    if !env.body_writers.in_later || !qname.is_core() || qname.segments().len() != 2 {
+/// response inside a callable passed to `Core\Html::later` or to
+/// `Core\Task::afterResponse`.
+pub(crate) fn reject_response_change(qname: &QName, member: &str, span: Span, env: &mut Env<'_>) {
+    let writers = &env.body_writers;
+    if !(writers.in_later || writers.in_after_response)
+        || !qname.is_core()
+        || qname.segments().len() != 2
+    {
         return;
     }
     let class = qname.short_name();
@@ -181,6 +203,20 @@ pub(crate) fn reject_head_change_in_later(
         .chain(HEAD_MEMBERS.iter())
         .any(|(owner, name)| *owner == class && *name == member)
     {
+        return;
+    }
+    if env.body_writers.in_after_response {
+        env.diags.report(
+            Diagnostic::error(
+                code::E_DEFERRED_WRITES_THE_RESPONSE,
+                format!(
+                    "`Core\\{class}::{member}` changes the response, and a callable passed to \
+                     `Core\\Task::afterResponse` runs after the response was sent"
+                ),
+            )
+            .with_primary(span, "this call changes the response")
+            .with_help("make this call in the main script, before `Core\\Task::afterResponse`"),
+        );
         return;
     }
     env.diags.report(
