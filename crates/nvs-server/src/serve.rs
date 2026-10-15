@@ -1637,11 +1637,19 @@ where
         //
         // `rule:http-server/the-access-log-is-a-mode-default`'s line is written
         // at the same place for the same reason, except for the health probe.
-        let counted = |response: &Response<Answer>,
+        //
+        // `rule:observability/a-trace-id-exists-for-every-request`'s
+        // `traceresponse` header is written here too, so no answer leaves
+        // without it. An answer the door wrote before any carrier existed has
+        // no trace yet, and gets a new unsampled root: the header and the
+        // access line then name the same id.
+        let counted = |response: &mut Response<Answer>,
                        route: Option<&str>,
                        client: Option<std::net::IpAddr>,
                        trace: Option<nvs_runtime::TraceContext>,
                        under: &Arc<nvs_config::Snapshot>| {
+            let trace = trace.unwrap_or_else(nvs_runtime::TraceContext::started);
+            crate::trace::respond(response.headers_mut(), &trace);
             let took = began.elapsed();
             let status = response.status().as_u16();
             crate::metrics::count_request(verb.as_str(), status, route, took);
@@ -1661,7 +1669,7 @@ where
                     bytes: response.body().size_hint().exact(),
                     client_ip: client,
                     route,
-                    trace,
+                    trace: Some(trace),
                 },
             );
         };
@@ -1698,7 +1706,7 @@ where
                 phase.set(Phase::Write);
                 let mut refused = unusable_forward();
                 policy.secure.fill(refused.headers_mut(), Scheme::Http);
-                counted(&refused, None, None, None, &snapshot);
+                counted(&mut refused, None, None, None, &snapshot);
                 return Ok::<_, Infallible>(refused);
             }
         };
@@ -1727,7 +1735,7 @@ where
             phase.set(Phase::Write);
             let mut refused = crate::admit::over_capacity();
             policy.secure.fill(refused.headers_mut(), scheme);
-            counted(&refused, None, origin.client(), None, &snapshot);
+            counted(&mut refused, None, origin.client(), None, &snapshot);
             return Ok::<_, Infallible>(refused);
         };
         // `rule:http-server/cors-is-closed-until-origins-are-named`, asked here for the reason the valve above it is: a
@@ -1745,7 +1753,7 @@ where
             *permitted.status_mut() = preflight.status();
             policy.secure.fill(permitted.headers_mut(), scheme);
             preflight.fill(permitted.headers_mut());
-            counted(&permitted, None, origin.client(), None, &snapshot);
+            counted(&mut permitted, None, origin.client(), None, &snapshot);
             return Ok::<_, Infallible>(permitted);
         }
         // § 2's other half, decided here because the handler below takes the
@@ -2272,7 +2280,7 @@ where
         // streamed body's later bytes are not in the duration: what is measured
         // is the request, and a peer that reads slowly is not one.
         counted(
-            &answered,
+            &mut answered,
             labelled.as_deref(),
             origin.client(),
             traced,
@@ -11767,6 +11775,25 @@ pub(crate) mod tests {
             answer.ends_with("twelve bytes"),
             "the response did not carry the body: {answer}"
         );
+    }
+
+    /// `rule:observability/a-trace-id-exists-for-every-request`: an answer the
+    /// door wrote with no carrier still goes out with a `traceresponse`, an
+    /// unsampled root's, so no response leaves without the header.
+    #[test]
+    fn a_door_written_answer_carries_a_traceresponse() {
+        let answer = answered_with("/door", Answer::empty()).to_ascii_lowercase();
+        let value = answer
+            .lines()
+            .find_map(|line| line.strip_prefix("traceresponse: "))
+            .unwrap_or_else(|| panic!("the answer has no traceresponse: {answer}"));
+        let parts: Vec<&str> = value.trim_end().split('-').collect();
+        assert_eq!(
+            parts.iter().map(|part| part.len()).collect::<Vec<_>>(),
+            [2, 32, 16, 2],
+            "the value is not in the traceparent shape: {value}"
+        );
+        assert_eq!(parts[3], "00", "a door's own root is not sampled: {value}");
     }
 
     /// The bytes [`served_ranged`]'s program streams from, ten of them so a

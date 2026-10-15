@@ -2,6 +2,11 @@
 32 lower-case hexadecimal characters, such as `4bf92f3577b34da6a3ce929d0e0e4736`. Every request has
 one, and the server writes the same id into its log lines.
 
+The server also sends the id back in the `traceresponse` header of every response. The header has
+this form: `00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-00`. The second part is the id.
+A proxy in front of your server can write this header into its own log. The server ignores an
+`X-Request-ID` header that a client sends.
+
 A request can arrive with a `traceparent` header. This header comes from a service that called
 yours, and it names a trace (a record of one task across several services). The id is then the one
 in that header, so your logs and the caller's logs use the same id. Without the header, the server

@@ -36879,6 +36879,29 @@
           "slug": "deadattempts",
           "url": "/reference/core/queue-stats/deadattempts/",
           "examples": "core/Queue-Stats/deadAttempts"
+        },
+        {
+          "id": "Queue.Stats.nonTransactional",
+          "name": "nonTransactional",
+          "static": false,
+          "receiver": "stats",
+          "generics": null,
+          "signature": "nonTransactional(): uint",
+          "params": [],
+          "options": [],
+          "returnType": "uint",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "The number of jobs that <code>push</code> saved while a transaction was open on a different database connection. Such a job is saved at once, so a rollback of that transaction does not remove it.",
+            "returnHtml": "A <code>uint</code> for the jobs table only. It is <code>0</code> when every transaction that pushes a job runs on the connection that <code>[queue] connection</code> names."
+          },
+          "slug": "nontransactional",
+          "url": "/reference/core/queue-stats/nontransactional/",
+          "examples": "core/Queue-Stats/nonTransactional"
         }
       ],
       "unparsed": [],
@@ -43008,7 +43031,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Returns the id of the current request. Every request has one, and the server writes the same id into its log lines.",
+            "shortHtml": "Returns the id of the current request. Every request has one. The server writes the same id into its log lines and into the <code>traceresponse</code> header of the response.",
             "returnHtml": "32 lower-case hexadecimal characters. If the request came with a <code>traceparent</code> header, the id is the one in that header.",
             "errors": [
               {

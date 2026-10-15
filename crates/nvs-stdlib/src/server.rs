@@ -86,8 +86,8 @@ const IS_DRAINING_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Server::traceId`'s reference card — `rule:core-api/reference-card`.
 const TRACE_ID_DOC: MethodDoc = MethodDoc {
-    short: "Returns the id of the current request. Every request has one, and the server writes \
-            the same id into its log lines.",
+    short: "Returns the id of the current request. Every request has one. The server writes the \
+            same id into its log lines and into the `traceresponse` header of the response.",
     params: &[],
     ret: "32 lower-case hexadecimal characters. If the request came with a `traceparent` header, \
           the id is the one in that header.",

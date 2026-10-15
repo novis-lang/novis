@@ -282,6 +282,29 @@ pub fn record(request: &str, trace: &TraceContext, events: &[TraceEvent]) {
     let _ = (request, trace, events);
 }
 
+/// The field name W3C Trace Context gives the id a server answers with.
+const TRACERESPONSE: &str = "traceresponse";
+
+/// Writes `trace` on a response's head as `traceresponse`, in the
+/// `traceparent` shape: `00-<trace id>-<this request's span id>-<flags>`.
+///
+/// `rule:observability/a-trace-id-exists-for-every-request` emits the id on
+/// the response so a proxy logs it with one `log_format` line, and it is
+/// written sampled or not because the id exists either way. The flag says
+/// which, so a backend that finds no trace for a `-00` id knows why.
+///
+/// It replaces a `traceresponse` the program set for itself: the request has
+/// one id, and the door decided it. An inbound `X-Request-ID` reaches neither
+/// the trace nor this header.
+///
+/// **What it spends:** the 55-byte value, once per response.
+pub fn respond(headers: &mut hyper::HeaderMap, trace: &TraceContext) {
+    // Always 55 bytes of lower-case hex and dashes, so it is a valid value.
+    if let Ok(value) = hyper::header::HeaderValue::from_str(&trace.traceparent()) {
+        headers.insert(hyper::header::HeaderName::from_static(TRACERESPONSE), value);
+    }
+}
+
 /// `[log] access` as `snapshot` has it: what the file wrote, or the mode's
 /// default (`rule:config/a-mode-is-five-defaults`).
 ///
@@ -302,8 +325,9 @@ pub fn access_on(snapshot: &std::sync::Arc<nvs_config::Snapshot>) -> bool {
 /// `path` is the path alone, never the query string, for the reason a span's
 /// name carries none (`rule:observability/trace-events-carry-a-kind`). `bytes`
 /// is `None` for a body whose length is not known when the head goes out — a
-/// stream — and `trace` is `None` for an answer the door wrote before any
-/// carrier existed, such as a mount table's `404` or a refusal at the valve.
+/// stream. The door passes a `trace` for every response; an answer it wrote
+/// before any carrier existed, such as a refusal at the valve, carries a new
+/// root drawn for it.
 #[derive(Clone, Copy, Debug)]
 pub struct Access<'a> {
     /// Whether the response is the health probe's
@@ -960,6 +984,102 @@ mod tests {
             panic!("a status reply is the door's")
         };
         assert!(!crate::serve::is_probe(&other), "an ordinary 200 is marked");
+    }
+
+    /// The `traceresponse` value [`super::respond`] writes for `trace` on a
+    /// response that already has `written` on it.
+    fn responded(written: &[(&str, &str)], trace: &TraceContext) -> Vec<String> {
+        let mut headers = hyper::HeaderMap::new();
+        for (name, value) in written {
+            headers.append(
+                hyper::header::HeaderName::from_bytes(name.as_bytes()).expect("a token"),
+                hyper::header::HeaderValue::from_str(value).expect("printable"),
+            );
+        }
+        super::respond(&mut headers, trace);
+        headers
+            .get_all("traceresponse")
+            .iter()
+            .map(|value| value.to_str().expect("ASCII").to_owned())
+            .collect()
+    }
+
+    /// `rule:observability/a-trace-id-exists-for-every-request`: the response
+    /// names the request's trace id in one `traceresponse` header, whether the
+    /// trace is sampled or not. The flag on the value says which.
+    ///
+    /// The unsampled root is the row that carries the rule: a door that wrote
+    /// the header only for recorded requests passes the sampled row. A value
+    /// the program set for itself is replaced, so the response names one id.
+    #[test]
+    fn every_response_carries_its_trace_id_sampled_or_not() {
+        let sampled = decided(&[("traceparent", INBOUND)]);
+        assert!(sampled.sampled(), "the fixture's inbound trace is sampled");
+        assert_eq!(
+            responded(&[], &sampled),
+            [format!(
+                "00-4bf92f3577b34da6a3ce929d0e0e4736-{}-01",
+                sampled.span_id_hex()
+            )],
+            "a sampled request's response does not name its trace"
+        );
+
+        let unsampled = decided(&[]);
+        assert!(!unsampled.sampled(), "a root at rate 0 is not sampled");
+        assert_eq!(
+            responded(&[], &unsampled),
+            [format!(
+                "00-{}-{}-00",
+                unsampled.trace_id_hex(),
+                unsampled.span_id_hex()
+            )],
+            "an unsampled request's response does not name its trace"
+        );
+
+        let replaced = responded(
+            &[(
+                "traceresponse",
+                "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01",
+            )],
+            &unsampled,
+        );
+        assert_eq!(
+            replaced,
+            [unsampled.traceparent()],
+            "the response named a second id beside the door's"
+        );
+    }
+
+    /// `rule:observability/a-trace-id-exists-for-every-request`: an inbound
+    /// `X-Request-ID` is ignored. It is not the trace id, it is not on the
+    /// response and it is not on the access line.
+    #[test]
+    fn an_inbound_x_request_id_appears_nowhere() {
+        const SENT: &str = "0af7651916cd43dd8448eb211c80319c";
+        let trace = decided(&[("x-request-id", SENT)]);
+        assert_ne!(trace.trace_id_hex(), SENT, "the header became the trace id");
+
+        let mut headers = hyper::HeaderMap::new();
+        super::respond(&mut headers, &trace);
+        assert_eq!(headers.len(), 1, "the response carries more than its trace");
+        for (name, value) in &headers {
+            assert_ne!(name.as_str(), "x-request-id", "the header was echoed");
+            let value = value.to_str().expect("ASCII");
+            assert!(
+                !value.contains(SENT),
+                "the response names the header: {value}"
+            );
+        }
+
+        let line = logged(true, false, 200, Some(trace));
+        assert!(
+            line.contains(&trace.trace_id_hex()),
+            "the control: the access line names the trace: {line}"
+        );
+        assert!(
+            !line.to_lowercase().contains("x-request-id") && !line.contains(SENT),
+            "the access line names the header: {line}"
+        );
     }
 
     /// A `5xx` is a diagnostic, so it is written with `access` off, at

@@ -19015,7 +19015,7 @@ Returns `true` when the server has started to shut down. From then on, the serve
 Core\Server::traceId(): string
 ```
 
-Returns the id of the current request. Every request has one, and the server writes the same id into its log lines.
+Returns the id of the current request. Every request has one. The server writes the same id into its log lines and into the `traceresponse` header of the response.
 
 **Returns** `string` — 32 lower-case hexadecimal characters. If the request came with a `traceparent` header, the id is the one in that header.
 
