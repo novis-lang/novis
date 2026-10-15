@@ -22,7 +22,7 @@ stages:
         shapes: ["A `.nvst` test case", A diagnostic]
   - id: 3
     title: the renderings match the rule
-    status: open
+    status: done
     context: [crates/nvs-render/src/plain.rs, crates/nvs-runtime/src/ctx/output.rs, crates/nvs-stdlib/src/cli.rs]
     extra:
       context:
@@ -207,8 +207,8 @@ user reads*.
 
 **Does:** the plaintext rendering is coloured from the terminal profile, and the HTML debug block carries its style under the request's CSP nonce.
 
-- [ ] Colour from the one profile, and the "no colour yet" section rewritten. `crates/nvs-render/src/plain.rs:15`
-- [ ] The `[debug] inline` block's style, inline and once per response, under the request's CSP nonce. `crates/nvs-runtime/src/ctx/output.rs:602`
+- [x] Colour from the one profile, and the "no colour yet" section rewritten. `crates/nvs-render/src/plain.rs:15`
+- [x] The `[debug] inline` block's style, inline and once per response, under the request's CSP nonce. `crates/nvs-runtime/src/ctx/output.rs:602`
 
 ### 4. a generator does not `clone`
 
@@ -243,27 +243,28 @@ user reads*.
 
 ### State
 
-Stages 1 and 2 are shipped. `E0011` refuses `ESC` in every string literal. `E0247` now refuses
-`let` and `is` as every declared name (`crates/nvs-syntax/src/parser/decl.rs:366`, with
-`at_type_alias` widened so `type is = int;` reaches it) and as a parameter
-(`crates/nvs-syntax/src/parser/expr.rs:2048`); the rule is `shipped`. The mutual-recursion case's
-methods are `check()`; no other corpus file declared either word.
+Stages 1 to 3 are shipped. `rule:errors/renderings` is `shipped`: `nvs_render::plain::Colour` is
+the plaintext rendering's colour input, and `Core\Debug::dump` reads it from standard error's depth
+via `crate::cli::depth_of` (`crates/nvs-stdlib/src/debug.rs`, `diagnostic_colour`); `render` stays
+uncoloured. `Ctx::flush_inline_debug` writes `nvs_render::html::STYLE` once under a fresh nonce,
+the nonce rides `Completion::style_nonce`, and `crates/nvs-server/src/debug_style.rs` adds it to the
+CSP through the directive logic now shared with the slotted scripts in `crates/nvs-server/src/csp.rs`.
 
-The nightly CI run named by the sweep (38534014409) is on `cb7021a`, the last pushed `main`, 589
-commits behind local `main`, which fixes its failures. It stays red until the user pushes.
+The `Core\Debug` perf records are stale (`debug.rs` changed) and were not re-recorded: the machine
+was too loaded for `--record-perf` to calibrate. The nightly CI run the sweep names (38534014409) is
+on an old pushed `main` and stays red until the user pushes.
 
 ### Next
 
-**Stage 3: the renderings match the rule**, one file set: `crates/nvs-render/src/plain.rs`, `crates/nvs-runtime/src/ctx/output.rs`, `crates/nvs-stdlib/src/cli.rs`.
+**Stage 4: a generator does not `clone`**, one file set: `crates/nvs-types/src/expr/mod.rs`, `crates/nvs-runtime/src/object.rs`, `crates/nvs-runtime/src/graph.rs`.
 
-- [ ] Colour the plaintext rendering exactly when the resolved profile has colour, and rewrite the "No colour yet" section (`rule:errors/renderings`, `rule:tooling/the-terminal-profile-resolves-once`). `crates/nvs-render/src/plain.rs:15`
-- [ ] Read the profile from `Core\Cli`'s one resolution, never a second one (`rule:tooling/the-terminal-profile-resolves-once`). `crates/nvs-stdlib/src/cli.rs:1`
-- [ ] The `[debug] inline` block carries its style once per response under the request's CSP nonce (`rule:errors/renderings`). `crates/nvs-runtime/src/ctx/output.rs:602`
-- [ ] The `Core\Debug::dump` and `Core\Debug::render` proofs updated (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/debug.rs:114`
+- [ ] `clone` of a generator-typed operand is a compile error beside `reject_non_object_clone` (`rule:classes/clone-is-shallow`, `rule:iteration/generator-stays-in-one-isolate`). `crates/nvs-types/src/expr/mod.rs:837`
+- [ ] `nvs_object_clone` throws for a generator reached through `mixed`, with the copy walk's message. `crates/nvs-runtime/src/object.rs:4009`, `crates/nvs-runtime/src/graph.rs:394`
+- [ ] The two `.nvst` cases the `generator-clone` check names, and the `lang:iteration/generators` proofs (`rule:testing/feature-proofs`). `crates/nvs-runtime/src/graph.rs:394`
 
 ### Backlog
 
-- Stages 4 to 7 — this file's § *Stages*.
-- No response draws a CSP nonce yet, so Stage 3's inline style may need one drawn first; the slotted scripts use a hash (`crates/nvs-server/src/slotted/mod.rs:70`).
+- Stages 5 to 7 — this file's § *Stages*.
+- Re-record the `Core\Debug` perf on an idle machine: `bun nv proofs --record-perf --group 'Core\Debug'` (`docs/perf/members.ndjson`).
 - A diagnostic that echoes a source line prints a raw `ESC` byte to the terminal, as the `E0011` raw-byte case shows; the renderer should substitute it (`rule:tooling/terminal-output-is-a-sink`). Where the snippet is drawn: not checked.
 - The `Core\Cli\escape` benches' `// bench: allocations 1` budget was not re-measured after the migration (`benches/members/core/Cli/escape.nvs`).
