@@ -21,7 +21,7 @@ stages:
         shapes: ["A `.nvst` test case", A diagnostic]
   - id: 3
     title: the runner calls the hooks, with `Outcome` and `Summary`
-    status: open
+    status: done
     context: [crates/nvs-cli/src/runner.rs, crates/nvs-stdlib/src/test.rs]
     extra:
       context:
@@ -146,9 +146,9 @@ returns. The language gains three attributes, and the rejection of a class-level
 
 **Does:** the runner calls the hooks in the order and on the failures `rule:testing/class-hooks` gives, and `#[AfterEachTest]` after every attempt.
 
-- [ ] The class pair around the fixtures and tests. `crates/nvs-cli/src/runner.rs:804`
-- [ ] `#[AfterEachTest]` inside each attempt. `crates/nvs-cli/src/runner.rs:897`
-- [ ] `Core\Test\Outcome` and `Core\Test\Summary`. `crates/nvs-stdlib/src/test.rs:1`
+- [x] The class pair around the fixtures and tests. `crates/nvs-cli/src/runner.rs:804`
+- [x] `#[AfterEachTest]` inside each attempt. `crates/nvs-cli/src/runner.rs:897`
+- [x] `Core\Test\Outcome` and `Core\Test\Summary`. `crates/nvs-stdlib/src/test.rs:1`
 
 ### 4. tests run across every core
 
@@ -185,25 +185,29 @@ returns. The language gains three attributes, and the rejection of a class-level
 
 ### State
 
-Stage 2 is done. `Core\Test\BeforeClass`, `AfterClass` and `AfterEachTest` are on the roster with
-cards, and `crates/nvs-types/src/test_hooks.rs` checks shape, payload, one parameter, one hook of each
-kind (`E0304`) and static writes (`E0863`); shape refusals are `E0862`. The checker records no hook
-yet: `seen` in `check_class_hooks` is the list, dropped at the end. The parameter types are matched
-by name, because `Core\Test\Summary` and `Outcome` do not exist, so a program that writes one still
-fails as an unknown class.
+Stages 2 and 3 are done, and `hooks-run` and `hooks-compile` are green. The checker records each
+class's hooks as `nvs_types::test_hooks::TestHooks` (`ExprTypeTable::test_hooks`). `run_suite` calls
+`#[BeforeClass]` before the fixtures and `#[AfterClass]` after the tests, with fixtures released
+first. `run_case` calls `#[AfterEachTest]` through the `after` callback that
+`nvs_runtime::construct_and_call` now takes. `Core\Test\Outcome` and `Summary` are in
+`crates/nvs-stdlib/src/test/hooks.rs`, read through methods because a `Core` instance has no
+properties; both rules say so. A failed `#[AfterClass]` is printed under its class in the human
+format and goes to stderr in JSON and JUnit, which have no class-level entry.
 
 ### Next
 
-**Stage 3: the runner calls the hooks, with `Outcome` and `Summary`**, file set:
-`crates/nvs-types/src/test_hooks.rs`, `crates/nvs-cli/src/runner.rs`, `crates/nvs-stdlib/src/test.rs`.
+**Stage 4: tests run across every core**, file set: `crates/nvs-cli/src/runner.rs`,
+`crates/nvs-cli/src/main.rs`, `crates/nvs-host/src/placed.rs`.
 
-- [ ] Declare `Core\Test\Outcome` and `Core\Test\Summary` with the fields their rules list (`rule:testing/after-each-test`, `rule:testing/class-hooks`). `crates/nvs-stdlib/src/test.rs:1`
-- [ ] Record each class's hooks into `ExprTypeTable` beside its tests, from `seen` (`rule:testing/class-hooks`). `crates/nvs-types/src/test_hooks.rs:114`
-- [ ] Call `#[BeforeClass]` before the fixtures and `#[AfterClass]` after the tests, also after a throw (`rule:testing/class-hooks`). `crates/nvs-cli/src/runner.rs:804`
-- [ ] Call `#[AfterEachTest]` after every attempt, on the test's object (`rule:testing/after-each-test`). `crates/nvs-cli/src/runner.rs:897`
+- [ ] `--jobs` reaches a `#[Test]` run, and its help stops saying methods are not spread (`rule:testing/tests-run-across-every-core`). `crates/nvs-cli/src/main.rs:583`
+- [ ] Place each test isolate with `on: "worker"`'s placement, each class's hooks around only its own tests (`rule:testing/class-hooks`). `crates/nvs-cli/src/runner.rs:803`
+- [ ] Capture each test's output, print it under a failure, drop it on a pass; rewrite the module comment (`rule:testing/tests-run-across-every-core`). `crates/nvs-cli/src/runner.rs:16`
+- [ ] One coverage table per test, added to the run's when it finishes (`rule:testing/tests-run-across-every-core`). `crates/nvs-cli/src/runner.rs:378`
 
 ### Backlog
 
+- Each `#[Test(server: true)]` listener runs beside others, stage 4's last item.
+  `crates/nvs-cli/src/runner.rs:1513`
 - The nightly CI dispatch runs on `origin/main`, which is far behind local `main` because the loop
   never pushes. Its failures repeat until the user pushes; `lint`, `docs`, `supply chain`, the website
   render and the LDAP cases are already green at HEAD. `tools/nv/cmd/sweep.ts`
