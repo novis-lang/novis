@@ -1,0 +1,71 @@
+---
+title: Field names the compiler checks
+covers: []
+description: A field name or a dotted path in a string is checked against your classes when the program compiles, and again when it runs.
+---
+
+import { githubFile } from '@config/site.mjs'
+
+Code that works with a database often names fields in strings. A sort order is `"customer.name"`, and
+a condition is `"total = ?"`. In most languages the compiler cannot check these strings. A typo is
+found only when the query runs.
+
+Novis has three types for such strings. Each one is a `string` at run time. The compiler knows which
+names it may contain.
+
+## A field name
+
+`property<Order>` is the name of one public property of the class `Order`. A parameter of this type
+accepts `"total"` when `Order` has a public `$total`. The call `orderBy("totl")` does not compile.
+
+## A path through objects
+
+`propertyPath<Order>` is a list of property names joined with dots, such as `"customer.name"`. The
+first name is a property of `Order`. Each next name is a property of the class that the name before
+it has. A path can go through an object, an object that can be `null`, and an array of objects.
+
+The compiler checks every name in the path. If one name is wrong, the error points at that name. A
+private property is never part of a path.
+
+## A string with holes
+
+`string<propertyPath<Order>>` is a string with holes, such as `"{total} = ? AND {customer.name} = ?"`.
+Each `{...}` is a hole, and each hole is a property path of `Order`. The compiler checks the holes.
+The text between them is not checked, because it is the library's own language, such as SQL.
+
+`string<K>` is not a list of values. `array<K>` is a list, but `string<K>` is one string. `K` says
+what its holes may contain.
+
+## Where the check happens
+
+A string written in the call is checked when the program compiles. You do not need `as` there. The
+editor also shows the names you can use, one part of the path at a time.
+
+A string that the program builds while it runs, for example from a request, is checked with `as`.
+`as ?propertyPath<Order>` gives `null` when one of the names is wrong or private. So a request can
+only name fields that your classes make public.
+
+A string with holes from a request is still `tainted`. Only the holes are checked, and the text
+between them is still the request's text. So it cannot reach the text of a database query. See
+[Tainted input](/in-depth/concepts/tainted-input/).
+
+## What a library does with it
+
+A library splits the values with two functions:
+
+- [`Core\Str::parts`](/reference/core/str/parts/) gives the text and the holes of a string with holes.
+- [`Core\Reflect::steps`](/reference/core/reflect/steps/) gives one property for each name of a path,
+  with its type.
+
+Novis does not read SQL. A typo in a column name inside the SQL text is found when the query runs. A
+field named in a path or a hole is checked against your classes when the program compiles. No plugin
+and no database connection are needed.
+
+## Where to go next
+
+- [Guides: field paths](/guides/how-to-use/checked-field-paths/) builds a small data mapper step by
+  step.
+- <a href={githubFile('tests/hostile/lang/types/property-paths/01-a-sort-field-from-a-request.nvs')}>The attack</a>
+  sends bad sort fields from a request, and each one fails.
+
+<a href={githubFile('docs/rules/types/property-path.md')}>Read the full reasoning.</a>

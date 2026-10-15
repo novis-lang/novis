@@ -37963,6 +37963,50 @@
           "slug": "typeof",
           "url": "/reference/core/reflect/typeof/",
           "examples": "core/Reflect/typeOf"
+        },
+        {
+          "id": "Reflect.steps",
+          "name": "steps",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "steps(propertyPath<T> $path): array<Core\\Reflect\\PropertyInfo>",
+          "params": [
+            {
+              "kind": "param",
+              "name": "path",
+              "type": "propertyPath<T>",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "array<Core\\Reflect\\PropertyInfo>",
+          "notes": "",
+          "qualifier": "",
+          "section": "13. Compiler-facing surfaces",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "Returns the property that each part of a property path names.",
+            "params": [
+              {
+                "name": "path",
+                "descHtml": "A property path, such as <code>customer.address.city</code> of type <code>propertyPath&lt;Order&gt;</code>."
+              }
+            ],
+            "returnHtml": "One <code>Core\\Reflect\\PropertyInfo</code> for each part of the path, in order. Each one has the property's name, whether it is public, and its declared type. The type shows whether the next part is reached through an object, a nullable object or an array.",
+            "errors": [
+              {
+                "error": "LogicError",
+                "descHtml": "<code>steps</code> was called through a callable value, so the class the path starts at is not known."
+              }
+            ]
+          },
+          "slug": "steps",
+          "url": "/reference/core/reflect/steps/",
+          "examples": "core/Reflect/steps"
         }
       ],
       "unparsed": [],
@@ -46962,6 +47006,44 @@
           "slug": "format",
           "url": "/reference/core/str/format/",
           "examples": "core/Str/format"
+        },
+        {
+          "id": "Str.parts",
+          "name": "parts",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "parts(string<K> $text): array<string|K>",
+          "params": [
+            {
+              "kind": "param",
+              "name": "text",
+              "type": "string<K>",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "array<string|K>",
+          "notes": "",
+          "qualifier": "",
+          "section": "1. `Core\\Str`",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "Splits a string with holes into its text and its holes.",
+            "params": [
+              {
+                "name": "text",
+                "descHtml": "A string with holes, such as <code>string&lt;propertyPath&lt;Order&gt;&gt;</code>. Each <code>{name}</code> in it is a hole."
+              }
+            ],
+            "returnHtml": "The text and the holes in order. The array starts and ends with text, and text and holes take turns. So an even index is text and an odd index is a hole. Text can be the empty string. In text, <code>{{</code> is already <code>{</code> and <code>}}</code> is already <code>}</code>. If <code>$text</code> is <code>tainted</code>, the text is <code>tainted</code> too. The holes are not."
+          },
+          "slug": "parts",
+          "url": "/reference/core/str/parts/",
+          "examples": "core/Str/parts"
         }
       ],
       "unparsed": [],

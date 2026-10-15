@@ -172,12 +172,23 @@
   },
   "/guides/how-to-use/": {
     "feature": "guides/how-to-use/index.mdx",
-    "hash": "9aa6685c6c1ab886",
+    "hash": "4486d4a5e579e14b",
     "questions": [
       "How do the parts of a Novis application fit together?",
       "Good habits for building a Novis web application",
       "Things to do and avoid when writing a Novis app",
       "Overview of configuration, requests, errors and limits"
+    ]
+  },
+  "/guides/how-to-use/checked-field-paths/": {
+    "feature": "guides/how-to-use/checked-field-paths.mdx",
+    "hash": "bcffbaba0a59e366",
+    "questions": [
+      "How do I build a small query builder with checked column names?",
+      "How can a sort field from the address be checked before a query?",
+      "How do I turn a condition with field names in braces into SQL?",
+      "Can one parent class method check field names for each child class?",
+      "Does the editor suggest field names inside a string?"
     ]
   },
   "/guides/how-to-use/configuration/": {
@@ -700,12 +711,23 @@
   },
   "/in-depth/concepts/": {
     "feature": "in-depth/concepts/index.mdx",
-    "hash": "2df9e4cce8c2d29f",
+    "hash": "eaf71155544834c3",
     "questions": [
       "Introduction to how Novis runs and protects a web request",
       "Overview of the main ideas in Novis",
       "Which core concepts should I understand before using Novis?",
       "Short explanations of request isolation, limits and safe text"
+    ]
+  },
+  "/in-depth/concepts/checked-field-names/": {
+    "feature": "in-depth/concepts/checked-field-names.mdx",
+    "hash": "44a45e0838b62c11",
+    "questions": [
+      "Can the compiler find a typo in a field name inside a string?",
+      "How are dotted field names like customer.name checked?",
+      "Why is a column typo in SQL text found only when the query runs?",
+      "Is a string with braces around field names a kind of array?",
+      "Can a request ask to sort by a private field?"
     ]
   },
   "/in-depth/concepts/compiled/": {
@@ -8905,6 +8927,16 @@
       "Log the class of any value a function receives"
     ]
   },
+  "/reference/core/reflect/steps/": {
+    "feature": "Core\\Reflect::steps",
+    "hash": "9857472f5f356e84",
+    "questions": [
+      "How do I get the property for each part of a dotted field path?",
+      "How can a query builder know which tables a field path joins?",
+      "How do I see if a step of a path goes through an array?",
+      "Which type does each name in a property path have?"
+    ]
+  },
   "/reference/core/reflect/typeof/": {
     "feature": "Core\\Reflect::typeOf",
     "hash": "79108d8c27ebe7fa",
@@ -11027,6 +11059,16 @@
       "Pad a string on the left to a fixed length",
       "Right align text by adding spaces in front",
       "Fill the start of a string until it is long enough"
+    ]
+  },
+  "/reference/core/str/parts/": {
+    "feature": "Core\\Str::parts",
+    "hash": "7b29a701ae2f4fd6",
+    "questions": [
+      "How do I split a string with holes into text and field names?",
+      "How do I read the names inside braces in a condition string?",
+      "What happens to a doubled brace when a template string is split?",
+      "How can a library turn checked holes into SQL column names?"
     ]
   },
   "/reference/core/str/repeat/": {

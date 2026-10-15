@@ -1,0 +1,7 @@
+completion 1 18:24
+customer	property	null|Customer
+total	property	int
+
+completion 3 18:32
+email	property	string
+name	property	string

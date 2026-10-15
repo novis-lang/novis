@@ -1,0 +1,2 @@
+SELECT * FROM orders ORDER BY customer.name
+not a field

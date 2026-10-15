@@ -1,0 +1,84 @@
+---
+title: Field paths
+covers: []
+description: Build a small data mapper whose field names, paths and conditions are checked against your classes.
+---
+
+import Replay from '@components/Replay.astro'
+import Snippet from '@components/Snippet.astro'
+
+This page builds a small data mapper in six steps. Each step adds one thing, and each program runs.
+The mapper writes SQL text. It does not connect to a database.
+
+## One field
+
+<Snippet src="guides/how-to-use/data-mapper/01-one-field.nvs" />
+
+The parameter type `property<Order>` accepts the name of one public property of `Order`. The
+compiler checks the string `"total"` in the call. If you write `"totl"`, the program does not
+compile.
+
+## A path
+
+<Snippet src="guides/how-to-use/data-mapper/02-a-path.nvs" />
+
+`propertyPath<Order>` accepts names joined with dots. `customer` is a `?Customer`, so the next name
+is a property of `Customer`. A path can also go through an array of objects, such as
+`array<Line>`.
+
+The editor shows the names you can use. After each `.`, it shows the properties of the class the
+path has reached:
+
+<Replay src="guides/how-to-use/field-paths/01-complete-a-path.nvs" />
+<Snippet src="guides/how-to-use/field-paths/01-complete-a-path.nvs" />
+
+A misspelled name is underlined alone. The rest of the path is not underlined:
+
+<Replay src="guides/how-to-use/field-paths/02-a-misspelled-segment.nvs" />
+<Snippet src="guides/how-to-use/field-paths/02-a-misspelled-segment.nvs" />
+
+## A condition
+
+<Snippet src="guides/how-to-use/data-mapper/03-a-condition.nvs" />
+
+`string<propertyPath<Order>>` is a string with holes. Each `{...}` is a property path of `Order`,
+and the compiler checks it. Write `{{` for a `{` that is not a hole, and `}}` for a `}`.
+
+## One method for every class
+
+<Snippet src="guides/how-to-use/data-mapper/04-static.nvs" />
+
+In a parameter type, `static` is the class that the call names. So `Order::where` checks paths of
+`Order`, and `Customer::where` checks paths of `Customer`. You write the method once, in the parent
+class.
+
+## From holes to SQL
+
+<Snippet src="guides/how-to-use/data-mapper/05-holes-to-sql.nvs" />
+
+`Core\Str::parts` gives the text and the holes of the condition in turn. `Core\Reflect::steps`
+gives one property for each name of a path. The mapper adds a `JOIN` for each object on the path.
+A step also has the property's type, so a library can see if it is an array or can be `null`.
+
+Novis does not read the SQL text between the holes. A typo in a column name there is found when
+the query runs. A name in a hole is checked when the program compiles.
+
+## A sort field from a request
+
+<Snippet src="guides/how-to-use/data-mapper/06-a-sort-field-from-a-request.nvs" />
+
+A field name from a request is a `tainted string`. `as ?propertyPath<Order>` checks each name while
+the program runs. `customer.passwordHash` names a private property, so the result is `null`. A path
+with a wrong name or a brace also gives `null`.
+
+A condition from a request stays `tainted` after `as string<K>`. Only its holes are checked. So it
+cannot reach the text of a database query.
+
+## Do and don't
+
+- Do type a parameter `propertyPath<T>` when it takes a field name, so each call is checked.
+- Do convert a field name from a request with `as ?propertyPath<T>`, and handle the `null`.
+- Do pass values in a query as parameters, with `?`. Put only field names in the holes.
+- Don't build a condition from request text. The result is `tainted`, and a query does not accept it.
+
+Read more in [Concepts: field names the compiler checks](/in-depth/concepts/checked-field-names/).

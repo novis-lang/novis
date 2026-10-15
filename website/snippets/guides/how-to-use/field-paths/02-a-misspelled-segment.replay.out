@@ -1,0 +1,6 @@
+completion 1 18:33
+email	property	string
+name	property	string
+
+diagnostic 2 18:32+5 E0405
+  `Customer` has no public property `$emial`

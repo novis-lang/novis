@@ -1,0 +1,18 @@
+<?nvs
+class Customer {
+    public string $name = "Ada";
+    public string $email = "ada@example.com";
+}
+
+class Order {
+    public int $total = 40;
+    public ?Customer $customer = null;
+}
+
+class Mapper {
+    public static function orderBy(propertyPath<Order> $path): string {
+        return "ORDER BY " . ($path as string);
+    }
+}
+
+echo Mapper::orderBy("customer.emial"), "\n";

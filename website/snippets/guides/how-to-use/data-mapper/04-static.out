@@ -1,0 +1,2 @@
+WHERE {customer.email} LIKE ?
+WHERE {name} = ?
