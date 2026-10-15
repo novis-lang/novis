@@ -26,9 +26,9 @@ one process.
   be chosen once and copied from then on, and choosing wrong fails silently; once a variable can carry the
   tier, the choice stops being visible in review. A name per tier costs a few characters and makes the
   guarantee visible.
-- **A secrets-only store such as `Core\Secrets`.** A machine-wide cache is wanted for ordinary values
-  too, so a secrets-only store would leave that unanswered or bring it later as a third thing: two
-  shapes for one mechanism. A secret reaches both tiers through a sealed pair on the store class instead
+- **A secrets-only store such as `Core\Secrets`.** Ordinary values need the same in-process store, so a
+  secrets-only one would sit beside `memory()` as a second shape for one mechanism. A secret reaches
+  both tiers through a sealed pair on the store class instead
   (`rule:concurrency/a-secret-is-cached-only-sealed`).
-- **No new tier, with a token kept in a process-wide static of the caller's own.** It is the ambient
-  cross-request state `rule:security/no-cross-request-state` closes, which is why `Core\Cache` exists.
+- **A token kept in a process-wide static of the caller's own.** It is the ambient cross-request state
+  `rule:security/no-cross-request-state` closes, which is why `Core\Cache` exists.
