@@ -70,7 +70,7 @@ stages:
         shapes: []
   - id: 9
     title: the trace id is on the response
-    status: open
+    status: done
     context: [crates/nvs-server/src/trace.rs]
     extra:
       context:
@@ -281,31 +281,27 @@ backend read one standard header. It is written on every response, sampled or no
 
 **Does:** every response carries the request's trace id in the `traceresponse` header.
 
-- [ ] The header on every response, sampled or not. `crates/nvs-server/src/trace.rs:398`
-- [ ] The feature proofs of `Core\Server::traceId`. `docs/examples/core/Server/traceId/about.md:1`
+- [x] The header on every response, sampled or not. `crates/nvs-server/src/trace.rs:398`
+- [x] The feature proofs of `Core\Server::traceId`. `docs/examples/core/Server/traceId/about.md:1`
 
 ## Handoff
 
 ### State
 
-Stages 1 to 8 are done. `Core\Socket::receive` parks over both sources: a connection that
-subscribed leaves one `PeerSocket::interrupt` on its `Inbox` and one with `crate::bus`
-(`park_on_hand_off`), and either ends the read through the stream's cut flag
-(`nvs_host::NvsStream::cut_once`, shared with the drain's cut). A hand-off wakes one parked socket
-wait per core, which drains the mailbox for the whole core.
-`rule:concurrency/receive-is-the-one-wait` is `shipped`.
+Stages 1 to 9 are done, and the goal is reached. Every response carries `traceresponse`
+(`crate::trace::respond`), written in `serve.rs`'s `counted`, which every answer of the door
+passes; an answer with no carrier gets an unsampled root, which its access line names too.
+`rule:observability/a-trace-id-exists-for-every-request` is `shipped`, `trace-id-on-the-response`
+passes, `bun nv owners --closes server-rule-debts` passes, and `bun nv verify --doc` is green.
 
-The nightly reds ran on `origin/main`, far behind local `main`, and nothing here pushes.
+The nightly reds ran on `origin/main` (`cb7021a24`), 582 commits behind local `main`, and nothing
+here pushes.
 
 ### Next
 
-**Stage 9, the trace id is on the response**: `crates/nvs-server/src/trace.rs`,
-`crates/nvs-server/src/serve.rs` (`rule:observability/a-trace-id-exists-for-every-request`; the
-standing decision names the `traceresponse` header, on every response, sampled or not).
+**Retire the goal**: delete `docs/goals/server-rule-debts.md` and move to `language-rule-debts`.
 
-- [ ] The header on every response, sampled or not, with the two `trace::` tests of `trace-id-on-the-response`. `crates/nvs-server/src/serve.rs:2612`
-- [ ] An inbound `X-Request-ID` appears nowhere. `crates/nvs-server/src/trace.rs:120`
-- [ ] The feature proofs of `Core\Server::traceId`, then `bun nv owners --closes server-rule-debts`. `crates/nvs-stdlib/src/server.rs:136`
+- [ ] Move each Backlog item below to its owning doc before the file goes. `docs/goals/server-rule-debts.md:1`
 
 ### Backlog
 
