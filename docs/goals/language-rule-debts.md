@@ -38,7 +38,7 @@ stages:
         shapes: ["A `.nvst` test case", A diagnostic]
   - id: 5
     title: "`?T $x = null` decodes an absent key"
-    status: open
+    status: done
     context: [crates/nvs-ir/src/lower/mod.rs, crates/nvs-stdlib/src/json.rs, crates/nvs-types/src/defaults.rs]
     extra:
       context:
@@ -221,8 +221,8 @@ user reads*.
 
 **Does:** a field declared `?T $x = null` decodes an absent key to `null` at every codec door.
 
-- [ ] `FieldDefault::Null` from `ConstArg::Null`. `crates/nvs-ir/src/lower/mod.rs:358`
-- [ ] The decoder fills it, and the fragment's designed row and stale sentence go. `crates/nvs-stdlib/src/json.rs:2797`
+- [x] `FieldDefault::Null` from `ConstArg::Null`. `crates/nvs-ir/src/lower/mod.rs:358`
+- [x] The decoder fills it, and the fragment's designed row and stale sentence go. `crates/nvs-stdlib/src/json.rs:2797`
 
 ### 6. `nvs check` warns on a nullable condition
 
@@ -243,27 +243,26 @@ user reads*.
 
 ### State
 
-Stages 1 to 4 are shipped. `rule:iteration/generator-stays-in-one-isolate` is `shipped`, and its
-fragment says how. The checker refuses `clone` of a call whose declaration yields with `E0858`
-(`MethodSig::generator`, read by `reject_generator_clone` in `crates/nvs-types/src/expr/members.rs`).
-A generator types as `Iterator<T>`, so every other `clone` passes `Helper::CloneGuard`
-(`nvs_clone_guard` in `crates/nvs-runtime/src/object.rs`), which throws `LogicError` with
-`crate::graph::GENERATOR_REFUSAL`. The guard is emitted in front of every `clone`.
+Stages 1 to 5 are shipped. `rule:core-api/required-optional-and-nullable` is `shipped`:
+`FieldDefault::Null` (`crates/nvs-runtime/src/object.rs`) is what `field_default` gives for
+`ConstArg::Null`, so a property, a `static` and a codec field all carry a written `= null`, and every
+decoder door fills an absent `?T $x = null` key from it. The `Core\Json::decodeAs` about.md says so.
 
-The `Core\Debug` perf records are stale and were not re-recorded. The nightly CI run the sweep
-names (38534014409) is on an old pushed `main` and stays red until the user pushes.
+The floor-debt hostile proofs (`Core\Queue::purge`, `Core\Process\Handle::wait`) pass when run alone,
+and timed out only under a parallel sweep. The `Core\Debug` perf records are stale. The nightly CI run
+the sweep names (38534014409) is on an old pushed `main` and stays red until the user pushes.
 
 ### Next
 
-**Stage 5: `?T $x = null` decodes an absent key**, one file set: `crates/nvs-ir/src/lower/mod.rs`, `crates/nvs-runtime/src/object.rs`, `crates/nvs-stdlib/src/json.rs`.
+**Stage 6: `nvs check` warns on a nullable condition**, one file set: `crates/nvs-types/src/expr/mod.rs`, `crates/nvs-diagnostics/src/lib.rs`.
 
-- [ ] A `FieldDefault::Null` variant, and `field_default` maps `ConstArg::Null` to it (`rule:core-api/required-optional-and-nullable`). `crates/nvs-runtime/src/object.rs:808`, `crates/nvs-ir/src/lower/mod.rs:350`
-- [ ] The decoder fills an absent key from it, and every other reader of `FieldDefault` handles the arm. `crates/nvs-stdlib/src/json.rs:3132`
-- [ ] The case `tests/conformance/core/json-decode-fills-an-absent-key-defaulted-to-null.nvst`, the `Core\Json::decode` proofs, and the fragment's stale "the checker still refuses" sentence goes (`rule:testing/feature-proofs`). `crates/nvs-types/src/defaults.rs:52`
+- [ ] The warning in `check_condition`, when the condition's type is nullable, `?bool` included (`rule:expressions/nullable-condition-lint`). `crates/nvs-types/src/expr/mod.rs:199`
+- [ ] The next free `W` code after `W1022` and its card, naming `!= null`. `crates/nvs-diagnostics/src/lib.rs:5782`
+- [ ] The tests `a_nullable_condition_warns_naming_not_null` and `a_nullable_compared_with_null_does_not_warn` beside `crates/nvs-cli/tests/check.rs:231`, and the `lang:expressions/logical-operators-and-truth` proofs.
 
 ### Backlog
 
-- Stages 6 and 7 — this file's § *Stages*.
+- Stage 7 — this file's § *Stages*.
 - Re-record the `Core\Debug` perf on an idle machine: `bun nv proofs --record-perf --group 'Core\Debug'` (`docs/perf/members.ndjson`).
 - A diagnostic that echoes a source line prints a raw `ESC` byte to the terminal, as the `E0011` raw-byte case shows; the renderer should substitute it (`rule:tooling/terminal-output-is-a-sink`). Where the snippet is drawn: not checked.
 - The `Core\Cli\escape` benches' `// bench: allocations 1` budget was not re-measured after the migration (`benches/members/core/Cli/escape.nvs`).
