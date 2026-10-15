@@ -60,6 +60,20 @@ impl Answer {
     }
 }
 
+/// Where a [`Server`] finds its `nvs.toml`.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Layout {
+    /// In the program's directory, which is the working directory.
+    Here,
+    /// In the program's directory, named by `--config` from an empty working
+    /// directory ([`Server::start_elsewhere`]).
+    Elsewhere,
+    /// In the data folder, with none in the working directory.
+    DataFolder,
+    /// Nowhere, and `--no-init` keeps the data folder empty too.
+    Nowhere,
+}
+
 /// A running `nvs serve app.nvs` over a program in its own directory.
 ///
 /// Dropping it stops the process and removes the directory.
@@ -94,7 +108,7 @@ impl Server {
     ///
     /// As [`Server::start`] does, and when that first command fails.
     fn start_after(case: &str, config: &str, files: &[(&str, &str)], first: &[&str]) -> Self {
-        Self::boot(case, config, files, first, false)
+        Self::boot(case, config, files, first, Layout::Here)
     }
 
     /// [`Server::start`], with the server's working directory an empty folder
@@ -106,17 +120,16 @@ impl Server {
     ///
     /// As [`Server::start`] does.
     fn start_elsewhere(case: &str, config: &str, files: &[(&str, &str)]) -> Self {
-        Self::boot(case, config, files, &[], true)
+        Self::boot(case, config, files, &[], Layout::Elsewhere)
     }
 
-    /// [`Server::start_after`], started from the folder [`Server::start_elsewhere`]
-    /// names when `elsewhere` is set.
+    /// [`Server::start_after`], with its configuration where `layout` puts it.
     fn boot(
         case: &str,
         config: &str,
         files: &[(&str, &str)],
         first: &[&str],
-        elsewhere: bool,
+        layout: Layout,
     ) -> Self {
         let dir = Path::new(env!("CARGO_TARGET_TMPDIR"))
             .join(format!("live-config-{case}-{}", std::process::id()));
@@ -128,8 +141,14 @@ impl Server {
         for (path, text) in files {
             write_file(&dir.join(path), text);
         }
-        write_file(&dir.join("nvs.toml"), &written(config));
         let data = nvs_repo::scratch_private("nvsdata");
+        match layout {
+            Layout::Here | Layout::Elsewhere => {
+                write_file(&dir.join("nvs.toml"), &written(config));
+            }
+            Layout::DataFolder => write_file(&data.join("nvs.toml"), &written(config)),
+            Layout::Nowhere => {}
+        }
         if !first.is_empty() {
             let ran = Command::new(env!("CARGO_BIN_EXE_nvs"))
                 .arg("--data")
@@ -149,7 +168,10 @@ impl Server {
 
         let mut command = Command::new(env!("CARGO_BIN_EXE_nvs"));
         command.arg("--data").arg(&*data);
-        if elsewhere {
+        if layout == Layout::Nowhere {
+            command.arg("--no-init");
+        }
+        if layout == Layout::Elsewhere {
             let cwd = dir.join("elsewhere");
             std::fs::create_dir_all(&cwd).expect("the working directory is created");
             command
@@ -2846,5 +2868,106 @@ fn a_reload_that_narrows_an_extension_grant_reaches_the_next_request() {
         answer.body.starts_with("refused: "),
         "a read outside the narrowed grant was answered: {answer:?}; the server wrote: {}",
         server.said()
+    );
+}
+
+/// An `[http.headers]` block that sets `referrer_policy` to `policy`.
+fn referrer(policy: &str) -> String {
+    format!("[http.headers]\nreferrer_policy = \"{policy}\"\n")
+}
+
+/// The path a boot line names after `prefix`, from the first line of `said`
+/// that starts with it.
+///
+/// # Panics
+///
+/// When no line starts with `prefix`.
+fn announced(said: &str, prefix: &str) -> PathBuf {
+    said.lines()
+        .find_map(|line| line.strip_prefix(prefix))
+        .map(PathBuf::from)
+        .unwrap_or_else(|| panic!("no line starts with `{prefix}`; the server wrote: {said}"))
+}
+
+/// Boot prints the root as it was found, the absolute path it was read from,
+/// and every file the tree reached, in the order the tree read them.
+#[test]
+fn boot_prints_the_resolved_root_and_every_file_it_reached() {
+    let server = Server::start(
+        "announced",
+        INCLUDING,
+        &[("app.nvs", PLAIN), ("more.toml", &referrer("no-referrer"))],
+    );
+    let said = server.logs("info: resolved from 2 files\n");
+    let root = announced(&said, "info: configuration ./nvs.toml -> ");
+    assert!(
+        root.is_absolute() && root.ends_with("nvs.toml"),
+        "the root was not announced as an absolute path: {said}"
+    );
+    let reached: Vec<&str> = said
+        .lines()
+        .filter_map(|line| line.strip_prefix("info:   "))
+        .collect();
+    assert_eq!(
+        reached.len(),
+        2,
+        "the boot did not list the two files the tree reached: {said}"
+    );
+    assert_eq!(
+        PathBuf::from(reached[0]),
+        root,
+        "the root is not the first file listed: {said}"
+    );
+    assert!(
+        Path::new(reached[1]).ends_with("more.toml"),
+        "the included file is not listed after the root: {said}"
+    );
+}
+
+/// A reload reads the file the boot read, by the path the boot stored. The
+/// server boots on the data folder's `nvs.toml`. Then a `nvs.toml` appears in
+/// its working directory, which a new boot would read instead. Saving the data
+/// folder's file still reloads that file.
+#[test]
+fn a_reload_reads_the_stored_path_after_the_working_directory_changes() {
+    let server = Server::boot(
+        "stored",
+        &referrer("no-referrer"),
+        &[("app.nvs", PLAIN)],
+        &[],
+        Layout::DataFolder,
+    );
+    server.awaits("/", "the data folder's `Referrer-Policy`", |answer| {
+        answer.status == 200 && answer.header("referrer-policy") == Some("no-referrer")
+    });
+
+    write_file(&server.dir.join("nvs.toml"), &written(&referrer("origin")));
+    let from = server.said().len();
+    write_file(
+        &server.data.join("nvs.toml"),
+        &written(&referrer("same-origin")),
+    );
+    if let Err(refusal) = server.reloaded_since(from) {
+        panic!("the data folder's file did not reload: {refusal}");
+    }
+    let answer = server.get("/");
+    assert_eq!(
+        answer.header("referrer-policy"),
+        Some("same-origin"),
+        "the reload did not read the stored path: {answer:?}; the server wrote: {}",
+        server.said()
+    );
+}
+
+/// With no `nvs.toml` anywhere and none written, boot prints one line saying
+/// the shipped defaults apply, and lists no file.
+#[test]
+fn the_shipped_defaults_line_is_printed_when_no_file_is_found() {
+    let server = Server::boot("defaults", "", &[("app.nvs", PLAIN)], &[], Layout::Nowhere);
+    let said =
+        server.logs("info: configuration: no file was found, so the shipped defaults apply\n");
+    assert!(
+        !said.contains("info: resolved from"),
+        "a boot on the shipped defaults listed files: {said}"
     );
 }

@@ -34,11 +34,15 @@
 //! every two seconds after. A tree whose roots are the shipped defaults read no
 //! file, and this check has nothing to stat.
 //!
-//! **A reload re-reads the tree; it never writes one.** The boot may have been
-//! asked to create a default `nvs.toml` ([`crate::config::Init`]), and a reload
-//! that did the same thing would be a file appearing on disk because a file
-//! next to it was saved. So the resolve here is always
-//! [`Init::Never`](crate::config::Init::Never).
+//! **A reload re-reads the roots the boot stored; it never chooses or writes
+//! one.** The boot canonicalized the roots it read
+//! (`rule:config/the-resolved-root-is-announced-and-stored`), and a reload
+//! resolves those paths through [`crate::config::stored_set`]. It never asks
+//! the working directory or the data folder again, so a directory replaced
+//! under the running process does not change which file is read. A boot on the
+//! shipped defaults reloads the shipped defaults. The boot may have created a
+//! default `nvs.toml` ([`crate::config::Init`]), and a reload never does: that
+//! would be a file appearing on disk because a file next to it was saved.
 //!
 //! **A reload that moves the queue workers asks their storage first.** Where
 //! the new tree's workers would claim out of a connection or a `[db.<name>]`
@@ -68,7 +72,7 @@
 //! read the process's drain, which only a stop begins.
 //!
 //! Cost, as `rule:programs/memory-priority` requires: one of these per process,
-//! holding the roots as written, the restart keys already logged with their two
+//! holding the canonical roots, the restart keys already logged with their two
 //! values, and the last refusal the check logged. A reload holds one snapshot's
 //! worth of tree while it resolves and drops the previous one when the new one
 //! is published; requests already running keep theirs, which is
@@ -134,9 +138,10 @@ pub(crate) struct Process {
     /// The published tree — what the accept loop hands a request at its start,
     /// and what a reload replaces whole.
     current: Arc<Current>,
-    /// `--config` as it was written, so a reload resolves the roots this boot
-    /// resolved rather than whatever the working directory now holds.
-    roots: Vec<PathBuf>,
+    /// The canonical roots this boot read (`crate::config::Root::stored`), so a
+    /// reload reads the same files and never asks the working directory or the
+    /// data folder again (`rule:config/the-resolved-root-is-announced-and-stored`).
+    roots: nvs_config::Roots,
     /// The mount rows the server answers from, whose entries a reload folds
     /// before it publishes (`rule:http-server/the-served-file-is-optional`), or
     /// `None` where no server is serving.
@@ -211,7 +216,7 @@ impl Process {
     /// The process serving `current`, resolved from `roots`.
     pub(crate) fn new(
         current: Arc<Current>,
-        roots: Vec<PathBuf>,
+        roots: nvs_config::Roots,
         compiler: Arc<Compiler>,
         admission: Arc<Admission>,
         draining: Draining,
@@ -323,9 +328,8 @@ impl Process {
     /// The tree does not resolve, rendered.
     fn resolved(&self) -> Result<Tree, String> {
         let mut sources = SourceMap::new();
-        let (next, blocks, origins) =
-            crate::config::boot_set(&self.roots, &mut sources, crate::config::Init::Never)
-                .map_err(|refusal| rendered(&refusal, &sources))?;
+        let (next, blocks, origins) = crate::config::stored_set(&self.roots, &mut sources)
+            .map_err(|refusal| rendered(&refusal, &sources))?;
         Ok(Tree {
             next,
             blocks,

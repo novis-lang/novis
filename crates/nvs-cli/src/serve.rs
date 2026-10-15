@@ -173,10 +173,16 @@ pub(crate) fn run(
     // `blocks` once the table below names the entries
     // (`rule:http-server/the-served-file-is-optional`).
     let mut sources = SourceMap::new();
-    let (snapshot, blocks, origins) = match crate::config::boot_set(config, &mut sources, init) {
-        Ok(all) => all,
-        Err(diagnostic) => return report(diagnostic, &sources),
-    };
+    let ((snapshot, blocks, origins), root) =
+        match crate::config::boot_set(config, &mut sources, init) {
+            Ok(all) => all,
+            Err(diagnostic) => return report(diagnostic, &sources),
+        };
+    // `rule:config/the-resolved-root-is-announced-and-stored`: which file was read is one line
+    // here, and a reload reads `root.stored()` rather than choosing again.
+    for line in root.lines() {
+        eprintln!("{line}");
+    }
     if !snapshot.warnings.is_empty() {
         let mut diags = Diagnostics::new();
         for warning in &snapshot.warnings {
@@ -504,7 +510,7 @@ pub(crate) fn run(
     let host = Arc::new(
         crate::reload::Process::new(
             Arc::clone(&current),
-            config.to_vec(),
+            root.stored(),
             Arc::clone(&compiler),
             Arc::clone(&admission),
             nvs_server::Draining::process(),
@@ -3188,7 +3194,7 @@ mod tests {
         )
         .expect("a tree of this case's own");
         let mut sources = nvs_diagnostics::SourceMap::new();
-        let (host, blocks, _) = crate::config::boot_set(
+        let ((host, blocks, _), _) = crate::config::boot_set(
             std::slice::from_ref(&toml),
             &mut sources,
             crate::config::Init::Never,
@@ -4389,7 +4395,7 @@ mod tests {
             .expect("a tree that named no ceiling has this machine's");
         let process = crate::reload::Process::new(
             Arc::clone(&current),
-            vec![root.clone()],
+            nvs_config::Roots::Files(vec![root.clone()]),
             Arc::new(Compiler::default()),
             Arc::new(nvs_server::Admission::new(&nvs_server::Ceiling::of(
                 &capacity,

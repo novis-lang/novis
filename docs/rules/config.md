@@ -3,7 +3,7 @@
 
 # Configuration
 
-*3 of 64 rules below are **designed** rather than shipped, and are marked where they appear.*
+*1 of 64 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="config-the-file-is-nvs-toml-and-it-is-toml"></a>
 
@@ -370,21 +370,23 @@ accepted into the wrong block.
 
 <a id="config-the-resolved-root-is-announced-and-stored"></a>
 
-## The resolved root is canonicalized once at boot, announced with every file it reached, and re-read from that stored path on reload  *(designed — owned by goal server-rule-debts)*
+## The resolved root is canonicalized once at boot, announced with every file it reached, and re-read from that stored path on reload
 
 `rule:config/the-resolved-root-is-announced-and-stored`
 
 Whichever step won is **canonicalized to an absolute path once, at boot, and stored**. A reload
-re-reads that stored path and never re-resolves the working directory, so a deployment that replaced
-its directory under a running process reloads the file the operator can see rather than an unlinked
-inode.
+re-reads that stored path and never re-resolves the working directory or the data folder, so a
+deployment that replaced its directory under a running process reloads the file the operator can see
+rather than an unlinked inode, and a `nvs.toml` that appears in the working directory later is not
+read until the next boot. A boot on the shipped defaults reloads the shipped defaults.
 
-The resolved path, and every file the tree reached, are printed at boot:
+`nvs serve` prints the root as it was found, the path it was read from, and every file the tree
+reached, on standard error before it binds:
 
 ```console
 $ nvs serve
 info: configuration ./nvs.toml -> /srv/www/app/nvs.toml
-info: resolved from 5 files
+info: resolved from 3 files
 info:   /srv/www/app/nvs.toml
 info:   /srv/www/app/conf.d/10-limits.toml
 info:   /etc/nvs/local.toml
@@ -393,13 +395,13 @@ info:   /etc/nvs/local.toml
 The announcement is half of what makes the two implicit steps of
 [`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults) safe — the working directory's
 `nvs.toml` and the data folder's: reading the wrong file is visible in one line rather than silent.
-When no step finds a file, the shipped-defaults line is printed instead, and the resolved absolute
-path is logged in every case.
+When no step finds a file, `info: configuration: no file was found, so the shipped defaults apply`
+is printed instead. When step 4's write into the data folder declines, its reason is one more `info:`
+line ahead of that one. Other commands print none of these, so `nvs run`'s standard error stays the
+program's own.
 
-**Not on disk.** `--config` paths are made absolute (`crates/nvs-config/src/resolve.rs:392`), and a
-reload reads the `--config` roots as they were written (`crates/nvs-cli/src/reload.rs:137`). A root
-found as `./nvs.toml` or in the data folder is not stored as a canonical path, and boot prints no line
-naming the root (`crates/nvs-cli/src/config.rs:537`).
+The stored roots are `crates/nvs-cli/src/config.rs`'s `Root`, and a reload resolves them through
+`stored_set`.
 
 <sub>See also [`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults), [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot).</sub>
 
@@ -2168,7 +2170,7 @@ socket is coherent across cores and a per-core map is not.
 
 <a id="config-a-unix-spelling-with-no-af-unix-transport-refuses-at-boot"></a>
 
-## A Unix spelling on a build with no `AF_UNIX` transport is refused at boot, never read as loopback TCP  *(designed — owned by goal server-rule-debts)*
+## A Unix spelling on a build with no `AF_UNIX` transport is refused at boot, never read as loopback TCP
 
 `rule:config/a-unix-spelling-with-no-af-unix-transport-refuses-at-boot`
 
@@ -2190,10 +2192,12 @@ refused where it is written, so a deployment cannot run believing it has a store
 runs as another is worse than one that does not run, because the difference is invisible in exactly
 the review that would have caught it.
 
-**Not on disk.** A `unix:` URL in `[cache.shared] url` is refused at boot with `E_NO_UNIX_TRANSPORT`
-(`crates/nvs-config/src/store.rs:93`), and `nvs serve` refuses a socket path in `[server] listen` before
-it binds anything (`crates/nvs-cli/src/serve.rs:2245`). A socket path in `[db.<name>] host` is refused
-only when a connection is opened (`crates/nvs-db/src/conn.rs:135`).
+Every key that can carry a Unix spelling is refused at boot. A `unix:` URL in `[cache.shared] url`
+(`crates/nvs-config/src/store.rs`) and a socket path in `[db.<name>] host` (`crates/nvs-config/src/db.rs`)
+are both `E_NO_UNIX_TRANSPORT` when the tree resolves, and `nvs serve` refuses a socket path in
+`[server] listen` before it binds anything (`crates/nvs-cli/src/serve.rs`). The connect-time refusal in
+`crates/nvs-db/src/conn.rs` stays as the last line of defence for a host that reached a driver some
+other way.
 
 <sub>See also [`config/unix-scheme-in-a-url-and-a-bare-path-in-a-host`](config.md#config-unix-scheme-in-a-url-and-a-bare-path-in-a-host), [`core-api/session-roster`](core-api.md#core-api-session-roster).</sub>
 

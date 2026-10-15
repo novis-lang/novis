@@ -142,8 +142,9 @@ pub(crate) fn init_gate(project_command: bool, no_init: bool, environment: Optio
 /// file nobody asked for would be a regression against every deployment that works without one.
 /// What the reason buys is that the question can be *asked*: [`init`] renders it as the one line
 /// [`Self::note_about`] gives, because there an operator asked for the file and a silent failure
-/// would be the whole answer withheld. A run keeps it to itself until there is a boot line to carry
-/// it (`rule:config/the-resolved-root-is-announced-and-stored`).
+/// would be the whole answer withheld. `nvs serve` prints the same line among its boot lines
+/// ([`Root::lines`], `rule:config/the-resolved-root-is-announced-and-stored`), and any other run
+/// keeps it to itself.
 #[derive(Debug)]
 pub(crate) enum Declined {
     /// The directory fails `rule:config/ownership-is-the-trust-boundary`, so a file created there
@@ -469,7 +470,7 @@ fn boot_in(
     ),
     Diagnostic,
 > {
-    let resolved = resolved_in(cwd, data, config, sources, init)?;
+    let (resolved, _) = resolved_in(cwd, data, config, sources, init)?;
     let snapshot = match entry {
         Some(entry) => nvs_config::Snapshot::build(&resolved, entry, &LocalFiles)?,
         None => nvs_config::Snapshot::host(&resolved, &LocalFiles)?,
@@ -477,7 +478,7 @@ fn boot_in(
     Ok((snapshot, resolved.origins))
 }
 
-/// [`boot_set`]'s host snapshot, roster and the origin of every key.
+/// [`boot_set`]'s and [`stored_set`]'s host snapshot, roster and the origin of every key.
 pub(crate) type BootSet = (
     Arc<nvs_config::Snapshot>,
     nvs_config::AppBlocks,
@@ -486,7 +487,8 @@ pub(crate) type BootSet = (
 
 /// What `nvs serve` boots from: the host's snapshot, with no `[[app]]` block folded, and the
 /// roster each served entry's own snapshot is folded from
-/// (`rule:http-server/the-served-file-is-optional`).
+/// (`rule:http-server/the-served-file-is-optional`). Beside them is the [`Root`] the tree was read
+/// from, which `nvs serve` announces and each reload it runs reads again through [`stored_set`].
 ///
 /// # Errors
 ///
@@ -495,15 +497,35 @@ pub(crate) fn boot_set(
     config: &[PathBuf],
     sources: &mut SourceMap,
     init: Init,
-) -> Result<BootSet, Diagnostic> {
+) -> Result<(BootSet, Root), Diagnostic> {
     let data = nvs_config::data::config_file();
-    let resolved = resolved_in(
+    let (resolved, root) = resolved_in(
         &working_directory()?,
         data.as_deref(),
         config,
         sources,
         init,
     )?;
+    Ok((set_of(resolved)?, root))
+}
+
+/// [`boot_set`] for roots a boot already chose and stored ([`Root::stored`]), which is how a
+/// reload resolves: the same files, and never the working directory or the data folder again.
+///
+/// # Errors
+///
+/// As [`boot_origins`].
+pub(crate) fn stored_set(
+    roots: &nvs_config::Roots,
+    sources: &mut SourceMap,
+) -> Result<BootSet, Diagnostic> {
+    let mut resolved = nvs_config::resolve::resolve(roots, sources, &LocalFiles)?;
+    crate::bundle::carry_extensions(&mut resolved);
+    set_of(resolved)
+}
+
+/// The host's snapshot, the roster and the origins of a resolved tree.
+fn set_of(resolved: nvs_config::resolve::Resolved) -> Result<BootSet, Diagnostic> {
     let snapshot = nvs_config::Snapshot::host(&resolved, &LocalFiles)?;
     Ok((
         snapshot,
@@ -512,15 +534,73 @@ pub(crate) fn boot_set(
     ))
 }
 
+/// `rule:config/the-resolved-root-is-announced-and-stored`: the roots a boot chose, each canonical,
+/// and what `nvs serve` prints about them.
+///
+/// Cost, as `rule:programs/memory-priority` requires: one per process, holding a path per root and
+/// per file the tree reached. Nothing per request.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct Root {
+    /// Each root as it was named — a `--config` as typed, `./nvs.toml`, or the data folder's file —
+    /// and the canonical path read for it. Empty for the shipped defaults.
+    named: Vec<(String, PathBuf)>,
+    /// Every file the tree reached, in the order it read them.
+    files: Vec<PathBuf>,
+    /// Why step 4's write into the data folder did not happen, as [`Declined::note_about`] renders
+    /// it, where a command asked for that write.
+    declined: Option<String>,
+}
+
+impl Root {
+    /// The roots a reload resolves: the canonical paths this boot read.
+    pub(crate) fn stored(&self) -> nvs_config::Roots {
+        if self.named.is_empty() {
+            nvs_config::Roots::Defaults
+        } else {
+            nvs_config::Roots::Files(self.named.iter().map(|(_, path)| path.clone()).collect())
+        }
+    }
+
+    /// The boot lines: a declined write, then each root and its canonical path and every file the
+    /// tree reached, or the one line that says the shipped defaults apply.
+    pub(crate) fn lines(&self) -> Vec<String> {
+        let mut lines: Vec<String> = self
+            .declined
+            .iter()
+            .map(|why| format!("info: {why}"))
+            .collect();
+        if self.named.is_empty() {
+            lines.push(
+                "info: configuration: no file was found, so the shipped defaults apply".to_owned(),
+            );
+            return lines;
+        }
+        for (named, path) in &self.named {
+            lines.push(format!("info: configuration {named} -> {}", path.display()));
+        }
+        let count = self.files.len();
+        lines.push(format!(
+            "info: resolved from {count} file{}",
+            if count == 1 { "" } else { "s" }
+        ));
+        lines.extend(
+            self.files
+                .iter()
+                .map(|file| format!("info:   {}", file.display())),
+        );
+        lines
+    }
+}
+
 /// The tree [`boot_in`] and [`boot_set`] build their snapshots from, in `cwd`, with `data` as the
-/// data folder's `nvs.toml`.
+/// data folder's `nvs.toml`, and the [`Root`] it was read from.
 fn resolved_in(
     cwd: &Path,
     data: Option<&Path>,
     config: &[PathBuf],
     sources: &mut SourceMap,
     init: Init,
-) -> Result<nvs_config::resolve::Resolved, Diagnostic> {
+) -> Result<(nvs_config::resolve::Resolved, Root), Diagnostic> {
     let files = LocalFiles;
     // `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`: every `--config` in
     // the order given, else `./nvs.toml`, else the data folder's `nvs.toml`, else the shipped
@@ -529,25 +609,59 @@ fn resolved_in(
     let mut roots = nvs_config::resolve::roots(config, cwd, data, &files);
     // Step 4, reached by a project command: write step 3's file into the data folder and then
     // resolve the file just written, so what the run reads is what the folder now holds and what
-    // the next run will find at step 3. Nothing is ever written into `cwd`. A write that does not
-    // happen — no usable data folder, or one that declines — changes nothing: `roots` still says
-    // `Defaults` and the run takes them.
-    //
-    // The [`Declined`] reason is dropped here rather than printed, and that is where
-    // `rule:config/the-resolved-root-is-announced-and-stored` lands once it ships: there is no boot
-    // line for this to join yet. An unusable data folder has already been reported, once, by the
+    // the next run will find at step 3. Nothing is ever written into `cwd`. A file that already
+    // exists means a concurrent `nvs` wrote it first, and it is read the same way. A write that
+    // declines changes nothing: `roots` still says `Defaults`, the run takes them, and the reason
+    // joins the boot lines. An unusable data folder has already been reported, once, by the
     // warning `nvs_config::data::prepare` gives the command.
+    let mut declined = None;
     if init == Init::Write
         && matches!(roots, nvs_config::Roots::Defaults)
-        && data.is_some_and(|data| {
-            write_default_at(data, &nvs_config::data::config_template()).is_ok()
-        })
+        && let Some(data) = data
     {
-        roots = nvs_config::resolve::roots(config, cwd, data, &files);
+        match write_default_at(data, &nvs_config::data::config_template()) {
+            Ok(_) | Err(Declined::Exists) => {
+                roots = nvs_config::resolve::roots(config, cwd, Some(data), &files);
+            }
+            Err(why) => declined = Some(why.note_about(data)),
+        }
     }
+    // Canonical once, here, so the boot reads the files a reload will read. A root that does not
+    // canonicalize keeps its absolute path, and the resolve below reports it.
+    let named = match &mut roots {
+        nvs_config::Roots::Defaults => Vec::new(),
+        nvs_config::Roots::Files(paths) => {
+            for path in paths.iter_mut() {
+                if let Ok(canonical) = nvs_config::trust::canonical(path) {
+                    *path = canonical;
+                }
+            }
+            let local = nvs_config::resolve::Files::exists(
+                &files,
+                &cwd.join(nvs_config::resolve::LOCAL_FILE),
+            );
+            paths
+                .iter()
+                .enumerate()
+                .map(|(index, path)| {
+                    let named = match (config.get(index), data) {
+                        (Some(flag), _) => flag.display().to_string(),
+                        (None, Some(data)) if !local => data.display().to_string(),
+                        (None, _) => format!("./{}", nvs_config::resolve::LOCAL_FILE),
+                    };
+                    (named, path.clone())
+                })
+                .collect()
+        }
+    };
     let mut resolved = nvs_config::resolve::resolve(&roots, sources, &files)?;
     crate::bundle::carry_extensions(&mut resolved);
-    Ok(resolved)
+    let root = Root {
+        named,
+        files: resolved.files.clone(),
+        declined,
+    };
+    Ok((resolved, root))
 }
 
 /// The `[capabilities]` block the machine that is **compiling** reads — `rule:core-classes/db-compile-time-query-checking`'s second sentence, which is what makes a literal `Core\Db::open` host
@@ -1438,5 +1552,23 @@ mod tests {
             Init::Never,
             "and a command that is not a project command never writes"
         );
+    }
+
+    /// `rule:config/the-resolved-root-is-announced-and-stored`: the reason a data-folder write
+    /// declined is the first boot line, and the shipped-defaults line follows it.
+    #[test]
+    fn a_declined_data_folder_write_joins_the_boot_lines() {
+        let root = super::Root {
+            declined: Some("`nvs.toml` was not written: the disk is full".to_owned()),
+            ..super::Root::default()
+        };
+        assert_eq!(
+            root.lines(),
+            [
+                "info: `nvs.toml` was not written: the disk is full",
+                "info: configuration: no file was found, so the shipped defaults apply",
+            ]
+        );
+        assert_eq!(root.stored(), nvs_config::Roots::Defaults);
     }
 }

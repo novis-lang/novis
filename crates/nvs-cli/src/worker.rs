@@ -2343,7 +2343,7 @@ mod tests {
         )
         .expect("a tree of this case's own");
         let mut sources = nvs_diagnostics::SourceMap::new();
-        let (host, blocks, _) = crate::config::boot_set(
+        let ((host, blocks, _), _) = crate::config::boot_set(
             std::slice::from_ref(&toml),
             &mut sources,
             crate::config::Init::Never,
