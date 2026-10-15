@@ -127,7 +127,9 @@ pub fn socket_endpoint(host: &str) -> std::io::Result<Endpoint> {
 /// transport does not quietly become loopback TCP, because the two are not the
 /// same server and an operator who wrote a path did not ask for a port.
 /// `rule:config/a-unix-spelling-with-no-af-unix-transport-refuses-at-boot` is
-/// the rule and its argument.
+/// the rule and its argument. A configured `[db.<name>] host` is refused at
+/// boot by `nvs_config::db::unix_transport` before it can reach this, so this
+/// is the last line of defence for a host that arrived some other way.
 ///
 /// # Errors
 ///

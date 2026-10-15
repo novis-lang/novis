@@ -260,3 +260,54 @@ fn a_slow_query_that_is_not_a_duration_is_refused_at_boot() {
         diagnostic.notes,
     );
 }
+
+/// `rule:config/a-unix-spelling-with-no-af-unix-transport-refuses-at-boot` for a `[db]` block,
+/// through `validate`, the call the boot makes: a socket `host` is an ordinary server where the
+/// build has a Unix transport and `E0635` at boot where it has none.
+///
+/// Both halves in one case because what is asserted is that they disagree by platform. A reader
+/// that answered one way everywhere would pass a case written for either half alone.
+#[test]
+fn a_db_unix_spelling_with_no_unix_transport_is_refused_at_boot() {
+    let parse = |text: &str| {
+        let mut sources = SourceMap::new();
+        let (_, parsed) = nvs_config::file::parse::<Config>(&mut sources, "nvs.toml", text);
+        parsed.unwrap_or_else(|err| panic!("{text}\n-- refused: {}", err.message))
+    };
+    let socket = parse(&format!("{MAIN}host = \"/run/postgresql/.s.PGSQL.5432\"\n"));
+
+    let verdict = validate(&socket, &BTreeMap::new());
+    if cfg!(unix) {
+        assert!(
+            verdict.is_ok(),
+            "a socket is an ordinary host where the build carries one"
+        );
+    } else {
+        let refused = verdict.expect_err("a socket with no transport is refused at boot");
+        assert_eq!(refused.code, Some(code::E_NO_UNIX_TRANSPORT));
+        assert!(
+            refused.message.contains("[db.main]") && refused.message.contains(".s.PGSQL.5432"),
+            "the message names the block and the path that was written: {}",
+            refused.message
+        );
+        assert!(
+            refused
+                .notes
+                .iter()
+                .any(|note| note.contains(std::env::consts::OS)),
+            "the note names the platform, since that is what has to change: {:?}",
+            refused.notes
+        );
+    }
+
+    // Silent on every platform for a host name and for a block that wrote no host, so the refusal
+    // is about the path rather than about the key being written at all.
+    assert!(
+        validate(
+            &parse(&format!("{MAIN}host = \"db.example.com\"\n")),
+            &BTreeMap::new()
+        )
+        .is_ok()
+    );
+    assert!(validate(&parse(MAIN), &BTreeMap::new()).is_ok());
+}

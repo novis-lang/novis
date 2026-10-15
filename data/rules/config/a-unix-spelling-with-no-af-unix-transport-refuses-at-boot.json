@@ -1,12 +1,12 @@
 {
   "title": "A Unix spelling on a build with no `AF_UNIX` transport is refused at boot, never read as loopback TCP",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "config/unix-scheme-in-a-url-and-a-bare-path-in-a-host",
     "core-api/session-roster"
   ],
   "guardedBy": [
-    "crates/nvs-config/src/store.rs"
-  ],
-  "goal": "server-rule-debts"
+    "crates/nvs-config/src/store.rs",
+    "crates/nvs-config/tests/db.rs"
+  ]
 }

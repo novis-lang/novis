@@ -283,7 +283,8 @@ impl Default for PoolBounds {
 /// An unscoped `[db.pool]` table of bounds, which § 13 gives no meaning to and which
 /// [`bounds_for`]'s doc argues could not be sized against anything; then the first block whose
 /// bounds do not describe a pool or whose `slow_query` is not a duration, as [`pool_for`] and
-/// [`slow_query_for`] refuse it.
+/// [`slow_query_for`] refuse it, or whose `host` is a socket this build has no transport for, as
+/// [`unix_transport`] refuses it.
 pub fn validate(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(), Diagnostic> {
     if let Some(Pool::Bounds(_)) = config.db.pool {
         return Err(refuse(
@@ -297,10 +298,63 @@ pub fn validate(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(
         ));
     }
     for (name, db) in &config.db.blocks {
+        unix_transport(name, db, origins)?;
         pool_for(name, db, origins)?;
         slow_query_for(name, db, origins)?;
     }
     Ok(())
+}
+
+/// The refusal `name`'s block earns by naming a socket this build has no transport for.
+///
+/// `rule:config/unix-scheme-in-a-url-and-a-bare-path-in-a-host` makes a `host` beginning with a
+/// path separator a socket, which is `nvs_db::conn::is_socket_host`'s test restated, since this
+/// crate sits below that one. A refusal at boot rather than at the first connect, because
+/// `rule:config/a-unix-spelling-with-no-af-unix-transport-refuses-at-boot` is that a deployment
+/// must not run believing it has a database it will never reach; `crate::store` refuses a
+/// `[cache.shared] url` with the same code for the same reason.
+///
+/// # Errors
+///
+/// `E0635` for a socket `host` on a build with no `AF_UNIX` transport. Never anything on a build
+/// that has one: there the spelling is ordinary, and each driver decides what the path means.
+pub fn unix_transport(
+    name: &str,
+    db: &Database,
+    origins: &BTreeMap<String, Origin>,
+) -> Result<(), Diagnostic> {
+    if cfg!(unix) {
+        return Ok(());
+    }
+    let Some(host) = db
+        .host
+        .as_deref()
+        .filter(|host| host.starts_with(std::path::is_separator))
+    else {
+        return Ok(());
+    };
+
+    let key = format!("db.{name}.host");
+    Err(Diagnostic::error(
+        code::E_NO_UNIX_TRANSPORT,
+        format!(
+            "`[db.{name}] host = \"{host}\"` names a Unix-domain socket, and this build carries no \
+             transport for one"
+        ),
+    )
+    .with_note(format!(
+        "`rule:config/a-unix-spelling-with-no-af-unix-transport-refuses-at-boot`: the transport is \
+         `#[cfg(unix)]` and this is a {} build, so the database named here would never be \
+         reached{}",
+        std::env::consts::OS,
+        origin_note(origins.get(&key))
+    ))
+    .with_help(
+        "write the server as `host = \"127.0.0.1\"` with its `port`; a socket path is not quietly \
+         read as loopback TCP, because a configuration that reads as one transport and runs as \
+         another is invisible in exactly the review that would have caught it"
+            .to_string(),
+    ))
 }
 
 /// The bounds `name`'s block asks for, over [`PoolBounds::DEFAULT`] — every unwritten key keeps the

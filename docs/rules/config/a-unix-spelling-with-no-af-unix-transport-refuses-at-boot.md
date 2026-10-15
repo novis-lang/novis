@@ -16,7 +16,9 @@ refused where it is written, so a deployment cannot run believing it has a store
 runs as another is worse than one that does not run, because the difference is invisible in exactly
 the review that would have caught it.
 
-**Not on disk.** A `unix:` URL in `[cache.shared] url` is refused at boot with `E_NO_UNIX_TRANSPORT`
-(`crates/nvs-config/src/store.rs:93`), and `nvs serve` refuses a socket path in `[server] listen` before
-it binds anything (`crates/nvs-cli/src/serve.rs:2245`). A socket path in `[db.<name>] host` is refused
-only when a connection is opened (`crates/nvs-db/src/conn.rs:135`).
+Every key that can carry a Unix spelling is refused at boot. A `unix:` URL in `[cache.shared] url`
+(`crates/nvs-config/src/store.rs`) and a socket path in `[db.<name>] host` (`crates/nvs-config/src/db.rs`)
+are both `E_NO_UNIX_TRANSPORT` when the tree resolves, and `nvs serve` refuses a socket path in
+`[server] listen` before it binds anything (`crates/nvs-cli/src/serve.rs`). The connect-time refusal in
+`crates/nvs-db/src/conn.rs` stays as the last line of defence for a host that reached a driver some
+other way.
