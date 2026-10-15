@@ -1167,8 +1167,9 @@ class by name.
   kept after the call returns.
 
 **Declined:**
-- **Splitting a `string<K>` literal while compiling, for now.** It is decided only if the bench for
-  `parts` shows the split costs more than the work a library does around it.
+- **Splitting a `string<K>` literal while compiling.** `benches/members/core/Str/parts.nvs` measures
+  one pass and one string per piece, which is small beside the query a library builds and sends
+  around it. Precomputed pieces would add a second constant per literal for a saving no caller sees.
 - **A new class for a step, `PathStep`.** `PropertyInfo` already has every field a step needs, and a
   second class would be a second description of the same property.
 - **`Core` turning the pieces into SQL.** It would make `Core` a query builder and parse the text between
