@@ -333,9 +333,9 @@ are checked and completed where they were plain strings. Simplicity: one new typ
 
 **Does:** every feature this goal adds has its description, tests, three examples, a bench, the attack and its help.
 
-- [ ] `propertyPath<T>` and `string<K>`. `docs/examples/lang/types/property-path/01-a-path-through-a-relation.nvs:1`
-- [ ] `Core\Str::parts` and `Core\Reflect::steps`. `docs/examples/core/Str/parts/01-text-and-holes.nvs:1`
-- [ ] The sort-field attack. `tests/hostile/lang/types/property-path/01-a-sort-field-from-a-request.nvs:1`
+- [ ] `propertyPath<T>` and `string<K>`. `docs/examples/lang/types/property-paths/01-a-path-through-a-relation.nvs:1`
+- [x] `Core\Str::parts` and `Core\Reflect::steps`. `docs/examples/core/Str/parts/01-text-and-holes.nvs:1`
+- [ ] The sort-field attack. `tests/hostile/lang/types/property-paths/01-a-sort-field-from-a-request.nvs:1`
 
 ### 9. the concept page and the walkthrough
 
@@ -349,39 +349,29 @@ are checked and completed where they were plain strings. Simplicity: one new typ
 
 ### State
 
-Stage 7 is done, and `rule:core-classes/str-parts-and-reflect-steps` is shipped with five guards.
-`Core\Reflect::steps(propertyPath<T> $path): array<Core\Reflect\PropertyInfo>` is
-`nvs_core_reflect_steps` (`crates/nvs-stdlib/src/reflect.rs:2141`, card `STEPS_DOC`). The registry has
-`CoreTy::PropertyPath(T)` and a new roster, `PATH_GRAPH_MEMBERS`
-(`crates/nvs-stdlib/src/registry.rs:3828`): the checker records the classes `T` reaches on
-`ResolvedCall::path_graph` (`path_graph_of`, `crates/nvs-types/src/expr/calls.rs:1403`), and `nvs-ir`
-passes them as a trailing string, the same encoding `as propertyPath<T>` checks against
-(`path_graph_constant`, `crates/nvs-ir/src/lower/mod.rs:2521`). The walk is
-`nvs_runtime::helpers::property_path_segments` (`crates/nvs-runtime/src/helpers.rs:3146`). A call
-through a `callable` passes the empty string and throws a `LogicError`.
+Stage 8's second item is done: `Core\Str::parts` and `Core\Reflect::steps` owe nothing
+(`bun nv proofs --gate --only 'Core\Str::parts' 'Core\Reflect::steps'`). Each has `about.md`, three
+examples, an attack under `tests/hostile/core/`, a bench with a `.scale.nvs` sibling, recorded perf,
+and a Rust test with its `covers:` marker (`parts_alternates_text_and_holes_and_writes_a_doubled_brace_once`
+in `crates/nvs-stdlib/src/str.rs`, `steps_reads_each_segment_from_the_class_the_walk_reached` in
+`crates/nvs-stdlib/src/reflect.rs`). The `parts` bench decided the compile-time split: declined, and
+`rule:core-classes/str-parts-and-reflect-steps` says why.
 
-A body's `propertyPath<static>` reaches `steps` through `as propertyPath<self>`, checked at run time;
-`rule:statements/static-is-a-member-modifier` states it, and
-`tests/conformance/core/reflect-steps-in-a-method-converts-a-static-path-with-self.nvst` pins it.
-
-The nightly CI failures are on `origin/main`, which is far behind local `main`, and the loop never
-pushes.
+The `proofs` acceptance check is still red on `lang:types/property-paths` and
+`lang:types/strings-with-holes`, which owe every proof. The nightly CI failures are on `origin/main`,
+which is far behind local `main`, and the loop never pushes.
 
 ### Next
 
-**Stage 8: the feature proofs of `Core\Str::parts` and `Core\Reflect::steps`**, one file set: `docs/examples/core/Str/parts/`, `docs/examples/core/Reflect/steps/`, `benches/members/`, `crates/nvs-stdlib/src/str.rs`, `crates/nvs-stdlib/src/reflect.rs`. Run `bun nv proofs --id 'Core\Str::parts'` and `--id 'Core\Reflect::steps'` first: they print each missing proof and its path.
+**Stage 8: the proofs of `propertyPath<T>` and `string<K>`, with the sort-field attack**, one file set: `docs/examples/lang/types/property-paths/`, `docs/examples/lang/types/strings-with-holes/`, `tests/hostile/lang/types/`, `benches/members/lang/types/`, and the conformance cases under `tests/conformance/lang/`. `bun nv proofs --id 'lang:types/property-paths'` prints each missing proof and its path.
 
-- [ ] `about.md`, three examples and the help for `Core\Str::parts`, held to AGENTS.md § *Text an end user reads*. `rule:testing/feature-proofs`, `docs/examples/core/Str/parts/01-text-and-holes.nvs:1`
-- [ ] The same for `Core\Reflect::steps`, with neutral classes (`Order`, `Customer`). `rule:testing/feature-proofs`, `crates/nvs-stdlib/src/reflect.rs:2141`
-- [ ] One bench each with its growth, then `bun nv proofs --record-perf --group 'Core\Str'` and `--group 'Core\Reflect'`. The `parts` bench decides the Backlog's compile-time split. `rule:core-classes/str-parts-and-reflect-steps`, `crates/nvs-stdlib/src/str.rs:2135`
-
-Then the proofs of `propertyPath<T>` and `string<K>`, and the sort-field attack (stage 8's other two items).
+- [ ] `lang:types/property-paths`: `about.md`, three examples, a bench with its growth, and `// covers: lang:types/property-paths` on two of the stage 4 cases (the way `lang:types/property-keys` marks its cases). Its attack is the sort-field attack: a `private` property, a path through a relation to one, `{{`, a very long path, a path that loops, and a tainted condition that tries to reach `Core\Db` query text. `rule:types/property-path`, `docs/reference/lang/20-types.md:930`, `tests/hostile/lang/types/property-paths/01-a-sort-field-from-a-request.nvs:1`
+- [ ] `lang:types/strings-with-holes`: the same proofs, its attack on the holes scanner. Then `bun nv proofs --record-perf --id` for each, and `looper check --name proofs` goes green. `rule:types/string-holes`, `docs/reference/lang/20-types.md:992`
 
 ### Backlog
 
 - Reading and writing through a path, `$obj->{$path}`: declined for now in `types/property-path`.
-- Splitting a `string<K>` literal while compiling, if the stage 8 bench asks for it (`core-classes/str-parts-and-reflect-steps`).
-- A literal straight at `Core\Str::parts` reports `string<mixed>`. Word it as "no holes type to check against" in stage 8 (`check_generic_args`, `crates/nvs-types/src/expr/args.rs:1530`).
+- A literal straight at `Core\Str::parts` reports `string<mixed>`, and one at `Core\Reflect::steps` reports `propertyPath<mixed>`. Word both as "no class or holes type to check against" (`check_generic_args`, `crates/nvs-types/src/expr/args.rs:1530`).
 - A literal at a `property<A>|property<B>` parameter is not converted and gets nothing offered (`rule:types/property-key`).
-- `propertyPath<T>` over a class with no public property reports with the `property<T>` wording (`reject_empty_property_key_set`, `crates/nvs-types/src/expr/operators.rs:414`). Give it the path's word in stage 8.
+- `propertyPath<T>` over a class with no public property reports with the `property<T>` wording (`reject_empty_property_key_set`, `crates/nvs-types/src/expr/operators.rs:436`). Give it the path's word in stage 8.
 - Go-to-definition on an inherited path segment answers nothing (`property_segment_at`, `crates/nvs-lsp/src/definition.rs:1157`), and no closing `}` is inserted after a hole (`open_hole`, `crates/nvs-lsp/src/completion.rs`).
