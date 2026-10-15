@@ -284,6 +284,15 @@ fn assignable(
         let (from_arg, to_arg) = (*from_arg, *to_arg);
         return assignable(from_arg, to_arg, widen, interner, graph, signatures);
     }
+    // `rule:types/property-key-variance`: **`property<T>` is contravariant in its
+    // argument.** A subclass adds properties, so every name of `Animal`'s is a
+    // name a `Dog` has, and `property<Animal>` widens to `property<Dog>`.
+    if let (Ty::PropertyKey(from_arg), Ty::PropertyKey(to_arg)) =
+        (interner.get(from), interner.get(to))
+    {
+        let (from_arg, to_arg) = (*from_arg, *to_arg);
+        return assignable(to_arg, from_arg, widen, interner, graph, signatures);
+    }
     // **Bare `callable` is the top of `rule:types/callable-signature`'s
     // lattice**, so a written signature always satisfies it. The reverse is
     // refused by falling through: a value whose signature is unknown cannot
