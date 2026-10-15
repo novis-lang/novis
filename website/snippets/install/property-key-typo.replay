@@ -1,0 +1,13 @@
+--START--
+<?nvs
+class User {
+    public string $name = "Ada";
+    public string $email = "ada@example.com";
+}
+
+User $user = new User();
+property<User> $key = '<|>' as property<User>;
+echo $user->$key, "\n";
+--STEPS--
+type emial
+hover

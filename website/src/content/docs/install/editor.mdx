@@ -5,11 +5,30 @@ description: Install the Novis extension for VS Code, and the settings and comma
 ---
 
 import { Steps } from '@astrojs/starlight/components'
+import Replay from '@components/Replay.astro'
+import Snippet from '@components/Snippet.astro'
 
 The Novis extension for VS Code colours `.nvs` files. It also shows errors while you type and
 completes the names of variables and methods. When the mouse pointer is over a method, it shows the
 documentation of that method. It gets all of
 this from `nvs lsp`, the language server that is part of the `nvs` program.
+
+## Completion and errors
+
+In a string that is converted with `as property<User>`, the editor suggests the names of the public
+properties of `User`. Here it suggests `email` and `name`. The private property `$passwordHash` is not
+in the list.
+
+<Replay src="install/property-key-completion.nvs" />
+
+A name that `User` does not have gets a red underline. When the mouse pointer is over it, the editor
+shows the error.
+
+<Replay src="install/property-key-typo.nvs" />
+
+`nvs check` reports the same error:
+
+<Snippet src="install/property-key-typo.nvs" />
 
 ## Install the extension
 

@@ -91,6 +91,20 @@ describe("nv site --check snippets", () => {
     ]);
   });
 
+  test("a replay shows its snippet, and one that names no snippet or no .replay is named", () => {
+    const root = site().root;
+    s.put(`${DOCS}/guides/a.mdx`, '---\ncovers: []\n---\n\n<Replay src="guides/a/01-key.nvs" />\n<Replay src="guides/a/02-plain.nvs" />\n<Replay src="guides/a/03-gone.nvs" />\n');
+    s.put("website/snippets/guides/a/01-key.nvs", "<?nvs\necho 1;\n");
+    s.put("website/snippets/guides/a/01-key.out", "1\n");
+    s.put("website/snippets/guides/a/01-key.replay", "--START--\n<?nvs\necho <|>;\n--STEPS--\ntype 1\n");
+    s.put("website/snippets/guides/a/02-plain.nvs", "<?nvs\necho 2;\n");
+    s.put("website/snippets/guides/a/02-plain.out", "2\n");
+    expect(snippetShape(root).problems).toEqual([
+      `${DOCS}/guides/a.mdx: <Replay src="guides/a/02-plain.nvs"/>: the snippet has no .replay beside it`,
+      `${DOCS}/guides/a.mdx: <Replay src="guides/a/03-gone.nvs"/> names no file under website/snippets/`,
+    ]);
+  });
+
   test("output=\"http\" needs a .http.out, takes no other value, and the front page needs it for every snippet with one", () => {
     const root = site().root;
     s.put(`${DOCS}/guides/a.mdx`, '---\ncovers: []\n---\n\n<Snippet src="guides/a/01-web.nvs" output="http" />\n<Snippet src="guides/a/02-cli.nvs" output="http" />\n<Snippet src="guides/a/02-cli.nvs" output="cli" />\n');

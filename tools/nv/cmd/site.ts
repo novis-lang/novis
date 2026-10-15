@@ -111,7 +111,8 @@
 // `hover` shows, its range on one line, and the message follows it, each line indented two spaces. A
 // blank line separates two blocks. `--bless` writes the file from a new session.
 // `--check snippets` fails on a `.replay` whose steps do not end on the snippet's text, a `.replay.out`
-// that is missing or is not what the server returns now, and a `.replay.out` with no `.replay`.
+// that is missing or is not what the server returns now, and a `.replay.out` with no `.replay`. A page
+// that shows a replay shows its snippet too, because the replay ends on the snippet's text.
 //
 // **A handwritten page** is every page under `website/src/content/docs/` that no renderer writes, which
 // is every page outside `reference/core/`. Its front matter carries `covers:`, a list of the proofs
@@ -731,6 +732,7 @@ function sidebarOrder(root: string, label: string, area: string, sections: strin
 const FENCE_RE = /^\s*(?:```|~~~)\s*(?:novis|nvs)\b/;
 /** A `<Snippet>` tag: its `src`, which is always its first attribute, and the rest of the tag. */
 const SNIPPET_RE = /<Snippet\s+src=["']([^"']+)["']([^>]*)>/g;
+const REPLAY_RE = /<Replay\s+src=["']([^"']+)["']/g;
 /** The front page, under `DOCS`, which shows only what the server sends. */
 export const FRONT_PAGE = "index.mdx";
 
@@ -766,6 +768,14 @@ export function snippetShape(root: string = ROOT): { problems: string[]; snippet
       if (output !== undefined && output !== "http") problems.push(`${at} has output="${output}", and the only value is "http"`);
       else if (output === "http" && !http) problems.push(`${at} has output="http", and the snippet has no .http.out`);
       else if (page.key === FRONT_PAGE && http && output === undefined) problems.push(`${at} needs output="http": the front page shows only what the server sends`);
+    }
+    // A replay ends on its snippet's text, so a page that shows the replay shows the snippet.
+    for (const m of page.text.matchAll(REPLAY_RE)) {
+      const src = m[1]!;
+      used.add(src);
+      const at = `${DOCS}/${page.key}: <Replay src="${src}"/>`;
+      if (!existsSync(join(root, SNIPPETS, src))) problems.push(`${at} names no file under ${SNIPPETS}/`);
+      else if (!existsSync(join(root, SNIPPETS, beside(src, "replay")))) problems.push(`${at}: the snippet has no .replay beside it`);
     }
   }
   const snippets = filesUnder(root, SNIPPETS).filter((p) => p.endsWith(".nvs"));

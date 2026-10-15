@@ -869,13 +869,14 @@
   },
   "/install/editor/": {
     "feature": "install/editor.mdx",
-    "hash": "3d9a43fd6bfecba4",
+    "hash": "67734218de07620b",
     "questions": [
       "How do I build the VS Code extension from source?",
       "Why does the extension not find my nvs program?",
       "Which extension version works with my nvs version?",
       "Show a sign next to tainted values in the editor",
-      "Run a file or its tests from the VS Code command palette"
+      "Run a file or its tests from the VS Code command palette",
+      "Why is a property name in a string underlined in red?"
     ]
   },
   "/install/hello-world/": {
