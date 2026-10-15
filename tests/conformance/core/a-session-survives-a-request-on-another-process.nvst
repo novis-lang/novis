@@ -1,0 +1,37 @@
+--TEST--
+a session record may not live in the memory tier, so the store a request in one server process wrote is the store a request in another reads — `rule:concurrency/the-memory-tier-cannot-hold-what-must-be-coherent`, `rule:http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot`
+--FILE--
+<?nvs
+// The claim is about two processes, and it is pinned at the one place a program
+// can be held to it without there being two: the **boot**.
+// `rule:concurrency/the-memory-tier-cannot-hold-what-must-be-coherent` keeps
+// `Core\Session` out of the memory tier, and a refusal at boot is what makes the
+// property total — a deployment that never happened to run a second process, or
+// never restarted, would pass any test written from inside a request, and would
+// then lose sessions in production at a rate set by the load balancer.
+//
+// `session-start-reaches-the-configured-shared-store-and-never-one-of-its-own`
+// is the other side of the same rule, over a tree that chose a store § 3
+// admits: there the member reaches `[cache.shared]` and reports it by name.
+// Here the tree chooses the one store it may not, and nothing runs at all.
+//
+// The diagnostic's own note carries the reason rather than the case's comment
+// doing it, which is why the note is asserted and not skipped past: a code
+// whose text stopped saying *why* one process's memory is wrong would still
+// refuse and would still leave the next reader to rediscover the rule.
+Core\Session::start();
+--FILE nvs.toml--
+# The one value § 3's roster does not hold. `shared` and `db` are the two that
+# survive the process that accepted the request; this is the third thing an
+# operator reaches for and the reason the roster is closed.
+[session]
+backend = "memory"
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0626]: `[session] backend = "memory"` names no store a session may live in
+  = note: The `memory` cache is kept inside one server process. A request that another server process handles does not find the session, and a restart deletes every session.%A
+  = help: write `backend = `"shared"` or `"db"``
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

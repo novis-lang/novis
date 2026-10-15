@@ -1,5 +1,5 @@
 --TEST--
-`put` over a key that already holds a value replaces it — the read after every write in a sweep answers that write, the shape may change with it, and thirteen rewrites totalling twice the cap forget nothing that was written before them — `rule:core-api/two-cache-tiers`, `rule:concurrency/a-cached-value-is-copied-across-the-boundary` and `rule:concurrency/cache-memory-is-charged-to-the-core`
+`put` over a key that already holds a value replaces it — the read after every write in a sweep answers that write, the shape may change with it, and thirteen rewrites totalling more than a shard's share of the cap forget nothing that was written before them — `rule:core-api/two-cache-tiers`, `rule:concurrency/a-cached-value-is-copied-across-the-boundary` and `rule:concurrency/the-memory-tier-is-one-store-per-process`
 --FILE--
 <?nvs
 // § 2 gives the store two operations and no third one, so there is no spelling
@@ -7,11 +7,16 @@
 // whole of what happens to that key. The sweep below is what a store keeping
 // the *first* write, or holding a longer value and overwriting it in place,
 // would fail while answering plausibly on any single line.
-var $cache = Core\Cache::local();
+var $cache = Core\Cache::memory();
 
-// Written before every rewrite, so it is the oldest key in the tier and the
-// first one the cap would forget.  Nothing below names it again.
-$cache->put("steady", "written once, before all of it");
+// Written before every rewrite, so they are the oldest keys in the tier and the
+// first ones the cap would forget. The tier evicts per shard, and which shard a
+// key lands in is a hash's business, so there are enough of them that the shard
+// "hot" lands in holds some of them too. Nothing below names them again.
+int $steadyCount = 256;
+for (int $i = 0; $i < $steadyCount; $i = $i + 1) {
+    $cache->put("steady-" . ($i as string), "s");
+}
 
 // The sweep alternates the length in both directions and writes a value it has
 // already written: a store truncating to the incoming length would pass the
@@ -20,16 +25,16 @@ $cache->put("steady", "written once, before all of it");
 array<string> $values = [
     "first",
     "",
-    Core\Str::repeat("long ", 28),
+    Core\Str::repeat("long ", 560),
     "short again",
-    Core\Str::repeat("x", 200),
-    Core\Str::repeat("ab", 60),
+    Core\Str::repeat("x", 2700),
+    Core\Str::repeat("ab", 1300),
     "first",
-    Core\Str::repeat("y", 180),
+    Core\Str::repeat("y", 2500),
     "",
-    Core\Str::repeat("z", 150),
-    Core\Str::repeat("mid ", 40),
-    Core\Str::repeat("q", 120),
+    Core\Str::repeat("z", 2400),
+    Core\Str::repeat("mid ", 600),
+    Core\Str::repeat("q", 2300),
     "the last one",
 ];
 
@@ -53,22 +58,29 @@ int $flipped = $cache->get("shape") as int;
 echo "a rewrite replaces the shape as well: ", $flipped, "\n";
 
 // And a rewrite costs the tier one entry rather than one per write. Those
-// thirteen writes total more than twice the cap below while the largest two of
-// them fit under it together, so a store that added an entry per write would
-// have had to forget its oldest key — and the oldest key is the one written
-// before the sweep started. `crates/nvs-stdlib/src/cache.rs`'s `order` queue is
-// where that is decided: a slot per live key, in the order each was **first**
-// written, so an overwrite keeps its place and leaves nothing behind it.
-string $steady = $cache->get("steady") == null ? "forgotten" : "kept";
-echo "the key written before every one of those rewrites was ", $steady, "\n";
+// thirteen writes total more than one shard's share of the cap below, while the
+// largest two of them and the shard's steady keys fit under it together, so a
+// store that added an entry per write would have had to forget its oldest keys —
+// and the oldest keys are the ones written before the sweep started.
+// `crates/nvs-stdlib/src/cache.rs`'s `order` queue is where that is decided: a
+// slot per live key, in the order each was **first** written, so an overwrite
+// keeps its place and leaves nothing behind it.
+int $kept = 0;
+for (int $j = 0; $j < $steadyCount; $j = $j + 1) {
+    if ($cache->get("steady-" . ($j as string)) != null) {
+        $kept = $kept + 1;
+    }
+}
+echo "the keys written before every one of those rewrites: ", $kept, " of ", $steadyCount, " kept\n";
 --FILE nvs.toml--
-# § 3's cap, set low enough that the sweep's own bytes would not fit under it
-# twice and high enough that the two largest entries fit side by side — which is
-# what an overwrite needs, since the cap prices the incoming entry before it
-# takes out the one being replaced.
-[cache.local]
-max_size = "1K"
+# § 3's cap. The tier is cut into 64 shards that each evict against an equal
+# share of it, so this is a share of 16K: low enough that the sweep's own bytes
+# would not fit under it, and high enough that the two largest entries fit side
+# by side with the steady keys — which is what an overwrite needs, since the cap
+# prices the incoming entry before it takes out the one being replaced.
+[cache.memory]
+max_size = "1M"
 --EXPECT--
 the read after each write answered that write: 13 of 13
 a rewrite replaces the shape as well: 7
-the key written before every one of those rewrites was kept
+the keys written before every one of those rewrites: 256 of 256 kept

@@ -1,8 +1,8 @@
 --TEST--
-A local cache entry may be absent at any time: a miss answers `null` rather than throwing, and an unreachable shared store does the opposite — `rule:core-api/two-cache-tiers`
+A memory cache entry may be absent at any time: a miss answers `null` rather than throwing, and an unreachable shared store does the opposite — `rule:core-api/two-cache-tiers`
 --FILE--
 <?nvs
-var $cache = Core\Cache::local();
+var $cache = Core\Cache::memory();
 
 // § 1: any entry may be absent at any time, for any reason. A miss is an
 // ordinary answer, so nothing here is a `try` — a program that would be

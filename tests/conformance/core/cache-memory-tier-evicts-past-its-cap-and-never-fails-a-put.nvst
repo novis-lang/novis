@@ -1,12 +1,12 @@
 --TEST--
-the process tier forgets entries rather than failing the write that crossed `[cache.process] max_size`, and the write that made the room is still readable — `rule:concurrency/the-process-tier-is-one-store-per-process` and `rule:concurrency/cache-memory-is-charged-to-the-core`
+the memory tier forgets entries rather than failing the write that crossed `[cache.memory] max_size`, and the write that made the room is still readable — `rule:concurrency/the-memory-tier-is-one-store-per-process`
 --FILE--
 <?nvs
 // The cap evicts rather than failing an allocation, so nothing here is wrapped
 // in a `try`: a `put` that has to make room answers exactly what a `put` with
 // room to spare answers, and this case fails on an uncaught throw the moment
 // that stops being true.
-var $cache = Core\Cache::process();
+var $cache = Core\Cache::memory();
 var $payload = Core\Str::repeat('x', 512);
 
 // Far more than the cap, written under it. Counted rather than named: the map is
@@ -37,7 +37,7 @@ echo "the newest write is still readable: ", $cache->get("entry-199") == null ? 
 # The cap is a `System` directive an operator sets, and nothing in the program
 # above can raise it for itself: the memory it bounds belongs to the process, not
 # to any request in it.
-[cache.process]
+[cache.memory]
 max_size = "64K"
 --EXPECT--
 every put returned: 200 of 200

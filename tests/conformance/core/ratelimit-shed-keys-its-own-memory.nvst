@@ -2,8 +2,8 @@
 Core\RateLimit::shed keys its own memory — two keys under one limit spend separate budgets and a third opens on a full one — `rule:core-classes/ratelimit-two-members` and `rule:core-api/two-cache-tiers`
 --FILE--
 <?nvs
-// `rule:core-api/two-cache-tiers`'s "a map in the calling core's own thread", asked as behaviour
-// rather than as structure: `shed` holds one arrival time *per key*, so the
+// `shed` keeps its arrivals in the memory tier, asked as behaviour rather than
+// as structure: `shed` holds one arrival time *per key*, so the
 // `$key` argument is what separates one account's budget from another's. A
 // limiter that kept a single arrival time — the shape a first implementation
 // reaches for, and the shape a namespacing bug degenerates to — admits four of

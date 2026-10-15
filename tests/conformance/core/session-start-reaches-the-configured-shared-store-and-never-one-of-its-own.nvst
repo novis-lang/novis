@@ -1,5 +1,5 @@
 --TEST--
-`Core\Session::start` on the `shared` backend reaches the one store `[cache.shared]` names, and says so when there is none -- `rule:http-server/a-session-store-answers-four-operations` and `rule:http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`, `rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent`
+`Core\Session::start` on the `shared` backend reaches the one store `[cache.shared]` names, and says so when there is none -- `rule:http-server/a-session-store-answers-four-operations` and `rule:http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot`, `rule:concurrency/the-memory-tier-cannot-hold-what-must-be-coherent`
 --GET--
 under=a-request
 --FILE--
@@ -11,7 +11,7 @@ under=a-request
 //
 // The tree below chooses a store — so the refusal of the neighbouring case, the
 // one that names `[session] backend`, cannot be what arrives here. What arrives
-// instead names `[cache.shared] url`, and that is the assertion: `rule:http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`
+// instead names `[cache.shared] url`, and that is the assertion: `rule:http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot`
 // says a deployment has *one* shared store, and a session store that named a
 // second address would be a second thing to configure for no coherence the
 // first does not already have. A member that had opened an address of its own
@@ -37,9 +37,9 @@ if (Core\Str::contains($said, "[session] backend")) {
     echo "and the block that is written is not what it complained about\n";
 }
 
-// The refusal is the store's absence and not the record's: `rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent` refuses
-// `Core\Session` the per-core tier, so there is no local store for this to have
-// quietly fallen back to, and a fallback is what a second call would reveal.
+// The refusal is the store's absence and not the record's: `rule:concurrency/the-memory-tier-cannot-hold-what-must-be-coherent` refuses
+// `Core\Session` the memory tier, so there is no in-process store for this to
+// have quietly fallen back to, and a fallback is what a second call would reveal.
 uint $again = 0;
 try {
     Core\Session::start();

@@ -1,9 +1,9 @@
 --TEST--
-A `get` answers `null` for a key nothing wrote and for one whose lifetime is over, leaves the entry it read where it was, and reads only the tier it was named on — `rule:core-api/two-cache-tiers`
+A `get` answers `null` for a key nothing wrote, for one whose lifetime is over and for one a `forget` took out, and leaves the entry it read where it was — `rule:core-api/two-cache-tiers`
 --FILE--
 <?nvs
 // covers: Core\Cache\Store::get
-var $cache = Core\Cache::local();
+var $cache = Core\Cache::memory();
 
 // § 1: a key nothing wrote is `null`, which is an answer and not a failure.
 var $missing = $cache->get("nothing-wrote-this") ?? "null";
@@ -24,15 +24,15 @@ $cache->put("brief", "payload", {ttl: 0s});
 var $expired = $cache->get("brief") ?? "null";
 echo "expired=", $expired as string, "\n";
 
-// § 2: the tier says where the bytes come from and nothing else, so a read on
-// one tier does not see what was written on another.
-var $process = Core\Cache::process();
-$process->put("one-tier-only", "written on the process tier");
-var $elsewhere = $cache->get("one-tier-only") ?? "null";
-echo "other tier=", $elsewhere as string, "\n";
+// And a key the program took out itself reads as the same `null` once more:
+// absence has one answer whatever caused it.
+$cache->put("removed", "payload");
+$cache->forget("removed");
+var $removed = $cache->get("removed") ?? "null";
+echo "removed=", $removed as string, "\n";
 --EXPECT--
 miss=null
 first=payload
 second=payload
 expired=null
-other tier=null
+removed=null

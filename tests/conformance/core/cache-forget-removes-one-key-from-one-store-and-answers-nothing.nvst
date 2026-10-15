@@ -1,9 +1,9 @@
 --TEST--
-`forget` takes the entry under one key out of the store it was named on, answers nothing whether or not there was one, and leaves every other store alone — `rule:core-api/two-cache-tiers`
+`forget` takes the entry under one key out of the store it was named on, answers nothing whether or not there was one, and leaves every other key alone — `rule:core-api/two-cache-tiers`
 --FILE--
 <?nvs
 // covers: Core\Cache\Store::forget
-var $cache = Core\Cache::local();
+var $cache = Core\Cache::memory();
 $cache->put("greeting", "hello");
 $cache->put("kept", "still here");
 
@@ -25,13 +25,13 @@ $cache->forget("nothing-wrote-this");
 var $absent = $cache->get("nothing-wrote-this") ?? "null";
 echo "absent=", $absent as string, "\n";
 
-// § 2: each store removes its own. The process tier still holds the name the
-// local tier was told to forget.
-var $process = Core\Cache::process();
-$process->put("greeting", "hello");
-$cache->forget("greeting");
-var $elsewhere = $process->get("greeting") as string;
-echo "other tier=", $elsewhere, "\n";
+// A forget through one handle is a forget on the store: a second handle to the
+// same tier reads the same miss, because both name one store.
+var $other = Core\Cache::memory();
+$other->put("seen-by-both", "hello");
+$cache->forget("seen-by-both");
+var $elsewhere = $other->get("seen-by-both") ?? "null";
+echo "through another handle=", $elsewhere as string, "\n";
 
 // The key is writable again, which is the whole of what `forget` left behind.
 $cache->put("greeting", "hello again");
@@ -41,5 +41,5 @@ echo "written again=", $written, "\n";
 forgotten=null
 kept=still here
 absent=null
-other tier=hello
+through another handle=null
 written again=hello again

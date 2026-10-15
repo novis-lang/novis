@@ -2,7 +2,7 @@
 Forgetting a name nothing was stored under is neither an error nor an answer, so forgetting twice reaches the state forgetting once reaches, and one name goes without its neighbours — `rule:concurrency/cross-request-state-is-explicit`
 --FILE--
 <?nvs
-var $cache = Core\Cache::local();
+var $cache = Core\Cache::memory();
 
 // § 1: an entry may be absent at any time, for any reason. A name nothing wrote
 // is therefore already forgotten, and there is nothing here for a `try` to

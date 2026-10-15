@@ -11,38 +11,27 @@ array<secret bytes> $ring = [$key];
 
 secret string $token = "hunter2";
 
-var $local = Core\Cache::local();
-var $process = Core\Cache::process();
+var $cache = Core\Cache::memory();
+$cache->putSecret("token", $token, 1h, $ring);
 
-$local->putSecret("token", $token, 1h, $ring);
-$process->putSecret("token", $token, 1h, $ring);
-
-// Counted over both tiers, because a tier that handed back the sealed payload
-// and a tier that answered the miss print the same shape of row on their own.
-int $blind = 0;
-if ($local->get("token") == null) {
-    $blind = $blind + 1;
-}
-if ($process->get("token") == null) {
-    $blind = $blind + 1;
-}
-echo "get is blind to a sealed entry: ", $blind, " of 2", "\n";
+// `null`, and not the sealed payload handed back through the plain door.
+echo "get is blind to a sealed entry: ", $cache->get("token") == null ? "null" : "something", "\n";
 
 // The two live in key spaces of their own, so writing the ordinary way under
 // the same name neither replaces the sealed entry nor is replaced by it.
-$local->put("token", "plain");
-echo "a plain put under the same name: ", $local->get("token") as string, "\n";
+$cache->put("token", "plain");
+echo "a plain put under the same name: ", $cache->get("token") as string, "\n";
 echo "and the sealed entry is untouched: ",
-    ($local->getSecret("token", $ring) ?? "") == $token ? "yes" : "no", "\n";
+    ($cache->getSecret("token", $ring) ?? "") == $token ? "yes" : "no", "\n";
 
 // The same claim through the third member: forgetting the name takes the entry
 // `put` wrote and leaves the one `putSecret` wrote.
-$local->forget("token");
-echo "forget takes the plain entry: ", $local->get("token") == null ? "null" : "something", "\n";
+$cache->forget("token");
+echo "forget takes the plain entry: ", $cache->get("token") == null ? "null" : "something", "\n";
 echo "and leaves the sealed one: ",
-    ($local->getSecret("token", $ring) ?? "") == $token ? "yes" : "no", "\n";
+    ($cache->getSecret("token", $ring) ?? "") == $token ? "yes" : "no", "\n";
 --EXPECT--
-get is blind to a sealed entry: 2 of 2
+get is blind to a sealed entry: null
 a plain put under the same name: plain
 and the sealed entry is untouched: yes
 forget takes the plain entry: null

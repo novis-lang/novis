@@ -1,9 +1,21 @@
 --TEST--
-Core\RateLimit::shed decides from this core's own memory, with no store configured — `rule:core-classes/ratelimit-two-members` and `rule:core-classes/ratelimit-gcra`
+Core\RateLimit::shed decides from this process's own memory, with no store configured, and every caller in the process charges the same count — `rule:core-classes/ratelimit-two-members` and `rule:core-classes/ratelimit-gcra`
+--FILE nvs.toml--
+# `spawn script` asks for `script.spawn` at its own door. `shed` itself is
+# granted nothing, which is the point of the case.
+[capabilities.script]
+spawn = true
+--FILE child.nvs--
+<?nvs
+// Its own isolate, as a later request on any core of this process would be. The
+// count it reads is the parent's: two arrivals have already used the burst.
+var $late = Core\RateLimit::shed("checkout", 2, 1h);
+echo "another isolate in this process: ", $late->allowed() ? "admitted" : "refused", "\n";
+return "done";
 --FILE--
 <?nvs
 // `rule:core-classes/ratelimit-two-members`'s second job: dropping load to keep a host up, where an
-// approximate answer is adequate and the state is this core's own memory. No
+// approximate answer is adequate and the state is this process's own memory. No
 // `[cache.shared] url` is configured here and none is needed — which is the
 // whole difference from `consume`, and the reason this member declares no
 // capability at all.
@@ -51,8 +63,15 @@ if ($other->allowed()) {
 } else {
     echo "one key's arrivals charged another", "\n";
 }
+
+// The count is the process's and not the caller's: another isolate, which may
+// run on another core, reads the arrivals this one made and is refused too.
+var $job = spawn script "child.nvs" with(output: "capture");
+var $done = await $job;
+echo $done->output;
 --EXPECT--
 two admitted
 third refused
 retryAfter=1800
 another key admitted
+another isolate in this process: refused

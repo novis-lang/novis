@@ -10,7 +10,7 @@ A cache key is the bytes the program handed over — keys differing by one byte,
 // truncated a key would answer correctly for every key asked on its own and
 // hand one caller another's entry only where two keys it had decided were
 // equal were not.
-var $cache = Core\Cache::local();
+var $cache = Core\Cache::memory();
 
 // Every neighbouring pair below differs by exactly one of the things such a
 // store would remove: one byte in the middle, one byte of case, a leading or a

@@ -1,5 +1,5 @@
 --TEST--
-An enum case `Core\Cache` stores reads back as a case, on the per-core and the process tier, so `is` still names its enum and a case backed by `0` stays truthy — `rule:enums/representation` and `rule:core-api/two-cache-tiers`
+An enum case `Core\Cache` stores reads back as a case, so `is` still names its enum and a case backed by `0` stays truthy — `rule:enums/representation` and `rule:core-api/two-cache-tiers`
 --FILE--
 <?nvs
 enum Mode: int {
@@ -8,12 +8,12 @@ enum Mode: int {
 }
 
 array<Mode> $modes = [Mode::A, Mode::B];
-foreach ([Core\Cache::local(), Core\Cache::process()] as var $cache) {
-    $cache->put("modes", $modes);
-    var $back = $cache->get("modes") as array<mixed>;
-    mixed $first = Core\Arr::first($back);
-    echo "is Mode=", $first is Mode ? "true" : "false";
-    echo " truthy=", $first ? "true" : "false", "\n";
+var $cache = Core\Cache::memory();
+$cache->put("modes", $modes);
+var $back = $cache->get("modes") as array<mixed>;
+foreach ($back as mixed $mode) {
+    echo "is Mode=", $mode is Mode ? "true" : "false";
+    echo " truthy=", $mode ? "true" : "false", "\n";
 }
 --EXPECT--
 is Mode=true truthy=true

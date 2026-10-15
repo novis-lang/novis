@@ -1,0 +1,41 @@
+--TEST--
+the memory tier forgets an arrival too large for `[cache.memory] max_size` as it lands rather than failing the write, and takes what was under its key with it — `rule:core-api/two-cache-tiers` and `rule:concurrency/the-memory-tier-is-one-store-per-process`
+--FILE--
+<?nvs
+// § 3 caps this tier and says exceeding the cap **evicts** rather than failing
+// an allocation, so nothing here is wrapped in a `try`: a `put` that cannot be
+// kept answers exactly what a `put` with room to spare answers, and this case
+// fails on an uncaught throw the moment that stops being true.
+var $cache = Core\Cache::memory();
+var $small = Core\Str::repeat('s', 100);
+var $huge = Core\Str::repeat('h', 131072);
+
+$cache->put('small', $small);
+echo 'a small entry is kept: ', $cache->get('small') == null ? 'no' : 'yes', "\n";
+
+// Twice the whole cap in one entry. The tier could not hold it even empty, so
+// the write lands and is forgotten in the same step — § 1's "any entry may be
+// absent at any time", reached by the cap rather than by a failure.
+$cache->put('huge', $huge);
+echo 'an entry larger than the tier: ', $cache->get('huge') == null ? 'forgotten' : 'kept', "\n";
+
+// A rewrite too large to keep replaces the entry, so the old value is gone too.
+// A tier that kept it would answer a key with a value the program had
+// overwritten.
+$cache->put('small', $huge);
+echo 'the key it rewrote: ', $cache->get('small') == null ? 'forgotten' : 'kept', "\n";
+
+// Nothing about the store is spent: the next write that fits is kept.
+$cache->put('after', $small);
+echo 'the next write that fits: ', $cache->get('after') == null ? 'forgotten' : 'kept', "\n";
+--FILE nvs.toml--
+# The cap is a `System` directive an operator sets, and nothing in the program
+# above can raise it for itself: the memory it bounds belongs to the process,
+# not to this request.
+[cache.memory]
+max_size = "64K"
+--EXPECT--
+a small entry is kept: yes
+an entry larger than the tier: forgotten
+the key it rewrote: forgotten
+the next write that fits: kept
