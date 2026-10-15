@@ -273,12 +273,17 @@ pub(super) fn transacting<'a>(
     key: u64,
     named: &str,
 ) -> Result<Transacting<'a>, Fault> {
-    match filed_connection(ctx, key, named)? {
-        nvs_db::Connection::Postgres(postgres) => Ok(Transacting::Postgres(postgres)),
-        nvs_db::Connection::MySql(mysql) => Ok(Transacting::MySql(mysql)),
-        nvs_db::Connection::MariaDb(maria) => Ok(Transacting::MariaDb(maria)),
-        nvs_db::Connection::SqlServer(tds) => Ok(Transacting::SqlServer(tds)),
-        nvs_db::Connection::Sqlite(sqlite) => Ok(Transacting::Sqlite(sqlite)),
+    Ok(transacting_of(filed_connection(ctx, key, named)?))
+}
+
+/// `connection` as the driver § 7's commands run on, which every variant is.
+fn transacting_of(connection: &mut nvs_db::Connection) -> Transacting<'_> {
+    match connection {
+        nvs_db::Connection::Postgres(postgres) => Transacting::Postgres(postgres),
+        nvs_db::Connection::MySql(mysql) => Transacting::MySql(mysql),
+        nvs_db::Connection::MariaDb(maria) => Transacting::MariaDb(maria),
+        nvs_db::Connection::SqlServer(tds) => Transacting::SqlServer(tds),
+        nvs_db::Connection::Sqlite(sqlite) => Transacting::Sqlite(sqlite),
     }
 }
 
@@ -294,6 +299,34 @@ pub(super) fn transacting<'a>(
 /// As [`transacting`].
 pub(crate) fn open_levels(ctx: &mut nvs_runtime::Ctx, key: u64, named: &str) -> Result<u32, Fault> {
     Ok(transacting(ctx, key, named)?.depth())
+}
+
+/// Whether one of § 7's levels is open on a connection this request holds
+/// other than the one filed under `own`.
+///
+/// For `Core\Queue::push`, which writes on its own connection and has to know
+/// when the caller's transaction is on a different one: the job then commits
+/// on its own, and the row records that
+/// (`rule:concurrency/foreign-connection-enqueue-is-counted`). A closed entry
+/// and a connection that is not `nvs-db`'s have no level open, so neither
+/// counts.
+///
+/// **What it spends:** a walk over the connections the request holds, and no
+/// allocation.
+pub(crate) fn foreign_level_open(ctx: &mut nvs_runtime::Ctx, own: u64) -> bool {
+    let mut key = 1;
+    while ctx.connection_is_filed(key) {
+        let open = key != own
+            && ctx
+                .open_connection_mut(key)
+                .and_then(|held| held.as_any_mut().downcast_mut::<nvs_db::Connection>())
+                .is_some_and(|connection| transacting_of(connection).depth() > 0);
+        if open {
+            return true;
+        }
+        key += 1;
+    }
+    false
 }
 
 nvs_runtime::nvs_helper! {

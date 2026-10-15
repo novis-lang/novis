@@ -1,0 +1,122 @@
+<?nvs
+// Attack: the program tries to hide a push from `nonTransactional()` or to make the count wrong.
+// It nests transactions, writes odd values into the table and removes the column.
+// `nonTransactional()` should return a number or throw an error. The program must not crash.
+use Core\Db\Transaction;
+use Core\Queue;
+
+var $db = Core\Db::connect('jobs');
+var $jobs = <<<'SQL'
+create table nvs_jobs (id integer primary key autoincrement, queue varchar(255) not null,
+    script text not null, args text, state smallint not null, attempts integer not null,
+    max_attempts integer not null, backoff_ms bigint not null, run_at bigint not null,
+    tag varchar(255), dedupe_key varchar(255), dedupe_pending varchar(255),
+    created_at bigint not null, claimed_at bigint, errors text, grants text, limits text,
+    non_transactional smallint, constraint nvs_jobs_dedupe unique (dedupe_pending))
+SQL;
+var $dead = <<<'SQL'
+create table nvs_dead_jobs (id bigint not null, queue varchar(255) not null,
+    script text not null, args text, attempts integer not null, max_attempts integer not null,
+    backoff_ms bigint not null, run_at bigint not null, tag varchar(255),
+    dedupe_key varchar(255), created_at bigint not null, failed_at bigint not null,
+    errors text not null, primary key (id))
+SQL;
+$db->execute($jobs, []);
+$db->execute($dead, []);
+var $shop = Core\Db::connect('shop');
+
+// 1. The queue name is SQL that tries to count the jobs of every queue.
+try {
+    echo '1: ', Queue::stats("q' or '1'='1")->nonTransactional(), "\n";
+} catch (Throwable $e) {
+    echo "1: error\n";
+}
+
+// 2. A transaction on the `shop` database opens a transaction on the `jobs` database, and the push is inside both.
+try {
+    $shop->transaction(fn(Transaction $outer): void => {
+        $db->transaction(fn(Transaction $inner): void => {
+            Queue::push('jobs/a.nvs', { queue: 'q' });
+        });
+    });
+    echo '2: ', Queue::stats('q')->nonTransactional(), "\n";
+} catch (Throwable $e) {
+    echo "2: error\n";
+}
+
+// 3. A transaction on the `jobs` database opens a transaction on the `shop` database, and the push is inside both.
+try {
+    $db->transaction(fn(Transaction $outer): void => {
+        $shop->transaction(fn(Transaction $inner): void => {
+            Queue::push('jobs/a.nvs', { queue: 'q' });
+        });
+    });
+    echo '3: ', Queue::stats('q')->nonTransactional(), "\n";
+} catch (Throwable $e) {
+    echo "3: error\n";
+}
+
+// 4. The push is inside a transaction of `shop`, and the program throws to roll it back.
+try {
+    $shop->transaction(fn(Transaction $tx): void => {
+        Queue::push('jobs/a.nvs', { queue: 'q' });
+        throw new LogicError('stop');
+    });
+} catch (Throwable $e) {
+    echo "4: thrown\n";
+}
+echo '4: ', Queue::stats('q')->nonTransactional(), "\n";
+
+// 5. The program writes `0`, `-1`, a large number, a string and bytes into the column.
+$db->execute('update nvs_jobs set non_transactional = 0 where id = 1', []);
+$db->execute('update nvs_jobs set non_transactional = -1 where id = 2', []);
+$db->execute('update nvs_jobs set non_transactional = 9223372036854775807 where id = 3', []);
+$db->execute("insert into nvs_jobs (queue, script, state, attempts, max_attempts, backoff_ms, run_at, created_at, non_transactional) values ('q', 'jobs/a.nvs', 0, 0, 3, 0, 0, 0, 'yes'), ('q', 'jobs/a.nvs', 0, 0, 3, 0, 0, 0, x'00ff')", []);
+try {
+    echo '5: ', Queue::stats('q')->nonTransactional(), "\n";
+} catch (Throwable $e) {
+    echo "5: error\n";
+}
+
+// 6. The program sets the column to null on every row, to hide the pushes.
+$db->execute('update nvs_jobs set non_transactional = null', []);
+try {
+    echo '6: ', Queue::stats('q')->nonTransactional(), "\n";
+} catch (Throwable $e) {
+    echo "6: error\n";
+}
+
+// 7. One transaction of `shop` pushes 10000 jobs.
+try {
+    $shop->transaction(fn(Transaction $tx): void => {
+        int $i = 0;
+        while ($i < 10000) {
+            Queue::push('jobs/a.nvs', { queue: 'many' });
+            $i = $i + 1;
+        }
+    });
+    echo '7: ', Queue::stats('many')->nonTransactional(), "\n";
+} catch (Throwable $e) {
+    echo "7: error\n";
+}
+
+// 8. The jobs table has 200000 more rows of the queue, and each row has the column set.
+$db->execute(<<<'SQL'
+with recursive n(i) as (select 1 union all select i + 1 from n where i < 200000)
+insert into nvs_jobs (queue, script, state, attempts, max_attempts, backoff_ms, run_at,
+    created_at, non_transactional)
+select 'many', 'jobs/a.nvs', 0, 0, 3, 0, 0, 0, 1 from n
+SQL, []);
+try {
+    echo '8: ', Queue::stats('many')->nonTransactional(), "\n";
+} catch (Throwable $e) {
+    echo "8: error\n";
+}
+
+// 9. The program removes the column from the jobs table.
+$db->execute('alter table nvs_jobs drop column non_transactional', []);
+try {
+    echo '9: ',Queue::stats('q')->nonTransactional(), "\n";
+} catch (Throwable $e) {
+    echo "9: error\n";
+}

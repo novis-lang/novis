@@ -8,5 +8,16 @@ the program never writes it, so the checker has no way to compare the two. The r
 **records** it, and `stats` reports non-transactional enqueues, so a deployment that has quietly lost
 the property can find out by reading a counter rather than by losing a job.
 
-**Not on disk.** No job row records the case, and `Core\Queue::stats` has no field for it
-(`crates/nvs-stdlib/src/queue.rs:2706`).
+**The case is a push with no level open on the queue's connection and one open on any other
+connection the request holds**, read before the insert so a transaction `push` opens for its own
+statement pair is not mistaken for the caller's. A push outside every transaction is not counted:
+nothing was promised, so nothing was lost.
+
+**The count is a column on the job row**, `non_transactional`, `1` for such a push and `null`
+otherwise. It survives a restart and counts across every process writing the queue, which a
+counter in process memory would not. `Core\Queue\Stats::nonTransactional` is `count(non_transactional)`
+over the jobs table in the same statement as the other five counters; § 6's move to the dead-letter
+table does not carry the column, so a buried job leaves the count.
+
+**What it spends:** one nullable small integer per job row, and at each `push` a walk over the
+connections the request holds. No process memory.

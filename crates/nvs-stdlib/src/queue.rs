@@ -315,7 +315,8 @@ const KEY_WIDTH: u32 = 255;
 /// `nvs_jobs_roster` is one more index entry per job row, rewritten by every statement that moves
 /// `state` or `run_at` — a constant per write, bought to make the roster O(queues).
 /// `nvs_jobs_purge` is one more entry per row as well, written once by `push`, since neither of its
-/// columns ever moves.
+/// columns ever moves. `non_transactional` is one small integer per row, `null` on every job but
+/// one pushed while the caller's transaction was on a different connection.
 ///
 /// Every identifier below is a literal this module wrote, so a refusal from the builders is a bug
 /// in this function rather than bad input, and the `expect` says which.
@@ -364,6 +365,11 @@ pub fn schema() -> nvs_db::Schema {
             named("errors", long()).null(),
             named("grants", long()).null(),
             named("limits", long()).null(),
+            // `1` for a job `push` wrote while a transaction was open on another connection and
+            // none on the queue's, so the job committed on its own; `null` otherwise.
+            // `rule:concurrency/foreign-connection-enqueue-is-counted` is why, [`COUNTS_POSTGRES`]
+            // counts it, and no claim reads it.
+            named("non_transactional", ScalarType::Int(IntWidth::Small)).null(),
         ],
     )
     .and_then(|table| table.primary_key(&["id"]))
@@ -525,9 +531,9 @@ pub const INSERT_POSTGRES: &str = "with existing as (\
  ), inserted as (\
      insert into nvs_jobs \
      (queue, script, args, state, attempts, max_attempts, backoff_ms, run_at, dedupe_key, \
-      dedupe_pending, created_at, tag, grants, limits) \
+      dedupe_pending, created_at, tag, grants, limits, non_transactional) \
      select $2::text, $3::text, $4::text, $5::smallint, 0, $6::int, $7::bigint, $8::bigint, \
-            $1::text, $1::text, $9::bigint, $10::text, $11::text, $12::text \
+            $1::text, $1::text, $9::bigint, $10::text, $11::text, $12::text, $13::smallint \
      where not exists (select 1 from existing) \
      returning id\
  ) select id from inserted union all select id from existing limit 1";
@@ -809,8 +815,8 @@ pub const INSERT_MYSQL: Split = Split {
     first: "select id from nvs_jobs where dedupe_pending = ? limit 1 for update",
     then: "insert into nvs_jobs \
            (queue, script, args, state, attempts, max_attempts, backoff_ms, run_at, dedupe_key, \
-           dedupe_pending, created_at, tag, grants, limits) \
-           values (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+           dedupe_pending, created_at, tag, grants, limits, non_transactional) \
+           values (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 };
 
 /// [`INSERT_MYSQL`] on the backend with one writer, which is that pair with the locking clause
@@ -837,8 +843,8 @@ pub const INSERT_SQLITE: Split = Split {
     first: "select id from nvs_jobs where dedupe_pending = ? limit 1",
     then: "insert into nvs_jobs \
            (queue, script, args, state, attempts, max_attempts, backoff_ms, run_at, dedupe_key, \
-           dedupe_pending, created_at, tag, grants, limits) \
-           values (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+           dedupe_pending, created_at, tag, grants, limits, non_transactional) \
+           values (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 };
 
 /// The same enqueue in T-SQL, as a [`Split`] for [`INSERT_MYSQL`]'s reason and one of its own.
@@ -864,11 +870,11 @@ pub const INSERT_SQLSERVER: Split = Split {
     first: "select top 1 id from nvs_jobs with (updlock, holdlock) where dedupe_pending = @p1",
     then: "insert into nvs_jobs \
            (queue, script, args, state, attempts, max_attempts, backoff_ms, run_at, dedupe_key, \
-           dedupe_pending, created_at, tag, grants, limits) \
+           dedupe_pending, created_at, tag, grants, limits, non_transactional) \
            output inserted.id \
            values (@p1, @p2, @p3, cast(@p4 as smallint), 0, cast(@p5 as int), \
            cast(@p6 as bigint), cast(@p7 as bigint), @p8, @p9, cast(@p10 as bigint), @p11, \
-           @p12, @p13)",
+           @p12, @p13, cast(@p14 as smallint))",
 };
 
 /// [`CLAIM_POSTGRES`] in MySQL's dialect, which MariaDB runs unchanged.
@@ -1721,7 +1727,12 @@ pub const PURGE_DEAD_SQLSERVER: &str = "delete from nvs_dead_jobs where id in (\
 /// [`JOBS_TABLE`] alone. Every attempt the queue has ever made is therefore in exactly one of the
 /// two sums, and a caller wanting the total adds them rather than reading one that spans both.
 ///
-/// Every column is cast to `bigint` so all five decode the same way whatever widths `nvs queue
+/// **The sixth column counts the jobs `push` wrote outside the caller's transaction**
+/// (`rule:concurrency/foreign-connection-enqueue-is-counted`). `count` over the column skips its
+/// `null`s, so the same `count(non_transactional)` is the counter in every dialect, and it counts
+/// [`JOBS_TABLE`] alone: § 6's move does not carry the column.
+///
+/// Every column is cast to `bigint` so all six decode the same way whatever widths `nvs queue
 /// migrate` gives their columns, and `filter` is PostgreSQL's spelling of the filtered count the
 /// dialects without it write as a `case` inside a `count`.
 const COUNTS_POSTGRES: &str = "select \
@@ -1729,7 +1740,8 @@ const COUNTS_POSTGRES: &str = "select \
     (count(*) filter (where state = 1))::bigint, \
     (coalesce(sum(attempts), 0))::bigint, \
     (select count(*) from nvs_dead_jobs where queue = $1::text)::bigint, \
-    (select coalesce(sum(attempts), 0) from nvs_dead_jobs where queue = $1::text)::bigint \
+    (select coalesce(sum(attempts), 0) from nvs_dead_jobs where queue = $1::text)::bigint, \
+    (count(non_transactional))::bigint \
     from nvs_jobs where queue = $1::text";
 
 /// [`COUNTS_POSTGRES`] in MySQL's dialect, which MariaDB runs unchanged.
@@ -1752,7 +1764,8 @@ pub const COUNTS_MYSQL: &str = "select \
     count(case when state = 1 then 1 end), \
     cast(coalesce(sum(attempts), 0) as signed), \
     (select count(*) from nvs_dead_jobs where queue = ?), \
-    (select cast(coalesce(sum(attempts), 0) as signed) from nvs_dead_jobs where queue = ?) \
+    (select cast(coalesce(sum(attempts), 0) as signed) from nvs_dead_jobs where queue = ?), \
+    count(non_transactional) \
     from nvs_jobs where queue = ?";
 
 /// [`COUNTS_MYSQL`], which SQLite runs unchanged — the same five counters, the same two ordinals,
@@ -1786,7 +1799,8 @@ pub const COUNTS_SQLSERVER: &str = "select \
     cast(count(case when state = 1 then 1 end) as bigint), \
     coalesce(sum(cast(attempts as bigint)), 0), \
     (select cast(count(*) as bigint) from nvs_dead_jobs where queue = @p1), \
-    (select coalesce(sum(cast(attempts as bigint)), 0) from nvs_dead_jobs where queue = @p1) \
+    (select coalesce(sum(cast(attempts as bigint)), 0) from nvs_dead_jobs where queue = @p1), \
+    cast(count(non_transactional) as bigint) \
     from nvs_jobs where queue = @p1";
 
 /// Every statement the queue sends on one driver, as `(member, sql)`, each [`Split`] flattened to
@@ -1923,6 +1937,10 @@ const STATS_DEAD_SLOT: &str = "deadLettered";
 /// column [`DEAD_TABLE`] keeps for them.
 const STATS_DEAD_ATTEMPTS_SLOT: &str = "deadAttempts";
 
+/// Its sixth: how many of the jobs still in [`JOBS_TABLE`] were pushed while the caller's
+/// transaction was on a different connection, so each committed on its own.
+const STATS_NON_TRANSACTIONAL_SLOT: &str = "nonTransactional";
+
 /// [`STATS_PENDING_SLOT`]'s index, and [`COUNTS_POSTGRES`]'s first column.
 const STATS_PENDING_AT: usize = 0;
 
@@ -1937,6 +1955,9 @@ const STATS_DEAD_AT: usize = 3;
 
 /// [`STATS_DEAD_ATTEMPTS_SLOT`]'s.
 const STATS_DEAD_ATTEMPTS_AT: usize = 4;
+
+/// [`STATS_NON_TRANSACTIONAL_SLOT`]'s.
+const STATS_NON_TRANSACTIONAL_AT: usize = 5;
 
 /// `$script`'s argument slot.
 const SCRIPT_ARG: usize = 0;
@@ -2611,6 +2632,17 @@ const STATS_DEAD_ATTEMPTS_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
+/// `Core\Queue\Stats::nonTransactional`'s reference card — `rule:core-api/reference-card`.
+const STATS_NON_TRANSACTIONAL_DOC: MethodDoc = MethodDoc {
+    short: "The number of jobs that `push` saved while a transaction was open on a different \
+            database connection. Such a job is saved at once, so a rollback of that transaction \
+            does not remove it.",
+    params: &[],
+    ret: "A `uint` for the jobs table only. It is `0` when every transaction that pushes a job \
+          runs on the connection that `[queue] connection` names.",
+    errors: &[],
+};
+
 /// § 1's receipt: the row `push` wrote, and the queue it is in.
 ///
 /// A class rather than a bare `uint` because the three members that take one — `cancel`, `delete`
@@ -2645,10 +2677,11 @@ const ID_CARD: ClassDoc = ClassDoc {
 /// whole parameter. `Core\Db\Write` is the same shape for the same
 /// reason, and `rule:concurrency/queue-four-members` now carries the annotation so there is one home for it.
 ///
-/// **Five counters, because a queue is watched as two populations**: what is waiting, what is held
-/// and what the live jobs have attempted, then how deep the dead-letter table is and what the jobs
-/// in it attempted before they got there. [`COUNTS_POSTGRES`] is the one home for which five and
-/// for why the two attempt counters are disjoint rather than one sum spanning both tables.
+/// **Six counters, because a queue is watched as two populations and one risk**: what is waiting,
+/// what is held and what the live jobs have attempted, then how deep the dead-letter table is and
+/// what the jobs in it attempted before they got there, and last how many jobs committed apart
+/// from the write that caused them. [`COUNTS_POSTGRES`] is the one home for which six and for why
+/// the two attempt counters are disjoint rather than one sum spanning both tables.
 ///
 /// The slots are filled once, by [`nvs_core_queue_stats`], out of a single row — which is the
 /// whole reason a member answers a record instead of answering a number five times.
@@ -2702,6 +2735,15 @@ pub(crate) const STATS: CoreClass = CoreClass {
             symbol: "nvs_core_queue_stats_dead_attempts",
             doc: Some(&STATS_DEAD_ATTEMPTS_DOC),
         },
+        CoreMethod {
+            name: "nonTransactional",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Uint,
+            symbol: "nvs_core_queue_stats_non_transactional",
+            doc: Some(&STATS_NON_TRANSACTIONAL_DOC),
+        },
     ],
     slots: &[
         STATS_PENDING_SLOT,
@@ -2709,6 +2751,7 @@ pub(crate) const STATS: CoreClass = CoreClass {
         STATS_ATTEMPTS_SLOT,
         STATS_DEAD_SLOT,
         STATS_DEAD_ATTEMPTS_SLOT,
+        STATS_NON_TRANSACTIONAL_SLOT,
     ],
     constants: &[],
 };
@@ -3478,6 +3521,13 @@ nvs_runtime::nvs_helper! {
         // connection, outside whatever transaction the request has open on the first, and the
         // enqueue would commit on its own. The memo is what makes the property hold.
         let handle = crate::db::open_named(ctx, &configured.connection, true, None, PUSH)?;
+        // `rule:concurrency/foreign-connection-enqueue-is-counted`: no level open on the queue's
+        // connection and one open on another means the job commits now and the caller's write
+        // later, so the row says so. Read before the statements, so a transaction this member
+        // opens for its own pair is not mistaken for the caller's.
+        let foreign = crate::db::open_levels(ctx, handle, PUSH)? == 0
+            && crate::db::foreign_level_open(ctx, handle);
+        let committed_alone = foreign.then_some(b"1".as_slice());
         let now = now_millis();
         // Encoded once and bound twice, because the two dialects want the same values in two
         // orders: [`INSERT_POSTGRES`] names the dedupe key first, since `$1` is read by all three
@@ -3510,7 +3560,7 @@ nvs_runtime::nvs_helper! {
         // [`INSERT_MYSQL`]'s slots, which [`INSERT_SQLSERVER`] takes unchanged: the two texts write
         // the same columns in the same order, so the array is one binding rather than one per
         // dialect that happens to agree.
-        let framed_order: [Option<&[u8]>; 13] = [
+        let framed_order: [Option<&[u8]>; 14] = [
             Some(queued),
             Some(scripted),
             payloaded,
@@ -3526,10 +3576,11 @@ nvs_runtime::nvs_helper! {
             tagged,
             granting,
             limiting,
+            committed_alone,
         ];
         let id = match queue_connection(ctx, handle, PUSH)? {
             Queued::Postgres(postgres) => {
-                let bound: [Option<&[u8]>; 12] = [
+                let bound: [Option<&[u8]>; 13] = [
                     dedupe,
                     Some(queued),
                     Some(scripted),
@@ -3542,6 +3593,7 @@ nvs_runtime::nvs_helper! {
                     tagged,
                     granting,
                     limiting,
+                    committed_alone,
                 ];
                 push_in_one(postgres, &bound, &block, &mut spans)?
             }
@@ -3570,6 +3622,11 @@ nvs_runtime::nvs_helper! {
                     sqlite_text(tag.as_deref()),
                     sqlite_text(granted.as_deref()),
                     sqlite_text(limited.as_deref()),
+                    if foreign {
+                        nvs_db::SqliteValue::Int(1)
+                    } else {
+                        nvs_db::SqliteValue::Null
+                    },
                 ];
                 push_in_sqlite(sqlite, key.as_deref(), values, &block, &mut spans)?
             }
@@ -5148,7 +5205,7 @@ nvs_runtime::nvs_helper! {
     /// queues.
     ///
     /// **What it spends:** one statement, on the connection the request either already held or now
-    /// holds for the rest of it, plus one five-slot record. [`nvs_core_queue_push`]'s reading of
+    /// holds for the rest of it, plus one six-slot record. [`nvs_core_queue_push`]'s reading of
     /// § 3 applies in the other direction — a `stats` inside a transaction on that connection
     /// counts that transaction's own enqueues, because it is the same connection and not a second.
     fn nvs_core_queue_stats(ctx, args: [1]) {
@@ -5208,7 +5265,7 @@ nvs_runtime::nvs_helper! {
                     ],
                 )
             },
-            5,
+            6,
             &block,
             &refused_by_server,
             &mut spans,
@@ -5224,7 +5281,7 @@ nvs_runtime::nvs_helper! {
         // An `IOError` and not a fatal, for `status`'s reason: `attempts` is a column a program
         // can overwrite with text, and SQLite then sums it to a `real` its cast does not turn
         // back into an integer, so this is the database's data rather than this crate's bug.
-        let mut counted = [0i64; 5];
+        let mut counted = [0i64; 6];
         for (at, held) in counted.iter_mut().enumerate() {
             *held = row.get(at).copied().flatten().ok_or_else(|| {
                 Fault::thrown_as(
@@ -5308,6 +5365,14 @@ nvs_runtime::nvs_helper! {
     }
 }
 
+nvs_runtime::nvs_helper! {
+    /// `$stats->nonTransactional(): uint` — the jobs still in [`JOBS_TABLE`] that committed apart
+    /// from the caller's transaction, which [`COUNTS_POSTGRES`]'s sixth column counts.
+    fn nvs_core_queue_stats_non_transactional(_ctx, args: [1]) {
+        counter(args, "nonTransactional", STATS_NON_TRANSACTIONAL_AT)
+    }
+}
+
 /// The address of one of *this* module's symbols, or `None` for a symbol that belongs to another
 /// domain. See [`crate::address`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
@@ -5327,6 +5392,9 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_queue_stats_dead_attempts" => {
             (nvs_core_queue_stats_dead_attempts as *const ()).cast()
         }
+        "nvs_core_queue_stats_non_transactional" => {
+            (nvs_core_queue_stats_non_transactional as *const ()).cast()
+        }
         _ => return None,
     })
 }
@@ -5344,10 +5412,11 @@ mod tests {
         QUEUES_MYSQL, QUEUES_POSTGRES, QUEUES_SQLITE, QUEUES_SQLSERVER, RETRY_CAP_MS, RETRY_MYSQL,
         RETRY_POSTGRES, RETRY_SQLSERVER, STATE, STATS, STATS_ATTEMPTS_AT, STATS_ATTEMPTS_SLOT,
         STATS_CLAIMED_AT, STATS_CLAIMED_SLOT, STATS_DEAD_AT, STATS_DEAD_ATTEMPTS_AT,
-        STATS_DEAD_ATTEMPTS_SLOT, STATS_DEAD_SLOT, STATS_PENDING_AT, STATS_PENDING_SLOT,
-        STATUS_MYSQL, STATUS_POSTGRES, STATUS_SQLITE, STATUS_SQLSERVER, SUCCEEDED_MYSQL,
-        SUCCEEDED_POSTGRES, SUCCEEDED_SQLSERVER, Selection, Split, ThrownClass, Value, dead_errors,
-        migration, purge_state_of, purge_texts, retry_at,
+        STATS_DEAD_ATTEMPTS_SLOT, STATS_DEAD_SLOT, STATS_NON_TRANSACTIONAL_AT,
+        STATS_NON_TRANSACTIONAL_SLOT, STATS_PENDING_AT, STATS_PENDING_SLOT, STATUS_MYSQL,
+        STATUS_POSTGRES, STATUS_SQLITE, STATUS_SQLSERVER, SUCCEEDED_MYSQL, SUCCEEDED_POSTGRES,
+        SUCCEEDED_SQLSERVER, Selection, Split, ThrownClass, Value, dead_errors, migration,
+        purge_state_of, purge_texts, retry_at,
     };
     use super::{NAME, PURGE_DOC, PUSH_DOC};
     use crate::registry::{CAPABILITIES, Const, CoreTy};
@@ -6753,6 +6822,7 @@ mod tests {
             (STATS_ATTEMPTS_AT, STATS_ATTEMPTS_SLOT),
             (STATS_DEAD_AT, STATS_DEAD_SLOT),
             (STATS_DEAD_ATTEMPTS_AT, STATS_DEAD_ATTEMPTS_SLOT),
+            (STATS_NON_TRANSACTIONAL_AT, STATS_NON_TRANSACTIONAL_SLOT),
         ] {
             assert_eq!(
                 STATS.slots[at], slot,
@@ -6776,12 +6846,10 @@ mod tests {
     #[test]
     fn queue_stats_has_a_fifth_counter() {
         assert_eq!(
-            STATS.slots.len(),
-            5,
-            "the record carries the dead-letter table's own attempts beside the four § 6 names"
-        );
-        assert_eq!(
-            STATS.instance.last().map(|one| one.name),
+            STATS
+                .instance
+                .get(STATS_DEAD_ATTEMPTS_AT)
+                .map(|one| one.name),
             Some(STATS_DEAD_ATTEMPTS_SLOT),
             "the fifth counter is a member for the reason the other four are"
         );
@@ -6821,6 +6889,51 @@ mod tests {
                 2,
                 "{dialect}: the depth and the buried attempts are one subquery each over \
                  `{DEAD_TABLE}`"
+            );
+        }
+    }
+
+    /// `rule:concurrency/foreign-connection-enqueue-is-counted`'s two halves: every dialect's
+    /// insert writes the column, and every dialect's count reads it as the record's last counter.
+    ///
+    /// **Asserted on both statements and on the record together**, for the fifth counter's reason:
+    /// a column the insert writes and no count reads is a fact nobody can see, and a count over a
+    /// column no insert writes answers `0` forever.
+    #[test]
+    fn queue_stats_counts_the_pushes_outside_the_callers_transaction() {
+        assert_eq!(
+            STATS.slots.len(),
+            6,
+            "the record carries the non-transactional count beside the five it had"
+        );
+        assert_eq!(
+            STATS.instance.last().map(|one| one.name),
+            Some(STATS_NON_TRANSACTIONAL_SLOT),
+            "the sixth counter is a member for the reason the other five are"
+        );
+        for (dialect, insert) in [
+            ("postgres", INSERT_POSTGRES),
+            ("mysql", INSERT_MYSQL.then),
+            ("sqlite", INSERT_SQLITE.then),
+            ("sqlserver", INSERT_SQLSERVER.then),
+        ] {
+            assert!(
+                insert.contains("limits, non_transactional)"),
+                "{dialect}: the insert writes `non_transactional` as its last column"
+            );
+        }
+        for (dialect, counts) in [
+            ("postgres", COUNTS_POSTGRES),
+            ("mysql", COUNTS_MYSQL),
+            ("sqlite", COUNTS_SQLITE),
+            ("sqlserver", COUNTS_SQLSERVER),
+        ] {
+            let at = counts
+                .find("count(non_transactional)")
+                .unwrap_or_else(|| panic!("{dialect}: `stats` does not count `non_transactional`"));
+            assert!(
+                counts[..at].matches(DEAD_TABLE).count() == 2,
+                "{dialect}: the count is the sixth column, after both `{DEAD_TABLE}` subqueries"
             );
         }
     }
@@ -7302,8 +7415,8 @@ mod tests {
                 .expect("the enqueue names its columns as one parenthesised list")
                 .0;
             assert!(
-                columns.trim_end().ends_with("tag, grants, limits"),
-                "{dialect}: the narrowing is written after `tag`, which is the end of the job's own \
+                columns.contains("tag, grants, limits"),
+                "{dialect}: the narrowing is written right after `tag`, the last of the job's own \
                  values — `{columns}`"
             );
         }
@@ -7312,17 +7425,22 @@ mod tests {
         for (dialect, sql) in [("mysql", INSERT_MYSQL.then), ("sqlite", INSERT_SQLITE.then)] {
             assert_eq!(
                 sql.matches('?').count(),
-                13,
+                14,
                 "{dialect}: the enqueue binds one value per column it names"
             );
         }
+        // The pair is followed by `non_transactional`, the one value bound after it.
         assert!(
-            INSERT_POSTGRES.contains("$12::text") && !INSERT_POSTGRES.contains("$13"),
-            "PostgreSQL binds the pair as the last two of its numbered values"
+            INSERT_POSTGRES.contains("$11::text, $12::text, $13::smallint")
+                && !INSERT_POSTGRES.contains("$14"),
+            "PostgreSQL binds the pair just before its last numbered value"
         );
         assert!(
-            INSERT_SQLSERVER.then.contains("@p13") && !INSERT_SQLSERVER.then.contains("@p14"),
-            "T-SQL binds the pair as the last two of its numbered values"
+            INSERT_SQLSERVER
+                .then
+                .contains("@p12, @p13, cast(@p14 as smallint)")
+                && !INSERT_SQLSERVER.then.contains("@p15"),
+            "T-SQL binds the pair just before its last numbered value"
         );
 
         assert_eq!(

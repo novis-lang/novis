@@ -12,7 +12,7 @@ create table nvs_jobs (id integer primary key autoincrement, queue varchar(255) 
     max_attempts integer not null, backoff_ms bigint not null, run_at bigint not null,
     tag varchar(255), dedupe_key varchar(255), dedupe_pending varchar(255),
     created_at bigint not null, claimed_at bigint, errors text, grants text, limits text,
-    constraint nvs_jobs_dedupe unique (dedupe_pending))
+    non_transactional smallint, constraint nvs_jobs_dedupe unique (dedupe_pending))
 SQL;
 $db->execute($jobs, []);
 

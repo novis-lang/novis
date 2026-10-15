@@ -1,0 +1,65 @@
+--TEST--
+A `push` while transactions are open on the queue's connection and on another one belongs to the queue's transaction, so `nonTransactional` does not count it — `rule:concurrency/foreign-connection-enqueue-is-counted`
+--FILE--
+<?nvs
+// covers: Core\Queue\Stats::nonTransactional
+use Core\Db\Transaction;
+use Core\Queue;
+
+var $jobs = Core\Db::connect("jobs");
+var $table = <<<'SQL'
+create table nvs_jobs (id integer primary key autoincrement, queue varchar(255) not null,
+    script text not null, args text, state smallint not null, attempts integer not null,
+    max_attempts integer not null, backoff_ms bigint not null, run_at bigint not null,
+    tag varchar(255), dedupe_key varchar(255), dedupe_pending varchar(255),
+    created_at bigint not null, claimed_at bigint, errors text, grants text, limits text,
+    non_transactional smallint, constraint nvs_jobs_dedupe unique (dedupe_pending))
+SQL;
+$jobs->execute($table, []);
+$jobs->execute("create table nvs_dead_jobs (id bigint not null, queue varchar(255) not null, script text not null, args text, attempts integer not null, max_attempts integer not null, backoff_ms bigint not null, run_at bigint not null, tag varchar(255), dedupe_key varchar(255), created_at bigint not null, failed_at bigint not null, errors text not null, primary key (id))", []);
+var $shop = Core\Db::connect("shop");
+
+// The queue's own transaction is open, so the job commits with it,
+// whatever the `shop` transaction around it does.
+$shop->transaction(fn(Transaction $outer): void => {
+    $jobs->transaction(fn(Transaction $inner): void => {
+        Queue::push("jobs/send-receipt.nvs", {queue: "mail"});
+    });
+});
+echo "both open: ", Queue::stats("mail")->nonTransactional(), "\n";
+
+// The queue's own transaction rolls back, so the job is gone, and
+// there is nothing to count.
+try {
+    $shop->transaction(fn(Transaction $outer): void => {
+        $jobs->transaction(fn(Transaction $inner): void => {
+            Queue::push("jobs/send-receipt.nvs", {queue: "mail"});
+            $inner->rollBack("cancelled");
+        });
+    });
+} catch (Core\Db\RolledBack $e) {
+    echo "rolled back: ", $e->reason, "\n";
+}
+var $stats = Queue::stats("mail");
+echo "after rollback: ", $stats->nonTransactional(), "\n";
+echo "pending: ", $stats->pending(), "\n";
+--FILE nvs.toml--
+[capabilities.db]
+connect = ["jobs", "shop"]
+
+[db.jobs]
+driver = "sqlite"
+path = ":memory:"
+
+[db.shop]
+driver = "sqlite"
+path = ":memory:"
+
+[queue]
+connection = "jobs"
+workers = 0
+--EXPECT--
+both open: 0
+rolled back: cancelled
+after rollback: 0
+pending: 1

@@ -2934,6 +2934,7 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
     (crate::queue::STATS_NAME, "attempts", None),
     (crate::queue::STATS_NAME, "deadLettered", None),
     (crate::queue::STATS_NAME, "deadAttempts", None),
+    (crate::queue::STATS_NAME, "nonTransactional", None),
     // `rule:programs/framework-core-half`'s storage half, and the rows that make its "over `rule:core-api/tier-placement`'s
     // existing `fs.*` capabilities" true: the same two grants `Core\IO` above
     // declares, asked about the path the disk's root and the object's key

@@ -1,0 +1,54 @@
+--TEST--
+`nonTransactional` counts the pushes of the one queue `stats` was asked about, and a nested level on the other connection is still outside the queue's transaction — `rule:concurrency/foreign-connection-enqueue-is-counted`
+--FILE--
+<?nvs
+// covers: Core\Queue\Stats::nonTransactional
+use Core\Db\Transaction;
+use Core\Queue;
+
+var $jobs = Core\Db::connect("jobs");
+var $table = <<<'SQL'
+create table nvs_jobs (id integer primary key autoincrement, queue varchar(255) not null,
+    script text not null, args text, state smallint not null, attempts integer not null,
+    max_attempts integer not null, backoff_ms bigint not null, run_at bigint not null,
+    tag varchar(255), dedupe_key varchar(255), dedupe_pending varchar(255),
+    created_at bigint not null, claimed_at bigint, errors text, grants text, limits text,
+    non_transactional smallint, constraint nvs_jobs_dedupe unique (dedupe_pending))
+SQL;
+$jobs->execute($table, []);
+$jobs->execute("create table nvs_dead_jobs (id bigint not null, queue varchar(255) not null, script text not null, args text, attempts integer not null, max_attempts integer not null, backoff_ms bigint not null, run_at bigint not null, tag varchar(255), dedupe_key varchar(255), created_at bigint not null, failed_at bigint not null, errors text not null, primary key (id))", []);
+var $shop = Core\Db::connect("shop");
+
+// Two pushes to `mail` and one to `sms`, all inside a nested level of a
+// `shop` transaction.
+$shop->transaction(fn(Transaction $outer): void => {
+    $outer->transaction(fn(Transaction $inner): void => {
+        Queue::push("jobs/send-receipt.nvs", {queue: "mail"});
+        Queue::push("jobs/send-receipt.nvs", {queue: "mail"});
+        Queue::push("jobs/send-text.nvs", {queue: "sms"});
+    });
+});
+uint $mail = Queue::stats("mail")->nonTransactional();
+uint $sms = Queue::stats("sms")->nonTransactional();
+echo "mail: ", $mail, "\n";
+echo "sms: ", $sms, "\n";
+echo "empty: ", Queue::stats("reports")->nonTransactional(), "\n";
+--FILE nvs.toml--
+[capabilities.db]
+connect = ["jobs", "shop"]
+
+[db.jobs]
+driver = "sqlite"
+path = ":memory:"
+
+[db.shop]
+driver = "sqlite"
+path = ":memory:"
+
+[queue]
+connection = "jobs"
+workers = 0
+--EXPECT--
+mail: 2
+sms: 1
+empty: 0
