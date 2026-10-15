@@ -3,7 +3,7 @@
 
 # Errors
 
-*2 of 30 rules below are **designed** rather than shipped, and are marked where they appear.*
+*1 of 30 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="errors-throwable-hierarchy"></a>
 
@@ -592,7 +592,7 @@ makes it safe**. There is no raw escape hatch, and no rendering may be selected 
 
 <a id="errors-renderings"></a>
 
-## The sink in force picks the rendering, and no call site may name one  *(designed — owned by goal language-rule-debts)*
+## The sink in force picks the rendering, and no call site may name one
 
 `rule:errors/renderings`
 
@@ -629,10 +629,18 @@ A rendering is not a grammar. A grammar is a string the program writes that some
 ([`security/every-grammar-is-a-sink`](security.md#security-every-grammar-is-a-sink)); a rendering is output the runtime produces, so the count
 of four is unchanged.
 
-**Partly on disk.** The three renderings are `crates/nvs-render/src/plain.rs`, `html.rs` and
-`json.rs`, and `Core\Debug::render` is `crates/nvs-stdlib/src/debug.rs:69`. Two parts are missing:
-the plaintext rendering is never coloured (`crates/nvs-render/src/plain.rs:15`), and the
-`[debug] inline` block is appended with no style of its own (`crates/nvs-runtime/src/ctx/output.rs:602`).
+The three renderings are `crates/nvs-render/src/plain.rs`, `html.rs` and `json.rs`, and
+`Core\Debug::render` is `crates/nvs-stdlib/src/debug.rs`. The plaintext rendering takes its colour
+as an input (`nvs_render::plain::Colour`), and a dump to standard error reads it from that stream's
+depth in the one profile. `render` and the log target's `text` format are never coloured, because
+neither has a terminal stream, and a snapshot must not change with the terminal a test runs in.
+
+The stylesheet is `nvs_render::html::STYLE`. `Ctx::flush_inline_debug` writes it as one `<style>`
+element ahead of the blocks, under a 128-bit nonce drawn for that response, and the server adds
+`'nonce-…'` to the directive of the response's `Content-Security-Policy` that governs an inline
+style (`crates/nvs-server/src/debug_style.rs`). A policy that limits no style is left alone. A nonce
+rather than a hash, though the stylesheet is static: it is the source this rule names, and it is drawn
+only for a response that has a block, which production never sends.
 
 **Declined:**
 - **A format argument on each producer**, such as `dump($x, "html")`. The call site is the one place
