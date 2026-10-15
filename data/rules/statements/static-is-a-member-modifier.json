@@ -19,6 +19,8 @@
     "tests/conformance/class/a-static-return-must-be-the-called-class.nvst",
     "tests/conformance/reject/this-is-not-read-in-a-static-method.nvst",
     "tests/conformance/reject/an-instance-method-is-not-called-statically.nvst",
-    "tests/conformance/reject/a-static-property-is-refused-uninitialized-and-late-bound.nvst"
+    "tests/conformance/reject/a-static-property-is-refused-uninitialized-and-late-bound.nvst",
+    "tests/conformance/lang/a-static-parameter-type-is-the-class-the-call-names.nvst",
+    "tests/conformance/lang/a-static-array-return-is-the-class-the-call-names.nvst"
   ]
 }

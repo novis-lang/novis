@@ -157,10 +157,11 @@ pub struct MethodSig {
     /// `static` means the class the *call* named, which
     /// [`crate::lower::lower_type`] cannot intern: inside the body it has no
     /// choice but the declaring class, and that is sound there (every called
-    /// class is one). At a call site the called class *is* known, so this bit
-    /// is what lets `crate::expr::calls` answer `Leaf` for `Leaf::make()` on a
-    /// `Base::make(): static` — the substitution happens at the two
-    /// `return_ty` sites there and nowhere else.
+    /// class is one). At a call site the called class *is* known, so
+    /// `crate::expr::calls` answers `Leaf` for `Leaf::make()` on a
+    /// `Base::make(): static`, through [`Self::bound_to`] and
+    /// [`Self::return_binds_static`]. This bit is the exact spelling alone,
+    /// which an interface's implementor must keep (`E0404`).
     ///
     /// # Why the body is refused rather than the hole pinned
     ///
@@ -181,6 +182,15 @@ pub struct MethodSig {
     /// for a representation, and a class and its subclass erase to the same
     /// `Ty::Object`.
     pub returns_static: bool,
+    /// Which parameters bind `static` to the class a call names, positionally,
+    /// and **empty** when none does. [`static_use`] decides each one, and
+    /// [`Self::bound_to`] applies them at a call.
+    pub params_bind_static: Vec<bool>,
+    /// Whether the return type binds `static` to the class a call names. True
+    /// for every return [`Self::returns_static`] is true for, and also for a
+    /// `?static`, a `static[]` or any other type [`static_use`] admits.
+    /// `crate::check` holds the body to the same promise (`E0741`).
+    pub return_binds_static: bool,
     /// Whether the declaration carries the `static` modifier — `rule:statements/static-is-a-member-modifier`'s
     /// one surviving meaning of the keyword.
     ///
@@ -383,6 +393,35 @@ impl MethodSig {
             return_ty: crate::generics::substitute(self.return_ty, bindings, interner),
             ..self
         }
+    }
+
+    /// This signature as a call on `called` sees it, when `declaring` declares
+    /// it: each position that binds `static` has the declaring class replaced
+    /// by `called` ([`bind_static`]). A variadic tail's one entry covers every
+    /// trailing argument, because [`Self::params`] holds the element type.
+    #[must_use]
+    pub(crate) fn bound_to(
+        &self,
+        declaring: &QName,
+        called: TypeId,
+        interner: &mut crate::ty::TypeInterner,
+    ) -> Self {
+        let mut out = self.clone();
+        for (ty, binds) in out.params.iter_mut().zip(&self.params_bind_static) {
+            if *binds {
+                *ty = bind_static(*ty, declaring, called, interner);
+            }
+        }
+        if self.return_binds_static {
+            out.return_ty = bind_static(self.return_ty, declaring, called, interner);
+        }
+        out
+    }
+
+    /// Whether any position of this signature binds `static` at a call.
+    #[must_use]
+    pub fn binds_static(&self) -> bool {
+        self.return_binds_static || self.params_bind_static.iter().any(|b| *b)
     }
 }
 
@@ -1205,6 +1244,15 @@ fn collect_members(
                 crate::paths::resolve_defaults(&m.params, &param_text, &mut defaults, env);
                 let return_ty = lower_optional_type(m.return_type.as_ref(), ctx, env);
                 let returns_static = writes_static_return(m.return_type.as_ref());
+                let mut params_bind_static: Vec<bool> = m
+                    .params
+                    .iter()
+                    .map(|p| static_use(p.ty.as_ref(), qname, env.src).binds)
+                    .collect();
+                if !params_bind_static.contains(&true) {
+                    params_bind_static.clear();
+                }
+                let return_binds_static = static_use(m.return_type.as_ref(), qname, env.src).binds;
                 let interface_private = is_interface && m.modifiers.contains(&Modifier::Private);
                 let visibility = declared_visibility(&m.modifiers).unwrap_or(Visibility::Public);
                 let is_static = m.modifiers.contains(&Modifier::Static);
@@ -1239,6 +1287,8 @@ fn collect_members(
                         type_bounds: Vec::new(),
                         return_ty,
                         returns_static,
+                        params_bind_static,
+                        return_binds_static,
                         is_static,
                         interface_private,
                         visibility,
@@ -1712,13 +1762,202 @@ pub fn hooks_of(owner: &QName, name: &str, table: &SignatureTable) -> PropertyHo
 ///
 /// Read off the *written* type rather than the lowered one, because lowering
 /// is precisely what loses the distinction: [`crate::lower::lower_type`]
-/// interns `static` and `self` to the same class. A union or a `?static` is
-/// deliberately not this — a call site substituting into one member of a union
-/// is a second rule with no program asking for it yet, and answering the
-/// declared type there is the conservative half.
+/// interns `static` and `self` to the same class. A `?static`, an
+/// `array<static>` or a union is not this: [`static_use`] reads those, and a
+/// call binds them through [`MethodSig::return_binds_static`].
 #[must_use]
 pub(crate) fn writes_static_return(ty: Option<&Type>) -> bool {
     matches!(ty, Some(t) if matches!(t.kind, TypeKind::Atom(TypeAtom::StaticTy)))
+}
+
+/// Where a written parameter or return type uses `static`, as
+/// [`static_use`] reads it off the declaration.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct StaticUse {
+    /// A call binds `static` here to the class it names
+    /// (`rule:statements/static-is-a-member-modifier`), through [`bind_static`].
+    pub binds: bool,
+    /// `static` is written inside a `property<…>`, so inside the body the value
+    /// may name a property only the called subclass declares.
+    pub in_key: bool,
+}
+
+/// Reads where `ty` writes `static`, for the class `declaring` that declares it.
+///
+/// [`crate::lower::lower_type`] interns `static` as the declaring class, and
+/// [`bind_static`] rewrites every occurrence of that class. So a type that
+/// also writes `self` or the declaring class's own name does not bind: the
+/// rewrite could not tell the two apart, and the declaring class is the sound
+/// answer for both. A `static` among a written callable's parameters does not
+/// bind either, because the body could call that callable with an instance of
+/// the declaring class.
+pub(crate) fn static_use(ty: Option<&Type>, declaring: &QName, src: &SourceFile) -> StaticUse {
+    #[derive(Default)]
+    struct Walk {
+        writes: bool,
+        blocked: bool,
+        in_key: bool,
+    }
+    fn visit(
+        ty: &Type,
+        in_param: bool,
+        in_key: bool,
+        short: &str,
+        src: &SourceFile,
+        out: &mut Walk,
+    ) {
+        match &ty.kind {
+            TypeKind::Nullable(t) | TypeKind::Paren(t) => {
+                visit(t, in_param, in_key, short, src, out)
+            }
+            TypeKind::Union(items) | TypeKind::Intersection(items) => {
+                for t in items {
+                    visit(t, in_param, in_key, short, src, out);
+                }
+            }
+            TypeKind::Atom(atom) => match atom {
+                TypeAtom::StaticTy => {
+                    out.writes = true;
+                    out.blocked |= in_param;
+                    out.in_key |= in_key;
+                }
+                TypeAtom::SelfTy => out.blocked = true,
+                TypeAtom::Name(name, args) => {
+                    let text = span_text(src, name.span);
+                    out.blocked |= text.rsplit('\\').next() == Some(short);
+                    for t in args {
+                        visit(t, in_param, in_key, short, src, out);
+                    }
+                }
+                TypeAtom::Array(Some(t)) | TypeAtom::ClassRef(t) => {
+                    visit(t, in_param, in_key, short, src, out);
+                }
+                TypeAtom::PropertyKey(t) => visit(t, in_param, true, short, src, out),
+                TypeAtom::Shape(fields) => {
+                    for f in fields {
+                        visit(&f.ty, in_param, in_key, short, src, out);
+                    }
+                }
+                TypeAtom::CallableSig { params, ret } => {
+                    for t in params {
+                        visit(t, true, in_key, short, src, out);
+                    }
+                    visit(ret, in_param, in_key, short, src, out);
+                }
+                _ => {}
+            },
+            _ => {}
+        }
+    }
+    let Some(ty) = ty else {
+        return StaticUse::default();
+    };
+    let mut walk = Walk::default();
+    visit(ty, false, false, declaring.short_name(), src, &mut walk);
+    let binds = walk.writes && !walk.blocked;
+    StaticUse {
+        binds,
+        in_key: binds && walk.in_key,
+    }
+}
+
+/// `id` with every occurrence of the class `declaring` replaced by `to` — the
+/// class a call names, for a position [`static_use`] says binds `static`.
+///
+/// Only the bare class is replaced. Generic arguments never carry `static`,
+/// because [`static_use`] blocks a type that writes its class's own name.
+pub(crate) fn bind_static(
+    id: TypeId,
+    declaring: &QName,
+    to: TypeId,
+    interner: &mut crate::ty::TypeInterner,
+) -> TypeId {
+    match interner.get(id).clone() {
+        Ty::Class(q, args) if &q == declaring && args.is_empty() => to,
+        Ty::Array(elem) => {
+            let elem = bind_static(elem, declaring, to, interner);
+            interner.array(elem)
+        }
+        Ty::ClassRef(inner) => {
+            let inner = bind_static(inner, declaring, to, interner);
+            interner.class_ref(inner)
+        }
+        Ty::PropertyKey(inner) => {
+            let inner = bind_static(inner, declaring, to, interner);
+            interner.property_key(inner)
+        }
+        Ty::Union(members) => {
+            let members: Vec<TypeId> = members
+                .iter()
+                .map(|m| bind_static(*m, declaring, to, interner))
+                .collect();
+            interner.make_union(members)
+        }
+        Ty::Intersection(members) => {
+            let members: Vec<TypeId> = members
+                .iter()
+                .map(|m| bind_static(*m, declaring, to, interner))
+                .collect();
+            interner.make_intersection(members)
+        }
+        Ty::Shape(fields) => {
+            let fields: Vec<crate::ty::ShapeField> = fields
+                .iter()
+                .map(|f| crate::ty::ShapeField {
+                    name: f.name.clone(),
+                    ty: bind_static(f.ty, declaring, to, interner),
+                    required: f.required,
+                })
+                .collect();
+            interner.shape(fields)
+        }
+        Ty::CallableSig { params, ret } => {
+            let ret = bind_static(ret, declaring, to, interner);
+            interner.callable_sig(params, ret)
+        }
+        _ => id,
+    }
+}
+
+/// `id` as a method body sees a parameter whose `static` is written inside a
+/// `property<…>`: each `property<C>` of the declaring class is a `string`.
+///
+/// The caller may pass a key of a subclass, and the body does not know which
+/// one, so the value is the property's name as text. Converting it back with
+/// `as property<…>` is checked at run time.
+pub(crate) fn static_key_as_text(
+    id: TypeId,
+    declaring: &QName,
+    interner: &mut crate::ty::TypeInterner,
+) -> TypeId {
+    match interner.get(id).clone() {
+        Ty::PropertyKey(inner) if matches!(interner.get(inner), Ty::Class(q, args) if q == declaring && args.is_empty()) => {
+            interner.string()
+        }
+        Ty::Array(elem) => {
+            let elem = static_key_as_text(elem, declaring, interner);
+            interner.array(elem)
+        }
+        Ty::Union(members) => {
+            let members: Vec<TypeId> = members
+                .iter()
+                .map(|m| static_key_as_text(*m, declaring, interner))
+                .collect();
+            interner.make_union(members)
+        }
+        Ty::Shape(fields) => {
+            let fields: Vec<crate::ty::ShapeField> = fields
+                .iter()
+                .map(|f| crate::ty::ShapeField {
+                    name: f.name.clone(),
+                    ty: static_key_as_text(f.ty, declaring, interner),
+                    required: f.required,
+                })
+                .collect();
+            interner.shape(fields)
+        }
+        _ => id,
+    }
 }
 
 /// Looks `name` up as a method on `qname`, falling back to walking ancestors

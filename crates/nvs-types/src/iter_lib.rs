@@ -119,10 +119,12 @@ pub(crate) fn seed(table: &mut SignatureTable, interner: &mut TypeInterner) {
     // answer `Slug` at the call site — see `MethodSig::returns_static`.
     parse.is_static = true;
     parse.returns_static = true;
-    // `?static` is deliberately *not* `returns_static`
-    // ([`crate::signatures::writes_static_return`] owns why), so the nullable is
-    // interned over the interface's own class and a call site substitutes
-    // nothing into it. `has_body` is what makes an implementor owe nothing for
+    parse.return_binds_static = true;
+    // `tryParse`'s `?static` binds nothing: a call can only reach it through
+    // the interface itself, so the nullable is interned over the interface's
+    // own class and a call site has no other class to put there. `returns_static`
+    // stays false because an implementor answering `?Slug` is not dropping a
+    // promise (`E0404`). `has_body` is what makes an implementor owe nothing for
     // this member, and what lets one declare its own. It does not make the
     // interface's own body reachable through an implementor: nothing declares a
     // reserved interface in source, so `nvs_hir::members` finds no entry to
@@ -279,6 +281,8 @@ pub(crate) fn bodiless(names: &[&str], params: Vec<TypeId>, return_ty: TypeId) -
         // `rule:iteration/concrete-generic-implements`'s two interfaces answer `T` and `bool`, never the
         // called class — see `MethodSig::returns_static`.
         returns_static: false,
+        params_bind_static: Vec::new(),
+        return_binds_static: false,
         // Overridden for `Parses`, whose pair is `public static`.
         is_static: false,
         interface_private: false,

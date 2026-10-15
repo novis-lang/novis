@@ -329,3 +329,97 @@ fn a_generator_body_owes_no_return() {
     let diags = check_src(&method("): Iterator<int>", "yield 1;"));
     assert!(!refuses(&diags), "{diags:?}");
 }
+
+/// `Model` with one member under test and a `Category` that adds `rank`, so a
+/// fixture binding `static` in a parameter or a nested return is two lines.
+fn model(member: &str, tail: &str) -> String {
+    format!(
+        "<?nvs\nclass Model {{\n  public string $id = \"m\";\n  {member}\n}}\n\
+         class Category extends Model {{\n  public int $rank = 1;\n}}\n{tail}\n"
+    )
+}
+
+const SORT_BY: &str = "public static function sortBy(property<static> $f): string {\n    \
+                       return $f;\n  }";
+
+/// A `static` in a parameter type is the class the call names, so a subclass's
+/// own key is accepted at the subclass's call and refused at the base's.
+#[test]
+fn a_static_parameter_type_is_the_class_the_call_names() {
+    let at_category = check_src(&model(
+        SORT_BY,
+        "echo Category::sortBy(\"rank\" as property<Category>);",
+    ));
+    assert!(!at_category.has_errors(), "{at_category:?}");
+    let at_model = check_src(&model(
+        SORT_BY,
+        "echo Model::sortBy(\"rank\" as property<Category>);",
+    ));
+    assert!(
+        at_model
+            .iter()
+            .any(|d| d.code == Some(code::E_TYPE_MISMATCH)),
+        "{at_model:?}"
+    );
+}
+
+/// The instance call binds the receiver's class the same way.
+#[test]
+fn an_instance_call_binds_static_in_a_parameter_to_the_receivers_class() {
+    let member = "public function key(property<static> $f): string {\n    return $f;\n  }";
+    let diags = check_src(&model(
+        member,
+        "Category $c = new Category();\necho $c->key(\"rank\" as property<Category>);",
+    ));
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+/// Inside the body a `property<static>` is the property's name as a `string`,
+/// because the body does not know which subclass called it. Reading through
+/// it is refused, since a `string` is not a key.
+#[test]
+fn a_static_key_inside_the_body_is_its_text() {
+    let member = "public function read(property<static> $f): mixed {\n    \
+                  return $this->{$f};\n  }";
+    let diags = check_src(&model(member, ""));
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code == Some(code::E_DYNAMIC_MEMBER_NAME)),
+        "{diags:?}"
+    );
+}
+
+/// An `array<static>` and a `?static` return are held to `E0741` as `static`
+/// is: an array of `new self()` is the declaring class, while `null` and an
+/// array of `new static()` are the called one.
+#[test]
+fn a_nested_static_return_must_be_the_called_class() {
+    let refused = |member: &str| {
+        check_src(&model(member, ""))
+            .iter()
+            .any(|d| d.code == Some(code::E_STATIC_RETURN_NOT_CALLED_CLASS))
+    };
+    assert!(refused(
+        "public static function all(): array<static> {\n    return [new self()];\n  }"
+    ));
+    assert!(!refused(
+        "public static function all(): array<static> {\n    return [new static()];\n  }"
+    ));
+    assert!(!refused(
+        "public static function one(bool $b): ?static {\n    return $b ? new static() : null;\n  }"
+    ));
+    assert!(refused(
+        "public static function one(): ?static {\n    ?static $x = new static();\n    return $x;\n  }"
+    ));
+}
+
+/// A type that also writes the declaring class's own name does not bind, so
+/// the call keeps the declaring class and nothing is rewritten under it.
+#[test]
+fn a_type_naming_the_declaring_class_beside_static_does_not_bind() {
+    let member = "public static function all(): array<static|Model> {\n    \
+                  return [new self()];\n  }";
+    let diags = check_src(&model(member, "array<Model> $all = Category::all();"));
+    assert!(!diags.has_errors(), "{diags:?}");
+}

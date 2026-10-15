@@ -209,6 +209,8 @@ fn method_sig(
         // spelling for it, and a `Core` class is never extended —
         // see `MethodSig::returns_static`.
         returns_static: false,
+        params_bind_static: Vec::new(),
+        return_binds_static: false,
         // `rule:core-api/shape-rules` R2: every `Core` parameter is callable by the spec's
         // `$name`. The row carries one name per positional slot and none
         // for a trailing bag, so `param_names` re-aligns them to `params`

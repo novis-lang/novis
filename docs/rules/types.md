@@ -1278,7 +1278,7 @@ whose **values** are dotted chains of public declared property names starting at
 in the representation but **not** in the type.
 
 Every segment but the last names a property whose declared type is a class `C`, a `?C`, or an array of
-`C` (`C[]`, `array<C>`), and the next segment is looked up on `C`. The last segment is any public
+`C` (`array<C>`), and the next segment is looked up on `C`. The last segment is any public
 property. A segment that names nothing, names a `private` or `protected` property, or steps through a
 property whose type is not one of those three forms is the same failure, and fails the same way at
 every segment. `T` follows [`types/property-key`](types.md#types-property-key) exactly: one class, `E0799` for anything else or

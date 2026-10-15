@@ -781,6 +781,18 @@ fn check_method(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
     }
     for param in &m.params {
         let ty = lower_optional_type(param.ty.as_ref(), ctx, env);
+        // A `property<static>` may name a property only the called subclass
+        // declares, and the body does not know which subclass that is, so the
+        // body reads it as the property's name — see
+        // `crate::signatures::static_key_as_text`.
+        let ty = match ctx.current_class {
+            Some(class)
+                if crate::signatures::static_use(param.ty.as_ref(), class, env.src).in_key =>
+            {
+                crate::signatures::static_key_as_text(ty, class, env.interner)
+            }
+            _ => ty,
+        };
         // `...$rest` declares the type of *each* trailing argument — which is
         // what `MethodSig::param_at` matches an argument against — but the
         // body is handed the one array the call site collected them into, so
@@ -861,18 +873,28 @@ fn check_method(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
 /// value: the declaration is what the caller reads, and `nvs-ir`'s fall-through
 /// `Terminator::Return(None)` writes no slot for it to read.
 /// `rule:statements/static-is-a-member-modifier`'s late static binding, held at the declaration: a body
-/// promising `static` must answer the *called* class, not the declaring one
-/// (`E0741`).
+/// promising `static`, `?static`, `static[]` or any other return that binds
+/// `static` ([`crate::signatures::static_use`]) must answer the *called* class,
+/// not the declaring one (`E0741`).
 ///
 /// [`crate::signatures::MethodSig::returns_static`] owns why this is a refusal
 /// rather than a pinned hole, and the diagnostic's own doc owns why refusing
-/// is the PHP-compatible answer even though PHP accepts the declaration. These
+/// is the PHP-compatible answer even though PHP accepts the declaration. The
+/// type check settles the shape, so this list settles only the class. These
 /// expression shapes keep the promise, and they are the whole list:
 ///
 /// * `$this` — the receiver *is* the called class.
 /// * `new static(...)` — `rule:statements/static-is-a-member-modifier`'s allocation of it.
 /// * a call written on `static`/`self`/`parent`/`$this` whose target itself
-///   returns `static`, since each of those forwards the caller's called class.
+///   binds `static` in its return, since each of those forwards the caller's
+///   called class.
+/// * `null`, which is no class at all.
+/// * a `? :` whose two branches are both on this list.
+/// * an array literal whose every value is on this list.
+///
+/// A local variable is not on the list, so a `static[]` built up in a loop is
+/// refused: its type is the declaring class's array, and the checker does not
+/// keep `static` apart from that class inside the body.
 ///
 /// An explicitly named class (`Base::make()`) is deliberately not on that
 /// list: naming a class *sets* the called class, so its answer is that class
@@ -883,7 +905,10 @@ fn reject_static_return_of_another_class(
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) {
-    if !crate::signatures::writes_static_return(m.return_type.as_ref()) {
+    let binds = ctx.current_class.is_some_and(|class| {
+        crate::signatures::static_use(m.return_type.as_ref(), class, env.src).binds
+    });
+    if !binds {
         return;
     }
     let mut offenders: Vec<nvs_diagnostics::Span> = Vec::new();
@@ -917,6 +942,15 @@ fn reject_static_return_of_another_class(
 fn yields_the_called_class(e: &Expr, ctx: &Ctx<'_>, env: &Env<'_>) -> bool {
     match &e.kind {
         ExprKind::Variable(span) => span_text(env.src, *span) == "$this",
+        ExprKind::Null => true,
+        ExprKind::Ternary {
+            then: Some(then),
+            else_,
+            ..
+        } => yields_the_called_class(then, ctx, env) && yields_the_called_class(else_, ctx, env),
+        ExprKind::ArrayLiteral(items) => items
+            .iter()
+            .all(|item| yields_the_called_class(&item.value, ctx, env)),
         ExprKind::New {
             target: NewTarget::StaticTy,
             ..
@@ -947,7 +981,7 @@ fn yields_the_called_class(e: &Expr, ctx: &Ctx<'_>, env: &Env<'_>) -> bool {
 fn forwards_the_called_class(name: &str, ctx: &Ctx<'_>, env: &Env<'_>) -> bool {
     ctx.current_class
         .and_then(|c| crate::signatures::resolve_method(c, name, env.signatures, env.graph))
-        .is_some_and(|(_, sig)| sig.returns_static)
+        .is_some_and(|(_, sig)| sig.return_binds_static)
 }
 
 /// `rule:types/declaration`'s return slot, which every declaration fills but

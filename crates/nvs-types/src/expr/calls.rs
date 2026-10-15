@@ -126,9 +126,19 @@ pub(crate) fn infer_method_call(
         let name = span_text(env.src, *name_span).to_owned();
         report_method_on_erased_receiver(object.span.to(*name_span), &name, receiver_ty, env);
     }
-    let sig = resolved
-        .as_ref()
-        .map(|(owner, _, sig)| substitute_receiver_args(receiver_ty, owner, sig, env));
+    // `rule:statements/static-is-a-member-modifier`'s late static binding, as a
+    // type: at an instance call the called class is the receiver's own, so each
+    // position that binds `static` is the receiver's class before a single
+    // argument is checked. An unresolved or erased receiver keeps the declared
+    // type. `MethodSig::returns_static` owns why that is sound.
+    let receiver_is_class = matches!(env.interner.get(receiver_ty), Ty::Class(..));
+    let sig = resolved.as_ref().map(|(owner, _, sig)| {
+        let sig = substitute_receiver_args(receiver_ty, owner, sig, env);
+        match receiver_is_class && sig.binds_static() {
+            true => sig.bound_to(owner, receiver_ty, env.interner),
+            false => sig,
+        }
+    });
     let label = resolved
         .as_ref()
         .map(|(owner, name, _)| format!("{owner}::{name}"));
@@ -235,15 +245,8 @@ pub(crate) fn infer_method_call(
         call.route_attributes = crate::match_attribute::fold(qname, name, &written, expr.span, env);
         env.exprs.record(expr.span, ExprInfo::Call(call));
     }
-    // `rule:statements/static-is-a-member-modifier`'s late static binding, as a type: a member declaring
-    // `static` answers the *called* class, which at an instance call is the
-    // receiver's own. `MethodSig::returns_static` owns why substituting here
-    // is sound, and why an unresolved (or erased) receiver falls back to the
-    // declared type rather than guessing.
+    // The return type already has `static` bound to the receiver's class, above.
     let returned = match &sig {
-        Some(s) if s.returns_static && matches!(env.interner.get(receiver_ty), Ty::Class(..)) => {
-            receiver_ty
-        }
         Some(s) => s.return_ty,
         None => env.interner.mixed(),
     };
@@ -413,7 +416,19 @@ pub(crate) fn infer_static_call(
     {
         reject_abstract_static_call(expr.span, class, owner, name, sig, ctx, env);
     }
-    let sig = resolved.as_ref().map(|(_, _, sig)| sig.clone());
+    // The static-call half of the binding [`infer_method_call`] documents: the
+    // called class is the one [`called_class_of`] reads off the written class.
+    let called = resolved
+        .as_ref()
+        .filter(|(_, _, sig)| sig.binds_static())
+        .and_then(|_| called_class_of(class, ctx, env));
+    let sig = resolved.as_ref().map(|(owner, _, sig)| match &called {
+        Some(called) => {
+            let called = env.interner.class(called.clone());
+            sig.bound_to(owner, called, env.interner)
+        }
+        None => sig.clone(),
+    });
     let label = resolved
         .as_ref()
         .map(|(owner, name, _)| format!("{owner}::{name}"));
@@ -648,13 +663,8 @@ pub(crate) fn infer_static_call(
         call.written_enum = written_enum_of(qname, name, &written, type_args, expr.span, env);
         env.exprs.record(expr.span, ExprInfo::Call(call));
     }
-    // The static-call half of the same substitution the instance-call arm
-    // above documents — see `MethodSig::returns_static`.
+    // The return type already has `static` bound to the called class, above.
     let returned = match &sig {
-        Some(s) if s.returns_static => match called_class_of(class, ctx, env) {
-            Some(called) => env.interner.class(called),
-            None => s.return_ty,
-        },
         Some(s) => s.return_ty,
         None => env.interner.mixed(),
     };

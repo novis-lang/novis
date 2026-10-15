@@ -3,8 +3,6 @@
 
 # Statements
 
-*1 of 31 rules below are **designed** rather than shipped, and are marked where they appear.*
-
 <a id="statements-nvs-is-the-only-open-tag"></a>
 
 ## `<?nvs` is the only code-mode open tag; `<?php` is refused
@@ -371,9 +369,18 @@ its storage is fixed where the access is written, so `static::$prop` is refused 
 subclass that redeclares the property it would silently name the parent's storage, while a reader
 expects the called class's. `self::$prop` and a written class name say which storage is meant.
 `static::class` is the called class's own name,
-read at run time off the descriptor the frame already holds. A `static` inside a parameter type, and a
-`static[]` or `?static` return, are not bound to the called class yet;
-[`statements/static-in-a-parameter-type-is-the-class-the-call-names`](statements.md#statements-static-in-a-parameter-type-is-the-class-the-call-names), designed, binds them.
+read at run time off the descriptor the frame already holds.
+
+A `static` anywhere in a parameter type or a return type is the class the call names, at
+`Category::find(...)` and at `$category->find(...)` alike: `property<static>`, `array<static>`,
+`?static` and `: static` are all bound at the call. A base class that declares
+`sortBy(property<static> $field)` once then checks each subclass's own properties at each call, with
+no override per subclass. A type that also writes `self` or the declaring class's own name is not
+bound, and neither is a `static` among a written callable's parameters; both keep the declaring class.
+Inside the body the checker does not know which subclass called it, so a `property<static>` is the
+property's name as a `string`, which the body may print, compare or convert back with `as
+property<self>`, checked at run time. A key of `static` read on `$this` would be sound, but the body
+types `$this` as the declaring class and cannot tell it from any other value of that class.
 
 `static::NAME` is late-bound the same way, and it is the one class-constant read that is not inlined:
 the frame's called class is asked for `NAME` when the read runs, so a default method or an inherited
@@ -406,8 +413,11 @@ that declares `title`, and `self::title()` inside an anonymous function in `Page
 calling `self::title()` runs the subclass's body.
 
 A `static` member declares its type like every other member — `public static int $n = 0;` — and a body
-declaring `static` as its return type may not return the declaring class, since a subclass call site is
-promised its own.
+declaring `static`, `?static` or `array<static>` as its return type may not return the declaring
+class, since a subclass call site is promised its own (`E0741`). What it may return is `$this`, `new
+static(...)`, `null`, a call on `static::`, `self::`, `parent::` or `$this` whose own return binds
+`static`, a `? :` of two of these, or an array literal of them. A local variable is none of these, so
+an `array<static>` built up in a loop is refused, and declaring `array<self>` is the way to write it.
 
 The keyword therefore has one meaning per position: a modifier before a member, a type or a scope in an
 expression. Nothing about it depends on whether it appears inside a function body, because inside a
@@ -422,7 +432,8 @@ written with it.
   charged to the isolate, as `static::class` does: the process-wide table's strings are not shared
   across isolates. `self::NAME` and `Class::NAME` still inline and cost nothing at run time. A
   `self::m()` or `parent::m()` call inside an anonymous function sets a class fixed at the call site
-  and costs nothing, and only one that reaches an instance method captures `$this`.
+  and costs nothing, and only one that reaches an instance method captures `$this`. Binding `static`
+  in a parameter or a return is the checker's, once per call it resolves, and costs nothing at run time.
 
 **Declined:**
 - **Refusing `static::NAME`.** It would be sound, but it drops a meaning PHP programs rely on: a
@@ -439,47 +450,18 @@ written with it.
   added.
 - **Refusing `self::m()` and `parent::m()` inside an anonymous function, as `static::` is.** Every
   anonymous function that calls a private static helper would have to name its class in full.
+- **Writing the class into each subclass's override of a method taking `property<static>`.** It is the
+  boilerplate late binding exists to remove, and a missed override checks against the base class's
+  properties.
+- **Binding `static` in a parameter at run time.** The call site already names the class, so the check
+  belongs where the call is written.
+- **A `static` type kept apart from the declaring class inside the body.** It would let a body read a
+  `property<static>` on `$this`, and every consumer of a type would have to learn a second meaning of
+  a class. The body's `string` and `E0741`'s list cover the programs that need it.
 - **Dropping late static binding along with the storage meanings.** `new static()` compiled as `new
   self()` returns the wrong class, and no annotation a program could add keeps the original behaviour.
 
 <sub>See also [`statements/no-function-static-and-no-global`](statements.md#statements-no-function-static-and-no-global), [`statements/an-anonymous-function-captures-this-only-where-it-uses-it`](statements.md#statements-an-anonymous-function-captures-this-only-where-it-uses-it), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call).</sub>
-
-<a id="statements-static-in-a-parameter-type-is-the-class-the-call-names"></a>
-
-## `static` in a parameter type, a `static[]` return and a `?static` return is the class the call names  *(designed — owned by goal property-paths)*
-
-`rule:statements/static-in-a-parameter-type-is-the-class-the-call-names`
-
-At `Category::find(...)` and `$category->find(...)`, a `static` inside a parameter type —
-`property<static>`, `propertyPath<static>`, `string<propertyPath<static>>` — is the receiver's class,
-the way an exact `: static` return already is (`MethodSig::returns_static` in
-`crates/nvs-types/src/signatures.rs`). A `static[]` and a `?static` return are bound the same way,
-which `writes_static_return` in the same file leaves out today, so
-`Category::all()` declared `: static[]` is a `Category[]` at the call.
-
-Inside the method body a `property<static>` or `propertyPath<static>` value may be applied only to a
-receiver whose type is `static`, converted with `as string`, or passed on. The body does not know which
-subclass called it, so a key of `static` read on `self` could name a property only the subclass has.
-
-**Fallback:** if the checker cannot keep `static` apart from the declaring class inside the body, the
-body may only convert such a value with `as string` or pass it to `Core\Str::parts` or
-`Core\Reflect::steps` ([`core-classes/str-parts-and-reflect-steps`](core-classes.md#core-classes-str-parts-and-reflect-steps)), and this rule says so when it
-ships.
-
-This extends [`statements/static-is-a-member-modifier`](statements.md#statements-static-is-a-member-modifier), under which `static` binds late to the
-called class everywhere it names a type; a parameter and an array return are the two positions that
-binding does not reach yet. A base class that offers `find(propertyPath<static> $sort)` once then
-checks each subclass's own fields at each call, with no override per subclass.
-
-- **Memory:** nothing at run time. The binding is the checker's, at each call it resolves.
-
-**Declined:**
-- **Writing the class into each subclass's override.** It is the boilerplate late binding exists to
-  remove, and a missed override checks against the base class's fields.
-- **Binding `static` in a parameter at run time.** The call site already names the class, so the check
-  belongs where the call is written.
-
-<sub>See also [`statements/static-is-a-member-modifier`](statements.md#statements-static-is-a-member-modifier), [`types/property-path`](types.md#types-property-path), [`types/property-key`](types.md#types-property-key).</sub>
 
 <a id="statements-no-function-static-and-no-global"></a>
 

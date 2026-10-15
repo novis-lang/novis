@@ -5,9 +5,18 @@ its storage is fixed where the access is written, so `static::$prop` is refused 
 subclass that redeclares the property it would silently name the parent's storage, while a reader
 expects the called class's. `self::$prop` and a written class name say which storage is meant.
 `static::class` is the called class's own name,
-read at run time off the descriptor the frame already holds. A `static` inside a parameter type, and a
-`static[]` or `?static` return, are not bound to the called class yet;
-`rule:statements/static-in-a-parameter-type-is-the-class-the-call-names`, designed, binds them.
+read at run time off the descriptor the frame already holds.
+
+A `static` anywhere in a parameter type or a return type is the class the call names, at
+`Category::find(...)` and at `$category->find(...)` alike: `property<static>`, `array<static>`,
+`?static` and `: static` are all bound at the call. A base class that declares
+`sortBy(property<static> $field)` once then checks each subclass's own properties at each call, with
+no override per subclass. A type that also writes `self` or the declaring class's own name is not
+bound, and neither is a `static` among a written callable's parameters; both keep the declaring class.
+Inside the body the checker does not know which subclass called it, so a `property<static>` is the
+property's name as a `string`, which the body may print, compare or convert back with `as
+property<self>`, checked at run time. A key of `static` read on `$this` would be sound, but the body
+types `$this` as the declaring class and cannot tell it from any other value of that class.
 
 `static::NAME` is late-bound the same way, and it is the one class-constant read that is not inlined:
 the frame's called class is asked for `NAME` when the read runs, so a default method or an inherited
@@ -40,8 +49,11 @@ that declares `title`, and `self::title()` inside an anonymous function in `Page
 calling `self::title()` runs the subclass's body.
 
 A `static` member declares its type like every other member — `public static int $n = 0;` — and a body
-declaring `static` as its return type may not return the declaring class, since a subclass call site is
-promised its own.
+declaring `static`, `?static` or `array<static>` as its return type may not return the declaring
+class, since a subclass call site is promised its own (`E0741`). What it may return is `$this`, `new
+static(...)`, `null`, a call on `static::`, `self::`, `parent::` or `$this` whose own return binds
+`static`, a `? :` of two of these, or an array literal of them. A local variable is none of these, so
+an `array<static>` built up in a loop is refused, and declaring `array<self>` is the way to write it.
 
 The keyword therefore has one meaning per position: a modifier before a member, a type or a scope in an
 expression. Nothing about it depends on whether it appears inside a function body, because inside a
@@ -56,7 +68,8 @@ written with it.
   charged to the isolate, as `static::class` does: the process-wide table's strings are not shared
   across isolates. `self::NAME` and `Class::NAME` still inline and cost nothing at run time. A
   `self::m()` or `parent::m()` call inside an anonymous function sets a class fixed at the call site
-  and costs nothing, and only one that reaches an instance method captures `$this`.
+  and costs nothing, and only one that reaches an instance method captures `$this`. Binding `static`
+  in a parameter or a return is the checker's, once per call it resolves, and costs nothing at run time.
 
 **Declined:**
 - **Refusing `static::NAME`.** It would be sound, but it drops a meaning PHP programs rely on: a
@@ -73,5 +86,13 @@ written with it.
   added.
 - **Refusing `self::m()` and `parent::m()` inside an anonymous function, as `static::` is.** Every
   anonymous function that calls a private static helper would have to name its class in full.
+- **Writing the class into each subclass's override of a method taking `property<static>`.** It is the
+  boilerplate late binding exists to remove, and a missed override checks against the base class's
+  properties.
+- **Binding `static` in a parameter at run time.** The call site already names the class, so the check
+  belongs where the call is written.
+- **A `static` type kept apart from the declaring class inside the body.** It would let a body read a
+  `property<static>` on `$this`, and every consumer of a type would have to learn a second meaning of
+  a class. The body's `string` and `E0741`'s list cover the programs that need it.
 - **Dropping late static binding along with the storage meanings.** `new static()` compiled as `new
   self()` returns the wrong class, and no annotation a program could add keeps the original behaviour.

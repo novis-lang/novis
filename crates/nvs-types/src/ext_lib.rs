@@ -289,6 +289,8 @@ fn method_sig(
             .map(|ty| lower(manifest, ty, interner))
             .collect(),
         returns_static: false,
+        params_bind_static: Vec::new(),
+        return_binds_static: false,
         param_names: method
             .params
             .iter()

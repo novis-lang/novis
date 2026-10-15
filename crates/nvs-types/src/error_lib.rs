@@ -292,6 +292,8 @@ fn constructor(interner: &mut TypeInterner) -> FxHashMap<String, MethodSig> {
             // A constructor declares no return type at all, so there is
             // no `static` to bind — see `MethodSig::returns_static`.
             returns_static: false,
+            params_bind_static: Vec::new(),
+            return_binds_static: false,
             // `rule:core-api/shape-rules` R2 reaches a synthesized member too: spec § 10 writes
             // `$message`, and the bag is every other trailing bag's
             // `options` — read from `nvs_stdlib::registry` rather than
