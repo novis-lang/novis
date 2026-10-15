@@ -54,7 +54,7 @@ stages:
         shapes: ["A `.nvst` test case", A diagnostic]
   - id: 7
     title: a foreign-connection enqueue is counted
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/queue.rs]
     extra:
       context:
@@ -267,8 +267,8 @@ backend read one standard header. It is written on every response, sampled or no
 
 **Does:** `Core\Queue::stats` reports how many pushes committed outside the caller's transaction.
 
-- [ ] The job row records the case, and `stats` reads it. `crates/nvs-stdlib/src/queue.rs:3604`
-- [ ] The conformance case and the feature proofs of `Core\Queue::stats`. `docs/examples/core/Queue/stats/about.md:1`
+- [x] The job row records the case, and `stats` reads it. `crates/nvs-stdlib/src/queue.rs:3604`
+- [x] The conformance case and the feature proofs of `Core\Queue::stats`. `docs/examples/core/Queue/stats/about.md:1`
 
 ### 8. `receive()` is the one wait
 
@@ -288,30 +288,29 @@ backend read one standard header. It is written on every response, sampled or no
 
 ### State
 
-Stages 1 to 6 are done. A `Core\Response` write, `slotted` or `Core\Session::regenerate` in
-`Core\Task::afterResponse` work is `E0857` where it is written inside the anonymous function, and
-a `LogicError` at run time otherwise, through `Ctx::in_deferred_work` and
-`nvs_stdlib::response::head_open`. `rule:concurrency/deferred-work-cannot-write-the-response` is
-`shipped`. `a-response-slotted-in-after-response-work-throws-a-logic-error.nvst` now holds its
-callable in a variable, because the inline call no longer compiles.
+Stages 1 to 7 are done. A `Core\Queue::push` made with no transaction open on the queue's connection
+and one open on another connection writes `non_transactional = 1` on its row
+(`crate::db::foreign_level_open`), and `Core\Queue\Stats::nonTransactional` counts those rows of the
+jobs table. `rule:concurrency/foreign-connection-enqueue-is-counted` is `shipped`, and every
+hand-written `create table nvs_jobs` in examples, benches and tests carries the column.
 
 The nightly reds ran on `origin/main`, far behind local `main`, and nothing here pushes.
 
 ### Next
 
-**Stage 7, a foreign-connection enqueue is counted**: `crates/nvs-stdlib/src/queue.rs`,
-`docs/examples/core/Queue/stats/`, `tests/conformance/core/`
-(`rule:concurrency/` queue stats; the standing decision names the column and `nonTransactional`).
+**Stage 8, `receive()` is the one wait**: `crates/nvs-stdlib/src/socket.rs`,
+`crates/nvs-runtime/src/ctx/isolate.rs` (`rule:` the socket receive rule the stage names; the
+standing decision keeps the overflow check before the wait).
 
-- [ ] The job row records a push made outside the caller's transaction, where `announce` tells the case apart. `crates/nvs-stdlib/src/queue.rs:3604`
-- [ ] `stats` reads the column and reports `nonTransactional`. `crates/nvs-stdlib/src/queue.rs:5154`
-- [ ] The `foreign-enqueue-counted` case and the feature proofs of `Core\Queue::stats`. `docs/examples/core/Queue/stats/about.md:1`
+- [ ] The park waits on the peer read and the delivery queue at once. `crates/nvs-stdlib/src/socket.rs:1138`
+- [ ] `Ctx::deliver` wakes a park that is already running, and its gap goes. `crates/nvs-runtime/src/ctx/isolate.rs:172`
+- [ ] The two `socket::` tests of `receive-one-wait`, and the feature proofs of `Core\Socket::receive`. `crates/nvs-stdlib/src/socket.rs:1033`
 
 ### Backlog
 
-- Stages 8 and 9: this file's § *Stages*.
+- Stage 9: this file's § *Stages*.
 - `on: "worker"` for a connection, if the rule should promise it: `crates/nvs-types/src/expr/isolate.rs`.
 - A reload keeps the boot's canonical roots, so a symlink swapped to a new release is not followed until restart, if the rule should promise otherwise: `crates/nvs-cli/src/config.rs`.
 - A program's `Core\Config::set` of `[log] access` does not reach the access line, if the rule should promise it: `crates/nvs-server/src/trace.rs`.
+- The `Core\Queue\Stats` sibling benches' comments say they print `800001` where a plain run prints `2049`: `benches/members/core/Queue-Stats/deadAttempts.nvs`.
 - The nightly reds, the macOS warm-start budget among them, checked against local `main` once `origin/main` is pushed: `.github/workflows/`, `tools/nv/cmd/bench.ts`.
-- Every socket leg's OS error 95 on Windows: `crates/nvs-db/src/matrix.rs`.
