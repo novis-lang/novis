@@ -349,31 +349,35 @@ are checked and completed where they were plain strings. Simplicity: one new typ
 
 ### State
 
-Stages 1 to 5 are done. The editor completes, hovers, defines and underlines a `propertyPath<T>`
-literal one segment at a time, at a `propertyPath<T>` parameter and in `"…" as propertyPath<T>`. The
-checker records a roster for every class a path reaches (`record_path_property_keys`,
-`crates/nvs-types/src/expr/members.rs:856`), and the editor steps a prefix over those rosters with
-`nvs_types::path_step_class` (`path_steps`, `crates/nvs-lsp/src/completion.rs:800`;
-`property_segment_at`, `crates/nvs-lsp/src/definition.rs:1157`). The four `.lspt` cases pass.
+Stages 1 to 5 are done. Stage 6's compiler half is written and committed on the branch
+`wip/string-holes`, **not on `main`**, because one test it breaks is still red:
+`a_quote_at_a_property_key_string_opens_the_property_names` (`crates/nvs-lsp/tests/completion.rs:429`)
+answers `false` for `Grid::strict('`. It passes on `main`, so a change on the branch causes it. The
+branch's own three `.nvst` cases pass. What the branch does: `string<K>` parses (`string` followed by
+`<`, and `tainted string<K>`), lowers to `Ty::StringHoles { key, tainted }`, and `K` other than a key, a
+path or a set of strings is `E0860`. A literal at a `string<K>` parameter and under `as string<K>` has
+every hole checked (`report_unwritten_string_holes`, `crates/nvs-types/src/expr/members.rs:1056`), and a
+bad brace or a value outside a set is `E0861`. A run-time `as string<K>` reuses the path walk through
+`Helper::StringHolesValid` (`string_holes_miss`, `crates/nvs-runtime/src/helpers.rs:3225`). One scanner,
+`nvs_runtime::holes`, serves the checker, the run time and stage 7's `Core\Str::parts`. `as string<K>`
+keeps `tainted` through `tainted_result`. `rule:types/string-holes` is shipped with the three `.nvst`
+cases, and `docs/novis.md` is regenerated.
 
-`rule:ide/a-field-path-completes-one-segment-at-a-time` stays `designed`, because its `{` trigger in
-a `string<K>` literal is stage 6. Stage 6 flips it to shipped, with the four stage 5 cases and the stage
-6 brace case as its guards, and folds it into `rule:ide/completion-offers-only-what-the-compiler-derived`
-and `rule:ide/completion-is-asked-where-a-spelling-ends`.
-
-The three editor checks now run `bun nv suite lsp-test tests/lsp/`. Before, `nv suite tests/lsp/`
-credited `.lspt` cases without running them (playbook, Tooling). The nightly CI failures are on
-`origin/main` at `cb7021a24`, far behind local `main`. The loop never pushes, so nothing on HEAD ran
-there.
+`string-holes` and `string-holes-editor` stay red on `main` until the branch lands. The brace case does
+not exist yet.
+`rule:ide/a-field-path-completes-one-segment-at-a-time` stays `designed` until it does. The nightly CI
+failures are on `origin/main` at `cb7021a24`, far behind local `main`. The loop never pushes.
 
 ### Next
 
-**Stage 6: `string<K>` checks the holes in a string**, one file set: `crates/nvs-syntax/src/parser/ty.rs`, `crates/nvs-types/src/lower.rs`, `crates/nvs-types/src/expr/operators.rs`, `crates/nvs-types/src/expr/members.rs`.
+**Stage 6: land the compiler half, then `{` opens the list of a `string<K>`'s holes**, one file set: `crates/nvs-lsp/src/capabilities.rs`, `crates/nvs-lsp/src/completion.rs`, `crates/nvs-lsp/src/arguments.rs`, `crates/nvs-types/src/expr/members.rs`.
 
-- [ ] Parse `string<K>` where `<` follows `string`, the way `property<` is parsed, and lower it to a new `Ty` with `K` one of `property<T>`, `propertyPath<T>` or a set of string values, by `rule:types/string-holes`. `crates/nvs-syntax/src/parser/ty.rs:91` `crates/nvs-syntax/src/parser/ty.rs:368`
-- [ ] The hole scanner over a literal: `{` + one `K` value + `}`, `{{` and `}}` one brace, an empty hole, an unclosed `{` and a lone `}` errors; each hole checked with `report_unwritten_property_path` or the key check, at `as string<K>` and at a `string<K>`-only parameter. `crates/nvs-types/src/expr/operators.rs:281` `crates/nvs-types/src/expr/members.rs:777`
-- [ ] Taint: `as string<K>` keeps `tainted` on the text, by `rule:types/string-holes`; the three `.nvst` cases the `string-holes` check names. `crates/nvs-types/src/expr/operators.rs:281`
-- [ ] Then the editor half in its own group: `{` as a trigger answered only in a `string<K>` literal, and the rule flip above. `crates/nvs-lsp/src/capabilities.rs:229` `crates/nvs-lsp/src/completion.rs:800`
+- [ ] Merge `wip/string-holes` into `main` (`git merge --ff-only` works, since `main` has only this handoff on top: rebase the branch first), find why `Grid::strict('` stops opening the names, fix it, and run `bun nv verify`. Suspects are the edits to `crates/nvs-types/src/expr/args.rs:130` and `crates/nvs-types/src/expr/members.rs:880`. Then tick stage 6's first three items and delete the branch with `git branch -d`.
+
+- [ ] Find a `string<K>` literal for the cursor, at a `string<K>` parameter and under `as string<K>`, the way `key_classes` finds a key or a path (`crates/nvs-lsp/src/arguments.rs:305`). `HoleKind` and `hole_kind` are `pub(crate)` and must be exported for it (`crates/nvs-types/src/expr/members.rs:997`). The rosters are already recorded (`record_hole_keys`, `crates/nvs-types/src/expr/members.rs:1042`).
+- [ ] Offer inside a hole only: the text from the last unclosed `{` to the cursor is a path prefix, stepped with `path_steps` (`crates/nvs-lsp/src/completion.rs:800`); a key offers its names and a set its values. `{{` opens no hole.
+- [ ] `{` as a trigger character, answered only in a `string<K>` literal (`crates/nvs-lsp/src/capabilities.rs:229`, `continues_a_trigger`, `crates/nvs-lsp/src/completion.rs:442`), and the case `tests/lsp/completion/a-brace-in-a-string-with-holes-opens-the-list-of-its-holes.lspt`.
+- [ ] Flip `rule:ide/a-field-path-completes-one-segment-at-a-time` to shipped with the four stage 5 cases and the brace case, and fold it into `rule:ide/completion-offers-only-what-the-compiler-derived` and `rule:ide/completion-is-asked-where-a-spelling-ends`. Then stage 6 is done. `data/rules/ide/a-field-path-completes-one-segment-at-a-time.json:1`
 
 ### Backlog
 
@@ -381,5 +385,6 @@ there.
 - Splitting a `string<K>` literal while compiling, if the stage 8 bench asks for it (`core-classes/str-parts-and-reflect-steps`).
 - A literal at a `property<A>|property<B>` parameter is not converted and gets nothing offered (`rule:types/property-key`). Decide it if a program needs it.
 - `propertyPath<T>` over a class with no public property reports with the `property<T>` wording (`reject_empty_property_key_set`, `crates/nvs-types/src/expr/operators.rs:414`). Give it the path's word in stage 8.
+- A `string<K>` parameter whose `K` names `static` is text inside the body (`static_key_as_text`, `crates/nvs-types/src/signatures.rs`). Stage 7 decides how such a body reaches `parts` and `steps`.
 - Go-to-definition on a path segment that names an inherited property answers nothing, because the roster records no declaring class (`property_segment_at`, `crates/nvs-lsp/src/definition.rs:1157`). Hover still shows the type.
 - Nightly CI on `cb7021a24` failed `a_spawned_process_ends_when_nvs_is_killed_and_what_it_started_does_not` (`crates/nvs-cli/tests/run_command.rs:688`) and the four-core throughput guard (`crates/nvs-cli/src/serve.rs`). Both are Linux-only. Check them once `main` is pushed.
