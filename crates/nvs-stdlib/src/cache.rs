@@ -241,10 +241,11 @@ const MEMORY_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Cache::shared`'s reference card — `rule:core-api/reference-card`.
 const SHARED_DOC: MethodDoc = MethodDoc {
-    short: "The coherent tier: a real store over the network, shared by every core and every \
-            machine that names it.",
+    short: "Returns the cache in the external store that `[cache.shared] url` names. Every server \
+            process and every machine that uses this store reads the same entries.",
     params: &[],
-    ret: "A `Core\\Cache\\Store` over the configured shared store, whose entries every core sees.",
+    ret: "A `Core\\Cache\\Store` for the configured shared store. Every server process that uses \
+          the store reads the same entries.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
@@ -503,9 +504,10 @@ const PUT_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "ttl",
-            desc: "How long the entry stays readable, counted from this call. Omitted, it stays \
-                   until the tier's cap forgets it or another `put` replaces it. A lifetime that \
-                   has already run out forgets whatever was under the key and stores nothing.",
+            desc: "How long the entry stays readable, counted from this call. Without it, the \
+                   entry stays until the cache deletes it to stay under its size limit, or until \
+                   another `put` replaces it. A lifetime that has already run out deletes the \
+                   entry under the key and stores nothing.",
             shape: &[],
         },
     ],
@@ -545,9 +547,8 @@ const GET_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "IOError",
-            desc: "On the shared tier only: the store cannot be reached. An entry that is simply \
-                   not there is `null` on either tier, which is the difference between a miss and \
-                   a failure.",
+            desc: "Only on a `shared` cache: the store cannot be reached. A missing entry returns \
+                   `null` on both caches and is not an error.",
         },
     ],
 };
@@ -560,9 +561,8 @@ const FORGET_DOC: MethodDoc = MethodDoc {
         desc: "The name to forget; `tainted` is admitted, as it is on `put`.",
         shape: &[],
     }],
-    ret: "Nothing. A key nothing was stored under is already forgotten, so there is no second \
-          answer here for whether there had been an entry — the same reading `get` gives a miss, \
-          and for the same reason: on these tiers an entry may be absent at any time.",
+    ret: "Nothing. If there is no entry under the key, the call does nothing. An entry can be \
+          missing at any time, so the call does not tell you whether there was one.",
     errors: &[ErrorDoc {
         error: "IOError",
         desc: "Only on a `shared` cache: the store cannot be reached, or it does not accept the \
@@ -572,8 +572,9 @@ const FORGET_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Cache\Store::putSecret`'s reference card — `rule:core-api/reference-card`.
 const PUT_SECRET_DOC: MethodDoc = MethodDoc {
-    short: "Seals `$value` under the newest key of `$keys` and stores the ciphertext under `$key` — \
-            the only way a secret reaches a cache, and no `secret` value ever enters a tier.",
+    short: "Encrypts `$value` with the newest key in `$keys` and stores the encrypted bytes under \
+            `$key`. This is the only way to put a secret in a cache. The cache never contains the \
+            unencrypted value.",
     params: &[
         ParamDoc {
             name: "key",
@@ -589,10 +590,9 @@ const PUT_SECRET_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "ttl",
-            desc: "How long the secret stays readable, counted from this call. Required, where \
-                   `put`'s is optional: the lifetime is sealed into the entry as well as given to \
-                   the tier, so an entry written back under a longer store lifetime is still past \
-                   its own expiry.",
+            desc: "How long the secret stays readable, counted from this call. It is required. \
+                   The lifetime is also stored inside the encrypted entry, so a copy of the entry \
+                   written back later still expires at the same time.",
             shape: &[],
         },
         ParamDoc {
@@ -613,8 +613,8 @@ const PUT_SECRET_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "IOError",
-            desc: "On the shared tier only: the store cannot be reached or refused the write, as \
-                   on `put`.",
+            desc: "Only on a `shared` cache: the store cannot be reached, or it does not accept \
+                   the write.",
         },
     ],
 };
@@ -670,8 +670,8 @@ const GET_SECRET_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "IOError",
-            desc: "On the shared tier only: the store cannot be reached. An entry that is simply \
-                   not there is `null`, as it is on `get`.",
+            desc: "Only on a `shared` cache: the store cannot be reached. A missing entry returns \
+                   `null`, as on `get`.",
         },
     ],
 };

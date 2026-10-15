@@ -24451,9 +24451,9 @@ Returns the cache in the memory of this server process. Every request this proce
 Core\Cache::shared(): Core\Cache\Store
 ```
 
-The coherent tier: a real store over the network, shared by every core and every machine that names it.
+Returns the cache in the external store that `[cache.shared] url` names. Every server process and every machine that uses this store reads the same entries.
 
-**Returns** `Core\Cache\Store` — A `Core\Cache\Store` over the configured shared store, whose entries every core sees.
+**Returns** `Core\Cache\Store` — A `Core\Cache\Store` for the configured shared store. Every server process that uses the store reads the same entries.
 
 **Throws** `RuntimeError` — The capability `cache.shared` is not granted; or no `[cache.shared] url` is configured, or it is not a URL this client reads. Each is a deployment that was not configured rather than a store that failed.; `IOError` — The configured store cannot be reached — it throws rather than answering as though the entry were absent, since the two mean opposite things to whatever asked.
 
@@ -24483,7 +24483,7 @@ Copies `$value` into the store under `$key`, replacing whatever was there — a 
 |---|---|---|
 | `$key` | `string` (neutral) | The name to store under; `tainted` is admitted, since no byte of it reaches any answer. |
 | `$value` | `mixed` | The value to copy in. It cannot be a callable or a `secret`, the same as for a value sent to an isolate. |
-| `{ttl: …}` | `Core\Time\Duration` (default `null`) | How long the entry stays readable, counted from this call. Omitted, it stays until the tier's cap forgets it or another `put` replaces it. A lifetime that has already run out forgets whatever was under the key and stores nothing. |
+| `{ttl: …}` | `Core\Time\Duration` (default `null`) | How long the entry stays readable, counted from this call. Without it, the entry stays until the cache deletes it to stay under its size limit, or until another `put` replaces it. A lifetime that has already run out deletes the entry under the key and stores nothing. |
 
 **Returns** `void` — Nothing. A later `get` can still return `null`, because an entry can be deleted at any time.
 
@@ -24504,7 +24504,7 @@ Copies the entry stored under `$key` back into this request, or answers `null` w
 
 **Returns** `mixed` — The value as it was copied in, or `null` when there is no entry. An entry can be missing at any time, so your program has to handle `null`.
 
-**Throws** `ParseError` — The entry names a class this program cannot resolve — the same refusal `Core\Serialize::decode` makes, and the ordinary consequence of a deployment whose classes changed under a store that outlives them.; `IOError` — On the shared tier only: the store cannot be reached. An entry that is simply not there is `null` on either tier, which is the difference between a miss and a failure.
+**Throws** `ParseError` — The entry names a class this program cannot resolve — the same refusal `Core\Serialize::decode` makes, and the ordinary consequence of a deployment whose classes changed under a store that outlives them.; `IOError` — Only on a `shared` cache: the store cannot be reached. A missing entry returns `null` on both caches and is not an error.
 
 <a id="core-core-cache-store-forget"></a>
 #### `Core\Cache\Store->forget`
@@ -24519,7 +24519,7 @@ Takes the entry under `$key` out of this store, whether or not there was one the
 |---|---|---|
 | `$key` | `string` (neutral) | The name to forget; `tainted` is admitted, as it is on `put`. |
 
-**Returns** `void` — Nothing. A key nothing was stored under is already forgotten, so there is no second answer here for whether there had been an entry — the same reading `get` gives a miss, and for the same reason: on these tiers an entry may be absent at any time.
+**Returns** `void` — Nothing. If there is no entry under the key, the call does nothing. An entry can be missing at any time, so the call does not tell you whether there was one.
 
 **Throws** `IOError` — Only on a `shared` cache: the store cannot be reached, or it does not accept the command.
 
@@ -24530,18 +24530,18 @@ Takes the entry under `$key` out of this store, whether or not there was one the
 $store->putSecret(string $key, secret string $value, Core\Time\Duration $ttl, array<secret bytes> $keys): void
 ```
 
-Seals `$value` under the newest key of `$keys` and stores the ciphertext under `$key` — the only way a secret reaches a cache, and no `secret` value ever enters a tier.
+Encrypts `$value` with the newest key in `$keys` and stores the encrypted bytes under `$key`. This is the only way to put a secret in a cache. The cache never contains the unencrypted value.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$key` | `string` (neutral) | The name to store under; `tainted` is admitted, as it is on `put`. It is bound into the ciphertext, so the same entry moved to another name does not open. |
 | `$value` | `secret string` (neutral) | The secret to store. A plain `string` reaches this parameter too, and nothing is laundered either way — what makes the value confidential is its own type. |
-| `$ttl` | `Core\Time\Duration` | How long the secret stays readable, counted from this call. Required, where `put`'s is optional: the lifetime is sealed into the entry as well as given to the tier, so an entry written back under a longer store lifetime is still past its own expiry. |
+| `$ttl` | `Core\Time\Duration` | How long the secret stays readable, counted from this call. It is required. The lifetime is also stored inside the encrypted entry, so a copy of the entry written back later still expires at the same time. |
 | `$keys` | `array<secret bytes>` | The key ring, newest first, as `Core\SignedCookie` takes one. The newest key seals; every key opens, so a rotated ring reads what the retired one wrote. |
 
 **Returns** `void` — Nothing. What sealing buys is that code which knows an entry's name but not the ring cannot read it, and that a tampered, moved or replayed entry is a miss — **it does not protect a secret from a compromised process**, which holds the ring in the same memory.
 
-**Throws** `LogicError` — `$keys` is empty, or an entry of it is not a key of the construction's length. A ring that cannot key anything is the program's bug rather than a miss.; `IOError` — On the shared tier only: the store cannot be reached or refused the write, as on `put`.
+**Throws** `LogicError` — `$keys` is empty, or an entry of it is not a key of the construction's length. A ring that cannot key anything is the program's bug rather than a miss.; `IOError` — Only on a `shared` cache: the store cannot be reached, or it does not accept the write.
 
 <a id="core-core-cache-store-getsecret"></a>
 #### `Core\Cache\Store->getSecret`
@@ -24561,7 +24561,7 @@ Opens the secret stored under `$key` against every key of `$keys`, or answers `n
 
 **Returns** `?secret string` — The secret, or `null`. A sealed entry that opens under no key of this ring, or whose own expiry has passed, is a miss like any other — never an error, so a rotated ring re-fetches rather than failing. A plain `get` on the same name is a miss too: the sealed door is the only door.
 
-**Throws** `LogicError` — `$keys` is empty, or an entry of it is not a key of the construction's length — `putSecret`'s refusal, unchanged. Also a `fill` that asks for the key it is filling, which would be a wait on itself.; `TimeoutError` — Another caller in this process was still running `fill` when this call's `wait` was up, which defaults to `[cache.memory] fill_wait`.; `IOError` — On the shared tier only: the store cannot be reached. An entry that is simply not there is `null`, as it is on `get`.
+**Throws** `LogicError` — `$keys` is empty, or an entry of it is not a key of the construction's length — `putSecret`'s refusal, unchanged. Also a `fill` that asks for the key it is filling, which would be a wait on itself.; `TimeoutError` — Another caller in this process was still running `fill` when this call's `wait` was up, which defaults to `[cache.memory] fill_wait`.; `IOError` — Only on a `shared` cache: the store cannot be reached. A missing entry returns `null`, as on `get`.
 
 <a id="core-core-cache-secretentry"></a>
 ### `Core\Cache\SecretEntry`

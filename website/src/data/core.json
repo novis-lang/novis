@@ -4949,7 +4949,7 @@
       "name": "Core\\Cache",
       "section": "16. Network, data and crypto",
       "summary": "",
-      "surface": "`local(): Cache\\Store`, `process(): Cache\\Store`, `shared(): Cache\\Store` — a member per tier, none of them taking an argument. `process()` is one store per serving process, coherent across its cores, in memory only and bounded by `[cache.process] max_size`. On the store: `put(string $key, mixed $value, {ttl?: Duration}): void` / `get(string $key): mixed` — copy-in/copy-out, and a miss answers `null` rather than throwing — plus `forget(string $key): void`, all three tiers gaining a lifetime and a `forget` together. A secret meets a cache only through `putSecret(string $key, secret string $value, Duration $ttl, array<secret bytes> $keys): void` and `getSecret(string $key, array<secret bytes> $keys, {fill?: callable(): Cache\\SecretEntry, wait?: Duration}): ?secret string`, which store XChaCha20-Poly1305 **ciphertext** bound to the app, the entry's name and its expiry — so no `secret` crosses the boundary, `put` still refuses one and `get` answers `null` for a sealed entry. A sealed entry that does not open, under any key of the ring or past its sealed expiry, is a **miss**; on a miss `fill` runs in exactly one caller per process while every other waits for at most its `wait` (`[cache.process] fill_wait`) and then throws `TimeoutError`, a throwing `fill` releases the waiters with nothing, and an entry inside the last fifth of its lifetime is answered to everyone while one caller replaces it. `Cache\\SecretEntry::of(secret string $value, Duration $ttl)` is what a `fill` answers. Sealing hides a secret from code that knows an entry's name but not the ring and keeps it out of the shared store in the clear; it does not protect it from a compromised process",
+      "surface": "`memory(): Cache\\Store`, `shared(): Cache\\Store` — a member per tier, neither taking an argument. `memory()` is one store per serving process, coherent across its cores, in memory only and bounded by `[cache.memory] max_size`; `shared()` is the store an operator configured at `[cache.shared] url`, coherent across processes and machines. On the store: `put(string $key, mixed $value, {ttl?: Duration}): void` / `get(string $key): mixed` — copy-in/copy-out, and a miss answers `null` rather than throwing — plus `forget(string $key): void`, on both tiers alike. A secret meets a cache only through `putSecret(string $key, secret string $value, Duration $ttl, array<secret bytes> $keys): void` and `getSecret(string $key, array<secret bytes> $keys, {fill?: callable(): Cache\\SecretEntry, wait?: Duration}): ?secret string`, which store XChaCha20-Poly1305 **ciphertext** bound to the app, the entry's name and its expiry — so no `secret` crosses the boundary, `put` still refuses one and `get` answers `null` for a sealed entry. A sealed entry that does not open, under any key of the ring or past its sealed expiry, is a **miss**; on a miss `fill` runs in exactly one caller per process while every other waits for at most its `wait` (`[cache.memory] fill_wait`) and then throws `TimeoutError`, a throwing `fill` releases the waiters with nothing, and an entry inside the last fifth of its lifetime is answered to everyone while one caller replaces it. `Cache\\SecretEntry::of(secret string $value, Duration $ttl)` is what a `fill` answers. Sealing hides a secret from code that knows an entry's name but not the ring and keeps it out of the shared store in the clear; it does not protect it from a compromised process",
       "enums": [],
       "types": [],
       "constants": [],
@@ -4993,8 +4993,8 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "The coherent tier: a real store over the network, shared by every core and every machine that names it.",
-            "returnHtml": "A <code>Core\\Cache\\Store</code> over the configured shared store, whose entries every core sees.",
+            "shortHtml": "Returns the cache in the external store that <code>[cache.shared] url</code> names. Every server process and every machine that uses this store reads the same entries.",
+            "returnHtml": "A <code>Core\\Cache\\Store</code> for the configured shared store. Every server process that uses the store reads the same entries.",
             "errors": [
               {
                 "error": "RuntimeError",
@@ -5016,7 +5016,7 @@
       "slug": "cache",
       "url": "/reference/core/cache/",
       "summaryHtml": "",
-      "surfaceHtml": "<code>local(): Cache\\Store</code>, <code>process(): Cache\\Store</code>, <code>shared(): Cache\\Store</code> — a member per tier, none of them taking an argument. <code>process()</code> is one store per serving process, coherent across its cores, in memory only and bounded by <code>[cache.process] max_size</code>. On the store: <code>put(string $key, mixed $value, {ttl?: Duration}): void</code> / <code>get(string $key): mixed</code> — copy-in/copy-out, and a miss answers <code>null</code> rather than throwing — plus <code>forget(string $key): void</code>, all three tiers gaining a lifetime and a <code>forget</code> together. A secret meets a cache only through <code>putSecret(string $key, secret string $value, Duration $ttl, array&lt;secret bytes&gt; $keys): void</code> and <code>getSecret(string $key, array&lt;secret bytes&gt; $keys, {fill?: callable(): Cache\\SecretEntry, wait?: Duration}): ?secret string</code>, which store XChaCha20-Poly1305 <strong>ciphertext</strong> bound to the app, the entry's name and its expiry — so no <code>secret</code> crosses the boundary, <code>put</code> still refuses one and <code>get</code> answers <code>null</code> for a sealed entry. A sealed entry that does not open, under any key of the ring or past its sealed expiry, is a <strong>miss</strong>; on a miss <code>fill</code> runs in exactly one caller per process while every other waits for at most its <code>wait</code> (<code>[cache.process] fill_wait</code>) and then throws <code>TimeoutError</code>, a throwing <code>fill</code> releases the waiters with nothing, and an entry inside the last fifth of its lifetime is answered to everyone while one caller replaces it. <code>Cache\\SecretEntry::of(secret string $value, Duration $ttl)</code> is what a <code>fill</code> answers. Sealing hides a secret from code that knows an entry's name but not the ring and keeps it out of the shared store in the clear; it does not protect it from a compromised process"
+      "surfaceHtml": "<code>memory(): Cache\\Store</code>, <code>shared(): Cache\\Store</code> — a member per tier, neither taking an argument. <code>memory()</code> is one store per serving process, coherent across its cores, in memory only and bounded by <code>[cache.memory] max_size</code>; <code>shared()</code> is the store an operator configured at <code>[cache.shared] url</code>, coherent across processes and machines. On the store: <code>put(string $key, mixed $value, {ttl?: Duration}): void</code> / <code>get(string $key): mixed</code> — copy-in/copy-out, and a miss answers <code>null</code> rather than throwing — plus <code>forget(string $key): void</code>, on both tiers alike. A secret meets a cache only through <code>putSecret(string $key, secret string $value, Duration $ttl, array&lt;secret bytes&gt; $keys): void</code> and <code>getSecret(string $key, array&lt;secret bytes&gt; $keys, {fill?: callable(): Cache\\SecretEntry, wait?: Duration}): ?secret string</code>, which store XChaCha20-Poly1305 <strong>ciphertext</strong> bound to the app, the entry's name and its expiry — so no <code>secret</code> crosses the boundary, <code>put</code> still refuses one and <code>get</code> answers <code>null</code> for a sealed entry. A sealed entry that does not open, under any key of the ring or past its sealed expiry, is a <strong>miss</strong>; on a miss <code>fill</code> runs in exactly one caller per process while every other waits for at most its <code>wait</code> (<code>[cache.memory] fill_wait</code>) and then throws <code>TimeoutError</code>, a throwing <code>fill</code> releases the waiters with nothing, and an entry inside the last fifth of its lifetime is answered to everyone while one caller replaces it. <code>Cache\\SecretEntry::of(secret string $value, Duration $ttl)</code> is what a <code>fill</code> answers. Sealing hides a secret from code that knows an entry's name but not the ring and keeps it out of the shared store in the clear; it does not protect it from a compromised process"
     },
     {
       "id": "Cache.SecretEntry",
@@ -5146,7 +5146,7 @@
               },
               {
                 "name": "ttl",
-                "descHtml": "How long the entry stays readable, counted from this call. Omitted, it stays until the tier's cap forgets it or another <code>put</code> replaces it. A lifetime that has already run out forgets whatever was under the key and stores nothing."
+                "descHtml": "How long the entry stays readable, counted from this call. Without it, the entry stays until the cache deletes it to stay under its size limit, or until another <code>put</code> replaces it. A lifetime that has already run out deletes the entry under the key and stores nothing."
               }
             ],
             "returnHtml": "Nothing. A later <code>get</code> can still return <code>null</code>, because an entry can be deleted at any time.",
@@ -5205,7 +5205,7 @@
               },
               {
                 "error": "IOError",
-                "descHtml": "On the shared tier only: the store cannot be reached. An entry that is simply not there is <code>null</code> on either tier, which is the difference between a miss and a failure."
+                "descHtml": "Only on a <code>shared</code> cache: the store cannot be reached. A missing entry returns <code>null</code> on both caches and is not an error."
               }
             ]
           },
@@ -5245,7 +5245,7 @@
                 "descHtml": "The name to forget; <code>tainted</code> is admitted, as it is on <code>put</code>."
               }
             ],
-            "returnHtml": "Nothing. A key nothing was stored under is already forgotten, so there is no second answer here for whether there had been an entry — the same reading <code>get</code> gives a miss, and for the same reason: on these tiers an entry may be absent at any time.",
+            "returnHtml": "Nothing. If there is no entry under the key, the call does nothing. An entry can be missing at any time, so the call does not tell you whether there was one.",
             "errors": [
               {
                 "error": "IOError",
@@ -5306,7 +5306,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Seals <code>$value</code> under the newest key of <code>$keys</code> and stores the ciphertext under <code>$key</code> — the only way a secret reaches a cache, and no <code>secret</code> value ever enters a tier.",
+            "shortHtml": "Encrypts <code>$value</code> with the newest key in <code>$keys</code> and stores the encrypted bytes under <code>$key</code>. This is the only way to put a secret in a cache. The cache never contains the unencrypted value.",
             "params": [
               {
                 "name": "key",
@@ -5318,7 +5318,7 @@
               },
               {
                 "name": "ttl",
-                "descHtml": "How long the secret stays readable, counted from this call. Required, where <code>put</code>'s is optional: the lifetime is sealed into the entry as well as given to the tier, so an entry written back under a longer store lifetime is still past its own expiry."
+                "descHtml": "How long the secret stays readable, counted from this call. It is required. The lifetime is also stored inside the encrypted entry, so a copy of the entry written back later still expires at the same time."
               },
               {
                 "name": "keys",
@@ -5333,7 +5333,7 @@
               },
               {
                 "error": "IOError",
-                "descHtml": "On the shared tier only: the store cannot be reached or refused the write, as on <code>put</code>."
+                "descHtml": "Only on a <code>shared</code> cache: the store cannot be reached, or it does not accept the write."
               }
             ]
           },
@@ -5414,7 +5414,7 @@
               },
               {
                 "error": "IOError",
-                "descHtml": "On the shared tier only: the store cannot be reached. An entry that is simply not there is <code>null</code>, as it is on <code>get</code>."
+                "descHtml": "Only on a <code>shared</code> cache: the store cannot be reached. A missing entry returns <code>null</code>, as on <code>get</code>."
               }
             ]
           },
@@ -37527,7 +37527,7 @@
       "name": "Core\\RateLimit",
       "section": "16. Network, data and crypto",
       "summary": "",
-      "surface": "`consume(tainted string $key, uint $limit, Duration $per, {burst?, cost?}): RateLimit\\Decision` over the shared store, and `shed(…)` per core and approximate. `Decision` is readonly `allowed: bool`, `limit: uint`, `remaining: uint`, `retryAfter: ?Duration`. Both **neutral**; a `secret` key is refused; an unreachable store throws",
+      "surface": "`consume(tainted string $key, uint $limit, Duration $per, {burst?, cost?}): RateLimit\\Decision` over the shared store, and `shed(…)` per server process and approximate, its count kept in the memory cache tier. `Decision` is readonly `allowed: bool`, `limit: uint`, `remaining: uint`, `retryAfter: ?Duration`. Both **neutral**; a `secret` key is refused; an unreachable store throws",
       "enums": [],
       "types": [],
       "constants": [],
@@ -37712,7 +37712,7 @@
       "slug": "ratelimit",
       "url": "/reference/core/ratelimit/",
       "summaryHtml": "",
-      "surfaceHtml": "<code>consume(tainted string $key, uint $limit, Duration $per, {burst?, cost?}): RateLimit\\Decision</code> over the shared store, and <code>shed(…)</code> per core and approximate. <code>Decision</code> is readonly <code>allowed: bool</code>, <code>limit: uint</code>, <code>remaining: uint</code>, <code>retryAfter: ?Duration</code>. Both <strong>neutral</strong>; a <code>secret</code> key is refused; an unreachable store throws"
+      "surfaceHtml": "<code>consume(tainted string $key, uint $limit, Duration $per, {burst?, cost?}): RateLimit\\Decision</code> over the shared store, and <code>shed(…)</code> per server process and approximate, its count kept in the memory cache tier. <code>Decision</code> is readonly <code>allowed: bool</code>, <code>limit: uint</code>, <code>remaining: uint</code>, <code>retryAfter: ?Duration</code>. Both <strong>neutral</strong>; a <code>secret</code> key is refused; an unreachable store throws"
     },
     {
       "id": "RateLimit.Decision",
@@ -43034,7 +43034,7 @@
       "name": "Core\\Session",
       "section": "15. Request-facing: `Core\\Server`, `Core\\Request`, `Core\\Response`, `Core\\Session`, `Core\\Env`, `Core\\Cap`, `Core\\Cli`",
       "summary": "",
-      "surface": "`start`, `get`, `set`, `remove`, `clear`, `regenerate`, `destroy`, `setSecret`, `getSecret`. `start` is the one that reaches the store, and a member called before it throws (`rule:core-classes/session-is-started-explicitly`). Where the record lives is `[session] backend`, which names the shared cache tier or the database and refuses the in-process ones (`rule:http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`, enforcing `rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent`). A user's own secret — the access and refresh token an application holds for them — goes through `setSecret(string $key, secret string $value, array<secret bytes> $keys): void` and `getSecret(string $key, array<secret bytes> $keys): ?secret string`, sealed under the ring with the session door's own domain byte and carrying no lifetime of its own, because a session value lives as long as its session. `set` still refuses a `secret` and `get` answers `null` for a sealed value (`rule:http-server/a-session-holds-a-secret-only-sealed`).",
+      "surface": "`start`, `get`, `set`, `remove`, `clear`, `regenerate`, `destroy`, `setSecret`, `getSecret`. `start` is the one that reaches the store, and a member called before it throws (`rule:core-classes/session-is-started-explicitly`). Where the record lives is `[session] backend`, which names the shared cache tier or the database and refuses the memory tier (`rule:http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot`, enforcing `rule:concurrency/the-memory-tier-cannot-hold-what-must-be-coherent`). A user's own secret — the access and refresh token an application holds for them — goes through `setSecret(string $key, secret string $value, array<secret bytes> $keys): void` and `getSecret(string $key, array<secret bytes> $keys): ?secret string`, sealed under the ring with the session door's own domain byte and carrying no lifetime of its own, because a session value lives as long as its session. `set` still refuses a `secret` and `get` answers `null` for a sealed value (`rule:http-server/a-session-holds-a-secret-only-sealed`).",
       "enums": [],
       "types": [],
       "constants": [],
@@ -43496,7 +43496,7 @@
       "slug": "session",
       "url": "/reference/core/session/",
       "summaryHtml": "",
-      "surfaceHtml": "<code>start</code>, <code>get</code>, <code>set</code>, <code>remove</code>, <code>clear</code>, <code>regenerate</code>, <code>destroy</code>, <code>setSecret</code>, <code>getSecret</code>. <code>start</code> is the one that reaches the store, and a member called before it throws (<code>rule:core-classes/session-is-started-explicitly</code>). Where the record lives is <code>[session] backend</code>, which names the shared cache tier or the database and refuses the in-process ones (<code>rule:http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot</code>, enforcing <code>rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent</code>). A user's own secret — the access and refresh token an application holds for them — goes through <code>setSecret(string $key, secret string $value, array&lt;secret bytes&gt; $keys): void</code> and <code>getSecret(string $key, array&lt;secret bytes&gt; $keys): ?secret string</code>, sealed under the ring with the session door's own domain byte and carrying no lifetime of its own, because a session value lives as long as its session. <code>set</code> still refuses a <code>secret</code> and <code>get</code> answers <code>null</code> for a sealed value (<code>rule:http-server/a-session-holds-a-secret-only-sealed</code>)."
+      "surfaceHtml": "<code>start</code>, <code>get</code>, <code>set</code>, <code>remove</code>, <code>clear</code>, <code>regenerate</code>, <code>destroy</code>, <code>setSecret</code>, <code>getSecret</code>. <code>start</code> is the one that reaches the store, and a member called before it throws (<code>rule:core-classes/session-is-started-explicitly</code>). Where the record lives is <code>[session] backend</code>, which names the shared cache tier or the database and refuses the memory tier (<code>rule:http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot</code>, enforcing <code>rule:concurrency/the-memory-tier-cannot-hold-what-must-be-coherent</code>). A user's own secret — the access and refresh token an application holds for them — goes through <code>setSecret(string $key, secret string $value, array&lt;secret bytes&gt; $keys): void</code> and <code>getSecret(string $key, array&lt;secret bytes&gt; $keys): ?secret string</code>, sealed under the ring with the session door's own domain byte and carrying no lifetime of its own, because a session value lives as long as its session. <code>set</code> still refuses a <code>secret</code> and <code>get</code> answers <code>null</code> for a sealed value (<code>rule:http-server/a-session-holds-a-secret-only-sealed</code>)."
     },
     {
       "id": "Signal",
