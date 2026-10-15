@@ -326,7 +326,7 @@ are checked and completed where they were plain strings. Simplicity: one new typ
 
 **Does:** `Core\Str::parts` splits a `string<K>` into text and holes, and `Core\Reflect::steps` gives the property of each segment of a path.
 
-- [ ] `Core\Str::parts` and its card. `crates/nvs-stdlib/src/str.rs:345`
+- [x] `Core\Str::parts` and its card. `crates/nvs-stdlib/src/str.rs:345`
 - [ ] `Core\Reflect::steps` and its card, returning the existing property rows. `crates/nvs-stdlib/src/reflect.rs:1334`
 
 ### 8. the feature proofs
@@ -349,40 +349,40 @@ are checked and completed where they were plain strings. Simplicity: one new typ
 
 ### State
 
-Stages 1 to 6 are done, and `wip/string-holes` is merged into `main` and deleted. The red test the last
-handoff named passed once the branch was rebased onto `main`, so nothing in the branch needed a fix.
-`string<K>` parses, lowers to `Ty::StringHoles`, and has every hole of a literal checked at a
-`string<K>` parameter and under `as string<K>`. A run-time `as string<K>` checks its holes through
-`Helper::StringHolesValid` and keeps `tainted`. One scanner, `nvs_runtime::holes`
-(`crates/nvs-runtime/src/holes.rs:65`, re-exported as `nvs_stdlib::holes`), serves the checker and the
-run time, and stage 7's `parts` uses it too.
+Stage 7 is half done. `Core\Str::parts(string<K> $text): array<string|K>` is shipped in code
+(`nvs_core_str_parts`, `crates/nvs-stdlib/src/str.rs:2135`, row at `:372`, card `PARTS_DOC`). Its
+answer alternates text and holes, starting and ending with text, because a hole and a text piece are
+both strings at run time. `rule:core-classes/str-parts-and-reflect-steps` now states that layout. The
+registry has a new parameter form, `CoreTy::StringHoles(K, Qual)`. `nvs_types::generics` binds and
+substitutes through `string<K>`, `property<T>` and `propertyPath<T>`, and `check_generic_args`
+(`crates/nvs-types/src/expr/args.rs:1690`) now admits a qualifier at a classified generic parameter,
+as the ordinary path does. Three cases pin `parts`: `tests/conformance/core/str-parts-*.nvst`. A string
+literal written straight at `parts` reads `expected string<mixed>, found string`: it has no `K`.
 
-In the editor, `{` is a trigger character. It is answered only where it opens a hole of a `string<K>`
-literal (`open_hole`, `crates/nvs-lsp/src/completion.rs`). A key offers its names, a set its values, and
-a path one segment at a time. `rule:ide/a-field-path-completes-one-segment-at-a-time` is shipped as its
-own rule, because it owns hover, go-to-definition and the underline, which neither completion rule
-covers. Its changes to the two completion rules are written into them as current behaviour.
+**`steps` needs the class at run time.** A `propertyPath<T>` value is only its dotted text, so
+`nvs_core_reflect_steps` cannot find the root class from its argument. The call site has to add `T`'s
+class, read from the bound argument type. Nothing in `Core` does that yet. `decodeAs<T>` is the nearest
+model for a type that reaches a helper.
 
-`bun nv verify`'s conformance step has twice reported "coverage lost" for passed cases. Its lookup into a
-`Map` that holds the names misses them (`recordingOf`, `tools/nv/select/record.ts:349`). The cases pass,
-and the next run owes them again. The nightly CI failures are on `origin/main` at `cb7021a24`, far behind
-local `main`. The loop never pushes.
+The `parts-and-steps` check stays red until the `steps` case exists. The nightly CI failures are on
+`origin/main`, which is far behind local `main`, and the loop never pushes. The case
+`jwt-a-token-verifies-for-its-whole-lifetime-and-not-one-second-past-it.nvst` failed once under a loaded
+verify, across a second boundary, and passed alone.
 
 ### Next
 
-**Stage 7: `Core\Str::parts` and `Core\Reflect::steps`**, one file set: `crates/nvs-stdlib/src/str.rs`, `crates/nvs-stdlib/src/reflect.rs`, `crates/nvs-stdlib/src/registry.rs`, `crates/nvs-runtime/src/holes.rs`.
+**Stage 7: `Core\Reflect::steps`**, one file set: `crates/nvs-stdlib/src/reflect.rs`, `crates/nvs-stdlib/src/registry.rs`, `crates/nvs-types/src/core_lib.rs`, `crates/nvs-ir/src/lower/call.rs`.
 
-- [ ] `Core\Str::parts(string<K> $text): array<string|K>`, built on `nvs_runtime::holes` (`crates/nvs-runtime/src/holes.rs:65`), with `{{` and `}}` already one brace in each text piece and `tainted` kept on the text pieces. Its row and card beside the other `Str` members (`crates/nvs-stdlib/src/str.rs:345`), and `tests/conformance/core/str-parts-gives-the-text-and-the-checked-holes.nvst`. `rule:core-classes/str-parts-and-reflect-steps`.
-- [ ] `Core\Reflect::steps(propertyPath<T> $path): array<Core\Reflect\PropertyInfo>`, one existing property row per segment (`crates/nvs-stdlib/src/reflect.rs:1334`), and `tests/conformance/core/reflect-steps-gives-each-segment-of-a-path.nvst`. `rule:core-classes/str-parts-and-reflect-steps`.
+- [ ] Add `CoreTy::PropertyPath(T)` beside `CoreTy::StringHoles` (`crates/nvs-stdlib/src/registry.rs:299`) and lower it in `crates/nvs-types/src/core_lib.rs:575`. The generic walks already handle `Ty::PropertyPath`. `rule:core-classes/str-parts-and-reflect-steps`.
+- [ ] Pass `T`'s class to the helper: find how `Core\Json::decodeAs<T>` gets its type to run time (`crates/nvs-ir/src/lower/call.rs`), and do the same with the class bound from the argument. Then `nvs_core_reflect_steps` builds one `PROPERTY_INFO` row per segment (`crates/nvs-stdlib/src/reflect.rs:1342`, rows as in `nvs_core_reflect_for_class`, `:2075`). Add its symbol to `reflect`'s `address` match. Write `tests/conformance/core/reflect-steps-gives-each-segment-of-a-path.nvst`, plus two more cases for the conformance floor of three.
 - [ ] Decide how a body whose `propertyPath<static>` or `string<…static…>` is text reaches `parts` and `steps`: accept the text, or convert it with `as propertyPath<self>` (`static_key_as_text`, `crates/nvs-types/src/signatures.rs:1943`). Write the answer into `rule:statements/static-is-a-member-modifier`.
-- [ ] Flip `core-classes/str-parts-and-reflect-steps` to shipped with the two cases. `data/rules/core-classes/str-parts-and-reflect-steps.json:1`
+- [ ] Flip `core-classes/str-parts-and-reflect-steps` to shipped with its cases as guards, then run `bun nv proofs --record-perf --group 'Core\Reflect'`. `data/rules/core-classes/str-parts-and-reflect-steps.json:1`
 
 ### Backlog
 
 - Reading and writing through a path, `$obj->{$path}`: declined for now in `types/property-path`.
 - Splitting a `string<K>` literal while compiling, if the stage 8 bench asks for it (`core-classes/str-parts-and-reflect-steps`).
-- A literal at a `property<A>|property<B>` parameter is not converted and gets nothing offered (`rule:types/property-key`). Decide it if a program needs it.
+- A literal straight at `Core\Str::parts` reports `string<mixed>`. Word it as "no holes type to check against" in stage 8 (`check_generic_args`, `crates/nvs-types/src/expr/args.rs:1530`).
+- A literal at a `property<A>|property<B>` parameter is not converted and gets nothing offered (`rule:types/property-key`).
 - `propertyPath<T>` over a class with no public property reports with the `property<T>` wording (`reject_empty_property_key_set`, `crates/nvs-types/src/expr/operators.rs:414`). Give it the path's word in stage 8.
-- A `string<K>` hole is completed only after a `{` the developer typed, and no closing `}` is inserted (`open_hole`, `crates/nvs-lsp/src/completion.rs`). Add the `}` if a replay in stage 9 reads badly without it.
-- Go-to-definition on a path segment that names an inherited property answers nothing, because the roster records no declaring class (`property_segment_at`, `crates/nvs-lsp/src/definition.rs:1157`). Hover still shows the type.
-- Nightly CI on `cb7021a24` failed `a_spawned_process_ends_when_nvs_is_killed_and_what_it_started_does_not` (`crates/nvs-cli/tests/run_command.rs:688`) and the four-core throughput guard (`crates/nvs-cli/src/serve.rs`). Both are Linux-only. Check them once `main` is pushed.
+- Go-to-definition on an inherited path segment answers nothing (`property_segment_at`, `crates/nvs-lsp/src/definition.rs:1157`), and no closing `}` is inserted after a hole (`open_hole`, `crates/nvs-lsp/src/completion.rs`).
