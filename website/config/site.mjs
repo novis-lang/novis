@@ -69,7 +69,7 @@ export const SPONSOR_CHANNELS = [
   {
     label: 'Bank transfer',
     url: '/impressum/',
-    text: 'For companies and custom agreements. Write to us, and you get an invoice with Austrian VAT or with the EU reverse charge.',
+    text: 'For companies and custom agreements. Write to us, and you get an invoice. We use the Austrian small business exemption, so the invoice has no VAT.',
   },
 ]
 
