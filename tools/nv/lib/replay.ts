@@ -22,46 +22,11 @@ export interface Replay {
   steps: Step[];
 }
 
-/** Where the cursor marker is in a `.replay`'s start text. */
-export const CURSOR = "<|>";
-
-/** `text`, a `.replay`, parsed, or why it is not one. */
-export function parseReplay(text: string): Replay | string {
-  const lines = text.replace(/\r\n?/g, "\n").split("\n");
-  if (lines[0] !== "--START--") return "the first line is not `--START--`";
-  const stepsAt = lines.indexOf("--STEPS--");
-  if (stepsAt < 0) return "no `--STEPS--` line";
-  const marked = `${lines.slice(1, stepsAt).join("\n")}\n`;
-  const cursor = marked.indexOf(CURSOR);
-  if (cursor < 0 || marked.indexOf(CURSOR, cursor + 1) >= 0) return `the start text has \`${CURSOR}\` ${cursor < 0 ? "nowhere" : "more than once"}`;
-  const steps: Step[] = [];
-  for (const [i, line] of lines.slice(stepsAt + 1).entries()) {
-    if (line.trim() === "") continue;
-    const where = `line ${stepsAt + 2 + i}`;
-    const [word, rest] = [line.split(" ", 1)[0], line.slice(line.indexOf(" ") + 1)];
-    if (word === "hover" && line === "hover") steps.push({ kind: "hover" });
-    else if (word === "accept" && line.includes(" ") && rest !== "") steps.push({ kind: "accept", label: rest });
-    else if (word === "type" && line.includes(" ") && rest !== "") {
-      const typed = unescape(rest);
-      if (typed === null) return `${where}: only \`\\n\` and \`\\\\\` are escapes`;
-      steps.push({ kind: "type", text: typed });
-    } else return `${where}: \`${line}\` is not \`type TEXT\`, \`accept LABEL\` or \`hover\``;
-  }
-  if (steps.length === 0) return "no steps";
-  return { start: marked.slice(0, cursor) + marked.slice(cursor + CURSOR.length), cursor, steps };
-}
-
-/** A `type` step's text with its escapes read, or null for an escape that is not one. */
-function unescape(s: string): string | null {
-  let out = "";
-  for (let i = 0; i < s.length; i++) {
-    if (s[i] !== "\\") out += s[i];
-    else if (s[i + 1] === "n") (out += "\n"), i++;
-    else if (s[i + 1] === "\\") (out += "\\"), i++;
-    else return null;
-  }
-  return out;
-}
+/** The `.replay` parser the page uses too: `website/config/replay-frames.mjs`, imported by path so `tsc`
+ * reads no `.mjs` of the site's. `parseReplay` returns a `Replay`, or why the text is not one. */
+const frames = (await import(join(ROOT, "website/config/replay-frames.mjs"))) as { CURSOR: string; parseReplay(text: string): Replay | string };
+export const CURSOR = frames.CURSOR;
+export const parseReplay = frames.parseReplay;
 
 /** What `replaySession` assumes about the server's answers before it has them. */
 export interface Guess {

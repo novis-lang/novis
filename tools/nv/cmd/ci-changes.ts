@@ -101,10 +101,14 @@ export const LANES: Record<string, string[]> = {
     "tests/db/", "tools/nv/cmd/db-matrix.ts", "crates/nvs-ldap/", "Cargo.toml", "Cargo.lock",
     ".github/workflows/",
   ],
-  // The slotted response's polyfill and trigger, the Chromium test that runs them, and the lockfile
-  // that pins the Playwright release and so the browser it downloads. Gates `browser`.
+  // The slotted response's polyfill and trigger, a website replay's modules and component, the
+  // Chromium tests that run them and their shared driver, and the lockfile that pins the Playwright
+  // release and so the browser it downloads. Gates `browser`.
   browser: [
     "crates/nvs-server/src/slotted/", "tools/nv/test/html-later-polyfill.test.ts",
+    "website/config/replay-frames.mjs", "website/config/replay-narrow.mjs", "website/config/replay-player.mjs",
+    "website/src/components/Replay.astro",
+    "tools/nv/test/replay-browser.test.ts", "tools/nv/test/chromium.ts",
     "package.json", "bun.lock", ".github/workflows/",
   ],
   // The release images' Dockerfile and the smoke test that runs them. A change in the binary

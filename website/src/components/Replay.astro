@@ -1,0 +1,225 @@
+---
+/**
+ * A recorded editor session that ends on one snippet from website/snippets/,
+ * played like the VS Code extension. A page shows it beside the snippet, and
+ * `src` names the snippet:
+ *
+ *   <Replay src="install/editor/01-complete.nvs" />
+ *
+ * The `.replay` beside the snippet lists the steps, and the `.replay.out`
+ * beside it is what `nvs lsp` returned for them. `tools/nv/cmd/site.ts`
+ * § *A snippet* is the home of both formats, and `bun nv site --check
+ * snippets` fails when the server returns something else.
+ *
+ * What is recorded: each completion list, each diagnostic, and where each list
+ * opens. What is imitated: the list narrowing as letters are typed, the typing
+ * pace and the editor's look. It is close to VS Code and is not its exact
+ * behaviour. `config/replay-frames.mjs` writes the HTML and the frames when the
+ * site is built, and `config/replay-player.mjs` plays them.
+ */
+import { replayMarkup } from '../../config/replay-frames.mjs'
+
+interface Props {
+  /** The snippet's path under website/snippets/. */
+  src: string
+}
+
+// The globs below are relative to this file, so their keys start with this prefix.
+const ROOT = '../../snippets/'
+
+const sources = import.meta.glob('../../snippets/**/*.nvs', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
+const replays = import.meta.glob('../../snippets/**/*.replay', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
+const recordings = import.meta.glob('../../snippets/**/*.replay.out', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
+
+const { src } = Astro.props
+if (sources[`${ROOT}${src}`] === undefined) throw new Error(`Replay: no file website/snippets/${src}`)
+const beside = (ext: string) => `${ROOT}${src.replace(/\.nvs$/, ext)}`
+const replay = replays[beside('.replay')]
+if (replay === undefined) throw new Error(`Replay ${src}: there is no .replay beside it`)
+const recording = recordings[beside('.replay.out')]
+if (recording === undefined) throw new Error(`Replay ${src}: there is no .replay.out beside it; run \`bun nv site --bless\` on the snippet`)
+const html = replayMarkup({
+  replay,
+  recording,
+  title: src.split('/').at(-1)!,
+  install: `${import.meta.env.BASE_URL.replace(/\/+$/, '')}/install/editor/`,
+  where: `website/snippets/${src}`,
+})
+---
+
+<Fragment set:html={html} />
+
+<script>
+  import { startReplays } from '../../config/replay-player.mjs'
+  startReplays()
+</script>
+
+<style is:global>
+  .nv-replay {
+    margin: 1.5rem 0;
+  }
+  .nv-replay-caption {
+    font-size: var(--sl-text-sm);
+    color: var(--sl-color-gray-3);
+    margin-bottom: 0.5rem;
+  }
+  .nv-replay-frame {
+    border: 1px solid var(--sl-color-gray-5);
+    border-radius: 0.5rem;
+    overflow: hidden;
+    background: var(--nv-code-bg);
+    color: var(--sl-color-white);
+    cursor: default;
+    user-select: none;
+  }
+  .nv-replay-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.35rem 0.75rem;
+    border-bottom: 1px solid var(--sl-color-gray-5);
+    background: var(--sl-color-black);
+    font-size: var(--sl-text-xs);
+  }
+  .nv-replay-tab {
+    font-family: var(--__sl-font-mono);
+  }
+  .nv-replay-badge {
+    padding: 0.05rem 0.5rem;
+    border-radius: 1rem;
+    background: var(--sl-color-red);
+    color: var(--sl-color-black);
+    font-weight: 600;
+  }
+  .nv-replay-code {
+    --nv-lh: 1.6em;
+    --nv-gutter: calc(0.75rem + 5ch);
+    position: relative;
+    padding: 0.75rem 0;
+    min-height: calc((var(--nv-rows) + 7) * var(--nv-lh));
+    font-family: var(--__sl-font-mono), monospace;
+    font-size: var(--sl-text-sm);
+    line-height: var(--nv-lh);
+  }
+  .nv-replay .nv-line {
+    display: flex;
+    height: var(--nv-lh);
+    padding-left: 0.75rem;
+    white-space: pre;
+  }
+  .nv-replay .nv-ln {
+    flex: none;
+    width: 3ch;
+    padding-right: 2ch;
+    text-align: right;
+    color: var(--sl-color-gray-4);
+  }
+  .nv-replay .nv-caret {
+    display: inline-block;
+    width: 0;
+    height: 1.2em;
+    margin-right: -2px;
+    vertical-align: text-bottom;
+    border-left: 2px solid var(--sl-color-white);
+    animation: nv-blink 1s step-end infinite;
+  }
+  @keyframes nv-blink {
+    50% {
+      border-color: transparent;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .nv-replay .nv-caret {
+      animation: none;
+    }
+  }
+  .nv-replay .nv-squiggle {
+    text-decoration: underline wavy var(--sl-color-red);
+    text-decoration-skip-ink: none;
+    text-underline-offset: 0.2em;
+  }
+  .nv-replay .nv-list,
+  .nv-replay .nv-hover {
+    position: absolute;
+    top: calc(0.75rem + var(--nv-line) * var(--nv-lh));
+    left: calc(var(--nv-gutter) + var(--nv-col) * 1ch);
+    margin: 0;
+    border: 1px solid var(--sl-color-gray-5);
+    border-radius: 0.25rem;
+    background: var(--sl-color-black);
+    box-shadow: var(--sl-shadow-md);
+  }
+  .nv-replay .nv-list {
+    min-width: 22ch;
+    padding: 0.15rem 0;
+    list-style: none;
+  }
+  .nv-replay .nv-row {
+    display: flex;
+    gap: 0;
+    margin: 0;
+    padding: 0 0.5rem 0 0.25rem;
+    white-space: pre;
+  }
+  .nv-replay .nv-selected {
+    background: color-mix(in oklab, var(--sl-color-accent) 30%, transparent);
+  }
+  .nv-replay .nv-kind {
+    flex: none;
+    width: 2ch;
+    margin-right: 0.5ch;
+    text-align: center;
+  }
+  .nv-replay .nv-kind-fn {
+    color: var(--sl-color-purple);
+  }
+  .nv-replay .nv-kind-var {
+    color: var(--sl-color-blue);
+  }
+  .nv-replay .nv-kind-type {
+    color: var(--sl-color-orange);
+  }
+  .nv-replay .nv-kind-word {
+    color: var(--sl-color-gray-3);
+  }
+  .nv-replay .nv-row mark {
+    background: none;
+    color: var(--sl-color-accent-high);
+    font-weight: 700;
+  }
+  .nv-replay .nv-after,
+  .nv-replay .nv-right {
+    color: var(--sl-color-gray-3);
+  }
+  .nv-replay .nv-right {
+    margin-left: auto;
+    padding-left: 2ch;
+  }
+  .nv-replay .nv-hover {
+    max-width: 60ch;
+    padding: 0.35rem 0.6rem;
+    white-space: pre-wrap;
+  }
+  .nv-replay .nv-hover-code {
+    color: var(--sl-color-gray-3);
+  }
+  .nv-replay-controls {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+  }
+  .nv-replay-controls button {
+    padding: 0.2rem 0.75rem;
+    border: 1px solid var(--sl-color-gray-5);
+    border-radius: 0.25rem;
+    background: var(--sl-color-black);
+    color: var(--sl-color-white);
+    font: inherit;
+    font-size: var(--sl-text-sm);
+    cursor: pointer;
+  }
+  .nv-replay-steps {
+    margin-top: 0.5rem;
+    font-size: var(--sl-text-sm);
+  }
+</style>

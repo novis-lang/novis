@@ -452,7 +452,9 @@ jobs:
 
   # ---------------------------------------------------------------------------
   # The slotted response's polyfill in a real Chromium, launched once with
-  # native `<template for>` and once without (`rule:core-classes/html-later`).
+  # native `<template for>` and once without (`rule:core-classes/html-later`),
+  # and a website replay's player
+  # (`rule:testing/a-replay-plays-what-the-language-server-returned`).
   # Linux only: what is tested is the browser's parser and DOM, not the host.
   # The browser is the headless shell the locked Playwright release pins, put
   # in `node_modules` and downloaded by Node, because Bun's fetch fails the
@@ -480,6 +482,10 @@ jobs:
         env:
           NV_BROWSER: "1"
         run: bun test tools/nv/test/html-later-polyfill.test.ts
+      - name: A website replay in Chromium
+        env:
+          NV_BROWSER: "1"
+        run: bun test tools/nv/test/replay-browser.test.ts
 
   # ---------------------------------------------------------------------------
   # Separated because it pulls in Wasmtime, which is minutes of build time that
