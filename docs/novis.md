@@ -28366,7 +28366,7 @@ Keywords:
 <a id="core-core-queue-stats"></a>
 ### `Core\Queue\Stats`
 
-Keywords: pending, claimed, attempts, deadLettered, deadAttempts
+Keywords: pending, claimed, attempts, deadLettered, deadAttempts, nonTransactional
 
 | Member | Signature |
 |---|---|
@@ -28375,6 +28375,7 @@ Keywords: pending, claimed, attempts, deadLettered, deadAttempts
 | [`Core\Queue\Stats->attempts`](#core-core-queue-stats-attempts) | `attempts(): uint` |
 | [`Core\Queue\Stats->deadLettered`](#core-core-queue-stats-deadlettered) | `deadLettered(): uint` |
 | [`Core\Queue\Stats->deadAttempts`](#core-core-queue-stats-deadattempts) | `deadAttempts(): uint` |
+| [`Core\Queue\Stats->nonTransactional`](#core-core-queue-stats-nontransactional) | `nonTransactional(): uint` |
 
 <a id="core-core-queue-stats-pending"></a>
 #### `Core\Queue\Stats->pending`
@@ -28430,6 +28431,17 @@ $stats->deadAttempts(): uint
 The total number of attempts the jobs in the dead-letter table used. Divide it by `deadLettered` to see how many attempts a job uses before it fails for good.
 
 **Returns** `uint` — A `uint` for the dead-letter table only. Every attempt is counted in this number or in `attempts`, never in both. Add the two to get the total.
+
+<a id="core-core-queue-stats-nontransactional"></a>
+#### `Core\Queue\Stats->nonTransactional`
+
+```nvs skip
+$stats->nonTransactional(): uint
+```
+
+The number of jobs that `push` saved while a transaction was open on a different database connection. Such a job is saved at once, so a rollback of that transaction does not remove it.
+
+**Returns** `uint` — A `uint` for the jobs table only. It is `0` when every transaction that pushes a job runs on the connection that `[queue] connection` names.
 
 <a id="core-novis-image-barcode"></a>
 ### `Novis\Image\Barcode`
