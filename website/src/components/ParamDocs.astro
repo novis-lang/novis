@@ -2,7 +2,9 @@
 /**
  * A member's parameters or options: name, type and default from core.json,
  * and each entry's sentence from the registry card when it has one, with one
- * line per key of a shape-typed parameter.
+ * line per key of a shape-typed parameter. This is the one place a parameter's
+ * description is printed: each row has an id (`param-<name>`, `option-<name>`)
+ * that the signature above links to.
  */
 import { findMember } from '~/lib/core'
 
@@ -21,12 +23,14 @@ const docFor = (name: string) => member.doc?.params?.find((p) => p.name === name
 const rows =
   kind === 'params'
     ? member.params.map((p) => ({
+        anchor: `param-${p.name}`,
         label: `${p.variadic ? '...' : ''}$${p.name}`,
         type: p.type || 'mixed',
         extra: p.default !== null ? `default ${p.default}` : p.variadic ? 'variadic' : '',
         doc: docFor(p.name),
       }))
     : member.options.map((o) => ({
+        anchor: `option-${o.name}`,
         label: o.name,
         type: o.type || '',
         extra: 'optional',
@@ -37,7 +41,7 @@ const rows =
 <ul class="nv-param-docs">
   {
     rows.map((r) => (
-      <li>
+      <li id={r.anchor}>
         <span class="nv-param-head">
           <code class="nv-param-name">{r.label}</code>
           {r.type && <code class="nv-param-type">{r.type}</code>}

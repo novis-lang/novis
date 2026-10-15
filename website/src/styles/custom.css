@@ -101,7 +101,7 @@
   --sl-color-bg-sidebar: var(--sl-color-black);
   --sl-color-hairline: var(--nv-hairline);
   --sl-color-hairline-shade: var(--nv-hairline);
-  --sl-color-bg-inline-code: color-mix(in oklab, var(--nv-fog) 11%, var(--nv-ground));
+  --sl-color-bg-inline-code: var(--nv-code-bg);
 
   /* Violet: -low is a dark fill, -accent draws borders and fills (3:1),
      -high is link text (8.7:1 on the page). Fallback first. */
@@ -151,9 +151,10 @@
   --nv-warn: var(--sl-color-orange);
   --nv-danger: var(--sl-color-red);
 
-  /* The ground under a code block, wired into Expressive Code by
-     astro.config.ts. */
-  --nv-code-bg: color-mix(in oklab, var(--nv-fog) 5%, var(--nv-ground));
+  /* The ground under a code block and inline code, wired into Expressive
+     Code by astro.config.ts: the surface of a framed list such as a method's
+     parameters, so code and those lists read as one style. */
+  --nv-code-bg: var(--nv-surface);
 
   --nv-selection: color-mix(in oklab, var(--sl-color-accent) 45%, var(--nv-ink));
 
@@ -196,7 +197,7 @@
   --sl-color-gray-6: color-mix(in oklab, var(--nv-fog) 92%, var(--nv-ink));
   --sl-color-gray-7: color-mix(in oklab, var(--nv-fog) 96%, var(--nv-ink));
   --sl-color-black: var(--nv-fog);
-  --sl-color-bg-inline-code: color-mix(in oklab, var(--nv-violet) 6%, var(--nv-fog));
+  --sl-color-bg-inline-code: var(--nv-code-bg);
 
   /* Violet as drawn is link text here (5.7:1 on the page, 4.7:1 on the
      darkest panel); -high is text on a violet wash (8.3:1). */
@@ -237,7 +238,7 @@
   --nv-warn: var(--sl-color-orange-high);
   --nv-danger: var(--sl-color-red-high);
 
-  --nv-code-bg: color-mix(in oklab, var(--nv-violet) 3%, white);
+  --nv-code-bg: var(--nv-surface);
   --nv-selection: color-mix(in oklab, var(--nv-violet) 22%, var(--nv-fog));
 
   --sl-color-backdrop-overlay: color-mix(in oklab, var(--nv-ink) 40%, transparent);
@@ -582,10 +583,13 @@ starlight-tabs [role='tab']:active {
   letter-spacing: 0.01em;
 }
 
-/* Code blocks: the frame comes from Expressive Code (astro.config.ts); this
-   adds the lift. */
+/* Code blocks: the frame comes from Expressive Code (astro.config.ts). Starlight
+   sets the editor and terminal background inside the syntax theme, which wins
+   over astro.config.ts's styleOverrides, so the code ground is set here. */
 .expressive-code .frame {
-  box-shadow: var(--nv-shadow-md);
+  --ec-frm-edBg: var(--nv-code-bg);
+  --ec-frm-trmBg: var(--nv-code-bg);
+  --ec-frm-edActTabBg: var(--nv-code-bg);
 }
 
 /* A snippet that must not compile (src/components/Snippet.astro): the code,
@@ -596,9 +600,7 @@ starlight-tabs [role='tab']:active {
 }
 [data-snippet-part='diagnostic'] .expressive-code .frame {
   border-radius: var(--nv-radius);
-  box-shadow:
-    inset 3px 0 0 var(--nv-danger),
-    var(--nv-shadow-sm);
+  box-shadow: inset 3px 0 0 var(--nv-danger);
 }
 [data-snippet-part='diagnostic'] .expressive-code .frame pre {
   border-color: color-mix(in oklab, var(--nv-danger) 45%, var(--nv-hairline));
@@ -1229,21 +1231,94 @@ a.nv-card:hover {
 
 /* --------------------------------------------------------- method signature */
 
+/* A method's declaration and a class's shape types: framed like a code
+   block (astro.config.ts's Expressive Code frame). */
 .method-signature {
   border: 1px solid var(--nv-hairline);
-  border-radius: var(--nv-radius-lg);
+  border-radius: var(--nv-radius);
   overflow: hidden;
   margin-top: var(--nv-space-5);
-  background-color: var(--nv-surface);
-  box-shadow: var(--nv-shadow-sm);
+  background-color: var(--nv-code-bg);
 }
 .method-signature-decl-row {
   padding: var(--nv-space-4) var(--nv-space-5);
-  background-color: var(--nv-wash-soft);
   overflow-x: auto;
 }
-/* The declaration in `nvs fmt`'s multi-line layout: one line per parameter,
-   its `//` description in a second column so the comments line up. */
+/* A method page's declaration (src/components/MethodSignature.astro). It has
+   one or two forms: one line, and one parameter per line. The one-line form
+   shows only where the block is wide enough for it. */
+.method-sig {
+  container-type: inline-size;
+}
+.method-sig-decl {
+  margin: 0;
+  padding: var(--nv-space-4) var(--nv-space-5);
+  border: 0;
+  background: none;
+  overflow-x: auto;
+  font-size: var(--sl-text-code);
+  line-height: 1.7;
+}
+.method-sig-decl > code {
+  display: block;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: inherit;
+  white-space: pre;
+}
+/* `one-line-N`: the one-line form is at most N characters. A character is
+   0.51rem wide and the padding 3rem, so N characters fit in N × 0.51rem +
+   3rem. */
+.method-sig[class*='one-line-'] .method-sig-one {
+  display: none;
+}
+@container (min-width: 24rem) {
+  .method-sig.one-line-40 .method-sig-one {
+    display: block;
+  }
+  .method-sig.one-line-40 .method-sig-multi {
+    display: none;
+  }
+}
+@container (min-width: 28rem) {
+  .method-sig.one-line-48 .method-sig-one {
+    display: block;
+  }
+  .method-sig.one-line-48 .method-sig-multi {
+    display: none;
+  }
+}
+@container (min-width: 32rem) {
+  .method-sig.one-line-56 .method-sig-one {
+    display: block;
+  }
+  .method-sig.one-line-56 .method-sig-multi {
+    display: none;
+  }
+}
+@container (min-width: 36rem) {
+  .method-sig.one-line-64 .method-sig-one {
+    display: block;
+  }
+  .method-sig.one-line-64 .method-sig-multi {
+    display: none;
+  }
+}
+@container (min-width: 40rem) {
+  .method-sig.one-line-72 .method-sig-one {
+    display: block;
+  }
+  .method-sig.one-line-72 .method-sig-multi {
+    display: none;
+  }
+}
+.method-sig-note {
+  margin-top: var(--nv-space-3);
+  font-size: var(--sl-text-sm);
+  color: var(--sl-color-gray-2);
+}
+/* A class's shape type in `nvs fmt`'s multi-line layout, one key per line. */
 .method-signature-decl {
   margin: 0;
   padding: 0;
@@ -1281,39 +1356,40 @@ a.nv-card:hover {
   padding: 0;
   color: var(--sl-color-gray-2);
 }
-.method-signature-decl .sig-link {
+.method-signature .sig-link {
   color: inherit;
   text-decoration: none;
   border-bottom: 1px dotted color-mix(in oklab, currentColor 45%, transparent);
   transition: border-color var(--nv-fast) var(--nv-ease);
 }
-.method-signature-decl .sig-link:hover {
+.method-signature .sig-link:hover {
   border-bottom-style: solid;
   border-bottom-color: currentColor;
 }
-.method-signature-decl .sig-class {
+.method-signature .sig-class {
   color: var(--sl-color-text-accent);
   font-weight: 600;
 }
-.method-signature-decl .sig-name {
+.method-signature .sig-name {
   color: var(--sl-color-white);
   font-weight: 700;
 }
-.method-signature-decl .sig-type,
-.method-signature-decl .sig-generics,
-.method-signature-decl .sig-generic {
+.method-signature .sig-type,
+.method-signature .sig-generics,
+.method-signature .sig-generic {
   color: var(--sl-color-text-accent);
 }
-.method-signature-decl .sig-keyword {
+.method-signature .sig-keyword {
   color: var(--nv-crimson-text);
 }
-.method-signature-decl .sig-var {
+.method-signature .sig-var {
   color: var(--sl-color-text);
 }
-.method-signature-decl .sig-punct {
+.method-signature .sig-punct {
   color: var(--sl-color-gray-3);
 }
-.method-signature-decl .sig-default {
+.method-signature .sig-default,
+.method-signature .sig-more {
   color: var(--sl-color-gray-2);
 }
 @media (max-width: 40rem) {
@@ -1328,36 +1404,6 @@ a.nv-card:hover {
   }
 }
 
-.method-signature-facts {
-  margin: 0;
-  padding: 0;
-  border-top: 1px solid var(--nv-hairline);
-}
-.method-signature-facts > div {
-  display: grid;
-  /* The label column lines up with the tables' 30% name column above it. */
-  grid-template-columns: calc(30% - 1rem) 1fr;
-  gap: 1rem;
-  padding: 0.65rem var(--nv-space-5);
-  font-size: var(--sl-text-sm);
-}
-.method-signature-facts > div + div {
-  border-top: 1px solid var(--nv-hairline);
-}
-.method-signature-facts dt {
-  font-weight: 650;
-  color: var(--sl-color-white);
-}
-.method-signature-facts dd {
-  margin: 0;
-  overflow-wrap: anywhere;
-}
-@media (max-width: 40rem) {
-  .method-signature-facts > div {
-    grid-template-columns: 1fr;
-    gap: 0.15rem;
-  }
-}
 /* ------------------------------------------------------ parameter lists */
 
 /* A member's parameters, options and errors, and a class's enums and
@@ -1377,6 +1423,12 @@ a.nv-card:hover {
 .sl-markdown-content .nv-param-docs > li {
   margin: 0;
   padding: 0.7rem 0.9rem;
+  scroll-margin-top: calc(var(--sl-nav-height) + var(--nv-space-5));
+}
+/* The row a `$param` in the signature links to, lit while it is the target. */
+.sl-markdown-content .nv-param-docs > li:target {
+  background-color: var(--nv-wash-soft);
+  box-shadow: inset 3px 0 0 var(--sl-color-accent);
 }
 .sl-markdown-content .nv-param-docs > li + li {
   border-top: 1px solid var(--nv-hairline);

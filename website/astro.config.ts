@@ -114,7 +114,7 @@ export default defineConfig({
           codeBackground: 'var(--nv-code-bg)',
           codeFontFamily: 'var(--__sl-font-mono)',
           uiFontFamily: 'var(--__sl-font)',
-          borderRadius: 'var(--nv-radius-lg)',
+          borderRadius: 'var(--nv-radius)',
           borderColor: 'var(--nv-hairline)',
           focusBorder: 'var(--sl-color-accent)',
           scrollbarThumbColor: 'var(--nv-hairline-strong)',

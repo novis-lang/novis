@@ -1,14 +1,18 @@
 ---
 /**
- * The tool-owned technical block on a method page: the declaration in the
- * canonical multi-line layout of `rule:tooling/fmt-a-list-is-one-line-or-one-item-per-line` (one parameter per line, trailing
- * comma), syntax-coloured, every type name a link to its page (`typeLink` in
- * src/lib/core.ts) and each `tainted` or `secret` keyword a link to the page
- * that explains it, and each parameter's registry description (`rule:core-api/reference-card`) as a
- * `//` comment on its own line — a shape-typed parameter or options bag opens
- * across lines, one key each — so the block stays valid Novis. Below it, when
- * the member has one, the spec note. All rendered from src/data/core.json, so it
- * stays current without touching the page's human prose.
+ * The tool-owned technical block on a method page: the declaration alone,
+ * syntax-coloured, every type name a link to its page (`typeLink` in
+ * src/lib/core.ts), each `tainted` or `secret` keyword a link to the page that
+ * explains it, and each `$param` a link to its row under Parameters, which is
+ * the one place its description is printed. A declaration short enough is
+ * also rendered on one line, and the stylesheet shows that form only where the
+ * block is wide enough for it; otherwise the canonical multi-line layout of
+ * `rule:tooling/fmt-a-list-is-one-line-or-one-item-per-line` shows (one
+ * parameter per line, trailing comma), so the block stays valid Novis either
+ * way. A shape type of up to `SHAPE_INLINE_MAX` keys is written inline;
+ * a longer one is `{…}`, linked to the row that lists its keys. Below the
+ * block, when the member has one, the spec note. All rendered from
+ * src/data/core.json, so it stays current without touching the page's prose.
  */
 import { findMember, typeLink } from '~/lib/core'
 
@@ -21,11 +25,19 @@ const found = findMember(id)
 if (!found) throw new Error(`MethodSignature: unknown member id "${id}" — run \`npm run sync:render\`?`)
 const { cls, member } = found
 
+/** The longest declaration, in characters, that is also rendered on one line. */
+const ONE_LINE_MAX = 72
+/** The most keys a shape type has and is still written inline. */
+const SHAPE_INLINE_MAX = 3
+
 const escape = (s: string) =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
 /** Inline-code markdown (`x`) to HTML. */
 const ticks = (s: string) => escape(s).replace(/`([^`]+)`/g, '<code>$1</code>')
+
+/** The characters a reader sees in a piece of rendered HTML. */
+const visibleLength = (html: string) => html.replace(/<[^>]+>/g, '').replace(/&[a-z]+;/g, 'x').length
 
 const span = (cls: string, s: string) => `<span class="${cls}">${escape(s)}</span>`
 const punct = (s: string) => span('sig-punct', s)
@@ -79,51 +91,16 @@ function splitTopLevel(s: string): string[] {
   return out.map((p) => p.trim()).filter(Boolean)
 }
 
-interface ShapeKey {
-  key: string
-  optional: boolean
-  type: string
-  descHtml: string
-}
-
-/** The keys of a shape type such as `{name: callable, …}` when the registry has not listed them. */
-function parseShape(type: string): ShapeKey[] {
+/** A shape type: inline when it has few keys, otherwise `{…}` linked to `href`. */
+function shapeHtml(type: string, href: string): string {
   const inner = type.slice(type.indexOf('{') + 1, type.lastIndexOf('}'))
-  return splitTopLevel(inner).map((part) => {
-    const m = /^([A-Za-z_][A-Za-z0-9_]*)(\?)?\s*(?::\s*(.+))?$/.exec(part)
-    if (!m) return { key: part, optional: false, type: '', descHtml: '' }
-    return { key: m[1], optional: m[2] === '?', type: (m[3] ?? '').trim(), descHtml: '' }
-  })
+  if (splitTopLevel(inner).length <= SHAPE_INLINE_MAX) return typeHtml(type)
+  return `${punct('{')}<a class="sig-more sig-link" href="${href}">…</a>${punct('}')}`
 }
 
-/** One rendered line: the code cell and, when there is one, the comment beside it. */
-interface Line {
-  code: string
-  comment: string
-}
-const lines: Line[] = []
-const INDENT = '    '
-const push = (code: string, comment = '') => lines.push({ code, comment })
+const paramAnchor = (name: string) => `#param-${name}`
 
-const docFor = (name: string) => member.doc?.params?.find((p) => p.name === name)
-
-/** `{` … `}` across lines, one key each; `open` is what precedes `{`, `close` what follows `}`. */
-function pushShape(keys: ShapeKey[], indent: string, open: string, close: string, closeComment = '') {
-  push(`${indent}${open}${punct('{')}`)
-  for (const k of keys) {
-    if (!/^[A-Za-z_]/.test(k.key)) {
-      push(`${indent}${INDENT}${punct(k.key)}`)
-      continue
-    }
-    let code = `${indent}${INDENT}${span('sig-var', k.key)}`
-    if (k.optional) code += punct('?')
-    if (k.type) code += `${punct(': ')}${typeHtml(k.type)}`
-    push(code + punct(','), k.descHtml)
-  }
-  push(`${indent}${punct('}')}${close}`, closeComment)
-}
-
-// Head: `Core\Hash::of(` or `$s->length(`.
+// Head: `Core\Hash::of` or `$s->length`.
 let head = ''
 if (member.static) {
   head += `<a class="sig-class sig-link" href="${escape(cls.url)}">${escape(cls.name)}</a>${punct('::')}`
@@ -132,60 +109,39 @@ if (member.static) {
 }
 head += span('sig-name', member.name)
 if (member.generics) head += span('sig-generics', member.generics)
-push(head + punct('('))
 
-// One parameter per line, its description as a trailing comment.
-for (const p of member.params) {
-  const doc = docFor(p.name)
+// One item per parameter, then the options bag: a trailing anonymous object.
+const items: string[] = member.params.map((p) => {
   const varName = `${p.variadic ? '...' : ''}$${p.name}`
-  let tail = ` ${span('sig-var', varName)}`
-  if (p.default !== null) tail += `${punct(' = ')}${span('sig-default', p.default)}`
-  tail += punct(',')
-  const isShape = p.type.trim().startsWith('{')
-  if (isShape) {
-    const keys: ShapeKey[] =
-      doc?.shape && doc.shape.length > 0
-        ? doc.shape.map((k) => ({
-            key: k.key.replace(/\?$/, ''),
-            optional: k.key.endsWith('?'),
-            type: k.type,
-            descHtml: k.descHtml,
-          }))
-        : parseShape(p.type)
-    pushShape(keys, INDENT, '', tail, doc?.descHtml ?? '')
-  } else {
-    push(`${INDENT}${typeHtml(p.type)}${tail}`, doc?.descHtml ?? '')
-  }
-}
-
-// The options bag: a trailing anonymous object, every entry optional.
+  const type = p.type.trim().startsWith('{') ? shapeHtml(p.type, paramAnchor(p.name)) : typeHtml(p.type)
+  let html = `${type} <a class="sig-var sig-link" href="${paramAnchor(p.name)}">${escape(varName)}</a>`
+  if (p.default !== null) html += `${punct(' = ')}${span('sig-default', p.default)}`
+  return html
+})
 if (member.options.length > 0) {
-  const keys: ShapeKey[] = member.options.map((o) => ({
-    key: o.name,
-    optional: true,
-    type: o.type,
-    descHtml: docFor(o.name)?.descHtml ?? '',
-  }))
-  pushShape(keys, INDENT, '', punct(','))
+  const keys = member.options.map((o) => `${o.name}?${o.type ? `: ${o.type}` : ''}`)
+  items.push(shapeHtml(`{${keys.join(', ')}}`, '#options'))
 }
 
-// `): type`, the return description as its comment.
-push(`${punct('): ')}${typeHtml(member.returnType)}`, member.doc?.returnHtml ?? '')
+const tail = `${punct('): ')}${typeHtml(member.returnType)}`
+const oneLine = `${head}${punct('(')}${items.join(punct(', '))}${tail}`
+const multiLine =
+  items.length === 0
+    ? null
+    : [`${head}${punct('(')}`, ...items.map((html) => `    ${html}${punct(',')}`), tail].join('\n')
+const oneLineLength = visibleLength(oneLine)
+const showOneLine = multiLine === null || oneLineLength <= ONE_LINE_MAX
+/** The length bucket the stylesheet reads to decide how wide the block must be for one line. */
+const bucket = Math.max(40, Math.ceil(oneLineLength / 8) * 8)
 ---
 
-<div class="method-signature not-content">
-  <div class="method-signature-decl-row">
-    <pre class="method-signature-decl"><code>{lines.map((l) => <span class="sig-line"><span class="sig-code" set:html={l.code} /><span class="sig-comment" set:html={l.comment ? `// ${l.comment}` : ''} /></span>)}</code></pre>
-  </div>
-
-  {
-    member.notes && (
-      <dl class="method-signature-facts">
-        <div>
-          <dt>Spec note</dt>
-          <dd set:html={ticks(member.notes)} />
-        </div>
-      </dl>
-    )
-  }
+<div class:list={['method-signature', 'method-sig', 'not-content', { [`one-line-${bucket}`]: showOneLine && multiLine }]}>
+  <pre class="method-sig-decl">{showOneLine && <code class="method-sig-one" set:html={oneLine} />}{multiLine && <code class="method-sig-multi" set:html={multiLine} />}</pre>
 </div>
+{
+  member.notes && (
+    <p class="method-sig-note">
+      <strong>Spec note:</strong> <Fragment set:html={ticks(member.notes)} />
+    </p>
+  )
+}
