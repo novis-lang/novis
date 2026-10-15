@@ -104,8 +104,10 @@
 //     name	property	string
 //
 // `completion STEP L:C` is a list asked for in step STEP with the cursor at L:C. Its rows are in the
-// server's order, one per line: label, kind, detail and insert text, joined by one tab each, and the
-// insert text left off when it is the label. `diagnostic STEP L:C+LENGTH CODE` is the diagnostic a
+// server's order, one per line, five columns joined by one tab each: the label, the kind, the text at
+// the row's right, the text written straight after the label, and the insert text. Each is what a
+// `tests/lsp/` case reads from the item, and the insert text is empty when it is the label. Empty
+// columns at the end of a row are left off. `diagnostic STEP L:C+LENGTH CODE` is the diagnostic a
 // `hover` shows, its range on one line, and the message follows it, each line indented two spaces. A
 // blank line separates two blocks. `--bless` writes the file from a new session.
 // `--check snippets` fails on a `.replay` whose steps do not end on the snippet's text, a `.replay.out`
@@ -164,6 +166,7 @@ import { pathToFileURL } from "node:url";
 import { COVWS_TARGET, hostTriple } from "../lib/covws.ts";
 import { lspFrame, lspMessages } from "../lib/lsp.ts";
 import { rel, ROOT } from "../lib/paths.ts";
+import { parseReplay, recordReplay } from "../lib/replay.ts";
 import { run as runProc } from "../lib/proc.ts";
 import { comparePaths } from "../lib/py.ts";
 import { commentProblems } from "../proofs/collect.ts";
@@ -1071,6 +1074,35 @@ async function snippetTaint(p: string, nvs: string): Promise<{ owed: string | nu
 /** The text of a snippet's `.tainted`, null where it has none. */
 const taintFile = (p: string) => (existsSync(join(ROOT, beside(p, TAINTED))) ? readAt(ROOT, beside(p, TAINTED)) : null);
 
+/** The extensions of a snippet's replay and of its recording: the header's § *A snippet*. */
+export const REPLAY = "replay";
+export const RECORDING = "replay.out";
+
+/** What a snippet's `.replay` records now and the text its last step ends on, from `nvs lsp` with the
+ * snippet's own path as the document; null when the snippet has no `.replay`. */
+export async function snippetReplay(p: string, nvs: string, root: string): Promise<{ recording: string; last: string } | { failure: string } | null> {
+  if (!existsSync(join(root, beside(p, REPLAY)))) return null;
+  const replay = parseReplay(readAt(root, beside(p, REPLAY)));
+  if (typeof replay === "string") return { failure: `${beside(p, REPLAY)}: ${replay}` };
+  const play = (input: string) => runProc([nvs, "lsp"], { cwd: root, input, timeoutMs: SNIPPET_MS });
+  const got = await recordReplay(pathToFileURL(join(root, p)).href, replay, play);
+  return "failure" in got ? { failure: `${beside(p, REPLAY)}: ${got.failure}` } : got;
+}
+
+/** The problems with a snippet's `.replay` and `.replay.out` under `root`: a replay that does not run or
+ * does not end on the snippet's text, and a recording that is missing, stale or has no replay. */
+export async function replayProblems(p: string, nvs: string, root: string = ROOT): Promise<string[]> {
+  const file = existsSync(join(root, beside(p, RECORDING))) ? readAt(root, beside(p, RECORDING)) : null;
+  const replayed = await snippetReplay(p, nvs, root);
+  if (replayed === null) return file === null ? [] : [`${p}: a .${RECORDING} beside it and no .${REPLAY}`];
+  if ("failure" in replayed) return [replayed.failure];
+  const problems: string[] = [];
+  if (!same(replayed.last, readAt(root, p))) problems.push(`${beside(p, REPLAY)}: its steps end on other text than the snippet`);
+  if (file === null) problems.push(`${p}: no .${RECORDING} beside its .${REPLAY}`);
+  else if (!same(replayed.recording, file)) problems.push(`${p}: its .${RECORDING} is not what \`nvs lsp\` returns for its .${REPLAY} now`);
+  return problems;
+}
+
 /** A snippet that compiles, run in both contexts: `nvs run`, and `nvs serve` sent its `.nvsr` or
  * `PLAIN_GET`. A command-line snippet whose `nvs run` fails is not served. */
 async function bothContexts(p: string, nvs: string): Promise<{ web: boolean; cli: Ran; served: Served | null } | string> {
@@ -1107,6 +1139,7 @@ async function snippetProblems(nvs: string): Promise<string[]> {
     const taint = await snippetTaint(p, nvs);
     const taintProblem = "failure" in taint ? taint.failure : taintVerdict(p, taint.owed, taintFile(p));
     if (taintProblem) found.push(taintProblem);
+    found.push(...(await replayProblems(p, nvs)));
     const [out, http, err] = (["out", "http", "err"] as const).map((k) => hasFile(ROOT, p, k));
     // A snippet `snippetShape` already named has no one file to match.
     if ((err && (out || http)) || (!out && !http && !err)) return found;
@@ -1149,6 +1182,13 @@ async function blessSnippets(nvs: string, paths: string[]): Promise<number> {
       rmSync(join(ROOT, beside(p, TAINTED)));
       console.log(`  deleted  ${beside(p, TAINTED)}`);
     }
+    const replayed = await snippetReplay(p, nvs, ROOT);
+    if (replayed === null && existsSync(join(ROOT, beside(p, RECORDING)))) {
+      rmSync(join(ROOT, beside(p, RECORDING)));
+      console.log(`  deleted  ${beside(p, RECORDING)}`);
+    } else if (replayed !== null && "failure" in replayed) fail(replayed.failure);
+    else if (replayed !== null && !same(replayed.last, readAt(ROOT, p))) fail(`${beside(p, REPLAY)}: its steps end on other text than the snippet`);
+    else if (replayed !== null) blessWrite(beside(p, RECORDING), replayed.recording);
     const [out, http, err] = (["out", "http", "err"] as const).map((k) => hasFile(ROOT, p, k));
     if (err && (out || http)) {
       fail(`${p}: both a .err and an output file beside it; delete the one that is wrong`);
