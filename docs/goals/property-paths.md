@@ -6,7 +6,7 @@ context: [docs/rules/types/property-key.md]
 stages:
   - id: 1
     title: the rules
-    status: open
+    status: done
     context: [docs/rules/types/property-key-variance.md, docs/rules/types/property-key-access.md, docs/rules/ide/completion-offers-only-what-the-compiler-derived.md, docs/rules/ide/completion-is-asked-where-a-spelling-ends.md, docs/rules/statements/static-is-a-member-modifier.md]
     extra:
       context:
@@ -120,7 +120,7 @@ checks:
   - id: proofs
     stage: 8
     name: every feature this goal adds has all its feature proofs
-    run: [bun, nv, proofs, --gate, --only, "lang:types/property-path", "lang:types/string-holes", "Core\\Str::parts", "Core\\Reflect::steps"]
+    run: [bun, nv, proofs, --gate, --only, "lang:types/property-paths", "lang:types/strings-with-holes", "Core\\Str::parts", "Core\\Reflect::steps"]
   - id: site-snippets
     stage: 9
     name: every snippet and every replay on the website matches the binary
@@ -228,8 +228,15 @@ of it reads the roster the checker records, never a second walk
 **The rules** are written in stage 1 as `designed`, owned by this goal: `types/property-path`,
 `types/string-holes`, `core-classes/str-parts-and-reflect-steps`, and the changes to
 `rule:types/property-key`, `rule:statements/static-is-a-member-modifier` and both completion rules.
-Each later stage flips what it builds to `shipped` with its guard tests. The feature ids in the
-`proofs` check are this file's guess; stage 1 fixes them to what the roster names.
+Each later stage flips what it builds to `shipped` with its guard tests. Three more designed rules
+carry the changes to shipped ones, because a shipped rule cannot hold a designed row:
+`types/a-literal-at-a-key-parameter-is-checked-where-it-is-written`,
+`statements/static-in-a-parameter-type-is-the-class-the-call-names` and
+`ide/a-field-path-completes-one-segment-at-a-time`. Each shipped rule names the one that changes it,
+and the stage that ships the change folds it into the shipped rule. A `lang:` feature id is the
+heading of its section in `docs/reference/lang/20-types.md`, so stages 4 and 6 write the headings
+`# Property paths` and `# Strings with holes`, which are `lang:types/property-paths` and
+`lang:types/strings-with-holes`.
 
 **Feature proofs and the attack.** `propertyPath<T>`, `string<K>`, `Core\Str::parts` and
 `Core\Reflect::steps` each owe every proof (`rule:testing/feature-proofs`), and the `static` change
@@ -265,19 +272,19 @@ are checked and completed where they were plain strings. Simplicity: one new typ
 
 **Does:** every rule this goal builds exists as `designed`, owned by `property-paths`, and the changed rules say what will change.
 
-- [ ] `types/property-path`. `docs/rules/types/property-path.md:1`
-- [ ] `types/string-holes`. `docs/rules/types/string-holes.md:1`
-- [ ] `core-classes/str-parts-and-reflect-steps`. `docs/rules/core-classes/str-parts-and-reflect-steps.md:1`
-- [ ] The changed rows of `rule:types/property-key` and `rule:statements/static-is-a-member-modifier`. `docs/rules/types/property-key.md:12`
-- [ ] The changed rows of both completion rules. `docs/rules/ide/completion-offers-only-what-the-compiler-derived.md:53`
-- [ ] The feature ids in the `proofs` check match the roster. `docs/goals/property-paths.md:1`
+- [x] `types/property-path`. `docs/rules/types/property-path.md:1`
+- [x] `types/string-holes`. `docs/rules/types/string-holes.md:1`
+- [x] `core-classes/str-parts-and-reflect-steps`. `docs/rules/core-classes/str-parts-and-reflect-steps.md:1`
+- [x] The changed rows of `rule:types/property-key` and `rule:statements/static-is-a-member-modifier`. `docs/rules/types/property-key.md:12`
+- [x] The changed rows of both completion rules. `docs/rules/ide/completion-offers-only-what-the-compiler-derived.md:53`
+- [x] The feature ids in the `proofs` check match the roster. `docs/goals/property-paths.md:1`
 
 ### 2. `static` is the calling class in a parameter and in an array return
 
 **Does:** a `static` in a parameter type and in a `static[]` or `?static` return is the class the call names.
 
-- [ ] Bind `static` in a parameter type at the call. `crates/nvs-types/src/expr/calls.rs:240`
-- [ ] Bind a `static[]` and a `?static` return. `crates/nvs-types/src/signatures.rs:1698`
+- [ ] Bind `static` in a parameter type at the call. `crates/nvs-types/src/expr/calls.rs:244`
+- [ ] Bind a `static[]` and a `?static` return. `crates/nvs-types/src/signatures.rs:1720`
 - [ ] Keep `static` apart from the declaring class inside the body, or take the fallback. `crates/nvs-types/src/lower.rs:798`
 
 ### 3. a literal at a key parameter is checked where it is written
@@ -340,21 +347,28 @@ are checked and completed where they were plain strings. Simplicity: one new typ
 
 ### State
 
-Nothing is built. The design is the § *Standing decisions* above, agreed with the user. `property<T>`
-is shipped and is the base: its roster is recorded per class
-(`crates/nvs-types/src/expr/members.rs:704`), and the editor already offers it at a `property<T>|string`
-parameter (`tests/lsp/completion/a-string-at-a-property-key-or-string-parameter-offers-the-property-names.lspt`).
-Stage 9 needs `editor-replay` reached first.
+Stage 1 is done: six rules are `designed` and owned by this goal, and `bun nv rules --check` is
+clean. The three new features' rules are `types/property-path`, `types/string-holes` and
+`core-classes/str-parts-and-reflect-steps`. The changes to shipped rules are three more designed
+rules, each named from the rule it changes (§ *Standing decisions*, *The rules*). No code is built.
+`property<T>`'s roster is recorded per class (`crates/nvs-types/src/expr/members.rs:704`).
+
+The nightly CI failures the sweep reported were all on `origin/main` at `cb7021a2`, which is 647
+commits behind local `main`. Locally the `docs` job's step exists (`475096d13`), the LDAP cases skip
+(`bad78dd04`), the `nvs-cli` doc link is plain code, `render --website --check` is current and
+`Core\Str`'s perf is current. Two Linux-only tests were not checked on HEAD; see the backlog.
 
 ### Next
 
-**Stage 1: the rules**, one file set: `docs/rules/types/`, `docs/rules/core-classes/`, `docs/rules/ide/`, `docs/rules/statements/`, `data/rules/`.
+**Stage 2: `static` is the calling class**, one file set: `crates/nvs-types/src/signatures.rs`, `crates/nvs-types/src/expr/calls.rs`, `crates/nvs-types/src/lower.rs`.
 
-- [ ] Write `types/property-path` and `types/string-holes` as `designed` (`rule:types/property-key` is the model). `docs/rules/types/property-path.md:1`
-- [ ] Write `core-classes/str-parts-and-reflect-steps` as `designed` (`rule:core-classes/reflect` is the neighbour). `docs/rules/core-classes/str-parts-and-reflect-steps.md:1`
-- [ ] Mark the changes in `rule:types/property-key`, `rule:statements/static-is-a-member-modifier` and both completion rules as designed rows owned by this goal. `docs/rules/types/property-key.md:12`
+- [ ] Bind `static` in a parameter type at the call, by `rule:statements/static-in-a-parameter-type-is-the-class-the-call-names`. `crates/nvs-types/src/expr/calls.rs:244`
+- [ ] Bind a `static[]` and a `?static` return. `crates/nvs-types/src/signatures.rs:1720`
+- [ ] Keep `static` apart from the declaring class in the body, or take the fallback the rule names. `crates/nvs-types/src/lower.rs:798`
+- [ ] Write the two `static-binds` cases, fold the designed rule into `rule:statements/static-is-a-member-modifier`, and delete it. `docs/rules/statements/static-in-a-parameter-type-is-the-class-the-call-names.md:1`
 
 ### Backlog
 
 - Reading and writing through a path, `$obj->{$path}`: declined for now in `types/property-path`.
 - Splitting a `string<K>` literal while compiling, if the stage 8 bench asks for it (`core-classes/str-parts-and-reflect-steps`).
+- Nightly CI on `cb7021a2` failed `a_spawned_process_ends_when_nvs_is_killed_and_what_it_started_does_not` (`crates/nvs-cli/tests/run_command.rs:688`) and the four-core throughput guard (`crates/nvs-cli/src/serve.rs`). Both are Linux-only, and neither was run on HEAD. Check them once `main` is pushed.
