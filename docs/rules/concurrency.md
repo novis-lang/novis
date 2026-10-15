@@ -3,8 +3,6 @@
 
 # Concurrency
 
-*2 of 68 rules below are **designed** rather than shipped, and are marked where they appear.*
-
 <a id="concurrency-one-scheduler"></a>
 
 ## Concurrency is the `Core\Task` roster over the runtime's own single scheduler
@@ -1022,7 +1020,7 @@ A `Core\Socket\Message` cannot be constructed, so the only way to hold one is to
 
 <a id="concurrency-receive-is-the-one-wait"></a>
 
-## `receive()` is the one wait, and it answers the peer or a subscribed topic, whichever arrives first  *(designed — owned by goal server-rule-debts)*
+## `receive()` is the one wait, and it answers the peer or a subscribed topic, whichever arrives first
 
 `rule:concurrency/receive-is-the-one-wait`
 
@@ -1040,9 +1038,11 @@ There is nothing for such a second member to drain in any case: the subscriber q
 connection, and `receive()` is the only thing that empties it. A queue that overflows closes *that*
 subscriber rather than blocking the publisher, and the overflow is asked before the wait.
 
-**Not on disk.** `receive()` answers a topic delivery and a peer frame, and checks the overflow before
-it waits (`crates/nvs-stdlib/src/socket.rs:1005`). A delivery that arrives while `receive()` is already
-parked does not wake it (`crates/nvs-stdlib/src/socket.rs:1017`).
+A `receive()` already parked on the peer is woken by a delivery, whichever core published it: a
+connection that subscribed leaves a wake on its queue and one with the bus between cores before it
+parks, and either ends the peer's read. A connection that never subscribed parks on the peer alone.
+`nvs_stdlib::socket`'s `nvs_core_socket_receive` is the select, and `nvs_stdlib::bus` the cross-core
+wake.
 
 <sub>See also [`concurrency/a-connection-is-a-loop`](concurrency.md#concurrency-a-connection-is-a-loop), [`core-classes/topic`](core-classes.md#core-classes-topic).</sub>
 
@@ -1896,7 +1896,7 @@ run time.
 
 <a id="concurrency-foreign-connection-enqueue-is-counted"></a>
 
-## A `push` on a connection other than the queue's is not transactional, and is counted rather than assumed away  *(designed — owned by goal server-rule-debts)*
+## A `push` on a connection other than the queue's is not transactional, and is counted rather than assumed away
 
 `rule:concurrency/foreign-connection-enqueue-is-counted`
 
@@ -1910,8 +1910,19 @@ the program never writes it, so the checker has no way to compare the two. The r
 **records** it, and `stats` reports non-transactional enqueues, so a deployment that has quietly lost
 the property can find out by reading a counter rather than by losing a job.
 
-**Not on disk.** No job row records the case, and `Core\Queue::stats` has no field for it
-(`crates/nvs-stdlib/src/queue.rs:2706`).
+**The case is a push with no level open on the queue's connection and one open on any other
+connection the request holds**, read before the insert so a transaction `push` opens for its own
+statement pair is not mistaken for the caller's. A push outside every transaction is not counted:
+nothing was promised, so nothing was lost.
+
+**The count is a column on the job row**, `non_transactional`, `1` for such a push and `null`
+otherwise. It survives a restart and counts across every process writing the queue, which a
+counter in process memory would not. `Core\Queue\Stats::nonTransactional` is `count(non_transactional)`
+over the jobs table in the same statement as the other five counters; § 6's move to the dead-letter
+table does not carry the column, so a buried job leaves the count.
+
+**What it spends:** one nullable small integer per job row, and at each `push` a walk over the
+connections the request holds. No process memory.
 
 <sub>See also [`concurrency/enqueue-commits-with-your-write`](concurrency.md#concurrency-enqueue-commits-with-your-write), [`concurrency/queue-four-members`](concurrency.md#concurrency-queue-four-members).</sub>
 
