@@ -4,7 +4,7 @@
  * played like the VS Code extension. A page shows it beside the snippet, and
  * `src` names the snippet:
  *
- *   <Replay src="install/editor/01-complete.nvs" />
+ *   <Replay src="install/property-key-completion.nvs" />
  *
  * The `.replay` beside the snippet lists the steps, and the `.replay.out`
  * beside it is what `nvs lsp` returned for them. `tools/nv/cmd/site.ts`
@@ -15,9 +15,11 @@
  * opens. What is imitated: the list narrowing as letters are typed, the typing
  * pace and the editor's look. It is close to VS Code and is not its exact
  * behaviour. `config/replay-frames.mjs` writes the HTML and the frames when the
- * site is built, and `config/replay-player.mjs` plays them.
+ * site is built, `config/replay-colours.mjs` colours the code the way a
+ * `<Snippet>` is coloured, and `config/replay-player.mjs` plays them.
  */
-import { replayMarkup } from '../../config/replay-frames.mjs'
+import { colourLines } from '../../config/replay-colours.mjs'
+import { frameTexts, replayMarkup, replayOf } from '../../config/replay-frames.mjs'
 
 interface Props {
   /** The snippet's path under website/snippets/. */
@@ -38,12 +40,17 @@ const replay = replays[beside('.replay')]
 if (replay === undefined) throw new Error(`Replay ${src}: there is no .replay beside it`)
 const recording = recordings[beside('.replay.out')]
 if (recording === undefined) throw new Error(`Replay ${src}: there is no .replay.out beside it; run \`bun nv site --bless\` on the snippet`)
+const where = `website/snippets/${src}`
+// Each frame's code is coloured by the engine that colours a <Snippet>, once per distinct text.
+const texts = [...new Set(frameTexts(replayOf({ replay, recording, where })))]
+const coloured = new Map(await Promise.all(texts.map(async (text) => [text, await colourLines(text)] as const)))
 const html = replayMarkup({
   replay,
   recording,
   title: src.split('/').at(-1)!,
   install: `${import.meta.env.BASE_URL.replace(/\/+$/, '')}/install/editor/`,
-  where: `website/snippets/${src}`,
+  where,
+  colours: (text: string) => coloured.get(text)!,
 })
 ---
 
@@ -106,6 +113,17 @@ const html = replayMarkup({
     height: var(--nv-lh);
     padding-left: 0.75rem;
     white-space: pre;
+  }
+  /* A token's colours are those of a <Snippet>: --0 in the dark theme, --1 in the light one. */
+  .nv-replay .nv-text span[style^='--'] {
+    color: var(--0, inherit);
+    font-style: var(--0fs, inherit);
+    font-weight: var(--0fw, inherit);
+  }
+  :root[data-theme='light'] .nv-replay .nv-text span[style^='--'] {
+    color: var(--1, inherit);
+    font-style: var(--1fs, inherit);
+    font-weight: var(--1fw, inherit);
   }
   .nv-replay .nv-ln {
     flex: none;

@@ -3,7 +3,7 @@
  *
  * `replay-frames.mjs` writes the replay's HTML and its frames, one per
  * keystroke, when the site is built. This script draws a frame into the code
- * area: the text, the text cursor, the open completion list narrowed by
+ * area: the coloured text, the text cursor, the open completion list narrowed by
  * `replay-narrow.mjs`, and the red underline and its card on a hover step.
  *
  * The rules it keeps are `rule:testing/a-replay-plays-what-the-language-server-returned`'s:
@@ -17,7 +17,7 @@
  * or `ended`) and `data-replay-frame`, which the browser test reads.
  */
 
-import { codeHtml, escapeHtml, position } from './replay-frames.mjs'
+import { codeHtml, escapeHtml, frameColours, position } from './replay-frames.mjs'
 import { narrow } from './replay-narrow.mjs'
 
 /** The symbol and colour group of a completion row's kind icon. */
@@ -135,7 +135,7 @@ class Player {
     const frame = this.data.frames[index]
     const text = this.texts[index]
     const diagnostic = frame.hover === null ? null : this.data.asks[frame.hover]
-    let html = codeHtml(text, frame.cursor, diagnostic)
+    let html = codeHtml(text, frame.cursor, diagnostic, frameColours(this.data.paint, index))
     if (frame.list) html += this.list(frame, text)
     if (diagnostic) {
       html += `<div class="nv-hover" style="--nv-line: ${diagnostic.line + 1}; --nv-col: ${diagnostic.col}">`

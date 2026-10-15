@@ -44,6 +44,27 @@ describe("a .replay", () => {
     expect(parseReplay("--START--\n<|>\n--STEPS--\ntype \\t\n")).toBe("line 4: only `\\n` and `\\\\` are escapes");
   });
 
+  test("is coloured from the runs it is given, and the cursor and the underline nest between them", async () => {
+    type Paint = { styles: string[]; lines: [number, number][][]; frames: number[][] };
+    const { codeHtml, replayPaint, frameColours } = (await import(join(ROOT, "website/config/replay-frames.mjs"))) as {
+      codeHtml(text: string, cursor: number | null, squiggle: object | null, colours: object | null): string;
+      replayPaint(texts: string[], colours: (text: string) => [string, string][][], where: string): Paint;
+      frameColours(paint: Paint, index: number): object;
+    };
+    const runs: Record<string, [string, string][][]> = {
+      "echo $ab;\n": [[["echo", "--0:#a"], [" ", ""], ["$ab", "--0:#b"], [";", ""]]],
+      "echo $abc;\n": [[["echo", "--0:#a"], [" ", ""], ["$abc", "--0:#b"], [";", ""]]],
+    };
+    const paint = replayPaint(Object.keys(runs), (text) => runs[text]!, "fixture");
+    expect(paint.styles).toEqual(["", "--0:#a", "--0:#b"]);
+    expect(paint.frames).toEqual([[0, 1], [2, 1]]);
+    expect(codeHtml("echo $ab;\n", 7, { line: 0, col: 5, length: 3 }, frameColours(paint, 0))).toBe(
+      '<div class="nv-line"><span class="nv-ln">1</span><span class="nv-text"><span style="--0:#a">echo</span> ' +
+        '<span class="nv-squiggle"><span style="--0:#b">$a</span><span class="nv-caret"></span><span style="--0:#b">b</span></span>;</span></div>',
+    );
+    expect(() => replayPaint(["echo;\n"], () => [[["echo", ""]]], "fixture")).toThrow("fixture: the colours of line 1 are not its text `echo;`");
+  });
+
   test("asks for a list after a trigger character and at a word's first letter, and not inside a word", () => {
     const replay = parseReplay("--START--\n<?nvs\n<|>\n--STEPS--\ntype $ab cd\n");
     if (typeof replay === "string") throw new Error(replay);

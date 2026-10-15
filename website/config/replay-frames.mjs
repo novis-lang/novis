@@ -7,7 +7,8 @@
  * `bun nv site` reads a `.replay` with `parseReplay` below, so the page and the
  * check read it the same way. `replayData` turns the two files into one frame
  * per keystroke, `replayMarkup` writes the HTML `src/components/Replay.astro`
- * shows, and `replay-player.mjs` plays it.
+ * shows, and `replay-player.mjs` plays it. The code's colours are passed in,
+ * because `replay-colours.mjs` makes them with the website's packages.
  *
  * What is recorded: each completion list and each diagnostic, and where each
  * list opens, which is where the recording says the server was asked. What is
@@ -200,8 +201,13 @@ const withCode = (text) => text.split('`').map((part, i) => (i % 2 ? `<code>${es
  * The code area's lines as HTML: a line number and the text of each line, the
  * text cursor at offset `cursor` when it is not null, and a red underline over
  * `squiggle`, `{ line, col, length }`, when it is not null.
+ *
+ * `colours` is null for plain text, or `{ styles, lines }`: `lines` has the
+ * runs of each line as `[length, style]`, and `style` is an index into
+ * `styles`, each the `style` attribute of a token's span. `replayPaint` writes
+ * both.
  */
-export function codeHtml(text, cursor, squiggle) {
+export function codeHtml(text, cursor, squiggle, colours = null) {
   const lines = text.split('\n')
   const at = cursor === null ? null : position(text, cursor)
   if (lines.length > 1 && lines.at(-1) === '' && at?.line !== lines.length - 1) lines.pop()
@@ -209,42 +215,102 @@ export function codeHtml(text, cursor, squiggle) {
     .map((line, n) => {
       const caret = at?.line === n ? at.col : -1
       const wavy = squiggle?.line === n ? [squiggle.col, squiggle.col + squiggle.length] : null
+      const styleAt = []
+      for (const [length, style] of colours?.lines[n] ?? []) styleAt.push(...Array(length).fill(colours.styles[style] || null))
+      // A token's span is closed before the cursor or an underline starts or ends, so the spans nest.
       let html = ''
-      for (let i = 0; i <= line.length; i++) {
-        if (wavy && i === wavy[1]) html += '</span>'
-        if (i === caret) html += '<span class="nv-caret"></span>'
-        if (wavy && i === wavy[0]) html += '<span class="nv-squiggle">'
-        if (i < line.length) html += escapeHtml(line[i])
+      let open = null
+      const shut = () => {
+        if (open !== null) html += '</span>'
+        open = null
       }
+      for (let i = 0; i <= line.length; i++) {
+        if (wavy && i === wavy[1]) shut(), (html += '</span>')
+        if (i === caret) shut(), (html += '<span class="nv-caret"></span>')
+        if (wavy && i === wavy[0]) shut(), (html += '<span class="nv-squiggle">')
+        if (i === line.length) break
+        const style = styleAt[i] ?? null
+        if (style !== open) {
+          shut()
+          if (style !== null) html += `<span style="${escapeHtml(style)}">`
+          open = style
+        }
+        html += escapeHtml(line[i])
+      }
+      shut()
       return `<div class="nv-line"><span class="nv-ln">${n + 1}</span><span class="nv-text">${html}</span></div>`
     })
     .join('')
 }
 
+/** A replay's `.replay` and `.replay.out` as `replayData` returns them. `where` names the snippet in an error. */
+export function replayOf({ replay, recording, where }) {
+  const parsed = parseReplay(replay)
+  if (typeof parsed === 'string') throw new Error(`${where}: the .replay is not valid: ${parsed}`)
+  return replayData(parsed, parseRecording(recording), where)
+}
+
+/** The code's text in each frame of `data`, which `replayData` returned. */
+export function frameTexts(data) {
+  let text = data.start
+  return data.frames.map(({ edit }) => {
+    if (edit) text = text.slice(0, edit[0]) + edit[2] + text.slice(edit[0] + edit[1])
+    return text
+  })
+}
+
+/**
+ * The colours of each frame's code, from `colours(text)`, which gives each line
+ * of a text as runs `[text, style]`. The result is `{ styles, lines, frames }`:
+ * each distinct style and each distinct line once, and per frame the index of
+ * each of its lines in `lines`. A line whose runs are not its text throws.
+ */
+export function replayPaint(texts, colours, where) {
+  const styles = ['']
+  const lines = []
+  const seen = new Map()
+  const index = (list, map, value) => {
+    const key = JSON.stringify(value)
+    if (!map.has(key)) map.set(key, list.push(value) - 1)
+    return map.get(key)
+  }
+  const styleIds = new Map([['""', 0]])
+  const frames = texts.map((text) => {
+    const coloured = colours(text)
+    return text.split('\n').map((line, n) => {
+      const runs = coloured[n] ?? []
+      if (runs.map(([t]) => t).join('') !== line && !(line === '' && n === coloured.length)) {
+        throw new Error(`${where}: the colours of line ${n + 1} are not its text \`${line}\`: ${JSON.stringify(runs)}`)
+      }
+      return index(lines, seen, runs.map(([t, style]) => [t.length, index(styles, styleIds, style)]))
+    })
+  })
+  return { styles, lines, frames }
+}
+
+/** The colours of frame `index`, as `codeHtml` reads them, from what `replayPaint` returned. */
+export const frameColours = (paint, index) => (paint ? { styles: paint.styles, lines: paint.frames[index].map((i) => paint.lines[i]) } : null)
+
 /**
  * The HTML of one replay: the caption, the editor frame, the buttons, the
  * steps as text, and the frames as JSON for `replay-player.mjs`. `title` is the
  * tab's title, `install` the address of the editor install page, and `where`
- * names the snippet in an error.
+ * names the snippet in an error. `colours`, when it is given, colours the code
+ * as `replayPaint` describes, and the code is plain text without it.
  */
-export function replayMarkup({ replay, recording, title, install, where }) {
-  const parsed = parseReplay(replay)
-  if (typeof parsed === 'string') throw new Error(`${where}: the .replay is not valid: ${parsed}`)
-  const data = replayData(parsed, parseRecording(recording), where)
+export function replayMarkup({ replay, recording, title, install, where, colours = null }) {
+  const data = replayOf({ replay, recording, where })
+  const texts = frameTexts(data)
   // The code area is as tall as the longest frame, so it does not grow while the replay plays.
-  let text = data.start
-  let rows = 0
-  for (const { edit } of data.frames) {
-    if (edit) text = text.slice(0, edit[0]) + edit[2] + text.slice(edit[0] + edit[1])
-    rows = Math.max(rows, text.split('\n').length)
-  }
-  const json = JSON.stringify({ start: data.start, asks: data.asks, frames: data.frames, poster: data.poster }).replace(/</g, '\\u003c')
+  const rows = Math.max(...texts.map((text) => text.split('\n').length))
+  const paint = colours ? replayPaint(texts, colours, where) : null
+  const json = JSON.stringify({ start: data.start, asks: data.asks, frames: data.frames, poster: data.poster, paint }).replace(/</g, '\\u003c')
   return [
     '<figure class="nv-replay" data-replay>',
     `<figcaption class="nv-replay-caption">A recording from the <a href="${escapeHtml(install)}">Novis editor extension</a>. You cannot type here.</figcaption>`,
     '<div class="nv-replay-frame" inert aria-hidden="true">',
     `<div class="nv-replay-bar"><span class="nv-replay-tab">${escapeHtml(title)}</span><span class="nv-replay-badge">Recording</span></div>`,
-    `<div class="nv-replay-code" style="--nv-rows: ${rows}">${codeHtml(data.last, null, null)}</div>`,
+    `<div class="nv-replay-code" style="--nv-rows: ${rows}">${codeHtml(data.last, null, null, frameColours(paint, texts.length - 1))}</div>`,
     '</div>',
     '<div class="nv-replay-controls">',
     '<button type="button" data-replay-do="previous">Previous</button>',
