@@ -53,7 +53,7 @@ stages:
         shapes: ["A `.nvst` test case", A diagnostic]
   - id: 7
     title: "`Core\\Str::parts` and `Core\\Reflect::steps`"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/str.rs, crates/nvs-stdlib/src/reflect.rs, crates/nvs-stdlib/src/registry.rs]
     extra:
       context:
@@ -327,7 +327,7 @@ are checked and completed where they were plain strings. Simplicity: one new typ
 **Does:** `Core\Str::parts` splits a `string<K>` into text and holes, and `Core\Reflect::steps` gives the property of each segment of a path.
 
 - [x] `Core\Str::parts` and its card. `crates/nvs-stdlib/src/str.rs:345`
-- [ ] `Core\Reflect::steps` and its card, returning the existing property rows. `crates/nvs-stdlib/src/reflect.rs:1334`
+- [x] `Core\Reflect::steps` and its card, returning the existing property rows. `crates/nvs-stdlib/src/reflect.rs:1334`
 
 ### 8. the feature proofs
 
@@ -349,34 +349,33 @@ are checked and completed where they were plain strings. Simplicity: one new typ
 
 ### State
 
-Stage 7 is half done. `Core\Str::parts(string<K> $text): array<string|K>` is shipped in code
-(`nvs_core_str_parts`, `crates/nvs-stdlib/src/str.rs:2135`, row at `:372`, card `PARTS_DOC`). Its
-answer alternates text and holes, starting and ending with text, because a hole and a text piece are
-both strings at run time. `rule:core-classes/str-parts-and-reflect-steps` now states that layout. The
-registry has a new parameter form, `CoreTy::StringHoles(K, Qual)`. `nvs_types::generics` binds and
-substitutes through `string<K>`, `property<T>` and `propertyPath<T>`, and `check_generic_args`
-(`crates/nvs-types/src/expr/args.rs:1690`) now admits a qualifier at a classified generic parameter,
-as the ordinary path does. Three cases pin `parts`: `tests/conformance/core/str-parts-*.nvst`. A string
-literal written straight at `parts` reads `expected string<mixed>, found string`: it has no `K`.
+Stage 7 is done, and `rule:core-classes/str-parts-and-reflect-steps` is shipped with five guards.
+`Core\Reflect::steps(propertyPath<T> $path): array<Core\Reflect\PropertyInfo>` is
+`nvs_core_reflect_steps` (`crates/nvs-stdlib/src/reflect.rs:2141`, card `STEPS_DOC`). The registry has
+`CoreTy::PropertyPath(T)` and a new roster, `PATH_GRAPH_MEMBERS`
+(`crates/nvs-stdlib/src/registry.rs:3828`): the checker records the classes `T` reaches on
+`ResolvedCall::path_graph` (`path_graph_of`, `crates/nvs-types/src/expr/calls.rs:1403`), and `nvs-ir`
+passes them as a trailing string, the same encoding `as propertyPath<T>` checks against
+(`path_graph_constant`, `crates/nvs-ir/src/lower/mod.rs:2521`). The walk is
+`nvs_runtime::helpers::property_path_segments` (`crates/nvs-runtime/src/helpers.rs:3146`). A call
+through a `callable` passes the empty string and throws a `LogicError`.
 
-**`steps` needs the class at run time.** A `propertyPath<T>` value is only its dotted text, so
-`nvs_core_reflect_steps` cannot find the root class from its argument. The call site has to add `T`'s
-class, read from the bound argument type. Nothing in `Core` does that yet. `decodeAs<T>` is the nearest
-model for a type that reaches a helper.
+A body's `propertyPath<static>` reaches `steps` through `as propertyPath<self>`, checked at run time;
+`rule:statements/static-is-a-member-modifier` states it, and
+`tests/conformance/core/reflect-steps-in-a-method-converts-a-static-path-with-self.nvst` pins it.
 
-The `parts-and-steps` check stays red until the `steps` case exists. The nightly CI failures are on
-`origin/main`, which is far behind local `main`, and the loop never pushes. The case
-`jwt-a-token-verifies-for-its-whole-lifetime-and-not-one-second-past-it.nvst` failed once under a loaded
-verify, across a second boundary, and passed alone.
+The nightly CI failures are on `origin/main`, which is far behind local `main`, and the loop never
+pushes.
 
 ### Next
 
-**Stage 7: `Core\Reflect::steps`**, one file set: `crates/nvs-stdlib/src/reflect.rs`, `crates/nvs-stdlib/src/registry.rs`, `crates/nvs-types/src/core_lib.rs`, `crates/nvs-ir/src/lower/call.rs`.
+**Stage 8: the feature proofs of `Core\Str::parts` and `Core\Reflect::steps`**, one file set: `docs/examples/core/Str/parts/`, `docs/examples/core/Reflect/steps/`, `benches/members/`, `crates/nvs-stdlib/src/str.rs`, `crates/nvs-stdlib/src/reflect.rs`. Run `bun nv proofs --id 'Core\Str::parts'` and `--id 'Core\Reflect::steps'` first: they print each missing proof and its path.
 
-- [ ] Add `CoreTy::PropertyPath(T)` beside `CoreTy::StringHoles` (`crates/nvs-stdlib/src/registry.rs:299`) and lower it in `crates/nvs-types/src/core_lib.rs:575`. The generic walks already handle `Ty::PropertyPath`. `rule:core-classes/str-parts-and-reflect-steps`.
-- [ ] Pass `T`'s class to the helper: find how `Core\Json::decodeAs<T>` gets its type to run time (`crates/nvs-ir/src/lower/call.rs`), and do the same with the class bound from the argument. Then `nvs_core_reflect_steps` builds one `PROPERTY_INFO` row per segment (`crates/nvs-stdlib/src/reflect.rs:1342`, rows as in `nvs_core_reflect_for_class`, `:2075`). Add its symbol to `reflect`'s `address` match. Write `tests/conformance/core/reflect-steps-gives-each-segment-of-a-path.nvst`, plus two more cases for the conformance floor of three.
-- [ ] Decide how a body whose `propertyPath<static>` or `string<…static…>` is text reaches `parts` and `steps`: accept the text, or convert it with `as propertyPath<self>` (`static_key_as_text`, `crates/nvs-types/src/signatures.rs:1943`). Write the answer into `rule:statements/static-is-a-member-modifier`.
-- [ ] Flip `core-classes/str-parts-and-reflect-steps` to shipped with its cases as guards, then run `bun nv proofs --record-perf --group 'Core\Reflect'`. `data/rules/core-classes/str-parts-and-reflect-steps.json:1`
+- [ ] `about.md`, three examples and the help for `Core\Str::parts`, held to AGENTS.md § *Text an end user reads*. `rule:testing/feature-proofs`, `docs/examples/core/Str/parts/01-text-and-holes.nvs:1`
+- [ ] The same for `Core\Reflect::steps`, with neutral classes (`Order`, `Customer`). `rule:testing/feature-proofs`, `crates/nvs-stdlib/src/reflect.rs:2141`
+- [ ] One bench each with its growth, then `bun nv proofs --record-perf --group 'Core\Str'` and `--group 'Core\Reflect'`. The `parts` bench decides the Backlog's compile-time split. `rule:core-classes/str-parts-and-reflect-steps`, `crates/nvs-stdlib/src/str.rs:2135`
+
+Then the proofs of `propertyPath<T>` and `string<K>`, and the sort-field attack (stage 8's other two items).
 
 ### Backlog
 
