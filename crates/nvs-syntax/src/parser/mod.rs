@@ -778,7 +778,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// (`rule:types/type-test`), which is a construct that simply cannot stand
     /// where a name does. The label says which of the two this is, and the
     /// help names the living spelling the program should reach for.
-    fn report_reserved_for_future_use(&mut self, word: Keyword, span: Span) {
+    pub(super) fn report_reserved_for_future_use(&mut self, word: Keyword, span: Span) {
         let (spelling, label, living) = if word == Keyword::Let {
             (
                 "let",

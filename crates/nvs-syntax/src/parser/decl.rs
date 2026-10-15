@@ -362,12 +362,18 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// method, constant or `type`-alias name. Unlike [`Self::parse_name`],
     /// this never admits a `\`-qualified path: nothing is ever declared
     /// under a path, only referred to by one. A keyword-shaped spelling is
-    /// accepted, same as a member name after `->`/`::`.
+    /// accepted, same as a member name after `->`/`::`, except `let` and
+    /// `is`: they name nothing (`rule:statements/let-and-is-are-reserved`),
+    /// so either is reported as `E0247` and kept as the name.
     pub(super) fn parse_decl_name(&mut self, what: &str) -> Name {
-        let span = if Self::is_name_segment(self.peek().kind) {
-            self.bump().span
-        } else {
-            self.error_expected(what)
+        let span = match self.peek().kind {
+            TokenKind::Keyword(word @ (Keyword::Let | Keyword::Is)) => {
+                let span = self.bump().span;
+                self.report_reserved_for_future_use(word, span);
+                span
+            }
+            kind if Self::is_name_segment(kind) => self.bump().span,
+            _ => self.error_expected(what),
         };
         Name { span }
     }
@@ -786,10 +792,14 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// `type` is contextual at each of the sites an alias is written — file
     /// scope, and a class, interface or enum body — so the three tokens that
     /// tell the declaration from an identifier expression, a property or an
-    /// enum case are asked for in one place.
+    /// enum case are asked for in one place. A `let` or `is` name is admitted
+    /// here so that [`Self::parse_decl_name`] reports it as `E0247`.
     pub(super) fn at_type_alias(&mut self) -> bool {
         self.at_contextual("type")
-            && self.peek_at(1).kind == TokenKind::Ident
+            && matches!(
+                self.peek_at(1).kind,
+                TokenKind::Ident | TokenKind::Keyword(Keyword::Let | Keyword::Is)
+            )
             && self.peek_at(2).kind == TokenKind::Equals
     }
 

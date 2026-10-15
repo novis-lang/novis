@@ -154,7 +154,7 @@ One line per rule, and the link to the rule that owns it. Generated from `docs/r
 - **`continue` always continues a loop, and a written level counts the way PHP counts** — A `switch` owns `break` and nothing else, so `continue` always continues the innermost enclosing loop. ([`statements/continue-always-continues-a-loop`](rules/statements.md#statements-continue-always-continues-a-loop))
 - **A `try` has a `catch` or a `finally`, and a `catch` clause names exactly one class** — A `try` has at least one `catch` clause or a `finally`, and a `catch` clause names exactly one class. ([`statements/a-try-has-a-clause-and-a-catch-names-one-class`](rules/statements.md#statements-a-try-has-a-clause-and-a-catch-names-one-class))
 - **A `return` never leaves a `finally` block, and neither does a `break` or `continue` whose target lies outside it** — `return` inside `finally` does not compile. ([`statements/no-return-leaves-a-finally`](rules/statements.md#statements-no-return-leaves-a-finally))
-- **`let` and `is` cannot name anything; `var` declares, `as` converts, and `is` is the type test** *(designed)* — Neither `let` nor `is` may name a class, interface, trait, enum, constant, function or parameter. ([`statements/let-and-is-are-reserved`](rules/statements.md#statements-let-and-is-are-reserved))
+- **`let` and `is` cannot name anything; `var` declares, `as` converts, and `is` is the type test** — Neither `let` nor `is` may name a class, interface, trait, enum, constant, function or parameter. ([`statements/let-and-is-are-reserved`](rules/statements.md#statements-let-and-is-are-reserved))
 
 ## Classes
 

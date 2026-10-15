@@ -1384,3 +1384,59 @@ fn a_member_enum_is_walked_with_its_cases() {
     assert_eq!(kinds, vec!["EnumCase", "EnumCase"]);
     assert!(decl.name.is_some());
 }
+
+/// Asserts `src` parses as one statement reporting `E0247` exactly `times`
+/// times, so a refusal reported twice for one name cannot pass.
+fn assert_reserved(src: &str, times: usize) {
+    let (_, diags) = parse_stmt_with_diags(src);
+    let found = diags
+        .iter()
+        .filter(|d| d.code == Some(code::E_RESERVED_FOR_FUTURE_USE))
+        .count();
+    assert_eq!(found, times, "{src:?}: {diags:?}");
+}
+
+/// `rule:statements/let-and-is-are-reserved`: neither word names a class, an
+/// interface, an enum, an enum case, a constant or a `type` alias.
+#[test]
+fn let_and_is_name_no_declaration() {
+    for word in ["let", "is"] {
+        assert_reserved(&format!("class {word} {{}}"), 1);
+        assert_reserved(&format!("interface {word} {{}}"), 1);
+        assert_reserved(&format!("enum {word} {{ A }}"), 1);
+        assert_reserved(&format!("enum E {{ {word} }}"), 1);
+        assert_reserved(&format!("class C {{ public const int {word} = 1; }}"), 1);
+        assert_reserved(&format!("type {word} = int;"), 1);
+    }
+    // The upper-case spelling is an ordinary name, as for every reserved word.
+    parse_stmt_ok("class Is {}");
+    parse_stmt_ok("class Let {}");
+}
+
+/// `rule:statements/let-and-is-are-reserved`: a method is a function for this
+/// rule, and a parameter is refused by its name after the `$`.
+#[test]
+fn let_and_is_name_no_method_and_no_parameter() {
+    for word in ["let", "is"] {
+        assert_reserved(
+            &format!("class C {{ public static function {word}(): int {{ return 1; }} }}"),
+            1,
+        );
+        assert_reserved(
+            &format!("interface I {{ public function {word}(): int; }}"),
+            1,
+        );
+        assert_reserved(
+            &format!("class C {{ public function run(int ${word}): int {{ return 1; }} }}"),
+            1,
+        );
+        assert_reserved(
+            &format!("class C {{ public function constructor(public int ${word}) {{}} }}"),
+            1,
+        );
+    }
+    // A name that only starts with either word is not reserved.
+    parse_stmt_ok(
+        "class C { public static function isEven(int $isSet, int $letter): bool { return true; } }",
+    );
+}

@@ -3,11 +3,11 @@ Two classes calling each other's static methods recurse and unwind correctly, an
 --FILE--
 <?nvs
 class Even {
-    public static function is(int $n): bool {
+    public static function check(int $n): bool {
         if ($n == 0) {
             return true;
         }
-        return Odd::is($n - 1);
+        return Odd::check($n - 1);
     }
 
     public static function down(int $n): string {
@@ -19,11 +19,11 @@ class Even {
 }
 
 class Odd {
-    public static function is(int $n): bool {
+    public static function check(int $n): bool {
         if ($n == 0) {
             return false;
         }
-        return Even::is($n - 1);
+        return Even::check($n - 1);
     }
 
     public static function down(int $n): string {
@@ -37,12 +37,12 @@ class Odd {
 var $out = "";
 int $i = 0;
 while ($i < 6) {
-    $out = $out . (Even::is($i) as string) . ",";
+    $out = $out . (Even::check($i) as string) . ",";
     $i = $i + 1;
 }
 echo $out, "\n";
 
-echo (Odd::is(7) as string), "|", (Odd::is(8) as string), "|\n";
+echo (Odd::check(7) as string), "|", (Odd::check(8) as string), "|\n";
 
 try {
     echo Even::down(5), "\n";

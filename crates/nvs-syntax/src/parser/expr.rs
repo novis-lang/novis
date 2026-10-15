@@ -2046,6 +2046,12 @@ impl<'src, 'd> Parser<'src, 'd> {
         }
         let variadic = self.eat(TokenKind::Ellipsis).is_some();
         let name = self.expect(TokenKind::Variable, "a parameter name");
+        // `rule:statements/let-and-is-are-reserved` covers a parameter too.
+        match self.file.span_text(name) {
+            Some("$let") => self.report_reserved_for_future_use(Keyword::Let, name),
+            Some("$is") => self.report_reserved_for_future_use(Keyword::Is, name),
+            _ => {}
+        }
         let default = if self.eat(TokenKind::Equals).is_some() {
             Some(self.parse_expr())
         } else {

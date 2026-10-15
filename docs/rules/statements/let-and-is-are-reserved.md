@@ -18,11 +18,15 @@ The diagnostics name the living spellings: `var` declares an inferred local
 (`rule:expressions/nullable-conversion`). Like every reserved word, both match in lower case only
 (`rule:classes/reserved-spellings-are-lower-case`).
 
-**Partly on disk.** Where an expression starts, either word is `E0247`
-(`crates/nvs-syntax/src/parser/expr.rs:1501`, `crates/nvs-syntax/src/parser/mod.rs:781`). A
-declaration's name is not checked: `parse_decl_name` accepts both
-(`crates/nvs-syntax/src/parser/decl.rs:366`), so a method named `is` or `let` compiles, and
-`tests/conformance/lang/mutual-recursion-across-two-classes.nvst:6` declares one.
+Either word is `E0247` in three places, all reported by one helper
+(`crates/nvs-syntax/src/parser/mod.rs:781`): where an expression starts
+(`crates/nvs-syntax/src/parser/expr.rs:1501`); as the name of every declaration — a class,
+interface, trait, enum, enum case, constant, method or `type` alias — through `parse_decl_name`
+(`crates/nvs-syntax/src/parser/decl.rs:366`); and as a parameter, `$let` or `$is`, a promoted
+constructor parameter included, in `parse_param` (`crates/nvs-syntax/src/parser/expr.rs:2048`). The
+name is kept after the report, so the parse goes on and nothing else is reported for it. A member
+reference after `->` or `::` still admits both words, since it declares nothing and no declaration
+can match it.
 
 **Declined:**
 - **Reserving `is` alone and leaving `let` free.** Reserving the second word costs the same as the
