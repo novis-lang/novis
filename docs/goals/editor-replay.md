@@ -6,7 +6,7 @@ context: [tools/nv/cmd/site.ts, website/src/components/Snippet.astro, website/co
 stages:
   - id: 1
     title: the rule and the replay format
-    status: open
+    status: done
     extra:
       context:
         rules: [testing/website-pages-are-stamped, ide/a-completion-row-reads-as-a-declaration, ide/completion-is-asked-where-a-spelling-ends]
@@ -127,15 +127,15 @@ fails `--check` when the server's answers change, which is the point of recordin
 
 **Does:** the rule fragment exists as `designed`, and the `.replay` and `.replay.out` formats are written in the site tool's header.
 
-- [ ] The rule fragment and its record, owned by this goal. `docs/rules/testing/a-replay-plays-what-the-language-server-returned.md:1`
-- [ ] The `.replay` and `.replay.out` formats in § *A snippet*. `tools/nv/cmd/site.ts:33`
+- [x] The rule fragment and its record, owned by this goal. `docs/rules/testing/a-replay-plays-what-the-language-server-returned.md:1`
+- [x] The `.replay` and `.replay.out` formats in § *A snippet*. `tools/nv/cmd/site.ts:70`
 
 ### 2. the recording comes from the language server
 
 **Does:** `--bless` plays a `.replay`'s steps against `nvs lsp` and writes `.replay.out`, and `--check snippets` names a stale one.
 
-- [ ] Drive the steps through the session `nvs lsp` is sent for a snippet. `tools/nv/cmd/site.ts:876`
-- [ ] `--check` compares the recording and the last frame against the snippet. `tools/nv/cmd/site.ts:898`
+- [ ] Drive the steps through the session `nvs lsp` is sent for a snippet. `tools/nv/cmd/site.ts:922`
+- [ ] `--check` compares the recording and the last frame against the snippet. `tools/nv/cmd/site.ts:1056`
 - [ ] The tests. `tools/nv/test/site-replay.test.ts:1`
 
 ### 3. the replay plays like the editor
@@ -157,17 +157,27 @@ fails `--check` when the server's answers change, which is the point of recordin
 
 ### State
 
-Nothing is built. The design is the § *Standing decisions* above, agreed with the user. The existing
-completion the first replay shows is pinned by
+Stage 1 is done. `rule:testing/a-replay-plays-what-the-language-server-returned` is `designed`,
+owned by this goal, and the `.replay` and `.replay.out` formats are in `tools/nv/cmd/site.ts`
+§ *A snippet* (the paragraph at `tools/nv/cmd/site.ts:70`), which is their only home. Nothing reads
+either file yet: `--bless` and `--check snippets` are unchanged. The completion the first replay shows
+is pinned by
 `tests/lsp/completion/a-written-property-key-offers-the-public-properties-of-its-class.lspt`.
 
 ### Next
 
-**Stage 1: the rule and the replay format**, one file set: `docs/rules/testing/`, `data/rules/testing/`, `tools/nv/cmd/site.ts`.
+**Stage 2: the recording comes from the language server**, one file set: `tools/nv/cmd/site.ts`,
+`tools/nv/lib/lsp.ts`, `tools/nv/test/site-replay.test.ts`.
 
-- [ ] Write the rule fragment and its record as `designed`, owned by `editor-replay` (`rule:testing/website-pages-are-stamped` is the neighbour). `docs/rules/testing/a-replay-plays-what-the-language-server-returned.md:1`
-- [ ] Write the `.replay` and `.replay.out` formats into § *A snippet*. `tools/nv/cmd/site.ts:33`
+- [ ] Play a `.replay`'s steps as one `nvs lsp` stream beside `taintScript` (`rule:testing/a-replay-plays-what-the-language-server-returned`). `tools/nv/cmd/site.ts:922`
+- [ ] `--bless` writes `.replay.out`, and `--check snippets` names a stale, missing or orphaned one and a wrong last frame. `tools/nv/cmd/site.ts:1056`
+- [ ] The three tests the `replay-recording` check names. `tools/nv/test/site-replay.test.ts:1`
 
 ### Backlog
 
 - Hover cards and quick fixes as replay steps, when a page needs them (this file's § *Standing decisions*).
+- `accept LABEL` needs the narrowing the page imitates; put it in one module the tool and `Replay.astro`
+  both import, the way `website/config/tainted-ranges.mjs` is shared (`tools/nv/cmd/site.ts:70`).
+- The nightly CI ran `origin/main`, 612 commits behind local `main`. Its perf-stale proofs gate, the
+  throughput guard and `a_spawned_process_ends_when_nvs_is_killed_and_what_it_started_does_not` were
+  not reproduced here; recheck them on the next pushed run (`.github/workflows/`).

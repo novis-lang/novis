@@ -67,6 +67,50 @@
 // its own path. `--bless` writes or deletes the file, and `--check snippets` names one that is missing,
 // stale or no longer needed.
 //
+// A `.replay` beside a snippet is an editor session that ends on the snippet's text, and a page shows it
+// with `<Replay src="..."/>`, `src` naming the snippet. It is hand-written, in two sections:
+//
+//     --START--
+//     <?nvs
+//     property<User> $key = '<|>' as property<User>;
+//     --STEPS--
+//     type na
+//     accept name
+//
+// `--START--` is the text the session opens on, with `<|>` once where the cursor starts. `--STEPS--` has
+// one step per line, run in order from the cursor:
+//
+// - `type TEXT` types the rest of the line one character at a time. `\n` in it is a line break and `\\`
+//   a backslash.
+// - `accept LABEL` accepts the selected row of the open list. LABEL is the row the page's narrowing
+//   selects, so a list where it does not is a failure. The row's insert text, or its label when it has
+//   none, replaces what was typed since the list opened, and the list closes.
+// - `hover` shows the diagnostic under the cursor, from what the server last published. No diagnostic
+//   there is a failure.
+//
+// A list is asked for where an editor asks for one: after a trigger character the server's `initialize`
+// result names, and after a letter typed where the character before it cannot be part of a name. It
+// stays open while letters, digits and `_` are typed, and closes on any other character or an `accept`.
+// Nothing records the narrowing as letters are typed, because it is the editor's work and not the
+// server's, so the page imitates it.
+//
+// The `.replay.out` beside it is what `nvs lsp` returned, one block per answer, in step order. The
+// session is one stream, as the `.tainted` one is: the start text opened at the snippet's own path, and
+// a change and a request at each point above. A block opens on a header line, positions count from 1,
+// and the replay above records one list:
+//
+//     completion 1 2:25
+//     age	property	int
+//     name	property	string
+//
+// `completion STEP L:C` is a list asked for in step STEP with the cursor at L:C. Its rows are in the
+// server's order, one per line: label, kind, detail and insert text, joined by one tab each, and the
+// insert text left off when it is the label. `diagnostic STEP L:C+LENGTH CODE` is the diagnostic a
+// `hover` shows, its range on one line, and the message follows it, each line indented two spaces. A
+// blank line separates two blocks. `--bless` writes the file from a new session.
+// `--check snippets` fails on a `.replay` whose steps do not end on the snippet's text, a `.replay.out`
+// that is missing or is not what the server returns now, and a `.replay.out` with no `.replay`.
+//
 // **A handwritten page** is every page under `website/src/content/docs/` that no renderer writes, which
 // is every page outside `reference/core/`. Its front matter carries `covers:`, a list of the proofs
 // roster's feature ids (`Core\Str::length`, `lang:statements/match`, `directive:server.dispatch`), and
