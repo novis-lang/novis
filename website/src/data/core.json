@@ -4955,12 +4955,12 @@
       "constants": [],
       "members": [
         {
-          "id": "Cache.local",
-          "name": "local",
+          "id": "Cache.memory",
+          "name": "memory",
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "local(): Core\\Cache\\Store",
+          "signature": "memory(): Core\\Cache\\Store",
           "params": [],
           "options": [],
           "returnType": "Core\\Cache\\Store",
@@ -4970,35 +4970,12 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "The per-core, in-process tier: a map in this core's own memory, with no lock, no network and no coherence between cores. A value one request writes may or may not be there when the next request asks, because the next request usually runs on another core with an empty map of its own.",
-            "returnHtml": "A <code>Core\\Cache\\Store</code> over this core's own entries. Any entry may be absent at any time, for any reason, and a write on one core is not visible on another. The only read this tier promises is your own write back in the same request; a value every core should find wants <code>process</code>, and a program that would be incorrect on a <code>null</code> wants <code>shared</code>."
+            "shortHtml": "Returns the cache in the memory of this server process. Every request this process serves reads the same entries. The cache is empty again when the process stops. Use it for ordinary application caching.",
+            "returnHtml": "A <code>Core\\Cache\\Store</code> for the entries of this process. Every request this process serves can read them. An entry can be missing at any time. The cache deletes old entries to stay under its size limit, and another server process has its own entries. If your program is wrong when <code>get</code> returns <code>null</code>, use <code>shared</code> instead."
           },
-          "slug": "local",
-          "url": "/reference/core/cache/local/",
-          "examples": "core/Cache/local"
-        },
-        {
-          "id": "Cache.process",
-          "name": "process",
-          "static": true,
-          "receiver": null,
-          "generics": null,
-          "signature": "process(): Core\\Cache\\Store",
-          "params": [],
-          "options": [],
-          "returnType": "Core\\Cache\\Store",
-          "notes": "",
-          "qualifier": "",
-          "section": "16. Network, data and crypto",
-          "implemented": true,
-          "notesHtml": "",
-          "doc": {
-            "shortHtml": "The per-process tier: one store every core of this serving process shares, in memory only, and gone when the process ends. A follow-up request on the same machine finds what an earlier one wrote, whichever core it lands on, which is what <code>local</code> cannot promise; this is the tier for ordinary application caching.",
-            "returnHtml": "A <code>Core\\Cache\\Store</code> over this process's own entries, which every core of it reads and writes behind a lock. Any entry may be absent at any time — for the cap, or because this is a different process than the one that wrote it — so a program that would be incorrect on a <code>null</code> wants <code>shared</code> instead."
-          },
-          "slug": "process",
-          "url": "/reference/core/cache/process/",
-          "examples": "core/Cache/process"
+          "slug": "memory",
+          "url": "/reference/core/cache/memory/",
+          "examples": "core/Cache/memory"
         },
         {
           "id": "Cache.shared",
@@ -5172,7 +5149,7 @@
                 "descHtml": "How long the entry stays readable, counted from this call. Omitted, it stays until the tier's cap forgets it or another <code>put</code> replaces it. A lifetime that has already run out forgets whatever was under the key and stores nothing."
               }
             ],
-            "returnHtml": "Nothing. A successful <code>put</code> is still no promise that a later <code>get</code> answers — see <code>Core\\Cache::local</code>.",
+            "returnHtml": "Nothing. A later <code>get</code> can still return <code>null</code>, because an entry can be deleted at any time.",
             "errors": [
               {
                 "error": "LogicError",
@@ -5180,7 +5157,7 @@
               },
               {
                 "error": "IOError",
-                "descHtml": "On the shared tier only: the store cannot be reached or refused the write. The local tier has nothing to be unreachable."
+                "descHtml": "Only on a <code>shared</code> cache: the store cannot be reached, or it does not accept the write."
               }
             ]
           },
@@ -5220,7 +5197,7 @@
                 "descHtml": "The name to read; <code>tainted</code> is admitted, as it is on <code>put</code>."
               }
             ],
-            "returnHtml": "The value as it was copied in, or <code>null</code> — an entry may be absent at any time, for any reason, and on the local tier that is the contract rather than a failure.",
+            "returnHtml": "The value as it was copied in, or <code>null</code> when there is no entry. An entry can be missing at any time, so your program has to handle <code>null</code>.",
             "errors": [
               {
                 "error": "ParseError",
@@ -5272,7 +5249,7 @@
             "errors": [
               {
                 "error": "IOError",
-                "descHtml": "On the shared tier only: the store cannot be reached or refused the command. The in-process tiers have nothing to be unreachable."
+                "descHtml": "Only on a <code>shared</code> cache: the store cannot be reached, or it does not accept the command."
               }
             ]
           },
@@ -5422,7 +5399,7 @@
               },
               {
                 "name": "wait",
-                "descHtml": "How long this caller waits for another's <code>fill</code>, defaulting to <code>[cache.process] fill_wait</code>. There is no spelling for waiting forever."
+                "descHtml": "How long this caller waits for another's <code>fill</code>, defaulting to <code>[cache.memory] fill_wait</code>. There is no spelling for waiting forever."
               }
             ],
             "returnHtml": "The secret, or <code>null</code>. A sealed entry that opens under no key of this ring, or whose own expiry has passed, is a miss like any other — never an error, so a rotated ring re-fetches rather than failing. A plain <code>get</code> on the same name is a miss too: the sealed door is the only door.",
@@ -5433,7 +5410,7 @@
               },
               {
                 "error": "TimeoutError",
-                "descHtml": "Another caller in this process was still running <code>fill</code> when this call's <code>wait</code> was up, which defaults to <code>[cache.process] fill_wait</code>."
+                "descHtml": "Another caller in this process was still running <code>fill</code> when this call's <code>wait</code> was up, which defaults to <code>[cache.memory] fill_wait</code>."
               },
               {
                 "error": "IOError",
@@ -37694,7 +37671,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Charges <code>$cost</code> units against <code>$key</code>'s allowance of <code>$limit</code> per <code>$per</code> in this core's own memory, and answers whether this arrival is inside the limit — the approximate tier, for dropping load rather than for enforcing a promise.",
+            "shortHtml": "Charges <code>$cost</code> units against the allowance of <code>$key</code>, which is <code>$limit</code> per <code>$per</code>. The count is kept in the memory of this server process. The result says if this call is inside the limit. Use it to drop load. Use <code>consume</code> for a limit you promised to somebody.",
             "params": [
               {
                 "name": "key",
@@ -37702,7 +37679,7 @@
               },
               {
                 "name": "limit",
-                "descHtml": "How many units <code>$per</code> admits <strong>on this core</strong>: a limit of 100 across eight cores admits up to 800, which is why a number somebody was promised belongs to <code>consume</code> instead."
+                "descHtml": "How many units are allowed in each <code>$per</code>, <strong>in this server process</strong>. Every request this process serves counts against the same limit. Two server processes with a limit of 100 allow up to 200, so a number you promised belongs to <code>consume</code>."
               },
               {
                 "name": "per",
@@ -37717,7 +37694,7 @@
                 "descHtml": "What this one call weighs; defaults to 1."
               }
             ],
-            "returnHtml": "A <code>Core\\RateLimit\\Decision</code>, answered from this core's memory and so reaching no store: there is nothing to be unreachable, and this member does not throw for one. Its arrivals are held in <code>Core\\Cache</code>'s local tier, which may forget an entry at any time — a forgotten key admits a burst, which is the approximation the tier is chosen for.",
+            "returnHtml": "A <code>Core\\RateLimit\\Decision</code>. It uses no external store, so it does not throw an <code>IOError</code>. The count is kept in the same memory as <code>Core\\Cache::memory()</code>, which can forget an entry at any time. When a count is forgotten, the key allows a burst again.",
             "errors": [
               {
                 "error": "RuntimeError",

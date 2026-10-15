@@ -39,18 +39,10 @@
           "apply": "Reload"
         },
         {
-          "id": "directive:cache.local",
-          "title": "cache.local",
-          "examples": "config/cache-local",
-          "key": "cache.local",
-          "class": "System",
-          "apply": "Reload"
-        },
-        {
-          "id": "directive:cache.process",
-          "title": "cache.process",
-          "examples": "config/cache-process",
-          "key": "cache.process",
+          "id": "directive:cache.memory",
+          "title": "cache.memory",
+          "examples": "config/cache-memory",
+          "key": "cache.memory",
           "class": "System",
           "apply": "Reload"
         }

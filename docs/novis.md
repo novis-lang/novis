@@ -183,7 +183,7 @@ Conventions the whole file uses:
 | [`Core\Net\Datagram`](#core-core-net-datagram) |  |
 | [`Core\Net\Datagram\Message`](#core-core-net-datagram-message) |  |
 | [`Core\Os`](#core-core-os) |  |
-| [`Core\Cache`](#core-core-cache) | three cache tiers with three promises — `local` is one core's own memory and the next request may not see it, `process` is one map for the whole `nvs serve` (or `nvs run`) process, `shared` is an external store such as Redis that every process and machine sees |
+| [`Core\Cache`](#core-core-cache) | two caches — `memory` keeps values in the memory of this server process and needs no setup, `shared` is a store on the network such as Redis that every process and machine sees |
 | [`Core\Cache\Store`](#core-core-cache-store) |  |
 | [`Core\Cache\SecretEntry`](#core-core-cache-secretentry) |  |
 | [`Core\RateLimit`](#core-core-ratelimit) |  |
@@ -24390,79 +24390,59 @@ Returns how busy the machine is, as three numbers: the averages over the last 1,
 <a id="core-core-cache"></a>
 ### `Core\Cache`
 
-Keywords: cache, memoize, shared memory, per-core, per-process, redis, ttl, expiry, coherence, hit, miss, cross-request state, local, process, shared
+Keywords: cache, memoize, in-memory cache, per-process, redis, ttl, expiry, hit, miss, cross-request state, which cache, memory, shared
 
-`Core\Cache` is where a value outlives the request that made it, in three tiers that hand back the
-same `Core\Cache\Store` (`put`, `get`, `forget`, `putSecret`, `getSecret`) under three different
-promises. **`local()` is a map inside one core's own memory**: a serving process runs one core per
-CPU, each new connection goes to whichever core is free, and nothing sends a client back to the core
-that served it before — so a value one request writes **may or may not** be there when the next
-request asks, because that request is usually on a different core with an empty map of its own. It
-is the fastest tier, with nothing locked and nothing shared, and it fits only a value every core can
-cheaply rebuild for itself: a hot lookup table, a parsed template, a per-core counter like the one
-`Core\RateLimit::shed` keeps. **`process()` is one map for the whole process** — every core of one
-`nvs serve`, or the single core of one `nvs run` — so a follow-up request on the same machine finds
-what an earlier one wrote, at the cost of a lock on each access; it is the tier for ordinary
-application caching. **`shared()` is an external store**, Redis at the `[cache.shared] url` an
-operator configured, the only tier where a write is seen by every process on every machine and
-survives a restart, and the only one for anything two requests must agree on — sessions, locks,
-quotas, idempotency keys. On every
-tier a `get` may answer `null`, a program that would be *wrong* on `null` is on the wrong tier, a
-value is copied in on `put` and out on `get` rather than shared live, and a full tier forgets old
-entries instead of failing a `put`.
+`Core\Cache` keeps a value after the request that made it ends. It has two caches, and both return a
+`Core\Cache\Store` with the same methods: `put`, `get`, `forget`, `putSecret` and `getSecret`.
+
+**`Core\Cache::memory()` keeps values in the memory of this server process.** Every core of one
+`nvs serve`, or the one `nvs run`, sees the same values. It needs no configuration and no network,
+so it is fast. A restart empties it, and a second server process or machine does not see it. Use it
+for ordinary caching: a slow result, a parsed template, a table that many requests read.
+
+**`Core\Cache::shared()` is a store on the network,** such as Redis, at the `[cache.shared] url` the
+person who runs the server sets. Every process on every machine sees the same values, and they stay
+after a restart. Use it when another server must find the value, or when your program would be
+wrong if the value were missing: a session, a lock, a quota.
+
+The memory cache has a size limit, `[cache.memory] max_size`. When it is full, it forgets the value
+written longest ago, and `put` does not fail. On both caches any `get` may return `null`, so your
+program must be able to build the value again. `put` copies the value into the cache, and `get`
+returns a copy.
 
 ```nvs
 <?nvs
-var $local = Core\Cache::local();
-var $greeting = $local->get('greeting');
-echo $greeting ?? 'miss on this core', "\n";
+var $cache = Core\Cache::memory();
+echo $cache->get('greeting') ?? 'not in the cache', "\n";
 
-// The one thing `local` promises: your own write, read back in the same request.
-$local->put('greeting', 'hello', {ttl: 30s});
-echo $local->get('greeting') ?? 'miss on this core', "\n";
+// Every request on this server can now read this value.
+$cache->put('greeting', 'hello', {ttl: 30s});
+echo $cache->get('greeting') ?? 'not in the cache', "\n";
 
-// Every core of the process reads and writes this one map.
-var $process = Core\Cache::process();
-$process->put('rendered', '<p>hello</p>');
-echo $process->get('rendered') ?? 'miss in this process', "\n";
-
-$process->forget('rendered');
-echo $process->get('rendered') ?? 'forgotten', "\n";
+$cache->forget('greeting');
+echo $cache->get('greeting') ?? 'forgotten', "\n";
 ```
 ```output
-miss on this core
+not in the cache
 hello
-<p>hello</p>
 forgotten
 ```
 
 | Member | Signature |
 |---|---|
-| [`Core\Cache::local`](#core-core-cache-local) | `local(): Core\Cache\Store` |
-| [`Core\Cache::process`](#core-core-cache-process) | `process(): Core\Cache\Store` |
+| [`Core\Cache::memory`](#core-core-cache-memory) | `memory(): Core\Cache\Store` |
 | [`Core\Cache::shared`](#core-core-cache-shared) | `shared(): Core\Cache\Store` |
 
-<a id="core-core-cache-local"></a>
-#### `Core\Cache::local`
+<a id="core-core-cache-memory"></a>
+#### `Core\Cache::memory`
 
 ```nvs skip
-Core\Cache::local(): Core\Cache\Store
+Core\Cache::memory(): Core\Cache\Store
 ```
 
-The per-core, in-process tier: a map in this core's own memory, with no lock, no network and no coherence between cores. A value one request writes may or may not be there when the next request asks, because the next request usually runs on another core with an empty map of its own.
+Returns the cache in the memory of this server process. Every request this process serves reads the same entries. The cache is empty again when the process stops. Use it for ordinary application caching.
 
-**Returns** `Core\Cache\Store` — A `Core\Cache\Store` over this core's own entries. Any entry may be absent at any time, for any reason, and a write on one core is not visible on another. The only read this tier promises is your own write back in the same request; a value every core should find wants `process`, and a program that would be incorrect on a `null` wants `shared`.
-
-<a id="core-core-cache-process"></a>
-#### `Core\Cache::process`
-
-```nvs skip
-Core\Cache::process(): Core\Cache\Store
-```
-
-The per-process tier: one store every core of this serving process shares, in memory only, and gone when the process ends. A follow-up request on the same machine finds what an earlier one wrote, whichever core it lands on, which is what `local` cannot promise; this is the tier for ordinary application caching.
-
-**Returns** `Core\Cache\Store` — A `Core\Cache\Store` over this process's own entries, which every core of it reads and writes behind a lock. Any entry may be absent at any time — for the cap, or because this is a different process than the one that wrote it — so a program that would be incorrect on a `null` wants `shared` instead.
+**Returns** `Core\Cache\Store` — A `Core\Cache\Store` for the entries of this process. Every request this process serves can read them. An entry can be missing at any time. The cache deletes old entries to stay under its size limit, and another server process has its own entries. If your program is wrong when `get` returns `null`, use `shared` instead.
 
 <a id="core-core-cache-shared"></a>
 #### `Core\Cache::shared`
@@ -24505,9 +24485,9 @@ Copies `$value` into the store under `$key`, replacing whatever was there — a 
 | `$value` | `mixed` | The value to copy in. It cannot be a callable or a `secret`, the same as for a value sent to an isolate. |
 | `{ttl: …}` | `Core\Time\Duration` (default `null`) | How long the entry stays readable, counted from this call. Omitted, it stays until the tier's cap forgets it or another `put` replaces it. A lifetime that has already run out forgets whatever was under the key and stores nothing. |
 
-**Returns** `void` — Nothing. A successful `put` is still no promise that a later `get` answers — see `Core\Cache::local`.
+**Returns** `void` — Nothing. A later `get` can still return `null`, because an entry can be deleted at any time.
 
-**Throws** `LogicError` — The value cannot cross: it is or contains a callable, or an object with a `secret` property that was not revealed.; `IOError` — On the shared tier only: the store cannot be reached or refused the write. The local tier has nothing to be unreachable.
+**Throws** `LogicError` — The value cannot cross: it is or contains a callable, or an object with a `secret` property that was not revealed.; `IOError` — Only on a `shared` cache: the store cannot be reached, or it does not accept the write.
 
 <a id="core-core-cache-store-get"></a>
 #### `Core\Cache\Store->get`
@@ -24522,7 +24502,7 @@ Copies the entry stored under `$key` back into this request, or answers `null` w
 |---|---|---|
 | `$key` | `string` (neutral) | The name to read; `tainted` is admitted, as it is on `put`. |
 
-**Returns** `mixed` — The value as it was copied in, or `null` — an entry may be absent at any time, for any reason, and on the local tier that is the contract rather than a failure.
+**Returns** `mixed` — The value as it was copied in, or `null` when there is no entry. An entry can be missing at any time, so your program has to handle `null`.
 
 **Throws** `ParseError` — The entry names a class this program cannot resolve — the same refusal `Core\Serialize::decode` makes, and the ordinary consequence of a deployment whose classes changed under a store that outlives them.; `IOError` — On the shared tier only: the store cannot be reached. An entry that is simply not there is `null` on either tier, which is the difference between a miss and a failure.
 
@@ -24541,7 +24521,7 @@ Takes the entry under `$key` out of this store, whether or not there was one the
 
 **Returns** `void` — Nothing. A key nothing was stored under is already forgotten, so there is no second answer here for whether there had been an entry — the same reading `get` gives a miss, and for the same reason: on these tiers an entry may be absent at any time.
 
-**Throws** `IOError` — On the shared tier only: the store cannot be reached or refused the command. The in-process tiers have nothing to be unreachable.
+**Throws** `IOError` — Only on a `shared` cache: the store cannot be reached, or it does not accept the command.
 
 <a id="core-core-cache-store-putsecret"></a>
 #### `Core\Cache\Store->putSecret`
@@ -24577,11 +24557,11 @@ Opens the secret stored under `$key` against every key of `$keys`, or answers `n
 | `$key` | `string` (neutral) | The name to read; the one `putSecret` wrote under, since the name is sealed in. |
 | `$keys` | `array<secret bytes>` | The key ring, newest first. Every key is tried, so an entry sealed under a key still in the ring opens after a rotation. |
 | `{fill: …}` | `callable(): Core\Cache\SecretEntry` (default `null`) | What supplies a miss: a callable answering a `Core\Cache\SecretEntry`, which carries both the secret it fetched and how long that secret stays good. Exactly one caller in this process runs it, in that caller's own request and under its own capabilities, while every other waits; a `fill` that throws releases the waiters with nothing and the next caller runs it again, so no failure crosses from one request into another. |
-| `{wait: …}` | `Core\Time\Duration` (default `null`) | How long this caller waits for another's `fill`, defaulting to `[cache.process] fill_wait`. There is no spelling for waiting forever. |
+| `{wait: …}` | `Core\Time\Duration` (default `null`) | How long this caller waits for another's `fill`, defaulting to `[cache.memory] fill_wait`. There is no spelling for waiting forever. |
 
 **Returns** `?secret string` — The secret, or `null`. A sealed entry that opens under no key of this ring, or whose own expiry has passed, is a miss like any other — never an error, so a rotated ring re-fetches rather than failing. A plain `get` on the same name is a miss too: the sealed door is the only door.
 
-**Throws** `LogicError` — `$keys` is empty, or an entry of it is not a key of the construction's length — `putSecret`'s refusal, unchanged. Also a `fill` that asks for the key it is filling, which would be a wait on itself.; `TimeoutError` — Another caller in this process was still running `fill` when this call's `wait` was up, which defaults to `[cache.process] fill_wait`.; `IOError` — On the shared tier only: the store cannot be reached. An entry that is simply not there is `null`, as it is on `get`.
+**Throws** `LogicError` — `$keys` is empty, or an entry of it is not a key of the construction's length — `putSecret`'s refusal, unchanged. Also a `fill` that asks for the key it is filling, which would be a wait on itself.; `TimeoutError` — Another caller in this process was still running `fill` when this call's `wait` was up, which defaults to `[cache.memory] fill_wait`.; `IOError` — On the shared tier only: the store cannot be reached. An entry that is simply not there is `null`, as it is on `get`.
 
 <a id="core-core-cache-secretentry"></a>
 ### `Core\Cache\SecretEntry`
@@ -24646,17 +24626,17 @@ Charges `$cost` units against `$key`'s allowance of `$limit` per `$per` in the s
 Core\RateLimit::shed(string $key, uint $limit, Core\Time\Duration $per, {burst?: uint, cost?: uint}): Core\RateLimit\Decision
 ```
 
-Charges `$cost` units against `$key`'s allowance of `$limit` per `$per` in this core's own memory, and answers whether this arrival is inside the limit — the approximate tier, for dropping load rather than for enforcing a promise.
+Charges `$cost` units against the allowance of `$key`, which is `$limit` per `$per`. The count is kept in the memory of this server process. The result says if this call is inside the limit. Use it to drop load. Use `consume` for a limit you promised to somebody.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$key` | `string` (neutral) | What the allowance is per. `tainted` is admitted and a `secret` refused, for `consume`'s reasons. |
-| `$limit` | `uint` | How many units `$per` admits **on this core**: a limit of 100 across eight cores admits up to 800, which is why a number somebody was promised belongs to `consume` instead. |
+| `$limit` | `uint` | How many units are allowed in each `$per`, **in this server process**. Every request this process serves counts against the same limit. Two server processes with a limit of 100 allow up to 200, so a number you promised belongs to `consume`. |
 | `$per` | `Core\Time\Duration` | The period `$limit` units are admitted over. |
 | `{burst: …}` | `uint` (default `null`) | How much may arrive at once; defaults to `$limit`. |
 | `{cost: …}` | `uint` (default `1`) | What this one call weighs; defaults to 1. |
 
-**Returns** `Core\RateLimit\Decision` — A `Core\RateLimit\Decision`, answered from this core's memory and so reaching no store: there is nothing to be unreachable, and this member does not throw for one. Its arrivals are held in `Core\Cache`'s local tier, which may forget an entry at any time — a forgotten key admits a burst, which is the approximation the tier is chosen for.
+**Returns** `Core\RateLimit\Decision` — A `Core\RateLimit\Decision`. It uses no external store, so it does not throw an `IOError`. The count is kept in the same memory as `Core\Cache::memory()`, which can forget an entry at any time. When a count is forgotten, the key allows a burst again.
 
 **Throws** `RuntimeError` — `$limit`, `$per` or `$burst` at zero, a period too short to divide into `$limit` units, and a `$cost` larger than `$burst`, which no wait could admit — the same refusals `consume` makes, since both derive one window.
 
@@ -33340,7 +33320,7 @@ accepts — anything else is `E0601`:
 | `[capabilities]` | capability grants (below) |
 | `[[app]]` | a per-application block: `root` or `entry`, `mode`, `origin`, `[app.limits]`, `[app.limits.hard]`, `[app.capabilities]` (below) |
 | `[[include]]` | `path`, `dir`, `optional` (below) |
-| `[cache.local]`, `[cache.process]`, `[cache.shared]` | `Core\Cache`'s tiers: `max_size`; `max_size`, `fill_wait`; `url`, `timeout`. The compiled-artifact cache is not here — it is `[opcache]`'s `file_cache_dir` (the `nvs` command chapter) |
+| `[cache.memory]`, `[cache.shared]` | `Core\Cache`'s two caches: `max_size`, `fill_wait`; `url`, `timeout`. The compiled-artifact cache is not here — it is `[opcache]`'s `file_cache_dir` (the `nvs` command chapter) |
 | `[db.<name>]` | `driver`, `path`, `host`, `port`, `user`, `password`, `password_file`, `database`, `tls_ca_file`, `statement_cache`, `time_zone`, `slow_query`, `pool` |
 | `[db.<name>.pool]` | `max`, `idle`, `lifetime`, `acquire` — the connection pool's bounds, written as a table where `pool = false` turns it off |
 | `[db] pool` | `pool = false` written beside the blocks rather than inside one, turning pooling off for every connection this process opens — including one `Core\Db::open` described for itself, which names no block. Bounds are not written here: they belong to the block they size |
@@ -33909,8 +33889,7 @@ the file by itself, or only at its next start. Only `[server] listen`, `socket_m
 | `log.max_size` | operator only — a request cannot change it | at reload |
 | `log.keep` | operator only — a request cannot change it | at reload |
 | `cache.shared` | operator only — a request cannot change it | at reload |
-| `cache.local` | operator only — a request cannot change it | at reload |
-| `cache.process` | operator only — a request cannot change it | at reload |
+| `cache.memory` | operator only — a request cannot change it | at reload |
 | `io.temp_root` | operator only — a request cannot change it | at reload |
 | `image.max_pixels` | operator only — a request cannot change it | at reload |
 | `debug.keep_temporary` | operator only — a request cannot change it | at reload |
