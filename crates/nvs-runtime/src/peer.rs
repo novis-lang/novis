@@ -416,6 +416,22 @@ impl std::fmt::Display for PeerError {
     }
 }
 
+/// What [`PeerSocket::receive_or`] ended on.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Received {
+    /// The next frame the peer sent.
+    Frame(PeerFrame),
+    /// The peer closed, which is § 3's `null`.
+    Closed,
+    /// An [`Interrupt`] ended the read with something pending on the other
+    /// source, and the caller answers from that.
+    Interrupted,
+}
+
+/// The wake [`PeerSocket::interrupt`] gives: firing it ends the one read it
+/// was taken for. `Send`, because a publish on another core fires it.
+pub type Interrupt = Box<dyn FnOnce() + Send>;
+
 /// The socket a connection isolate holds, as the operations `rule:concurrency/a-connection-is-a-loop`
 /// describes and no more.
 ///
@@ -435,6 +451,37 @@ pub trait PeerSocket: std::fmt::Debug {
     /// Either way this connection is over: the isolate is what a fatal error
     /// tears down (§ 3), and a caller that saw one may not call again.
     fn receive(&mut self) -> Result<Option<PeerFrame>, PeerError>;
+
+    /// [`Self::receive`], ended early by a fired [`Interrupt`] once `pending`
+    /// answers `true` — `rule:concurrency/a-connection-is-a-loop`'s one wait
+    /// over the peer and the delivery queue.
+    ///
+    /// `pending` is asked only after an interrupt ended the read, because an
+    /// interrupt is a hint: one left behind by an earlier wait may fire while
+    /// nothing is queued, and the read then parks again.
+    ///
+    /// The provided body is `receive` alone, which is right for a socket whose
+    /// read never parks: it answers at once, and the caller looks at the queue
+    /// again before its next wait.
+    ///
+    /// # Errors
+    ///
+    /// What [`Self::receive`] fails with.
+    fn receive_or(&mut self, pending: &dyn Fn() -> bool) -> Result<Received, PeerError> {
+        let _ = pending;
+        Ok(self.receive()?.map_or(Received::Closed, Received::Frame))
+    }
+
+    /// A one-shot handle that ends a [`Self::receive_or`] parked on this socket
+    /// by the calling task, from this thread or any other. `None` where the
+    /// read never parks, or off a task, where nothing could be woken.
+    ///
+    /// Taken before the wait is committed to, under
+    /// [`crate::host::Host::waker`]'s ordering rule. Dropping it unfired costs
+    /// nothing.
+    fn interrupt(&mut self) -> Option<Interrupt> {
+        None
+    }
 
     /// Sends one frame, suspending until it is buffered.
     ///

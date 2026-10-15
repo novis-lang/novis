@@ -148,22 +148,10 @@ impl Ctx {
     /// Takes over the value's reference; [`crate::peer::Delivery`] owns that
     /// convention and [`Self::take_delivery`] is where it is handed on.
     ///
-    /// # Known gap
-    ///
-    /// A delivery queued while a **socket** connection is already parked inside
-    /// [`crate::peer::PeerSocket::receive`] is answered by the *next*
-    /// `receive()` rather than waking the parked one, because that park is on
-    /// the descriptor alone. § 4's `publish` makes that **observable**: a
-    /// connection parked with nothing coming from its peer sits on a value
-    /// another connection on the same core already published to a topic it
-    /// joined. Closing it needs the park to be over both
-    /// sources, which is a wake seam the framing layer has to take part in —
-    /// `nvs_stdlib::socket`'s `receive()` and `nvs_server::socket`, not this
-    /// method.
-    ///
-    /// The event-stream door is not in the gap: it has no descriptor to park
-    /// on, so its wait registers [`crate::peer::Inbox::wake_on`] and the
-    /// fan-out that fills this queue fires it.
+    /// A connection already parked in `Core\Socket::receive()` is woken by the
+    /// push: its wait left a [`crate::peer::Interrupt`] on the queue through
+    /// [`crate::peer::Inbox::wake_on`], and the push fires it. An event
+    /// stream's wait registers a plain wake there the same way.
     ///
     /// **Answers the delivery back when the queue is full** — § 4's bound, and
     /// [`crate::peer::Inbox::push`] owns why a refusal comes back to the caller
@@ -188,12 +176,22 @@ impl Ctx {
             .is_some_and(|inbox| inbox.overflowed())
     }
 
+    /// This connection's delivery queue, if it has one — the handle
+    /// `Core\Socket::receive()` leaves its wake on before it parks.
+    ///
+    /// `None` for every context that never subscribed to a topic, which is
+    /// every context that is not a connection's and most that are. It does
+    /// **not** make the queue: a wait on a context nothing can publish to
+    /// should cost no allocation, and it has nothing to be woken by.
+    #[must_use]
+    pub fn deliveries(&self) -> Option<std::rc::Rc<crate::peer::Inbox>> {
+        self.deliveries.clone()
+    }
+
     /// The oldest queued delivery, handing its reference to the caller.
     ///
-    /// `None` when the bus has nothing waiting, which is every context that is
-    /// not a connection's and most that are. It does **not** make the queue:
-    /// a wait on a context nothing ever published to should cost no
-    /// allocation, and the answer is the same either way.
+    /// `None` when the bus has nothing waiting. It does not make the queue,
+    /// for the reason [`Self::deliveries`] does not.
     #[must_use]
     pub fn take_delivery(&mut self) -> Option<crate::peer::Delivery> {
         self.deliveries.as_ref().and_then(|inbox| inbox.pop())

@@ -199,7 +199,8 @@
 use nvs_runtime::host::Narrowing;
 use nvs_runtime::script::{Program, ResolveError};
 use nvs_runtime::{
-    Closing, Ctx, Delivery, Fault, NvsStr, PeerFrame, Tag, ThrownClass, Upgrade, Value, copy_graph,
+    Closing, Ctx, Delivery, Fault, NvsStr, PeerFrame, Received, Tag, ThrownClass, Upgrade, Value,
+    copy_graph,
 };
 
 use crate::registry::{
@@ -1110,16 +1111,20 @@ nvs_runtime::nvs_helper! {
     /// `Core\Socket::receive(): ?Core\Socket\Message` — `rule:concurrency/a-connection-is-a-loop`'s one
     /// wait, over both sources.
     ///
-    /// **The bus is drained before the socket is read**, and that order is the
-    /// whole of the select this member can make today: a queued delivery is
+    /// **The bus is drained before the socket is read**: a queued delivery is
     /// answered without touching the peer, and only an empty queue parks on
     /// the socket. The drain has two steps for one reason — what another core
     /// published is waiting as bytes rather than as a value, so
     /// `nvs_stdlib::topic`'s `deliver_from_other_cores` reads it back into
     /// this core's queues first and `take_delivery` then answers from one
-    /// queue however far the publisher was. What it does not do yet is wake a
-    /// park that is already running — `nvs_runtime::Ctx::deliver`'s own known
-    /// gap says so, and it is the same gap whichever core published.
+    /// queue however far the publisher was.
+    ///
+    /// **The park is over both sources.** A connection that subscribed leaves
+    /// two of the socket's interrupts before it parks: one on its delivery
+    /// queue, fired by a publish on this core, and one with [`crate::bus`],
+    /// fired by a publish from another core. Either ends the read, and the
+    /// loop drains again. A connection that never subscribed parks on the
+    /// socket alone and leaves nothing.
     ///
     /// **This is also where a slow subscriber is closed** (§ 4). The publisher
     /// that overflowed this connection's queue could not reach its peer — it is
@@ -1140,35 +1145,61 @@ nvs_runtime::nvs_helper! {
         if !ctx.has_peer() {
             return Err(no_connection("receive"));
         }
-        crate::topic::deliver_from_other_cores(ctx);
-        if ctx.inbox_overflowed() {
-            ctx.peer()
-                .expect("`has_peer` answered above and nothing since could have taken it")
-                .close(Closing::SlowSubscriber);
-            return Ok(Value::null());
-        }
-        if let Some(delivery) = ctx.take_delivery() {
-            return Ok(message_of_delivery(delivery));
-        }
-        let received = ctx
-            .peer()
-            .expect("`has_peer` answered above and nothing since could have taken it")
-            .receive();
-        match received {
-            // § 3's `null`, and the condition the connection loop ends on. Not
-            // an error: an orderly close is how every connection finishes.
-            Ok(None) => Ok(Value::null()),
-            Ok(Some(frame)) => Ok(message_of_frame(frame)),
-            // No case can reach this: a `.nvst` case runs a script that was
-            // handed no socket, so it never gets past the refusal above.
-            // `receive_reports_a_failed_socket_as_a_throw` is the `#[test]`
-            // that asserts it instead.
-            Err(failed) => Err(Fault::thrown(format!(
-                "`Core\\Socket::receive` failed on the connection: {}",
-                failed.message()
-            ))),
+        loop {
+            crate::topic::deliver_from_other_cores(ctx);
+            if ctx.inbox_overflowed() {
+                ctx.peer()
+                    .expect("`has_peer` answered above and nothing since could have taken it")
+                    .close(Closing::SlowSubscriber);
+                return Ok(Value::null());
+            }
+            if let Some(delivery) = ctx.take_delivery() {
+                return Ok(message_of_delivery(delivery));
+            }
+            match wait_on_both(ctx) {
+                // § 3's `null`, and the condition the connection loop ends on.
+                // Not an error: an orderly close is how every connection
+                // finishes.
+                Ok(Received::Closed) => return Ok(Value::null()),
+                Ok(Received::Frame(frame)) => return Ok(message_of_frame(frame)),
+                Ok(Received::Interrupted) => {}
+                // No case can reach this: a `.nvst` case runs a script that was
+                // handed no socket, so it never gets past the refusal above.
+                // `receive_reports_a_failed_socket_as_a_throw` is the `#[test]`
+                // that asserts it instead.
+                Err(failed) => {
+                    return Err(Fault::thrown(format!(
+                        "`Core\\Socket::receive` failed on the connection: {}",
+                        failed.message()
+                    )));
+                }
+            }
         }
     }
+}
+
+/// The park [`nvs_core_socket_receive`] takes once both sources were empty.
+///
+/// The interrupts are taken and left before the read, under
+/// `nvs_runtime::host::Host::waker`'s ordering rule. Nothing on this core can
+/// publish between the drain and the park, since this task does not yield
+/// until the read does. A publish from another core in that gap fires the
+/// interrupt early, and the read then ends at once. The registration with the
+/// bus is dropped when the read returns, and the one on the queue is replaced
+/// by the next wait.
+fn wait_on_both(ctx: &mut Ctx) -> Result<Received, nvs_runtime::PeerError> {
+    let inbox = ctx.deliveries();
+    let peer = ctx
+        .peer()
+        .expect("`has_peer` answered above and nothing since could have taken it");
+    let Some(inbox) = inbox else {
+        return peer.receive_or(&|| false);
+    };
+    if let Some(local) = peer.interrupt() {
+        inbox.wake_on(local);
+    }
+    let _parked = peer.interrupt().and_then(crate::bus::park_on_hand_off);
+    peer.receive_or(&|| !inbox.is_empty() || inbox.overflowed() || crate::bus::has_mail())
 }
 
 nvs_runtime::nvs_helper! {
@@ -1249,7 +1280,7 @@ mod tests {
     use nvs_runtime::script::{Installed, Program, Resolver, install};
     use nvs_runtime::{Ctx, Inbound, NvsArray, NvsStr, UpgradeSlot, Value};
 
-    use nvs_runtime::{Closing, Delivery, PeerError, PeerFrame, PeerSocket};
+    use nvs_runtime::{Closing, Delivery, PeerError, PeerFrame, PeerSocket, Received};
 
     use super::{
         CLASS, nvs_core_socket_current, nvs_core_socket_message_bytes,
@@ -1396,6 +1427,168 @@ mod tests {
         ] {
             dropped(value);
         }
+    }
+
+    /// A peer that never sends and whose read really parks: on the scheduler
+    /// the case runs, until an [`PeerSocket::interrupt`] it handed out is
+    /// fired and the caller's `pending` confirms it, or until [`PARK_LIMIT`]
+    /// runs out and it answers the close a case then fails on.
+    #[derive(Debug, Default)]
+    struct Parking {
+        /// Raised by a fired interrupt, lowered by the read that sees it.
+        cut: std::sync::Arc<std::sync::atomic::AtomicBool>,
+        /// How many times the read parked, which is what shows a case that
+        /// the delivery came while the wait was running.
+        parks: std::rc::Rc<std::cell::Cell<usize>>,
+        /// Told each time the read is about to park, for a publisher on
+        /// another thread that must not publish before then.
+        parking: Option<std::sync::mpsc::Sender<()>>,
+    }
+
+    /// How long a [`Parking`] read waits before it gives up. A case that
+    /// reaches it has failed, so it is long enough for a loaded machine.
+    const PARK_LIMIT: std::time::Duration = std::time::Duration::from_secs(10);
+
+    impl PeerSocket for Parking {
+        fn receive(&mut self) -> Result<Option<PeerFrame>, PeerError> {
+            Ok(None)
+        }
+
+        fn receive_or(&mut self, pending: &dyn Fn() -> bool) -> Result<Received, PeerError> {
+            let until = std::time::Instant::now() + PARK_LIMIT;
+            loop {
+                if self.cut.swap(false, std::sync::atomic::Ordering::AcqRel) && pending() {
+                    return Ok(Received::Interrupted);
+                }
+                if std::time::Instant::now() >= until {
+                    return Ok(Received::Closed);
+                }
+                self.parks.set(self.parks.get() + 1);
+                if let Some(parking) = &self.parking {
+                    parking.send(()).expect("the publisher is listening");
+                }
+                nvs_runtime::host::with_current(|host| host.park(Some(until)))
+                    .expect("the case runs on a scheduler");
+            }
+        }
+
+        fn interrupt(&mut self) -> Option<nvs_runtime::Interrupt> {
+            let wake = nvs_host::wake_this_task()?;
+            let cut = std::sync::Arc::clone(&self.cut);
+            Some(Box::new(move || {
+                cut.store(true, std::sync::atomic::Ordering::Release);
+                drop(wake.wake());
+            }))
+        }
+
+        fn send(&mut self, _frame: PeerFrame) -> Result<(), PeerError> {
+            Ok(())
+        }
+
+        fn close(&mut self, _why: Closing) {}
+    }
+
+    /// Runs one connection on a scheduler: it subscribes to `topic`, parks in
+    /// `receive()` over `peer`, and answers the topic its message names.
+    /// `beside` runs as a second task on the same core once the first parks.
+    fn received_while_parked(
+        peer: Parking,
+        topic: &'static str,
+        beside: impl FnOnce(&mut Ctx) + 'static,
+    ) -> (Option<String>, usize) {
+        let mut sched = nvs_host::Scheduler::new();
+        let _installed =
+            nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
+        let parks = std::rc::Rc::clone(&peer.parks);
+        let answered = std::rc::Rc::new(std::cell::RefCell::new(None));
+        let into = std::rc::Rc::clone(&answered);
+        let mut conn = Ctx::buffered();
+        conn.set_peer(Box::new(peer));
+        sched.spawn(conn, nvs_runtime::TaskRoot::Worker, move |ctx| {
+            let name = Value::str(NvsStr::new(topic.as_bytes()));
+            nvs_runtime::call(crate::topic::nvs_core_topic_subscribe, ctx, &[name])
+                .expect("a connection may subscribe");
+            let handle = nvs_runtime::call(nvs_core_socket_current, ctx, &[])
+                .expect("a connection isolate answers `current()`");
+            let message = receive_on(ctx, handle);
+            let named = nvs_runtime::call(nvs_core_socket_message_topic, ctx, &[message])
+                .expect("a message answers its topic");
+            *into.borrow_mut() = named.as_text().map(str::to_owned);
+            for value in [named, message, handle, name] {
+                dropped(value);
+            }
+        });
+        sched.spawn(Ctx::buffered(), nvs_runtime::TaskRoot::Worker, beside);
+        let report = nvs_host::run_until_idle(&mut sched).expect("the loop failed");
+        assert_eq!(report.finished, 2, "a task did not finish");
+        let topic = answered.borrow_mut().take();
+        (topic, parks.get())
+    }
+
+    /// `rule:concurrency/a-connection-is-a-loop`'s one wait: a connection
+    /// already parked on its peer, with nothing coming from it, is woken by a
+    /// publish on its own core and answers the delivery.
+    // covers: Core\Socket::receive
+    #[test]
+    fn a_receive_parked_on_the_peer_wakes_for_a_delivery() {
+        let (topic, parks) =
+            received_while_parked(Parking::default(), "socket:parked-here", |ctx| {
+                let name = Value::str(NvsStr::new(b"socket:parked-here"));
+                let published = nvs_runtime::call(
+                    crate::topic::nvs_core_topic_publish,
+                    ctx,
+                    &[name, Value::int(5)],
+                )
+                .expect("a publish answers how many it reached");
+                assert_eq!(published.as_uint(), Some(1));
+                dropped(name);
+            });
+        assert!(parks >= 1, "the receive answered before it parked");
+        assert_eq!(
+            topic.as_deref(),
+            Some("socket:parked-here"),
+            "the parked receive was not woken by the delivery"
+        );
+    }
+
+    /// The same wait, woken by a publish from another core: the value crosses
+    /// as an envelope, and the envelope's hand-off ends the parked read.
+    // covers: Core\Socket::receive
+    #[test]
+    fn a_delivery_from_another_core_wakes_a_parked_receive() {
+        let (parking, parked) = std::sync::mpsc::channel();
+        let publisher = std::thread::spawn(move || {
+            parked.recv().expect("the connection parked");
+            let mut ctx = Ctx::buffered();
+            let name = Value::str(NvsStr::new(b"socket:parked-there"));
+            let published = nvs_runtime::call(
+                crate::topic::nvs_core_topic_publish,
+                &mut ctx,
+                &[name, Value::int(9)],
+            )
+            .expect("a publish answers how many it reached");
+            assert_eq!(
+                published.as_uint(),
+                Some(1),
+                "the other core was not counted"
+            );
+            dropped(name);
+            // Kept open until the connection has answered, so the wake its
+            // later parks would send has somewhere to go.
+            while parked.recv().is_ok() {}
+        });
+        let peer = Parking {
+            parking: Some(parking),
+            ..Parking::default()
+        };
+        let (topic, parks) = received_while_parked(peer, "socket:parked-there", |_ctx| {});
+        publisher.join().expect("the publisher finished");
+        assert!(parks >= 1, "the receive answered before it parked");
+        assert_eq!(
+            topic.as_deref(),
+            Some("socket:parked-there"),
+            "the parked receive was not woken by the hand-off"
+        );
     }
 
     /// A binary frame fills `bytes` alone, and a delivery leaves both payload

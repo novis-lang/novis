@@ -67,7 +67,7 @@ use std::io::{Read, Write};
 use std::time::Instant;
 
 use nvs_host::NvsConnection;
-use nvs_runtime::{Closing, PeerError, PeerFrame, PeerSocket};
+use nvs_runtime::{Closing, PeerError, PeerFrame, PeerSocket, Received};
 use tungstenite::Message;
 use tungstenite::protocol::WebSocketConfig;
 use tungstenite::protocol::frame::CloseFrame;
@@ -116,6 +116,11 @@ impl Prefixed {
     /// already in memory, and no wait is ever taken on it.
     fn cut_at_drain(&mut self, drain: &nvs_runtime::Drain) -> Option<nvs_runtime::DrainWake> {
         self.stream.cut_at_drain(drain)
+    }
+
+    /// [`NvsConnection::cut_once`] on the descriptor, for the same reason.
+    fn cut_once(&mut self) -> Option<nvs_runtime::Interrupt> {
+        self.stream.cut_once()
     }
 
     /// Whether the prefix still has bytes nobody has read.
@@ -359,39 +364,64 @@ impl PeerSocket for Framed {
     /// bit on. A drain that began before the first call needs no wake: the
     /// bit is read before the wait is armed.
     fn receive(&mut self) -> Result<Option<PeerFrame>, PeerError> {
+        match self.receive_or(&|| false)? {
+            Received::Frame(frame) => Ok(Some(frame)),
+            Received::Closed | Received::Interrupted => Ok(None),
+        }
+    }
+
+    /// [`Self::receive`], ended by an [`Self::interrupt`] that `pending`
+    /// confirms. The interrupt raises the same flag the drain's cut does, so
+    /// a `WouldBlock` out of the read is either one: the drain is read at the
+    /// top of the loop, and `pending` here.
+    fn receive_or(&mut self, pending: &dyn Fn() -> bool) -> Result<Received, PeerError> {
         if self.cut.is_none() {
             self.cut = self.socket.get_mut().cut_at_drain(self.draining.bit());
         }
         loop {
             if self.draining.is_draining() {
                 self.close(Closing::ShuttingDown);
-                return Ok(None);
+                return Ok(Received::Closed);
             }
             self.arm(self.bounds.idle);
             return match self.socket.read() {
-                Ok(Message::Text(text)) => Ok(Some(PeerFrame::Text(text.as_str().to_owned()))),
-                Ok(Message::Binary(bytes)) => Ok(Some(PeerFrame::Binary(bytes.to_vec()))),
+                Ok(Message::Text(text)) => {
+                    Ok(Received::Frame(PeerFrame::Text(text.as_str().to_owned())))
+                }
+                Ok(Message::Binary(bytes)) => {
+                    Ok(Received::Frame(PeerFrame::Binary(bytes.to_vec())))
+                }
                 Ok(Message::Ping(_) | Message::Pong(_)) => continue,
                 // `Frame` is a raw frame the codec only produces for a caller
                 // that asked for one, which this is not.
-                Ok(Message::Close(_) | Message::Frame(_)) => Ok(None),
+                Ok(Message::Close(_) | Message::Frame(_)) => Ok(Received::Closed),
                 Err(tungstenite::Error::ConnectionClosed | tungstenite::Error::AlreadyClosed) => {
-                    Ok(None)
+                    Ok(Received::Closed)
                 }
-                // The cut ended a parked read: the drain is read at the top of
-                // the loop, which is the one place it is acted on.
+                // A cut ended a parked read. A delivery is answered now, and a
+                // drain is read at the top of the loop, the one place it is
+                // acted on.
                 Err(tungstenite::Error::Io(io)) if io.kind() == std::io::ErrorKind::WouldBlock => {
+                    if pending() {
+                        return Ok(Received::Interrupted);
+                    }
                     continue;
                 }
                 Err(error) => match self.expiry(&error) {
                     Some(why) => {
                         self.close(why);
-                        Ok(None)
+                        Ok(Received::Closed)
                     }
                     None => Err(failed(&error)),
                 },
             };
         }
+    }
+
+    /// A cut on the descriptor's readable wait, fired by a publish
+    /// (`nvs_stdlib::socket`'s `receive`).
+    fn interrupt(&mut self) -> Option<nvs_runtime::Interrupt> {
+        self.socket.get_mut().cut_once()
     }
 
     /// Sends one frame and flushes it, parking until the bytes are out.

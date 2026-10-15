@@ -16,14 +16,12 @@
 //!
 //! What is **not** here is the wake, and this module is what makes it
 //! reachable. The queue carries one — [`nvs_runtime::Inbox`]'s, fired by the
-//! fan-out that fills it — and an event stream's `receive()` registers against
-//! it, so a publish on this core reaches a stream that is already waiting. A
-//! connection parked inside `Core\Socket::receive` is parked on its *socket*
-//! and registers nothing here, so a delivery queued while it waits is answered
-//! by the next `receive()`; [`nvs_runtime::Ctx::deliver`]'s own known gap is
-//! where that is written down. A delivery from another core is behind one
-//! bound more on both doors, the drain running at the same `receive()` the
-//! local queue is read at.
+//! fan-out that fills it — and both doors' `receive()` registers against it,
+//! so a publish on this core reaches a connection that is already waiting. A
+//! delivery from another core is drained at the same `receive()` the local
+//! queue is read at. A socket's wait is also registered with [`crate::bus`],
+//! whose hand-off ends it; an event stream's looks again each
+//! `CROSS_CORE_TICK` (`crate::sse`).
 //!
 //! # Decision: the table is per core, and it holds a weak reference
 //!

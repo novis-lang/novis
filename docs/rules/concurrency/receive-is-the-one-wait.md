@@ -12,6 +12,8 @@ There is nothing for such a second member to drain in any case: the subscriber q
 connection, and `receive()` is the only thing that empties it. A queue that overflows closes *that*
 subscriber rather than blocking the publisher, and the overflow is asked before the wait.
 
-**Not on disk.** `receive()` answers a topic delivery and a peer frame, and checks the overflow before
-it waits (`crates/nvs-stdlib/src/socket.rs:1005`). A delivery that arrives while `receive()` is already
-parked does not wake it (`crates/nvs-stdlib/src/socket.rs:1017`).
+A `receive()` already parked on the peer is woken by a delivery, whichever core published it: a
+connection that subscribed leaves a wake on its queue and one with the bus between cores before it
+parks, and either ends the peer's read. A connection that never subscribed parks on the peer alone.
+`nvs_stdlib::socket`'s `nvs_core_socket_receive` is the select, and `nvs_stdlib::bus` the cross-core
+wake.

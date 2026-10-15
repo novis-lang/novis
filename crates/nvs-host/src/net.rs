@@ -202,7 +202,7 @@ pub struct NvsStream<S: Source> {
     timed: Option<Interest>,
     /// A flag another thread may raise to end a readable wait already in
     /// flight, or `None` for a stream nothing cuts short —
-    /// [`Self::cut_at_drain`].
+    /// [`Self::cut_at_drain`] and [`Self::cut_once`] share it.
     cut: Option<Arc<AtomicBool>>,
 }
 
@@ -269,14 +269,27 @@ impl<S: Source> NvsStream<S> {
     /// `None` off a task or off a core, where nothing parks and nothing can be
     /// woken.
     pub fn cut_at_drain(&mut self, drain: &nvs_runtime::Drain) -> Option<nvs_runtime::DrainWake> {
+        drain.wake_at_drain(self.cut_once()?)
+    }
+
+    /// A one-shot wake that ends this stream's readable wait the way
+    /// [`Self::cut_at_drain`]'s does, for a caller that fires it itself —
+    /// `nvs_server::socket`'s `receive`, ended by a topic delivery.
+    ///
+    /// Every cut on one stream raises the same flag, so the read answers
+    /// `WouldBlock` once and the caller asks which source it was. `None` off a
+    /// task or off a core, as for the drain's.
+    pub fn cut_once(&mut self) -> Option<nvs_runtime::Interrupt> {
         let id = current_task()?;
         let wake = reactor::with_current(|reactor| reactor.remote_wake(id))?;
-        let flag = Arc::new(AtomicBool::new(false));
-        self.cut = Some(Arc::clone(&flag));
-        drain.wake_at_drain(move || {
+        let flag = Arc::clone(
+            self.cut
+                .get_or_insert_with(|| Arc::new(AtomicBool::new(false))),
+        );
+        Some(Box::new(move || {
             flag.store(true, Ordering::Release);
             drop(wake.wake());
-        })
+        }))
     }
 
     /// Whether a registered cut has been raised against a wait on
@@ -1042,6 +1055,15 @@ impl NvsConnection {
             Self::Tcp(stream) => stream.cut_at_drain(drain),
             #[cfg(unix)]
             Self::Unix(stream) => stream.cut_at_drain(drain),
+        }
+    }
+
+    /// [`NvsStream::cut_once`] on whichever family this is.
+    pub fn cut_once(&mut self) -> Option<nvs_runtime::Interrupt> {
+        match self {
+            Self::Tcp(stream) => stream.cut_once(),
+            #[cfg(unix)]
+            Self::Unix(stream) => stream.cut_once(),
         }
     }
 

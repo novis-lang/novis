@@ -1,10 +1,11 @@
 {
   "title": "`receive()` is the one wait, and it answers the peer or a subscribed topic, whichever arrives first",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "concurrency/a-connection-is-a-loop",
     "core-classes/topic"
   ],
-  "guardedBy": [],
-  "goal": "server-rule-debts"
+  "guardedBy": [
+    "crates/nvs-stdlib/src/socket.rs"
+  ]
 }

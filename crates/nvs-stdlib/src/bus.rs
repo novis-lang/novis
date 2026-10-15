@@ -136,6 +136,27 @@ struct Mailbox {
     /// and read by every publisher, which is why it is an `RwLock` rather than
     /// the queue's `Mutex`.
     topics: RwLock<HashMap<Box<str>, usize>>,
+    /// The socket waits parked on this core, each by the ticket its
+    /// [`ParkedOnBus`] holds. Written by this core and emptied one at a time
+    /// by the publishers that queue an envelope here.
+    parked: Mutex<Parked>,
+}
+
+/// [`Mailbox::parked`]'s map, with the next ticket beside it.
+#[derive(Default)]
+struct Parked {
+    next: u64,
+    held: HashMap<u64, nvs_runtime::Interrupt>,
+}
+
+impl std::fmt::Debug for Parked {
+    /// How many waits are parked: an [`nvs_runtime::Interrupt`] is a boxed
+    /// Rust closure and has nothing to render.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Parked")
+            .field("held", &self.held.len())
+            .finish()
+    }
 }
 
 /// Every core that has touched the bus.
@@ -274,7 +295,8 @@ pub(crate) fn hand_off(topic: &str, payload: Vec<u8>) -> u64 {
         // below, outside this block.
         let _bracket = budget::Detached::begin();
         let carrier: Arc<[u8]> = Arc::from(&payload[..]);
-        with_mine(|mine| {
+        let mut woken = Vec::new();
+        let queued = with_mine(|mine| {
             let mut queued = 0;
             for core in cores().iter().filter(|core| !Arc::ptr_eq(core, mine)) {
                 let listening = count_in(core, topic);
@@ -289,12 +311,83 @@ pub(crate) fn hand_off(topic: &str, payload: Vec<u8>) -> u64 {
                     topic: Box::from(topic),
                     payload: Arc::clone(&carrier),
                 });
+                drop(waiting);
+                woken.extend(one_parked(core));
                 queued += listening;
             }
             queued
-        })
+        });
+        // Fired with no lock held: a wake pokes another core's poll and takes
+        // that core's own lock.
+        for wake in woken {
+            wake();
+        }
+        queued
     };
     queued.unwrap_or(0)
+}
+
+/// Takes one parked wait off `core`, if it has one.
+///
+/// One and not all: the task it wakes drains the whole mailbox and fans out on
+/// its own core, and that fan-out wakes every subscriber there through its
+/// own queue. Waking every parked wait would wake every idle connection on
+/// that core for each publish.
+fn one_parked(core: &Mailbox) -> Option<nvs_runtime::Interrupt> {
+    let mut parked = core.parked.lock().unwrap_or_else(PoisonError::into_inner);
+    let ticket = *parked.held.keys().next()?;
+    parked.held.remove(&ticket)
+}
+
+/// A socket wait parked on this core, registered so that a publish from
+/// another core ends it ([`park_on_hand_off`]). Dropping it takes the wait
+/// back out, fired or not.
+#[derive(Debug)]
+pub(crate) struct ParkedOnBus {
+    mailbox: Arc<Mailbox>,
+    ticket: u64,
+}
+
+impl Drop for ParkedOnBus {
+    fn drop(&mut self) {
+        // The map's bytes are the process's: a publisher on another core may
+        // be the one that removed the entry, and freed it.
+        let _bracket = budget::Detached::begin();
+        let unfired = self
+            .mailbox
+            .parked
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .held
+            .remove(&self.ticket);
+        drop(unfired);
+    }
+}
+
+/// Registers `wake` to be fired by the next envelope another core queues for
+/// this one, for a socket wait about to park.
+///
+/// **What it spends:** one map entry per socket wait parked on this core that
+/// subscribed to something, the process's and held for as long as the wait
+/// is. `None` on a core whose mailbox is gone, where nothing can publish to it.
+pub(crate) fn park_on_hand_off(wake: nvs_runtime::Interrupt) -> Option<ParkedOnBus> {
+    with_mine(|mine| {
+        let _bracket = budget::Detached::begin();
+        let mut parked = mine.parked.lock().unwrap_or_else(PoisonError::into_inner);
+        let ticket = parked.next;
+        parked.next += 1;
+        parked.held.insert(ticket, wake);
+        drop(parked);
+        ParkedOnBus {
+            mailbox: Arc::clone(mine),
+            ticket,
+        }
+    })
+}
+
+/// Whether another core has queued an envelope here that no drain has taken.
+pub(crate) fn has_mail() -> bool {
+    with_mine(|mine| !queue(mine).is_empty()).unwrap_or(false)
 }
 
 /// What one drain took, and the balance it hands the envelopes back to.
