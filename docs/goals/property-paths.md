@@ -10,7 +10,7 @@ stages:
     context: [docs/rules/types/property-key-variance.md, docs/rules/types/property-key-access.md, docs/rules/ide/completion-offers-only-what-the-compiler-derived.md, docs/rules/ide/completion-is-asked-where-a-spelling-ends.md, docs/rules/statements/static-is-a-member-modifier.md]
     extra:
       context:
-        rules: [types/property-key, types/property-key-variance, types/property-key-access, types/conversion, ide/completion-offers-only-what-the-compiler-derived, ide/completion-is-asked-where-a-spelling-ends, statements/static-is-a-member-modifier, core-classes/reflect, core-classes/db-one-api]
+        rules: [types/property-key, types/property-key-variance, types/property-key-access, types/conversion, ide/completion-offers-only-what-the-compiler-derived, ide/completion-is-asked-where-a-spelling-ends, statements/static-is-a-member-modifier, core-classes/reflect, core-classes/db-one-api, core-classes/db-compile-time-query-checking]
         shapes: [A rule fragment]
   - id: 2
     title: "`static` is the calling class in a parameter and in an array return"
@@ -44,20 +44,20 @@ stages:
       context:
         rules: [ide/completion-offers-only-what-the-compiler-derived, ide/completion-is-asked-where-a-spelling-ends]
   - id: 6
-    title: "`format<K>` is a string with checked holes"
+    title: "`string<K>` checks the holes in a string"
     status: open
     context: [crates/nvs-syntax/src/parser/ty.rs, crates/nvs-types/src/ty.rs, crates/nvs-types/src/expr/operators.rs, crates/nvs-ir/src/lower/convert.rs, crates/nvs-lsp/src/capabilities.rs]
     extra:
       context:
-        rules: [types/format-holes, types/property-path, security/taint-propagation]
+        rules: [types/string-holes, types/property-path, security/taint-propagation]
         shapes: ["A `.nvst` test case", A diagnostic]
   - id: 7
-    title: "`Core\\Format::parts` and `steps`"
+    title: "`Core\\Str::parts` and `Core\\Reflect::steps`"
     status: open
-    context: [crates/nvs-stdlib/src/reflect.rs, crates/nvs-stdlib/src/registry.rs]
+    context: [crates/nvs-stdlib/src/str.rs, crates/nvs-stdlib/src/reflect.rs, crates/nvs-stdlib/src/registry.rs]
     extra:
       context:
-        rules: [core-classes/format-parts, core-classes/reflect]
+        rules: [core-classes/str-parts-and-reflect-steps, core-classes/reflect]
         shapes: [A `Core` member, "A `.nvst` test case"]
   - id: 8
     title: the feature proofs
@@ -71,7 +71,7 @@ stages:
     context: [website/src/content/docs/in-depth/concepts/tainted-input.mdx, website/src/components/Replay.astro]
     extra:
       context:
-        rules: [testing/website-pages-are-stamped, testing/a-replay-plays-what-the-language-server-returned]
+        rules: [testing/website-pages-are-stamped, testing/a-replay-plays-what-the-language-server-returned, core-classes/db-compile-time-query-checking]
 checks:
   - id: rules-check
     stage: 1
@@ -84,7 +84,7 @@ checks:
     tests: [tests/conformance/lang/a-static-parameter-type-is-the-class-the-call-names.nvst, tests/conformance/lang/a-static-array-return-is-the-class-the-call-names.nvst]
   - id: literal-at-key-parameter
     stage: 3
-    name: "a string literal at a `property<T>` parameter is checked where it is written, and the editor offers the names there"
+    name: "a string literal at a `property<T>` parameter is checked where it is written"
     run: [bun, nv, suite, tests/conformance/, --case, tests/conformance/lang/a-string-literal-at-a-property-key-parameter-is-checked-where-it-is-written.nvst]
     tests: [tests/conformance/lang/a-string-literal-at-a-property-key-parameter-is-checked-where-it-is-written.nvst]
   - id: literal-at-key-parameter-editor
@@ -102,25 +102,25 @@ checks:
     name: the editor completes, hovers, defines and underlines a path one segment at a time
     run: [bun, nv, suite, tests/lsp/, --case, tests/lsp/completion/a-property-path-completes-one-segment-at-a-time.lspt, --case, tests/lsp/hover/a-property-path-segment-shows-its-property.lspt, --case, tests/lsp/definition/a-property-path-segment-jumps-to-its-property.lspt, --case, tests/lsp/diagnostics/a-misspelled-property-path-is-underlined-at-its-segment.lspt]
     tests: [tests/lsp/completion/a-property-path-completes-one-segment-at-a-time.lspt, tests/lsp/hover/a-property-path-segment-shows-its-property.lspt, tests/lsp/definition/a-property-path-segment-jumps-to-its-property.lspt, tests/lsp/diagnostics/a-misspelled-property-path-is-underlined-at-its-segment.lspt]
-  - id: format-holes
+  - id: string-holes
     stage: 6
-    name: "a `format<K>` literal checks every hole where it is written, `{{` and `}}` are one brace, and a tainted string stays tainted"
-    run: [bun, nv, suite, tests/conformance/, --case, tests/conformance/lang/a-format-string-checks-every-hole-where-it-is-written.nvst, --case, tests/conformance/lang/a-doubled-brace-in-a-format-string-is-one-brace.nvst, --case, tests/conformance/lang/a-format-string-from-a-request-keeps-its-text-tainted.nvst]
-    tests: [tests/conformance/lang/a-format-string-checks-every-hole-where-it-is-written.nvst, tests/conformance/lang/a-doubled-brace-in-a-format-string-is-one-brace.nvst, tests/conformance/lang/a-format-string-from-a-request-keeps-its-text-tainted.nvst]
-  - id: format-holes-editor
+    name: "a `string<K>` literal checks every hole where it is written, `{{` and `}}` are one brace, and a tainted string stays tainted"
+    run: [bun, nv, suite, tests/conformance/, --case, tests/conformance/lang/a-string-with-holes-checks-every-hole-where-it-is-written.nvst, --case, tests/conformance/lang/a-doubled-brace-in-a-string-with-holes-is-one-brace.nvst, --case, tests/conformance/lang/a-string-with-holes-from-a-request-keeps-its-text-tainted.nvst]
+    tests: [tests/conformance/lang/a-string-with-holes-checks-every-hole-where-it-is-written.nvst, tests/conformance/lang/a-doubled-brace-in-a-string-with-holes-is-one-brace.nvst, tests/conformance/lang/a-string-with-holes-from-a-request-keeps-its-text-tainted.nvst]
+  - id: string-holes-editor
     stage: 6
-    name: "a `{` in a `format<K>` literal opens the list of its holes"
-    run: [bun, nv, suite, tests/lsp/, --case, tests/lsp/completion/a-brace-in-a-format-string-opens-the-list-of-its-holes.lspt]
-    tests: [tests/lsp/completion/a-brace-in-a-format-string-opens-the-list-of-its-holes.lspt]
-  - id: format-parts
+    name: "a `{` in a `string<K>` literal opens the list of its holes"
+    run: [bun, nv, suite, tests/lsp/, --case, tests/lsp/completion/a-brace-in-a-string-with-holes-opens-the-list-of-its-holes.lspt]
+    tests: [tests/lsp/completion/a-brace-in-a-string-with-holes-opens-the-list-of-its-holes.lspt]
+  - id: parts-and-steps
     stage: 7
-    name: "`Core\\Format::parts` gives the text and the checked holes, and `steps` gives each segment with its property"
-    run: [bun, nv, suite, tests/conformance/, --case, tests/conformance/core/format-parts-gives-the-text-and-the-checked-holes.nvst, --case, tests/conformance/core/format-steps-gives-each-segment-with-its-property.nvst]
-    tests: [tests/conformance/core/format-parts-gives-the-text-and-the-checked-holes.nvst, tests/conformance/core/format-steps-gives-each-segment-with-its-property.nvst]
+    name: "`Core\\Str::parts` gives the text and the checked holes, and `Core\\Reflect::steps` gives each segment's property"
+    run: [bun, nv, suite, tests/conformance/, --case, tests/conformance/core/str-parts-gives-the-text-and-the-checked-holes.nvst, --case, tests/conformance/core/reflect-steps-gives-each-segment-of-a-path.nvst]
+    tests: [tests/conformance/core/str-parts-gives-the-text-and-the-checked-holes.nvst, tests/conformance/core/reflect-steps-gives-each-segment-of-a-path.nvst]
   - id: proofs
     stage: 8
     name: every feature this goal adds has all its feature proofs
-    run: [bun, nv, proofs, --gate, --only, "lang:types/property-path", "lang:types/format-holes", "Core\\Format::parts", "Core\\Format::steps"]
+    run: [bun, nv, proofs, --gate, --only, "lang:types/property-path", "lang:types/string-holes", "Core\\Str::parts", "Core\\Reflect::steps"]
   - id: site-snippets
     stage: 9
     name: every snippet and every replay on the website matches the binary
@@ -143,8 +143,8 @@ of those is a plain string that nothing checks until a database or a template fa
 graph is finite and known while compiling, so the compiler can check such a path, the editor can
 complete it one segment at a time, and a path a request sends can be checked the same way at run
 time. This goal adds the path, a string with checked `{…}` holes for conditions and templates, and
-the `Core` splitter a library reads them with. It runs after `editor-replay`, because its website stage
-shows the completion with that goal's replays.
+the `Core` functions a library reads them with. It runs after `editor-replay`, because its website
+stage shows the completion with that goal's replays.
 
 ## Standing decisions
 
@@ -163,68 +163,76 @@ this goal, because a path through an array would read an array of values, and th
 its own. It goes to the rule's Declined list as "not yet", with that reason.
 
 **A literal at a key parameter is checked where it is written.** At a parameter typed `property<T>`,
-`propertyPath<T>` or `format<K>` (alone, not in a union with `string`), a string literal is converted
-while compiling: a wrong name is the unknown-member error at the literal, and a right one is accepted
-with no `as`. This changes `rule:types/property-key` ("a string literal is a `string` and stays one",
-`docs/rules/types/property-key.md:12`) and the completion rule's "offered nothing"
+`propertyPath<T>` or `string<K>` (alone, not in a union with plain `string`), a string literal is
+converted while compiling: a wrong name is the unknown-member error at the literal, and a right one is
+accepted with no `as`. This changes `rule:types/property-key` ("a string literal is a `string` and
+stays one", `docs/rules/types/property-key.md:12`) and the completion rule's "offered nothing"
 (`docs/rules/ide/completion-offers-only-what-the-compiler-derived.md:57`): the editor offers the names
 at such a parameter too. A string built at run time still needs `as`. A parameter typed `…|string`
 keeps today's meaning: any string, names offered, nothing checked.
 
 **`static` in a parameter type is the class the call names.** At `Category::find(...)` and
-`$category->find(...)`, a `static` inside a parameter type (`propertyPath<static>`, `format<…static…>`)
-is the receiver's class, the way an exact `static` return already is (`MethodSig::returns_static`,
-`crates/nvs-types/src/expr/calls.rs:240`, `crates/nvs-types/src/expr/calls.rs:652`). A `static[]` and a
-`?static` return are bound the same way, which `writes_static_return` leaves out today
-(`crates/nvs-types/src/signatures.rs:1698`). Inside the method body a `property<static>` or
-`propertyPath<static>` value may be applied only to a receiver whose type is `static`, converted with
-`as string`, or passed on. Fallback: if the checker cannot keep `static` apart from the declaring class
-inside the body, the body may only convert it with `as string` or pass it to `Core\Format`; the rule
-says so.
+`$category->find(...)`, a `static` inside a parameter type (`propertyPath<static>`,
+`string<propertyPath<static>>`) is the receiver's class, the way an exact `static` return already is
+(`MethodSig::returns_static`, `crates/nvs-types/src/expr/calls.rs:240`,
+`crates/nvs-types/src/expr/calls.rs:652`). A `static[]` and a `?static` return are bound the same way,
+which `writes_static_return` leaves out today (`crates/nvs-types/src/signatures.rs:1698`). Inside the
+method body a `property<static>` or `propertyPath<static>` value may be applied only to a receiver
+whose type is `static`, converted with `as string`, or passed on. Fallback: if the checker cannot keep
+`static` apart from the declaring class inside the body, the body may only convert it with `as string`
+or pass it to `Core\Str::parts` or `Core\Reflect::steps`; the rule says so.
 
-**`format<K>`** is a string with holes. `K` is `property<T>`, `propertyPath<T>`, or a set of allowed
-string values (`rule:types/single-value-types`). A hole is `{` + one `K` value + `}`, with no spaces;
-`{{` is a literal `{` and `}}` a literal `}`; an empty hole, an unclosed `{` and a lone `}` are errors.
-Holes work in both quote styles, because a brace with no `$` after it is already plain text in a
-string (`tests/conformance/lang/a-string-literal-escapes-and-interpolates-exactly-what-each-quote-allows.nvst:61`).
-A double-quoted string that interpolates `{$…}` is not a literal, so it needs `as format<K>`. `as
-string` is total and gives the text as written, braces and escapes included. The name is the user's
-call. `Core\Str::format`, the `printf` member, keeps its name (`crates/nvs-stdlib/src/format.rs:1`).
+**`string<K>`** is a string with holes. The name is the user's call: it adds no new word, so it clashes
+with nothing, and it says what the value is. `format` was declined because `Core\Str::format` is the
+`printf` member (`crates/nvs-stdlib/src/format.rs:1`), `template` because of HTML templates,
+`placeholder` because a SQL query's `:0` and `?` are placeholders (`rule:core-classes/db-parameters`),
+and `path` and `text` because each already means something. `string` takes `<` as a type word only
+when `<` follows it, the way `property` does (`crates/nvs-syntax/src/parser/ty.rs:91`). `K` is
+`property<T>`, `propertyPath<T>`, or a set of allowed string values (`rule:types/single-value-types`).
+A hole is `{` + one `K` value + `}`, with no spaces; `{{` is a literal `{` and `}}` a literal `}`; an
+empty hole, an unclosed `{` and a lone `}` are errors. Holes work in both quote styles, because a
+brace with no `$` after it is already plain text in a string
+(`tests/conformance/lang/a-string-literal-escapes-and-interpolates-exactly-what-each-quote-allows.nvst:61`).
+A double-quoted string that interpolates `{$…}` is not a literal, so it needs `as string<K>`. `as
+string` is total, as it is for `property<T>`, and gives the text as written, braces and escapes
+included. The concept page explains in its first lines that `string<K>` is not a collection like
+`array<K>`, because a reader may guess that first.
 
 **Taint stays on the text.** `as property<T>` and `as propertyPath<T>` strip `tainted`, because their
-output can only be a declared name (`docs/rules/types/property-key.md:21`). `as format<K>` does not:
+output can only be a declared name (`docs/rules/types/property-key.md:21`). `as string<K>` does not:
 the text between the holes is still the caller's text. A `tainted string` converts to a
-`tainted format<K>`, and its text parts are `tainted string`. So a condition built from a request can
+`tainted string<K>`, and its text parts are `tainted string`. So a condition built from a request can
 never reach `Core\Db`'s query text, which refuses tainted (`rule:core-classes/db-one-api`). Only the
 holes are stripped. This is the security half of the feature, and the attack in stage 8 pins it.
 
-**`Core\Format::parts(format<K> $text): array<string|K>`** gives the text pieces and the holes in
-order. A text piece has `{{` and `}}` already turned into one brace, so a library that joins the pieces
-never handles an escape. **`Core\Format::steps(propertyPath<T> $path): array<Core\Format\Step>`** gives
-one row per segment: `name`, a `string`, and `info`, its `Core\Reflect\PropertyInfo`, which says whether
-the step is one object, a nullable one or an array. `Core` parses only the holes: the text between
-them is the library's own language, and query builders are not `Core`
-(`rule:core-classes/db-one-api`). Both run once per call, at run time. Splitting a literal while
-compiling is decided only if the stage 8 bench shows the split costs more than the work around it.
+**`Core\Str::parts(string<K> $text): array<string|K>`** gives the text pieces and the holes in order.
+A text piece has `{{` and `}}` already turned into one brace, so a library that joins the pieces never
+handles an escape. **`Core\Reflect::steps(propertyPath<T> $path): array<Core\Reflect\PropertyInfo>`**
+gives one row per segment: the existing description, with the property's name, visibility and declared
+type (`crates/nvs-stdlib/src/reflect.rs:1334`), so a library sees whether a step is one object, a
+nullable one or an array. No new class is added. `Core` parses only the holes: the text between them
+is the library's own language, and query builders are not `Core` (`rule:core-classes/db-one-api`).
+Both run once per call, at run time. Splitting a literal while compiling is decided only if the stage
+8 bench shows the split costs more than the work around it.
 
-**The editor.** Inside a literal at a `propertyPath<T>` parameter, and inside a hole of a `format<K>`
+**The editor.** Inside a literal at a `propertyPath<T>` parameter, and inside a hole of a `string<K>`
 literal, the list offers `T`'s public properties with their types, and each `.` after a valid prefix
 offers the properties of the class reached. Depth is unlimited and a path that loops costs nothing,
 because one class is listed per request. `{` becomes a trigger character
-(`crates/nvs-lsp/src/capabilities.rs:229`), answered only inside a `format<K>` literal, and
+(`crates/nvs-lsp/src/capabilities.rs:229`), answered only inside a `string<K>` literal, and
 `rule:ide/completion-is-asked-where-a-spelling-ends` says so. Hover on a segment shows its property,
 go-to-definition jumps to it, and a misspelled segment is underlined alone, not the whole string. All
 of it reads the roster the checker records, never a second walk
 (`rule:ide/completion-offers-only-what-the-compiler-derived`).
 
 **The rules** are written in stage 1 as `designed`, owned by this goal: `types/property-path`,
-`types/format-holes`, `core-classes/format-parts`, and the changes to
+`types/string-holes`, `core-classes/str-parts-and-reflect-steps`, and the changes to
 `rule:types/property-key`, `rule:statements/static-is-a-member-modifier` and both completion rules.
 Each later stage flips what it builds to `shipped` with its guard tests. The feature ids in the
 `proofs` check are this file's guess; stage 1 fixes them to what the roster names.
 
-**Feature proofs and the attack.** `propertyPath<T>`, `format<K>`, `Core\Format::parts` and
-`Core\Format::steps` each owe every proof (`rule:testing/feature-proofs`), and the `static` change
+**Feature proofs and the attack.** `propertyPath<T>`, `string<K>`, `Core\Str::parts` and
+`Core\Reflect::steps` each owe every proof (`rule:testing/feature-proofs`), and the `static` change
 updates the class proofs it touches. The attack for `propertyPath<T>` is a sort field from a request:
 a `private` property, a path through a relation to one, `{{`, a very long path, a path that loops, and
 a tainted condition that tries to reach `Core\Db` query text. Each must fail, and the server must keep
@@ -236,17 +244,20 @@ each feature's page. A walkthrough under `website/src/content/docs/guides/how-to
 small data mapper from nothing, one runnable snippet per step: one field, a path, a condition string,
 `static`, holes to SQL with `parts` and `steps`, a sort field from a request and what a bad one does.
 Replays (`editor-replay`) of completing a path and of a misspelled segment's error. A link to the
-attack. The pages describe the combination as it is: the compiler checks field paths through
-relations inside a string, with no plugin and no database connection, and checks the same paths at
-run time. They do not claim no other language does anything similar. All of it follows AGENTS.md §
-*Text an end user reads*.
+attack. The walkthrough says what this adds to database work: Novis never parses SQL, so a column
+typo inside SQL text is found at run time (`rule:core-classes/db-compile-time-query-checking`), and a
+field named through a path is checked against the classes while compiling. The pages describe the
+combination as it is: the compiler checks field paths through relations inside a string, with no
+plugin and no database connection, and checks the same paths at run time. They do not claim no other
+language does anything similar. All of it follows AGENTS.md § *Text an end user reads*.
 
 **Trade-offs, agreed.** Performance: a literal costs nothing at run time; a converted string costs one
 lookup per segment; `parts` is one pass per call. Memory: the checker keeps one roster per class a key
 names, as `property<T>` already does (`crates/nvs-types/src/expr/members.rs:704`); at run time a path is
 one string, and `parts` allocates its pieces per call, charged to the request. Usability: field names
-are checked and completed where they were plain strings. Simplicity: two type forms, one rule that a
-literal at a key parameter is checked, and `static` binding in parameters; this is the cost.
+are checked and completed where they were plain strings. Simplicity: one new type word
+(`propertyPath`), a second form of `string`, one rule that a literal at a key parameter is checked, and
+`static` binding in parameters; this is the cost.
 
 ## Stages
 
@@ -255,8 +266,8 @@ literal at a key parameter is checked, and `static` binding in parameters; this 
 **Does:** every rule this goal builds exists as `designed`, owned by `property-paths`, and the changed rules say what will change.
 
 - [ ] `types/property-path`. `docs/rules/types/property-path.md:1`
-- [ ] `types/format-holes`. `docs/rules/types/format-holes.md:1`
-- [ ] `core-classes/format-parts`. `docs/rules/core-classes/format-parts.md:1`
+- [ ] `types/string-holes`. `docs/rules/types/string-holes.md:1`
+- [ ] `core-classes/str-parts-and-reflect-steps`. `docs/rules/core-classes/str-parts-and-reflect-steps.md:1`
 - [ ] The changed rows of `rule:types/property-key` and `rule:statements/static-is-a-member-modifier`. `docs/rules/types/property-key.md:12`
 - [ ] The changed rows of both completion rules. `docs/rules/ide/completion-offers-only-what-the-compiler-derived.md:53`
 - [ ] The feature ids in the `proofs` check match the roster. `docs/goals/property-paths.md:1`
@@ -293,28 +304,28 @@ literal at a key parameter is checked, and `static` binding in parameters; this 
 - [ ] Hover and go-to-definition on a segment. `crates/nvs-lsp/src/hover.rs:1`
 - [ ] The underline on the bad segment alone. `crates/nvs-lsp/src/diagnostics.rs:1`
 
-### 6. `format<K>` is a string with checked holes
+### 6. `string<K>` checks the holes in a string
 
-**Does:** `format<K>` checks every hole of a literal, converts a run-time string, keeps taint on its text, and `{` opens the list.
+**Does:** `string<K>` checks every hole of a literal, converts a run-time string, keeps taint on its text, and `{` opens the list.
 
-- [ ] Parse the atom and lower it. `crates/nvs-syntax/src/parser/ty.rs:549`
+- [ ] Parse `string<` the way `property<` is parsed, and lower it. `crates/nvs-syntax/src/parser/ty.rs:91`
 - [ ] The hole scanner, its escapes and its errors. `crates/nvs-types/src/expr/operators.rs:300`
 - [ ] The run-time conversion that keeps `tainted` on the text. `crates/nvs-ir/src/lower/convert.rs:1558`
-- [ ] `{` as a trigger character, answered only in a `format<K>` literal. `crates/nvs-lsp/src/capabilities.rs:229`
+- [ ] `{` as a trigger character, answered only in a `string<K>` literal. `crates/nvs-lsp/src/capabilities.rs:229`
 
-### 7. `Core\Format::parts` and `steps`
+### 7. `Core\Str::parts` and `Core\Reflect::steps`
 
-**Does:** `Core\Format::parts` splits a `format<K>` into text and holes, and `steps` gives each segment of a path with its property.
+**Does:** `Core\Str::parts` splits a `string<K>` into text and holes, and `Core\Reflect::steps` gives the property of each segment of a path.
 
-- [ ] The members and `Core\Format\Step`, with their cards. `crates/nvs-stdlib/src/format_parts.rs:1`
-- [ ] `info` from the reflection roster. `crates/nvs-stdlib/src/reflect.rs:215`
+- [ ] `Core\Str::parts` and its card. `crates/nvs-stdlib/src/str.rs:345`
+- [ ] `Core\Reflect::steps` and its card, returning the existing property rows. `crates/nvs-stdlib/src/reflect.rs:1334`
 
 ### 8. the feature proofs
 
 **Does:** every feature this goal adds has its description, tests, three examples, a bench, the attack and its help.
 
-- [ ] `propertyPath<T>` and `format<K>`. `docs/examples/lang/types/property-path/01-a-path-through-a-relation.nvs:1`
-- [ ] `Core\Format::parts` and `Core\Format::steps`. `docs/examples/core/Format/parts/01-text-and-holes.nvs:1`
+- [ ] `propertyPath<T>` and `string<K>`. `docs/examples/lang/types/property-path/01-a-path-through-a-relation.nvs:1`
+- [ ] `Core\Str::parts` and `Core\Reflect::steps`. `docs/examples/core/Str/parts/01-text-and-holes.nvs:1`
 - [ ] The sort-field attack. `tests/hostile/lang/types/property-path/01-a-sort-field-from-a-request.nvs:1`
 
 ### 9. the concept page and the walkthrough
@@ -339,11 +350,11 @@ Stage 9 needs `editor-replay` reached first.
 
 **Stage 1: the rules**, one file set: `docs/rules/types/`, `docs/rules/core-classes/`, `docs/rules/ide/`, `docs/rules/statements/`, `data/rules/`.
 
-- [ ] Write `types/property-path` and `types/format-holes` as `designed` (`rule:types/property-key` is the model). `docs/rules/types/property-path.md:1`
-- [ ] Write `core-classes/format-parts` as `designed` (`rule:core-classes/reflect` is the neighbour). `docs/rules/core-classes/format-parts.md:1`
+- [ ] Write `types/property-path` and `types/string-holes` as `designed` (`rule:types/property-key` is the model). `docs/rules/types/property-path.md:1`
+- [ ] Write `core-classes/str-parts-and-reflect-steps` as `designed` (`rule:core-classes/reflect` is the neighbour). `docs/rules/core-classes/str-parts-and-reflect-steps.md:1`
 - [ ] Mark the changes in `rule:types/property-key`, `rule:statements/static-is-a-member-modifier` and both completion rules as designed rows owned by this goal. `docs/rules/types/property-key.md:12`
 
 ### Backlog
 
 - Reading and writing through a path, `$obj->{$path}`: declined for now in `types/property-path`.
-- Splitting a `format<K>` literal while compiling, if the stage 8 bench asks for it (`core-classes/format-parts`).
+- Splitting a `string<K>` literal while compiling, if the stage 8 bench asks for it (`core-classes/str-parts-and-reflect-steps`).
