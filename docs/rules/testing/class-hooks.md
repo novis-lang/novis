@@ -20,6 +20,12 @@ by type: `class`, the counts `passed`, `failed`, `flaky` and `skipped`, and `fai
 the failed tests as the report prints them. A hook that keeps the database when `failed` is above zero
 and drops it otherwise is the case it exists for.
 
+The runner guarantees the order and nothing about data. Tests and classes run in parallel across every
+core, as many at once as the runner chooses, so the one promise is that `#[BeforeClass]` returns before
+the class's first test starts and `#[AfterClass]` starts after its last test has finished. Two classes
+whose setups touch the same database run at the same time, and keeping them apart, for instance by
+naming the database after the class, is the program's job.
+
 Tests of one class share what the setup wrote, so a test that writes to it runs under
 `#[Test(db:)]` (`rule:testing/db-transaction`). Without that, one test's rows reach the next and the
 order of the tests matters again, which is what an isolate per test exists to prevent
