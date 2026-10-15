@@ -64,7 +64,7 @@ export const SPONSOR_CHANNELS = [
   {
     label: 'Polar',
     url: '',
-    text: 'For a gift without a GitHub account. You pay by card. Polar handles the VAT and sales tax, and you get a receipt.',
+    text: 'For a gift without a GitHub account. You can pay by card, Apple Pay, Google Pay and many other methods. Polar handles the VAT and sales tax, and you get a receipt.',
   },
   {
     label: 'Bank transfer',
