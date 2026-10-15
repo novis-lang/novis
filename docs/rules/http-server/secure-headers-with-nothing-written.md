@@ -20,3 +20,9 @@ member of the set with a condition of its own (`rule:http-server/hsts-follows-th
 - **A full default `Content-Security-Policy`.** A wrong CSP breaks the page with no diagnostic,
   which is how CSP gets disabled for good after one incident. Framing is the safe subset, and it is
   the one shipped; a further default waits for a shape that is safe for every application.
+- **A nonce or hash the server adds to every `<script>`, `<style>` and inline handler the developer
+  wrote.** Escaped holes already keep injected markup out of a page
+  (`rule:core-classes/html-auto-escape`), so it would add protection only to a hole in a URL, an
+  `on*` handler or a script body. Finding those needs the HTML position model
+  `rule:core-classes/html-template` declines, and a fragment fetched by script carries its own
+  response's nonce, which never matches the page's.
