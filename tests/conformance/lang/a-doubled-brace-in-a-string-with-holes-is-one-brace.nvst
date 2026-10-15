@@ -48,6 +48,7 @@ Query::check("{{total} = 1");
 var $a = "{total}" as string<propertyPath<Order>>;
 var $b = ("{" . "total}") as string<propertyPath<Order>>;
 echo $a == $b ? "equal" : "different", "\n";
+// covers: lang:types/strings-with-holes
 --EXPECT--
 {{nmae}} = {customer.name}
 {total} > 3 AND json = '{{}}'

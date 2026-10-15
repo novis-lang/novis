@@ -1,0 +1,4 @@
+valid: {status} = 'paid'
+not valid: {price} > 10
+not valid: {total > 10
+`"{total.amount} > 1"` is not a string with holes of `Order`: in the hole `{total.amount}`, `Order`'s property `$total` is not an object, so the path cannot continue after it

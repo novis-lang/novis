@@ -43,6 +43,7 @@ echo Query::sort("ORDER BY {up}"), "\n";
 echo Query::where("{} = 1"), "\n";
 echo Query::where("a } b"), "\n";
 echo "{customer" as string<propertyPath<Order>> as string, "\n";
+// covers: lang:types/strings-with-holes
 --EXPECTF-ERROR--
 error[E0860]: `string<int>` names something its holes cannot be
    --> %s:30:41

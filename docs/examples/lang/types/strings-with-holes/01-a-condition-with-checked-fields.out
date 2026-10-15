@@ -1,0 +1,3 @@
+SELECT {name}, {email}
+WHERE {total} > 100 AND {customer.email} LIKE ?
+WHERE {status} IN ('paid', 'sent')

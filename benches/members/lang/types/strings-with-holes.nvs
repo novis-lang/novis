@@ -1,0 +1,33 @@
+<?nvs
+// Checks the holes of a query condition built while the program runs, as a filter form does
+// for each request.
+// bench: iterations 512
+// bench: allocations 0
+// bench: complexity linear
+
+class Customer {
+    public string $name = "";
+}
+
+class Order {
+    public ?Customer $customer = null;
+    public int $total = 0;
+    public string $status = "";
+}
+
+class Bench {
+    public static function run(int $rounds): int {
+        array<string> $conditions = ["{total} > 100", "{customer.name} = ? AND {status} = 'paid'", "{status} IN ('paid', 'sent')"];
+        int $total = 0;
+        int $i = 0;
+        while ($i < $rounds) {
+            // Chained: the condition this round checks depends on the last round's total.
+            string<propertyPath<Order>> $condition = $conditions[($total + $i) % 3] as string<propertyPath<Order>>;
+            $total = $total + (Core\Str::length($condition as string) as int);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(512), "\n";
