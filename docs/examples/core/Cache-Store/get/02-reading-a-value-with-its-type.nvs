@@ -6,7 +6,7 @@ class Article {
     public string $title = "";
 }
 
-var $cache = Core\Cache::local();
+var $cache = Core\Cache::memory();
 
 array<string> $written = ["food", "recipe"];
 var $article = new Article();

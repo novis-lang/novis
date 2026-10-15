@@ -1,15 +1,15 @@
 <?nvs
-// Shows how a request keeps working when the shared store is away. It uses that
-// store when it is there, and this server's own cache when it is not.
+// Shows a request that uses the shared store when the server can reach it, and
+// the memory cache of this server when it cannot.
 
 class Sessions {
     public static function store(): Core\Cache\Store {
         try {
             return Core\Cache::shared();
         } catch (Throwable $away) {
-            // The value is then on this machine only. A program that must not
-            // be wrong here should let the error through instead.
-            return Core\Cache::process();
+            // The value is then in this server process only. A program that
+            // must not lose the value should let the error through instead.
+            return Core\Cache::memory();
         }
     }
 }
@@ -17,6 +17,6 @@ class Sessions {
 var $store = Sessions::store();
 $store->put("session:8412", "kim", {ttl: 30m});
 
-// This prints kim, whichever of the two stores answered.
+// This prints kim, from whichever of the two stores the function returned.
 var $who = $store->get("session:8412") ?? "unknown";
 echo $who as string, "\n";

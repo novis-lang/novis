@@ -6,7 +6,7 @@ class Tokens {
     // The work the cache saves. A real program calls the service here. The
     // counter below shows how often that happened.
     public static function fetch(): secret string {
-        var $cache = Core\Cache::process();
+        var $cache = Core\Cache::memory();
         var $held = $cache->get("token-fetches") ?? 0;
         int $done = $held as int;
         $cache->put("token-fetches", $done + 1);
@@ -14,7 +14,7 @@ class Tokens {
     }
 
     public static function ensure(array<secret bytes> $keys): void {
-        var $cache = Core\Cache::process();
+        var $cache = Core\Cache::memory();
 
         // A hit needs no service call. A miss is also what an expired entry
         // looks like, so the token is fetched again then.
@@ -35,7 +35,7 @@ array<secret bytes> $keys = [$key];
 Tokens::ensure($keys);
 Tokens::ensure($keys);
 
-var $cache = Core\Cache::process();
+var $cache = Core\Cache::memory();
 
 // The first call fetched the token and the second call read the store. This
 // prints 1.

@@ -1,17 +1,16 @@
 <?nvs
-// `[cache.shared]` names the store behind the third cache tier. It is a store on
-// the network, and every core and every machine reads the same entries from it.
-// This is what the server running this program was given:
+// Shows the settings of the network store that every server process and every machine shares.
+// The server running this program has this block:
 //
 //     [cache.shared]
 //     url = "redis://127.0.0.1:16379"
 //
-// The address has no default. A server that writes nothing here has no shared tier.
+// The address has no default. A server that sets no `url` has no shared cache.
 
-echo 'store:    ', Core\Config::get('cache.shared.url') ?? '(no shared tier)', "\n";
+echo 'store:    ', Core\Config::get('cache.shared.url') ?? '(no shared cache)', "\n";
 
 // The other keys have defaults. `database` is the database in the store
-// that the entries use.
+// that the values use.
 echo 'database: ', Core\Config::get('cache.shared.database') ?? '(the one the store opens on)', "\n";
 
 // `timeout` limits the connect and each command. This file does not set it,

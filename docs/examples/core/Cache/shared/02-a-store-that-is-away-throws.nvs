@@ -1,16 +1,15 @@
 <?nvs
-// Shows the one promise this tier makes that the two caches in memory do not.
-// A key that was never written returns `null`. A shared store the server cannot
-// reach throws, so your program can tell the two apart.
+// Shows how a program tells a missing value apart from a shared store that the
+// server cannot reach.
 
-var $local = Core\Cache::local();
+var $memory = Core\Cache::memory();
 
-// A key with no value is an ordinary answer. This prints null.
-var $missing = $local->get("never-written") ?? "null";
+// Every cache returns `null` for a key that nothing wrote. This prints null.
+var $missing = $memory->get("never-written") ?? "null";
 echo $missing as string, "\n";
 
-// A shared store that is not there is an error. Your program needs that
-// difference when a wrong answer would be worse than no answer at all.
+// A shared store that the server cannot reach throws an error. Your program
+// needs this when a wrong value is worse than no value.
 try {
     Core\Cache::shared();
     echo "the store is ready\n";

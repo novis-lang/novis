@@ -2,7 +2,7 @@
 // Shows how to read a value out of a cache store, and what a missing key
 // returns.
 
-var $cache = Core\Cache::local();
+var $cache = Core\Cache::memory();
 $cache->put("greeting", "hello");
 
 // `get` returns what was written under the key. This prints hello.

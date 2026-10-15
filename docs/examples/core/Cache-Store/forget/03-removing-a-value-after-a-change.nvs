@@ -6,7 +6,7 @@ class Articles {
     // A real program reads the database here. This example is given the title
     // the database holds, to keep the example short.
     public static function titleOf(string $id, string $inDatabase): tainted string {
-        var $cache = Core\Cache::local();
+        var $cache = Core\Cache::memory();
         string $key = "article-" . $id;
 
         var $held = $cache->get($key);
@@ -20,7 +20,7 @@ class Articles {
 
     // Your program calls this after it saved the article.
     public static function saved(string $id): void {
-        var $cache = Core\Cache::local();
+        var $cache = Core\Cache::memory();
         $cache->forget("article-" . $id);
     }
 }

@@ -6,9 +6,9 @@ value is allowed and does nothing.
 `forget` returns nothing, not even whether there was a value. A cached value may be gone at any time
 anyway, so an answer here would tell your program nothing it can use.
 
-Each store removes its own values. A key removed from the store of one CPU core is still in the
-store of every other core, and in the store your server shares. So `forget` is not a way to make
-every request see a change at once.
+Each store removes only its own values. A key removed from the memory cache of one server process is
+still in the memory cache of every other server process. So `forget` on `Core\Cache::memory` is not a
+way to make every server see a change at once.
 
 The store has no way to remove several keys at once. Your program removes them one by one, with the
 keys it knows it wrote.

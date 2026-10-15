@@ -5,7 +5,7 @@
 secret bytes $key = Core\Crypto::generateKey();
 array<secret bytes> $keys = [$key];
 
-var $cache = Core\Cache::local();
+var $cache = Core\Cache::memory();
 
 // A short-lived access token. The service replaces it every few minutes, so
 // the entry may only be used for two.

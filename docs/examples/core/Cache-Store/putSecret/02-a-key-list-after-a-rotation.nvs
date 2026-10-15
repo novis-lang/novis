@@ -5,7 +5,7 @@
 secret bytes $newKey = Core\Crypto::generateKey();
 secret bytes $oldKey = Core\Crypto::generateKey();
 
-var $cache = Core\Cache::local();
+var $cache = Core\Cache::memory();
 secret string $password = "s3cr3t-db-pass";
 
 // Before the rotation the program has one key, so that key seals the entry.

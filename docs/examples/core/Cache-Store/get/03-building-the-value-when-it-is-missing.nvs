@@ -4,7 +4,7 @@
 
 class Menu {
     public static function links(): array<tainted string> {
-        var $cache = Core\Cache::local();
+        var $cache = Core\Cache::memory();
 
         // A value that is there is used as it is, and the work below is
         // skipped.

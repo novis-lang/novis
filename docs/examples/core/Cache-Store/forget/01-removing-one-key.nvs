@@ -1,7 +1,7 @@
 <?nvs
 // Shows how to remove one value from a cache store.
 
-var $cache = Core\Cache::local();
+var $cache = Core\Cache::memory();
 $cache->put("greeting", "hello");
 
 // The value is there. This prints hello.

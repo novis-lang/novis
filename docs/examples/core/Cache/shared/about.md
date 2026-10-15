@@ -1,16 +1,15 @@
-Stores values in a store outside this server, where every core and every machine finds the same value.
+Stores values in a store on the network, where every server process and every machine sees the same values.
 
-The person who runs the server says which store that is, and grants the capability `cache.shared`. A
-program cannot choose the store for itself. You then write a value with `put` and read it back with
-`get`, which are the same two methods the two caches in memory have.
+The person who runs the server sets up the store in `nvs.toml` and grants the capability `cache.shared`. A
+program cannot choose the store for itself. You write a value with `put` and read it back with `get`. These
+are the same methods `Core\Cache::memory` has.
 
-This is the tier that answers the same way everywhere. A store the server cannot reach throws an error
-instead of answering `null`, so a missing value and a broken store never look the same to your program.
-That is the difference from `Core\Cache::local` and `Core\Cache::process`, where a `null` can mean
-either one.
+Use this cache when another server must find the value, such as a login session. Use it also when your
+program would be wrong if the value were missing. A key that nothing wrote returns `null`. If the server
+cannot reach the store, the call throws an error. So your program can tell the two cases apart.
 
-**Good to know:** every read and every write here goes over the network, so this tier is slower than
-the two caches in memory. Use it for what has to be right, not for what is only nice to have.
+**Good to know:** every read and every write goes over the network, so this cache is slower than
+`Core\Cache::memory`. For a value that this server can build again, use `Core\Cache::memory`.
 
-**The examples below** show the settings a shared store needs first, then what an unreachable store
-does, then how a request falls back to a cache in memory.
+**The examples below** show the settings a shared store needs first, then what happens when the server
+cannot reach the store, then a request that uses the memory cache in that case.

@@ -2,7 +2,7 @@
 // Shows how to write a value into a cache store, and what a second write
 // under the same key does.
 
-var $cache = Core\Cache::local();
+var $cache = Core\Cache::memory();
 
 // `put` writes the value 3 under the key "visits".
 $cache->put("visits", 3);

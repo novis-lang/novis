@@ -17,7 +17,7 @@ class Profiles {
     }
 
     public static function of(string $userId): Profile {
-        var $cache = Core\Cache::local();
+        var $cache = Core\Cache::memory();
 
         // The user id is part of the key, so every user has an entry of their
         // own. A key may contain values that came from the request.

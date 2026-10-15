@@ -32,7 +32,7 @@ class Service {
 secret bytes $key = Core\Crypto::generateKey();
 array<secret bytes> $keys = [$key];
 
-var $cache = Core\Cache::process();
+var $cache = Core\Cache::memory();
 var $fill = fn (): Core\Cache\SecretEntry => Service::entry();
 
 // The first call logs in and stores the token for the time the endpoint

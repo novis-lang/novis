@@ -1,7 +1,7 @@
 <?nvs
 // Shows how to store a value that should only be used for a short time.
 
-var $cache = Core\Cache::local();
+var $cache = Core\Cache::memory();
 
 // The `ttl` option is the lifetime of the entry. This value may be used for
 // ten minutes.
