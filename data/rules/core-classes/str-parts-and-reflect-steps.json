@@ -1,12 +1,17 @@
 {
   "title": "`Core\\Str::parts` splits a `string<K>` into text and holes, and `Core\\Reflect::steps` gives each segment of a path its property",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "types/string-holes",
     "types/property-path",
     "core-classes/reflect",
     "core-classes/db-one-api"
   ],
-  "guardedBy": [],
-  "goal": "property-paths"
+  "guardedBy": [
+    "tests/conformance/core/str-parts-gives-the-text-and-the-checked-holes.nvst",
+    "tests/conformance/core/str-parts-keeps-tainted-on-the-text-and-not-on-the-holes.nvst",
+    "tests/conformance/core/reflect-steps-gives-each-segment-of-a-path.nvst",
+    "tests/conformance/core/reflect-steps-reads-a-path-converted-at-run-time.nvst",
+    "tests/conformance/core/reflect-steps-in-a-method-converts-a-static-path-with-self.nvst"
+  ]
 }

@@ -4419,12 +4419,18 @@ impl<'a> Lowering<'a> {
                     .then(|| self.written_enum_constant(*cur, call));
             let lowered =
                 self.lower_call_args(args, &sig, checked_types, ArgOwnership::Borrowed, env, cur);
+            // `nvs_stdlib::registry::PATH_GRAPH_MEMBERS`' trailing string —
+            // `Lowering::path_graph_constant` owns it.
+            let path_graph =
+                nvs_types::core_takes_path_graph(&call.class.to_string(), &call.method)
+                    .then(|| self.path_graph_constant(*cur, call.path_graph.as_deref()));
             let arg_values = prepared
                 .into_iter()
                 .chain(source)
                 .chain(written_class.into_iter().flatten())
                 .chain(written_enum)
                 .chain(lowered.values)
+                .chain(path_graph)
                 .chain(site)
                 .collect::<Vec<_>>();
             let result = self.emit_fallible(

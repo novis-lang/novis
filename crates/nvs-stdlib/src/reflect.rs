@@ -365,6 +365,18 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             symbol: "nvs_core_reflect_type_of",
             doc: Some(&TYPE_OF_DOC),
         },
+        CoreMethod {
+            name: "steps",
+            names: &["path"],
+            // `T` binds from the argument's type, and the classes it reaches
+            // arrive as a trailing argument — see
+            // `crate::registry::PATH_GRAPH_MEMBERS`.
+            params: &[CoreTy::PropertyPath(&CoreTy::Var("T"))],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Instance(PROPERTY_INFO_NAME)),
+            symbol: "nvs_core_reflect_steps",
+            doc: Some(&STEPS_DOC),
+        },
     ],
     instance: &[],
     slots: &[],
@@ -408,6 +420,25 @@ const FOR_OBJECT_DOC: MethodDoc = MethodDoc {
         error: "RuntimeError",
         desc: "`$object` is not an object — a `mixed` carries no promise that it is one, so the \
                check is made here rather than by the caller.",
+    }],
+};
+
+/// `Core\Reflect::steps`' reference card — `rule:core-api/reference-card`.
+const STEPS_DOC: MethodDoc = MethodDoc {
+    short: "Returns the property that each part of a property path names.",
+    params: &[ParamDoc {
+        name: "path",
+        desc: "A property path, such as `customer.address.city` of type \
+               `propertyPath<Order>`.",
+        shape: &[],
+    }],
+    ret: "One `Core\\Reflect\\PropertyInfo` for each part of the path, in order. Each one has \
+          the property's name, whether it is public, and its declared type. The type shows \
+          whether the next part is reached through an object, a nullable object or an array.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "`steps` was called through a callable value, so the class the path starts at is \
+               not known.",
     }],
 };
 
@@ -1901,6 +1932,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_reflect_for_class" => (nvs_core_reflect_for_class as *const ()).cast(),
         "nvs_core_reflect_for_object" => (nvs_core_reflect_for_object as *const ()).cast(),
         "nvs_core_reflect_type_of" => (nvs_core_reflect_type_of as *const ()).cast(),
+        "nvs_core_reflect_steps" => (nvs_core_reflect_steps as *const ()).cast(),
         "nvs_core_reflect_class_info_name" => {
             (nvs_core_reflect_class_info_name as *const ()).cast()
         }
@@ -2085,6 +2117,79 @@ nvs_runtime::nvs_helper! {
         )]
         let description = unsafe { describe(&*desc) };
         Ok(description)
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Reflect::steps(propertyPath<T> $path): array<Core\Reflect\PropertyInfo>` —
+    /// `rule:core-classes/str-parts-and-reflect-steps`.
+    ///
+    /// `args[1]` is the classes `T` reaches, encoded as `as propertyPath<T>`'s
+    /// run-time check reads them (`crate::registry::PATH_GRAPH_MEMBERS`). The
+    /// walk over it gives each segment's class, and the row is built from that
+    /// class's descriptor as [`describe`] builds it, so a step's row and a
+    /// description's row are the same row.
+    ///
+    /// An empty `args[1]` is a call through a callable value, which binds no
+    /// `T`, and throws. A path the walk rejects, or a class the running program
+    /// does not carry, is a contained `FATAL`: the checker and `as
+    /// propertyPath<T>` checked the path before it could reach here.
+    ///
+    /// **What it spends:** one array and one [`PROPERTY_INFO`] of three slots
+    /// per segment, per call, charged to the request. One roster is read per
+    /// segment.
+    fn nvs_core_reflect_steps(ctx, args: [2]) {
+        let member = "Core\\Reflect::steps";
+        let path = text_of(&args[0], member)?;
+        let graph = text_of(&args[1], member)?;
+        if graph.is_empty() {
+            return Err(Fault::thrown_as(
+                ThrownClass::Logic,
+                format!(
+                    "{member} was called through a callable value, so the class the path starts \
+                     at is not known"
+                ),
+            ));
+        }
+        let Some(segments) = nvs_runtime::helpers::property_path_segments(path.as_bytes(), graph.as_bytes())
+        else {
+            return Err(Fault::fatal(format!("{member} was given `{path}`, which is not a valid path")));
+        };
+        let mut out = NvsArray::new();
+        for (class, segment) in segments {
+            let class = String::from_utf8_lossy(class);
+            let Some(desc) = ctx.class_desc(&class) else {
+                return Err(Fault::fatal(format!("{member} found no class `{class}` in the running program")));
+            };
+            #[expect(
+                unsafe_code,
+                reason = "`class_desc` answers with a pointer into the compiled unit's \
+                          class table, which outlives this context and is never \
+                          rewritten while a member of it is running"
+            )]
+            let desc = unsafe { &*desc };
+            let Some(slot) = (0..desc.field_count())
+                .find(|&slot| desc.field_name(slot).is_some_and(|name| name.as_bytes() == segment))
+            else {
+                return Err(Fault::fatal(format!(
+                    "{member} found no property `${}` on `{class}`",
+                    String::from_utf8_lossy(segment)
+                )));
+            };
+            let ty = match desc.field_type(slot) {
+                Some(ty) => Value::str(NvsStr::new(ty.as_bytes())),
+                None => Value::null(),
+            };
+            out.append(crate::instance::build(
+                &PROPERTY_INFO,
+                [
+                    Value::str(NvsStr::new(segment)),
+                    Value::bool(desc.field_is_public(slot)),
+                    ty,
+                ],
+            ));
+        }
+        Ok(Value::array(out))
     }
 }
 

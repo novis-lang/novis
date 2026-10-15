@@ -578,6 +578,10 @@ fn lower(ty: &CoreTy, interner: &mut TypeInterner) -> TypeId {
             let key = lower(key, interner);
             interner.string_holes(key, false)
         }
+        CoreTy::PropertyPath(root) => {
+            let root = lower(root, interner);
+            interner.property_path(root)
+        }
         // `rule:security/isolate-shares-nothing`'s entry operand accepts two written shapes and is a
         // *syntactic* rule over them, so there is no declared type that states
         // it: `string` would report the accepted `Chat::run(...)` as a

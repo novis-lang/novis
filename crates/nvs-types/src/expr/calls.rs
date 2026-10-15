@@ -661,6 +661,10 @@ pub(crate) fn infer_static_call(
             target.record_on(&mut call, list);
         }
         call.written_enum = written_enum_of(qname, name, &written, type_args, expr.span, env);
+        // `Core\Reflect::steps($path)` reads each segment's property, and a
+        // path is only its text at run time — see
+        // `nvs_stdlib::registry::PATH_GRAPH_MEMBERS`.
+        call.path_graph = path_graph_of(qname, name, sig, env);
         env.exprs.record(expr.span, ExprInfo::Call(call));
     }
     // The return type already has `static` bound to the called class, above.
@@ -1386,7 +1390,34 @@ pub(crate) fn resolved_call(
         // member on `registry::ROUTE_ATTRIBUTE_MEMBERS` — see the field's own
         // doc comment.
         route_attributes: None,
+        // Set by the static call arm, for a member on
+        // `registry::PATH_GRAPH_MEMBERS` — see the field's own doc comment.
+        path_graph: None,
     }
+}
+
+/// [`crate::expr_table::ResolvedCall::path_graph`] for the call to
+/// `owner::method` checked against the substituted `sig`: the classes its
+/// first `propertyPath<C>` parameter reaches from `C`. `None` for a member off
+/// `nvs_stdlib::registry::PATH_GRAPH_MEMBERS`, and where `C` is not a class.
+fn path_graph_of(
+    owner: &QName,
+    method: &str,
+    sig: &MethodSig,
+    env: &Env<'_>,
+) -> Option<Vec<crate::expr_table::PathNode>> {
+    if !nvs_stdlib::registry::takes_path_graph(&owner.to_string(), method) {
+        return None;
+    }
+    sig.params.iter().find_map(|&param| {
+        let Ty::PropertyPath(root) = env.interner.get(param) else {
+            return None;
+        };
+        let Ty::Class(root, _) = env.interner.get(*root) else {
+            return None;
+        };
+        Some(super::members::property_path_graph(root, env))
+    })
 }
 
 pub(crate) fn report_non_callable_value_if_applicable(expr: &Expr, env: &mut Env<'_>) -> bool {

@@ -821,6 +821,11 @@ pub(crate) fn lower_callable(
                 low.emit(cur, Ty::Int, InstKind::PreparedConst { fact: None })
                     .0
             });
+        // A callable reference binds no `T`, so a member on
+        // `nvs_stdlib::registry::PATH_GRAPH_MEMBERS` is handed the empty
+        // string, which it throws for.
+        let path_graph = nvs_types::core_takes_path_graph(&call.class.to_string(), &call.method)
+            .then(|| low.path_graph_constant(cur, None));
         let args = prepared
             .into_iter()
             .chain(source)
@@ -829,6 +834,7 @@ pub(crate) fn lower_callable(
             .chain(route_attributes)
             .chain(receiver)
             .chain(args)
+            .chain(path_graph)
             .chain(site)
             .collect::<Vec<_>>();
         let (v, _) = low.emit_fallible(cur, ret, InstKind::CoreCall { symbol, args }, &env);

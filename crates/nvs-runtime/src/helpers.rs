@@ -3139,6 +3139,29 @@ fn property_path_miss<'a>(path: &'a [u8], graph: &'a [u8]) -> Option<PathMiss<'a
     None
 }
 
+/// Each segment of `path` with the class it is looked up on, walked over the
+/// encoded `graph` [`property_path_miss`] reads, or `None` when `path` is not a
+/// valid path. `Core\Reflect::steps` reads a property row per pair.
+#[must_use]
+pub fn property_path_segments<'a>(
+    path: &'a [u8],
+    graph: &'a [u8],
+) -> Option<Vec<(&'a [u8], &'a [u8])>> {
+    let mut node = 0;
+    let mut out = Vec::new();
+    let mut segments = path.split(|&b| b == b'.').peekable();
+    while let Some(segment) = segments.next() {
+        let (class, step) = path_node_step(graph, node, segment);
+        match step? {
+            None if segments.peek().is_some() => return None,
+            None => {}
+            Some(next) => node = next,
+        }
+        out.push((class, segment));
+    }
+    Some(out)
+}
+
 crate::nvs_helper! {
     /// `nvs_ir::Helper::PropertyPathValid` — whether `args[0]` is a
     /// `rule:types/property-path` path over the encoded classes in `args[1]`.

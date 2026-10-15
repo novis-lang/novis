@@ -24903,13 +24903,14 @@ Sets a gauge to `$value`, fixing `$name` to a gauge on its first use — a level
 <a id="core-core-reflect"></a>
 ### `Core\Reflect`
 
-Keywords: forClass, forObject, typeOf
+Keywords: forClass, forObject, typeOf, steps
 
 | Member | Signature |
 |---|---|
 | [`Core\Reflect::forClass`](#core-core-reflect-forclass) | `forClass(string $name): ?Core\Reflect\ClassInfo` |
 | [`Core\Reflect::forObject`](#core-core-reflect-forobject) | `forObject(mixed $object): Core\Reflect\ClassInfo` |
 | [`Core\Reflect::typeOf`](#core-core-reflect-typeof) | `typeOf(mixed $value): Core\Reflect::TypeKind` |
+| [`Core\Reflect::steps`](#core-core-reflect-steps) | `steps(propertyPath<T> $path): array<Core\Reflect\PropertyInfo>` |
 
 <a id="core-core-reflect-forclass"></a>
 #### `Core\Reflect::forClass`
@@ -24957,6 +24958,23 @@ Returns the kind of value `$value` is right now. Use it on a `mixed` value.
 | `$value` | `mixed` | The value to ask about. On anything but a `mixed` the checker already knows the answer, so the interesting receiver is the one whose type was erased. |
 
 **Returns** `Core\Reflect::TypeKind` — One `Core\Reflect::TypeKind` case. Every value matches exactly one case, because the cases do not overlap.
+
+<a id="core-core-reflect-steps"></a>
+#### `Core\Reflect::steps`
+
+```nvs skip
+Core\Reflect::steps(propertyPath<T> $path): array<Core\Reflect\PropertyInfo>
+```
+
+Returns the property that each part of a property path names.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$path` | `propertyPath<T>` | A property path, such as `customer.address.city` of type `propertyPath<Order>`. |
+
+**Returns** `array<Core\Reflect\PropertyInfo>` — One `Core\Reflect\PropertyInfo` for each part of the path, in order. Each one has the property's name, whether it is public, and its declared type. The type shows whether the next part is reached through an object, a nullable object or an array.
+
+**Throws** `LogicError` — `steps` was called through a callable value, so the class the path starts at is not known.
 
 <a id="core-core-reflect-classinfo"></a>
 ### `Core\Reflect\ClassInfo`

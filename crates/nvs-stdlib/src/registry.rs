@@ -304,6 +304,15 @@ pub enum CoreTy {
     /// by the classification exactly as at [`Self::Text`], and every walk over
     /// a nested type reads `K` through it.
     StringHoles(&'static CoreTy, Qual),
+    /// A **property path**, `propertyPath<T>` (`rule:types/property-path`), as
+    /// a parameter — `T` in `Core\Reflect::steps(propertyPath<T> $path)`,
+    /// usually a [`Self::Var`] the argument binds.
+    ///
+    /// It carries no classification: a path's values are declared property
+    /// names, so a path is never `tainted`. A member taking one is on
+    /// [`PATH_GRAPH_MEMBERS`] when it needs the classes `T` reaches at run
+    /// time.
+    PropertyPath(&'static CoreTy),
     /// An **isolate entry** —
     /// `rule:security/isolate-shares-nothing`'s
     /// operand, written as a parameter.
@@ -1330,6 +1339,7 @@ impl CoreTy {
                 "string".into()
             }
             Self::StringHoles(key, _) => format!("string<{}>", key.spelled()),
+            Self::PropertyPath(root) => format!("propertyPath<{}>", root.spelled()),
             Self::Bytes | Self::Blob(_) => "bytes".into(),
             Self::SecretBytes | Self::SecretBlob(_) => "secret bytes".into(),
             Self::SecretStr | Self::SecretText(_) => "secret string".into(),
@@ -1566,7 +1576,8 @@ fn collect_written(ty: &CoreTy, found: &mut Vec<&'static str>) {
         | CoreTy::Nullable(inner)
         | CoreTy::Variadic(inner)
         | CoreTy::Iterated(inner)
-        | CoreTy::StringHoles(inner, _) => {
+        | CoreTy::StringHoles(inner, _)
+        | CoreTy::PropertyPath(inner) => {
             collect_written(inner, found);
         }
         CoreTy::Union(members) | CoreTy::InstanceAt(_, members) => {
@@ -3801,6 +3812,29 @@ pub fn takes_prepared(class: &str, method: &str) -> bool {
         .any(|(owner, name)| *owner == class && *name == method)
 }
 
+/// The members handed the classes their `propertyPath<T>` argument can reach,
+/// as their **last** argument — `Core\Reflect::steps` is the one.
+///
+/// A path is only its dotted text at run time, so the member cannot find `T`
+/// from its argument. The checker binds `T` from the argument's type, records
+/// the classes reachable from it on the call (`nvs_types`'
+/// `ResolvedCall::path_graph`), and `nvs-ir` passes them as the same encoded
+/// string `as propertyPath<T>`'s run-time check reads. A call through a
+/// callable value binds no `T`, and is handed the empty string. The helper's
+/// `args: [N]` therefore counts one more than [`CoreMethod::params`] does.
+///
+/// **What it spends:** one constant string per call site, read once per
+/// call. No member is on this roster and on [`CALL_SITE_MEMBERS`].
+pub const PATH_GRAPH_MEMBERS: &[(&str, &str)] = &[(crate::reflect::NAME, "steps")];
+
+/// Whether `class::method` is one of [`PATH_GRAPH_MEMBERS`].
+#[must_use]
+pub fn takes_path_graph(class: &str, method: &str) -> bool {
+    PATH_GRAPH_MEMBERS
+        .iter()
+        .any(|(owner, name)| *owner == class && *name == method)
+}
+
 /// The closed roster of members whose result a program must use, each with
 /// the help line its diagnostic prints. A call to one written as a statement
 /// of its own does not compile (`E_RESULT_NOT_USED`), and
@@ -4590,7 +4624,8 @@ mod tests {
                 | CoreTy::Nullable(inner)
                 | CoreTy::Variadic(inner)
                 | CoreTy::Iterated(inner)
-                | CoreTy::StringHoles(inner, _) => {
+                | CoreTy::StringHoles(inner, _)
+                | CoreTy::PropertyPath(inner) => {
                     inferred(inner, found);
                 }
                 CoreTy::Union(members) | CoreTy::InstanceAt(_, members) => {
@@ -5360,7 +5395,8 @@ mod tests {
                 | CoreTy::Nullable(elem)
                 | CoreTy::Variadic(elem)
                 | CoreTy::Iterated(elem)
-                | CoreTy::StringHoles(elem, _) => mentions(elem, name),
+                | CoreTy::StringHoles(elem, _)
+                | CoreTy::PropertyPath(elem) => mentions(elem, name),
                 CoreTy::Union(members) => members.iter().any(|member| mentions(member, name)),
                 _ => false,
             }

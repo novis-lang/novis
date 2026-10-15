@@ -11,7 +11,12 @@ mismatch: it has no `K` to check its holes against.
 `Core\Reflect::steps(propertyPath<T> $path): array<Core\Reflect\PropertyInfo>` gives one row per
 segment of a path (`rule:types/property-path`), in order: the description `Core\Reflect` already
 returns for a property (`rule:core-classes/reflect`), with its name, visibility and declared type, so a
-library sees whether a step is one object, a nullable one or an array. No new class is added.
+library sees whether a step is one object, a nullable one or an array. No new class is added. A path
+is only its text at run time, so `T` is bound from the argument's type and the call site passes the
+classes the path can reach from `T`, the same encoding `as propertyPath<T>` checks against. A call
+through a callable value binds no `T`, and throws a `LogicError`. Inside a method a
+`propertyPath<static>` is text, and `rule:statements/static-is-a-member-modifier` says how it reaches
+`steps`.
 
 `Core` parses only the holes. The text between them is the library's own language — SQL, a filter
 syntax, a log template — and a query builder is not `Core` (`rule:core-classes/db-one-api`). Both

@@ -17,6 +17,12 @@ Inside the body the checker does not know which subclass called it, so a `proper
 property's name as a `string`, which the body may print, compare or convert back with `as
 property<self>`, checked at run time. A key of `static` read on `$this` would be sound, but the body
 types `$this` as the declaring class and cannot tell it from any other value of that class.
+A `propertyPath<static>` is the path's text in the same way, and a `string<…static…>` is a `string`.
+To reach `Core\Str::parts` or `Core\Reflect::steps` (`rule:core-classes/str-parts-and-reflect-steps`)
+the body converts the text with `as propertyPath<self>` or `as string<propertyPath<self>>`, checked
+at run time against the declaring class. A path through a property only a subclass declares throws
+there: `steps` reads the class a path starts at off the argument's type, and the body has no type
+naming the subclass.
 
 `static::NAME` is late-bound the same way, and it is the one class-constant read that is not inlined:
 the frame's called class is asked for `NAME` when the read runs, so a default method or an inherited

@@ -233,6 +233,15 @@ pub struct ResolvedCall {
     /// this as an array ahead of the receiver. `None` for every member off that
     /// roster, and for a call the checker refused.
     pub route_attributes: Option<Vec<(String, ConstArg)>>,
+    /// The classes the `propertyPath<T>` argument of a member on
+    /// `nvs_stdlib::registry::PATH_GRAPH_MEMBERS` can reach, `T` first, read
+    /// off the substituted parameter type — `Core\Reflect::steps($path)` over a
+    /// `propertyPath<Order>` records `Order`'s graph. `nvs-ir` encodes it as
+    /// `as propertyPath<T>`'s run-time check does and passes it last.
+    ///
+    /// `None` for every member off that roster, and for a call whose `T` bound
+    /// to no class, which `nvs-ir` passes as the empty string.
+    pub path_graph: Option<Vec<PathNode>>,
     /// Whether [`Self::class`] is a loaded extension's — [`crate::signatures::ClassSignature::extension`].
     /// `nvs-ir` lowers such a call to a direct call of the export's trampoline, because no
     /// compiled Novis function has the label `Self::class::Self::method`

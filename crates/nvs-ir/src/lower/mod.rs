@@ -2509,6 +2509,25 @@ impl<'a> Lowering<'a> {
             });
         self.emit(b, Ty::Int, InstKind::PreparedConst { fact }).0
     }
+    /// The string a member on `nvs_stdlib::registry::PATH_GRAPH_MEMBERS` takes
+    /// as its last argument: the classes its path can reach, encoded as `as
+    /// propertyPath<T>`'s run-time check reads them, or the empty string where
+    /// the checker bound `T` to no class.
+    ///
+    /// A fresh [`InstKind::ConstStr`], so it is staged as a temporary and
+    /// released with the call's other borrowed arguments, for
+    /// [`Self::written_enum_constant`]'s reason. Every caller emits it after
+    /// its temporaries mark.
+    pub(crate) fn path_graph_constant(
+        &mut self,
+        b: BlockId,
+        nodes: Option<&[nvs_types::expr_table::PathNode]>,
+    ) -> ValueId {
+        let encoded = nodes.map(convert::encode_path_graph).unwrap_or_default();
+        let (v, _) = self.emit(b, Ty::Str, InstKind::ConstStr(encoded));
+        self.own_temporary(v);
+        v
+    }
     pub(crate) fn emit(&mut self, b: BlockId, ty: Ty, kind: InstKind) -> (ValueId, Ty) {
         let v = self.ids.next_value();
         self.block_insts[b.index() as usize].push(Inst {

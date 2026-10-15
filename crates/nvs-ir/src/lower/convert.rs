@@ -2217,7 +2217,7 @@ pub(crate) struct PathCheck {
 /// offset of the node the path steps to, in eight hexadecimal digits, or `-`
 /// where it cannot step. The offsets let the walk jump to a node, so it reads
 /// one roster per segment.
-fn encode_path_graph(nodes: &[nvs_types::expr_table::PathNode]) -> String {
+pub(crate) fn encode_path_graph(nodes: &[nvs_types::expr_table::PathNode]) -> String {
     let mut offsets = Vec::with_capacity(nodes.len());
     let mut at = 0;
     for node in nodes {

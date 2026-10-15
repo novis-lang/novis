@@ -3,7 +3,7 @@
 
 # The Core classes
 
-*5 of 116 rules below are **designed** rather than shipped, and are marked where they appear.*
+*4 of 116 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="core-classes-cli-arguments"></a>
 
@@ -1127,18 +1127,29 @@ description. A program that describes the same class in a loop pays on every cal
 
 <a id="core-classes-str-parts-and-reflect-steps"></a>
 
-## `Core\Str::parts` splits a `string<K>` into text and holes, and `Core\Reflect::steps` gives each segment of a path its property  *(designed — owned by goal property-paths)*
+## `Core\Str::parts` splits a `string<K>` into text and holes, and `Core\Reflect::steps` gives each segment of a path its property
 
 `rule:core-classes/str-parts-and-reflect-steps`
 
 `Core\Str::parts(string<K> $text): array<string|K>` gives the text pieces and the holes of a
-`string<K>` ([`types/string-holes`](types.md#types-string-holes)) in order. A text piece has `{{` and `}}` already turned into one
+`string<K>` ([`types/string-holes`](types.md#types-string-holes)) in order. Text and holes take turns, starting and ending with
+text, so a hole is always at an odd index and two adjacent holes have an empty text piece between them.
+A hole and a text piece are both strings at run time, and a text piece may spell a valid hole name, so
+the position is the one thing that tells them apart; a library converts an odd entry with `as K`, which
+cannot fail. A text piece has `{{` and `}}` already turned into one
 brace, so a library that joins the pieces never handles an escape. A text piece of a `tainted string<K>` is a `tainted string`; a hole is a `K`, with no qualifier.
+`K` is bound from the argument's type, so a string literal written straight at `parts` is a type
+mismatch: it has no `K` to check its holes against.
 
 `Core\Reflect::steps(propertyPath<T> $path): array<Core\Reflect\PropertyInfo>` gives one row per
 segment of a path ([`types/property-path`](types.md#types-property-path)), in order: the description `Core\Reflect` already
 returns for a property ([`core-classes/reflect`](core-classes.md#core-classes-reflect)), with its name, visibility and declared type, so a
-library sees whether a step is one object, a nullable one or an array. No new class is added.
+library sees whether a step is one object, a nullable one or an array. No new class is added. A path
+is only its text at run time, so `T` is bound from the argument's type and the call site passes the
+classes the path can reach from `T`, the same encoding `as propertyPath<T>` checks against. A call
+through a callable value binds no `T`, and throws a `LogicError`. Inside a method a
+`propertyPath<static>` is text, and [`statements/static-is-a-member-modifier`](statements.md#statements-static-is-a-member-modifier) says how it reaches
+`steps`.
 
 `Core` parses only the holes. The text between them is the library's own language — SQL, a filter
 syntax, a log template — and a query builder is not `Core` ([`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api)). Both
