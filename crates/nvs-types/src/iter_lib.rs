@@ -284,6 +284,7 @@ pub(crate) fn bodiless(names: &[&str], params: Vec<TypeId>, return_ty: TypeId) -
         interface_private: false,
         visibility: nvs_syntax::ast::Visibility::Public,
         has_body: false,
+        generator: false,
     }
 }
 

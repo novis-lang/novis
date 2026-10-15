@@ -225,6 +225,14 @@ pub struct MethodSig {
     /// method calling back into the contract it declares
     /// (`$this->name()` inside `Greets::greet`) does.
     pub has_body: bool,
+    /// Whether the declaration's body holds a `yield`, so a call returns a
+    /// generator's state object (`rule:iteration/generators`). `false` for every
+    /// signature that is not a user-declared method with a body.
+    ///
+    /// Recorded because a call site's type cannot say it: a generator returns an
+    /// `Iterator<T>`, which a program's own classes implement too. The one reader
+    /// is `crate::expr::members::reject_generator_clone`.
+    pub generator: bool,
 }
 
 impl MethodSig {
@@ -1235,6 +1243,10 @@ fn collect_members(
                         interface_private,
                         visibility,
                         has_body: m.body.is_some(),
+                        generator: m
+                            .body
+                            .as_ref()
+                            .is_some_and(nvs_syntax::ast::is_generator_body),
                     },
                 );
             }

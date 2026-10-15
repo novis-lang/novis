@@ -4228,6 +4228,7 @@ fn helper_symbol(helper: Helper) -> Result<&'static str, CodegenError> {
         Helper::Exit => "nvs_exit",
         Helper::SingleValueMismatch => "nvs_single_value_mismatch",
         Helper::CloneOperandNotAnObject => "nvs_clone_not_an_object",
+        Helper::CloneGuard => "nvs_clone_guard",
         Helper::Identical => "nvs_value_identical",
         Helper::NumericEq => "nvs_numeric_eq",
         Helper::NumericLt => "nvs_numeric_lt",

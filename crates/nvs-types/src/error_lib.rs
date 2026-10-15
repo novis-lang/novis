@@ -322,6 +322,7 @@ fn constructor(interner: &mut TypeInterner) -> FxHashMap<String, MethodSig> {
             visibility: nvs_syntax::ast::Visibility::Public,
             // Synthesized by `nvs_ir::lower`, which is still a body.
             has_body: true,
+            generator: false,
         },
     )]
     .into_iter()

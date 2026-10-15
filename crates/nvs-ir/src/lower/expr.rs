@@ -6823,6 +6823,20 @@ impl<'a> Lowering<'a> {
         );
         let borrowed = self.aliasing_read(inner);
         let object = self.guard_cloneable(v, ty, borrowed, inner.span, env, cur);
+        // A generator is an object, and `rule:iteration/generator-stays-in-one-isolate`
+        // still refuses to copy it. Asked of every operand, because a generator
+        // types as `Iterator<T>` and a program's own classes do too.
+        let landing = self.landing_block(env);
+        self.block_insts[cur.index() as usize].push(Inst {
+            result: None,
+            ty: None,
+            kind: InstKind::HelperCall {
+                helper: Helper::CloneGuard,
+                args: vec![object],
+            },
+            on_error: Some(landing),
+            raise_site: None,
+        });
         let result = self.emit(*cur, Ty::Object, InstKind::Clone { object });
         // The operand is only *read* — see `InstKind::Clone`. A fresh
         // one nothing else owns is released right after, the same

@@ -570,6 +570,41 @@ pub(crate) fn reject_non_object_clone(ty: TypeId, span: Span, env: &mut Env<'_>)
     );
 }
 
+/// `rule:iteration/generator-stays-in-one-isolate`'s `clone` refusal, where the
+/// checker can see it: the operand is a call that resolved to a declaration
+/// whose body holds a `yield` ([`crate::signatures::MethodSig::generator`]).
+///
+/// That call is the only proof there is. A generator types as `Iterator<T>`,
+/// which a program's own classes implement and may clone, so a local or a
+/// property holding one passes here and `nvs_runtime`'s `nvs_clone_guard`
+/// throws instead. A call that resolved to a base class's generator is refused
+/// even if an override is not one: the written call names a generator.
+pub(crate) fn reject_generator_clone(inner: &Expr, env: &mut Env<'_>) {
+    let Some(ExprInfo::Call(call)) = env.exprs.lookup(inner.span) else {
+        return;
+    };
+    let generator = env
+        .signatures
+        .get(&call.class)
+        .and_then(|class| class.methods.get(&call.method))
+        .is_some_and(|sig| sig.generator);
+    if !generator {
+        return;
+    }
+    let name = format!("{}::{}", call.class, call.method);
+    env.diags.report(
+        Diagnostic::error(
+            code::E_CLONE_OF_A_GENERATOR,
+            format!("`clone` cannot copy a generator, and `{name}` returns one"),
+        )
+        .with_primary(inner.span, "this call returns a generator")
+        .with_help(
+            "a generator is a paused function, and a copy has no meaning to resume — call \
+             the function again for a new one (`rule:iteration/generator-stays-in-one-isolate`)",
+        ),
+    );
+}
+
 /// The same shape for `throw`, over the two ways an operand can fail to be a
 /// `Throwable`: a type that can hold no object at all, and a class outside
 /// spec § 10's tree.

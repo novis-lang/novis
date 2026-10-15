@@ -1,11 +1,12 @@
 {
   "title": "A generator does not cross a boundary and does not clone",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "iteration/generators"
   ],
   "guardedBy": [
-    "tests/conformance/core/cache-an-entry-is-a-copy-that-shares-nothing-with-the-request.nvst"
-  ],
-  "goal": "language-rule-debts"
+    "tests/conformance/core/cache-an-entry-is-a-copy-that-shares-nothing-with-the-request.nvst",
+    "tests/conformance/lang/cloning-a-generator-does-not-compile.nvst",
+    "tests/conformance/lang/cloning-a-generator-through-mixed-throws.nvst"
+  ]
 }

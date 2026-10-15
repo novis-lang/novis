@@ -8,5 +8,9 @@ holds one value at a time, and it may describe a sequence that goes on forever.
 **Good to know:** a generator is walked once. A second `foreach` over the same cursor sees nothing,
 and calling the method again gives you a new cursor that starts at the beginning.
 
+You cannot `clone` a generator. `clone Gen::count(3)` does not compile. If the generator is in a
+`mixed` or `Iterator<T>` variable, `clone` throws a `LogicError`. To start again, call the method
+again.
+
 **The examples below** show a small generator first, then a sequence with no end, then two
 generators reading one report together.

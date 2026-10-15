@@ -332,6 +332,7 @@ fn method_sig(
         visibility: nvs_syntax::ast::Visibility::Public,
         // The export behind a trampoline is code, so a call never looks for an override.
         has_body: true,
+        generator: false,
         param_text: vec![ParamText::Plain; count],
     }
 }

@@ -231,7 +231,7 @@ One line per rule, and the link to the rule that owns it. Generated from `docs/r
 - **A body that yields is a generator, and calling one returns a state object without running a line of it** — A function whose body contains `yield` is a **generator**. ([`iteration/generators`](rules/iteration.md#iteration-generators))
 - **A generator is a lazy sequence and nothing more** — A generator is a lazy sequence in one direction. ([`iteration/one-way-only`](rules/iteration.md#iteration-one-way-only))
 - **`yield` appears only in the generator's own body** — `yield` is confined to the generator's own body. ([`iteration/yield-lexical-confinement`](rules/iteration.md#iteration-yield-lexical-confinement))
-- **A generator does not cross a boundary and does not clone** *(designed)* — A generator object is not serializable, does not cross a `spawn`, `spawn worker` or `spawn script` boundary, and does not `clone`. ([`iteration/generator-stays-in-one-isolate`](rules/iteration.md#iteration-generator-stays-in-one-isolate))
+- **A generator does not cross a boundary and does not clone** — A generator object is not serializable, does not cross a `spawn`, `spawn worker` or `spawn script` boundary, and does not `clone`. ([`iteration/generator-stays-in-one-isolate`](rules/iteration.md#iteration-generator-stays-in-one-isolate))
 
 ## Attributes
 

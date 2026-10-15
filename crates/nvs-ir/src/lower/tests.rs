@@ -3728,8 +3728,10 @@ int $c = $a <=> $a;
     assert!(!text.contains("const.int 0"), "{text}");
 }
 
-/// `rule:classes/clone-is-shallow`: one instruction, a fresh object with one owner, and no
-/// hook — `__clone` is one of the magic methods Novis does not have.
+/// `rule:classes/clone-is-shallow`: one copy instruction, a fresh object with one owner, and
+/// no hook — `__clone` is one of the magic methods Novis does not have. The one helper in
+/// front of it is `rule:iteration/generator-stays-in-one-isolate`'s generator guard, which
+/// throws and runs no program code.
 #[test]
 fn clone_lowers_to_one_instruction_with_no_hook_call() {
     let (f, map, file) = lower_script_src(

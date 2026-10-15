@@ -4004,7 +4004,8 @@ pub unsafe extern "C" fn nvs_object_new(class: *const ClassDesc) -> *mut ObjHead
 ///
 /// No hook runs. `rule:classes/two-copy-depths` makes `__clone` one of the magic methods Novis does
 /// not have, so this is the entire operation — nothing here can throw, which
-/// is why it wears no checked-return shape.
+/// is why it wears no checked-return shape. A generator, which does not
+/// `clone`, is refused in front of this call by [`nvs_clone_guard`].
 ///
 /// # Safety
 ///
@@ -4079,6 +4080,37 @@ crate::nvs_helper! {
             args[0].release();
         }
         Err(Fault::thrown_as(crate::ThrownClass::Logic, message))
+    }
+}
+
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::CloneGuard` — the run-time half of
+    /// `rule:iteration/generator-stays-in-one-isolate`'s `clone` refusal, asked in
+    /// front of every [`nvs_object_clone`]. The checker refuses a `clone` of a
+    /// call to a generator, and this throws for one reached any other way: a
+    /// `mixed`, an `object` or an `Iterator<T>`.
+    ///
+    /// The message is the copy walk's ([`crate::graph::GENERATOR_REFUSAL`]),
+    /// because the rule makes `clone` and every copy boundary one refusal.
+    /// `args[0]` is an object the caller still owns, and `Ok` is `null`.
+    ///
+    /// **What it spends** (`rule:programs/memory-priority`): one helper call and
+    /// one load of the class per `clone`, and no allocation unless it throws.
+    fn nvs_clone_guard(_ctx, args: [1]) {
+        let Some(ptr) = args[0].obj_ptr().filter(|ptr| !ptr.is_null()) else {
+            return Ok(Value::null());
+        };
+        #[expect(
+            unsafe_code,
+            reason = "the caller owns a reference to this object, so it is live \
+                      and its descriptor is too"
+        )]
+        let class = unsafe { &*NvsObj::class_of(ptr) };
+        if class.is_generator() {
+            let message = format!("clone(): {}", crate::graph::GENERATOR_REFUSAL);
+            return Err(Fault::thrown_as(crate::ThrownClass::Logic, message));
+        }
+        Ok(Value::null())
     }
 }
 

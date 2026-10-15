@@ -1,0 +1,53 @@
+--TEST--
+`clone` of a generator the checker cannot see throws the copy walk's `LogicError`, through `mixed` and through `Iterator<T>` alike, and a program's own iterator still clones — `rule:iteration/generator-stays-in-one-isolate`
+--FILE--
+<?nvs
+// covers: lang:iteration/generators
+class Count {
+    public static function oneTwo(): Iterator<int> {
+        yield 1;
+        yield 2;
+    }
+}
+
+final class Steps implements Iterator<int> {
+    public int $n = 0;
+    public function advance(): bool {
+        $this->n = $this->n + 1;
+        return $this->n < 3;
+    }
+    public function current(): int {
+        return $this->n;
+    }
+}
+
+mixed $loose = Count::oneTwo();
+try {
+    var $first = clone $loose;
+    echo "cloned through mixed\n";
+} catch (LogicError $error) {
+    echo $error->message, "\n";
+}
+
+Iterator<int> $typed = Count::oneTwo();
+try {
+    var $second = clone $typed;
+    echo "cloned through Iterator<int>\n";
+} catch (LogicError $error) {
+    echo $error->message, "\n";
+}
+
+// The refused copy did not touch the generator, so it still runs from its start.
+foreach ($typed as int $n) {
+    echo $n, "\n";
+}
+
+Iterator<int> $steps = new Steps();
+var $third = clone $steps;
+echo "a class of your own still clones\n";
+--EXPECT--
+clone(): a generator is a suspended frame, so it has no meaning on the other side of a copy boundary
+clone(): a generator is a suspended frame, so it has no meaning on the other side of a copy boundary
+1
+2
+a class of your own still clones

@@ -256,6 +256,7 @@ fn method_sig(
         // function — but it is code, so a call never needs to go
         // looking for an override.
         has_body: true,
+        generator: false,
         // `CoreMethod::param_text` is the row's answer, read once per
         // positional parameter; a trailing bag's options are marked on the
         // shape's fields instead (`CoreShapeField::text`).

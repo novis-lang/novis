@@ -385,6 +385,12 @@ fn walk<C: Carrier>(
     }
 }
 
+/// What [`refusable`] says of a generator, and what `clone` throws for one
+/// (`crate::object::nvs_clone_guard`): `rule:iteration/generator-stays-in-one-isolate`
+/// makes the two one refusal, so they share one message.
+pub(crate) const GENERATOR_REFUSAL: &str =
+    "a generator is a suspended frame, so it has no meaning on the other side of a copy boundary";
+
 /// § 2's "refuses what has no meaning on the other side", for the shapes that
 /// arrive wearing [`Tag::Object`].
 ///
@@ -401,7 +407,7 @@ fn walk<C: Carrier>(
 /// that opened it ([`crate::Ctx::hold_open_socket`]), so a copy that crossed
 /// would address the *receiving* side's table at that index and read whatever
 /// that side has open there.
-fn refusable(class: &ClassDesc) -> Result<(), GraphError> {
+pub(crate) fn refusable(class: &ClassDesc) -> Result<(), GraphError> {
     if class.is_callable() {
         return Err(GraphError(
             "a callable captures variables from the code that created it, so it \
@@ -410,11 +416,7 @@ fn refusable(class: &ClassDesc) -> Result<(), GraphError> {
         ));
     }
     if class.is_generator() {
-        return Err(GraphError(
-            "a generator is a suspended frame, so it has no meaning on the other \
-             side of a copy boundary"
-                .to_owned(),
-        ));
+        return Err(GraphError(GENERATOR_REFUSAL.to_owned()));
     }
     if class.holds_host_handle() {
         return Err(GraphError(format!(

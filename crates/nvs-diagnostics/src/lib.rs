@@ -5542,6 +5542,20 @@ pub mod code {
          the response. Make this call in the main script, before `Core\\Task::afterResponse`.",
     );
 
+    /// `clone` of a call to a generator — `rule:iteration/generator-stays-in-one-isolate`.
+    /// A generator's fields encode a suspended point in its body, and a second
+    /// copy resuming that point has no meaning.
+    ///
+    /// Raised only where the operand is a call whose declaration holds a
+    /// `yield`, because that is the one place the checker knows it is a
+    /// generator: a generator types as `Iterator<T>`, which a program's own
+    /// classes implement too. Every other path to a generator throws at run time.
+    pub const E_CLONE_OF_A_GENERATOR: Code = Code::new("E0858").card(
+        "`clone` does not work with a generator. A generator is paused inside its function, \
+         and a copy cannot continue from that point. Call the generator function again to get \
+         a new generator that starts from the beginning.",
+    );
+
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.
     pub const E_INTERNAL: Code = Code::new("E0901").card(

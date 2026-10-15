@@ -213,6 +213,9 @@ The rules of a generator body:
 - Calling `current()` on a generator before its first `advance()`, or after `advance()` has
   answered `false`, throws `LogicError`. The parked element is readable only inside the protocol,
   so neither point can answer the element type's null payload or the last element again.
+- A generator does not `clone`. `clone` of a call to a generator method does not compile
+  (`E0858`), and `clone` of a generator held in a `mixed` or `Iterator<T>` variable throws
+  `LogicError`. A class of your own that implements `Iterator<T>` still clones.
 
 ```nvs
 <?nvs

@@ -830,13 +830,16 @@ pub(crate) fn infer(
             type_args,
             args,
         } => infer_new(expr, target, type_args, args, live, scope, ctx, env),
-        // `rule:classes/clone-is-shallow`'s operand rule, then the operand's own type unchanged:
-        // a clone is a new instance of the same class. See
-        // [`members::reject_non_object_clone`] for why the refusal is asked
-        // of what provably cannot be an object rather than of what is.
+        // `rule:classes/clone-is-shallow`'s operand rule and
+        // `rule:iteration/generator-stays-in-one-isolate`'s generator refusal, then the operand's
+        // own type unchanged: a clone is a new instance of the same class. See
+        // [`members::reject_non_object_clone`] for why the first refusal is asked
+        // of what provably cannot be an object rather than of what is, and
+        // [`members::reject_generator_clone`] for what proves a generator.
         ExprKind::Clone(inner) => {
             let ty = check_expr(inner, None, live, scope, ctx, env);
             reject_non_object_clone(ty, inner.span, env);
+            members::reject_generator_clone(inner, env);
             ty
         }
         ExprKind::Fn(fn_expr) => check_anon_fn(expr, fn_expr, expected, live, scope, ctx, env),

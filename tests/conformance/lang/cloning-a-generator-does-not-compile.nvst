@@ -1,0 +1,23 @@
+--TEST--
+`clone` of a call to a generator does not compile — `rule:iteration/generator-stays-in-one-isolate`
+--FILE--
+<?nvs
+// covers: lang:iteration/generators
+// The call names a method whose body holds a `yield`, so the checker knows the
+// operand is a generator and refuses the copy before the program runs.
+class Count {
+    public static function oneTwo(): Iterator<int> {
+        yield 1;
+        yield 2;
+    }
+}
+
+var $copy = clone Count::oneTwo();
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0858]: `clone` cannot copy a generator, and `Count::oneTwo` returns one
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

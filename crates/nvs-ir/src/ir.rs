@@ -2618,6 +2618,13 @@ pub enum Helper {
     /// borrowed operand in front of the call and `nvs_runtime` releases what it
     /// was handed.
     CloneOperandNotAnObject,
+    /// One argument: the object operand of a `clone`, asked whether it is a
+    /// generator, which `rule:iteration/generator-stays-in-one-isolate` does
+    /// not let `clone`. It defines no value, **returns normally** for every
+    /// other object and throws for a generator, so it always carries
+    /// `rule:errors/propagation`'s error edge. The operand keeps the ordinary
+    /// convention and is the caller's.
+    CloneGuard,
     /// `a == b` where at least one operand is a [`crate::ty::Ty::Tagged`] —
     /// `rule:expressions/mixed-equality`'s `mixed`-or-union case, the one pairing whose § 3 row is a runtime
     /// tag rather than a static type. **`!=` is this helper under
