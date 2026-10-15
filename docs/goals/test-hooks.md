@@ -13,7 +13,7 @@ stages:
         shapes: [A rule fragment]
   - id: 2
     title: the three attributes compile and are checked
-    status: open
+    status: done
     context: [crates/nvs-types/src/testing.rs, crates/nvs-types/src/derive.rs]
     extra:
       context:
@@ -139,8 +139,8 @@ returns. The language gains three attributes, and the rejection of a class-level
 
 **Does:** the checker recognises the three attributes, checks each one's shape and parameter, refuses a second hook of one kind, and refuses a static write in a class hook's own body.
 
-- [ ] The three names on the roster. `crates/nvs-types/src/derive.rs:71`
-- [ ] The shape checks beside the test and fixture ones. `crates/nvs-types/src/testing.rs:345`
+- [x] The three names on the roster. `crates/nvs-types/src/derive.rs:71`
+- [x] The shape checks beside the test and fixture ones. `crates/nvs-types/src/testing.rs:345`
 
 ### 3. the runner calls the hooks, with `Outcome` and `Summary`
 
@@ -185,16 +185,29 @@ returns. The language gains three attributes, and the rejection of a class-level
 
 ### State
 
-The three rules are written as `designed` and owned by this goal. Nothing is built: none of the three
-attributes is on the roster at `crates/nvs-types/src/derive.rs:71`.
+Stage 2 is done. `Core\Test\BeforeClass`, `AfterClass` and `AfterEachTest` are on the roster with
+cards, and `crates/nvs-types/src/test_hooks.rs` checks shape, payload, one parameter, one hook of each
+kind (`E0304`) and static writes (`E0863`); shape refusals are `E0862`. The checker records no hook
+yet: `seen` in `check_class_hooks` is the list, dropped at the end. The parameter types are matched
+by name, because `Core\Test\Summary` and `Outcome` do not exist, so a program that writes one still
+fails as an unknown class.
 
 ### Next
 
-**Stage 2: the three attributes compile and are checked**, one file set: `crates/nvs-types/src/derive.rs`, `crates/nvs-types/src/testing.rs`, `tests/conformance/reject/`.
+**Stage 3: the runner calls the hooks, with `Outcome` and `Summary`**, file set:
+`crates/nvs-types/src/test_hooks.rs`, `crates/nvs-cli/src/runner.rs`, `crates/nvs-stdlib/src/test.rs`.
 
-- [ ] Add `BeforeClass`, `AfterClass` and `AfterEachTest` to the roster (`rule:testing/class-hooks`). `crates/nvs-types/src/derive.rs:71`
-- [ ] Check each hook's shape, its one optional parameter, one hook of each kind, and no static write in a class hook (`rule:testing/class-hooks`, `rule:testing/after-each-test`). `crates/nvs-types/src/testing.rs:345`
+- [ ] Declare `Core\Test\Outcome` and `Core\Test\Summary` with the fields their rules list (`rule:testing/after-each-test`, `rule:testing/class-hooks`). `crates/nvs-stdlib/src/test.rs:1`
+- [ ] Record each class's hooks into `ExprTypeTable` beside its tests, from `seen` (`rule:testing/class-hooks`). `crates/nvs-types/src/test_hooks.rs:114`
+- [ ] Call `#[BeforeClass]` before the fixtures and `#[AfterClass]` after the tests, also after a throw (`rule:testing/class-hooks`). `crates/nvs-cli/src/runner.rs:804`
+- [ ] Call `#[AfterEachTest]` after every attempt, on the test's object (`rule:testing/after-each-test`). `crates/nvs-cli/src/runner.rs:897`
 
 ### Backlog
 
-- Nothing outside the stages.
+- The nightly CI dispatch runs on `origin/main`, which is far behind local `main` because the loop
+  never pushes. Its failures repeat until the user pushes; `lint`, `docs`, `supply chain`, the website
+  render and the LDAP cases are already green at HEAD. `tools/nv/cmd/sweep.ts`
+- Not checked at HEAD: the Linux watcher test
+  (`crates/nvs-cli/tests/run_command.rs:687`), the one-to-four core scaling margin
+  (`crates/nvs-cli/src/serve.rs:3957`, it failed on one OS and then the other, so it may be flaky)
+  and the stale `perf:` proofs. `tools/nv/cmd/sweep.ts`
