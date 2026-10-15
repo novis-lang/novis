@@ -3661,7 +3661,9 @@ pub(crate) fn lower_decl_type(
         // [`erase_checked_ty`]'s own arm, which is the one this annotation
         // takes whenever the checker visited it, for what the argument costs
         // and where the set it erases went.
-        TypeKind::Atom(TypeAtom::PropertyKey(_) | TypeAtom::PropertyPath(_)) => Ty::Str,
+        TypeKind::Atom(
+            TypeAtom::PropertyKey(_) | TypeAtom::PropertyPath(_) | TypeAtom::StringHoles { .. },
+        ) => Ty::Str,
         // `rule:types/callable-is-the-only-function-type`'s one function type. Its *representation* is an object
         // — see the `ExprKind::Fn` arm of `Lowering::lower_expr`, which
         // synthesizes one class per literal to hold the captured environment
@@ -4131,6 +4133,9 @@ pub(crate) fn erase_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Ty {
         // `rule:types/property-path`'s path is its dotted text, for the key's
         // reason above; `ExprInfo::PropertyPath` carries what the walk reads.
         CheckedTy::PropertyPath(_) => Ty::Str,
+        // `rule:types/string-holes`: a string with holes is its text, and
+        // `ExprInfo::StringHoles` carries what the run-time check reads.
+        CheckedTy::StringHoles { .. } => Ty::Str,
         // `rule:types/single-value-types`: a single-value type and an enum-case type add **zero**
         // runtime representation. Each erases to the base it shares a tag and
         // payload with, so the singleton-ness stops at this boundary and

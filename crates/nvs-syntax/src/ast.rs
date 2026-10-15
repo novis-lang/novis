@@ -165,6 +165,16 @@ pub enum TypeAtom {
     /// dotted chains of public property names starting at `T`. Recognised by
     /// spelling in front of a `<`, as [`Self::PropertyKey`] is.
     PropertyPath(Box<Type>),
+    /// `string<K>` — `rule:types/string-holes`'s string with holes, whose
+    /// `{…}` holes are values of `K`. `tainted` is the `tainted string<K>`
+    /// spelling. `string` is a keyword and takes a `<` only in type position,
+    /// so a plain `string` is untouched.
+    StringHoles {
+        /// `K`: a key, a path or a set of allowed values.
+        key: Box<Type>,
+        /// Whether `tainted` was written in front.
+        tainted: bool,
+    },
     /// `object`
     Object,
     /// `{name: T, ...}` — `rule:types/shape-type`: an inline structural shape type,

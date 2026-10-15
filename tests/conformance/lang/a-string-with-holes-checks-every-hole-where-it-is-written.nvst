@@ -1,0 +1,104 @@
+--TEST--
+A written-out `string<K>` has every hole checked when the program compiles, with `as` and at a parameter: a hole naming no property is the unknown-member error at that hole or path part, a hole outside a set of values, an empty hole, an unclosed `{` and a lone `}` are `E0861` at the hole or the brace, and a `K` that is none of the three is `E0860` — `rule:types/string-holes`
+--FILE--
+<?nvs
+// Each hole of a string with holes is checked when the program compiles.
+class Customer {
+    public string $name = "Ada";
+    private string $secret = "s";
+}
+
+class Order {
+    public Customer $customer;
+    public int $total = 40;
+
+    public function constructor() {
+        $this->customer = new Customer();
+    }
+}
+
+class Query {
+    public static function where(string<propertyPath<Order>> $condition): string {
+        return $condition as string;
+    }
+
+    public static function columns(string<property<Customer>> $list): string {
+        return $list as string;
+    }
+
+    public static function sort(string<'asc'|'desc'> $order): string {
+        return $order as string;
+    }
+
+    public static function count(string<int> $text): void {}
+}
+
+// Two holes are misspelled, and each one is reported.
+echo Query::where("{customer.nmae} = ? AND {totl} > 3"), "\n";
+// `secret` is private.
+echo Query::columns("{name}, {secret}"), "\n";
+// `up` is not one of the values.
+echo Query::sort("ORDER BY {up}"), "\n";
+// An empty hole, a `}` with no `{` and a `{` with no `}`.
+echo Query::where("{} = 1"), "\n";
+echo Query::where("a } b"), "\n";
+echo "{customer" as string<propertyPath<Order>> as string, "\n";
+--EXPECTF-ERROR--
+error[E0860]: `string<int>` names something its holes cannot be
+   --> %s:30:41
+   |
+30 |     public static function count(string<int> $text): void {}
+   |                                         ^^^ a key, a path or a set of strings is required here
+   = help: a hole is a property name, a property path or one of a set of strings: write `string<property<T>>`, `string<propertyPath<T>>` or `string<'a'|'b'>`
+
+error[E0405]: `Customer` has no public property `$nmae`
+   --> %s:34:30
+   |
+34 | echo Query::where("{customer.nmae} = ? AND {totl} > 3"), "\n";
+   |                              ^^^^ this part of the path is checked here
+   = help: each part of a property path names a public property of the class the path has reached: `Customer` has `$name`
+
+error[E0405]: `Order` has no public property `$totl`
+   --> %s:34:45
+   |
+34 | echo Query::where("{customer.nmae} = ? AND {totl} > 3"), "\n";
+   |                                             ^^^^ this part of the path is checked here
+   = help: each part of a property path names a public property of the class the path has reached: `Order` has `$customer`, `$total`
+
+error[E0405]: `Customer` has no public property `$secret`
+   --> %s:36:31
+   |
+36 | echo Query::columns("{name}, {secret}"), "\n";
+   |                               ^^^^^^ this hole is checked here
+   = help: each hole names a public property of `Customer`, which has `$name`
+
+error[E0861]: the hole `{up}` is not one of the allowed values
+   --> %s:38:29
+   |
+38 | echo Query::sort("ORDER BY {up}"), "\n";
+   |                             ^^ this hole is checked here
+   = help: each hole is one of `asc`, `desc`
+
+error[E0861]: a hole `{}` has no name in it
+   --> %s:40:20
+   |
+40 | echo Query::where("{} = 1"), "\n";
+   |                    ^ this brace
+   = help: a hole is a name between `{` and `}`. Write `{{` for a `{` and `}}` for a `}` that are only text
+
+error[E0861]: a `}` closes no hole
+   --> %s:41:22
+   |
+41 | echo Query::where("a } b"), "\n";
+   |                      ^ this brace
+   = help: a hole is a name between `{` and `}`. Write `{{` for a `{` and `}}` for a `}` that are only text
+
+error[E0861]: a `{` has no `}` after it
+   --> %s:42:7
+   |
+42 | echo "{customer" as string<propertyPath<Order>> as string, "\n";
+   |       ^ this brace
+   = help: a hole is a name between `{` and `}`. Write `{{` for a `{` and `}}` for a `}` that are only text
+
+error: aborting due to 8 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

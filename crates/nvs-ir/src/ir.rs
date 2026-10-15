@@ -2612,6 +2612,15 @@ pub enum Helper {
     /// that names it, so it **never returns normally**, and it **owns** the
     /// encoded classes for [`Self::SingleValueMismatch`]'s reason.
     PropertyPathMismatch,
+    /// [`Self::PropertyPathValid`] for `rule:types/string-holes`: whether
+    /// `args[0]` is a string whose every hole is valid. The encoded classes
+    /// start with a line saying whether a hole is matched whole (`w`) or walked
+    /// as a path (`p`). It borrows both arguments.
+    StringHolesValid,
+    /// The miss arm of [`Self::StringHolesValid`]: it throws an error naming
+    /// the first bad brace or hole, so it **never returns normally**, and it
+    /// **owns** the encoded classes as [`Self::PropertyPathMismatch`] does.
+    StringHolesMismatch,
     /// One argument: the [`crate::ty::Ty::Tagged`] operand of a `clone` whose
     /// tag turned out not to be an object, so `rule:classes/clone-is-shallow`'s
     /// "a new instance of `$x`'s class" names no class. It is the miss arm of

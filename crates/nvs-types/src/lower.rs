@@ -187,6 +187,9 @@ fn lower_atom(atom: &TypeAtom, span: Span, depth: u32, ctx: &Ctx<'_>, env: &mut 
         TypeAtom::ClassRef(inner) => lower_class_ref(inner, depth, ctx, env),
         TypeAtom::PropertyKey(inner) => lower_property_key(inner, false, depth, ctx, env),
         TypeAtom::PropertyPath(inner) => lower_property_key(inner, true, depth, ctx, env),
+        TypeAtom::StringHoles { key, tainted } => {
+            lower_string_holes(key, *tainted, depth, ctx, env)
+        }
         TypeAtom::Object => env.interner.object(),
         TypeAtom::Shape(fields) => {
             let mut out = Vec::with_capacity(fields.len());
@@ -333,6 +336,42 @@ fn lower_property_key(
                 "a property key's values are the names of that class's public declared \
                  properties, so its argument has to be something that declares them — an \
                  interface's implementors satisfy it with storage it does not declare itself",
+            ),
+        );
+    }
+    env.interner.mixed()
+}
+
+/// `rule:types/string-holes`'s `string<K>`: `K` is a `property<T>`, a
+/// `propertyPath<T>`, or one or a union of string values, and anything else is
+/// `E0860` where it is written. An argument that already reported is not
+/// reported twice.
+fn lower_string_holes(
+    key: &Type,
+    tainted: bool,
+    depth: u32,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> TypeId {
+    let before = env.diags.error_count();
+    let arg = lower_type_at_depth(key, depth + 1, ctx, env);
+    if crate::expr::members::hole_kind(arg, env.interner).is_some() {
+        return env.interner.string_holes(arg, tainted);
+    }
+    if env.diags.error_count() == before {
+        let described = env.interner.describe(arg);
+        env.diags.report(
+            Diagnostic::error(
+                code::E_STRING_HOLES_ARGUMENT,
+                format!("`string<{described}>` names something its holes cannot be"),
+            )
+            .with_primary(
+                key.span,
+                "a key, a path or a set of strings is required here",
+            )
+            .with_help(
+                "a hole is a property name, a property path or one of a set of strings: write \
+                 `string<property<T>>`, `string<propertyPath<T>>` or `string<'a'|'b'>`",
             ),
         );
     }

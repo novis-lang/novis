@@ -1139,6 +1139,18 @@ pub enum ExprInfo {
         /// index points into this list.
         nodes: Vec<PathNode>,
     },
+    /// `rule:types/string-holes`'s `as string<K>` over an operand that is not
+    /// written out: what each hole is checked against at run time. Keyed by
+    /// the annotation's span for [`Self::PropertyKey`]'s reason.
+    StringHoles {
+        /// Whether a hole is matched whole against the first node's names,
+        /// for a `property<T>` or a set of values, rather than walked as a
+        /// path.
+        whole: bool,
+        /// The classes a path can reach, as [`Self::PropertyPath`] has them,
+        /// or the one node of names or values.
+        nodes: Vec<PathNode>,
+    },
     /// `$obj->$key` / `$obj->{$expr}` —
     /// `rule:types/property-key-access`'s keyed access, read or write, whose member name arrives as a
     /// **value** when the statement runs.

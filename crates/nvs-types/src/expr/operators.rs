@@ -290,6 +290,10 @@ fn check_property_key_conversion(
         check_property_path_conversion(inner, ty, argument, env);
         return;
     }
+    if let Some((key, _)) = super::members::string_holes_key(to, env.interner) {
+        check_string_holes_conversion(inner, ty, key, env);
+        return;
+    }
     let Some(argument) = super::members::property_key_argument(to, env.interner) else {
         return;
     };
@@ -325,6 +329,24 @@ fn check_property_key_conversion(
         return;
     }
     report_unwritten_property_key(&qname, &roster, *text, span, "converted here", env);
+}
+
+/// `rule:types/string-holes`'s `as string<K>`, which follows
+/// [`check_property_path_conversion`]: a literal operand has every hole checked
+/// here, and every other operand records what the run-time check reads
+/// ([`ExprInfo::StringHoles`]). `key` is `K`.
+fn check_string_holes_conversion(inner: &Expr, ty: &Type, key: TypeId, env: &mut Env<'_>) {
+    let Some(kind) = super::members::hole_kind(key, env.interner) else {
+        return;
+    };
+    super::members::record_hole_keys(&kind, env);
+    let ExprKind::Str(text) = &inner.kind else {
+        let (whole, nodes) = super::members::string_holes_graph(&kind, key, env);
+        env.exprs
+            .record(ty.span, ExprInfo::StringHoles { whole, nodes });
+        return;
+    };
+    super::members::report_unwritten_string_holes(&kind, *text, inner.span, env);
 }
 
 /// `rule:types/property-path`'s `as propertyPath<T>`, which follows
@@ -725,6 +747,9 @@ enum EqDomain<'a> {
     /// `propertyPath<T>` — `rule:types/property-path`'s own domain, for
     /// [`Self::PropertyKey`]'s reason: two paths are equal when their text is.
     PropertyPath,
+    /// `string<K>` — `rule:types/string-holes`'s own domain: two values are
+    /// equal when their text is.
+    StringHoles,
 }
 
 fn equality_domain(ty: &Ty) -> Option<EqDomain<'_>> {
@@ -751,6 +776,7 @@ fn equality_domain(ty: &Ty) -> Option<EqDomain<'_>> {
         Ty::ClassRef(_) => EqDomain::ClassRef,
         Ty::PropertyKey(_) => EqDomain::PropertyKey,
         Ty::PropertyPath(_) => EqDomain::PropertyPath,
+        Ty::StringHoles { .. } => EqDomain::StringHoles,
         Ty::Object | Ty::Class(..) | Ty::Shape(_) => EqDomain::Object,
         // A written signature is a fact about how a callable may be *called*,
         // never about which callables a position holds, so it shares the bare
@@ -1058,7 +1084,8 @@ fn reject_unordered_operand(
             | EqDomain::Null
             | EqDomain::ClassRef
             | EqDomain::PropertyKey
-            | EqDomain::PropertyPath => Unordered::Other,
+            | EqDomain::PropertyPath
+            | EqDomain::StringHoles => Unordered::Other,
         };
         Some((ty, domain))
     })?;
@@ -2385,6 +2412,9 @@ enum ConvKind {
     /// `propertyPath<T>` — `rule:types/property-path`, [`Self::PropertyKey`]'s
     /// story one type over.
     PropertyPath,
+    /// `string<K>` — `rule:types/string-holes`: a `string` whose holes are
+    /// checked, while compiling for a literal and at run time otherwise.
+    StringHoles,
     /// More than one runtime shape — `mixed`, a `?T`, a heterogeneous union,
     /// or a type this table does not model. **Never refused, on either side**:
     /// the row is chosen from the value's tag at run time.
@@ -2412,6 +2442,7 @@ fn conversion_kind(id: TypeId, interner: &TypeInterner) -> ConvKind {
         Ty::ClassRef(_) => ConvKind::ClassRef,
         Ty::PropertyKey(_) => ConvKind::PropertyKey,
         Ty::PropertyPath(_) => ConvKind::PropertyPath,
+        Ty::StringHoles { .. } => ConvKind::StringHoles,
         Ty::Enum(_, backing) | Ty::EnumCase(_, backing, _) => ConvKind::Enum(*backing),
         Ty::Class(..) | Ty::Object | Ty::Shape(_) | Ty::Callable | Ty::CallableSig { .. } => {
             ConvKind::Object
@@ -2463,9 +2494,14 @@ fn array_source_kind(from: TypeId, interner: &TypeInterner) -> ConvKind {
 fn conversion_row_exists(from: ConvKind, to: ConvKind) -> bool {
     use ConvKind::{
         Array, Bool, Bytes, ClassRef, Decimal, Enum, Float, Int, Null, Object, PropertyKey,
-        PropertyPath, Str, Uint, Void, Wide,
+        PropertyPath, Str, StringHoles, Uint, Void, Wide,
     };
     match (from, to) {
+        // `rule:types/string-holes`'s rows: a `string` whose holes are checked,
+        // another string with holes, and the total way back to the text.
+        (Str | StringHoles, StringHoles) => true,
+        (_, StringHoles) => false,
+        (StringHoles, Str) => true,
         // A `void` call has no value, so it is neither an operand a row can
         // read nor a target a row can produce. Refused on both sides rather
         // than left to the widening row below, where `Helper::nothing() as
@@ -2590,9 +2626,18 @@ fn enum_backing_kind(backing: crate::enums::EnumBacking) -> ConvKind {
 /// target-first otherwise.
 fn conversion_help(from: ConvKind, to: ConvKind) -> &'static str {
     use ConvKind::{
-        Array, Bool, Bytes, ClassRef, Enum, Null, Object, PropertyKey, PropertyPath, Str, Void,
+        Array, Bool, Bytes, ClassRef, Enum, Null, Object, PropertyKey, PropertyPath, Str,
+        StringHoles, Void,
     };
     match (from, to) {
+        (_, StringHoles) => {
+            "`string<K>` has two sources: a `string` whose holes are values of `K`, and another \
+             string with holes. Make the text first and convert that"
+        }
+        (StringHoles, _) => {
+            "a string with holes converts to the `string` it contains and to nothing else. \
+             Convert it to `string` first"
+        }
         (_, PropertyPath) => {
             "`propertyPath<T>` has two sources: a `string` whose dotted parts name public \
              properties, starting at `T`, and another property path. Make the text first and \

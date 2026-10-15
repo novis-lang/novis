@@ -1761,7 +1761,8 @@ pub(crate) fn type_names(ty: &Type, found: &mut Vec<Span>) {
             TypeAtom::Array(Some(arg))
             | TypeAtom::ClassRef(arg)
             | TypeAtom::PropertyKey(arg)
-            | TypeAtom::PropertyPath(arg) => {
+            | TypeAtom::PropertyPath(arg)
+            | TypeAtom::StringHoles { key: arg, .. } => {
                 type_names(arg, found);
             }
             TypeAtom::Shape(fields) => {
@@ -1811,7 +1812,8 @@ fn atom_type(atom: &TypeAtom, offset: BytePos) -> Option<&Type> {
         TypeAtom::Array(Some(arg))
         | TypeAtom::ClassRef(arg)
         | TypeAtom::PropertyKey(arg)
-        | TypeAtom::PropertyPath(arg) => type_in(arg, offset),
+        | TypeAtom::PropertyPath(arg)
+        | TypeAtom::StringHoles { key: arg, .. } => type_in(arg, offset),
         TypeAtom::Shape(fields) => fields.iter().find_map(|field| type_in(&field.ty, offset)),
         TypeAtom::CallableSig { params, ret } => params
             .iter()

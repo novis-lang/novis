@@ -1835,6 +1835,9 @@ pub(crate) fn static_use(ty: Option<&Type>, declaring: &QName, src: &SourceFile)
                 TypeAtom::PropertyKey(t) | TypeAtom::PropertyPath(t) => {
                     visit(t, in_param, true, short, src, out);
                 }
+                TypeAtom::StringHoles { key, .. } => {
+                    visit(key, in_param, in_key, short, src, out);
+                }
                 TypeAtom::Shape(fields) => {
                     for f in fields {
                         visit(&f.ty, in_param, in_key, short, src, out);
@@ -1892,6 +1895,10 @@ pub(crate) fn bind_static(
             let inner = bind_static(inner, declaring, to, interner);
             interner.property_path(inner)
         }
+        Ty::StringHoles { key, tainted } => {
+            let key = bind_static(key, declaring, to, interner);
+            interner.string_holes(key, tainted)
+        }
         Ty::Union(members) => {
             let members: Vec<TypeId> = members
                 .iter()
@@ -1941,6 +1948,10 @@ pub(crate) fn static_key_as_text(
     match interner.get(id).clone() {
         Ty::PropertyKey(inner) | Ty::PropertyPath(inner) if matches!(interner.get(inner), Ty::Class(q, args) if q == declaring && args.is_empty()) => {
             interner.string()
+        }
+        // A `string<K>` over such a key is its text, for the same reason.
+        Ty::StringHoles { key, tainted } if static_key_as_text(key, declaring, interner) != key => {
+            crate::expr::quals::qualified_scalar(false, tainted, false, interner)
         }
         Ty::Array(elem) => {
             let elem = static_key_as_text(elem, declaring, interner);

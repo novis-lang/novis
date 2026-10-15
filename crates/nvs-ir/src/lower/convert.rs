@@ -1645,7 +1645,9 @@ impl<'a> Lowering<'a> {
                 atoms.as_slice(),
                 [atom] if matches!(
                     self.checked_types.get(*atom),
-                    CheckedTy::PropertyKey(_) | CheckedTy::PropertyPath(_)
+                    CheckedTy::PropertyKey(_)
+                        | CheckedTy::PropertyPath(_)
+                        | CheckedTy::StringHoles { .. }
                 )
             )
         })
@@ -1656,34 +1658,52 @@ impl<'a> Lowering<'a> {
     /// encoded the way `nvs_runtime`'s `nvs_property_path_valid` reads them.
     /// `None` for every other annotation, and for a written-out operand, which
     /// the checker decided where it is written.
-    fn property_path_graph(&self, ty: &Type) -> Option<String> {
-        let ExprInfo::PropertyPath { nodes, .. } = self.exprs.lookup(ty.span)? else {
-            return None;
-        };
-        Some(encode_path_graph(nodes))
+    ///
+    /// `rule:types/string-holes`'s `as string<K>` is the same walk, once per
+    /// hole, so it answers here too: [`ExprInfo::StringHoles`] encoded behind
+    /// one line saying whether a hole is matched whole (`w`) or walked as a
+    /// path (`p`), and checked by its own two helpers.
+    fn property_path_graph(&self, ty: &Type) -> Option<PathCheck> {
+        match self.exprs.lookup(ty.span)? {
+            ExprInfo::PropertyPath { nodes, .. } => Some(PathCheck {
+                encoded: encode_path_graph(nodes),
+                valid: Helper::PropertyPathValid,
+                mismatch: Helper::PropertyPathMismatch,
+            }),
+            ExprInfo::StringHoles { whole, nodes } => Some(PathCheck {
+                encoded: format!(
+                    "{}\n{}",
+                    if *whole { 'w' } else { 'p' },
+                    encode_path_graph(nodes)
+                ),
+                valid: Helper::StringHolesValid,
+                mismatch: Helper::StringHolesMismatch,
+            }),
+            _ => None,
+        }
     }
 
     /// `rule:types/property-path`'s run-time walk over `value`, a string or a
-    /// tagged value: one [`Helper::PropertyPathValid`] call, which reads one
+    /// tagged value: one call to `check`'s valid helper, which reads one
     /// class's roster per segment. `miss` is
-    /// [`Self::lower_single_value_membership`]'s: `None` throws through
-    /// [`Helper::PropertyPathMismatch`], and `Some(block)` jumps there instead.
-    /// `*cur` ends at the block where the path was valid.
+    /// [`Self::lower_single_value_membership`]'s: `None` throws through the
+    /// check's mismatch helper, and `Some(block)` jumps there instead. `*cur`
+    /// ends at the block where the path was valid.
     fn lower_property_path_check(
         &mut self,
         value: ValueId,
-        graph: &str,
+        check: &PathCheck,
         span: Span,
         env: &mut Env,
         cur: &mut BlockId,
         miss: Option<BlockId>,
     ) {
-        let (encoded, _) = self.emit(*cur, Ty::Str, InstKind::ConstStr(graph.to_owned()));
+        let (encoded, _) = self.emit(*cur, Ty::Str, InstKind::ConstStr(check.encoded.clone()));
         let (valid, _) = self.emit_fallible(
             *cur,
             Ty::Bool,
             InstKind::HelperCall {
-                helper: Helper::PropertyPathValid,
+                helper: check.valid,
                 args: vec![value, encoded],
             },
             env,
@@ -1712,13 +1732,13 @@ impl<'a> Lowering<'a> {
                 result: None,
                 ty: None,
                 kind: InstKind::HelperCall {
-                    helper: Helper::PropertyPathMismatch,
+                    helper: check.mismatch,
                     args: vec![value, encoded],
                 },
                 on_error: Some(landing),
                 raise_site: None,
             });
-            // `Helper::PropertyPathMismatch` owns `encoded` and never returns,
+            // The mismatch helper owns `encoded` and never returns,
             // so this jump is unreachable and only gives the block its
             // terminator.
             self.seal(fail, Terminator::Jump(hit));
@@ -2177,8 +2197,18 @@ pub(crate) fn whole_enum_set(info: &nvs_types::EnumInfo, name: &str) -> Accepted
 pub(crate) enum Membership<'a> {
     /// A closed set of values, compared one at a time.
     Set(&'a AcceptedSet),
-    /// `rule:types/property-path`'s encoded classes, walked by one helper call.
-    Path(&'a str),
+    /// `rule:types/property-path`'s encoded classes, walked by one helper call,
+    /// or `rule:types/string-holes`'s, walked once per hole.
+    Path(&'a PathCheck),
+}
+
+/// A run-time walk over encoded classes, as
+/// [`Lowering::lower_property_path_check`] emits it: the encoded text and the
+/// two helpers that read it.
+pub(crate) struct PathCheck {
+    encoded: String,
+    valid: Helper,
+    mismatch: Helper,
 }
 
 /// [`nvs_types::expr_table::PathNode`]s as the text `nvs_runtime`'s

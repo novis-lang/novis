@@ -257,6 +257,10 @@ mod zip;
 /// the home of the `Core` contract.
 pub use nvs_runtime::{CodecElement, CodecField, CodecTy, EnumCases, FieldDefault};
 
+/// `rule:types/string-holes`'s scanner, re-exported for the reason above: the
+/// checker reads a literal with the same scanner the run-time conversion uses.
+pub use nvs_runtime::holes;
+
 /// `rule:core-classes/html-template`'s folded constant needs a `Core` class's
 /// descriptor address while it is being compiled, and `instance` is where the
 /// process's one table lives. Re-exported rather than moved, so the roster

@@ -4229,6 +4229,8 @@ fn helper_symbol(helper: Helper) -> Result<&'static str, CodegenError> {
         Helper::SingleValueMismatch => "nvs_single_value_mismatch",
         Helper::PropertyPathValid => "nvs_property_path_valid",
         Helper::PropertyPathMismatch => "nvs_property_path_mismatch",
+        Helper::StringHolesValid => "nvs_string_holes_valid",
+        Helper::StringHolesMismatch => "nvs_string_holes_mismatch",
         Helper::CloneOperandNotAnObject => "nvs_clone_not_an_object",
         Helper::CloneGuard => "nvs_clone_guard",
         Helper::Identical => "nvs_value_identical",

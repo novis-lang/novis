@@ -1,0 +1,64 @@
+--TEST--
+In a `string<K>`, `{{` and `}}` are one brace of text and never a hole, in both quote styles, while compiling and at run time; `as string` gives the text as written; a string converted while the program runs throws at its first bad brace or hole, and `as ?string<K>` gives `null` there — `rule:types/string-holes`
+--FILE--
+<?nvs
+// `{{` and `}}` are text, so the name between them is not checked.
+class Customer {
+    public string $name = "Ada";
+}
+
+class Order {
+    public Customer $customer;
+    public int $total = 40;
+
+    public function constructor() {
+        $this->customer = new Customer();
+    }
+}
+
+class Query {
+    public static function where(string<propertyPath<Order>> $condition): string {
+        return $condition as string;
+    }
+
+    public static function check(string $text): void {
+        try {
+            string<propertyPath<Order>> $c = $text as string<propertyPath<Order>>;
+            echo "valid: ", $c as string, "\n";
+        } catch (Throwable $e) {
+            echo $e->message, "\n";
+        }
+        ?string<propertyPath<Order>> $maybe = $text as ?string<propertyPath<Order>>;
+        echo $maybe == null ? "null" : "not null", "\n";
+    }
+}
+
+echo Query::where("{{nmae}} = {customer.name}"), "\n";
+echo Query::where('{total} > 3 AND json = \'{{}}\''), "\n";
+
+// The same strings, made while the program runs.
+string $built = "{{nmae}} = " . "{customer.name}";
+Query::check($built);
+Query::check("{customer.nmae} = 1");
+Query::check("{total.amount} = 1");
+Query::check("{total = 1");
+Query::check("{{total} = 1");
+
+// Two strings with holes are equal when their text is.
+var $a = "{total}" as string<propertyPath<Order>>;
+var $b = ("{" . "total}") as string<propertyPath<Order>>;
+echo $a == $b ? "equal" : "different", "\n";
+--EXPECT--
+{{nmae}} = {customer.name}
+{total} > 3 AND json = '{{}}'
+valid: {{nmae}} = {customer.name}
+not null
+`"{customer.nmae} = 1"` is not a string with holes of `Order`: in the hole `{customer.nmae}`, `Customer` has no public property `$nmae`
+null
+`"{total.amount} = 1"` is not a string with holes of `Order`: in the hole `{total.amount}`, `Order`'s property `$total` is not an object, so the path cannot continue after it
+null
+`"{total = 1"` is not a string with holes of `Order`: a `{` has no `}` after it
+null
+`"{{total} = 1"` is not a string with holes of `Order`: a `}` closes no hole
+null
+equal

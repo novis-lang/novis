@@ -301,6 +301,26 @@ fn assignable(
         let (from_arg, to_arg) = (*from_arg, *to_arg);
         return assignable(to_arg, from_arg, widen, interner, graph, signatures);
     }
+    // `rule:types/string-holes`: a string with holes widens as its holes do,
+    // and an untainted one is accepted where a `tainted` one is wanted, never
+    // the reverse.
+    if let (
+        Ty::StringHoles {
+            key: from_key,
+            tainted: from_tainted,
+        },
+        Ty::StringHoles {
+            key: to_key,
+            tainted: to_tainted,
+        },
+    ) = (interner.get(from), interner.get(to))
+    {
+        let (from_key, to_key) = (*from_key, *to_key);
+        if *from_tainted && !*to_tainted {
+            return false;
+        }
+        return assignable(from_key, to_key, widen, interner, graph, signatures);
+    }
     // **Bare `callable` is the top of `rule:types/callable-signature`'s
     // lattice**, so a written signature always satisfies it. The reverse is
     // refused by falling through: a value whose signature is unknown cannot

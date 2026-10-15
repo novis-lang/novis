@@ -100,7 +100,11 @@ use nvs_stdlib::registry::Qual;
 pub fn is_tainted(ty: TypeId, interner: &TypeInterner) -> bool {
     matches!(
         interner.get(ty),
-        Ty::TaintedString | Ty::TaintedBytes | Ty::SecretTaintedString | Ty::SecretTaintedBytes
+        Ty::TaintedString
+            | Ty::TaintedBytes
+            | Ty::SecretTaintedString
+            | Ty::SecretTaintedBytes
+            | Ty::StringHoles { tainted: true, .. }
     )
 }
 
@@ -426,6 +430,7 @@ pub(crate) fn untainted(ty: TypeId, interner: &mut TypeInterner) -> TypeId {
         return qualified_scalar(is_bytes, false, secret, interner);
     }
     match interner.get(ty).clone() {
+        Ty::StringHoles { key, .. } => interner.string_holes(key, false),
         Ty::Union(members) => {
             let members: Vec<TypeId> = members
                 .iter()
@@ -534,6 +539,9 @@ pub(crate) fn tainted_result(ty: TypeId, interner: &mut TypeInterner) -> TypeId 
         return qualified_scalar(is_bytes, true, secret, interner);
     }
     match interner.get(ty).clone() {
+        // `rule:types/string-holes`: the text between the holes is the
+        // caller's, so the qualifier stays on it.
+        Ty::StringHoles { key, .. } => interner.string_holes(key, true),
         Ty::Array(elem) => {
             let elem = tainted_result(elem, interner);
             interner.array(elem)

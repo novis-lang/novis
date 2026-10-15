@@ -3201,6 +3201,118 @@ crate::nvs_helper! {
     }
 }
 
+/// Where a `rule:types/string-holes` text stops being one, as
+/// [`string_holes_miss`] finds it.
+enum HolesMiss<'a> {
+    /// A brace that opens or closes no hole.
+    Brace(crate::holes::HoleError),
+    /// A hole a set of names or values does not contain.
+    Hole(&'a [u8]),
+    /// A hole that is not a valid path.
+    Path(&'a [u8], PathMiss<'a>),
+}
+
+/// The encoded classes of a string with holes split into whether a hole is
+/// matched whole and the classes themselves, past the `w` or `p` line
+/// `nvs_ir`'s `Lowering::lower_property_path_check` writes in front.
+fn holes_checks(checks: &[u8]) -> (bool, &[u8]) {
+    (
+        checks.first() == Some(&b'w'),
+        checks.get(2..).unwrap_or_default(),
+    )
+}
+
+/// The first brace or hole of `text` that is not valid against `checks`, or
+/// `None` when the whole text is valid. One pass over the text, and one
+/// node's roster per hole or per segment.
+fn string_holes_miss<'a>(text: &'a [u8], checks: &'a [u8]) -> Option<HolesMiss<'a>> {
+    let (whole, graph) = holes_checks(checks);
+    for piece in crate::holes::holes(text) {
+        let range = match piece {
+            Ok(crate::holes::Piece::Text(_)) => continue,
+            Ok(crate::holes::Piece::Hole(range)) => range,
+            Err(error) => return Some(HolesMiss::Brace(error)),
+        };
+        let name = &text[range];
+        if whole {
+            if path_node_step(graph, 0, name).1.is_none() {
+                return Some(HolesMiss::Hole(name));
+            }
+        } else if let Some(miss) = property_path_miss(name, graph) {
+            return Some(HolesMiss::Path(name, miss));
+        }
+    }
+    None
+}
+
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::StringHolesValid` — whether `args[0]` is a
+    /// `rule:types/string-holes` string over the encoded checks in `args[1]`.
+    /// An operand that is not a string is not one. Borrows both.
+    fn nvs_string_holes_valid(_ctx, args: [2]) {
+        let checks = args[1]
+            .as_str_bytes()
+            .ok_or_else(|| wrong_tag("nvs_string_holes_valid", Tag::Str, args[1]))?;
+        let valid = args[0]
+            .as_str_bytes()
+            .is_some_and(|text| string_holes_miss(text, checks).is_none());
+        Ok(Value::bool(valid))
+    }
+}
+
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::StringHolesMismatch` — the throw for an operand
+    /// [`nvs_string_holes_valid`] refused, naming its first bad brace or hole.
+    ///
+    /// **Never returns `Ok`, and releases `args[1]`**, for
+    /// [`nvs_single_value_mismatch`]'s reason.
+    fn nvs_string_holes_mismatch(_ctx, args: [2]) {
+        let checks = args[1]
+            .as_str_bytes()
+            .ok_or_else(|| wrong_tag("nvs_string_holes_mismatch", Tag::Str, args[1]))?;
+        let (_, graph) = holes_checks(checks);
+        let root = graph.split(|&b| b == b'\n').next().unwrap_or_default();
+        let root = String::from_utf8_lossy(root);
+        let operand = rendered_operand(args[0]);
+        let reason = match args[0].as_str_bytes().and_then(|text| string_holes_miss(text, checks)) {
+            Some(HolesMiss::Brace(error)) => error.describe().to_owned(),
+            Some(HolesMiss::Hole(name)) => {
+                format!("the hole `{{{}}}` is not one of its values", String::from_utf8_lossy(name))
+            }
+            Some(HolesMiss::Path(name, miss)) => {
+                let name = String::from_utf8_lossy(name);
+                let class = String::from_utf8_lossy(miss.class);
+                let segment = String::from_utf8_lossy(miss.segment);
+                if segment.is_empty() {
+                    format!("the hole `{{{name}}}` has an empty part")
+                } else if miss.found {
+                    format!(
+                        "in the hole `{{{name}}}`, `{class}`'s property `${segment}` is not an \
+                         object, so the path cannot continue after it"
+                    )
+                } else {
+                    format!(
+                        "in the hole `{{{name}}}`, `{class}` has no public property `${segment}`"
+                    )
+                }
+            }
+            None => "it is not a string".to_owned(),
+        };
+        let message = format!("{operand} is not a string with holes of `{root}`: {reason}");
+        #[expect(
+            unsafe_code,
+            reason = "the encoded checks are a fresh `ConstStr` this call is \
+                      the last reader of, and its one reference is dropped here \
+                      because no reachable instruction follows a helper that \
+                      never returns"
+        )]
+        unsafe {
+            args[1].release();
+        }
+        Err(Fault::thrown(message))
+    }
+}
+
 /// `rule:expressions/truthy-positions`'s truthy
 /// table, applied to a value whose type is known only at runtime.
 ///
@@ -3379,6 +3491,11 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         (
             "nvs_property_path_mismatch",
             address(nvs_property_path_mismatch),
+        ),
+        ("nvs_string_holes_valid", address(nvs_string_holes_valid)),
+        (
+            "nvs_string_holes_mismatch",
+            address(nvs_string_holes_mismatch),
         ),
         (
             "nvs_str_new",

@@ -884,13 +884,46 @@ pub(crate) fn report_unwritten_property_path(
     env: &mut Env<'_>,
 ) {
     let (cooked, positions) = crate::string_lit::cook_string_literal_positions(env.src, text);
-    let segments: Vec<&str> = cooked.split('.').collect();
-    let mut class = root.clone();
-    let mut at = 0;
-    for (i, segment) in segments.iter().enumerate() {
-        let underline = crate::string_lit::decoded_range_span(text, &positions, at, segment.len())
+    let written = WrittenText {
+        positions: &positions,
+        text,
+        span,
+    };
+    check_path_segments(root, &cooked, 0, &written, env);
+}
+
+/// Where a literal's cooked text came from, so a diagnostic about a piece of
+/// it can underline that piece: the literal's `text` span, the source byte of
+/// each cooked byte, and the `span` underlined when a piece does not map back.
+struct WrittenText<'a> {
+    positions: &'a [u32],
+    text: Span,
+    span: Span,
+}
+
+impl WrittenText<'_> {
+    /// The source span of the cooked bytes `at..at + len`.
+    fn underline(&self, at: usize, len: usize) -> Span {
+        crate::string_lit::decoded_range_span(self.text, self.positions, at, len)
             .filter(|s| s.end > s.start)
-            .unwrap_or(span);
+            .unwrap_or(self.span)
+    }
+}
+
+/// [`report_unwritten_property_path`]'s walk over `path`, the cooked bytes
+/// from `base` on. Whether every segment was valid.
+fn check_path_segments(
+    root: &QName,
+    path: &str,
+    base: usize,
+    written: &WrittenText<'_>,
+    env: &mut Env<'_>,
+) -> bool {
+    let segments: Vec<&str> = path.split('.').collect();
+    let mut class = root.clone();
+    let mut at = base;
+    for (i, segment) in segments.iter().enumerate() {
+        let underline = written.underline(at, segment.len());
         if segment.is_empty() {
             env.diags.report(
                 Diagnostic::error(code::E_UNKNOWN_MEMBER, "a property path has an empty part")
@@ -900,7 +933,7 @@ pub(crate) fn report_unwritten_property_path(
                          `customer.name`",
                     ),
             );
-            return;
+            return false;
         }
         let roster = public_property_names(&class, env);
         if !roster.iter().any(|name| name == segment) {
@@ -920,7 +953,7 @@ pub(crate) fn report_unwritten_property_path(
                      the path has reached: `{class}` has {listed}"
                 )),
             );
-            return;
+            return false;
         }
         if i + 1 < segments.len() {
             let Some(next) = path_step_after(&class, segment, env) else {
@@ -938,11 +971,188 @@ pub(crate) fn report_unwritten_property_path(
                          type is a class, a nullable class or an array of a class",
                     ),
                 );
-                return;
+                return false;
             };
             class = next;
         }
         at += segment.len() + 1;
+    }
+    true
+}
+
+/// What the holes of a `rule:types/string-holes` string may contain, read off
+/// its `K`.
+#[derive(Clone, Debug)]
+pub(crate) enum HoleKind {
+    /// `property<T>`: a public property name of `T`.
+    Name(QName),
+    /// `propertyPath<T>`: a property path starting at `T`.
+    Path(QName),
+    /// One of a set of string values, sorted.
+    Values(Vec<String>),
+}
+
+/// The [`HoleKind`] of `key`, a `string<K>`'s `K`, or `None` where `K` is
+/// none of the three `crate::lower`'s `lower_string_holes` accepts.
+pub(crate) fn hole_kind(key: TypeId, interner: &TypeInterner) -> Option<HoleKind> {
+    let class = |id: TypeId| match interner.get(id) {
+        Ty::Class(qname, _) => Some(qname.clone()),
+        _ => None,
+    };
+    let value = |id: TypeId| match interner.get(id) {
+        Ty::SingleValueString(text) => Some(text.clone()),
+        _ => None,
+    };
+    match interner.get(key) {
+        Ty::PropertyKey(inner) => class(*inner).map(HoleKind::Name),
+        Ty::PropertyPath(inner) => class(*inner).map(HoleKind::Path),
+        Ty::SingleValueString(text) => Some(HoleKind::Values(vec![text.clone()])),
+        Ty::Union(members) => {
+            let mut values = members
+                .iter()
+                .map(|&member| value(member))
+                .collect::<Option<Vec<_>>>()?;
+            values.sort_unstable();
+            Some(HoleKind::Values(values))
+        }
+        _ => None,
+    }
+}
+
+/// `K` and whether the text is `tainted`, where `ty` is a `string<K>`.
+pub(crate) fn string_holes_key(ty: TypeId, interner: &TypeInterner) -> Option<(TypeId, bool)> {
+    match interner.get(ty) {
+        Ty::StringHoles { key, tainted } => Some((*key, *tainted)),
+        _ => None,
+    }
+}
+
+/// The parameter type and its [`HoleKind`] where `ty`, a parameter's declared
+/// type, is `string<K>` or `?string<K>`, for a literal written there
+/// (`rule:types/string-holes`). `None` for every other type, a union with
+/// `string` included.
+pub(crate) fn holes_parameter(ty: TypeId, env: &mut Env<'_>) -> Option<(TypeId, HoleKind)> {
+    let holes = env.interner.without_null(ty);
+    let (key, _) = string_holes_key(holes, env.interner)?;
+    Some((holes, hole_kind(key, env.interner)?))
+}
+
+/// Records the rosters the editor reads for a `string<K>`'s holes, as
+/// [`record_parameter_property_keys`] does for a key or a path.
+pub(crate) fn record_hole_keys(kind: &HoleKind, env: &mut Env<'_>) {
+    match kind {
+        HoleKind::Name(qname) => record_property_keys(qname, env),
+        HoleKind::Path(qname) => record_path_property_keys(qname, env),
+        HoleKind::Values(_) => {}
+    }
+}
+
+/// Checks every hole of `text`, a string literal, against `kind`
+/// (`rule:types/string-holes`). A malformed brace is `E0861` at the brace and
+/// stops the scan. A hole naming no property is the unknown-member diagnostic
+/// at the hole, or at its first bad segment for a path, and a hole outside a
+/// set of values is `E0861` at the hole. `span` is underlined where the
+/// literal's text does not map back to its source byte for byte.
+pub(crate) fn report_unwritten_string_holes(
+    kind: &HoleKind,
+    text: Span,
+    span: Span,
+    env: &mut Env<'_>,
+) {
+    use nvs_stdlib::holes::{Piece, holes};
+    let (cooked, positions) = crate::string_lit::cook_string_literal_positions(env.src, text);
+    let written = WrittenText {
+        positions: &positions,
+        text,
+        span,
+    };
+    for piece in holes(cooked.as_bytes()) {
+        let range = match piece {
+            Ok(Piece::Text(_)) => continue,
+            Ok(Piece::Hole(range)) => range,
+            Err(error) => {
+                env.diags.report(
+                    Diagnostic::error(code::E_STRING_HOLE_MALFORMED, error.describe())
+                        .with_primary(written.underline(error.at(), 1), "this brace")
+                        .with_help(
+                            "a hole is a name between `{` and `}`. Write `{{` for a `{` and \
+                             `}}` for a `}` that are only text",
+                        ),
+                );
+                return;
+            }
+        };
+        let name = &cooked[range.clone()];
+        let underline = written.underline(range.start, range.len());
+        match kind {
+            HoleKind::Path(root) => {
+                check_path_segments(root, name, range.start, &written, env);
+            }
+            HoleKind::Name(class) => {
+                let roster = public_property_names(class, env);
+                if !roster.iter().any(|property| property == name) {
+                    let listed = roster
+                        .iter()
+                        .map(|property| format!("`${property}`"))
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    env.diags.report(
+                        Diagnostic::error(
+                            code::E_UNKNOWN_MEMBER,
+                            format!("`{class}` has no public property `${name}`"),
+                        )
+                        .with_primary(underline, "this hole is checked here")
+                        .with_help(format!(
+                            "each hole names a public property of `{class}`, which has {listed}"
+                        )),
+                    );
+                }
+            }
+            HoleKind::Values(values) => {
+                if !values.iter().any(|value| value == name) {
+                    let listed = values
+                        .iter()
+                        .map(|value| format!("`{value}`"))
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    env.diags.report(
+                        Diagnostic::error(
+                            code::E_STRING_HOLE_MALFORMED,
+                            format!("the hole `{{{name}}}` is not one of the allowed values"),
+                        )
+                        .with_primary(underline, "this hole is checked here")
+                        .with_help(format!("each hole is one of {listed}")),
+                    );
+                }
+            }
+        }
+    }
+}
+
+/// What the run-time check of a converted `string<K>` reads
+/// ([`crate::expr_table::ExprInfo::StringHoles`]): whether a hole is matched
+/// whole rather than walked as a path, and the classes or values it is
+/// checked against. A name and a set of values are one node whose entries
+/// step nowhere.
+pub(crate) fn string_holes_graph(
+    kind: &HoleKind,
+    key: TypeId,
+    env: &Env<'_>,
+) -> (bool, Vec<crate::expr_table::PathNode>) {
+    let single = |label: String, names: Vec<String>| crate::expr_table::PathNode {
+        class: label,
+        steps: names.into_iter().map(|name| (name, None)).collect(),
+    };
+    match kind {
+        HoleKind::Path(root) => (false, property_path_graph(root, env)),
+        HoleKind::Name(class) => (
+            true,
+            vec![single(class.to_string(), public_property_names(class, env))],
+        ),
+        HoleKind::Values(values) => (
+            true,
+            vec![single(env.interner.describe(key), values.clone())],
+        ),
     }
 }
 
@@ -964,6 +1174,11 @@ pub(crate) fn record_parameter_property_keys(ty: TypeId, env: &mut Env<'_>) {
             && let Ty::Class(qname, _) = env.interner.get(argument).clone()
         {
             record_path_property_keys(&qname, env);
+        }
+        if let Some((key, _)) = string_holes_key(member, env.interner)
+            && let Some(kind) = hole_kind(key, env.interner)
+        {
+            record_hole_keys(&kind, env);
         }
     }
 }

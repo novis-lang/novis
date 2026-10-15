@@ -603,6 +603,8 @@ fn helper_name(h: Helper) -> &'static str {
         Helper::SingleValueMismatch => "single_value_mismatch",
         Helper::PropertyPathValid => "property_path_valid",
         Helper::PropertyPathMismatch => "property_path_mismatch",
+        Helper::StringHolesValid => "string_holes_valid",
+        Helper::StringHolesMismatch => "string_holes_mismatch",
         Helper::CloneOperandNotAnObject => "clone_not_an_object",
         Helper::CloneGuard => "clone_guard",
         Helper::Identical => "identical",

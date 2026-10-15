@@ -1,6 +1,6 @@
 {
   "title": "`string<K>` is a string whose `{…}` holes are each a `K`, checked where it is written, and its text keeps its taint",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "types/property-path",
     "types/property-key",
@@ -8,6 +8,9 @@
     "core-classes/str-parts-and-reflect-steps",
     "core-classes/db-one-api"
   ],
-  "guardedBy": [],
-  "goal": "property-paths"
+  "guardedBy": [
+    "tests/conformance/lang/a-string-with-holes-checks-every-hole-where-it-is-written.nvst",
+    "tests/conformance/lang/a-doubled-brace-in-a-string-with-holes-is-one-brace.nvst",
+    "tests/conformance/lang/a-string-with-holes-from-a-request-keeps-its-text-tainted.nvst"
+  ]
 }

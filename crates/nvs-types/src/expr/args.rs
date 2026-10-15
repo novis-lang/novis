@@ -137,7 +137,18 @@ fn check_arg_list(
             }
             _ => None,
         };
-        let actual = if let Some((text, (key, qname, kind))) = written_key {
+        // `rule:types/string-holes`: a literal at a `string<K>` parameter has
+        // every hole checked here, in the same way.
+        let written_holes = match (&arg.value.kind, expected) {
+            (ExprKind::Str(text), Some(want)) if written_key.is_none() => {
+                super::members::holes_parameter(want, env).map(|holes| (*text, holes))
+            }
+            _ => None,
+        };
+        let actual = if let Some((text, (holes, kind))) = written_holes {
+            super::members::report_unwritten_string_holes(&kind, text, arg.value.span, env);
+            holes
+        } else if let Some((text, (key, qname, kind))) = written_key {
             if kind == super::members::KeyKind::Path {
                 super::members::report_unwritten_property_path(&qname, text, arg.value.span, env);
             } else {

@@ -3,8 +3,6 @@
 
 # Types
 
-*1 of 55 rules below are **designed** rather than shipped, and are marked where they appear.*
-
 <a id="types-declaration"></a>
 
 ## Every binding declares its type, and no binding's type ever changes
@@ -1302,7 +1300,7 @@ no second walk.
 
 <a id="types-string-holes"></a>
 
-## `string<K>` is a string whose `{…}` holes are each a `K`, checked where it is written, and its text keeps its taint  *(designed — owned by goal property-paths)*
+## `string<K>` is a string whose `{…}` holes are each a `K`, checked where it is written, and its text keeps its taint
 
 `rule:types/string-holes`
 

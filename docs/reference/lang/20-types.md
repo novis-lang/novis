@@ -989,6 +989,61 @@ null
 `"customer.age"` is not a property path of `Order`: `Customer` has no public property `$age`
 ```
 
+# Strings with holes
+
+`string<K>` is a string with holes. A hole is a name between `{` and `}`, such as `{customer.name}`.
+`K` says what a hole may contain. `string<K>` is one string. It is not a collection like `array<K>`.
+<!-- src: `rule:types/string-holes` -->
+
+- `K` is `property<T>`, `propertyPath<T>` or a set of strings, such as `'asc'|'desc'`. Any other `K`
+  does not compile (`E0860`).
+- `{{` is a `{` and `}}` is a `}`. They are text, not holes.
+- An empty hole `{}`, a `{` with no `}` and a `}` with no `{` do not compile (`E0861`).
+- A string written directly in the code is checked while compiling, one hole at a time. A wrong name
+  does not compile (`E0405`), and the error points at that name.
+- A string literal at a parameter typed `string<K>` needs no `as`.
+- Any other string is checked by `as` while the program runs. A wrong hole throws a `RuntimeError`.
+  `as ?string<K>` gives `null` instead.
+- `as string<K>` keeps `tainted`. A `tainted string` converts to a `tainted string<K>`, because the
+  text between the holes still comes from outside.
+- `$text as string` gives the text as written, with its braces. Two values are equal when their
+  text is equal.
+
+```nvs
+<?nvs
+class Customer {
+    public string $name = "Ada";
+}
+
+class Order {
+    public Customer $customer;
+    public int $total = 40;
+
+    public function constructor() {
+        $this->customer = new Customer();
+    }
+}
+
+class Query {
+    public static function where(string<propertyPath<Order>> $condition): string {
+        return "WHERE " . ($condition as string);
+    }
+}
+
+echo Query::where("{customer.name} = ? AND {total} > 10"), "\n";
+
+string $built = "{customer.nmae} = ?";
+try {
+    var $bad = $built as string<propertyPath<Order>>;
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+}
+```
+```output
+WHERE {customer.name} = ? AND {total} > 10
+`"{customer.nmae} = ?"` is not a string with holes of `Order`: in the hole `{customer.nmae}`, `Customer` has no public property `$nmae`
+```
+
 # Narrowing
 
 Inside the branch a test proves, a binding is read at the narrower type. Four spellings narrow:

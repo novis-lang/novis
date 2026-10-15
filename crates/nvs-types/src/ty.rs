@@ -105,6 +105,17 @@ pub enum Ty {
     /// [`Self::PropertyKey`]'s in every way: the same guard where it is
     /// written, the same contravariance and an equality domain of its own.
     PropertyPath(TypeId),
+    /// `string<K>` — `rule:types/string-holes`'s string whose `{…}` holes are
+    /// values of `key`: a [`Self::PropertyKey`], a [`Self::PropertyPath`], or
+    /// one or a union of [`Self::SingleValueString`]s. `tainted` is the
+    /// qualifier on its text, which `as string<K>` keeps. It is a string in the
+    /// representation and not in the type, as a key is.
+    StringHoles {
+        /// `K`.
+        key: TypeId,
+        /// Whether the text between the holes is `tainted`.
+        tainted: bool,
+    },
     /// `object`
     Object,
     /// `mixed` — the one unchecked position.
@@ -631,6 +642,10 @@ impl TypeInterner {
             Ty::ClassRef(inner) => format!("class<{}>", self.describe(*inner)),
             Ty::PropertyKey(inner) => format!("property<{}>", self.describe(*inner)),
             Ty::PropertyPath(inner) => format!("propertyPath<{}>", self.describe(*inner)),
+            Ty::StringHoles { key, tainted } => {
+                let word = if *tainted { "tainted string" } else { "string" };
+                format!("{word}<{}>", self.describe(*key))
+            }
             Ty::Object => "object".to_owned(),
             Ty::Mixed => "mixed".to_owned(),
             Ty::Void => "void".to_owned(),
@@ -937,6 +952,13 @@ impl TypeInterner {
     #[must_use]
     pub fn property_path(&mut self, inner: TypeId) -> TypeId {
         self.intern(Ty::PropertyPath(inner))
+    }
+
+    /// Interns `string<key>`, `tainted string<key>` where `tainted` — see
+    /// [`Ty::StringHoles`].
+    #[must_use]
+    pub fn string_holes(&mut self, key: TypeId, tainted: bool) -> TypeId {
+        self.intern(Ty::StringHoles { key, tainted })
     }
 
     /// Interns a resolved class/interface name with no type arguments —

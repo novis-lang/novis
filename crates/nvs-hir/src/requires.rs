@@ -939,7 +939,8 @@ fn walk_type(ty: &Type, src: &SourceFile, out: &mut Harvest) {
             TypeAtom::Array(Some(inner))
             | TypeAtom::ClassRef(inner)
             | TypeAtom::PropertyKey(inner)
-            | TypeAtom::PropertyPath(inner) => {
+            | TypeAtom::PropertyPath(inner)
+            | TypeAtom::StringHoles { key: inner, .. } => {
                 walk_type(inner, src, out);
             }
             TypeAtom::Shape(fields) => {

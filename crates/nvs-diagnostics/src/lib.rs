@@ -5562,6 +5562,22 @@ pub mod code {
          itself. Declare the method in the class. Its body can call one interface's default with \
          `InterfaceName::method()`, or a delegate with `$this->field->method()`.",
     );
+    /// `string<K>` whose `K` is not a `property<T>`, a `propertyPath<T>` or a
+    /// set of string values — `rule:types/string-holes`. Reported only where
+    /// the argument lowered without a complaint of its own, as
+    /// [`E_PROPERTY_KEY_ARGUMENT_NOT_A_CLASS`] is.
+    pub const E_STRING_HOLES_ARGUMENT: Code = Code::new("E0860").card(
+        "In `string<K>`, `K` says what each `{…}` hole may contain. It must be \
+         `property<T>`, `propertyPath<T>` or a set of strings such as `'asc'|'desc'`.",
+    );
+    /// A string with holes whose text is not one: an empty hole `{}`, a `{`
+    /// with no `}` after it, a `}` that closes no hole, or a hole whose name is
+    /// not one of a set of allowed strings — `rule:types/string-holes`. A
+    /// hole naming no property is [`E_UNKNOWN_MEMBER`] instead.
+    pub const E_STRING_HOLE_MALFORMED: Code = Code::new("E0861").card(
+        "In a `string<K>`, each `{name}` is a hole. A hole cannot be empty, and every `{` needs \
+         a `}`. Write `{{` for a `{` and `}}` for a `}` that are only text.",
+    );
 
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.

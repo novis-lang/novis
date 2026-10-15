@@ -384,6 +384,23 @@ impl<'src, 'd> Parser<'src, 'd> {
             TokenKind::Keyword(Keyword::Uint) => atom!(Uint),
             TokenKind::Keyword(Keyword::Float) => atom!(Float),
             TokenKind::Keyword(Keyword::Decimal) => atom!(Decimal),
+            // `rule:types/string-holes`: `string<K>`. The `<` is what tells it
+            // from a plain `string`, as it is for `property<`.
+            TokenKind::Keyword(Keyword::String)
+                if matches!(self.peek_at(1).kind, TokenKind::Lt) =>
+            {
+                self.bump();
+                self.bump();
+                let key = self.parse_type_union();
+                let close = self.expect_type_close_angle();
+                Type {
+                    kind: TypeKind::Atom(TypeAtom::StringHoles {
+                        key: Box::new(key),
+                        tainted: false,
+                    }),
+                    span: start.to(close),
+                }
+            }
             TokenKind::Keyword(Keyword::String) => atom!(String),
             TokenKind::Keyword(Keyword::Bytes) => atom!(Bytes),
             TokenKind::Keyword(Keyword::Tainted) => {
@@ -393,6 +410,9 @@ impl<'src, 'd> Parser<'src, 'd> {
                 let atom = match inner.kind {
                     TypeKind::Atom(TypeAtom::String) => TypeAtom::TaintedString,
                     TypeKind::Atom(TypeAtom::Bytes) => TypeAtom::TaintedBytes,
+                    TypeKind::Atom(TypeAtom::StringHoles { key, .. }) => {
+                        TypeAtom::StringHoles { key, tainted: true }
+                    }
                     // `rule:security/tainted-qualifier`: over a shape the
                     // qualifier distributes to every text-carrying field and is
                     // then gone, so what reaches the checker is the
@@ -881,6 +901,10 @@ impl<'src, 'd> Parser<'src, 'd> {
             TypeAtom::String => {
                 *carries_text = true;
                 TypeAtom::TaintedString
+            }
+            TypeAtom::StringHoles { key, .. } => {
+                *carries_text = true;
+                TypeAtom::StringHoles { key, tainted: true }
             }
             TypeAtom::Bytes => {
                 *carries_text = true;
