@@ -46,7 +46,7 @@ stages:
         shapes: ["A `.nvst` test case"]
   - id: 6
     title: deferred work cannot write the response
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/deferred.rs, crates/nvs-runtime/src/later.rs]
     extra:
       context:
@@ -260,8 +260,8 @@ backend read one standard header. It is written on every response, sampled or no
 
 **Does:** a `Core\Response` write in deferred work does not compile where it is visible, and throws otherwise.
 
-- [ ] The run-time throw. `crates/nvs-runtime/src/later.rs:222`
-- [ ] The compile error, with its diagnostic. `crates/nvs-runtime/src/deferred.rs:216`
+- [x] The run-time throw. `crates/nvs-runtime/src/later.rs:222`
+- [x] The compile error, with its diagnostic. `crates/nvs-runtime/src/deferred.rs:216`
 
 ### 7. a foreign-connection enqueue is counted
 
@@ -288,32 +288,28 @@ backend read one standard header. It is written on every response, sampled or no
 
 ### State
 
-Stages 1 to 5 are done. `Core\Socket::upgrade` and `Core\Sse::upgrade` take `limits:`, `grants:`
-and `on:`. `crate::socket::upgrade_narrowing` keeps the written grants the request holds, and
-`nvs_runtime::Upgrade` carries the `Narrowing` to every door that starts a connection, through
-`Isolate::narrowed_by`. `on: "worker"` does not compile (`E0818`), because a connection's socket
-is core-local. `rule:concurrency/an-upgrades-options-are-spawn-scripts` is `shipped`, and the
-perf records of both classes are measured again.
-
-A grant the request gave up is not observable in a `.nvst` case, because a request cannot narrow
-its own grants. `an_upgrades_grants_keep_only_what_the_request_holds` in
-`crates/nvs-stdlib/src/socket.rs` covers that half.
+Stages 1 to 6 are done. A `Core\Response` write, `slotted` or `Core\Session::regenerate` in
+`Core\Task::afterResponse` work is `E0857` where it is written inside the anonymous function, and
+a `LogicError` at run time otherwise, through `Ctx::in_deferred_work` and
+`nvs_stdlib::response::head_open`. `rule:concurrency/deferred-work-cannot-write-the-response` is
+`shipped`. `a-response-slotted-in-after-response-work-throws-a-logic-error.nvst` now holds its
+callable in a variable, because the inline call no longer compiles.
 
 The nightly reds ran on `origin/main`, far behind local `main`, and nothing here pushes.
 
 ### Next
 
-**Stage 6, deferred work cannot write the response**: `crates/nvs-runtime/src/later.rs`,
-`crates/nvs-runtime/src/deferred.rs`, `tests/conformance/core/`
-(`rule:concurrency/deferred-work-cannot-write-the-response`).
+**Stage 7, a foreign-connection enqueue is counted**: `crates/nvs-stdlib/src/queue.rs`,
+`docs/examples/core/Queue/stats/`, `tests/conformance/core/`
+(`rule:concurrency/` queue stats; the standing decision names the column and `nonTransactional`).
 
-- [ ] The run-time throw for a `Core\Response` write in after-response work, in `make_slotted`'s shape. `crates/nvs-runtime/src/later.rs:222`
-- [ ] The compile error where the checker sees the write inside an `afterResponse` callable, with its diagnostic. `crates/nvs-runtime/src/deferred.rs:216`
-- [ ] The two `.nvst` cases the `deferred-response-write` check names. `crates/nvs-runtime/src/deferred.rs:205`
+- [ ] The job row records a push made outside the caller's transaction, where `announce` tells the case apart. `crates/nvs-stdlib/src/queue.rs:3604`
+- [ ] `stats` reads the column and reports `nonTransactional`. `crates/nvs-stdlib/src/queue.rs:5154`
+- [ ] The `foreign-enqueue-counted` case and the feature proofs of `Core\Queue::stats`. `docs/examples/core/Queue/stats/about.md:1`
 
 ### Backlog
 
-- Stages 7 to 9: this file's § *Stages*.
+- Stages 8 and 9: this file's § *Stages*.
 - `on: "worker"` for a connection, if the rule should promise it: `crates/nvs-types/src/expr/isolate.rs`.
 - A reload keeps the boot's canonical roots, so a symlink swapped to a new release is not followed until restart, if the rule should promise otherwise: `crates/nvs-cli/src/config.rs`.
 - A program's `Core\Config::set` of `[log] access` does not reach the access line, if the rule should promise it: `crates/nvs-server/src/trace.rs`.
