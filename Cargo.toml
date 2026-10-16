@@ -343,6 +343,7 @@ rcgen = { version = "0.14", default-features = false, features = [
 # --- extension sandbox (M9). Built on the same cranelift version above, so the
 # --- two move together: wasmtime N pins cranelift 0.(N+87) exactly.
 # --- See rule:packaging/an-extension-is-a-sandboxed-wasm-component.
+# HOLD (revisit 2026-11-16): wasmtime 50 is only 50.0.0-rc.1, and 49.0.3 is the latest final release.
 wasmtime = "49"
 # The parser of the `nvs:ext@1.0.0` world's WIT text under `wit/`, at the
 # version wasmtime itself parses component types with, so it adds no crate
