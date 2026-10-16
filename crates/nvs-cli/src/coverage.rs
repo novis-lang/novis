@@ -46,14 +46,13 @@
 //! # Per test
 //!
 //! Under a coverage flag, `--format json` writes `schemaVersion: 3` and each
-//! test's record lists the lines that test reached. The suite runs one test at
-//! a time, so the runner reads the table before and after each test, and the
-//! statements whose count grew ([`grew`]) are that test's: every attempt a
-//! retry made and every request a `server: true` test sent. [`Sites::reached`]
-//! turns them into lines. A fixture is built before its class's first test,
-//! so its lines are in no test's list. A runner that runs tests in parallel
-//! cannot read one shared table this way: it gives each test a table of its
-//! own and adds them into the run's.
+//! test's record lists the lines that test reached. Tests run in parallel, so
+//! each test counts into a table of its own, which the runner adds into the
+//! run's. The statements that table saw run
+//! ([`ran`]) are that test's: every attempt a retry made and every request a
+//! `server: true` test sent. [`Sites::reached`] turns them into lines. A
+//! fixture is built before its class's first test, so its lines are in no
+//! test's list.
 //!
 //! # How a file is named
 //!
