@@ -622,26 +622,25 @@ uuid = { version = "1", default-features = false, features = ["std"] }
 # is that an optimiser is free to turn the obvious loop back into an early
 # exit, which is the entire bug `hash_equals` exists to avoid. That crate's
 # whole purpose is the optimisation barrier that stops it.
-# The `0.10`/`0.12` line rather than the newer majors on purpose: `sha2`,
-# `crc32fast` and `digest 0.10` are already in this tree's lock file, pulled in
-# by the cranelift/wasmtime side, so pinning to what is there adds four crates
-# instead of eleven and keeps one `digest` trait version rather than two.
+# Every RustCrypto row in this file is on the `digest 0.11` trait set, so
+# Novis's own code uses one generation of those traits. `digest 0.10` is still
+# in the lock file, for the `sha2` 0.10 that cranelift and wasmtime use.
 # `crates/nvs-stdlib/src/hash.rs` owns why this set and what `Core\Hash::Digest`
 # carries.
 #
 # `sha3` and `crc32c` are the two additions the roster earned, and each is
 # § 4's two questions answered separately. `sha3` is FIPS 202 — a published
 # specification with NIST's own vectors, from the same RustCrypto family and
-# the same `digest 0.10` trait set, so all four Keccak cases reach `digest_of`
-# *and* `hmac_of` with no hand-fitting. `crc32c` is the Castagnoli checksum S3
+# the same `digest` trait set, so all four Keccak cases reach `digest_of` and
+# `hmac_of`. `crc32c` is the Castagnoli checksum S3
 # and GCS stamp objects with, so it is interop this runtime meets rather than
 # a table hash; it is pure Rust with a run-time SSE4.2 check, exactly the shape
 # `crc32fast` already has.
-sha2 = "0.10"
-sha1 = "0.10"
-sha3 = "0.10"
-md-5 = "0.10"
-hmac = "0.12"
+sha2 = "0.11"
+sha1 = "0.11"
+sha3 = "0.12"
+md-5 = "0.11"
+hmac = "0.13"
 crc32fast = "1"
 crc32c = "0.6"
 subtle = "2"
@@ -659,13 +658,7 @@ subtle = "2"
 # crates to the lock file — itself, `password-hash`, `phc`, `base64ct`,
 # `blake2`, `cmov`, `ctutils`, `hybrid-array` and the `digest 0.11`/
 # `crypto-common 0.2`/`block-buffer 0.12` trait set, all MIT/Apache-2.0. That
-# last three is the cost worth naming: `sha2` and friends above are pinned to
-# `digest 0.10` on purpose, and this is a **second** copy of those traits in
-# the tree. It is not shared code duplicated — `Core\Hash::Digest`'s algorithms and
-# Argon2's internal Blake2b are different implementations either way — so what
-# it costs is compile time and lock-file surface, not a divided abstraction,
-# and the alternative was pinning `argon2` to a release older than its own
-# published vectors.
+# trait set is the one `sha2` and the other hashes above use too.
 #
 # `getrandom` is off deliberately: the salt is drawn through
 # `crate::random`'s own seam so this tree has exactly one CSPRNG, which is also
@@ -757,14 +750,8 @@ chacha20poly1305 = { version = "0.11", default-features = false, features = [
 # An independent audit of it, or of another Rust P-256, reopens this choice. `x25519-dalek` is the
 # agreement half of the curve `ed25519-dalek` already signs on in this tree's
 # lock file, so it shares that crate's `curve25519-dalek` and adds nothing else.
-# `hkdf` and `pbkdf2` are generic over the digest family's 0.11 line, which is
-# what the `sha2-v11` row is for: `Core\Hash` dispatches over `digest 0.10` and
-# cannot be either crate's type parameter, so the other major has to be
-# nameable from Rust. That row adds no crate — `sha2 0.11`, `hmac 0.13` and
-# `digest 0.11` are in this tree's lock file already, and `pbkdf2 0.13` is one
-# of the crates that put them there — and it is a second row rather than a
-# migration of `Core\Hash`, which would rewrite four hash members and their
-# vectors for no change in behaviour.
+# `hkdf` and `pbkdf2` are generic over the digest family's 0.11 line, and take
+# the `sha2` row above as their type parameter.
 aes-gcm = { version = "0.11", default-features = false, features = [
     "aes",
     "alloc",
@@ -783,7 +770,6 @@ x25519-dalek = { version = "3", default-features = false, features = [
 ] }
 hkdf = { version = "0.13", default-features = false }
 pbkdf2 = { version = "0.13", default-features = false, features = ["hmac"] }
-sha2-v11 = { package = "sha2", version = "0.11", default-features = false }
 
 # --- JWS's signature algorithms (`rule:core-classes/crypto-interop-tier`) ---
 # This row adds no crate: `ring` is already linked as the `rustls` provider

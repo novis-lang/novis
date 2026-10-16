@@ -3877,7 +3877,7 @@ fn out_of_sequence(state: &Cell<State>) -> io::Error {
 mod tests {
     use base64::Engine as _;
     use base64::engine::general_purpose::STANDARD;
-    use hmac::{Hmac, Mac};
+    use hmac::{Hmac, KeyInit, Mac};
     use sha2::{Digest, Sha256};
     use std::io::{self, Read, Write};
 

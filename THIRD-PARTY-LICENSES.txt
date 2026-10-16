@@ -10,7 +10,7 @@ GENERATED FILE — do not edit by hand. Regenerate with:
     bun nv gen-attribution
 
 
-COMPONENTS (662)
+COMPONENTS (660)
 ------------------------------------------------------------------------------
 
 Where a component offers a choice of licenses, Novis takes the one shown and
@@ -249,7 +249,6 @@ platform Novis builds for, so one may appear that a given build omits.
   hermit-abi                                 0.5.3                          MIT                             (MIT OR Apache-2.0)
   hex                                        0.4.3                          MIT                             (MIT OR Apache-2.0)
   hkdf                                       0.13.0                         MIT                             (MIT OR Apache-2.0)
-  hmac                                       0.12.1                         MIT                             (MIT OR Apache-2.0)
   hmac                                       0.13.0                         MIT                             (MIT OR Apache-2.0)
   html5ever                                  0.39.0                         MIT                             (MIT OR Apache-2.0)
   http                                       1.5.0                          MIT                             (MIT OR Apache-2.0)
@@ -327,7 +326,7 @@ platform Novis builds for, so one may appear that a given build omits.
   jxl-threadpool                             1.0.0                          MIT                             (MIT OR Apache-2.0)
   jxl-vardct                                 0.11.1                         MIT                             (MIT OR Apache-2.0)
   kamadak-exif                               0.6.1                          BSD-2-Clause
-  keccak                                     0.1.6                          MIT                             (Apache-2.0 OR MIT)
+  keccak                                     0.2.2                          MIT                             (Apache-2.0 OR MIT)
   krilla                                     0.8.2                          MIT                             (MIT OR Apache-2.0)
   krilla-svg                                 0.8.1                          MIT                             (MIT OR Apache-2.0)
   kurbo                                      0.13.1                         MIT                             (Apache-2.0 OR MIT)
@@ -354,7 +353,6 @@ platform Novis builds for, so one may appear that a given build omits.
   macro-string                               0.3.0                          MIT                             (MIT OR Apache-2.0)
   markup5ever                                0.39.0                         MIT                             (MIT OR Apache-2.0)
   maybe-rayon                                0.1.1                          MIT
-  md-5                                       0.10.6                         MIT                             (MIT OR Apache-2.0)
   md-5                                       0.11.0                         MIT                             (MIT OR Apache-2.0)
   memchr                                     2.8.3                          MIT                             (Unlicense OR MIT)
   memfd                                      0.6.6                          MIT                             (MIT OR Apache-2.0)
@@ -498,12 +496,11 @@ platform Novis builds for, so one may appear that a given build omits.
   serde_spanned                              1.1.2                          MIT                             (MIT OR Apache-2.0)
   serdect                                    0.4.3                          MIT                             (Apache-2.0 OR MIT)
   servo_arc                                  0.5.0                          MIT                             (MIT OR Apache-2.0)
-  sha1                                       0.10.7                         MIT                             (MIT OR Apache-2.0)
   sha1                                       0.11.0                         MIT                             (MIT OR Apache-2.0)
   sha2                                       0.10.9                         MIT                             (MIT OR Apache-2.0)
   sha2                                       0.11.0                         MIT                             (MIT OR Apache-2.0)
   sha2                                       0.11.1                         MIT                             (MIT OR Apache-2.0)
-  sha3                                       0.10.9                         MIT                             (MIT OR Apache-2.0)
+  sha3                                       0.12.0                         MIT                             (MIT OR Apache-2.0)
   shlex                                      2.0.1                          MIT                             (MIT OR Apache-2.0)
   signature                                  3.0.0                          MIT                             (Apache-2.0 OR MIT)
   simd-adler32                               0.3.10                         MIT
@@ -519,6 +516,7 @@ platform Novis builds for, so one may appear that a given build omits.
   smallvec                                   1.16.2                         MIT                             (MIT OR Apache-2.0)
   smallvec                                   1.16.3                         MIT                             (MIT OR Apache-2.0)
   spki                                       0.8.1                          MIT                             (Apache-2.0 OR MIT)
+  sponge-cursor                              0.1.0                          MIT                             (MIT OR Apache-2.0)
   sqlite-wasm-rs                             0.5.5                          MIT
   stable_deref_trait                         1.2.1                          MIT                             (MIT OR Apache-2.0)
   strict-num                                 0.1.1                          MIT
@@ -3150,7 +3148,6 @@ SOFTWARE.
 
 Applies to:
   digest 0.10.7
-  hmac 0.12.1
   hmac 0.13.0
 
 ------------------------------------------------------------------------------
@@ -5104,11 +5101,12 @@ DEALINGS IN THE SOFTWARE.
 ==============================================================================
 
 Applies to:
-  keccak 0.1.6
+  keccak 0.2.2
+  zeroize 1.9.1
 
 ------------------------------------------------------------------------------
 
-Copyright (c) 2018-2022 RustCrypto Developers
+Copyright (c) 2018-2026 The RustCrypto Project Developers
 
 Permission is hereby granted, free of charge, to any
 person obtaining a copy of this software and associated
@@ -5434,46 +5432,6 @@ SOFTWARE.
 ==============================================================================
 
 Applies to:
-  md-5 0.10.6
-  sha1 0.10.7
-  sha2 0.10.9
-
-------------------------------------------------------------------------------
-
-Copyright (c) 2006-2009 Graydon Hoare
-Copyright (c) 2009-2013 Mozilla Foundation
-Copyright (c) 2016 Artyom Pavlov
-
-Permission is hereby granted, free of charge, to any
-person obtaining a copy of this software and associated
-documentation files (the "Software"), to deal in the
-Software without restriction, including without
-limitation the rights to use, copy, modify, merge,
-publish, distribute, sublicense, and/or sell copies of
-the Software, and to permit persons to whom the Software
-is furnished to do so, subject to the following
-conditions:
-
-The above copyright notice and this permission notice
-shall be included in all copies or substantial portions
-of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
-ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
-TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
-PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
-SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
-IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-DEALINGS IN THE SOFTWARE.
-
-
-==============================================================================
-[134/263]  MIT
-==============================================================================
-
-Applies to:
   md-5 0.11.0
   sha1 0.11.0
   sha2 0.11.0
@@ -5512,7 +5470,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[135/263]  MIT
+[134/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -5539,7 +5497,7 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 
 
 ==============================================================================
-[136/263]  MIT
+[135/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -5576,7 +5534,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[137/263]  MIT
+[136/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -5613,7 +5571,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[138/263]  MIT
+[137/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -5643,7 +5601,7 @@ THE SOFTWARE.
 
 
 ==============================================================================
-[139/263]  MIT
+[138/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -5679,7 +5637,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[140/263]  MIT
+[139/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -5715,7 +5673,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[141/263]  MIT
+[140/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -5745,7 +5703,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[142/263]  MIT
+[141/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -5777,7 +5735,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[143/263]  MIT
+[142/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -5809,7 +5767,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[144/263]  MIT
+[143/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -5839,7 +5797,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[145/263]  MIT
+[144/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -5875,7 +5833,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[146/263]  MIT
+[145/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -5913,7 +5871,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[147/263]  MIT
+[146/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -5951,7 +5909,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[148/263]  MIT
+[147/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -5987,7 +5945,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[149/263]  MIT
+[148/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -6024,7 +5982,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[150/263]  MIT
+[149/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -6056,7 +6014,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[151/263]  MIT
+[150/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -6095,7 +6053,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[152/263]  MIT
+[151/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -6125,7 +6083,7 @@ THE SOFTWARE.
 
 
 ==============================================================================
-[153/263]  MIT
+[152/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -6161,7 +6119,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[154/263]  MIT
+[153/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -6197,7 +6155,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[155/263]  MIT
+[154/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -6233,7 +6191,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[156/263]  MIT
+[155/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -6265,7 +6223,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[157/263]  MIT
+[156/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -6295,7 +6253,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[158/263]  MIT
+[157/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -6327,7 +6285,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[159/263]  MIT
+[158/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -6363,7 +6321,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[160/263]  MIT
+[159/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -6399,7 +6357,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[161/263]  MIT
+[160/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -6428,7 +6386,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[162/263]  MIT
+[161/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -6458,7 +6416,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[163/263]  MIT
+[162/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -6495,7 +6453,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[164/263]  MIT
+[163/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -6531,7 +6489,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[165/263]  MIT
+[164/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -6563,7 +6521,7 @@ THE SOFTWARE.
 
 
 ==============================================================================
-[166/263]  MIT
+[165/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -6596,7 +6554,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[167/263]  MIT
+[166/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -6628,7 +6586,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[168/263]  MIT
+[167/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -6664,7 +6622,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[169/263]  MIT
+[168/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -6703,7 +6661,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[170/263]  MIT
+[169/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -6735,7 +6693,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[171/263]  MIT
+[170/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -6767,7 +6725,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[172/263]  MIT
+[171/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -6803,7 +6761,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[173/263]  MIT
+[172/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -6839,7 +6797,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[174/263]  MIT
+[173/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -6871,7 +6829,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[175/263]  MIT
+[174/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -6903,7 +6861,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[176/263]  MIT
+[175/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -6939,7 +6897,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[177/263]  MIT
+[176/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -6971,18 +6929,57 @@ SOFTWARE.
 
 
 ==============================================================================
-[178/263]  MIT
+[177/263]  MIT
 ==============================================================================
 
 Applies to:
-  sha3 0.10.9
+  sha2 0.10.9
 
 ------------------------------------------------------------------------------
 
 Copyright (c) 2006-2009 Graydon Hoare
 Copyright (c) 2009-2013 Mozilla Foundation
-Copyright (c) 2014 Sébastien Martini
+Copyright (c) 2016 Artyom Pavlov
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
+
+==============================================================================
+[178/263]  MIT
+==============================================================================
+
+Applies to:
+  sha3 0.12.0
+
+------------------------------------------------------------------------------
+
+Copyright (c) 2020-2026 The RustCrypto Project Developers
 Copyright (c) 2016-2023 Artyom Pavlov, Marek Kotewicz
+Copyright (c) 2014 Sébastien Martini
+Copyright (c) 2009-2013 Mozilla Foundation
+Copyright (c) 2006-2009 Graydon Hoare
 
 Permission is hereby granted, free of charge, to any
 person obtaining a copy of this software and associated
@@ -7212,6 +7209,42 @@ DEALINGS IN THE SOFTWARE.
 ==============================================================================
 
 Applies to:
+  sponge-cursor 0.1.0
+
+------------------------------------------------------------------------------
+
+Copyright (c) 2026 The RustCrypto Project Developers
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
+
+==============================================================================
+[186/263]  MIT
+==============================================================================
+
+Applies to:
   sqlite-wasm-rs 0.5.5
 
 ------------------------------------------------------------------------------
@@ -7240,7 +7273,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[186/263]  MIT
+[187/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -7276,7 +7309,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[187/263]  MIT
+[188/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -7306,7 +7339,7 @@ THE SOFTWARE.
 
 
 ==============================================================================
-[188/263]  MIT
+[189/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -7336,7 +7369,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[189/263]  MIT
+[190/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -7370,7 +7403,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[190/263]  MIT
+[191/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -7403,7 +7436,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[191/263]  MIT
+[192/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -7434,7 +7467,7 @@ THE SOFTWARE.
 
 
 ==============================================================================
-[192/263]  MIT
+[193/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -7453,7 +7486,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 
 ==============================================================================
-[193/263]  MIT
+[194/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -7489,7 +7522,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[194/263]  MIT
+[195/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -7525,7 +7558,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[195/263]  MIT
+[196/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -7555,7 +7588,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[196/263]  MIT
+[197/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -7587,7 +7620,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[197/263]  MIT
+[198/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -7603,7 +7636,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 
 ==============================================================================
-[198/263]  MIT
+[199/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -7635,7 +7668,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[199/263]  MIT
+[200/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -7672,7 +7705,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[200/263]  MIT
+[201/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -7703,7 +7736,7 @@ THE SOFTWARE.
 
 
 ==============================================================================
-[201/263]  MIT
+[202/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -7734,7 +7767,7 @@ THE SOFTWARE.
 
 
 ==============================================================================
-[202/263]  MIT
+[203/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -7766,7 +7799,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[203/263]  MIT
+[204/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -7798,7 +7831,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[204/263]  MIT
+[205/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -7834,7 +7867,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[205/263]  MIT
+[206/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -7870,7 +7903,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[206/263]  MIT
+[207/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -7907,7 +7940,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[207/263]  MIT
+[208/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -7943,7 +7976,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[208/263]  MIT
+[209/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -7980,7 +8013,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[209/263]  MIT
+[210/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -8010,7 +8043,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[210/263]  MIT
+[211/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -8040,7 +8073,7 @@ THE SOFTWARE.
 
 
 ==============================================================================
-[211/263]  MIT
+[212/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -8072,7 +8105,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[212/263]  MIT
+[213/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -8102,7 +8135,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[213/263]  MIT
+[214/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -8134,7 +8167,7 @@ THE SOFTWARE.
 
 
 ==============================================================================
-[214/263]  MIT
+[215/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -8178,7 +8211,7 @@ MIT License
 
 
 ==============================================================================
-[215/263]  MIT
+[216/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -8207,7 +8240,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[216/263]  MIT
+[217/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -8244,7 +8277,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[217/263]  MIT
+[218/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -8276,7 +8309,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[218/263]  MIT
+[219/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -8309,7 +8342,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[219/263]  MIT
+[220/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -8327,7 +8360,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 
 ==============================================================================
-[220/263]  MIT
+[221/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -8337,42 +8370,6 @@ Applies to:
 ------------------------------------------------------------------------------
 
 Copyright 2023 The Fuchsia Authors
-
-Permission is hereby granted, free of charge, to any
-person obtaining a copy of this software and associated
-documentation files (the "Software"), to deal in the
-Software without restriction, including without
-limitation the rights to use, copy, modify, merge,
-publish, distribute, sublicense, and/or sell copies of
-the Software, and to permit persons to whom the Software
-is furnished to do so, subject to the following
-conditions:
-
-The above copyright notice and this permission notice
-shall be included in all copies or substantial portions
-of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
-ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
-TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
-PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
-SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
-IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-DEALINGS IN THE SOFTWARE.
-
-
-==============================================================================
-[221/263]  MIT
-==============================================================================
-
-Applies to:
-  zeroize 1.9.1
-
-------------------------------------------------------------------------------
-
-Copyright (c) 2018-2026 The RustCrypto Project Developers
 
 Permission is hereby granted, free of charge, to any
 person obtaining a copy of this software and associated

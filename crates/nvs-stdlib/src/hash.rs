@@ -21,9 +21,9 @@
 //! spelling, and an instance has no destructor to free it with — the same wall
 //! [`crate::identity_store`] met and answered the same way. So `update` retains
 //! its argument into an array slot and `finish` hashes the concatenation in one
-//! pass. `digest 0.10` cannot serialize a hasher's state into a slot either
-//! (`crypto_common::SerializableState` is a later major version), which is
-//! the one thing that would make a fixed-size slot possible.
+//! pass. `digest 0.11`'s `SerializableState` can write the state of a
+//! `sha2` hasher out as fixed-size octets, and that is the route to a
+//! fixed-size slot when this class takes one.
 //!
 //! **What it spends is a reference to each chunk, held until `finish`** — no
 //! copy, since a retained `NvsStr` is the caller's own buffer, but a program
@@ -825,7 +825,7 @@ impl Running {
             // so the two checksums differ in polynomial and in nothing else a
             // program can see.
             Self::Crc32c(crc) => Octets::of(&crc.to_be_bytes()),
-            // Not through `digest 0.10`: BLAKE3 implements those traits only
+            // Not through `digest`: BLAKE3 implements those traits only
             // under its `traits-preview` feature, and its own hasher is the
             // whole API this needs. Its extendable output is taken at the
             // default 32 octets, which is what every other implementation calls
@@ -844,21 +844,25 @@ impl Running {
 /// the guarantee the runtime keeps if a future caller reaches the helper by
 /// another route.
 fn hmac_of(kind: DigestKind, key: &[u8], data: &[u8]) -> Option<Octets> {
-    use hmac::Mac as _;
+    use hmac::{KeyInit as _, Mac as _};
 
-    /// One algorithm's HMAC, written once. A macro rather than a generic
-    /// function because `hmac::Hmac<D>`'s bound set is a dozen `typenum`
-    /// obligations about block sizes, none of which says anything a reader of
-    /// this module needs to know — and every instantiation is named in the
-    /// `match` below anyway, so the generality bought nothing. It takes both
-    /// families unchanged: `sha3` is the same RustCrypto `digest 0.10` trait
-    /// set `sha2` is, which is the whole reason FIPS 202 cost no hand-fitting.
+    /// One algorithm's HMAC, written once, over the MAC type to build. A macro
+    /// rather than a generic function because the bound set of `hmac`'s types
+    /// is a dozen `typenum` obligations about block sizes, none of which says
+    /// anything a reader of this module needs to know, and every instantiation
+    /// is named in the `match` below anyway.
+    ///
+    /// `sha2` goes through `hmac::Hmac`, which needs the `EagerHash` trait.
+    /// `sha3` 0.12 does not implement it, so the four Keccak cases go through
+    /// `hmac::SimpleHmac`, the same RFC 2104 construction over the plain
+    /// `Digest` trait. `hmac_matches_rfc_4231_and_refuses_a_weak_digest`
+    /// checks both against fixed vectors.
     ///
     /// `new_from_slice` is infallible for HMAC, whose key may be any length at
     /// all: RFC 2104 § 2 hashes a long one down and zero-pads a short one.
     macro_rules! mac {
-        ($digest:ty) => {{
-            let mut mac = <hmac::Hmac<$digest>>::new_from_slice(key)
+        ($mac:ty) => {{
+            let mut mac = <$mac>::new_from_slice(key)
                 .expect("HMAC accepts a key of any length (RFC 2104 § 2)");
             mac.update(data);
             Octets::of(&mac.finalize().into_bytes())
@@ -866,16 +870,16 @@ fn hmac_of(kind: DigestKind, key: &[u8], data: &[u8]) -> Option<Octets> {
     }
 
     Some(match kind {
-        DigestKind::Sha224 => mac!(sha2::Sha224),
-        DigestKind::Sha256 => mac!(sha2::Sha256),
-        DigestKind::Sha384 => mac!(sha2::Sha384),
-        DigestKind::Sha512 => mac!(sha2::Sha512),
-        DigestKind::Sha512_224 => mac!(sha2::Sha512_224),
-        DigestKind::Sha512_256 => mac!(sha2::Sha512_256),
-        DigestKind::Sha3_224 => mac!(sha3::Sha3_224),
-        DigestKind::Sha3_256 => mac!(sha3::Sha3_256),
-        DigestKind::Sha3_384 => mac!(sha3::Sha3_384),
-        DigestKind::Sha3_512 => mac!(sha3::Sha3_512),
+        DigestKind::Sha224 => mac!(hmac::Hmac<sha2::Sha224>),
+        DigestKind::Sha256 => mac!(hmac::Hmac<sha2::Sha256>),
+        DigestKind::Sha384 => mac!(hmac::Hmac<sha2::Sha384>),
+        DigestKind::Sha512 => mac!(hmac::Hmac<sha2::Sha512>),
+        DigestKind::Sha512_224 => mac!(hmac::Hmac<sha2::Sha512_224>),
+        DigestKind::Sha512_256 => mac!(hmac::Hmac<sha2::Sha512_256>),
+        DigestKind::Sha3_224 => mac!(hmac::SimpleHmac<sha3::Sha3_224>),
+        DigestKind::Sha3_256 => mac!(hmac::SimpleHmac<sha3::Sha3_256>),
+        DigestKind::Sha3_384 => mac!(hmac::SimpleHmac<sha3::Sha3_384>),
+        DigestKind::Sha3_512 => mac!(hmac::SimpleHmac<sha3::Sha3_512>),
         DigestKind::Crc32
         | DigestKind::Md5
         | DigestKind::Sha1
@@ -900,7 +904,7 @@ fn hmac_of(kind: DigestKind, key: &[u8], data: &[u8]) -> Option<Octets> {
 /// strong set stays closed, so the exception is one named function with one
 /// caller rather than a hole in the enum.
 pub(crate) fn hmac_sha1(key: &[u8], data: &[u8]) -> [u8; 20] {
-    use hmac::Mac as _;
+    use hmac::{KeyInit as _, Mac as _};
 
     let mut mac = <hmac::Hmac<sha1::Sha1>>::new_from_slice(key)
         .expect("HMAC accepts a key of any length (RFC 2104 § 2)");

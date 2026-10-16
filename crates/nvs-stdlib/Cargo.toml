@@ -108,7 +108,6 @@ p256.workspace = true
 x25519-dalek.workspace = true
 hkdf.workspace = true
 pbkdf2.workspace = true
-sha2-v11.workspace = true
 # `Core\Jwt` and `Core\Crypto`'s signature pair reach BoringSSL
 # through `ring` for RSASSA-PKCS1-v1_5, RSASSA-PSS, ECDSA over P-256 and
 # Ed25519. The root manifest's row is where the audit under

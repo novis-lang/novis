@@ -311,7 +311,7 @@ use ring::signature::{
 // The 0.11 line of `sha2`, because `hkdf` and `pbkdf2` are generic over the
 // digest family's 0.11 traits and `Core\Hash`'s `sha2` is the 0.10 one. The
 // root manifest's row is where both majors being in this tree is argued.
-use sha2_v11::{Digest, Sha256};
+use sha2::{Digest, Sha256};
 use x25519_dalek::{PublicKey as X25519PublicKey, StaticSecret};
 
 use nvs_runtime::{Fault, NvsStr, ThrownClass, Value};
