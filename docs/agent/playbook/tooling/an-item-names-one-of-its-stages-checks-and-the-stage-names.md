@@ -1,6 +1,0 @@
-- **An item names one of its stage's checks, and the stage names the rest — including ones in
-  another crate.** The orientation pack prints the item, not the stage, so a `cargo-named` check
-  over a second crate whose test has never been written is the same slice's, and the driver stops at
-  the first failure, holding the whole acceptance list at that stage. One `bun nv loop --list
-  --stage <n>` before starting lists every check the slice owes. See `tools/nv/cmd/orient.ts`.
-  `until: gone tools/nv/cmd/orient.ts:YOUR ITEM`

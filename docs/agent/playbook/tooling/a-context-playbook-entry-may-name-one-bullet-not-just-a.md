@@ -1,4 +1,0 @@
-- **A `[context] playbook` entry may name one bullet, not just a whole section.** "Tooling > a new
-  directive has homes outside Rust" prints that bullet; "Tooling" prints the whole section, which is a large share of
-  the orientation pack once several are named. A goal that needs three traps should name three
-  traps; `bun nv orient --audit` prices the difference. See `tools/nv/cmd/orient.ts`. `until: gone tools/nv/cmd/orient.ts:playbook`

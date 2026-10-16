@@ -1,7 +1,0 @@
-- **A goal record's program check runs its `file` through `Sweep.check`, which prepends `run`, so
-  reproducing one by hand as `nvs <file>` answers `unrecognized subcommand` and reads as a misfiled
-  check.** Every `exact`, `ordered`, `contains` and `min-bytes` check in the list omits `run` from
-  its `args` for exactly that reason (`tools/nv/accept/accept.ts`), so a missing `"run"` is never
-  what is wrong with a red one. Reproduce a program check as `target/debug/nvs.exe run <file>` and
-  judge stdout alone — `exact` compares `stdoutLines` and never reads stderr, so a fixture whose
-  stderr is full of warnings can still be green. `until: gone tools/nv/cmd/orient.ts:const TRIAGE`
