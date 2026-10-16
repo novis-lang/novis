@@ -21,10 +21,10 @@ stages:
   - id: 3
     title: "the isolate boundary checks both directions, and `max_tasks` bounds the tree"
     status: open
-    context: [crates/nvs-host/src/isolate.rs, crates/nvs-runtime/src/graph.rs, crates/nvs-config/src/tree.rs, crates/nvs-cli/src/main.rs, crates/nvs-runtime/src/ctx/safepoint.rs, crates/nvs-runtime/src/ctx/output.rs, data/gaps/nvs-host/an-isolate-argument-is-not-checked-for-an-unresolvable-class.json, data/gaps/nvs-config/max-tasks-is-enforced-nowhere.json, data/gaps/nvs-cli/wall-time-and-max-output-are-not-enforced-under-nvs-run.json]
+    context: [crates/nvs-host/src/isolate.rs, crates/nvs-runtime/src/graph.rs, crates/nvs-config/src/tree.rs, crates/nvs-cli/src/main.rs, crates/nvs-runtime/src/ctx/safepoint.rs, crates/nvs-runtime/src/ctx/output.rs, data/gaps/nvs-host/an-isolate-argument-is-not-checked-for-an-unresolvable-class.json, data/gaps/nvs-config/max-tasks-is-enforced-nowhere.json, data/gaps/nvs-cli/wall-time-and-max-output-are-not-enforced-under-nvs-run.json, crates/nvs-config/src/app.rs, crates/nvs-config/src/resolve.rs, crates/nvs-runtime/src/ctx/limits.rs, data/gaps/nvs-config/a-malformed-limit-or-one-above-its-ceiling-is-not-refused.json]
     extra:
       context:
-        rules: [security/isolate-values-cross-by-copy, security/isolate-budget-is-the-trees, errors/on-limit, config/no-configuration-file-is-a-complete-configuration]
+        rules: [security/isolate-values-cross-by-copy, security/isolate-budget-is-the-trees, errors/on-limit, config/no-configuration-file-is-a-complete-configuration, config/one-parser-for-the-boot-path-and-config-set, config/ceilings-are-their-own-directives]
   - id: 4
     title: "a throwing `inout` callee leaks nothing, and a refused stack does not panic"
     status: open
@@ -84,10 +84,10 @@ stages:
   - id: 12
     title: "every error message names its cause, and every code is tested"
     status: open
-    context: [crates/nvs-cli/src/main.rs, crates/nvs-ir/src/lower/convert.rs, crates/nvs-diagnostics/src/lib.rs, crates/nvs-config/src/app.rs, crates/nvs-config/src/resolve.rs, data/gaps/nvs-config/a-malformed-limit-or-one-above-its-ceiling-is-not-refused.json]
+    context: [crates/nvs-cli/src/main.rs, crates/nvs-ir/src/lower/convert.rs, crates/nvs-diagnostics/src/lib.rs]
     extra:
       context:
-        rules: [errors/on-limit, types/conversion, tooling/a-diagnostic-code-carries-its-card, config/one-parser-for-the-boot-path-and-config-set, config/ceilings-are-their-own-directives]
+        rules: [errors/on-limit, types/conversion, tooling/a-diagnostic-code-carries-its-card]
   - id: 13
     title: every shipped promise the audit named has its test
     status: open
@@ -187,13 +187,15 @@ closed when the deadline passes, and the other three waits stay idle waits.
 ### 3. the isolate boundary checks both directions, and `max_tasks` bounds the tree
 
 **Does:** a spawn argument is checked against the child's class table as the result is against the
-parent's, a tree that spawns past `max_tasks` is refused with a limit report, and a run past its
-`wall_time` or `max_output` is stopped with one.
+parent's, a tree that spawns past `max_tasks` is refused with a limit report, a run past its
+`wall_time` or `max_output` is stopped with one, and a `[limits]` value that is not a quantity or is
+above its ceiling stops the boot instead of leaving the request with no cap.
 
 - [ ] The `nvs_runtime::script` seam returns a unit's class table beside its entry point, and the argument walk runs with it. `crates/nvs-host/src/isolate.rs:64`, `crates/nvs-runtime/src/graph.rs:444`
 - [ ] A spawn past the root's `max_tasks` is refused, naming the directive. `crates/nvs-config/src/tree.rs:188`
 - [ ] Whether child CPU is summed against the root's `cpu_time` is checked, and either the code or the rule changes. `crates/nvs-host/src/isolate.rs:717`
 - [ ] `nvs run` arms a deadline from `wall_time`, and a write past `max_output` raises a flag the next poll reads. `crates/nvs-cli/src/main.rs:3681`, `crates/nvs-runtime/src/ctx/safepoint.rs:756`, `crates/nvs-runtime/src/ctx/output.rs:286`
+- [ ] The resolve refuses a malformed `[limits]` quantity as E0601 and a global value above its written ceiling, and the runtime never reads a malformed one as no cap. `crates/nvs-config/src/app.rs:134`, `crates/nvs-runtime/src/ctx/limits.rs:959`
 
 ### 4. a throwing `inout` callee leaks nothing, and a refused stack does not panic
 
@@ -270,12 +272,10 @@ filtered by visibility.
 ### 12. every error message names its cause, and every code is tested
 
 **Does:** a limit stop in runtime bookkeeping names its directive, a failed class conversion names
-the class, a `[limits]` value that is not a quantity or is above its ceiling stops the boot, and a
-check fails for a diagnostic code no test raises.
+the class, and a check fails for a diagnostic code no test raises.
 
 - [ ] The empty `FATAL: ` path raises the usual limit report. `crates/nvs-cli/src/main.rs:3789`
 - [ ] The `class<T>` conversion error names the operand. `crates/nvs-ir/src/lower/convert.rs:1070`
-- [ ] The resolve refuses a malformed `[limits]` quantity as E0601 and a global value above its written ceiling, and the runtime never reads a malformed one as no cap. `crates/nvs-config/src/app.rs:134`, `crates/nvs-runtime/src/ctx/limits.rs:959`
 - [ ] A check over `code::ALL`, and tests for E0001, E0004, E0005, E0217 and E0768. `crates/nvs-diagnostics/src/lib.rs:5871`
 
 ### 13. every shipped promise the audit named has its test
