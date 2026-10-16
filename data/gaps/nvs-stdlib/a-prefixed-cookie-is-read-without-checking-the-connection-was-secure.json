@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-stdlib/src/request.rs",
-  "title": "A `__Host-` or `__Secure-` cookie is read without checking that its connection was secure.",
-  "text": "The cookie prefixes promise that a `__Host-` or `__Secure-` cookie arrived over a secure connection. `cookie_of` checks the half of that rule the field can show, and nothing on the read path checks the connection, although `nvs_core_request_scheme` answers it (`crates/nvs-stdlib/src/request.rs:152-156`, `:2096-2100`). A program behind a plain-HTTP listener therefore trusts a prefixed cookie the prefix does not cover. `Core\\Response::addCookie` already refuses to write a non-conforming one. Closing it means the read path drops, or refuses, a prefixed cookie on a connection the request's scheme does not call secure, with a conformance case for each prefix.",
-  "goal": "completeness-holes"
-}

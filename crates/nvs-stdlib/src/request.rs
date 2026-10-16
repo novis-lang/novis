@@ -149,11 +149,10 @@
 //! CVE-2024-2756 was, and the superglobals it served are what
 //! `rule:statements/no-host-populated-variables` deleted.
 //!
-//! **The prefixes are enforced here as far as the field can show them**, which
-//! is [`cookie_of`]'s doc: a `__Host-` name arriving twice is not visible,
-//! because a browser holds at most one per host. The other half of § 3 — that
-//! the connection was secure — is not asked on this read path, though
-//! [`nvs_core_request_scheme`] answers it.
+//! **The prefixes are enforced on read**, which is [`cookie_of`]'s doc: a
+//! `__Host-` or `__Secure-` name is not visible on a request whose scheme is not
+//! `https`, and a `__Host-` name arriving twice is not visible, because a
+//! browser holds at most one per host.
 //! `Core\Response::addCookie` refuses to *write* a cookie that would not be
 //! visible, which is the same rule from the end that can see every attribute.
 //!
@@ -2040,6 +2039,10 @@ const COOKIE_FIELD: &[u8] = b"cookie";
 /// from its two ends.
 const HOST_PREFIX: &[u8] = b"__Host-";
 
+/// The same rule's other prefix, which asks only that the cookie was sent over a
+/// secure connection.
+const SECURE_PREFIX: &[u8] = b"__Secure-";
+
 /// `bytes` without the ASCII spaces and tabs it opens with.
 ///
 /// The delimiter between two cookie pairs is `"; "` (RFC 6265 § 4.2.1), so the
@@ -2093,19 +2096,26 @@ fn cookie_lines<'a>(inbound: &'a Inbound, name: &[u8]) -> Vec<&'a [u8]> {
 /// prefix means host-locked and `Path=/`, so a conforming browser holds at most
 /// one of them per host; two lines are either a client that is not one or a
 /// shadowing attempt from a name that was supposed to be unshadowable, and
-/// picking between them is the arrangement the prefix exists to end. The other
-/// half of § 3 — that the connection carrying a `__Host-` or `__Secure-` cookie
-/// was secure — is a known gap of this module rather than a missing fact: the
-/// carrier holds what the door concluded about the connection and
-/// [`nvs_core_request_scheme`] answers it, and nothing on this read path asks.
-/// `Core\Response::addCookie` refuses to *write* a
-/// non-conforming one either way, which is the same rule from the other end.
+/// picking between them is the arrangement the prefix exists to end.
+///
+/// **A `__Host-` or `__Secure-` name is not visible on a request whose scheme is
+/// not `https`**, which is the other half of § 3: both prefixes require
+/// `Secure`, and a browser sends a `Secure` cookie over a secure connection
+/// only. The scheme is the one [`nvs_core_request_scheme`] answers, which the
+/// door decided from the connection or a trusted proxy, so a plain-HTTP listener
+/// with no trusted proxy shows neither prefix at all. `Core\Response::addCookie`
+/// refuses to *write* a non-conforming one either way, which is the same rule
+/// from the other end.
 ///
 /// Otherwise the **first** line wins. RFC 6265 § 5.4 has a user agent send the
 /// most specific cookie first, so the first is the one that applies most closely
 /// to this path; that is reading the peer's own order rather than choosing among
 /// answers, exactly as [`joined_field`] preserves it.
 pub(crate) fn cookie_of<'a>(inbound: &'a Inbound, name: &[u8]) -> Option<&'a [u8]> {
+    let prefixed = name.starts_with(HOST_PREFIX) || name.starts_with(SECURE_PREFIX);
+    if prefixed && inbound.scheme() != Scheme::Https {
+        return None;
+    }
     let lines = cookie_lines(inbound, name);
     if name.starts_with(HOST_PREFIX) && lines.len() > 1 {
         return None;
@@ -4951,13 +4961,15 @@ mod tests {
             Some(&b"first"[..]),
             "the first line the peer sent is the most specific one"
         );
-        let shadowed = carrying(&[("Cookie", "__Host-id=real; __Host-id=planted")]);
+        let mut shadowed = carrying(&[("Cookie", "__Host-id=real; __Host-id=planted")]);
+        shadowed.set_peer(None, Scheme::Https);
         assert_eq!(
             cookie_of(&shadowed, b"__Host-id"),
             None,
             "two `__Host-` cookies of one name did not come from a browser"
         );
-        let single = carrying(&[("Cookie", "__Host-id=real; __Secure-t=a; __Secure-t=b")]);
+        let mut single = carrying(&[("Cookie", "__Host-id=real; __Secure-t=a; __Secure-t=b")]);
+        single.set_peer(None, Scheme::Https);
         assert_eq!(
             cookie_of(&single, b"__Host-id"),
             Some(&b"real"[..]),
@@ -4968,6 +4980,28 @@ mod tests {
             Some(&b"a"[..]),
             "`__Secure-` says nothing about `Path`, so two of them are legitimate"
         );
+    }
+
+    /// Both prefixes require `Secure`, so a browser sends either one only over a
+    /// secure connection, and a request whose scheme is `http` shows neither.
+    /// An ordinary name is read on both. `rule:errors/cookie-name-bytes`.
+    #[test]
+    fn a_prefixed_cookie_is_visible_only_on_a_secure_request() {
+        let line = [("Cookie", "__Host-id=h; __Secure-t=s; plain=p")];
+        let plain = carrying(&line);
+        let mut secure = carrying(&line);
+        secure.set_peer(None, Scheme::Https);
+        for name in [&b"__Host-id"[..], b"__Secure-t"] {
+            assert_eq!(
+                cookie_of(&plain, name),
+                None,
+                "a prefixed cookie over `http`"
+            );
+        }
+        assert_eq!(cookie_of(&secure, b"__Host-id"), Some(&b"h"[..]));
+        assert_eq!(cookie_of(&secure, b"__Secure-t"), Some(&b"s"[..]));
+        assert_eq!(cookie_of(&plain, b"plain"), Some(&b"p"[..]));
+        assert_eq!(cookie_of(&secure, b"plain"), Some(&b"p"[..]));
     }
 
     /// A body that arrived in pieces is one value, and where the pieces fell is

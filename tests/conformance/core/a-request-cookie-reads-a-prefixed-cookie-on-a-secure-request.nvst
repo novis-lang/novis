@@ -1,0 +1,16 @@
+--TEST--
+a request cookie reads a `__Host-` or `__Secure-` cookie on a request whose scheme is `https` `rule:errors/cookie-name-bytes`
+--SCHEME--
+https
+--COOKIE--
+__Host-session=h1; __Secure-lang=de; theme=dark
+--FILE--
+<?nvs
+// This request is `https`, so each prefixed cookie gives its value.
+echo Core\Request::cookie("__Host-session") ?? "null", "\n";
+echo Core\Request::cookie("__Secure-lang") ?? "null", "\n";
+echo Core\Request::cookie("theme") ?? "null", "\n";
+--EXPECT--
+h1
+de
+dark

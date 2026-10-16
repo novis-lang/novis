@@ -20,8 +20,8 @@ stages:
         rules: [http-server/four-idle-waits-all-finite, http-server/a-streamed-reply-is-bounded-by-idle-and-a-lifetime]
   - id: 3
     title: "the isolate boundary checks both directions, and `max_tasks` bounds the tree"
-    status: open
-    context: [crates/nvs-host/src/isolate.rs, crates/nvs-runtime/src/graph.rs, crates/nvs-config/src/tree.rs, crates/nvs-cli/src/main.rs, crates/nvs-runtime/src/ctx/safepoint.rs, crates/nvs-runtime/src/ctx/output.rs, crates/nvs-cli/src/wall.rs, crates/nvs-host/src/watchdog.rs, crates/nvs-config/src/app.rs, crates/nvs-config/src/resolve.rs, crates/nvs-runtime/src/ctx/limits.rs, crates/nvs-stdlib/src/request.rs, data/gaps/nvs-stdlib/a-prefixed-cookie-is-read-without-checking-the-connection-was-secure.json]
+    status: done
+    context: [crates/nvs-host/src/isolate.rs, crates/nvs-runtime/src/graph.rs, crates/nvs-config/src/tree.rs, crates/nvs-cli/src/main.rs, crates/nvs-runtime/src/ctx/safepoint.rs, crates/nvs-runtime/src/ctx/output.rs, crates/nvs-cli/src/wall.rs, crates/nvs-host/src/watchdog.rs, crates/nvs-config/src/app.rs, crates/nvs-config/src/resolve.rs, crates/nvs-runtime/src/ctx/limits.rs, crates/nvs-stdlib/src/request.rs]
     extra:
       context:
         rules: [security/isolate-values-cross-by-copy, security/isolate-budget-is-the-trees, errors/on-limit, config/no-configuration-file-is-a-complete-configuration, config/one-parser-for-the-boot-path-and-config-set, config/ceilings-are-their-own-directives]
@@ -208,7 +208,10 @@ above its ceiling stops the boot instead of leaving the request with no cap.
   - [x] `app::starts` refuses a start above its written ceiling, over the global tree and each folded snapshot.
   - [x] `configured_bytes` reads a malformed value as the key's shipped default.
   - [x] Cases under `nvs config check` and `nvs run`, and the gap record deleted.
-- [ ] A `__Host-` or `__Secure-` cookie is read only when the request's connection was secure. `crates/nvs-stdlib/src/request.rs:2096`
+- [x] A `__Host-` or `__Secure-` cookie is read only when the request's connection was secure. `crates/nvs-stdlib/src/request.rs:2096`
+  - [x] `cookie_of` gives `None` for either prefix on a request whose scheme is not `https`.
+  - [x] A unit case over both schemes, and the existing `__Host-` case moved to a secure request.
+  - [x] Two conformance cases, one per scheme, and the gap record deleted.
 
 ### 4. a throwing `inout` callee leaks nothing, and a refused stack does not panic
 
@@ -311,16 +314,14 @@ work cannot live only in prose again.
 
 ### State
 
-Stages 1 and 2 are done, and stage 3 has one item left, the prefixed cookie. A served request
-now stops at its `wall_time`: `nvs_host::watchdog`'s sweep raises `WALL_TIME` and expires the
-deadline for every published request past it (`stop_at_wall_time`, the module doc's *Stopping a
-request at its wall time*). The handoff's plan to time it on the core's own timer could not work,
-because a busy loop is what the core is running. The stop lands within one sweep interval (500ms
-by default). A thread with no CPU clock publishes nothing, so there neither ceiling is enforced.
-The cases are `the_walk_stops_a_request_at_its_wall_time_and_leaves_its_handler_an_interval`
-(`crates/nvs-host/src/watchdog.rs`) and `a_served_request_in_a_busy_loop_is_stopped_at_its_wall_time`
-(`crates/nvs-server/src/serve.rs`). The gap record is deleted. A served request parked on a socket
-or a database reaches no poll. Whether each such wait ends at the expired deadline is not checked.
+Stages 1, 2 and 3 are done. Stage 3's last item landed: `cookie_of` gives `None` for a
+`__Host-` or `__Secure-` name on a request whose scheme is not `https`
+(`crates/nvs-stdlib/src/request.rs:2114`). The cases are
+`a_prefixed_cookie_is_visible_only_on_a_secure_request` and the two
+`tests/conformance/core/a-request-cookie-*-prefixed-cookie-on-a-*-request.nvst` cases, and the
+gap record is deleted. Every example, attack and bench reading a prefixed cookie already ran over
+`https`. A served request parked on a socket or a database reaches no poll. Whether each such
+wait ends at an expired `wall_time` deadline is not checked.
 
 Stage 1 found a second memory-safety hole, recorded as
 `data/gaps/nvs-runtime/a-wider-shape-view-writes-an-object-of-the-wrong-class.json`. A statically
@@ -334,16 +335,16 @@ behind the local one. The earlier triage of its failures stands until the user p
 
 ### Next
 
-**Stage 3's last item, a prefixed cookie is read only on a secure connection.** File:
-`crates/nvs-stdlib/src/request.rs`, and conformance cases under `tests/conformance/`.
+**Stage 4, a throwing `inout` callee leaks nothing, and a refused stack does not panic.** Two
+slices over two file sets: `crates/nvs-ir` for the first, `crates/nvs-host/src/stack.rs` for the
+second. They may take a session each.
 
-- [ ] `cookie_of` drops a `__Host-` or `__Secure-` cookie when the request's scheme is not `https` (`rule:errors/cookie-name-bytes`). `crates/nvs-stdlib/src/request.rs:2108`, `crates/nvs-stdlib/src/request.rs:2753`
-- [ ] A case per prefix over a plain and a secure request, and `data/gaps/nvs-stdlib/a-prefixed-cookie-is-read-without-checking-the-connection-was-secure.json` deleted. `crates/nvs-stdlib/src/request.rs:4939`
-- [ ] Stage 3's status set to done in the front matter. `docs/goals/completeness-holes.md:23`
+- [ ] The `inout` staging reference is released on the throw edge, in the landing block's release sweep, and the `ty.rs` section rewritten; a case catches a throwing callee in a loop under a memory ceiling (`rule:statements/inout-is-the-by-reference-spelling`). `crates/nvs-ir/src/lower/mod.rs:2721`, `crates/nvs-ir/src/lower/mod.rs:3386`, `crates/nvs-ir/src/ty.rs:309`
+- [ ] The stack pool is bounded by `max_in_flight` per core instead of `MAX_POOLED_STACKS`, and a refused reservation in `take` reaches the spawn as a limit, not an `expect` (`rule:concurrency/a-task-stack-is-reserved-wide-and-pooled`, `rule:http-server/admission-is-arithmetic-not-a-number`). `crates/nvs-host/src/stack.rs:97`, `crates/nvs-host/src/stack.rs:204`, `crates/nvs-host/src/scheduler.rs:2156`
+- [ ] Both gap records deleted and stage 4's status set to done. `docs/goals/completeness-holes.md:30`
 
 ### Backlog
 
-- Stage 4, a throwing `inout` callee and a refused stack, is the group after stage 3 (the goal's § *Stages*).
 - The wider-shape-view hole waits on the user's choice (`data/gaps/nvs-runtime/a-wider-shape-view-writes-an-object-of-the-wrong-class.json`).
 - `test_request_dispatches_in_process_through_the_compiled_route_table` once returned an empty body under the full verify's load and passed alone; the cause is not found (`crates/nvs-cli/src/runner.rs:3410`).
 - Many module docs still carry numbered or prose "known gap" text with no record; stage 14's scan finds them (`tools/nv/cmd/owners.ts:225`).
