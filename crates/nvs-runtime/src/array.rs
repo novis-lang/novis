@@ -49,12 +49,10 @@
 //! still the iteration order, and `Core\Arr::keys` still answers
 //! `array<string>`. This is representation, not semantics.
 //!
-//! The reason it is not an optimisation to schedule later, measured on this
-//! tree against the PHP 8.5.9 oracle on the same machine — and PHP's figures
-//! include VM opcode dispatch that compiled Novis does not pay, so the
-//! comparison already flatters the interpreter: unpacked, `$a[] = $v` and
-//! `$a[$i]` are both several times slower than the interpreter's, while
-//! `$a['name']` matches it and `foreach ($a as $v)` beats it outright.
+//! It is not an optimisation to schedule later: without the packed form,
+//! `$a[] = $v` and `$a[$i]` pay for a key the packed form never builds, and
+//! those are the two operations a list exists for. `$a['name']` and
+//! `foreach ($a as $v)` cost the same either way.
 //!
 //! Nearly all of an unpacked append is the key the packed form does not build:
 //! rendering the index to a decimal `String`, allocating the [`NvsStr`] for it,
@@ -72,10 +70,9 @@
 //! synthesized key only where the shape is already `Hashed`, which is exactly
 //! the case that would be building one anyway. They are a **compatible
 //! addition** — the key-taking pair stands as it is and is still the only path
-//! for a `string` subscript — which is why the pair belongs here while nothing
-//! depends on the current set, rather than as a versioned break once
-//! `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`
-//! artifacts and M9's WIT signatures do.
+//! for a `string` subscript — so an artifact
+//! (`rule:packaging/an-artifact-is-one-immutable-content-addressed-file`)
+//! compiled against the key-taking pair alone still links.
 //!
 //! **What still calls the key-taking pair for an integer subscript is
 //! `nvs-codegen`.** `nvs_ir::lower::Lowering::lower_array_key` normalizes an

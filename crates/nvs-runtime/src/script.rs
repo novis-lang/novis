@@ -12,7 +12,7 @@
 //!
 //! So this module is the same inversion on the other axis. The trait is
 //! declared in the crate both sides already depend on, whoever *can* compile
-//! implements it — `nvs-cli`, and the server at M7 — and the lowered
+//! implements it — `nvs-cli` — and the lowered
 //! `spawn script` reaches it without naming either.
 //!
 //! # Why this is a second seam rather than another `Host` method

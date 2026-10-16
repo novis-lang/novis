@@ -31,7 +31,7 @@ static SPAWN_EPOCH: LazyLock<Instant> = LazyLock::new(Instant::now);
 ///
 /// The set is closed on purpose, and reachable only through `nvs run
 /// --fault-inject=<site>`: it must never be reachable from a served request
-/// (`nvs serve`, M7), and nothing in Novis source can arm one.
+/// (`nvs serve`), and nothing in Novis source can arm one.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum FaultSite {

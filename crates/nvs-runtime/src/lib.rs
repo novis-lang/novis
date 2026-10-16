@@ -107,9 +107,8 @@
 //!
 //! # What is here, and what is deliberately not
 //!
-//! This is the runtime half of the baseline backend, and every part of it is
-//! testable without a
-//! backend. It covers exactly:
+//! This is the runtime compiled code calls into, and every part of it is
+//! testable without a backend. It covers exactly:
 //!
 //! * the ABI surface — [`OK`]/[`THROWN`]/[`FATAL`], [`Value`], [`Ctx`],
 //!   [`NvsFn`], [`nvs_helper!`], and the safe [`call`] wrapper tests and
@@ -134,14 +133,13 @@
 //! * [`FaultSite`], the closed set of failures a run can be *asked* to
 //!   produce, so a contained engine panic — which has no user-facing trigger
 //!   by definition — is testable at all;
-//! * [`NvsObj`]/[`ObjHeader`]/[`ClassDesc`]/[`ClassTable`], M4's class-instance
+//! * [`NvsObj`]/[`ObjHeader`]/[`ClassDesc`]/[`ClassTable`], the class-instance
 //!   representation, with the `nvs_object_new`/`_retain`/`_release`/
 //!   `_is_class`/`_field_get`/`_field_set`/`_class_name` primitives behind
 //!   `nvs_ir::InstKind::New`/`FieldGet`/`FieldSet` and an instance
-//!   `InstKind::Call`'s receiver. It does not wait on the codegen that emits
-//!   any of them, for [`NvsStr`]'s reason: it is testable without a backend,
-//!   and the layout is what codegen queries rather than restates;
-//! * [`NvsArray`]/[`ArrayHeader`], M4's array representation, with the
+//!   `InstKind::Call`'s receiver. Like [`NvsStr`], it is testable without a
+//!   backend, and the layout is what codegen queries rather than restates;
+//! * [`NvsArray`]/[`ArrayHeader`], the array representation, with the
 //!   `nvs_array_new`/`_retain`/`_release`/`_get`/`_set`/`_append`/`_unset`/
 //!   `_has_key`/`_count`/`_next_slot`/`_key_at`/`_value_at` primitives behind
 //!   `nvs_ir::InstKind::ArrayNew`/`ArrayGet`/`ArraySet`/`ArrayAppend` and the

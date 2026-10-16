@@ -78,11 +78,11 @@
 //! of a record keeps both the shape tier 3 is handed and the seam it is reached
 //! through, and `nvs_host::ladder`'s own module doc argues that split in full.
 //!
-//! `[log] format` is not read here. `rule:errors/renderings`'s plaintext rendering of the
-//! same record is what `rule:config/a-mode-is-five-defaults`
-//! 's `development` default selects, and nothing reads that directive at run
-//! time yet; JSON Lines is § 6's default and the honest single answer until the
-//! reader lands.
+//! `[log] format` is not read here: the floor always writes JSON Lines, § 6's
+//! default. `rule:errors/renderings`'s plaintext rendering of the same record is
+//! what `rule:config/a-mode-is-five-defaults`'s `development` default selects,
+//! and the request context's log output (`ctx/output.rs`) is what reads the
+//! directive.
 
 use std::cell::{Cell, RefCell};
 use std::collections::hash_map::DefaultHasher;

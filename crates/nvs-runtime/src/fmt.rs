@@ -8,13 +8,13 @@
 //! of those, so the rule is implemented rather than delegated.
 //!
 //! This is `rule:types/declaration`'s
-//! conversion table for `float -> string`, which that ADR does not list as a
+//! conversion table for `float -> string`, which that rule does not list as a
 //! deliberate divergence — so the behaviour has to match PHP's, and it is
 //! checked against `php -r` output in this module's tests.
 //!
 //! `decimal` (`rule:types/decimal`) is
 //! deliberately *not* here: its whole point is a fixed scale with no float
-//! round-tripping, so it gets its own formatting when its i128 backend lands.
+//! round-tripping, so `crate::decimal` formats it.
 
 /// PHP's `precision` ini default, and the significant-digit count
 /// `float`-to-`string` conversion rounds to.

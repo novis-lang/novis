@@ -73,9 +73,8 @@
 //! # Decision: the called class travels in the receiver slot, and a descriptor
 //! carries a method table
 //!
-//! Late static binding ([`docs/implementation-plan.md`](/docs/implementation-plan.md)'s
-//! M4: `new static()` through two levels of inheritance returns the *called*
-//! class) needs two things compiled code did not have: the called class at the
+//! Late static binding (`new static()` through two levels of inheritance
+//! returns the *called* class) needs two things: the called class at the
 //! callee, and a way to find that class's own method from it.
 //!
 //! **The called class travels in argument slot 0.** Every lowered method

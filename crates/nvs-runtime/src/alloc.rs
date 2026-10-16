@@ -12,8 +12,8 @@
 //! [`docs/plan/design.md`](/docs/plan/design.md) § *Per-request isolation* is
 //! the home of the decision that a request allocates from an arena of its own;
 //! this is the half of it that needs no per-request accounting and no
-//! [`Ctx`](crate::Ctx). The `[limits.hard]` ceiling attaches here at M6, where
-//! [`affordable`](crate::affordable)'s own doc comment says it does.
+//! [`Ctx`](crate::Ctx). The per-request memory ceiling is enforced at
+//! [`affordable`](crate::affordable), not here.
 //!
 //! # What it spends
 //!

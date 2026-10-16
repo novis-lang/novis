@@ -798,10 +798,11 @@ const SHOW_CURSOR: &str = "\x1b[?25h";
 /// rather than a smear of escape sequences, and every method below is then a
 /// no-op rather than a write nobody reads.
 ///
-/// Repainting on a resize is not here yet, and the reason is `rule:tooling/the-terminal-profile-resolves-once`:
+/// A region does not repaint on a resize, because of `rule:tooling/the-terminal-profile-resolves-once`:
 /// the profile is resolved once for the process, so the width a region clamps
-/// to is fixed for its life and a window the reader resizes is not noticed. The
-/// signal that would say so is `Core\Signal`'s, which is not built.
+/// to is fixed for its life and a window the reader resizes is not noticed.
+/// Nothing reports a resize either: `Core\Signal` covers graceful shutdown
+/// alone (`rule:core-api/tier-roster`).
 ///
 /// **What is left on screen is the last frame.** A region that erased itself
 /// would take the program's own output with it, which is the opposite of what
