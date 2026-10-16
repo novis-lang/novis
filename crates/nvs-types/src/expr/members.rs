@@ -17,7 +17,7 @@
 //! `private`/`protected` levels are applied by [`check_member_visibility`],
 //! keyed on the accessing class rather than on the receiver — every property
 //! access lands there, whatever its receiver's spelling, and a method call
-//! does not yet.
+//! reaches the same check through [`check_method_visibility`].
 //!
 //! [`check_property_access`]'s shape/`object`/`mixed` arms are `rule:types/erased-member-access`
 //! whole: a field a shape names types cleanly with no diagnostic either way,

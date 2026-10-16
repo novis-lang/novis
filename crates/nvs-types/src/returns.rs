@@ -29,8 +29,8 @@
 //! - a `switch` exits only with a `default` arm, no `break` of its own, and a
 //!   last arm that exits — every earlier arm may fall through into it;
 //! - a `try` exits through a `finally` that exits, or through a body *and* every
-//!   `catch` exiting — once `rule:statements/no-return-leaves-a-finally` lands (goal `surface`) a
-//!   `finally` can leave only by throwing, and this arm and `escapes_block`'s narrow to that;
+//!   `catch` exiting — `rule:statements/no-return-leaves-a-finally` refuses a `return` in a
+//!   `finally` while parsing, so a `finally` that exits is one that throws;
 //! - a `foreach`, and a `while` over anything but a literal `true`, may run zero
 //!   times, so neither can be the reason a body exits.
 //!

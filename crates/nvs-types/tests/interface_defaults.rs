@@ -9,7 +9,7 @@ use common::*;
 use nvs_diagnostics::code;
 
 // ------------------------------------------------------------------
-// `rule:classes/interface-default-methods` and `rule:classes/interface-private-methods` -- interface default/private methods (M2 follow-up).
+// `rule:classes/interface-default-methods` and `rule:classes/interface-private-methods` -- interface default/private methods.
 // ------------------------------------------------------------------
 
 /// § 2's own worked example: `Person` never declares `greet()` itself,

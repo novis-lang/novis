@@ -310,7 +310,7 @@ fn reading_an_optional_field_answers_the_declared_type_not_a_nullable_one() {
 
 #[test]
 fn reading_a_field_a_shape_does_not_name_is_erased_with_no_diagnostic() {
-    // Deferred to `rule:classes/no-dynamic-properties`'s runtime-checked fallback (M4) — this
+    // Left to `rule:classes/no-dynamic-properties`'s runtime-checked fallback — this
     // compile-time checker cannot know either way, so it reports
     // nothing rather than guessing.
     let diags = check_in_method("({x: int}) $p = {x: 1};\nmixed $n = $p->y;");

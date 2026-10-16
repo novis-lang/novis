@@ -1,8 +1,7 @@
-//! Per-class property and method signatures — the groundwork the M2
-//! follow-up list's item 1 named as blocking property/method-call/`new`
-//! expression typing: `nvs_hir::members` only ever checked whether a member
-//! *exists*, never what type it has, since that needed this crate's type
-//! table in the first place.
+//! Per-class property and method signatures — what property, method-call and
+//! `new` expression typing read: `nvs_hir::members` checks only whether a
+//! member *exists*, never what type it has, since that needs this crate's type
+//! table.
 //!
 //! [`build_signatures`] walks a file once, ahead of any body-checking, the
 //! same shape [`crate::check::check_program`] itself walks (mirroring

@@ -8,21 +8,18 @@
 //! [`expr::infer`](crate::expr::infer) already resolves a call's or `new`'s
 //! target — walking [`crate::signatures::SignatureTable`] and
 //! [`nvs_hir::ClassGraph`] to find the actual declaring class and its
-//! [`crate::signatures::MethodSig`] — but until now threw that resolution
-//! away the moment it returned a [`crate::ty::TypeId`]. [`ExprTypeTable`] is
-//! where [`crate::check::check_program`] persists it instead: one
+//! [`crate::signatures::MethodSig`] — and returns only a
+//! [`crate::ty::TypeId`]. [`ExprTypeTable`] is where
+//! [`crate::check::check_program`] persists the resolution as well: one
 //! [`ExprInfo`] entry per expression whose *resolved identity* (not just its
 //! type) a later pass needs and cannot cheaply re-derive from the AST alone.
 //!
 //! This is a narrow, deliberately incomplete table — it exists to answer
 //! exactly the questions `nvs-ir`'s widening needed answered, not to become a
-//! second, general-purpose typed-AST. [`ExprInfo::Property`] is the first
-//! instance of the pattern this module's docs originally predicted: widening
-//! `nvs-ir` further (array access, `match`/ternary result identity, ...) is
-//! expected to keep growing [`ExprInfo`] with one new variant per question,
-//! each populated at its own `expr::infer`/`check_property_access`-style call
-//! site — not to replace this shape. See the crate's own known-gaps list for
-//! exactly which expression shapes have no entry here yet.
+//! second, general-purpose typed-AST. [`ExprInfo::Property`] shows the
+//! pattern: a new question `nvs-ir` needs answered grows [`ExprInfo`] by one
+//! variant, populated at its own `expr::infer`/`check_property_access`-style
+//! call site, and does not replace this shape.
 //!
 //! # Why a lookup is keyed by [`nvs_diagnostics::Span`], not assignment order
 //!
@@ -552,10 +549,8 @@ pub enum ExprInfo {
         ret: TypeId,
     },
     /// `new Target(...)`. `ctor` is `None` for a class with no explicit
-    /// `constructor` — legal per [`crate::expr`]'s own known gaps (no arity
-    /// check against zero parameters), so a consumer must handle a `New`
-    /// entry with no resolved constructor rather than treating it as an
-    /// error.
+    /// `constructor`, so a consumer must handle a `New` entry with no
+    /// resolved constructor rather than treating it as an error.
     New {
         /// The constructed class.
         class: QName,
@@ -1206,7 +1201,7 @@ pub enum ExprInfo {
     ProgramInstances {
         /// Every non-abstract class implementing the written interface, sorted
         /// by fully-qualified name — `nvs_hir::implementors`' answer verbatim,
-        /// so the order is the ADR's rather than the filesystem's.
+        /// so the order is `rule:programs/implementing`'s rather than the filesystem's.
         classes: Vec<QName>,
         /// Each entry's resolved `constructor` call, or `None` where the class
         /// declares none — [`ExprInfo::New`]'s `ctor` exactly, and resolved

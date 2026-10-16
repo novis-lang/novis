@@ -32,9 +32,9 @@
 //!
 //! The sinks reachable here are eleven, and the three below are the ones a
 //! conversion reaches. [`reject_computed_markup_conversion`]
-//! is `rule:core-classes/html-auto-escape`'s one M2-scoped rule: `as Core\Html\Markup` accepts only a
-//! literal string token, `tainted` or not — the rest of § 5 (auto-escaping,
-//! `Markup + Markup`) waits on `Core\Html` actually existing.
+//! is `rule:core-classes/html-auto-escape`'s compile-time half: `as Core\Html\Markup` accepts only a
+//! literal string token, `tainted` or not. The rest of that rule is not a
+//! conversion's, and `Core\Html` carries it.
 //! [`reject_secret_markup_conversion`] is `rule:security/secret-sinks-refuse`'s sibling, giving a
 //! `secret` operand there its own specific diagnostic ahead of the generic one
 //! (escaping doesn't restore confidentiality, so `secret` gets no auto-escape

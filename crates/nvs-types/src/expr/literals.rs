@@ -15,7 +15,7 @@
 //! `rule:types/single-value-types` add a fourth rule of the same shape, and
 //! [`placed_literal`] is all of it: a `string` or `int` literal types as its
 //! own singleton exactly where the position names that singleton, and as its
-//! plain base everywhere else. That is what `rule:types/single-value-types`'s *Verification* M2 row
+//! plain base everywhere else. That is what `rule:types/single-value-types`'s *Verification*
 //! asks for — without it nothing a caller writes ever satisfies a single-value type
 //! except through an `as` — and it is why § 4's free-widening rows in
 //! [`super::assign`] are the only other half needed: every other position
@@ -39,7 +39,7 @@ use super::*;
 
 /// `rule:types/single-value-types`'s producer half: the single-value atom `expected` names that this
 /// literal *is*, or `None` where the position names none — in which case the
-/// caller returns the base type, exactly as it did before this ADR.
+/// caller returns the base type.
 ///
 /// `expected` is searched one level deep, the atom itself or the members of a
 /// union, which is the whole of it: `rule:types/grammar` canonicalizes a union flat,

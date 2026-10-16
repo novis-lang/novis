@@ -2,8 +2,8 @@
 //! arithmetic table, and the layout bound a placed literal must fit.
 //!
 //! The runtime half (i128 arithmetic with scale reconciliation, `ArithmeticError`
-//! on overflow, half-even division) is M4's and has no test here yet — see that
-//! ADR's *Verification* section for what it owes.
+//! on overflow, half-even division) is `nvs_runtime::decimal`'s, and its tests
+//! live there.
 
 mod common;
 
