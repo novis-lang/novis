@@ -38,7 +38,7 @@
 //! `rule:tooling/reflection-and-source-parsing-are-core-features`'s typed
 //! roster is not it: that roster is one class per *production*, which is
 //! [`KINDS`] — the table this walk's kinds are, and the one `Core\Ast` names
-//! its classes from. Drawing the line at the three productions the ADR names
+//! its classes from. Drawing the line at the three productions that rule names
 //! keeps every expression in the tree, which is what a walk is for, without
 //! making a parameter or a type annotation a node in order to have a class.
 //!

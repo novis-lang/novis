@@ -25,9 +25,9 @@ use nvs_diagnostics::{Diagnostics, SourceMap};
 use nvs_syntax::{Lexer, Parsed, TokenKind, parse, walk};
 
 /// Every `examples/*.nvs`, sorted, so a failure names the same file on every
-/// machine. The directory itself, not its subdirectories: M4B's acceptance
-/// paragraph names that glob, and the nested directories are multi-file
-/// programs whose parts are not documents on their own.
+/// machine. The directory itself, not its subdirectories: the nested
+/// directories are multi-file programs whose parts are not documents on their
+/// own.
 fn examples() -> Vec<(PathBuf, String)> {
     let dir = nvs_repo::path("examples");
     let mut paths: Vec<PathBuf> = std::fs::read_dir(&dir)

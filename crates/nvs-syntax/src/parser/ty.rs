@@ -79,7 +79,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     }
 
     /// `property<` — `rule:types/property-key`'s property key, recognised by spelling
-    /// because `property` is deliberately not a reserved word: the ADR makes it
+    /// because `property` is deliberately not a reserved word: the rule makes it
     /// a keyword in this one position and nowhere else, so a program keeps
     /// `$property`, `->property()` and a function called `property`.
     ///
@@ -162,7 +162,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// ordinary `static::`/`static function`/`static fn`/bare-`static`
     /// expression — decided by one token of lookahead past `static` itself:
     /// a `$name` (the ordinary untyped PHP spelling) or a type-start token
-    /// (the ADR's own illustrative typed spelling) both mean this is the
+    /// (the rule's own illustrative typed spelling) both mean this is the
     /// rejected construct.
     pub(super) fn at_function_scope_static(&mut self) -> bool {
         matches!(self.peek_at(1).kind, TokenKind::Variable)
@@ -235,7 +235,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// level up names the exact fix (E0237, `Parser::report_by_reference_marker`),
     /// which it can only do if the type parser leaves the `&` alone instead
     /// of consuming it and then failing on `$x` as a malformed intersection
-    /// member. The ADR's own § 3 is the home of that correction.
+    /// member. The rule's own § 3 is the home of that correction.
     pub(super) fn at_intersection_amp(&mut self) -> bool {
         self.at(TokenKind::Amp) && Self::token_starts_type(self.peek_at(1).kind)
     }
@@ -669,7 +669,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     }
 
     /// A double-quoted `"a"` in type position — `rule:types/single-value-types`'s string literal
-    /// atom, spelled the way the ADR spells it. The body is read with the
+    /// atom, spelled the way the rule spells it. The body is read with the
     /// ordinary [`Self::parse_string_body`] so escapes lex identically to a
     /// value position's, and an interpolated one is refused: a type has no
     /// scope to interpolate a variable from. The refused case still yields

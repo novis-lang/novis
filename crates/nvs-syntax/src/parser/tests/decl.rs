@@ -655,7 +655,7 @@ fn type_alias_declaration() {
     };
     assert!(matches!(t.ty.kind, TypeKind::Atom(TypeAtom::Uint)));
 
-    // A single bare class atom parses fine — the restriction is M2's.
+    // A single bare class atom parses fine — name resolution enforces the restriction.
     parse_stmt_ok("type Id = SomeClass;");
 }
 

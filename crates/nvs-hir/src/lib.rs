@@ -6,7 +6,7 @@
 //!
 //! - [`qname`] — [`QName`], a fully-qualified, backslash-separated name.
 //! - [`symbol`] — [`SymbolTable`]: one entry per declared
-//!   class/interface/trait/enum/type alias, keyed by its [`QName`].
+//!   class/interface/enum/type alias, keyed by its [`QName`].
 //! - [`resolve`] — [`Resolver`]/[`resolve_file`]: walks a parsed file's
 //!   top-level statements, tracks namespace and `use` scope PHP-style (a
 //!   `namespace Name;` statement both re-namespaces and resets the imported-
@@ -18,11 +18,10 @@
 //!   declares, with each one's type parameters, on the same
 //!   seeded-from-data footing as [`errors`].
 //! - [`hierarchy`] — [`HierarchyResolver`]: resolves every class/interface's
-//!   `extends`/`implements` and every class/trait's `use Trait, ...;` to real
-//!   [`Symbol`]s, into a [`ClassGraph`]; diagnoses an undeclared or
-//!   wrong-kind parent — including a name under `Core` the caller's
-//!   [`CoreRoster`] does not list — a circular `extends`/trait-use chain, and
-//!   a trait method-name collision with no `insteadof` naming a winner.
+//!   `extends`/`implements` to real [`Symbol`]s, into a [`ClassGraph`];
+//!   diagnoses an undeclared or wrong-kind parent — including a name under
+//!   `Core` the caller's [`CoreRoster`] does not list — and a circular
+//!   `extends` chain.
 //!   [`implementors`] asks that graph the other way — which non-abstract
 //!   classes reach one interface — which is `rule:programs/implementing`'s enumeration.
 //! - [`members`] — [`MemberResolver`]: resolves every `Class::member`
@@ -48,10 +47,9 @@
 //!   file it autoloads or requires, for the language server's survey and for
 //!   `nvs check` on such a file.
 //!
-//! `nvs-hir` covers the name-resolution responsibilities the plan's M2
-//! paragraph lists for it, and records no gap of its own: what a module
-//! still owes is written in that module's own doc, [`requires`] carrying
-//! the longest list. What this crate deliberately does not do belongs to
+//! `nvs-hir` covers name resolution, and records no gap of its own: what a
+//! module still owes is written in that module's own doc, [`requires`]
+//! carrying the longest list. What this crate deliberately does not do belongs to
 //! somewhere else — a member's visibility and the static type behind a
 //! receiver are `nvs-types`' question, which is also [`AliasTable`]'s
 //! consumer, and there is no trait-use flattening because

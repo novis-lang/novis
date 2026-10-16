@@ -1,12 +1,12 @@
 //! The AST: what the parser produces from a token stream.
 //!
-//! # What is here so far
+//! # What is here
 //!
 //! Types ([`Type`]/[`TypeKind`]/[`TypeAtom`], `rule:types/grammar`) and expressions
-//! ([`Expr`]/[`ExprKind`], every construct M1's plan names — `match`, anonymous
+//! ([`Expr`]/[`ExprKind`], every construct — `match`, anonymous
 //! functions, `spawn script`, `require`, named arguments,
 //! spread, nullsafe, method references, the `as` conversion
-//! operator). [`Block`]/[`Stmt`]/[`StmtKind`] now also cover every
+//! operator). [`Block`]/[`Stmt`]/[`StmtKind`] cover every
 //! control-flow statement (`if`, `while`, `do`/`while`, `for`, `foreach`'s
 //! mandatory typed bindings, `switch`, `break`/`continue`, `try`/`catch`/
 //! `finally`), `echo`, `unset`, `rule:types/grammar`.1's typed local declaration,
@@ -15,8 +15,8 @@
 //! enums ([`ClassDecl`]/[`InterfaceDecl`]/[`EnumDecl`]), their members
 //! ([`ClassMember`]: properties with PHP 8.4's hooks, consts, methods),
 //! attributes ([`AttributeGroup`]), and the file-scope declarations that sit
-//! alongside them ([`NamespaceDecl`]/[`UseDecl`]/[`TypeAliasDecl`]) round out
-//! M1's last chunk. There is no `trait` declaration and no class-body
+//! alongside them ([`NamespaceDecl`]/[`UseDecl`]/[`TypeAliasDecl`]) complete
+//! the tree. There is no `trait` declaration and no class-body
 //! `use Trait, ...;` — `rule:classes/no-traits` replaces both with an `interface` method that
 //! carries a body (§§ 2-3) and `by $field` delegation on an
 //! [`ImplementsClause`] (§ 4); `trait`/class-body `use`/`insteadof` are all
@@ -45,7 +45,7 @@ use nvs_diagnostics::Span;
 /// part of the spelling: it is refused where the name is parsed
 /// (`rule:statements/a-leading-separator-does-not-parse`), so
 /// a `Name`'s span never opens on one. Splitting it into segments and resolving
-/// it to a declaration is name resolution's job (M2), not this stage's.
+/// it to a declaration is name resolution's job (`nvs-hir`), not this stage's.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Name {
     /// The full qualified spelling, backslashes included.
@@ -159,7 +159,7 @@ pub enum TypeAtom {
     /// `property` is not a keyword. It is recognised by spelling, and only in
     /// front of a `<` in type position, so `$property`, a member named
     /// `property` and a class named `Property` are all untouched — which is
-    /// what the ADR promises when it makes this a keyword "only there".
+    /// what the rule promises when it makes this a keyword "only there".
     PropertyKey(Box<Type>),
     /// `propertyPath<T>` — `rule:types/property-path`'s path, whose values are
     /// dotted chains of public property names starting at `T`. Recognised by
@@ -1207,7 +1207,7 @@ pub enum ExprKind {
     /// a block (a bare statement, an arrow-bodied `fn`'s body) never reach
     /// this variant for an empty `{}` — the disambiguating lookahead only
     /// recognizes a *non*-empty literal attempt (`{ident :`), so an empty
-    /// `{}` there stays an empty block, exactly as before this ADR.
+    /// `{}` there stays an empty block.
     AnonObject(Vec<AnonObjectField>),
     /// A placeholder produced during error recovery, carrying the span of what
     /// it stood in for: the construct that was refused, or the insertion point
@@ -1562,7 +1562,7 @@ pub enum StmtKind {
     Goto(Span),
     /// A function-scope `static $x (= expr)?, ...;` declaration — rejected,
     /// `rule:statements/no-function-static-and-no-global`. `ty` is `Some` only for the illustrative-but-still-
-    /// rejected typed spelling that ADR's own diagnostic wording uses
+    /// rejected typed spelling that rule's own diagnostic wording uses
     /// (`static int $calls = 0;`); ordinary PHP's untyped
     /// `static $calls = 0;` leaves it `None`.
     StaticLocal {

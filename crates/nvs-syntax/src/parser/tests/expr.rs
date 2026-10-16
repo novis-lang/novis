@@ -1063,8 +1063,7 @@ fn dollar_brace_expr_is_variable_variable() {
 }
 
 // --- `rule:expressions/catch-expression`'s expression `catch` ------------------------------------------
-// § 2's table, one test a row. The lowering is not written, so these are the
-// only place the grouping is pinned until stage 9's item 23 lands.
+// § 2's table, one test a row. These pin how the parser groups each row.
 
 #[test]
 fn catch_is_tighter_than_assignment_and_looser_than_the_ternary_level() {

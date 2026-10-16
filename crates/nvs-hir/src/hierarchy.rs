@@ -1,6 +1,5 @@
 //! The class hierarchy graph: `extends`/`implements` resolved to real
-//! [`crate::Symbol`]s (M2 item 1 — see the crate's module docs for what's left
-//! after this).
+//! [`crate::Symbol`]s.
 //!
 //! There is no trait-use flattening or `insteadof` collision resolution here:
 //! `rule:classes/no-traits`
@@ -765,7 +764,7 @@ fn implements_interface_rec(
 /// `Core\Program::implementing<T>()` expands to one `new` expression per
 /// entry of.
 ///
-/// The sort is what the ADR asks for by name: the order must not depend on
+/// The sort is what `rule:programs/implementing` asks for by name: the order must not depend on
 /// filesystem enumeration, since the same program compiled on two machines
 /// otherwise runs its modules in two orders. It compares segments rather
 /// than the rendered string, matching [`crate::AutoloadMap::render`]'s own
@@ -994,7 +993,7 @@ mod tests {
     /// `rule:statements/a-qualified-name-is-absolute`, as the cases the rule has and nothing between
     /// them. A name with a separator is returned as written no matter what
     /// namespace or imports surround it — the case PHP resolved relative, and
-    /// the whole of what this ADR changed. A name without one is looked up in
+    /// the whole of what this rule changes. A name without one is looked up in
     /// the imports first and the enclosing namespace second. Asserted with a
     /// namespace *and* an import in force at every call, so a rule that
     /// consulted either one for a qualified name would have to be wrong in

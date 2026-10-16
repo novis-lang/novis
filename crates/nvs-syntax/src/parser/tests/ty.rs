@@ -259,7 +259,7 @@ fn single_value_types_union_and_take_the_nullable_sugar() {
         TypeKind::Atom(TypeAtom::SingleValueString(_))
     ));
 
-    // A heterogeneous union is not this ADR's business to restrict.
+    // A heterogeneous union is not this rule's business to restrict.
     let (ty, _) = conversion_type("1|2|int");
     let TypeKind::Union(members) = ty.kind else {
         panic!("expected a union: {ty:?}");
@@ -798,7 +798,7 @@ fn shape_type_parses_in_every_declaration_slot() {
         Some(TypeKind::Atom(TypeAtom::Shape(_)))
     ));
 
-    // Reusable via a `type` alias (`rule:statements/nothing-gets-a-second-name`), same as the ADR's own
+    // Reusable via a `type` alias (`rule:statements/nothing-gets-a-second-name`), same as the rule's own
     // `type Point = {x: int, y: int};` example.
     let s = parse_stmt_ok("type Point = {x: int, y: int};");
     let StmtKind::TypeAliasDecl(alias) = s.kind else {

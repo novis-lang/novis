@@ -1,4 +1,4 @@
-//! Member existence resolution for M2 item 2: every `Class::member`
+//! Member existence resolution: every `Class::member`
 //! reference — a static call, a class constant (an enum case counts as one),
 //! `Class::class`, or a static property — must name something actually
 //! declared on that class or reached transitively through the
@@ -7,7 +7,7 @@
 //! gives a callable/constant no bare-name fallback to fall into instead, so
 //! there is nothing else a `Class::member` reference could mean.
 //!
-//! That same ADR's other half is refused here too, and it is the reason
+//! That same rule's other half is refused here too, and it is the reason
 //! [`walk_class_side`] exists: a **bare name in value position** (`PHP_EOL`)
 //! is `E0319` and a **bare name called** (`strlen($s)`) is `E0320`, since
 //! `rule:classes/no-free-functions-or-constants` leaves no global-function and no global-constant
@@ -19,13 +19,13 @@
 //! mistake is that the name resolves against nothing, which needs no type,
 //! and the `E04xx` band has room for it.
 //!
-//! Also carries M2 item 5, the property-access counterpart: `$this->name`
+//! Also carries the property-access counterpart: `$this->name`
 //! must name an instance property actually declared on the enclosing class
 //! or reached the same way through [`ClassGraph`], per
 //! `rule:classes/no-dynamic-properties`'s "no
 //! `__get`/`__set` fallback." `$this` is the only property-access receiver
-//! whose class is knowable without a type checker — see the known gaps
-//! below for every other receiver shape.
+//! whose class is knowable without a type checker — see the checks this
+//! module does not make, below, for every other receiver shape.
 //!
 //! [`MemberResolver::collect_members`] walks a file's declarations, same
 //! shape as [`crate::hierarchy::HierarchyResolver::collect_links`], recording
@@ -39,8 +39,7 @@
 //! the table, walking ancestors the same way [`crate::hierarchy::detect_cycles`]
 //! does. A dynamic class side (`$var::method()`, `(expr)::CONST`) or a
 //! non-`$this` property receiver is not statically resolvable and is
-//! silently skipped, same as everywhere else this milestone only reports
-//! what it can be sure of.
+//! silently skipped, since this module reports only what it can be sure of.
 //!
 //! Both of a doc comment's tags are checked here too, by [`check_doc`], and
 //! for the same reason: each is a name that must resolve against something

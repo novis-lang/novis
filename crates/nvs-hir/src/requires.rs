@@ -1,5 +1,4 @@
-//! `require`'s static resolution (M2 item 4 — see the crate's module docs
-//! for what's left after this).
+//! `require`'s static resolution.
 //!
 //! `rule:statements/require-is-the-only-inclusion-construct`
 //! keeps `require` as the only same-frame inclusion construct: no isolation
@@ -17,8 +16,7 @@
 //!
 //! The mechanism is the multi-file shape [`crate::resolve::Resolver`],
 //! [`crate::hierarchy::HierarchyResolver`], [`crate::members::MemberResolver`]
-//! and [`crate::aliases::AliasResolver`] were all already built to support
-//! (their own module docs call this out as "not wired up yet") — an explicit
+//! and [`crate::aliases::AliasResolver`] all support — an explicit
 //! worklist walks the require graph starting at one entry file: each literal
 //! target is resolved relative to the requiring file's own directory,
 //! loaded and parsed the first time its canonicalized path is named, fed
@@ -2125,7 +2123,7 @@ class Unreached {}
             diags.has_errors()
         }
 
-        // The case the ADR exists for, at the file and at a directory.
+        // The case this check exists for, at the file and at a directory.
         assert!(run("/app", "lib.nvs", "/app/Lib.nvs"));
         assert!(run("/app", "lib/helper.nvs", "/app/Lib/helper.nvs"));
         // `.` and `..` are replayed, not compared.

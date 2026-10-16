@@ -6,7 +6,7 @@
 //!   runs it skips between two tokens.
 //! - [`lexer`] — the dual-mode (inline HTML + code) lexer itself.
 //! - [`ast`] — the AST the parser produces: the full type, expression,
-//!   statement and declaration grammar M1's plan names.
+//!   statement and declaration grammar.
 //! - [`parser`] — the recursive-descent parser covering that whole grammar.
 //!   [`parse_file`] is the whole-file entry point every compile path calls (the
 //!   `nvs-cli` crate's `nvs ast` uses it); [`parse`] is the same parse plus what
@@ -32,8 +32,8 @@
 //!   leaf — that crate's own § *Where this sits* is the home of why.
 //! - [`duration`] — `rule:types/duration`'s duration grammar, the one place `30s` is
 //!   defined. Public because it is shared: `nvs-stdlib`'s
-//!   `Core\Time\Duration::parse` and (at M6) `nvs.toml`'s reader both call in,
-//!   which is what stops the three from drifting.
+//!   `Core\Time\Duration::parse`, the type checker and the lowering all call in,
+//!   which is what stops them from drifting.
 //! - [`string_lit`] — what a written string literal *denotes*: the escape
 //!   grammar cooked to bytes, and a heredoc's flexible-indentation strip. The
 //!   lexer decides which backslash sequences exist; this decides what they

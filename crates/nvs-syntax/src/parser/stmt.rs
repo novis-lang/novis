@@ -42,9 +42,9 @@ use super::*;
 const SHAPE_TYPED_LOCAL_SCAN_LIMIT: usize = 256;
 
 impl<'src, 'd> Parser<'src, 'd> {
-    /// A `{ ... }` block. If a statement consumes no tokens at all (a
-    /// construct not yet implemented, sitting at a token no statement form
-    /// starts with), one token is force-consumed so a malformed body cannot
+    /// A `{ ... }` block. If a statement consumes no tokens at all (it sits
+    /// at a token no statement form starts with), one token is
+    /// force-consumed so a malformed body cannot
     /// hang the parser — see the module docs.
     pub(crate) fn parse_block(&mut self) -> Block {
         let start = self.expect(TokenKind::LBrace, "`{`");
@@ -516,7 +516,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                 // The declaration is kept even when it arrived after an
                 // expression, so a rejected header still declares its counter
                 // and § 3's one diagnostic is not followed by an `E0301` for
-                // every use of it — the cascade this ADR exists to delete.
+                // every use of it — the cascade this rule exists to delete.
                 Some(first) => {
                     if !exprs.is_empty() {
                         self.report_for_init_mixed(item, &mut reported);

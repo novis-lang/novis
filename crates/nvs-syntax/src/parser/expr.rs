@@ -16,8 +16,8 @@
 //! interpolated-string bodies the lexer hands back in parts.
 //!
 //! Several PHP spellings are parsed here only to be diagnosed, and they are
-//! deliberately *parsed* rather than left to fail: a legacy `(int)$x` cast (ADR
-//! 0034), `eval`/`extract`/`settype` (`rule:security/closed-doors`), `die`, and
+//! deliberately *parsed* rather than left to fail: a legacy `(int)$x` cast
+//! (`rule:types/no-legacy-cast`), `eval`/`extract`/`settype` (`rule:security/closed-doors`), `die`, and
 //! `include`/`include_once`/`require_once` (`rule:statements/require-is-the-only-inclusion-construct`). Recovering the whole
 //! construct is what lets the diagnostic name the replacement and the rest of
 //! the file keep parsing.
@@ -1628,11 +1628,11 @@ impl<'src, 'd> Parser<'src, 'd> {
 
     /// Whether `{` at the current position looks like the start of an
     /// anonymous object's field (`{ ident :`) rather than a genuine block — the
-    /// one-token-past-`{` lookahead the ADR's two "already commits to a
+    /// one-token-past-`{` lookahead the two "already commits to a
     /// block" call sites ([`Self::parse_fn_expr`]'s arrow body,
     /// [`Self::parse_statement_inner`]'s statement-initial `{`) need before
     /// committing. An empty `{}` never matches, so it stays a block at both
-    /// sites, unchanged from before this ADR.
+    /// sites.
     pub(super) fn at_anon_object_in_block_position(&mut self) -> bool {
         self.peek_at(1).kind == TokenKind::Ident && self.peek_at(2).kind == TokenKind::Colon
     }

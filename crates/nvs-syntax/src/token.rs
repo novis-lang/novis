@@ -87,7 +87,7 @@ pub enum TriviaKind {
 /// (the alias declaration, `rule:statements/nothing-gets-a-second-name`)
 /// lex as plain [`Ident`]s; the parser recognises them by text only at the one
 /// grammar position each is meaningful in. Reserving common English words
-/// globally when only a handful of ADR-introduced constructs need them would
+/// globally when only a handful of Novis-only constructs need them would
 /// cost every existing PHP program that happens to use `type` or `with` as a
 /// method or variable name, for no benefit the grammar requires.
 ///

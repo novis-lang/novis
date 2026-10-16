@@ -1464,7 +1464,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     }
 
     /// `{ hook+ }` — PHP 8.4's property-hook block, kept exactly as PHP has
-    /// it (`rule:classes/property-hooks`: this ADR "adds no new syntax beyond an ordinary
+    /// it (`rule:classes/property-hooks`: this rule "adds no new syntax beyond an ordinary
     /// interface declaration"). Mirrors [`Self::parse_block`]'s
     /// force-progress guard.
     pub(super) fn parse_property_hooks(&mut self) -> Vec<PropertyHook> {
@@ -1562,7 +1562,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// ever appear) are consumed via [`Self::skip_balanced_braces`] without
     /// being interpreted, then this reports
     /// [`Self::report_trait_not_supported`] and produces a plain
-    /// [`ClassMemberKind::Error`]. Nothing in PHP's grammar, or any ADR,
+    /// [`ClassMemberKind::Error`]. Nothing in PHP's grammar, or any rule,
     /// gives this an attribute position, so `attributes` (parsed uniformly
     /// by the caller before dispatching on `use`) is simply unused here.
     pub(super) fn parse_use_trait_member(

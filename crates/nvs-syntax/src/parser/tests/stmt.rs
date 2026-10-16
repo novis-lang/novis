@@ -130,8 +130,8 @@ fn a_for_init_clause_is_still_a_list_of_expressions() {
 #[test]
 fn a_for_init_clause_mixing_a_declaration_and_an_expression_is_e0124() {
     // `rule:iteration/for-init-refusals`: one diagnostic naming the rule, in either order, and
-    // nothing else — the twelve-error resynchronisation cascade in that
-    // ADR's *Context* is what this replaces, so the count is the assertion.
+    // nothing else — a resynchronisation cascade of many errors is what this
+    // replaces, so the count is the assertion.
     for src in [
         "for (int $i = 0, $j = 1; $i < 3; $i = $i + 1) { }",
         "for ($j = 1, int $i = 0; $i < 3; $i = $i + 1) { }",

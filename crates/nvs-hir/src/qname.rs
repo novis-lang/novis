@@ -146,10 +146,10 @@ impl QName {
     /// Whether this name's root segment is `Core`, Novis's reserved namespace
     /// for built-ins (`rule:core-api/reserved-namespace`).
     ///
-    /// `Core`'s own classes are not yet declarations `nvs-hir` can see —
-    /// `nvs-stdlib` doesn't exist until a later milestone — so a `use`
-    /// importing one is trusted to exist rather than checked against a real
-    /// symbol table.
+    /// `Core`'s own classes are not declarations `nvs-hir` can see — they
+    /// live in `nvs-stdlib`, which this crate does not depend on — so a `use`
+    /// importing one is trusted to exist here. A link to one is checked
+    /// against the [`crate::CoreRoster`] the caller passes.
     #[must_use]
     pub fn is_core(&self) -> bool {
         self.segments

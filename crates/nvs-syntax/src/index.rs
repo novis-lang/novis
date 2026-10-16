@@ -30,7 +30,7 @@
 //!
 //! An offset is inside a node when `start <= offset < end`, which is what a
 //! `Span` already means; this file does not give one a second reading. Two
-//! consequences are worth naming because M4B meets both:
+//! consequences are worth naming because the language server meets both:
 //!
 //! - An **empty span contains nothing.** A span with `start == end` is an
 //!   insertion point, not a range — `rule:ide/recovery-is-explicit`'s

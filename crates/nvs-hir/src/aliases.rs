@@ -1,9 +1,9 @@
-//! Type alias substitution — the remaining half of M2 item 3. See the
-//! crate's module docs for where this sits relative to the rest of M2.
+//! Type alias substitution. See the crate's module docs for where this sits
+//! beside the other resolvers.
 //!
-//! [`crate::resolve::Resolver`] already collects each `type` alias's own
+//! [`crate::resolve::Resolver`] collects each `type` alias's own
 //! declaration into the [`crate::symbol::SymbolTable`] and rejects the
-//! single-bare-class shape (`rule:types/alias-is-never-a-bare-class`). What is still open is *what an alias expands to*: § 5 says a `type`
+//! single-bare-class shape (`rule:types/alias-is-never-a-bare-class`). This module answers *what an alias expands to*: § 5 says a `type`
 //! alias is "fully transparent" — every occurrence of its name, including
 //! inside another alias's own expansion, resolves to the same fully-expanded
 //! [`Type`] before anything downstream ever sees the alias's name at all.

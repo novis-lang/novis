@@ -2,8 +2,8 @@
 //! in the one implementation its § 5 requires.
 //!
 //! `30s`, `1h30m`, `500ms` — Go's `time.ParseDuration` grammar with `d` and `w`
-//! added. That ADR's body is the rule; this module is the code, and restates
-//! none of the reasoning.
+//! added. That rule holds the reasoning; this module is the code, and restates
+//! none of it.
 //!
 //! # Why the grammar lives in the *syntax* crate
 //!

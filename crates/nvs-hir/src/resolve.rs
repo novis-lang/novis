@@ -1,6 +1,6 @@
 //! Name resolution: namespaces, `use` imports, and a file's declared symbols.
 //!
-//! See the crate's module docs for what this covers and what M2 still needs.
+//! See the crate's module docs for where this sits beside the other resolvers.
 
 use nvs_diagnostics::{Diagnostic, Diagnostics, SourceFile, Span, code};
 use nvs_syntax::ast::{
@@ -16,7 +16,7 @@ use crate::symbol::{ExtensionClass, Symbol, SymbolKind, SymbolTable};
 /// from every file [`Resolver::collect_declarations`] has seen so far.
 ///
 /// A target under `Core` ([`QName::is_core`]) is always trusted — `nvs-hir`
-/// has no declarations for the built-in stdlib to check against yet.
+/// holds no declarations for the built-in stdlib to check it against.
 #[derive(Clone, Debug)]
 pub struct Import {
     /// The name this import binds — always the target's own last segment,
@@ -34,13 +34,11 @@ pub struct Import {
     pub resolved: bool,
 }
 
-/// Everything `nvs-hir` resolves out of one or more parsed files, for this
-/// slice of M2: every declared class/interface/enum/type alias under its
-/// fully-qualified name, every `use` import checked against that set, and the
-/// class hierarchy (`extends`/`implements`) resolved to real symbols.
-///
-/// Not yet built — see the crate's module docs for the rest of M2's name
-/// resolution this will grow into.
+/// Everything `nvs-hir` resolves out of one or more parsed files: every
+/// declared class/interface/enum/type alias under its fully-qualified name,
+/// every `use` import checked against that set, the class hierarchy
+/// (`extends`/`implements`) resolved to real symbols, each declaration's own
+/// members and each alias's expansion.
 #[derive(Debug, Default)]
 pub struct Module {
     /// Every class/interface/enum/type-alias declaration collected.
@@ -50,9 +48,9 @@ pub struct Module {
     /// Every class/interface's resolved `extends`/`implements` links.
     pub graph: crate::hierarchy::ClassGraph,
     /// Every class/interface/enum's own directly-declared members
-    /// (M2 item 2 — see [`crate::members`]).
+    /// (see [`crate::members`]).
     pub members: crate::members::MemberTable,
-    /// Every `type` alias's fully-substituted expansion (M2 item 3 — see
+    /// Every `type` alias's fully-substituted expansion (see
     /// [`crate::aliases`]).
     pub aliases: crate::aliases::AliasTable,
 }
@@ -63,9 +61,9 @@ pub struct Module {
 /// Call [`resolve_file`] for the common case of one self-contained file.
 /// Construct a `Resolver` directly, and call [`Self::collect_declarations`]
 /// once per file before a single closing [`Self::resolve_imports`], when
-/// several files (a future statically-resolved `require` chain — M2 item 4,
-/// not wired up yet) need to share one symbol table, since a `use` in one
-/// file may legally name a declaration from another.
+/// several files (a statically-resolved `require` chain, which
+/// [`crate::requires::resolve_program`] walks) need to share one symbol table,
+/// since a `use` in one file may legally name a declaration from another.
 #[derive(Debug, Default)]
 pub struct Resolver {
     module: Module,

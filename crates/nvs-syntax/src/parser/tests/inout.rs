@@ -66,7 +66,7 @@ fn an_inout_parameter_parses_in_the_modifier_slot() {
 #[test]
 fn an_inout_foreach_binding_and_destructuring_leaf_parse() {
     // The two positions `rule:statements/inout-is-written-at-the-call` explicitly leaves alone — neither has a
-    // call site, so for them this ADR is a rename and nothing else.
+    // call site, so for them the rule is a rename and nothing else.
     let s = parse_stmt_ok("foreach ($xs as inout int $v) { }");
     let StmtKind::Foreach {
         key, value_inout, ..

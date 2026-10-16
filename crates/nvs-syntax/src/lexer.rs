@@ -756,7 +756,7 @@ impl<'a> Lexer<'a> {
     /// [`duration::is_duration_char`] — the digits plus the unit letters in
     /// **both** cases — so `30foo` is still an integer followed by an
     /// identifier and gets no duration diagnostic, while `30S` reaches the
-    /// grammar and is told which ADR makes it wrong.
+    /// grammar and is told which rule makes it wrong.
     fn lex_number(&mut self, diags: &mut Diagnostics) {
         let start = self.pos;
         if self.peek() == Some('0') {
@@ -1985,7 +1985,7 @@ mod tests {
         // suffix at all, so `19.99m` is not one decimal token. `rule:types/duration`
         // decides which *kind* of refusal it gets: a duration is recognised
         // only after a plain decimal integer, and a fractional count is that
-        // ADR's own named lexer error (`1.5s`, its § 4), so `19.99m` is
+        // rule's own named lexer error (`1.5s`, its § 4), so `19.99m` is
         // rejected by the duration grammar rather than lexing as two tokens.
         // A suffix outside the unit alphabet still splits in two -- see
         // `a_non_unit_suffix_is_still_an_integer_and_an_identifier`.
@@ -1999,8 +1999,7 @@ mod tests {
 
     #[test]
     fn tainted_is_a_keyword() {
-        // `rule:security/tainted-qualifier`: `tainted` needs a new reserved keyword, landing in
-        // M1's grammar alongside `uint`'s own addition above.
+        // `rule:security/tainted-qualifier`: `tainted` is a reserved keyword, like `uint` above.
         assert_eq!(
             kinds_ok("<?nvs tainted string"),
             vec![
