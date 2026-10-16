@@ -305,10 +305,20 @@ D29, in stages 3, 12, 11 and 8); `bun nv owners` lists them. The extension byte-
 blocks (`rule:packaging/values-cross-as-handles`, `rule:core-classes/image-pipeline`) moved here
 from M9. `bun nv owners --check` accepts a gap owned by a goal further down the chain.
 
+The nightly's failures are triaged. It tested `cb7021a24` because GitHub's `main` stops at
+`e110c9c0b`, and everything after that is unpushed. At `e110c9c0b` lint, supply chain and the Linux
+tests pass. Unpushed commits fix the `docs` job (`69e3ee6a1`), the website (`1eb5fb3a1`), the
+five-driver matrix (`460a68396`) and Windows LDAP (`bad78dd04`). The macOS and Windows test legs ran
+out of their 60 minutes on a cold cache, which a cut-off job never saves, so the limit is now 90
+(`.github/workflows/ci.yml:120`). The `proofs` jobs are proof debt, in the backlog.
+
 ### Next
 
 **Stage 1, the memory-safety bug.** Files: `crates/nvs-runtime/src/object.rs` and its conformance
-cases.
+cases. A declared class's slot classes are already in `ClassDesc::field_classes`
+(`crates/nvs-runtime/src/object.rs:175`). Whether anything at run time carries an `array<T>` slot's
+element class is not checked. Find that first, because a new descriptor field is the slice's real
+cost.
 
 - [ ] `write_erased_property` checks an `array<T>` slot's elements, a shape slot's field classes and a union's class arms before it stores (`rule:types/erased-member-access`). `crates/nvs-runtime/src/object.rs:5224`
 - [ ] A conformance case per write shape, asserting the throw. `docs/rules/types/erased-member-access.md:1`
@@ -317,5 +327,6 @@ cases.
 ### Backlog
 
 - Many module docs still carry numbered or prose "known gap" text with no record; stage 14's scan finds them (`tools/nv/cmd/owners.ts:225`).
+- Proof debt fails CI's `proofs` jobs: perf records gone stale by edits to their implementation files, which `bun nv benches --owed` re-measures, and the `Core\Test\Outcome`/`Summary` proofs (`bun nv proofs --owed`). The user pushes `main`, so the nightly tests the current tree (`.github/workflows/ci.yml:1`).
 - `Markup + Markup` in place is a decision for the user (`docs/perf/performance-pass.md:258`).
 - `rule:packaging/values-cross-as-handles` may be fully built once stage 5 lands; ship it then (`data/rules/packaging/values-cross-as-handles.json`).
