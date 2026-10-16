@@ -35,7 +35,44 @@ import type { Keyed } from "./store.ts";
  * of no file of ours. */
 export type CovLoc = [file: string | null, start: number, end: number];
 
-const COVMAP_DIR = join(CACHE, "select", "covmap");
+export const COVMAP_DIR = join(CACHE, "select", "covmap");
+
+/**
+ * The map files in `dir` no recorder reads again: each `index.json` names for an object that no longer
+ * exists, and each it does not name that nothing has written for `graceHours`. A test program's file name
+ * carries cargo's metadata hash, so a dependency edit makes every test program a new object path, and its
+ * old maps stay until the program they describe is gone. The grace keeps a map written by a recorder
+ * that has not updated the index yet.
+ */
+export function staleMaps(dir: string = COVMAP_DIR, graceHours = 2): string[] {
+  let held: Record<string, string> = {};
+  try {
+    held = JSON.parse(readFileSync(join(dir, "index.json"), "utf8"));
+  } catch {
+    // No index: every map is unnamed, and only the grace keeps one.
+  }
+  const live = new Set<string>();
+  const gone = new Set<string>();
+  for (const [object, cache] of Object.entries(held)) (existsSync(object) ? live : gone).add(cache.split(/[\\/]/).pop()!);
+  let files: string[] = [];
+  try {
+    files = readdirSync(dir);
+  } catch {
+    return [];
+  }
+  const cutoff = Date.now() - graceHours * 3600_000;
+  const doomed: string[] = [];
+  for (const name of files) {
+    if (name === "index.json" || !name.endsWith(".json") || live.has(name)) continue;
+    const path = join(dir, name);
+    try {
+      if (gone.has(name) || statSync(path).mtimeMs < cutoff) doomed.push(path);
+    } catch {
+      // Deleted while listed.
+    }
+  }
+  return doomed.sort();
+}
 
 /** The files of one recorded atom in a record directory. */
 export interface Recorded {
@@ -134,7 +171,8 @@ export interface Original {
 
 /** Name to location for the objects an atom ran, each object's map cached on disk by its path, size and
  * modification time, and the last few in memory under the identity of the file they were read from. A
- * rebuilt object's new map replaces its old one, so the cache holds one map per object path.
+ * rebuilt object's new map replaces its old one, and writing any map deletes the maps of objects that no
+ * longer exist, so the cache holds one map per object path that is still on disk.
  *
  * Another process can rebuild an object while a recorder is open, as a `cargo build` of `target/covws`
  * does to its `nvs`, and a rebuild can name every function differently. So `ensure` checks the file
@@ -188,7 +226,8 @@ export class CovMap {
   }
 
   /** Deletes the map this object had before `cache`, so a rebuild replaces a map rather than adding
-   * one: `index.json` names each object's current map. */
+   * one, and the map of every other object that no longer exists: `index.json` names each object's
+   * current map. */
   private replaced(object: string, cache: string): void {
     const index = join(this.dir, "index.json");
     let held: Record<string, string> = {};
@@ -200,6 +239,11 @@ export class CovMap {
     const was = held[object];
     if (was && was !== cache) rmSync(was, { force: true });
     held[object] = cache;
+    for (const [other, map] of Object.entries(held)) {
+      if (other === object || existsSync(other)) continue;
+      rmSync(map, { force: true });
+      delete held[other];
+    }
     try {
       writeFileSync(index, JSON.stringify(held));
     } catch {

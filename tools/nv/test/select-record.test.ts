@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, utimesSync } from "node:fs";
 import { join } from "node:path";
 import { sinceOverlay } from "../select/change.ts";
-import { CovMap, recordedIn, recordsIn } from "../select/extract.ts";
+import { CovMap, recordedIn, recordsIn, staleMaps } from "../select/extract.ts";
 import { ALL_NAMES, pathKeys, readsKeys, spawnKeys } from "../select/keys.ts";
 import { advance, caseLabels, depInfoPaths, lostBlock, NO_ADVANCE_ENV, recordingOf, Recorder, redReason, unexplainedReds } from "../select/record.ts";
 import { type ChangeSet, query } from "../select/select.ts";
@@ -250,6 +250,41 @@ describe("the readers a recorded run needs", () => {
       load(join(s.root, "obj.bin"), join(dir, "second.json"));
       expect(existsSync(join(dir, "first.json"))).toBe(false);
       expect(JSON.parse(readFileSync(join(dir, "index.json"), "utf8"))[join(s.root, "obj.bin")]).toBe(join(dir, "second.json"));
+    } finally {
+      s.cleanup();
+    }
+  });
+
+  test("writing a map deletes the map of an object that no longer exists", async () => {
+    const s = scratch();
+    try {
+      s.put("old.exe", "one");
+      s.put("new.exe", "two");
+      const dir = join(s.root, "covmap");
+      const cm = new CovMap(dir);
+      const load = (cm as unknown as { replaced(o: string, c: string): void }).replaced.bind(cm);
+      s.put("covmap/old.json", "{}");
+      load(join(s.root, "old.exe"), join(dir, "old.json"));
+      rmSync(join(s.root, "old.exe"));
+      s.put("covmap/new.json", "{}");
+      load(join(s.root, "new.exe"), join(dir, "new.json"));
+      expect(existsSync(join(dir, "old.json"))).toBe(false);
+      expect(Object.keys(JSON.parse(readFileSync(join(dir, "index.json"), "utf8")))).toEqual([join(s.root, "new.exe")]);
+    } finally {
+      s.cleanup();
+    }
+  });
+
+  test("a stale map is one whose object is gone, or one no index names that is past the grace", async () => {
+    const s = scratch();
+    try {
+      s.put("live.exe", "x");
+      const dir = join(s.root, "covmap");
+      for (const f of ["live.json", "gone.json", "unnamed-old.json", "unnamed-new.json"]) s.put(`covmap/${f}`, "{}");
+      const old = Date.now() / 1000 - 5 * 3600;
+      for (const f of ["live.json", "gone.json", "unnamed-old.json"]) utimesSync(join(dir, f), old, old);
+      s.put("covmap/index.json", JSON.stringify({ [join(s.root, "live.exe")]: join(dir, "live.json"), [join(s.root, "gone.exe")]: join(dir, "gone.json") }));
+      expect(staleMaps(dir, 2).map((p) => p.split(/[\\/]/).pop())).toEqual(["gone.json", "unnamed-old.json"]);
     } finally {
       s.cleanup();
     }

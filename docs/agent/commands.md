@@ -677,6 +677,16 @@ few ways at once in those profiles, and every dependency edit leaves one more co
 past the newest few are the orphans. When this was added, release copies of one workspace crate went back
 three weeks, and the rank freed 7 GB of 12. A live copy ranked out costs its own optimized rebuild.
 
+Three more places grow the same way, and `--clean` sweeps each. An extension's `extensions/<name>/target`
+is a workspace of its own, built by a cargo run given its `--manifest-path` or by an editor, and no
+sweep builds it to ask for its live set: every profile there is ranked like `release/deps`
+(`staleExtensions`), and its incremental caches keep the newest per crate. `.cache/select/covmap` holds
+one coverage map per test program, and a program's file name carries the metadata hash, so a
+dependency edit orphans the map of every program it renamed: writing a map deletes the maps of
+programs that are gone, and `--clean` deletes those and any map the index does not name
+(`staleMaps`). Under `.agent-tmp/select-rec` each recorder's directory is judged by its own age,
+because a run that was killed never deletes its own and the shared directory is always new.
+
 Three debug settings are the other half. On windows-msvc the linker copies the debug info of every
 linked object into each binary's PDB, so whatever the workspace carries is written into every test
 binary at once. `[profile.dev.package."*"] debug = 0` took cranelift and wasmtime out of them, and a

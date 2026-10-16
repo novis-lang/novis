@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { existsSync, utimesSync } from "node:fs";
 import { join } from "node:path";
-import { liveKey, liveSet, retiredCovwsProof, staleOptimized, strayProfiles } from "../cmd/disk.ts";
+import { liveKey, liveSet, retiredCovwsProof, staleExtensions, staleOptimized, staleScratch, strayProfiles } from "../cmd/disk.ts";
 import { scratch, type Scratch } from "./scratch.ts";
 
 let tmp: Scratch;
@@ -65,6 +65,43 @@ describe("optimized profiles", () => {
       `release/deps/libnvs_types-${hash(4)}.rlib`,
       `release/deps/nvs_types-${hash(4)}.d`,
     ]);
+  });
+
+  test("an extension's target is ranked in every profile, and its old incremental caches go", () => {
+    tmp = scratch();
+    for (let i = 1; i <= 3; i++) artifact("extensions/pdf/target/debug/deps", [`libnvs_pdf-${hash(i)}.rlib`, `nvs_pdf-${hash(i)}.d`], 10 - i);
+    for (let i = 4; i <= 6; i++) artifact("extensions/pdf/target/wasm32-wasip2/release/deps", [`libnvs_pdf-${hash(i)}.rlib`], 10 - i);
+    artifact("extensions/pdf/target/debug/incremental/nvs_pdf-old/s-1", ["dep-graph.bin"], 5);
+    artifact("extensions/pdf/target/debug/incremental/nvs_pdf-mid/s-1", ["dep-graph.bin"], 4);
+    artifact("extensions/pdf/target/debug/incremental/nvs_pdf-new/s-1", ["dep-graph.bin"], 0);
+    // The newest write is what dates an incremental cache directory.
+    for (const [name, days] of [["old", 5], ["mid", 4], ["new", 0]] as const) {
+      const at = Date.now() / 1000 - days * 86400;
+      utimesSync(join(tmp.root, `extensions/pdf/target/debug/incremental/nvs_pdf-${name}`), at, at);
+    }
+    // A source tree with no target is not looked at.
+    tmp.put("extensions/fonts/a.ttf", "x");
+    expect(rel(staleExtensions(tmp.root, 2, 3, 2, 2))).toEqual([
+      `extensions/pdf/target/debug/deps/libnvs_pdf-${hash(1)}.rlib`,
+      `extensions/pdf/target/debug/deps/nvs_pdf-${hash(1)}.d`,
+      "extensions/pdf/target/debug/incremental/nvs_pdf-old",
+      `extensions/pdf/target/wasm32-wasip2/release/deps/libnvs_pdf-${hash(4)}.rlib`,
+    ]);
+  });
+});
+
+describe("scratch", () => {
+  test("a recorder's directory is judged on its own, and the discard pool and worktrees are never swept", async () => {
+    tmp = scratch();
+    const old = Date.now() / 1000 - 5 * 86400;
+    for (const f of ["select-rec/verify-1/a.profraw", "select-rec/verify-2/a.profraw", "select-rec/discard/nvs-1.profraw", "worktrees/x/a", "old-probe/a"]) {
+      tmp.put(f, "x");
+      utimesSync(join(tmp.root, f), old, old);
+    }
+    tmp.put("select-rec/verify-2/b.profraw", "x");
+    for (const d of ["select-rec/verify-1", "select-rec/verify-2", "old-probe"]) utimesSync(join(tmp.root, d), old, old);
+    const got = (await staleScratch(tmp.root, 2)).map((p) => p.slice(tmp.root.length + 1).replace(/\\/g, "/"));
+    expect(got).toEqual(["old-probe", "select-rec/verify-1"]);
   });
 });
 

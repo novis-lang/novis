@@ -11,9 +11,11 @@
 //
 // Cargo never garbage-collects `target/`. A crate's artifacts are named `<name>-<metadata-hash>`, and
 // the hash covers the dependency graph, so every `Cargo.toml` or `Cargo.lock` edit mints a fresh
-// generation for every crate downstream of it and orphans the previous one. `.loop/logs` and
-// `.agent-tmp` only grow unless something deletes from them. An unattended run that fills the disk dies
-// with the tree half-edited, so a run checks free space before it starts (`MIN_FREE_GB`).
+// generation for every crate downstream of it and orphans the previous one. The same holds for each
+// extension's own `extensions/<name>/target`, and for the coverage maps under `.cache/select/covmap`,
+// one per test program, whose names carry that hash. `.loop/logs` and `.agent-tmp` only grow unless
+// something deletes from them. An unattended run that fills the disk dies with the tree half-edited, so
+// a run checks free space before it starts (`MIN_FREE_GB`).
 //
 // Age alone never condemns anything in `deps/`. Cargo never rewrites an artifact it has decided is
 // fresh, so a superseded generation and a live one can carry the same date. The live set is asked for
@@ -26,11 +28,14 @@
 // under `target/` and under `target/covws` alike. `release/deps` and `proof/deps` cannot be asked, because
 // their live set can only be named by an optimized build, so they are swept by rank (`staleOptimized`):
 // each artifact keeps its newest `KEEP_OPTIMIZED` copies and anything written in the last
-// `OPTIMIZED_GRACE_DAYS`.
+// `OPTIMIZED_GRACE_DAYS`. An extension's target directory is swept by the same rank in every profile,
+// with its incremental caches by the newest-per-crate rule (`staleExtensions`): nothing here builds it
+// the one way a live set could be asked of.
 //
 // `--clean` also deletes what nothing reads any more: a `default_*.profraw` an instrumented binary left
 // at the root or in a package directory (`strayProfiles`), the memo files the selection store replaced
-// (`RETIRED_MEMOS`), and the covws build's `proof` profile (`retiredCovwsProof`).
+// (`RETIRED_MEMOS`), the covws build's `proof` profile (`retiredCovwsProof`), and each coverage map whose
+// program is gone (`staleMaps`).
 //
 // Those cargo runs are nearly all of a sweep's time, so their answer is remembered in
 // `.cache/nv-disk-live.json` under `liveKey`, a hash of everything that decides an artifact's name, and
@@ -63,6 +68,7 @@ import { covwsCargo } from "../lib/covws.ts";
 import { CACHE, OLD, ROOT } from "../lib/paths.ts";
 import { run as runProgram } from "../lib/proc.ts";
 import { pyInt } from "../lib/py.ts";
+import { COVMAP_DIR, staleMaps } from "../select/extract.ts";
 
 export const summary = "what the tree costs on disk, and the sweep: nv disk [--clean [-n]] [--deep]";
 
@@ -71,6 +77,7 @@ const TARGET = join(ROOT, "target");
 const PROOF_PROFILE = "proof";
 const LOGDIR = join(ROOT, ".loop", "logs");
 const SCRATCH = join(ROOT, ".agent-tmp");
+const EXTENSIONS = join(ROOT, "extensions");
 
 /** The live set the last sweep asked cargo for, and the `liveKey` it was asked under. */
 const LIVE_CACHE = join(CACHE, "nv-disk-live.json");
@@ -82,6 +89,13 @@ export const KEEP_RUNS = 5;
 export const SCRATCH_DAYS = 2;
 /** `.agent-tmp/worktrees`: git worktrees, never swept (`pruneScratch`). */
 export const WORKTREES = "worktrees";
+/**
+ * `.agent-tmp` directories every run writes into, each with the entries under it that are never swept.
+ * Their entries are judged one by one, because the directory as a whole is always new. `select-rec` has
+ * one directory per recorder (`select/record.ts`), which `close` deletes unless the run was killed
+ * first. `discard` is `DISCARD_PROFILE`'s pool, which `lib/covws.ts` empties.
+ */
+const SHARED_SCRATCH: Record<string, string[]> = { "select-rec": ["discard"] };
 /** `target/*\/incremental`: cache generations kept per crate. */
 export const KEEP_INCREMENTAL = 2;
 /** Below this, a run does not start: `looper.toml`'s `min_free_gb` and `bun nv side --prepare`. */
@@ -338,21 +352,31 @@ async function pruneLogs(keep: number = KEEP_RUNS, dryRun = false): Promise<numb
 }
 
 /**
- * Delete the `.agent-tmp` entries nothing has written for `days`; returns the bytes freed. By age
- * rather than wholesale, because a person may still be reading the log a session that just exited
- * wrote. `worktrees/` is never swept and never walked: a git worktree is somebody's branch, removed
- * with `git worktree remove` by whoever made it.
+ * The `.agent-tmp` entries nothing has written for `days`, and of each `SHARED_SCRATCH` directory the
+ * entries under it. By age rather than wholesale, because a person may still be reading the log a
+ * session that just exited wrote. `worktrees/` is never swept and never walked: a git worktree is
+ * somebody's branch, removed with `git worktree remove` by whoever made it.
  */
-async function pruneScratch(days: number = SCRATCH_DAYS, dryRun = false): Promise<number> {
-  if (!isDir(SCRATCH)) return 0;
+export async function staleScratch(dir: string = SCRATCH, days: number = SCRATCH_DAYS): Promise<string[]> {
+  if (!isDir(dir)) return [];
   const cutoff = now() - days * 86400;
-  let freed = 0;
-  for (const name of listDir(SCRATCH)) {
+  const doomed: string[] = [];
+  for (const name of listDir(dir)) {
     if (name === WORKTREES) continue;
-    const path = join(SCRATCH, name);
-    const seen = await newest(path);
-    if (seen && seen < cutoff) freed += await rm(path, dryRun);
+    const kept = SHARED_SCRATCH[name];
+    const paths = kept ? listDir(join(dir, name)).filter((n) => !kept.includes(n)).map((n) => join(dir, name, n)) : [join(dir, name)];
+    for (const path of paths) {
+      const seen = await newest(path);
+      if (seen && seen < cutoff) doomed.push(path);
+    }
   }
+  return doomed.sort();
+}
+
+/** Delete `staleScratch`; returns the bytes freed. */
+async function pruneScratch(days: number = SCRATCH_DAYS, dryRun = false): Promise<number> {
+  let freed = 0;
+  for (const path of await staleScratch(SCRATCH, days)) freed += await rm(path, dryRun);
   return freed;
 }
 
@@ -646,10 +670,10 @@ function generations(): { files: number; names: number } {
  * each with its own entry, so the newest `keep` alone would condemn caches still in use. Deleting one
  * costs its crate one non-incremental compile, since nothing under this directory is an output.
  */
-function staleIncremental(keep: number = KEEP_INCREMENTAL, graceHours: number = GRACE_HOURS): string[] {
+function staleIncremental(keep: number = KEEP_INCREMENTAL, graceHours: number = GRACE_HOURS, dirs: string[] = profileDirs("incremental")): string[] {
   const cutoff = now() - graceHours * 3600;
   const doomed: string[] = [];
-  for (const dir of profileDirs("incremental")) {
+  for (const dir of dirs) {
     const groups = new Map<string, string[]>();
     for (const name of listDir(dir)) {
       const cut = name.lastIndexOf("-");
@@ -713,6 +737,49 @@ function rankedOut(dir: string, keep: number, graceDays: number): string[] {
   return doomed;
 }
 
+/**
+ * `extensions/<name>/target`: each extension is a cargo workspace of its own, and a cargo run given its
+ * `--manifest-path`, or an editor opened on it, builds there. The component the binary ships is built
+ * into `target/ext` instead (`crates/nvs-ext/build.rs`).
+ */
+export function extensionTargets(root: string = ROOT): string[] {
+  const dir = join(root, "extensions");
+  return listDir(dir).map((name) => join(dir, name, "target")).filter(isDir);
+}
+
+/** `<target>/<profile>/<sub>` and `<target>/<triple>/<profile>/<sub>` of one cargo target directory. A
+ * directory with a `deps/` of its own is a profile, so only the others are looked into for one. */
+function cargoDirs(target: string, sub: string): string[] {
+  const out: string[] = [];
+  for (const name of listDir(target)) {
+    const at = join(target, name);
+    if (isDir(join(at, sub))) out.push(join(at, sub));
+    else if (!isDir(join(at, "deps"))) for (const profile of listDir(at)) if (isDir(join(at, profile, sub))) out.push(join(at, profile, sub));
+  }
+  return out;
+}
+
+/**
+ * What `--clean` deletes under `extensionTargets`: in each profile's `deps/`, every artifact past the
+ * newest `keep` of its name that nothing has written for `graceDays`, as `staleOptimized` ranks them, and
+ * the incremental caches past the newest `keepIncremental` per crate. No sweep can ask cargo for the live
+ * set, because only a build of each shape somebody ran by hand could name it.
+ */
+export function staleExtensions(
+  root: string = ROOT,
+  keep: number = KEEP_OPTIMIZED,
+  graceDays: number = OPTIMIZED_GRACE_DAYS,
+  keepIncremental: number = KEEP_INCREMENTAL,
+  graceHours: number = GRACE_HOURS,
+): string[] {
+  const doomed: string[] = [];
+  for (const target of extensionTargets(root)) {
+    for (const dir of cargoDirs(target, "deps")) doomed.push(...rankedOut(dir, keep, graceDays));
+    doomed.push(...staleIncremental(keepIncremental, graceHours, cargoDirs(target, "incremental")));
+  }
+  return doomed.sort();
+}
+
 export interface CleanOptions {
   keepRuns?: number;
   scratchDays?: number;
@@ -743,6 +810,10 @@ export async function clean(opts: CleanOptions = {}): Promise<Record<string, num
   for (const p of staleIncremental(opts.keepIncremental ?? KEEP_INCREMENTAL, grace)) incremental += await rm(p, dryRun);
   let optimized = 0;
   for (const p of staleOptimized()) optimized += await rm(p, dryRun);
+  let extensions = 0;
+  for (const p of staleExtensions(ROOT, KEEP_OPTIMIZED, OPTIMIZED_GRACE_DAYS, opts.keepIncremental ?? KEEP_INCREMENTAL, grace)) extensions += await rm(p, dryRun);
+  let maps = 0;
+  for (const p of staleMaps(COVMAP_DIR, grace)) maps += await rm(p, dryRun);
   for (const p of strayProfiles()) leftovers += await rm(p, dryRun);
   for (const p of RETIRED_MEMOS) if (existsSync(join(ROOT, p))) leftovers += await rm(join(ROOT, p), dryRun);
   return {
@@ -751,6 +822,8 @@ export async function clean(opts: CleanOptions = {}): Promise<Record<string, num
     "target/deps": deps,
     "target/incremental": incremental,
     "target/optimized": optimized,
+    "extensions/*/target": extensions,
+    "coverage maps": maps,
     "leftovers": leftovers,
   };
 }
@@ -776,7 +849,13 @@ async function report(deep: boolean): Promise<void> {
   console.log(`free on ${drive}  ${fixed(freeGb(), 1)}G   (a loop run does not start below ${MIN_FREE_GB}G)`);
   console.log();
 
-  const [target, logs, scratchDir] = await Promise.all([walk(TARGET), walk(LOGDIR), walk(SCRATCH)]);
+  const [target, logs, scratchDir, extensions, covmap] = await Promise.all([
+    walk(TARGET),
+    walk(LOGDIR),
+    walk(SCRATCH),
+    walk(EXTENSIONS),
+    walk(COVMAP_DIR),
+  ]);
   const { files, names } = generations();
 
   // Both incremental figures come from the one walk of `target/`: under it, a cache file's path is
@@ -817,9 +896,21 @@ async function report(deep: boolean): Promise<void> {
     `  target/${PROOF_PROFILE}/ ${human(proof).padStart(8)}   ` +
       `the proof binary's build, which nv proofs runs -- counted in target/ above`,
   );
+  const bytes = (paths: string[]) => paths.reduce((sum, p) => sum + Number(stat(p)?.size ?? 0), 0);
+  let staleExt = 0;
+  for (const p of staleExtensions()) staleExt += isDir(p) ? (await walk(p)).total : Number(stat(p)?.size ?? 0);
+  console.log(
+    `  extensions/   ${human(extensions.total).padStart(8)}   */target: ${human(staleExt)} is past the newest ` +
+      `${KEEP_OPTIMIZED} copies per artifact or ${KEEP_INCREMENTAL} incremental caches per crate`,
+  );
+  console.log(
+    `  coverage maps ${human(covmap.total).padStart(8)}   .cache/select/covmap: ${human(bytes(staleMaps(COVMAP_DIR)))} ` +
+      `is maps of programs that are gone`,
+  );
   console.log(`  .loop/logs    ${human(logs.total).padStart(8)}   kept: newest ${KEEP_RUNS} runs -- swept after every loop session`);
   console.log(
-    `  .agent-tmp    ${human(scratchDir.total).padStart(8)}   kept: written within ${SCRATCH_DAYS}d -- swept after every loop session`,
+    `  .agent-tmp    ${human(scratchDir.total).padStart(8)}   kept: written within ${SCRATCH_DAYS}d, ` +
+      `each recorder's directory judged on its own -- swept after every loop session`,
   );
   console.log();
 
