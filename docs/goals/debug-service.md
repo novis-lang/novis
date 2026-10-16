@@ -88,10 +88,13 @@ the ingester half; the listener, its port and the browser UI are `debug-viewer`'
 
 **The spool records request input and the response, bounded and redacted.** The user decided this.
 With `[debug] store` on, each development request's method, path, query, headers and body, up to
-`[limits] request_body`, and its response's status, headers and body, up to `[limits] max_output`, go
-to the spool, with `Authorization`, `Cookie`, `Set-Cookie` and `Proxy-Authorization` values replaced.
-A test made from a recorded request asserts the status, key headers and the body, and the viewer's
-compare view diffs two responses. `rule:testing/a-recorded-request-keeps-its-input-with-credentials-replaced`
+`[limits] request_body`, and its response's status, headers and body, go to the spool, with
+`Authorization`, `Cookie`, `Set-Cookie` and `Proxy-Authorization` values replaced. The response body
+is capped at the same `[limits] request_body`, because `max_output` has no default cap: a longer body
+is cut at the cap with a marker, it is written through to the spool file and never held whole in
+memory, and no new limit is added. The planning session made that call. A test made from a recorded
+request asserts the status, key headers and the body, only the status and headers when the body was
+cut, and the viewer's compare view diffs two responses. `rule:testing/a-recorded-request-keeps-its-input-with-credentials-replaced`
 holds it.
 
 **A `secret` field of a decoded body is replaced.** The user decided this. When the handler decodes the
@@ -172,11 +175,11 @@ headers never reach the disk.
 
 - [ ] A `request` line at the request's end, from both completion paths: method, route, path, status, duration, counts, and the uncaught exception's class, message and throw site. `crates/nvs-server/src/serve.rs:1346`, `crates/nvs-server/src/serve.rs:2113`
 - [ ] In `development`, the input: the head from `Inbound` with the four headers replaced by `[redacted]`, and the body chunks the program pulled, up to `request_body` (`rule:testing/a-recorded-request-keeps-its-input-with-credentials-replaced`). `crates/nvs-runtime/src/ctx/inbound.rs:157`, `crates/nvs-server/src/body.rs:261`
-- [ ] In `development`, the response: its status, its headers with the four replaced, and the bytes written, up to `max_output`.
+- [ ] In `development`, the response: its status, its headers with the four replaced, and the bytes written, written through to the spool file up to `request_body` and cut there with a marker.
 - [ ] A body decoded by `jsonAs<X>()` or `postAs<X>()` is stored with each field that lands in a `secret` property of `X` replaced by `[redacted]`. `crates/nvs-stdlib/src/request.rs:3098`, `crates/nvs-stdlib/src/request.rs:2583`
 - [ ] `event` lines for the span events, a `query` event with its driver, SQL, rows and its call site id when it has one, and never a parameter (`rule:observability/a-query-is-a-trace-event`). `crates/nvs-db/src/span.rs:91-112`
 - [ ] `dump` lines with the bounded tree (`rule:errors/record-transformations`) and `log` lines for the request's log records, a `secret` redacted in both. `crates/nvs-stdlib/src/debug.rs:311`, `crates/nvs-runtime/src/ctx/output.rs` (`write_log_record`)
-- [ ] Tests: a request with each header shows `[redacted]` and no byte of the value in the file, a `secret` field decoded by `jsonAs<X>()` leaves no byte of its value in the file, an unread body is recorded as not read, a body past `request_body` is cut and says so, and a production request records its outcome, events and dumps and no header or body.
+- [ ] Tests: a request with each header shows `[redacted]` and no byte of the value in the file, a `secret` field decoded by `jsonAs<X>()` leaves no byte of its value in the file, an unread body is recorded as not read, a request body and a response body past `request_body` are each cut and say so, and a production request records its outcome, events and dumps and no header or body.
 
 ### 4. `nvs debug` ingests sealed spool files into the index
 

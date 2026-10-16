@@ -1972,7 +1972,7 @@ directory, and the same property makes the service a viewer for a copied-down sp
 
 With `[debug] store` on, a request served in `development` records its method, path, query, headers and
 the body bytes the program read, up to `[limits] request_body`, and its response's status, headers and
-body, up to `[limits] max_output`. Before the record is written, the values of `Authorization`,
+body, up to the same `[limits] request_body`. Before the record is written, the values of `Authorization`,
 `Cookie`, `Set-Cookie` and `Proxy-Authorization` are replaced with `[redacted]` in the request and the
 response alike, and so is every body field the program decoded into a `secret` property. In
 `production` the record holds the request's outcome, and its trace events and dumps are recorded as in
@@ -1985,6 +1985,11 @@ because they carry a credential in every application, and a replayed request mus
 person who sent the original. A header's name stays, so a compare shows that one was sent. The
 response is what a test made from the record asserts: its status, its key headers and its body, a
 JSON body compared structurally, and what the viewer's compare view diffs between two requests.
+
+**The response body is capped at `request_body`.** `max_output` has no default cap, so it cannot bound
+a record, and the request body's own cap already exists. A longer response body is cut at the cap with
+a marker, and a test made from that record asserts only the status and the headers. The body is
+written through to the spool file as the program writes it, so it is never held whole in memory.
 
 **The body is what the program read.** The server streams a body to the program one chunk at a time
 and reads nothing the program did not ask for (`crates/nvs-server/src/body.rs`), and recording does not
@@ -2002,9 +2007,9 @@ arrived, so a password in a development login form read as raw bytes is on disk 
 it ([`testing/the-debug-index-holds-what-the-viewer-reads-for-a-bounded-time`](testing.md#testing-the-debug-index-holds-what-the-viewer-reads-for-a-bounded-time)), in a directory only
 the service's account can open. The `nvs debug` reference page says so.
 
-- **Memory:** per recorded request, the bytes the program read, up to `request_body`, and the response
-  bytes it wrote, up to `max_output`, held until the request's record is written at its end. A request
-  with the gate off holds nothing more.
+- **Memory:** per recorded request, the bytes the program read, up to `request_body`, held until the
+  request's record is written at its end. The response body is written through to the spool, so it
+  adds one write's bytes at a time. A request with the gate off holds nothing more.
 
 **Declined:**
 - **Recording input or a response body in production.** A production request's body is a customer's
