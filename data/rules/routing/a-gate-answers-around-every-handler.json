@@ -16,6 +16,5 @@
     "tests/conformance/core/router-dispatch-discards-a-handlers-return-value.nvst",
     "crates/nvs-types/tests/routes.rs",
     "crates/nvs-cli/tests/gate.rs"
-  ],
-  "goal": "route-dispatch"
+  ]
 }
