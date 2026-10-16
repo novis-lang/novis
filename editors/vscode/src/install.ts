@@ -271,7 +271,7 @@ async function body(transport: Transport, url: string, file: string): Promise<Ui
     answer = await transport(url);
   } catch (cause) {
     const why = cause instanceof Error ? cause.message : String(cause);
-    throw new Error(`${file} could not be downloaded from ${url}: ${why}`);
+    throw new Error(`${file} could not be downloaded from ${url}: ${why}`, { cause });
   }
   if (answer.status !== 200) {
     throw new Error(`${file} could not be downloaded from ${url}: the server answered ${answer.status}.`);
