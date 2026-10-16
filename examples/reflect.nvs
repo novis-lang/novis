@@ -20,9 +20,7 @@
 // **A parsed AST is inert typed data**, with no path back into execution.
 // `Core\Ast::parse` reads source code and does not run it. Novis has no
 // `eval`, and this function does not add one.
-//
-// The five lines this prints are frozen by an exact check in a goal record
-// under `data/goals/`; the source is not.
+
 
 class Point
 {

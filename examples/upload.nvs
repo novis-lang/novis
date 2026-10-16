@@ -12,8 +12,8 @@
 // nothing is inbound here, so the walk refuses rather than yielding parts. The
 // end-to-end half -- a real multipart body, its two parts, and a large one
 // received at bounded resident memory against a high-water mark -- is
-// `crates/nvs-server`'s own suite, which m7.md names as the uploads' fixture
-// list. This leg is the surface a handler writes, run to the point where the
+// `crates/nvs-server`'s own suite. This program is the surface a handler
+// writes, run to the point where the
 // absence of a request stops it.
 //
 // The grant this needs is in `nvs.toml`, keyed on this entry, for the reason

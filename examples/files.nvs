@@ -14,9 +14,7 @@
 // path says nothing about where it ended up. The two `within` lines are one
 // bound asserted on both sides: the name that stays inside the base, and
 // the first one that escapes it.
-//
-// The seven lines this prints are frozen by an exact check in a goal record
-// under `data/goals/`; the source is not.
+
 
 // A directory this program owns, so the fixture leaves nothing behind.
 string $dir = Core\IO::temporaryDir();

@@ -22,9 +22,7 @@
 // two tables. `workers = 2` is written there on purpose: SQLite admits one
 // writer, so a second worker waits out the busy timeout rather than claiming in
 // parallel, and `both ran` below is the assertion that waiting is what it does.
-//
-// The five lines this prints are frozen by an exact check in a goal record
-// under `data/goals/`; the source is not.
+
 
 use Core\Queue;
 

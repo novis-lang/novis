@@ -7,11 +7,9 @@
 autoload 'App' from './commands';
 
 // § 6's own readers of the table are `Core\Command::run`, `::help` and
-// `::completions`. `run` dispatches and is out of this goal's scope, and the
-// other two answer a `Core\Cli\Text`, which carries no member until M8
-// (`crates/nvs-stdlib/src/out.rs`) — so this program reads the table's
-// *classes* through the enumeration the table is itself built from, and asks
-// each for the usage line its `#[Command]` declares.
+// `::completions`. This program reads the table's *classes* through the
+// enumeration the table is itself built from, and asks each for the usage
+// line its `#[Command]` declares.
 //
 // That is what makes this fixture assert something rather than echo three
 // frozen strings: the enumeration is what parses and checks the two

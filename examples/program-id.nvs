@@ -17,9 +17,7 @@
 // of the answer, and that it does not move while the program runs. The id is
 // computed once when the program loads, and again only when a changed file is
 // reloaded. Nothing here recomputes, caches or shortens anything.
-//
-// The two lines this prints are frozen by an exact check in a goal record
-// under `data/goals/`; the source is not.
+
 
 string $id = Core\Program::id();
 
