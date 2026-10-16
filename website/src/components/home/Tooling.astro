@@ -1,8 +1,9 @@
 ---
 /**
  * The tools: a terminal-style card that lists the `nvs` commands, each row a
- * link to its reference page, beside a snippet with a test passed in the
- * default slot. The card is dark in both themes, like a terminal.
+ * link to its reference page, with the text about tests under it, beside a
+ * snippet with a test passed in the default slot. The card is dark in both
+ * themes, like a terminal.
  */
 import { Icon } from '@astrojs/starlight/components'
 import Section from './Section.astro'
@@ -72,10 +73,13 @@ const commands = [
           </p>
         </div>
       </div>
-      <slot />
       <a class="nv-more" href={withBase('/guides/why-novis/tests-in-code/')}>
         Tests in the language <Icon name="right-arrow" size="1rem" />
       </a>
+    </div>
+
+    <div class="code nv-reveal">
+      <slot />
     </div>
   </div>
 </Section>
@@ -86,9 +90,26 @@ const commands = [
     gap: var(--nv-space-6);
     align-items: start;
   }
+  /* From 64rem the commands and the text about tests share the first
+     column, and the test's code has the second to itself. */
   @media (min-width: 64rem) {
     .layout {
-      grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+      grid-template-rows: auto 1fr;
+      grid-template-areas:
+        'terminal code'
+        'tests code';
+      column-gap: var(--nv-space-6);
+      row-gap: var(--nv-space-5);
+    }
+    .terminal {
+      grid-area: terminal;
+    }
+    .tests {
+      grid-area: tests;
+    }
+    .code {
+      grid-area: code;
     }
   }
 
@@ -205,10 +226,16 @@ const commands = [
     line-height: 1.65;
     color: var(--sl-color-gray-2);
   }
-  .tests :global(.expressive-code) {
+  .tests .nv-more {
+    align-self: flex-start;
+  }
+  .code {
+    min-width: 0;
+  }
+  .code :global(.expressive-code) {
     margin: 0;
   }
-  .tests :global(.expressive-code + .expressive-code) {
+  .code :global(.expressive-code + .expressive-code) {
     margin-top: var(--nv-space-2);
   }
 </style>
