@@ -7,5 +7,5 @@
     "testing/report-formats"
   ],
   "guardedBy": [],
-  "milestone": "M10"
+  "goal": "trace-timeline"
 }

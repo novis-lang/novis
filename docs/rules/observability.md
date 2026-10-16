@@ -656,25 +656,37 @@ manifests are read again before concluding either way.
 
 <a id="observability-speedscope-timeline-export"></a>
 
-## The four event kinds export as one speedscope evented timeline, beside Callgrind, Clover/lcov and NDJSON  *(designed — owned by M10)*
+## The profiler's speedscope export is one evented timeline of every trace event kind, beside its Callgrind export  *(designed — owned by goal trace-timeline)*
 
 `rule:observability/speedscope-timeline-export`
 
-A `TRACE`-flagged run exports its `call`, `gc`, `spawn` and `query` events as speedscope's
-evented-profile JSON — open/close pairs at a timestamp, which is exactly what the trace already holds.
-speedscope.app opens the file as one scrollable timeline with all four kinds on it, and a spawned
-child's events nested under its parent's `spawn` bar.
+`nvs run --profile=speedscope` and `nvs test --profile=speedscope` write the run's trace events, of
+every kind [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind) names, as speedscope's evented-profile JSON:
+an open and a close at a time on the run's one monotonic clock, which is what each trace event carries.
+speedscope opens the file as one scrollable timeline with every kind on it, and a spawned child's events
+nest under its parent's `spawn` bar.
 
-This is an **additional** export, not a replacement: Callgrind for the aggregate profile, Clover and
-lcov for coverage, and Novis-native NDJSON for the raw trace stay as [`testing/debug-surface`](testing.md#testing-debug-surface)
-lists them. It reuses the one open format the sampling profiler already commits to rather than
-adding a second timeline format with a bespoke viewer to build and maintain.
+It is one of the profiler's two exports. Novis has one profiler, the probe-based one
+[`testing/debug-surface`](testing.md#testing-debug-surface) describes, and `--profile=callgrind` is its other export: self and
+inclusive time per function, for KCachegrind and Webgrind. The timeline shows the order things happened
+in, and Callgrind shows where the time went in total. Both are written from the same probe events, so
+the two files describe one run. Clover and lcov for coverage and the newline-delimited JSON trace stay
+as [`testing/debug-surface`](testing.md#testing-debug-surface) lists them.
 
-The NDJSON trace remains the format no third-party tool reads; this export closes that gap for
-visualisation, and for nothing else. The exact CLI flag that selects it is left to the exporter's
-implementation, the same way the Clover and lcov shapes were.
+The probe pair costs time at every call, so call-heavy code reads slower in a profile than it runs
+unmeasured. The profiler's help text and its `about.md` say so in one sentence, because a reader who
+does not know it will optimise the call overhead the probe added.
 
-**Not on disk.** No exporter writes speedscope's evented format.
+- **Memory:** the export streams to its file as events close, through the sink
+  [`testing/debug-surface`](testing.md#testing-debug-surface) names. A run holds one open entry per call frame in flight and one name
+  per distinct function, so the file grows with the run and the process does not.
+
+**Declined:**
+- **A sampling profiler beside the probe-based one.** It needs a timer that interrupts compiled code and
+  a walk of native frames on every target, which is a second profiler with platform code of its own. The
+  probe-based profiler already times every call, and its one distortion is stated where a reader meets it.
+- **A Novis timeline format with a viewer of its own.** speedscope's format is open and its viewer is
+  maintained elsewhere ([`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has)).
 
 <sub>See also [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind), [`testing/debug-surface`](testing.md#testing-debug-surface).</sub>
 

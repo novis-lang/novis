@@ -1688,7 +1688,7 @@ collect coverage, and the two are independent mechanisms.
 
 <a id="testing-debug-surface"></a>
 
-## Each probe starts and stops mid-request, and exports what existing tooling already reads  *(designed — owned by M10)*
+## Each probe starts and stops mid-request, and exports what existing tooling already reads  *(designed — owned by goal trace-timeline)*
 
 `rule:testing/debug-surface`
 
@@ -1697,15 +1697,18 @@ half, a trace to a named sink, a profile to another — and reads coverage back 
 count map. `nvs test` and `nvs run` grow flags that wrap a whole run in those calls with no source
 change at all, which is the ergonomics CI uses day to day.
 
-What comes out is what existing tooling already reads: Clover and lcov for coverage, Callgrind for
-the profile. The trace is newline-delimited JSON, because no third-party tooling widely consumes any
-trace format either. A coverage report opens in the CI dashboard a project already has configured,
-and a profile opens in KCachegrind or Webgrind unmodified, so there is no client to write. The price
-is three exporters to keep correct instead of one, and a low barrier to entry is worth it.
+What comes out is what existing tooling already reads: Clover and lcov for coverage, Callgrind and
+speedscope for the profile. The trace is newline-delimited JSON, because no third-party tooling widely
+consumes any trace format either. A coverage report opens in the CI dashboard a project already has
+configured, and a profile opens in KCachegrind, Webgrind or speedscope unmodified, so there is no client
+to write. The price is four exporters to keep correct instead of one, and a low barrier to entry is
+worth it.
 
-The profiler is deterministic: it times every call and attributes exact self and inclusive time per
-function. A sampling profiler answers a different question, a low-overhead view affordable in
-production, and the two stay separate tools.
+**There is one profiler, and it is deterministic.** The call probe pair times every call and attributes
+exact self and inclusive time per function. `--profile=callgrind` writes the totals and
+`--profile=speedscope` the timeline ([`observability/speedscope-timeline-export`](observability.md#observability-speedscope-timeline-export)), on `nvs run` and
+`nvs test` alike. The probe adds its own cost to every call, so call-heavy code reads slower in a
+profile than it runs, and the profiler's docs say so. Novis builds no sampling profiler.
 
 - **Memory:** line and branch counters are bounded by the code a request touches, not by how often a
   loop iterates, so they live in the request's arena and are dropped with it. Trace and profile data
@@ -1719,10 +1722,14 @@ copy-out rule a value, an error and a usage figure already use.
 **Not on disk.** The probe bits exist (`crates/nvs-runtime/src/ctx/mod.rs:287`), and `nvs test` writes
 lcov, Clover and Cobertura coverage (`crates/nvs-cli/src/main.rs:617`,
 `crates/nvs-cli/src/coverage.rs`). `Core\Debug` has no start, stop or coverage read-back
-(`crates/nvs-stdlib/src/debug.rs:117`), there is no Callgrind exporter and no streamed trace sink, `nvs
-run` has no probe flags, and a spawned isolate's probe data does not come back on its result.
+(`crates/nvs-stdlib/src/debug.rs:117`), there is no Callgrind or speedscope exporter and no streamed
+trace sink, `nvs run` has no probe flags, and a spawned isolate's probe data does not come back on its
+result.
 
 **Declined:**
+- **A sampling profiler.** It would interrupt compiled code on a timer and walk native frames on every
+  target, a second profiler with platform code of its own, to remove a distortion the probe-based one
+  states instead ([`observability/speedscope-timeline-export`](observability.md#observability-speedscope-timeline-export)).
 - **A Novis-native coverage and profile format with a converter.** Both already have dominant
   consumers, and a conversion step is friction for every project that uses them.
 - **Xdebug's own trace-file format.** Nothing beyond Xdebug's own tooling reads it widely, so

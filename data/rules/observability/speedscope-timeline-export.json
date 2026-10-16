@@ -1,10 +1,10 @@
 {
-  "title": "The four event kinds export as one speedscope evented timeline, beside Callgrind, Clover/lcov and NDJSON",
+  "title": "The profiler's speedscope export is one evented timeline of every trace event kind, beside its Callgrind export",
   "status": "designed",
   "seeAlso": [
     "observability/trace-events-carry-a-kind",
     "testing/debug-surface"
   ],
   "guardedBy": [],
-  "milestone": "M10"
+  "goal": "trace-timeline"
 }
