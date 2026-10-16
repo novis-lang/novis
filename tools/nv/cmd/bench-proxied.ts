@@ -346,7 +346,7 @@ async function main(o: Options): Promise<number> {
     console.log("  bringing up nginx in front of it ...");
     up(PHP_STACK, phpEnv, "nginx");
     bodies.set("nginx -> php-fpm", await httpBody(PHP_NGINX_PORT));
-    arms["nginx-php-fpm"] = ohaArm(PHP_STACK, "http://nginx/", o, phpEnv, "nginx-php-fpm", "nginx -> php-fpm", "PHP 8.5.9 FPM with opcache and tracing JIT");
+    arms["nginx-php-fpm"] = ohaArm(PHP_STACK, "http://nginx/", o, phpEnv, "nginx-php-fpm", "nginx -> php-fpm", "PHP 8.5.11 FPM with opcache and tracing JIT");
   } catch (e) {
     throw new Fail(`${messageOf(e)}\nphp said:\n${logsOf(PHP_STACK, "php")}`);
   } finally {
@@ -451,7 +451,7 @@ async function main(o: Options): Promise<number> {
     ratio_origin: round(origin, 4),
     caveats,
     arms,
-    images: { php: "php:8.5.9-fpm", nginx: "nginx:1.29.3-alpine", oha: "ghcr.io/hatoo/oha@sha256:3ec3dbf5" },
+    images: { php: "php:8.5.11-fpm", nginx: "nginx:1.29.3-alpine", oha: "ghcr.io/hatoo/oha@sha256:3ec3dbf5" },
     php_ini: effectivePhp(),
     config_digests: digests(),
     nvs_source: o.nvsBin !== null ? "prebuilt" : "built from this checkout",

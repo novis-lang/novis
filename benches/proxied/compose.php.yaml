@@ -11,10 +11,10 @@
 name: nvs-bench-php
 
 services:
-  # PHP 8.5.9, matching the `php.exe` on this machine's PATH to the patch so the two legs of this
+  # PHP 8.5.11, matching the `php.exe` on this machine's PATH to the patch so the two legs of this
   # repository's benchmarking are measuring one PHP rather than two.
   php:
-    image: php:8.5.9-fpm
+    image: php:8.5.11-fpm
 
     # The budget the whole comparison rests on, and the same number `compose.nvs.yaml` gives
     # `nvs serve` (README § *The CPU budget, and the two arms*): one cpu in the fair arm, and
