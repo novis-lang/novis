@@ -1014,7 +1014,7 @@ the two rewrites [`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows
 
 <a id="ide-no-refactoring-introduces-an-alias"></a>
 
-## Rename, organize-imports and auto-import never write a `use` alias: an import inserts the fully-qualified name, and organize-imports only reorders and removes  *(designed — owned by M10)*
+## Rename, organize-imports and auto-import never write a `use` alias: an import inserts the fully-qualified name, and organize-imports only reorders and removes  *(designed — owned by goal editor-refactors)*
 
 `rule:ide/no-refactoring-introduces-an-alias`
 
