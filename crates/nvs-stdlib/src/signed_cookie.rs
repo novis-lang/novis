@@ -318,8 +318,8 @@ mod tests {
 
     use super::*;
 
-    /// Stage 4's cookie check — `rule:security/protocol-roster`'s first bullet and its M8
-    /// verification line, which asks for three things in one breath: a round
+    /// The cookie check — `rule:security/protocol-roster`'s first bullet, which
+    /// asks for three things in one breath: a round
     /// trip, a tampered cookie refused, and a cookie under a rotated-out key
     /// still opening while new ones use the newest.
     ///

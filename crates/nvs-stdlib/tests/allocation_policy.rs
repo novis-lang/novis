@@ -12,8 +12,7 @@
 //! the failure mode the test exists for. A copy is easy to add and impossible
 //! to notice, so the invariant is checked at the source rather than left to
 //! review: `nvs_runtime::affordable` is the only place a size becomes a
-//! refusal, and it is where `[limits.hard]` attaches when the M6 arena carries
-//! it (`rule:programs/memory-priority`).
+//! refusal (`rule:programs/memory-priority`).
 //!
 //! The last two are `docs/perf/userland-gap.md` § D, and they are measured
 //! here rather than from compiled code because the member is where the

@@ -130,8 +130,8 @@
 //! `a[]=1&a[]=2` builds a list, `a[b]=c` builds a map, and the two nest to any
 //! depth. That is not a URL-specification feature — RFC 3986 says a query is
 //! opaque text — but it is how every PHP form posts, so the spec adopts it in
-//! full, and `Core\Request::query` will answer the same shape from this same
-//! code at M8 rather than deciding the question twice.
+//! full, and `Core\Request::query` returns the same shape from this same
+//! code rather than deciding the question twice.
 //!
 //! The shape is what makes the return type `array<mixed>`: a value is a
 //! `string` **or** a nested `array<mixed>`, and no more precise element type

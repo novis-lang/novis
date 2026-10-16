@@ -3,7 +3,7 @@
 //! `rule:core-classes/db-drivers-are-an-enum`
 //! decides that this is an `enum` and not a `Driver` trait, for three reasons
 //! in this project's priority order: the set is **closed** (`rule:core-classes/db-one-api` makes
-//! a new backend an ADR rather than a plugin, and wasm extensions cannot host
+//! a new backend a change to Novis itself rather than a plugin, and wasm extensions cannot host
 //! one anyway, so open-set extensibility is the one property a trait buys and
 //! this design does not want it); a trait wide enough for every driver would be
 //! half `unimplemented!()`, since `executeMany` is one prepare and N executions

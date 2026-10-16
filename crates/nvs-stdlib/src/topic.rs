@@ -95,7 +95,8 @@
 //! inside one, by which point the row holds no [`Weak`] left to free. What
 //! stays unattributed is that header — two words and a refcount pair per dead
 //! subscription, O(live connections) — and charging its release to the request
-//! that allocated it needs the per-request provenance M6's arena is what gives.
+//! that allocated it needs per-request provenance on the allocation, and a
+//! request has no arena of its own to give it.
 //!
 //! # Decision: a publisher needs no connection, and is not excluded from its own topic
 //!

@@ -66,8 +66,9 @@
 //! the one way to run another program, so every child is an exec that replaces
 //! this generator along with the rest of the image, and
 //! `rule:packaging/a-service-is-one-stored-argv`'s `run` is the service
-//! manager's own entry point into a fresh process — M7's plan writes a
-//! `Type=notify` unit, which is the systemd type that does not daemonize.
+//! manager's own entry point into a fresh process — `nvs-cli`'s `service`
+//! module renders a `Type=notify` unit, which is the systemd type that does not
+//! daemonize.
 //! Should a pre-fork model ever land, it owes `ThreadRng::reseed` in the child.
 //!
 //! # Reproducibility is a declared seed or a separate type, never this class

@@ -3,7 +3,7 @@
 //! The decoder is constructed, which parses the header and the metadata segments before the pixel
 //! data, and is dropped before it reads further. Two fields are not read yet and carry a fixed
 //! value: `frames` is `1`, and `exif` is `None`. The EXIF reader and the animation frame count
-//! are later slices of goal `ext-image`. An SVG document is parsed whole, because its size is
+//! are milestone M17's (`docs/plan/m17.md`). An SVG document is parsed whole, because its size is
 //! computed from its root element's attributes, and nothing is drawn.
 
 use std::io::Cursor;

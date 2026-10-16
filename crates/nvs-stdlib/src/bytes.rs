@@ -71,8 +71,8 @@
 //!   what a sniffing loop is.
 //! - **`compare` answers `int`, negative/zero/positive, never a `bool`.** It
 //!   is `memcmp`'s question and PHP's `strcmp`'s: lexicographic over unsigned
-//!   octets. `Core\Str` has no `compare` yet, and when it grows one it takes
-//!   this shape over its own unit. This is *not* the `==` operator
+//!   octets. `Core\Str::compare` has the same shape over its own unit. This
+//!   is *not* the `==` operator
 //!   (`rule:expressions/one-equality-operator`),
 //!   which already compares two `bytes` for equality and is what a program
 //!   should write when that is the question; `compare` exists for the ordering
@@ -709,8 +709,7 @@ fn count(value: &Value, member: &str, position: &str) -> Result<usize, Fault> {
 
 /// [`nvs_runtime::affordable`] with this class's name already on the message.
 ///
-/// That function's own docs own why the check lives there rather than here,
-/// and what it will grow into once the M6 arena carries `[limits.hard]`.
+/// That function's own docs own why the check lives there rather than here.
 fn affordable(bytes: Option<usize>, member: &str) -> Result<usize, Fault> {
     nvs_runtime::affordable(bytes, &format!("Core\\Bytes::{member}"))
 }

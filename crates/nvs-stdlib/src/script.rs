@@ -71,11 +71,10 @@
 //! the moment the drain is over. `Ctx::exit_hooks` is the home of the first
 //! half.
 //!
-//! `Core\Script` itself lands in this module beside its handle, the way
-//! `Core\Task` and `Core\Task\Channel<T>` already sit together under
+//! `Core\Script` itself is in this module beside its handle, the way
+//! `Core\Task` and `Core\Task\Channel<T>` sit together under
 //! `rule:classes/no-free-functions-or-constants`.
-//! [`CLASS`] is that class; `args()` is its one row so far, and the
-//! `valueOrThrow($result)` that a shape cannot carry as a method is still owed.
+//! [`CLASS`] is that class, and `args()` is its one row.
 //!
 //! # `args()` answers `mixed`, and `null` for a script nobody spawned
 //!

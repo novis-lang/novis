@@ -23,12 +23,11 @@
 //! HMAC-SHA-1 evaluations per [`check`], all of them always — the loop does not
 //! stop at a match, which is the module's *constant time* section.
 //!
-//! # "No replay" is a counter, because there is no store in this goal
+//! # "No replay" is a counter the caller keeps
 //!
 //! Refusing a replayed code needs to remember the last code accepted, and
 //! remembering across requests is `rule:concurrency/cross-request-state-is-explicit`'s
-//! `Core\Cache`, which is a later stage. That is not why the design is this
-//! shape, though — it is the right shape regardless. [`check`] answers **the
+//! `Core\Cache`, which the caller owns. [`check`] answers **the
 //! step the code belonged to**, and takes the last step already accepted as
 //! `$after`, refusing anything at or below it.
 //!

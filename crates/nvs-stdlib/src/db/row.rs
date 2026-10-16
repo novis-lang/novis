@@ -122,10 +122,8 @@ pub(super) fn row_object(
 ///
 /// # Errors
 ///
-/// A `ParseError` carrying every bad column at once — `ParseError` rather than
-/// `rule:core-classes/db-error`'s `DbError` because this module's known gap 2 is that the latter is not
-/// in spec § 10's tree, and because `issues` is a property only the former
-/// declares. A class that took neither door — no `#[Db\Derive]` and no
+/// A `ParseError` carrying every bad column at once in its `issues`. A class
+/// that took neither door — no `#[Db\Derive]` and no
 /// `fromRow` — is a `LogicError` instead: it is the program's mistake rather
 /// than the row's, and `nvs_types::derive`'s `check_row_sites` says it as
 /// `E0806` while compiling — what stays here is the backstop for a class built

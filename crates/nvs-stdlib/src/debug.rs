@@ -301,7 +301,7 @@ pub(crate) fn node(value: Value) -> Node {
 }
 
 /// `rule:errors/record-producers`'s *"a record at `Debug`, one node per argument"* — the whole
-/// of what `dump` produces, and the shape M8's log record is built from too.
+/// of what `dump` produces.
 ///
 /// `source` is where the call was written, in the argument order the ABI hands
 /// it over in: on the envelope rather than among the nodes, because
@@ -443,7 +443,7 @@ mod tests {
         }
     }
 
-    /// `rule:errors/diagnostic-record`'s own M4 verification bullet: `Core\Debug::dump` writes to
+    /// `rule:errors/diagnostic-record`: `Core\Debug::dump` writes to
     /// **stderr** in a CLI program, and standard output stays byte-empty.
     ///
     /// The assertion is made here rather than in a `.nvst` case because

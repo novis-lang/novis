@@ -588,9 +588,8 @@ pub(super) fn settings_uint(value: &Value, key: &str) -> Result<Option<u64>, Fau
 /// would be.** `E0402` refuses a settings object that omits a key the merged list
 /// requires, and the merged list can only require a key **every** arm does:
 /// `driver` is one, `host` is not, because the SQLite arm does not declare it.
-/// So a missing `host` reaches here as a `Tag::Null`, and until `rule:core-api/shape-arms-are-disjoint`'s
-/// arm selection lands — this module's known gap 1 — it is a program error and
-/// a catchable one, rather than an impossible state worth a `FATAL`.
+/// So a `host` that reaches here as a `Tag::Null` is a program error and a
+/// catchable one, rather than an impossible state worth a `FATAL`.
 ///
 /// # Errors
 ///

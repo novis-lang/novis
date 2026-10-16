@@ -20,7 +20,7 @@
 //!
 //! Spec § 17's `Core\Http\Client` shares the `Core\Http` prefix and is a
 //! different domain (`rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`
-//! owns it). When it lands it names *this* enum: a namespace prefix is not a
+//! owns it). It names *this* enum: a namespace prefix is not a
 //! module boundary, and a second `Core\Http\Method` would be two rosters
 //! disagreeing about what `Post` is worth.
 //!

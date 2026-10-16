@@ -419,8 +419,7 @@ nvs_runtime::nvs_helper! {
 /// Standard error and not standard output, because a page printed *instead of*
 /// what was asked for is not the program's answer — a shell pipeline reading
 /// this program's output must not receive a usage page as data. It is the
-/// channel `Core\Debug::dump` already writes to (`rule:errors/debug-dump`), which is this
-/// tree's only spelling of "not the answer" until `rule:tooling/the-terminal-profile-resolves-once`'s `write` lands.
+/// channel `Core\Debug::dump` already writes to (`rule:errors/debug-dump`).
 ///
 /// # Errors
 ///

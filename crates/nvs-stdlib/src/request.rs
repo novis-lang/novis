@@ -28,10 +28,7 @@
 //! `Host` line already among its headers, normalised by [`host_named`] and
 //! never read out of a forwarded one.
 //!
-//! `mount` and `route` are known gaps of this module rather than of § 15, both
-//! waiting on the same thing: the match `nvs_server` makes once before the
-//! handler.
-//!
+
 //! # There is no request here, and that is a throw
 //!
 //! Every member refuses when the context is answering no request —
@@ -155,8 +152,8 @@
 //! **The prefixes are enforced here as far as the field can show them**, which
 //! is [`cookie_of`]'s doc: a `__Host-` name arriving twice is not visible,
 //! because a browser holds at most one per host. The other half of § 3 — that
-//! the connection was secure — is a known gap waiting on `scheme()`, since the
-//! carrier does not hold what the door concluded about the connection.
+//! the connection was secure — is not asked on this read path, though
+//! [`nvs_core_request_scheme`] answers it.
 //! `Core\Response::addCookie` refuses to *write* a cookie that would not be
 //! visible, which is the same rule from the end that can see every attribute.
 //!

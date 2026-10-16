@@ -2330,8 +2330,7 @@ impl RuleSet {
 /// table. `the_locale_table_is_sorted_and_lower_case` is what keeps both true.
 ///
 /// Adding a language is a row here, and an arm above only when its published
-/// rule is a shape no arm has. The module doc's gap 3 names the absences that
-/// are the second kind.
+/// rule is a shape no arm has.
 static RULES: &[(&str, RuleSet)] = &[
     ("af", RuleSet::ExactlyOne),
     ("ak", RuleSet::ZeroToOne),
@@ -3268,8 +3267,7 @@ mod tests {
         assert_eq!(read(&pieces, "69-01-01", &zone).unwrap().year(), 1969);
     }
 
-    /// The module doc's gap 2 used to name eight letters this subset refused.
-    /// It names none of them now: each renders, each reads back, and the two
+    /// Eight pattern letters, each of which renders and reads back. The two
     /// that carry something a civil date does not already hold — the era and
     /// the signed proleptic year — reach the value rather than being consumed
     /// and dropped.
@@ -3362,7 +3360,7 @@ mod tests {
             .expect("a fixed offset has no gap to fall in")
     }
 
-    /// The ten letters gap 2 used to refuse beside `Y` and `e`, each rendering
+    /// Ten pattern letters beside `Y` and `e`, each rendering
     /// what ICU renders under the Gregorian calendar: the two year letters
     /// resolve onto the two this subset already writes, the two day-period
     /// letters read English's periods, and the four zone letters render the
