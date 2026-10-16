@@ -59,6 +59,10 @@ env = { CLAUDECODE = "" }
 # fails it, and that pauses the loop. It is attached, so the next session starts once it has ended.
 [hooks]
 after_session = [{ run = ["bun", "nv", "sweep"], timeout = 3600, on_fail = "pause" }]
+# `tools/nv/cmd/side.ts`: in a side loop's lane, it installs the tools' packages, copies in the git-ignored
+# files and seeds the selection store, each only when it is missing; in any other loop it does nothing.
+# The timeout covers its own 600-second cap on `bun install` and the copies.
+before_run = [{ run = ["bun", "nv", "side", "--prepare", "--hook"], timeout = 900, on_fail = "pause" }]
 
 [prose]
 scope = "Text an end user reads"
