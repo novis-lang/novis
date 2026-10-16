@@ -616,7 +616,8 @@ impl WorkerCores {
     /// idle core** this tries, never the first
     /// (`rule:concurrency/on-worker-runs-the-child-on-another-core`).
     ///
-    /// The order is: an idle core other than the placing one, then a new core if
+    /// The order is: an idle core other than the placing one, a registered one
+    /// before one this set started, then a new core if
     /// the bound allows one, then the placing core if no placement is running on
     /// it, then the round robin over the other cores. So with four cores, a
     /// request that spawns four children runs all four at once: three on the
@@ -645,12 +646,18 @@ impl WorkerCores {
             Some(mine) => !Arc::ptr_eq(&core.inbox, mine),
             None => true,
         };
-        if let Some(idle) = self
+        // An idle registered core before an idle core this set started: the
+        // registered one is already pinned and turning, and a started core
+        // beside it was made by a placement before the registration.
+        let idle = |core: &&Core| elsewhere(core) && core.inbox.live() == 0;
+        if let Some(core) = self
             .cores
             .iter()
-            .find(|core| elsewhere(core) && core.inbox.live() == 0)
+            .filter(idle)
+            .find(|core| core.worker.is_none())
+            .or_else(|| self.cores.iter().find(idle))
         {
-            return Some(Arc::clone(&idle.inbox));
+            return Some(Arc::clone(&core.inbox));
         }
         let reaches_a_registered_core = self
             .cores

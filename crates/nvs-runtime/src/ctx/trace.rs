@@ -588,7 +588,9 @@ pub struct Counted {
 /// [`nvs_probe_edge`] (`nvs_ir::Program::stmt_spans` and
 /// `nvs_ir::Program::edge_spans` say which source span each number is).
 ///
-/// **One table for every context the run makes.** A child copies its parent's
+/// **One table for every context a run makes from the one that holds it.**
+/// `nvs test` is the exception: each test gets a table of its own, added to the
+/// run's with [`StmtHits::add`] when the test finishes. A child copies its parent's
 /// handle the way it copies [`DebugFlags`] ([`Ctx::isolate`], [`Ctx::child`],
 /// [`Ctx::placed_isolate`]), so a statement a test's isolate ran is still
 /// counted after that isolate is gone, and the host that installed the table
@@ -669,6 +671,22 @@ impl StmtHits {
     #[must_use]
     pub fn edge_counts(&self) -> Vec<u64> {
         read(&self.edges)
+    }
+
+    /// Adds another table's [`Self::counts`] and [`Self::edge_counts`] into
+    /// this one, counter by counter. A count past the end of this table is
+    /// ignored, as [`Self::record`] ignores a number past the end.
+    ///
+    /// `nvs test` gives each test a table of its own and adds it to the run's
+    /// when the test finishes, so the lines one test reached stay that test's
+    /// while other tests run at the same time.
+    pub fn add(&self, counts: &[u64], edges: &[u64]) {
+        for (counter, count) in self.stmts.iter().zip(counts) {
+            counter.fetch_add(*count, std::sync::atomic::Ordering::Relaxed);
+        }
+        for (counter, count) in self.edges.iter().zip(edges) {
+            counter.fetch_add(*count, std::sync::atomic::Ordering::Relaxed);
+        }
     }
 }
 

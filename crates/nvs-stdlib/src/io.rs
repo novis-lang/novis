@@ -2206,7 +2206,13 @@ nvs_runtime::nvs_helper! {
     /// **What it spends:** one buffer the size of the input, charged to the
     /// request's memory limit like [`nvs_core_io_read`]'s and bounded by the
     /// same number rather than by a second one.
-    fn nvs_core_io_stdin(_ctx, _args: [0]) {
+    ///
+    /// **A `#[Test]` method reads end of input**, so a test never stops
+    /// `nvs test` to wait for a person (`rule:testing/tests-run-across-every-core`).
+    fn nvs_core_io_stdin(ctx, _args: [0]) {
+        if ctx.run_kind() == nvs_runtime::RunKind::Test {
+            return text_of(&[], "Core\\IO::stdin");
+        }
         read_to_text(&mut std::io::stdin().lock())
     }
 }

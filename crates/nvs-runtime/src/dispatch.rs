@@ -912,6 +912,71 @@ impl CrossedFixtures {
         Some(Ok(Self { built }))
     }
 
+    /// The values `needs` names out of `from`, each as [`crate::graph::encode`]'s
+    /// bytes, in that order: the half of [`Self::copy`] that runs on the
+    /// parent's core when the test runs on another one.
+    ///
+    /// `None` and the error mean what they mean for [`Self::copy`]. The source
+    /// keeps the reference it started with.
+    ///
+    /// # Errors
+    ///
+    /// [`crate::GraphError`] naming the value that cannot cross.
+    pub fn encode(
+        from: &Fixtures,
+        needs: &[String],
+    ) -> Option<Result<Vec<Vec<u8>>, crate::GraphError>> {
+        let borrowed = from.values(needs)?;
+        let mut encoded = Vec::with_capacity(borrowed.len());
+        for value in borrowed {
+            #[expect(
+                unsafe_code,
+                reason = "`from` holds a reference to each of these for the whole \
+                          of this call, so the retain the encode then consumes is \
+                          made against a live payload, and the source is left \
+                          with the one it started with"
+            )]
+            unsafe {
+                value.retain();
+            }
+            match crate::graph::encode(value) {
+                Ok(bytes) => encoded.push(bytes),
+                Err(refused) => return Some(Err(refused)),
+            }
+        }
+        Some(Ok(encoded))
+    }
+
+    /// [`Self::encode`]'s bytes read back into this thread's arena, against
+    /// `receiving`, the class table of the context the test runs under: the
+    /// half of [`Self::copy`] that runs on the core the test runs on.
+    ///
+    /// # Errors
+    ///
+    /// [`crate::GraphError`] for bytes that name a class `receiving` does not
+    /// hold. What decoded before it is released.
+    pub fn decode(
+        encoded: &[Vec<u8>],
+        receiving: Option<&crate::ErrorClass>,
+    ) -> Result<Self, crate::GraphError> {
+        let resolve = |name: &str| {
+            receiving
+                .and_then(|table| table.sibling(name))
+                .map(|class| class.desc())
+        };
+        let mut built = Vec::with_capacity(encoded.len());
+        for bytes in encoded {
+            match crate::graph::decode(bytes, &resolve) {
+                Ok(value) => built.push(value),
+                Err(refused) => {
+                    drop(Self { built });
+                    return Err(refused);
+                }
+            }
+        }
+        Ok(Self { built })
+    }
+
     /// The copies, in the order `needs` named them — **borrowed**, exactly as
     /// [`Fixtures::values`] is: the call retains its own.
     #[must_use]

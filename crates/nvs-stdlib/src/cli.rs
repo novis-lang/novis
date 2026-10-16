@@ -1445,8 +1445,13 @@ fn question_of(value: &Value, member: &str) -> Result<String, Fault> {
 /// response body or a `Core\Out::capture` buffer is a question nobody sees —
 /// and a read after it would hold the core until a keystroke that is never
 /// coming.
+///
+/// A `#[Test]` method is never watched, so a test never stops `nvs test` to
+/// wait for a person (`rule:testing/tests-run-across-every-core`).
 fn watched(ctx: &nvs_runtime::Ctx) -> bool {
-    ctx.output_reaches_the_terminal() && nvs_runtime::terminal::is_interactive()
+    ctx.run_kind() != nvs_runtime::RunKind::Test
+        && ctx.output_reaches_the_terminal()
+        && nvs_runtime::terminal::is_interactive()
 }
 
 /// One line off the controlling terminal, or which kind of silence came back
