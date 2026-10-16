@@ -81,6 +81,9 @@ const { sidebar } = Astro.locals.starlightRoute
     flex-wrap: wrap;
     row-gap: 0.1rem;
   }
+  #nv-sidebar-tree :global(a[data-subtext]:not([aria-current='page'])) {
+    color: var(--sl-color-white);
+  }
   #nv-sidebar-tree :global(a[data-subtext])::after {
     content: attr(data-subtext);
     display: block;
