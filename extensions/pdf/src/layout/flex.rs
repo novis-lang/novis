@@ -66,10 +66,18 @@ pub(super) fn container(style: &Style, width: f32, height: f32, rem: f32) -> taf
             Some("wrap-reverse") => FlexWrap::WrapReverse,
             _ => FlexWrap::NoWrap,
         },
-        justify_content: keyword(style, "justify-content").and_then(distribute),
-        align_content: keyword(style, "align-content").and_then(distribute),
-        align_items: keyword(style, "align-items").and_then(align),
-        justify_items: keyword(style, "justify-items").and_then(align),
+        justify_content: keyword(style, "justify-content")
+            .and_then(distribute)
+            .unwrap_or_default(),
+        align_content: keyword(style, "align-content")
+            .and_then(distribute)
+            .unwrap_or_default(),
+        align_items: keyword(style, "align-items")
+            .and_then(align)
+            .unwrap_or_default(),
+        justify_items: keyword(style, "justify-items")
+            .and_then(align)
+            .unwrap_or_default(),
         gap: Size {
             width: gap("column-gap"),
             height: gap("row-gap"),
