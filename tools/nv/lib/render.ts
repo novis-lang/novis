@@ -14,6 +14,11 @@ export interface Output {
   /** Repo-relative. */
   path: string;
   text: string;
+  /**
+   * Whether a file on disk whose text is not `text` is still current, for `--check` alone: a write
+   * always writes `text`. Without it a file is current only when its text is `text`.
+   */
+  current?: (onDisk: string) => boolean;
 }
 
 export interface Renderer {
@@ -91,7 +96,8 @@ export function markdown(body: string): string {
 }
 
 export interface Applied {
-  /** Files whose text on disk differed, or which did not exist. Written unless `check` was set. */
+  /** Files whose text on disk differed, or which did not exist. Written unless `check` was set, and
+   * with `check` a file its output's `current` accepts is not one of them. */
   stale: string[];
   unchanged: number;
 }
@@ -113,7 +119,7 @@ export function apply(outputs: Output[], opts: { check: boolean; root?: string }
     } catch {
       before = null;
     }
-    if (before === text) {
+    if (before === text || (opts.check && before !== null && out.current?.(before) === true)) {
       unchanged++;
       continue;
     }

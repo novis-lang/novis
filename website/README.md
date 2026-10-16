@@ -36,6 +36,7 @@ renders them all at build time, and a member's prose is its `about.md`.
 | `src/pages/reference/core/[...slug].astro` | human | the one route that renders every Core class and member page |
 | `src/content/docs/reference/core/index.mdx` | human | the Core reference's landing page |
 | `src/data/reference.json` | tool | the Configuration and CLI pages, regenerated with `core.json` |
+| `src/data/numbers.json` | tool | the counts the front page and *How Novis is written* print, rounded down, from `../tools/nv/renderers/website-numbers.ts`, which says what each one counts. Its `--check` passes while every figure is still at most the real count |
 | `src/pages/reference/[area]/[...slug].astro` | human | the one route that renders every Configuration and CLI page and both landing pages |
 | `../docs/examples/**` | the proofs sweep | each member's `about.md` and examples, read in place by `src/lib/feature.ts`; the site holds no copy. `bun nv proofs --run` runs each example and diffs it against its `.out` file |
 | `config/spec-overrides.mjs` | human | corrections for spec table rows the renderer cannot read — every fix goes here, never into the renderer |

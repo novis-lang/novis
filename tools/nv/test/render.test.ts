@@ -12,6 +12,7 @@ import { referenceData } from "../renderers/website-reference.ts";
 import type { Entry } from "../proofs/roster.ts";
 import { renderWebsiteCompare } from "../renderers/website-compare.ts";
 import { EDITOR_GRAMMAR, renderWebsiteGrammar } from "../renderers/website-grammar.ts";
+import { countTree, renderWebsiteNumbers, roundDown, stillTrue } from "../renderers/website-numbers.ts";
 import { scratch, type Scratch } from "./scratch.ts";
 
 let tmp: Scratch;
@@ -68,6 +69,56 @@ describe("render", () => {
     apply(outputs, { check: false, root: tmp.root });
     expect(readFileSync(join(tmp.root, "out/a.md"), "utf8")).toBe("new\n");
     expect(apply(outputs, { check: true, root: tmp.root }).stale).toEqual([]);
+  });
+
+  test("an output's current accepts other text under --check, and a write still writes its own", () => {
+    tmp = scratch();
+    tmp.put("out/a.md", "older\n");
+    const outputs = [{ path: "out/a.md", text: "new", current: (onDisk: string) => onDisk.startsWith("old") }];
+    expect(apply(outputs, { check: true, root: tmp.root })).toEqual({ stale: [], unchanged: 1 });
+    expect(apply(outputs, { check: false, root: tmp.root }).stale).toEqual(["out/a.md"]);
+    expect(readFileSync(join(tmp.root, "out/a.md"), "utf8")).toBe("new\n");
+  });
+
+  test("the website's numbers count each tree's cases and round all but the crates down", () => {
+    tmp = scratch();
+    tmp.put("tests/hostile/core/Str/length/01-unbounded-input.nvs", "");
+    tmp.put("tests/hostile/lang/jobs/02-fails.nvs", "");
+    tmp.put("tests/hostile/lang/jobs/scripts/child.nvs", "");
+    tmp.put("tests/conformance/array/a.nvst", "");
+    tmp.put("crates/nvs-syntax/Cargo.toml", "");
+    tmp.put("crates/nvs-syntax/src/lib.rs", "#[test]\nfn a() {}\n    #[tokio::test(flavor = \"current_thread\")]\n// #[test]\n#[test_case]\n");
+    tmp.put("crates/nvs-runtime/Cargo.toml", "");
+    tmp.put("crates/notes/README.md", "");
+    tmp.put("docs/examples/core/Str/length/01-count.nvs", "");
+    tmp.put("docs/examples/core/Str/length/01-count.out", "");
+    tmp.put("benches/members/core/Str/length.nvs", "");
+    tmp.put("benches/members/core/Str/length.scale.nvs", "");
+    tmp.put("benches/members/_calibration/unit.nvs", "");
+    tmp.put("tests/lsp/hover/a.lspt", "");
+    const exact = countTree(tmp.root);
+    expect(exact).toEqual({
+      attacks: 2,
+      languageTests: 1,
+      rustTests: 2,
+      examples: 1,
+      benchmarks: 2,
+      editorTests: 1,
+      crates: 2,
+      cratesWithoutUnsafe: 1,
+    });
+    expect([1422, 384, 75, 100, 7148, 12_345].map(roundDown)).toEqual([1400, 380, 75, 100, 7100, 12_000]);
+
+    const big = { ...exact, attacks: 1422, rustTests: 7148 };
+    const out = renderWebsiteNumbers(big);
+    const shown = JSON.parse(out.text);
+    expect(shown).toMatchObject({ comment: MARKER, attacks: 1400, rustTests: 7100, crates: 2, cratesWithoutUnsafe: 1 });
+    expect(stillTrue(out.text, big)).toBe(true);
+    expect(stillTrue(out.text, { ...big, attacks: 1500 })).toBe(true);
+    expect(stillTrue(out.text, { ...big, attacks: 1399 })).toBe(false);
+    expect(stillTrue(out.text, { ...big, crates: 3 })).toBe(false);
+    expect(stillTrue(JSON.stringify({ ...shown, extra: 1 }), big)).toBe(false);
+    expect(stillTrue("not json", big)).toBe(false);
   });
 
   test("a file in an owned directory that no output writes is an orphan, unless it is kept", () => {

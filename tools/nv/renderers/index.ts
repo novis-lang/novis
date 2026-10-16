@@ -11,7 +11,8 @@ import { specTables } from "./spec-tables.ts";
 import { websiteCompare } from "./website-compare.ts";
 import { websiteCore } from "./website-core.ts";
 import { websiteGrammar } from "./website-grammar.ts";
+import { websiteNumbers } from "./website-numbers.ts";
 
-export const RENDERERS: Renderer[] = [specTables, websiteGrammar, websiteCompare, recordSchemas];
+export const RENDERERS: Renderer[] = [specTables, websiteGrammar, websiteCompare, websiteNumbers, recordSchemas];
 
-export const WEBSITE_RENDERERS: Renderer[] = [websiteGrammar, websiteCompare, websiteCore];
+export const WEBSITE_RENDERERS: Renderer[] = [websiteGrammar, websiteCompare, websiteNumbers, websiteCore];
