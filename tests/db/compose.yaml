@@ -9,8 +9,8 @@
 #
 # Three standing decisions this file makes, each because rediscovering it costs an afternoon:
 #
-# * **Every image is pinned to a patch version.** A driver matrix that silently moved from MySQL 8.4.11 to
-#   8.5 would report a protocol change as a regression in our own code.
+# * **Every image is pinned to a patch version.** A driver matrix that silently moved from MySQL 9.7.2 to
+#   9.8 would report a protocol change as a regression in our own code.
 # * **No data volumes.** A container's own filesystem holds the data, so `down` destroys it and every
 #   `up` starts from a first-boot database. The alternative -- a named volume outliving a credential
 #   change in this file -- is the classic "access denied for a password that is right there" hour.
@@ -130,7 +130,8 @@ services:
   # than one with a flag -- `rule:core-classes/db-one-api`.
   # ---------------------------------------------------------------------------------------------------
   mysql:
-    image: mysql:8.4.11
+    # HOLD (revisit 2026-11-16): 9.7 is MySQL's LTS line, which the `lts` tag names; 26.x is an Innovation release, supported only until the next one.
+    image: mysql:9.7.2
     depends_on:
       certs:
         condition: service_completed_successfully
