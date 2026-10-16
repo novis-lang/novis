@@ -364,7 +364,7 @@ jobs:
       # Redis-compatible server. The proof build below takes minutes, so each is up before it is dialled.
       - name: A Redis server for the session proofs (Linux)
         if: runner.os == 'Linux'
-        run: docker run -d --name redis -p 127.0.0.1:16379:6379 redis:8.2.9
+        run: docker run -d --name redis -p 127.0.0.1:16379:6379 redis:8.10.2
       - name: A Redis server for the session proofs (macOS)
         if: runner.os == 'macOS'
         run: |

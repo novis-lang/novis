@@ -298,7 +298,7 @@ services:
   # assert the encrypted path without a second container.
   # ---------------------------------------------------------------------------------------------------
   redis:
-    image: redis:8.2.9
+    image: redis:8.10.2
     depends_on:
       certs:
         condition: service_completed_successfully
