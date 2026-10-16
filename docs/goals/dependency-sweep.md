@@ -24,7 +24,7 @@ stages:
         rules: [packaging/an-extension-is-a-sandboxed-wasm-component, packaging/a-dependency-move-proves-two-things]
   - id: 4
     title: the workspace crates
-    status: open
+    status: done
     context: [Cargo.toml, crates/nvs-stdlib/src/hash.rs, crates/nvs-stdlib/src/encoding.rs, deny.toml]
   - id: 5
     title: html5ever 0.40 with the patch carried over
@@ -249,14 +249,14 @@ see changes.
 - [x] toml 1.x. `crates/nvs-config/src/request.rs:459`
 - [x] criterion 0.8. Its new `alloca` C dependency is dev-only. `Cargo.toml:1055`
 - [x] The five unused rows are removed. `Cargo.toml:412`
-- [ ] Every blocked row has its `HOLD` line. `Cargo.toml:1`
+- [x] Every blocked row has its `HOLD` line. `Cargo.toml:1`
 
 ### 5. html5ever 0.40 with the patch carried over
 
 **Does:** the vendored html5ever is 0.40 with every `// Novis:` hunk carried over and its tests passing, in the root, `fuzz/` and `extensions/pdf/`.
 
-- [ ] Re-vendor 0.40.1 and carry the hunks from 6a9030d4c over. The patch is not upstream. `finish_attribute` conflicts with upstream's atom comparison, and the tokenizer states moved into enums. `vendor/html5ever/Cargo.toml:1`
-- [ ] The three `[patch]` rows and `markup5ever` 0.40 move. `Cargo.toml:1180`
+- [x] Re-vendor 0.40.1 and carry the hunks from 6a9030d4c over. The patch is not upstream. `finish_attribute` conflicts with upstream's atom comparison, and the tokenizer states moved into enums. `vendor/html5ever/Cargo.toml:1`
+- [x] The three `[patch]` rows and `markup5ever` 0.40 move. `Cargo.toml:1180`
 - [ ] Fuzz `lex` and `parse` per battery leg D. `fuzz/Cargo.toml:1`
 
 ### 6. the built-in components and wasi-sdk
@@ -310,31 +310,29 @@ see changes.
 
 ### State
 
-Stages 1, 2 and 3 are done. Stage 4 has one item left. On disk, one commit each: the in-range
-`cargo update` (hyper 1.12), the five unused rows removed, base64 0.23 with
-`default-features = false`, toml 1, criterion 0.8, and the RustCrypto group on `digest 0.11` (sha2,
-sha1 and md-5 0.11, sha3 0.12, hmac 0.13, no `sha2-v11` alias).
-- sha3 0.12 has no `EagerHash`, so the SHA-3 HMACs use `hmac::SimpleHmac`
-  (`crates/nvs-stdlib/src/hash.rs:846`). The existing vectors pass.
-- base64's `simd-unsafe` is on only in `nvs-ext`'s test build, through `usvg` in the native image
-  build. The shipped graph has none (`Cargo.toml:818`).
-- `cargo deny check` passes. Its `RUSTSEC-2026-0206` ignore is not matched in the root lock,
-  because it covers the PDF component's own lock.
-- `engine-guards` and the canary are green on Windows. Not checked: Linux and macOS, and the
-  `nvs ext new` template under the narrowed proposal set.
-- The nightly run 38701926032 tested `cb7021a24`, an old commit. Its red jobs are not this tree's
-  until the user pushes.
-- `live_edit`'s `a_file_that_changes_during_a_compile_discards_that_compile` failed in two gate runs
-  out of four this session, beside `spreadsheet_read` and `parallel_tests_overlap_on_more_than_one_core`.
-  Each passed alone.
+Stages 1 to 4 are done. Stage 5 has its fuzz item left.
+- The root lock has six crates behind latest, and each has a `HOLD` line dated 2026-11-16 in
+  `Cargo.toml`. `wit-parser`, `wasmparser` and `wit-component` 0.262 wait for wasmtime, whose
+  `sha2` 0.10 also keeps `generic-array` at 0.14.7 (`Cargo.toml:372`). `brotli` 9.0.0 needs
+  `brotli-decompressor ~6.0` (`Cargo.toml:948`). `postgres-protocol` 0.6.12 uses
+  `fallible-iterator` 0.2 (`Cargo.toml:1010`).
+- html5ever is 0.40.1 in `vendor/`, merged three ways from 0.39.0. All eleven `// Novis:` sites
+  are there. Upstream now compares attribute names as `LocalName` atoms, so the duplicate-name set
+  holds atoms (`vendor/html5ever/src/tokenizer/mod.rs:569`). 0.40.1 still has no cap on open elements
+  and no fingerprint. `markup5ever` 0.40, `string_cache` 0.11 and `web_atoms` 0.3 follow in all
+  three locks: the root, `fuzz/` and `extensions/pdf/`.
+- `cargo deny check` passes, and the attribution file is regenerated.
+- The nightly run 38869457440 tested `cb7021a24`, an old commit, again. Its red jobs are not this
+  tree's until the user pushes. The floor debt run needs `samba-ad`, and Docker is not running on
+  this machine.
 
 ### Next
 
-**Stage 4's last item, then stage 5.** Files: the root `Cargo.toml`, `vendor/html5ever/`, `fuzz/`.
+**Stage 5's fuzz item, then stage 6.** Files: `fuzz/`, then `extensions/*/Cargo.toml`.
 
-- [ ] A `HOLD` line above `fallible-iterator`, because `postgres-protocol` 0.6 uses 0.2. `cargo update --verbose` lists 14 crates behind latest: each gets a hold or a bump. `Cargo.toml:1004`
-- [ ] Re-vendor html5ever 0.40.1 and carry the hunks from 6a9030d4c over. `vendor/html5ever/Cargo.toml:1`
-- [ ] The three `[patch]` rows and `markup5ever` 0.40 move together. `Cargo.toml:1180`
+- [ ] Fuzz `lex` and `parse` per battery leg D against html5ever 0.40.1. `fuzz/Cargo.toml:1`
+- [ ] wit-bindgen 0.63 in the four components and the template, with CI's `wit-bindgen-cli` at the same version. `crates/nvs-cli/templates/ext/rust/Cargo.toml:12`, `.github/workflows/ci.yml:564`
+- [ ] pdf: hayro-interpret 0.8, the same as image and the root. `extensions/pdf/src/read.rs:29`
 
 ### Backlog
 

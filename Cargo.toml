@@ -920,7 +920,7 @@ fluent-uri = "0.4"
 # clause needs: building someone else's DOM and walking it into ours would hold
 # the document twice and put a second node family in the crate for the length of
 # a parse.
-html5ever = "0.39"
+html5ever = "0.40"
 
 # --- compression (spec § 17's `Core\Compress`, `rule:core-classes/decompression-bound`) ---
 # Three crates for five codec cases, and `rule:packaging/a-c-dependency-answers-two-questions`'s first
@@ -1168,12 +1168,12 @@ debug-assertions = false
 # Patched third-party crates.
 # ---------------------------------------------------------------------------
 [patch.crates-io]
-# The published 0.39.0 with the changes `rule:core-classes/html-parsing` needs:
+# The published 0.40.1 with the changes `rule:core-classes/html-parsing` needs:
 # a cap on the stack of open elements that `crates/nvs-stdlib/src/html.rs`
 # switches on, a hash set for duplicate attribute names, and a cached
 # fingerprint for the active formatting elements' attribute comparison. No
 # html5ever release has them, and without them a small hostile document costs
-# time in the square of its size. The version stays 0.39.0, so the `html5ever`
+# time in the square of its size. The version stays 0.40.1, so the `html5ever`
 # row above resolves to this copy unchanged, and upgrading means carrying the
 # patch onto the new release.
 html5ever = { path = "vendor/html5ever" }

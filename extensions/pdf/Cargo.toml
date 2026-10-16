@@ -16,7 +16,7 @@ aes = "0.9"
 base64 = "0.22"
 cssparser = "0.38"
 hayro-interpret = { version = "0.7", default-features = false }
-html5ever = "0.39"
+html5ever = "0.40"
 hypher = "0.1.8"
 krilla = { version = "0.8", default-features = false, features = ["pdf", "raster-images"] }
 krilla-svg = "0.8.1"
@@ -48,7 +48,7 @@ panic = "abort"
 # never resolves it for the host as part of the tree's ordinary build.
 [workspace]
 
-# The repository's patched html5ever 0.39.0, which `rule:core-classes/html-parsing`
+# The repository's patched html5ever 0.40.1, which `rule:core-classes/html-parsing`
 # needs for its cap on open elements. The root `Cargo.toml`'s `[patch.crates-io]`
 # row says what the patch carries; a workspace of its own needs the row again.
 [patch.crates-io]
