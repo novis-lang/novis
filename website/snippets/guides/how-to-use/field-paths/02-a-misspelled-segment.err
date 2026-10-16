@@ -1,9 +1,9 @@
 error[E0405]: `Customer` has no public property `$emial`
-   --> 02-a-misspelled-segment.nvs:18:32
+   --> 02-a-misspelled-segment.nvs:23:32
    |
-18 | echo Mapper::orderBy("customer.emial"), "\n";
+23 | echo Mapper::orderBy("customer.emial"), "\n";
    |                                ^^^^^ this part of the path is checked here
-   = help: each part of a property path names a public property of the class the path has reached: `Customer` has `$email`, `$name`
+   = help: each part of a property path names a public property of the class the path has reached: `Customer` has `$city`, `$email`, `$name`, `$phone`
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

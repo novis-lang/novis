@@ -1,7 +1,12 @@
-completion 1 18:24
+completion 1 23:23
+createdAt	property	string
 customer	property	null|Customer
+id	property	int
+status	property	string
 total	property	int
 
-completion 3 18:32
+completion 5 23:32
+city	property	string
 email	property	string
 name	property	string
+phone	property	string

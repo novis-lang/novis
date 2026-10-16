@@ -3,10 +3,15 @@
 class Customer {
     public string $name = "Ada";
     public string $email = "ada@example.com";
+    public string $phone = "555-0100";
+    public string $city = "London";
 }
 
 class Order {
+    public int $id = 1;
     public int $total = 40;
+    public string $status = "paid";
+    public string $createdAt = "2026-01-15";
     public ?Customer $customer = null;
 }
 
@@ -16,9 +21,13 @@ class Mapper {
     }
 }
 
-echo Mapper::orderBy("<|>"), "\n";
+echo Mapper::orderBy(<|>"), "\n";
 --STEPS--
-type cu
+type "
+type c
+type u
 accept customer
-type .em
+type .
+type e
+type m
 accept email
